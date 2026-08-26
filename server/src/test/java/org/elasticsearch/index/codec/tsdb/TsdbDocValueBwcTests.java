@@ -39,11 +39,11 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.Elasticsearch816Codec;
-import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
+import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests.TestES87TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
-import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests;
+import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -61,16 +61,22 @@ public class TsdbDocValueBwcTests extends ESTestCase {
 
     public void testMixedIndex() throws Exception {
         var oldCodec = TestUtil.alwaysDocValuesFormat(new TestES87TSDBDocValuesFormat());
-        var compressionMode = ES819TSDBDocValuesFormatTests.randomBinaryCompressionMode();
+        var compressionMode = TSDBDocValuesTestUtil.randomBinaryCompressionMode();
         var newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(compressionMode));
         testMixedIndex(oldCodec, newCodec);
     }
 
     public void testMixedIndexDocValueVersion0ToVersion1() throws Exception {
         var oldCodec = TestUtil.alwaysDocValuesFormat(new TestES819TSDBDocValuesFormatVersion0());
-        var compressionMode = ES819TSDBDocValuesFormatTests.randomBinaryCompressionMode();
+        var compressionMode = TSDBDocValuesTestUtil.randomBinaryCompressionMode();
         var newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(compressionMode));
         testMixedIndex(oldCodec, newCodec, this::assertVersion819, this::assertVersion819);
+    }
+
+    public void testMixedIndexDocValueVersion2ToCurrent() throws Exception {
+        var oldCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat());
+        var newCodec = TestUtil.alwaysDocValuesFormat(new ES819Version3TSDBDocValuesFormat());
+        testMixedIndex(oldCodec, newCodec, this::assertVersion819, this::assertVersion819Version3);
     }
 
     public void testMixedIndexDocValueBinaryCompressionFeatureDisabledOldCodec() throws Exception {
@@ -100,10 +106,8 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                 return docValuesFormat;
             }
         };
-        var newCodec = new Elasticsearch92Lucene103Codec() {
-            final DocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat(
-                ES819TSDBDocValuesFormatTests.randomBinaryCompressionMode()
-            );
+        var newCodec = new Elasticsearch93Lucene104Codec() {
+            final DocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat(TSDBDocValuesTestUtil.randomBinaryCompressionMode());
 
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
@@ -133,8 +137,14 @@ public class TsdbDocValueBwcTests extends ESTestCase {
     }
 
     void assertVersion819(DirectoryReader reader) throws IOException, NoSuchFieldException, ClassNotFoundException, IllegalAccessException {
-        assert819DocValuesFormatVersion(reader);
+        assert819DocValuesFormatVersion(reader, "ES819TSDB_0");
         assertFieldInfoDocValuesFormat(reader, "0", "ES819TSDB");
+    }
+
+    void assertVersion819Version3(DirectoryReader reader) throws IOException, NoSuchFieldException, ClassNotFoundException,
+        IllegalAccessException {
+        assert819DocValuesFormatVersion(reader, "ES8193TSDB_0");
+        assertFieldInfoDocValuesFormat(reader, "0", "ES8193TSDB");
     }
 
     void testMixedIndex(Codec oldCodec, Codec newCodec) throws IOException, NoSuchFieldException, IllegalAccessException,
@@ -349,9 +359,9 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                             random().nextInt(16, 128),
                             nextOrdinalRangeThreshold.getAsInt(),
                             random().nextBoolean(),
-                            ES819TSDBDocValuesFormatTests.randomBinaryCompressionMode(),
+                            TSDBDocValuesTestUtil.randomBinaryCompressionMode(),
                             randomBoolean(),
-                            ES819TSDBDocValuesFormatTests.randomNumericBlockSize()
+                            TSDBDocValuesTestUtil.randomNumericBlockSize()
                         )
                     )
                 );
@@ -446,14 +456,6 @@ public class TsdbDocValueBwcTests extends ESTestCase {
     // A hacky way to figure out whether doc values format is written in what version. Need to use reflection, because
     // PerFieldDocValuesFormat hides the doc values formats it wraps.
     private void assert87DocValuesFormatVersion(DirectoryReader reader) throws NoSuchFieldException, IllegalAccessException, IOException {
-        if (System.getSecurityManager() != null) {
-            // With jvm version 24 entitlements are used and security manager is nog longer used.
-            // Making this assertion work with security manager requires granting the entire test codebase privileges to use
-            // suppressAccessChecks and accessDeclaredMembers. This is undesired from a security manager perspective.
-            logger.info("not asserting doc values format version, because security manager is used");
-            return;
-        }
-
         for (var leafReaderContext : reader.leaves()) {
             var leaf = (SegmentReader) leafReaderContext.reader();
             var dvReader = leaf.getDocValuesReader();
@@ -466,8 +468,8 @@ public class TsdbDocValueBwcTests extends ESTestCase {
         }
     }
 
-    private void assert819DocValuesFormatVersion(DirectoryReader reader) throws NoSuchFieldException, IllegalAccessException, IOException,
-        ClassNotFoundException {
+    private void assert819DocValuesFormatVersion(DirectoryReader reader, String formatName) throws NoSuchFieldException,
+        IllegalAccessException, IOException, ClassNotFoundException {
 
         for (var leafReaderContext : reader.leaves()) {
             var leaf = (SegmentReader) leafReaderContext.reader();
@@ -477,24 +479,17 @@ public class TsdbDocValueBwcTests extends ESTestCase {
             if (dvReader instanceof XPerFieldDocValuesFormat.FieldsReader perFieldDvReader) {
                 var formats = perFieldDvReader.getFormats();
                 assertThat(formats, Matchers.aMapWithSize(1));
-                var tsdbDvReader = formats.get("ES819TSDB_0");
+                var tsdbDvReader = formats.get(formatName);
                 tsdbDvReader.checkIntegrity();
                 assertThat(
                     tsdbDvReader,
                     Matchers.instanceOf(Class.forName("org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer"))
                 );
             } else {
-                if (System.getSecurityManager() != null) {
-                    // With jvm version 24 entitlements are used and security manager is nog longer used.
-                    // Making this assertion work with security manager requires granting the entire test codebase privileges to use
-                    // suppressAccessChecks and suppressAccessChecks. This is undesired from a security manager perspective.
-                    logger.info("not asserting doc values format version, because security manager is used");
-                    continue;
-                }
                 var field = getFormatsFieldFromPerFieldFieldsReader(dvReader.getClass());
                 Map<?, ?> formats = (Map<?, ?>) field.get(dvReader);
                 assertThat(formats, Matchers.aMapWithSize(1));
-                var tsdbDvReader = (DocValuesProducer) formats.get("ES819TSDB_0");
+                var tsdbDvReader = (DocValuesProducer) formats.get(formatName);
                 tsdbDvReader.checkIntegrity();
                 assertThat(
                     tsdbDvReader,

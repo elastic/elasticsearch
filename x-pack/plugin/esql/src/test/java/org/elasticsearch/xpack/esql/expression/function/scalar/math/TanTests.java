@@ -15,8 +15,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.unary;
 
 public class TanTests extends AbstractScalarFunctionTestCase {
     public TanTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -25,14 +28,10 @@ public class TanTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        List<TestCaseSupplier> suppliers = TestCaseSupplier.forUnaryCastingToDouble(
-            "TanEvaluator",
-            "val",
-            Math::tan,
-            Double.NEGATIVE_INFINITY,
-            Double.POSITIVE_INFINITY,
-            List.of()
-        );
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        unary().evaluatorToString("TanEvaluator[val=%0]")
+            .expectedFromDouble(Math::tan)
+            .castingToDouble(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, true, suppliers);
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 

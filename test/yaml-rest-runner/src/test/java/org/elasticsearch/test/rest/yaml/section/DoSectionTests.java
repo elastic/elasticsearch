@@ -34,6 +34,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -200,6 +201,23 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         section = new DoSection(new XContentLocation(1, 1));
         section.setAllowedWarningHeadersRegex(singletonList(Pattern.compile("^test \\\\\"with quotes and \\\\\\\\ backslashes\\\\\"$")));
         section.checkWarningHeaders(singletonList(testHeaderWithQuotesAndBackslashes));
+    }
+
+    public void testParseDoSectionWithExplicitMethod() throws Exception {
+        // If the specification defines multiple methods for an api, it randomly picks one. This can lead to bwc test issues,
+        // if some methods are not available in earlier versions and requires to explicitly set the method to use.
+        parser = createParser(YamlXContent.yamlXContent, """
+            api:
+                method: GET
+                body: {"foo": "bar"}""");
+
+        DoSection doSection = DoSection.parse(parser);
+        ApiCallSection apiCallSection = doSection.getApiCallSection();
+
+        assertThat(apiCallSection, notNullValue());
+        assertThat(apiCallSection.getApi(), equalTo("api"));
+        assertThat(apiCallSection.getMethod(), equalTo("GET"));
+        assertThat(apiCallSection.getBodies(), contains(Map.of("foo", "bar")));
     }
 
     public void testParseDoSectionNoBody() throws Exception {

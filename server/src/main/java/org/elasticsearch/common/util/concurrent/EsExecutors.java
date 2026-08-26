@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 
 import java.util.List;
@@ -119,12 +120,14 @@ public class EsExecutors {
         boolean rejectAfterShutdown,
         ThreadFactory threadFactory,
         ThreadContext contextHolder,
-        TaskTrackingConfig config
+        TaskTrackingConfig config,
+        HotThreadsOnLargeQueueConfig hotThreadsOnLargeQueueConfig
     ) {
         LinkedTransferQueue<Runnable> queue = newUnboundedScalingLTQueue(min, max);
         // Force queued work via ForceQueuePolicy might starve if no worker is available (if core size is empty),
         // probing the worker pool prevents this.
         boolean probeWorkerPool = min == 0 && queue instanceof ExecutorScalingQueue;
+        final ForceQueuePolicy queuePolicy = new ForceQueuePolicy(rejectAfterShutdown, probeWorkerPool);
         if (config.trackExecutionTime()) {
             return new TaskExecutionTimeTrackingEsThreadPoolExecutor(
                 name,
@@ -135,9 +138,10 @@ public class EsExecutors {
                 queue,
                 TimedRunnable::new,
                 threadFactory,
-                new ForceQueuePolicy(rejectAfterShutdown, probeWorkerPool),
+                queuePolicy,
                 contextHolder,
-                config
+                config,
+                hotThreadsOnLargeQueueConfig
             );
         } else {
             return new EsThreadPoolExecutor(
@@ -148,8 +152,9 @@ public class EsExecutors {
                 unit,
                 queue,
                 threadFactory,
-                new ForceQueuePolicy(rejectAfterShutdown, probeWorkerPool),
-                contextHolder
+                queuePolicy,
+                contextHolder,
+                hotThreadsOnLargeQueueConfig
             );
         }
     }
@@ -188,7 +193,8 @@ public class EsExecutors {
             rejectAfterShutdown,
             threadFactory,
             contextHolder,
-            TaskTrackingConfig.DO_NOT_TRACK
+            TaskTrackingConfig.DO_NOT_TRACK,
+            HotThreadsOnLargeQueueConfig.DISABLED
         );
     }
 
@@ -221,7 +227,8 @@ public class EsExecutors {
                 threadFactory,
                 rejectedExecutionHandler,
                 contextHolder,
-                config
+                config,
+                HotThreadsOnLargeQueueConfig.DISABLED
             );
         } else {
             return new EsThreadPoolExecutor(
@@ -233,7 +240,8 @@ public class EsExecutors {
                 queue,
                 threadFactory,
                 rejectedExecutionHandler,
-                contextHolder
+                contextHolder,
+                HotThreadsOnLargeQueueConfig.DISABLED
             );
         }
     }
@@ -567,23 +575,28 @@ public class EsExecutors {
     public static class TaskTrackingConfig {
         // This is a random starting point alpha.
         public static final double DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST = 0.3;
+        // Just a constant to clarify that we're disabling the EWMR utilization by configuring zero
+        private static final double DISABLE_UTILIZATION_EWMR = 0.0;
 
         private final boolean trackExecutionTime;
         private final boolean trackOngoingTasks;
         private final boolean trackMaxQueueLatency;
         private final double executionTimeEwmaAlpha;
+        private final double threadUtilizationEwmrLambda;
 
         public static final TaskTrackingConfig DO_NOT_TRACK = new TaskTrackingConfig(
             false,
             false,
             false,
-            DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST
+            DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST,
+            DISABLE_UTILIZATION_EWMR
         );
         public static final TaskTrackingConfig DEFAULT = new TaskTrackingConfig(
             true,
             false,
             false,
-            DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST
+            DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST,
+            DISABLE_UTILIZATION_EWMR
         );
 
         /**
@@ -591,17 +604,20 @@ public class EsExecutors {
          * @param trackOngoingTasks Whether to track ongoing task execution time, not just finished tasks
          * @param trackMaxQueueLatency Whether to track max queue latency.
          * @param executionTimeEWMAAlpha The alpha seed for execution time EWMA (ExponentiallyWeightedMovingAverage).
+         * @param threadUtilizationEwmrLambda The lambda for the thread utilization EWMR, in inverse nanoseconds, or zero for no tracking.
          */
         private TaskTrackingConfig(
             boolean trackExecutionTime,
             boolean trackOngoingTasks,
             boolean trackMaxQueueLatency,
-            double executionTimeEWMAAlpha
+            double executionTimeEWMAAlpha,
+            double threadUtilizationEwmrLambda
         ) {
             this.trackExecutionTime = trackExecutionTime;
             this.trackOngoingTasks = trackOngoingTasks;
             this.trackMaxQueueLatency = trackMaxQueueLatency;
             this.executionTimeEwmaAlpha = executionTimeEWMAAlpha;
+            this.threadUtilizationEwmrLambda = threadUtilizationEwmrLambda;
         }
 
         public boolean trackExecutionTime() {
@@ -620,6 +636,10 @@ public class EsExecutors {
             return executionTimeEwmaAlpha;
         }
 
+        public double getThreadUtilizationEwmrLambda() {
+            return threadUtilizationEwmrLambda;
+        }
+
         public static Builder builder() {
             return new Builder();
         }
@@ -629,6 +649,7 @@ public class EsExecutors {
             private boolean trackOngoingTasks = false;
             private boolean trackMaxQueueLatency = false;
             private double ewmaAlpha = DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST;
+            private double threadUtilizationEwmrLambda = DISABLE_UTILIZATION_EWMR;
 
             public Builder() {}
 
@@ -648,10 +669,37 @@ public class EsExecutors {
                 return this;
             }
 
+            /** Sets the half-life for thread utilization EWMR tracking. */
+            public Builder threadUtilizationEwmrHalfLife(TimeValue halfLife) {
+                if (halfLife.nanos() < 0) {
+                    throw new IllegalArgumentException("halfLife must be greater than or equal to zero");
+                }
+                if (halfLife.nanos() == 0) {
+                    this.threadUtilizationEwmrLambda = DISABLE_UTILIZATION_EWMR;
+                } else {
+                    this.threadUtilizationEwmrLambda = Math.log(2.0) / halfLife.nanos();
+                }
+                return this;
+            }
+
             public TaskTrackingConfig build() {
-                return new TaskTrackingConfig(trackExecutionTime, trackOngoingTasks, trackMaxQueueLatency, ewmaAlpha);
+                return new TaskTrackingConfig(
+                    trackExecutionTime,
+                    trackOngoingTasks,
+                    trackMaxQueueLatency,
+                    ewmaAlpha,
+                    threadUtilizationEwmrLambda
+                );
             }
         }
     }
 
+    public record HotThreadsOnLargeQueueConfig(int sizeThreshold, long durationThresholdInMillis, long intervalInMillis) {
+
+        public static final HotThreadsOnLargeQueueConfig DISABLED = new HotThreadsOnLargeQueueConfig(0, -1, -1);
+
+        public boolean isEnabled() {
+            return sizeThreshold > 0;
+        }
+    }
 }

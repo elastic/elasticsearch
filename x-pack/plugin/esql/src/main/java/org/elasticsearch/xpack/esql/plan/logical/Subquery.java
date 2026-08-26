@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -21,8 +22,6 @@ import java.util.Objects;
 
 public class Subquery extends UnaryPlan implements TelemetryAware, SortAgnostic {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Subquery", Subquery::new);
-
-    // subquery alias/qualifier could be added in the future if needed
 
     public Subquery(Source source, LogicalPlan subqueryPlan) {
         super(source, subqueryPlan);
@@ -44,7 +43,7 @@ public class Subquery extends UnaryPlan implements TelemetryAware, SortAgnostic 
     }
 
     @Override
-    protected NodeInfo<Subquery> info() {
+    protected NodeInfo<? extends Subquery> info() {
         return NodeInfo.create(this, Subquery::new, child());
     }
 
@@ -83,8 +82,8 @@ public class Subquery extends UnaryPlan implements TelemetryAware, SortAgnostic 
     }
 
     @Override
-    public String nodeString() {
-        return nodeName() + "[]";
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        sb.append(nodeName()).append("[]");
     }
 
     public LogicalPlan plan() {

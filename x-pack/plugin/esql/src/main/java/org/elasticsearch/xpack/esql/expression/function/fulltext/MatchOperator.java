@@ -33,8 +33,9 @@ public class MatchOperator extends Match {
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
+        briefSummary = "Performs a match query on the specified field or expression using the : operator.",
         description = """
-            Use the match operator (`:`) to perform a <<query-dsl-match-query,match query>> on the specified field.
+            Use the match operator (`:`) to perform a <<query-dsl-match-query,match query>> on the specified field or expression.
             Using `:` is equivalent to using the `match` query in the Elasticsearch Query DSL.
 
             The match operator is equivalent to the <<esql-match,match function>>.
@@ -43,19 +44,39 @@ public class MatchOperator extends Match {
             <<esql-match,match function>>.
 
             `:` returns true if the provided query matches the row.""",
-        examples = { @Example(file = "match-operator", tag = "match-with-field") }
+        examples = {
+            @Example(
+                file = "match-operator",
+                tag = "match-with-text-field",
+                description = "The match operator can be used to perform full-text search on a `text` field. "
+                    + "Notice how the match operator handles multi-valued columns, if a single value matches the query string, "
+                    + "the expression evaluates to `TRUE`."
+            ),
+            @Example(
+                file = "match-operator",
+                tag = "match-with-keyword-field",
+                description = " The match operator can also be used with `keyword` columns to filter multi-values."
+            ),
+            @Example(
+                file = "match-operator",
+                tag = "match-with-semantic-text-field",
+                description = "This example illustrates how to do semantic search using the match operator on `semantic_text` fields. "
+                    + "By including the metadata field `_score` and sorting on `_score`, "
+                    + "we can retrieve the most relevant results in order."
+            ), }
     )
     public MatchOperator(
         Source source,
         @Param(
             name = "field",
             type = { "keyword", "text", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "unsigned_long", "version" },
-            description = "Field that the query will target."
+            description = "Field or expression that the query will target."
         ) Expression field,
         @Param(
             name = "query",
             type = { "keyword", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "unsigned_long", "version" },
-            description = "Value to find in the provided field."
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
+            description = "Value to find in the provided field or expression."
         ) Expression matchQuery
     ) {
         super(source, field, matchQuery, null, null);

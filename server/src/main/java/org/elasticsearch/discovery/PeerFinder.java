@@ -395,6 +395,8 @@ public abstract class PeerFinder {
                 if (transportService.nodeConnected(discoveryNode)) {
                     if (peersRequestInFlight == false) {
                         requestPeers();
+                    } else {
+                        logger.trace("{} probe already in flight, skipping", this);
                     }
                 } else {
                     logger.trace("{} no longer connected", this);

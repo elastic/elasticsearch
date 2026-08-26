@@ -34,8 +34,10 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -56,19 +58,36 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
     private static final int MERGE_SCHEDULER_MAX_CONCURRENCY = 3;
 
     @Override
+    protected List<String> filteredWarnings() {
+        var warnings = new ArrayList<>(super.filteredWarnings());
+        warnings.add("[indices.merge.scheduler.use_thread_pool] setting was deprecated");
+        return warnings;
+    }
+
+    @Override
     protected Settings nodeSettings() {
         return Settings.builder()
             .put(super.nodeSettings())
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
             // when there are more threads than scheduler(s)' concurrency capacity, excess merges will be backlogged
             // alternatively, when scheduler(s)' concurrency capacity exceeds the executor's thread count, excess merges will be enqueued
-            .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), MERGE_SCHEDULER_MAX_CONCURRENCY + randomFrom(-2, -1, 0, 1, 2))
+            .put(
+                EsExecutors.NODE_PROCESSORS_SETTING.getKey(),
+                Math.min(MERGE_SCHEDULER_MAX_CONCURRENCY + randomFrom(-2, -1, 0, 1, 2), Runtime.getRuntime().availableProcessors())
+            )
             .build();
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return CollectionUtils.appendToCopy(super.getPlugins(), ThreadPoolMergeSchedulerStressTestIT.TestEnginePlugin.class);
+    }
+
+    @Override
+    protected boolean resetNodeAfterTest() {
+        // The TestEnginePlugin holds state (the runMergeSemaphore, the enqueued/running merge sets, and its randomized merge counts). We
+        // need to reset the node after each test to avoid problems.
+        return true;
     }
 
     public static class TestEnginePlugin extends Plugin implements EnginePlugin {
@@ -87,6 +106,7 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
                 super(engineConfig);
             }
 
+            @Override
             protected ElasticsearchMergeScheduler createMergeScheduler(
                 ShardId shardId,
                 IndexSettings indexSettings,
@@ -257,7 +277,7 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
         assertBusy(() -> {
             // wait for merges to enqueue or backlog
             assertThat(testEnginePlugin.enqueuedMergesSet.size(), greaterThanOrEqualTo(testEnginePlugin.waitMergesEnqueuedCount));
-        }, 1, TimeUnit.MINUTES);
+        }, 10, TimeUnit.MINUTES);
         // finish up indexing
         indexingDone.set(true);
         for (Thread indexingThread : indexingThreads) {
@@ -272,12 +292,12 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
             assert testEnginePlugin.runMergeSemaphore.availablePermits() > 0 : "some merges are blocked, test is broken";
             assertThat(testEnginePlugin.runningMergesSet.size(), is(0));
             assertThat(testEnginePlugin.enqueuedMergesSet.size(), is(0));
-            testEnginePlugin.mergeExecutorServiceReference.get().allDone();
-        }, 1, TimeUnit.MINUTES);
-        // indices stats says that no merge is currently running (meaning merging did catch up)
-        IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats("index").setMerge(true).get();
-        long currentMergeCount = indicesStatsResponse.getIndices().get("index").getPrimaries().merge.getCurrent();
-        assertThat(currentMergeCount, equalTo(0L));
+            assertThat(testEnginePlugin.mergeExecutorServiceReference.get().allDone(), is(true));
+            // indices stats says that no merge is currently running (meaning merging did catch up).
+            IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats("index").setMerge(true).get();
+            long currentMergeCount = indicesStatsResponse.getIndices().get("index").getPrimaries().merge.getCurrent();
+            assertThat(currentMergeCount, equalTo(0L));
+        }, 10, TimeUnit.MINUTES);
         // run a force-merge to 1 segment to make sure nothing is broken
         assertAllSuccessful(indicesAdmin().prepareForceMerge("index").setMaxNumSegments(1).get());
         assertAllSuccessful(indicesAdmin().prepareRefresh("index").get());

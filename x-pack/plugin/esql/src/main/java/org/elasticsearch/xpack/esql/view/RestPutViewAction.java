@@ -19,11 +19,20 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutViewAction extends BaseRestHandler {
+    private static final String VIEW_INDEX_ABSTRACTION = "view_index_abstraction";
+    // Signals that PUT /_query/view/{name} is exposed with @ServerlessScope(Scope.PUBLIC).
+    // This capability did not exist before the annotation was added, so old nodes in a mixed
+    // cluster will not report it, making /_capabilities?capabilities=views_put_serverless_scope
+    // return supported=false for any cluster where any node predates the annotation.
+    public static final String VIEWS_PUT_SERVERLESS_SCOPE = "views_put_serverless_scope";
+    public static final String VIEW_DESCRIPTION = "view_description";
+
     @Override
     public List<Route> routes() {
         return List.of(new Route(PUT, "/_query/view/{name}"));
@@ -44,5 +53,10 @@ public class RestPutViewAction extends BaseRestHandler {
             );
             return channel -> client.execute(PutViewAction.INSTANCE, req, new RestToXContentListener<>(channel));
         }
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Set.of(VIEW_INDEX_ABSTRACTION, VIEWS_PUT_SERVERLESS_SCOPE, VIEW_DESCRIPTION);
     }
 }

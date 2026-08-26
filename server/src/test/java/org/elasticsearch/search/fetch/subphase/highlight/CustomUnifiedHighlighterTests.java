@@ -96,4 +96,22 @@ public class CustomUnifiedHighlighterTests extends HighlighterTestCase {
         assertHighlights(highlights, "field", "this is <em>some</em> text");
     }
 
+    public void testHighlightPhraseSpanningMultipleValues() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : { "properties" : {
+                "field" : { "type" : "text", "position_increment_gap" : 0 }
+            }}}
+            """);
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source("""
+            { "field" : ["not to be true", "the person is"] }
+            """));
+
+        SearchSourceBuilder search = new SearchSourceBuilder().query(QueryBuilders.matchPhraseQuery("field", "true the person"))
+            .highlighter(new HighlightBuilder().field("field"));
+
+        Map<String, HighlightField> highlights = highlight(mapperService, doc, search);
+        assertHighlights(highlights, "field", "<em>true the person</em> is");
+    }
+
 }

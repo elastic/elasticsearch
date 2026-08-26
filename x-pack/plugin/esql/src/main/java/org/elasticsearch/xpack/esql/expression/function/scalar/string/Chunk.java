@@ -13,12 +13,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsOptions;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -29,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -39,7 +42,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
@@ -48,9 +50,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.chunkText;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.emitChunks;
 
-public class Chunk extends EsqlScalarFunction implements OptionalArgument {
+public class Chunk extends EsqlScalarFunction implements OptionalArgument, AnyNullIsNull {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Chunk", Chunk::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Chunk.class).binary(Chunk::new).name("chunk");
 
     static final int DEFAULT_CHUNK_SIZE = 300;
     public static final ChunkingSettings DEFAULT_CHUNKING_SETTINGS = new SentenceBoundaryChunkingSettings(DEFAULT_CHUNK_SIZE, 0);
@@ -70,18 +73,25 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
         returnType = "keyword",
         preview = true,
+        briefSummary = "Splits a text field into smaller chunks.",
         description = """
             Use `CHUNK` to split a text field into smaller chunks.""",
         detailedDescription = """
-                Chunk can be used on fields from the text famiy like <<text, text>> and <<semantic-text, semantic_text>>.
-                Chunk will split a text field into smaller chunks, using a sentence-based chunking strategy.
+                Chunk can be used on fields from the text family like <<text, text>> and <<semantic-text, semantic_text>>.
+                Chunk will split a text field into smaller chunks. By default it uses a sentence-based chunking strategy;
+                the strategy and its parameters are configurable via the `chunking_settings` parameter.
                 The number of chunks returned, and the length of the sentences used to create the chunks can be specified.
             """,
         examples = { @Example(file = "chunk", tag = "chunk-example", applies_to = "stack: preview 9.3.0") }
     )
     public Chunk(
         Source source,
-        @Param(name = "field", type = { "keyword", "text" }, description = "The input to chunk.") Expression field,
+        @Param(
+            name = "field",
+            type = { "keyword", "text" },
+            description = "The input to chunk. The input can be a single-valued or multi-valued field. In the case of a multi-valued "
+                + "argument, each value is chunked separately."
+        ) Expression field,
         @MapParam(
             name = "chunking_settings",
             description = "Options to customize chunking behavior. Defaults to "
@@ -90,12 +100,20 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
                 + ",\"sentence_overlap\":0}.",
             optional = true,
             params = {
-                @MapParam.MapParamEntry(
-                    name = "strategy",
-                    type = { "keyword" },
-                    description = "The chunking strategy to use. Default value is `sentence`.",
-                    valueHint = { "sentence", "word", "none", "recursive" }
-                ),
+                @MapParam.MapParamEntry(name = "strategy", type = { "keyword" }, description = """
+                    The chunking strategy to use. Default value is `sentence`. Available strategies:
+
+                    * `sentence`: splits at sentence boundaries. Use `sentence_overlap` to share a sentence between
+                      adjacent chunks.
+                    * `word`: splits on individual words. Use `overlap` to share words between adjacent chunks.
+                    * `recursive`: splits using configurable separator patterns — either a predefined
+                      `separator_group` (`plaintext` or `markdown`) or a custom list of `separators` — falling back
+                      to sentence-level splitting when no separator produces a chunk within `max_chunk_size`.
+                    * `none`: returns the entire input as a single chunk.
+
+                    For a full description of each strategy and how its options interact, refer to
+                    [chunking strategies](docs-content://explore-analyze/elastic-inference/inference-api.md#chunking-strategies).
+                    """, valueHint = { "sentence", "word", "none", "recursive" }),
                 @MapParam.MapParamEntry(name = "max_chunk_size", type = { "integer" }, description = """
                     The maximum size of a chunk in words. This value cannot be lower than `20` (for `sentence` strategy)
                     or `10` (for `word` or `recursive` strategies). This model should not exceed the window size for any
@@ -107,7 +125,7 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
                     """, valueHint = { "0" }),
                 @MapParam.MapParamEntry(name = "sentence_overlap", type = { "integer" }, description = """
                     The number of overlapping sentences for chunks. It is applicable only for a `sentence` chunking strategy.
-                    It can be either `1` or `0`.
+                    It can be either `1` or `0`. Defaults to `0`.
                     """, valueHint = { "1", "0" }),
                 @MapParam.MapParamEntry(name = "separator_group", type = { "keyword" }, description = """
                     Sets a predefined lists of separators based on the selected text type. Values may be `markdown` or `plaintext`.
@@ -193,7 +211,7 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public boolean foldable() {
-        return field().foldable() && (chunkingSettings() == null || chunkingSettings().foldable());
+        return field().foldable();
     }
 
     @Override
@@ -218,34 +236,44 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
         return chunkingSettings;
     }
 
-    @Evaluator(extraName = "BytesRef")
-    static void process(BytesRefBlock.Builder builder, BytesRef str, @Fixed ChunkingSettings chunkingSettings) {
-        String content = str.utf8ToString();
-        List<String> chunks = chunkText(content, chunkingSettings);
-        emitChunks(builder, chunks);
+    @Evaluator
+    static void process(
+        BytesRefBlock.Builder builder,
+        @Position int position,
+        BytesRefBlock field,
+        @Fixed ChunkingSettings chunkingSettings
+    ) {
+        if (field.isNull(position)) {
+            builder.appendNull();
+            return;
+        }
+        int valueCount = field.getValueCount(position);
+
+        int firstValueIndex = field.getFirstValueIndex(position);
+
+        // Collect all chunks from all values in the multi-value field
+        List<String> allChunks = new java.util.ArrayList<>();
+        for (int i = 0; i < valueCount; i++) {
+            BytesRef value = field.getBytesRef(firstValueIndex + i, new BytesRef());
+            String content = value.utf8ToString();
+            List<String> chunks = chunkText(content, chunkingSettings);
+            allChunks.addAll(chunks);
+        }
+
+        // Emit all chunks combined
+        emitChunks(builder, allChunks);
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        Chunk chunk = (Chunk) o;
-        return Objects.equals(field(), chunk.field()) && Objects.equals(chunkingSettings(), chunk.chunkingSettings());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(field(), chunkingSettings());
-    }
-
-    @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         ChunkingSettings chunkingSettings = DEFAULT_CHUNKING_SETTINGS;
 
         if (chunkingSettings() != null) {
             chunkingSettings = toChunkingSettings((MapExpression) chunkingSettings());
         }
 
-        return new ChunkBytesRefEvaluator.Factory(source(), toEvaluator.apply(field), chunkingSettings);
+        var fieldEvaluator = toEvaluator.apply(field);
+        return new ChunkEvaluator.Factory(source(), fieldEvaluator, chunkingSettings);
     }
 
     private static ChunkingSettings toChunkingSettings(MapExpression map) {

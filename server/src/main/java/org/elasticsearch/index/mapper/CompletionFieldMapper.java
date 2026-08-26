@@ -196,6 +196,11 @@ public class CompletionFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public CompletionFieldMapper build(MapperBuilderContext context) {
             checkCompletionContextsLimit();
             NamedAnalyzer completionAnalyzer = new NamedAnalyzer(
@@ -396,14 +401,14 @@ public class CompletionFieldMapper extends FieldMapper {
      *  else adds inputs as a {@link org.apache.lucene.search.suggest.document.SuggestField}
      */
     @Override
-    public void parse(DocumentParserContext context) throws IOException {
+    public ParseResult parse(DocumentParserContext context) throws IOException {
         // parse
         XContentParser parser = context.parser();
         Token token = parser.currentToken();
         Map<String, CompletionInputMetadataContainer> inputMap = Maps.newMapWithExpectedSize(1);
 
         if (token == Token.VALUE_NULL) { // ignore null values
-            return;
+            return ParseResult.INDEXED;
         } else if (token == Token.START_ARRAY) {
             while ((token = parser.nextToken()) != Token.END_ARRAY) {
                 parse(context, token, parser, inputMap);
@@ -456,6 +461,7 @@ public class CompletionFieldMapper extends FieldMapper {
                 );
             }
         }
+        return ParseResult.INDEXED;
     }
 
     /**
@@ -756,8 +762,14 @@ public class CompletionFieldMapper extends FieldMapper {
 
         @Override
         public XContentLocation getTokenLocation() {
-            // return fixed token location: it's not possible to match the token location while parsing through the object structure,
+            // return fixed location: it's not possible to match the real location while parsing through the object structure,
             // because completion metadata have been rewritten hence they won't match the incoming document
+            return locationOffset;
+        }
+
+        @Override
+        public XContentLocation getCurrentLocation() {
+            // same as getTokenLocation() — real positions are not available for rewritten metadata
             return locationOffset;
         }
     }

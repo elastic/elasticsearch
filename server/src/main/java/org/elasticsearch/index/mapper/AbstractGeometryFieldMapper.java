@@ -197,7 +197,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             return new FallbackSyntheticSourceBlockLoader(
                 new GeometriesFallbackSyntheticSourceReader(),
                 name(),
-                IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated())
+                IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings())
             ) {
                 @Override
                 public Builder builder(BlockFactory factory, int expectedCount) {
@@ -269,6 +269,11 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
                     bytesRefBuilder.appendBytesRef(value);
                 }
             }
+
+            @Override
+            public String toString() {
+                return "Geometry";
+            }
         }
     }
 
@@ -314,7 +319,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
     }
 
     @Override
-    public final void parse(DocumentParserContext context) throws IOException {
+    public final ParseResult parse(DocumentParserContext context) throws IOException {
         if (builderParams.hasScript()) {
             throw new DocumentParsingException(
                 context.parser().getTokenLocation(),
@@ -322,7 +327,9 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
                 new IllegalArgumentException("Cannot index data directly into a field with a [script] parameter")
             );
         }
+        boolean wasAlreadyIgnored = context.isFieldIgnored(fullPath());
         parser.parse(context.parser(), v -> index(context, v), new DefaultMalformedValueHandler((e, b) -> onMalformedValue(context, b, e)));
+        return resolveIgnoredResult(context, wasAlreadyIgnored);
     }
 
     protected void onMalformedValue(DocumentParserContext context, XContentBuilder malformedDataForSyntheticSource, Exception cause)

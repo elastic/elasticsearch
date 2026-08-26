@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.registry;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
@@ -37,6 +35,8 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -90,7 +90,7 @@ public class ClearInferenceEndpointCacheAction extends AcknowledgedTransportMast
         );
         this.projectResolver = projectResolver;
         this.inferenceEndpointRegistry = inferenceEndpointRegistry;
-        this.taskQueue = clusterService.createTaskQueue(TASK_QUEUE_NAME, Priority.IMMEDIATE, new CacheMetadataUpdateTaskExecutor());
+        this.taskQueue = clusterService.createTaskQueue(TASK_QUEUE_NAME, Priority.NORMAL, new CacheMetadataUpdateTaskExecutor());
         clusterService.addListener(
             event -> event.state()
                 .metadata()
@@ -99,7 +99,7 @@ public class ClearInferenceEndpointCacheAction extends AcknowledgedTransportMast
                 .stream()
                 .map(ProjectMetadata::id)
                 .filter(id -> event.customMetadataChanged(id, InvalidateCacheMetadata.NAME))
-                .peek(id -> log.trace("Inference endpoint cache on node [{}]", () -> event.state().nodes().getLocalNodeId()))
+                .peek(id -> log.trace(() -> "Inference endpoint cache on node [" + event.state().nodes().getLocalNodeId() + "]"))
                 .forEach(inferenceEndpointRegistry::invalidateAll)
         );
     }

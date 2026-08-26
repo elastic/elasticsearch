@@ -10,7 +10,7 @@
 package org.elasticsearch.plugins;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -50,7 +50,7 @@ public class PluginsLoaderTests extends ESTestCase {
     static PluginsLoader newPluginsLoader(Settings settings) {
         return PluginsLoader.createPluginsLoader(
             Set.of(),
-            PluginsLoader.loadPluginsBundles(TestEnvironment.newEnvironment(settings).pluginsDir()),
+            PluginsLoader.loadPluginsBundles(TestEnvironment.newEnvironment(settings).pluginsDir(), false),
             Map.of(),
             false
         );
@@ -119,7 +119,7 @@ public class PluginsLoaderTests extends ESTestCase {
 
         var pluginsLoader = PluginsLoader.createPluginsLoader(
             Set.of(),
-            PluginsLoader.loadPluginsBundles(TestEnvironment.newEnvironment(settings).pluginsDir()),
+            PluginsLoader.loadPluginsBundles(TestEnvironment.newEnvironment(settings).pluginsDir(), false),
             Map.of(STABLE_PLUGIN_NAME, Set.of(STABLE_PLUGIN_MODULE_NAME)),
             false
         );
@@ -180,7 +180,7 @@ public class PluginsLoaderTests extends ESTestCase {
 
         var pluginsLoader = PluginsLoader.createPluginsLoader(
             Set.of(),
-            PluginsLoader.loadPluginsBundles(TestEnvironment.newEnvironment(settings).pluginsDir()),
+            PluginsLoader.loadPluginsBundles(TestEnvironment.newEnvironment(settings).pluginsDir(), false),
             Map.of(MODULAR_PLUGIN_NAME, Set.of(MODULAR_PLUGIN_MODULE_NAME)),
             false
         );
@@ -219,7 +219,7 @@ public class PluginsLoaderTests extends ESTestCase {
             "version",
             "1.0.0",
             "elasticsearch.version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "java.version",
             System.getProperty("java.specification.version")
         );
@@ -263,7 +263,7 @@ public class PluginsLoaderTests extends ESTestCase {
             "version",
             "1.0.0",
             "elasticsearch.version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "java.version",
             System.getProperty("java.specification.version")
         );
@@ -314,7 +314,7 @@ public class PluginsLoaderTests extends ESTestCase {
             "version",
             "1.0.0",
             "elasticsearch.version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "java.version",
             System.getProperty("java.specification.version")
         );

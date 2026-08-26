@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -117,7 +118,12 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
         request.query("FROM ok*,fail*,*:ok*,*:fail* | KEEP id, fail_me | LIMIT 1000");
         request.includeCCSMetadata(randomBoolean());
         request.allowPartialResults(true);
+        // Limit to one shard per batch to prevent all ok shards from being grouped with failed shards,
+        // which could cause the ok shards to fail if a failed shard is processed first.
+        request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()));
+        request.acceptedPragmaRisks(true);
         try (var resp = runQuery(request)) {
+            logger.info("--> response {}", resp);
             assertTrue(resp.isPartial());
             Set<String> allIds = Stream.of(local.okIds, remote1.okIds, remote2.okIds)
                 .flatMap(Collection::stream)
@@ -148,19 +154,22 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
         request.query("FROM ok*,cluster-a:ok*,*-b:fail* | KEEP id, fail_me");
         request.allowPartialResults(true);
         request.includeCCSMetadata(randomBoolean());
+        // Limit to one shard per batch to prevent all ok shards from being grouped with failed shards,
+        // which could cause the ok shards to fail if a failed shard is processed first.
+        request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()));
+        request.acceptedPragmaRisks(true);
         try (var resp = runQuery(request)) {
+            logger.info("--> response {}", resp);
             assertTrue(resp.isPartial());
-            Set<String> allIds = Stream.of(local.okIds, remote1.okIds).flatMap(Collection::stream).collect(Collectors.toSet());
+            Set<String> allIds = Sets.union(local.okIds, remote1.okIds);
             List<List<Object>> rows = getValuesList(resp);
             assertThat(rows.size(), equalTo(allIds.size()));
             Set<String> returnedIds = new HashSet<>();
             for (List<Object> row : rows) {
                 assertThat(row.size(), equalTo(2));
-                String id = (String) row.get(0);
-                assertTrue(returnedIds.add(id));
+                assertTrue(returnedIds.add((String) row.getFirst()));
             }
             assertThat(returnedIds, equalTo(allIds));
-
             assertClusterSuccess(resp, LOCAL_CLUSTER, local.okShards);
             assertClusterSuccess(resp, REMOTE_CLUSTER_1, remote1.okShards);
             assertClusterPartial(resp, REMOTE_CLUSTER_2, remote2.failingShards, 0);

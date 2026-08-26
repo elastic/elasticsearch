@@ -13,34 +13,61 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
- * Attribute for an ES field.
+ * Treat this as final - avoid creating new subclasses. This is used extensively throughout the codebase, making new subclasses risky.
+ * Consider using a new {@link EsField} subclass if needed.
+ * <p>
+ * Attribute for an ES index field. May actually stand for a field with the same name across different indices (a union), e.g. when
+ * index pattern were used in the query: {@code FROM logs-* | KEEP field}.
+ * <p>
  * This class offers:
- * - name - the name of the attribute, but not necessarily of the field.
- * - The raw EsField representing the field; for parent.child.grandchild this is just grandchild.
- * - parentName - the full path to the immediate parent of the field, e.g. parent.child (without .grandchild)
- *
+ * <ul>
+ *  <li> name - the name of the attribute, but not necessarily of the field.
+ *  <li> The raw EsField representing the field; for parent.child.grandchild this is just grandchild.
+ *  <li> parentName - the full path to the immediate parent of the field, e.g. parent.child (without .grandchild)
+ * </ul>
+ * <p>
  * To adequately represent e.g. union types, the name of the attribute can be altered because we may have multiple synthetic field
  * attributes that really belong to the same underlying field. For instance, if a multi-typed field is used both as {@code field::string}
  * and {@code field::ip}, we'll generate 2 field attributes called {@code $$field$converted_to$keyword} and {@code $$field$converted_to$ip}
  * which still refer to the same underlying index field.
  */
-public class FieldAttribute extends TypedAttribute {
+public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMetadataAttribute, UnsupportedAttribute {
 
     /**
      * A field name, as found in the mapping. Includes the whole path from the root of the document.
      * Implemented as a wrapper around {@link String} to distinguish from the attribute name (which sometimes differs!) at compile time.
      */
     public record FieldName(String string) {};
+
+    private static final EsField TIMESERIES_FIELD = new EsField(
+        MetadataAttribute.TIMESERIES,
+        DataType.KEYWORD,
+        Map.of(),
+        false,
+        EsField.TimeSeriesFieldType.DIMENSION
+    );
+
+    public static EsField timeSeriesField() {
+        return TIMESERIES_FIELD;
+    }
 
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
@@ -50,6 +77,9 @@ public class FieldAttribute extends TypedAttribute {
 
     // Only public for testing
     public static final TransportVersion ESQL_FIELD_ATTRIBUTE_DROP_TYPE = TransportVersion.fromName("esql_field_attribute_drop_type");
+    public static final TransportVersion ESQL_TIMESERIES_METADATA_ATTRIBUTE = TransportVersion.fromName(
+        "esql_timeseries_metadata_attribute"
+    );
 
     private final String parentName;
     private final EsField field;
@@ -93,6 +123,14 @@ public class FieldAttribute extends TypedAttribute {
         this.field = field;
     }
 
+    /**
+     * Creates a {@link TimeSeriesMetadataAttribute} representing the {@link MetadataAttribute#TIMESERIES} field
+     * with no excluded dimensions.
+     */
+    public static TimeSeriesMetadataAttribute timeSeriesAttribute(Source source) {
+        return new TimeSeriesMetadataAttribute(source, Set.of());
+    }
+
     private static FieldAttribute innerReadFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
         String parentName = ((PlanStreamInput) in).readOptionalCachedString();
@@ -108,6 +146,33 @@ public class FieldAttribute extends TypedAttribute {
         Nullability nullability = in.readEnum(Nullability.class);
         NameId nameId = NameId.readFrom((PlanStreamInput) in);
         boolean synthetic = in.readBoolean();
+
+        // Attributes serialize their type name through NamedWriteable#getWriteableName()
+        // (see StreamOutput#writeNamedWriteable), which is not transport-version-aware.
+        // This differs from EsField, which has getWriteableName(TransportVersion).
+        // Sending a dedicated TimeSeriesMetadataAttribute type tag would therefore break old readers
+        // before they could reach the payload. Instead, newer versions carry the extra
+        // metadata here and then normalize to TimeSeriesMetadataAttribute locally.
+        if (MetadataAttribute.isTimeSeriesAttributeName(name)) {
+            Set<String> withoutFields = Set.of();
+            if (in.getTransportVersion().supports(ESQL_TIMESERIES_METADATA_ATTRIBUTE)) {
+                boolean hasTimeSeriesMetadata = in.readBoolean();
+                if (hasTimeSeriesMetadata) {
+                    withoutFields = in.readCollectionAsSet(StreamInput::readString);
+                }
+            }
+            return new TimeSeriesMetadataAttribute(
+                source,
+                parentName,
+                qualifier,
+                name,
+                field,
+                nullability,
+                nameId,
+                synthetic,
+                withoutFields
+            );
+        }
         return new FieldAttribute(source, parentName, qualifier, name, field, nullability, nameId, synthetic);
     }
 
@@ -121,7 +186,11 @@ public class FieldAttribute extends TypedAttribute {
             if (out.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
                 dataType().writeTo(out);
             }
-            field.writeTo(out);
+            if (field instanceof PotentiallyUnmappedKeywordEsField punk) {
+                punk.writeTo(out, fieldName().string());
+            } else {
+                field.writeTo(out);
+            }
             if (out.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
                 // We used to write the qualifier here, even though it was always null.
                 out.writeOptionalString(null);
@@ -129,6 +198,17 @@ public class FieldAttribute extends TypedAttribute {
             out.writeEnum(nullable());
             id().writeTo(out);
             out.writeBoolean(synthetic());
+            // Keep writing `_timeseries` as `FieldAttribute` and append the extra metadata only
+            // when the recipient supports it; see the matching read-side note above.
+            if (out.getTransportVersion().supports(ESQL_TIMESERIES_METADATA_ATTRIBUTE)
+                && MetadataAttribute.isTimeSeriesAttributeName(name())) {
+                if (this instanceof TimeSeriesMetadataAttribute timeSeriesMetadataAttribute) {
+                    out.writeBoolean(true);
+                    out.writeStringCollection(timeSeriesMetadataAttribute.excludedFields());
+                } else {
+                    out.writeBoolean(false);
+                }
+            }
         }
     }
 
@@ -142,7 +222,7 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     @Override
-    protected NodeInfo<FieldAttribute> info() {
+    protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, FieldAttribute::new, parentName, qualifier(), name(), field, nullable(), id(), synthetic());
     }
 
@@ -167,6 +247,26 @@ public class FieldAttribute extends TypedAttribute {
             }
         }
         return lazyFieldName;
+    }
+
+    public boolean hasTypeConflicts() {
+        return field instanceof TypeConflictedField;
+    }
+
+    /**
+     * If the underlying field is a {@link TypeConflictedField} (ambiguous type across indices),
+     * converts this attribute into an {@link UnsupportedAttribute} with a descriptive error message
+     * so the analyzer can surface a clear user-facing error.
+     */
+    public Attribute flagTypeConflicts() {
+        if (field instanceof TypeConflictedField tcf) {
+            // Field has conflicting types across indices — build a user-facing error message.
+            String unresolvedMessage = "Cannot use field [" + name() + "] due to ambiguities being " + tcf.errorMessage();
+            List<String> types = tcf.getTypesToIndices().keySet().stream().toList();
+            // Preserve the original NameId so downstream attribute-resolution stays consistent.
+            return new UnsupportedAttribute(source(), name(), new UnsupportedEsField(tcf.getName(), types), unresolvedMessage, id());
+        }
+        return this;
     }
 
     /**
@@ -227,6 +327,10 @@ public class FieldAttribute extends TypedAttribute {
         return Objects.hash(super.innerHashCode(ignoreIds), parentName, field);
     }
 
+    public FieldAttribute withField(EsField field) {
+        return new FieldAttribute(source(), parentName(), qualifier(), name(), field, nullable(), id(), synthetic());
+    }
+
     @Override
     protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (FieldAttribute) o;
@@ -250,5 +354,30 @@ public class FieldAttribute extends TypedAttribute {
 
     public EsField field() {
         return field;
+    }
+
+    /**
+     * Renders the FieldAttribute as {@code [<qual>.]<name>{f[(SubclassName)][$]}#id}. Identifier
+     * mentions route through the supplied {@link NodeStringMapper}; in LIMITED mode the EsField
+     * subclass marker is suppressed to keep the rendering compact.
+     */
+    @Override
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        if (qualifier() != null) {
+            sb.append(mapper.column(qualifier())).append('.');
+        }
+        sb.append(mapper.column(name())).append('{').append(label());
+        if (format != NodeStringFormat.LIMITED && field.getNodeStringName().isEmpty() == false) {
+            sb.append('(').append(field.getNodeStringName()).append(')');
+        }
+        if (synthetic()) {
+            sb.append('$');
+        }
+        sb.append("}#").append(id());
+    }
+
+    public boolean isPotentiallyUnmapped() {
+        return field() instanceof PotentiallyUnmappedKeywordEsField
+            || field() instanceof UnionTypeEsField utf && utf.getUnmappedConversionExpression() != null;
     }
 }

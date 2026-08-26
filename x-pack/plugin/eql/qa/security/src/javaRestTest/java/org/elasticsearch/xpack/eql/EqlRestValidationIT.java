@@ -38,8 +38,7 @@ public class EqlRestValidationIT extends EqlRestValidationTestCase {
     @Override
     protected String getInexistentWildcardErrorMessage() {
         return """
-            "root_cause":[{"type":"verification_exception","reason":"Found 1 problem\\nline -1:-1: Unknown index [*,-*]"}],\
-            "type":"index_not_found_exception","reason":"no such index\s""";
+            "root_cause":[{"type":"verification_exception","reason":"Found 1 problem\\nline -1:-1: Unknown index\s""";
     }
 
     @Override

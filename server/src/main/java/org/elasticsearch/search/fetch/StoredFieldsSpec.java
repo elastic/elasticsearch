@@ -131,13 +131,22 @@ public record StoredFieldsSpec(
         return mergedSourcePaths;
     }
 
+    /**
+     * Returns the set of stored fields that must be fetched.
+     */
     public Set<String> requiredStoredFields() {
-        if (sourcePaths.isEmpty() || ignoredSourceFormat == IgnoredSourceFormat.NO_IGNORED_SOURCE) {
+        // if ignored source format doesn't warrant stored fields, then don't include ignored source
+        if (sourcePaths.isEmpty()
+            || ignoredSourceFormat == IgnoredSourceFormat.NO_IGNORED_SOURCE
+            || ignoredSourceFormat == IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE) {
             return requiredStoredFields;
         }
+
+        // otherwise, include ignored source in the result
         if (requiredStoredFields.isEmpty()) {
             return Set.of(IgnoredSourceFieldMapper.NAME);
         }
+
         Set<String> mergedFields = new HashSet<>(requiredStoredFields);
         mergedFields.add(IgnoredSourceFieldMapper.NAME);
         return mergedFields;

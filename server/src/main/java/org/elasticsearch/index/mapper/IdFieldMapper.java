@@ -16,6 +16,7 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
@@ -33,7 +34,37 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
 
     public static final String CONTENT_TYPE = "_id";
 
-    public static final TypeParser PARSER = new FixedTypeParser(MappingParserContext::idFieldMapper);
+    public static final TypeParser PARSER = new ConfigurableTypeParser(mappingParserContext -> {
+        var indexSettings = mappingParserContext.getIndexSettings();
+        if (indexSettings.getMode().isTsdb()) {
+            return new ConstantBuilder(TsidExtractingIdFieldMapper.INSTANCE);
+        } else if (indexSettings.isSliceEnabled()) {
+            return new ConstantBuilder(
+                indexSettings.isUseColumnarIdByDefault() ? SliceIdFieldMapper.COLUMNAR : SliceIdFieldMapper.DOCUMENT
+            );
+        } else {
+            boolean useColumnarIdByDefault = mappingParserContext.getIndexSettings().isUseColumnarIdByDefault();
+            return new ProvidedIdFieldMapper.Builder(useColumnarIdByDefault);
+        }
+    }) {
+
+        @Override
+        public Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext) throws MapperParsingException {
+            var indexMode = parserContext.getIndexSettings().getMode();
+            if (indexMode.isTsdb()) {
+                throw new MapperParsingException(name + " is not configurable if index mode is time_series");
+            }
+            Builder builder = super.parse(name, node, parserContext);
+            if (indexMode.isStrictColumnar()
+                && builder instanceof ProvidedIdFieldMapper.Builder idBuilder
+                && idBuilder.getMode() == ProvidedIdFieldMapper.Mode.DOCUMENT) {
+                throw new MapperParsingException(
+                    name + " does not support [mode=document] in a strictly columnar index mode [" + indexMode.getName() + "]"
+                );
+            }
+            return builder;
+        }
+    };
 
     private static final Map<String, NamedAnalyzer> ANALYZERS = Map.of(NAME, Lucene.KEYWORD_ANALYZER);
 
@@ -65,30 +96,101 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
     public abstract String documentDescription(ParsedDocument parsedDocument);
 
     /**
-     * Build the {@code _id} to use on requests reindexing into indices using
-     * this {@code _id}.
+     * Returns {@code true} when the {@code _id} is stored as sorted doc values rather than a stored field.
      */
-    public abstract String reindexId(String id);
-
-    /**
-     * Create a {@link Field} to store the provided {@code _id} that "stores"
-     * the {@code _id} so it can be fetched easily from the index.
-     */
-    public static Field standardIdField(String id) {
-        return new StringField(NAME, Uid.encodeId(id), Field.Store.YES);
+    public boolean isColumnarMode() {
+        return false;
     }
 
     /**
-     * Create a {@link Field} corresponding to a synthetic {@code _id} field, which is not indexed but instead resolved at runtime.
+     * Create an indexed and stored {@link Field} for the provided {@code _id}.
+     */
+    public static Field standardIdField(String id) {
+        return standardIdField(Uid.encodeId(id), Field.Store.YES);
+    }
+
+    /**
+     * Create an indexed {@link Field} for the provided {@code _id}, optionally stored.
+     * The id must already be encoded using {@link Uid#encodeId(String)}.
+     */
+    public static Field standardIdField(BytesRef uid, Field.Store stored) {
+        return new StringField(NAME, uid, stored);
+    }
+
+    /**
+     * Resolve the {@code _id} term used for uniqueness/versioning/GET/delete. For a slice-enabled index the slice
+     * arrives as the routing value. Prefer {@link Uid#create} directly where the whole {@link Uid} is useful.
+     */
+    public static BytesRef encodeIdentity(boolean sliceEnabled, String id, @Nullable String routing) {
+        return Uid.create(sliceEnabled, id, routing).term();
+    }
+
+    /**
+     * Decode the user-visible plain {@code _id} string from the bytes stored in the {@code _id} stored field or binary
+     * doc value. For a slice-enabled index those bytes are the compound identity term.
+     */
+    public static String decodeIdentity(boolean sliceEnabled, BytesRef storedBytes) {
+        return Uid.fromTerm(storedBytes, sliceEnabled).id();
+    }
+
+    /** Whether the mapping stores {@code _id} in columnar mode (binary doc values rather than a stored field). */
+    public static boolean isColumnar(Mapping mapping) {
+        return mapping.getMetadataMapperByName(NAME) instanceof IdFieldMapper idMapper && idMapper.isColumnarMode();
+    }
+
+    /**
+     * The identity term to copy onto nested child documents so that a soft-delete of the root by uid removes the whole
+     * block. Returns {@code null} to leave nested propagation to the mapper's {@link #postParse}, as mappers that only
+     * derive the id there override this to do.
+     */
+    @Nullable
+    BytesRef nestedIdentityTerm(DocumentParserContext context) {
+        String id = context.id();
+        return id == null ? null : Uid.encodeId(id);
+    }
+
+    /**
+     * Create a {@link Field} corresponding to a synthetic {@code _id} field, which is not indexed and not stored but instead computed at
+     * runtime.
      */
     public static Field syntheticIdField(String id) {
         return new SyntheticIdField(Uid.encodeId(id));
     }
 
+    /**
+     * Create a {@link Field} corresponding to a synthetic {@code _id} field, which is not indexed and not stored but instead resolved at
+     * runtime. The id must be already encoded using {@link Uid#encodeId(String)}.
+     */
+    public static Field syntheticIdField(BytesRef uid) {
+        return new SyntheticIdField(uid);
+    }
+
+    /**
+     * Decode the raw stored {@code _id} bytes into the user-visible id, dispatching on the field type so that callers
+     * holding only a {@link MappedFieldType} still decode with the right encoding. The {@code _id} field type is always
+     * an {@link AbstractIdFieldType}.
+     */
+    public static String decodeStoredId(MappedFieldType fieldType, byte[] value) {
+        assert fieldType instanceof AbstractIdFieldType : "expected the [" + NAME + "] field type but got [" + fieldType + "]";
+        return ((AbstractIdFieldType) fieldType).decodeStoredId(value);
+    }
+
     protected abstract static class AbstractIdFieldType extends TermBasedFieldType {
 
         public AbstractIdFieldType() {
-            super(NAME, IndexType.terms(true, false), true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            this(false);
+        }
+
+        public AbstractIdFieldType(boolean hasDocValues) {
+            super(NAME, IndexType.terms(true, hasDocValues), true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+        }
+
+        /**
+         * Decode the raw stored {@code _id} bytes into the user-visible id. Overridden where the stored bytes are not
+         * simply {@link Uid#encodeId(String)} of the user id.
+         */
+        public String decodeStoredId(byte[] value) {
+            return Uid.decodeId(value);
         }
 
         @Override
@@ -127,7 +229,7 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return new BlockStoredFieldsReader.IdBlockLoader();
+            return IdLoader.create(blContext.indexSettings(), blContext.mappingLookup()).blockLoader(blContext.ordinalsByteSize());
         }
 
         @Override

@@ -33,6 +33,9 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -60,6 +63,9 @@ public class SpatialContains extends SpatialRelatesFunction {
         "SpatialContains",
         SpatialContains::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(SpatialContains.class)
+        .binary(SpatialContains::new)
+        .name("st_contains");
 
     // public for test access with reflection
     public static final SpatialRelationsContains GEO = new SpatialRelationsContains(
@@ -78,7 +84,7 @@ public class SpatialContains extends SpatialRelatesFunction {
      * We override the normal behaviour for CONTAINS because we need to test each component separately.
      * This applies to multi-component geometries (MultiPolygon, etc.) as well as polygons that cross the dateline.
      */
-    static final class SpatialRelationsContains extends SpatialRelations {
+    protected static final class SpatialRelationsContains extends SpatialRelations {
 
         SpatialRelationsContains(SpatialCoordinateTypes spatialCoordinateType, CoordinateEncoder encoder, ShapeIndexer shapeIndexer) {
             super(ShapeField.QueryRelation.CONTAINS, spatialCoordinateType, encoder, shapeIndexer);
@@ -93,7 +99,7 @@ public class SpatialContains extends SpatialRelatesFunction {
         @Override
         protected void processSourceAndSource(BooleanBlock.Builder builder, int position, BytesRefBlock left, BytesRefBlock right)
             throws IOException {
-            if (right.getValueCount(position) < 1) {
+            if (right.isNull(position)) {
                 builder.appendNull();
             } else {
                 processSourceAndConstant(builder, position, left, asLuceneComponent2Ds(crsType, right, position));
@@ -129,7 +135,7 @@ public class SpatialContains extends SpatialRelatesFunction {
 
         private void processSourceAndConstant(BooleanBlock.Builder builder, int position, BytesRefBlock left, @Fixed Component2D[] right)
             throws IOException {
-            if (left.getValueCount(position) < 1) {
+            if (left.isNull(position)) {
                 builder.appendNull();
             } else {
                 final GeometryDocValueReader reader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, left, position);
@@ -143,7 +149,7 @@ public class SpatialContains extends SpatialRelatesFunction {
             LongBlock left,
             @Fixed Component2D[] right
         ) throws IOException {
-            if (left.getValueCount(position) < 1) {
+            if (left.isNull(position)) {
                 builder.appendNull();
             } else {
                 final GeometryDocValueReader reader = asGeometryDocValueReader(
@@ -159,11 +165,14 @@ public class SpatialContains extends SpatialRelatesFunction {
     }
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "boolean" },
+        briefSummary = "Returns whether the first geometry contains the second geometry.",
         description = """
             Returns whether the first geometry contains the second geometry.
             This is the inverse of the <<esql-st_within,ST_WITHIN>> function.""",
-        examples = @Example(file = "spatial_shapes", tag = "st_contains-airport_city_boundaries")
+        examples = @Example(file = "spatial_shapes", tag = "st_contains-airport_city_boundaries"),
+        depthOffset = 1  // So this appears as a subsection of geospatial predicates
     )
     public SpatialContains(
         Source source,
@@ -216,14 +225,24 @@ public class SpatialContains extends SpatialRelatesFunction {
     }
 
     @Override
+    protected SpatialRelationsContains getSpatialRelations() {
+        return crsType() == SpatialCrsType.GEO ? GEO : CARTESIAN;
+    }
+
+    /**
+     * Contains needs to evaluate each component of the right geometry separately,
+     * so we override the fold method from the parent SpatialRelatesFunction.
+     */
+    @Override
     public Object fold(FoldContext ctx) {
         try {
             GeometryDocValueReader docValueReader = asGeometryDocValueReader(ctx, crsType(), left());
             Geometry rightGeom = makeGeometryFromLiteral(ctx, right());
             Component2D[] components = asLuceneComponent2Ds(crsType(), rightGeom);
-            return (crsType() == SpatialCrsType.GEO)
-                ? GEO.geometryRelatesGeometries(docValueReader, components)
-                : CARTESIAN.geometryRelatesGeometries(docValueReader, components);
+            if (docValueReader == null || components == null) {
+                return null;
+            }
+            return getSpatialRelations().geometryRelatesGeometries(docValueReader, components);
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to fold constant fields: " + e.getMessage(), e);
         }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.generator.command.pipe;
 
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
@@ -19,26 +20,39 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.isUnmappedFieldsEnabled;
 
 public class KeepGenerator implements CommandGenerator {
 
     public static final String KEEP = "keep";
 
     public static final CommandGenerator INSTANCE = new KeepGenerator();
+    public static final String[] UNMAPPED_FIELD_NAMES = {
+        "unmapped_field_foo",
+        "unmapped_field_foobar",
+        "unmapped_field_bar",
+        "unmapped_field_baz" };
 
     @Override
     public CommandDescription generate(
         List<CommandDescription> previousCommands,
         List<Column> previousOutput,
         QuerySchema schema,
-        QueryExecutor executor
+        QueryExecutor executor,
+        GenerationContext context
     ) {
+        boolean unmappedFieldsEnabled = isUnmappedFieldsEnabled(previousCommands);
         int n = randomIntBetween(1, previousOutput.size());
         Set<String> proj = new HashSet<>();
         for (int i = 0; i < n; i++) {
-            if (randomIntBetween(0, 100) < 5) {
+            var x = randomIntBetween(0, 100);
+            if (x < 5) {
                 proj.add("*");
+            } else if (x >= 95 && unmappedFieldsEnabled) {
+                String name = randomUnmappedFieldName();
+                proj.add(name);
             } else {
                 String name = EsqlQueryGenerator.randomName(previousOutput);
                 if (name == null) {
@@ -59,6 +73,10 @@ public class KeepGenerator implements CommandGenerator {
         }
         String cmdString = " | keep " + proj.stream().collect(Collectors.joining(", "));
         return new CommandDescription(KEEP, this, cmdString, Map.of());
+    }
+
+    public static String randomUnmappedFieldName() {
+        return randomFrom(UNMAPPED_FIELD_NAMES);
     }
 
     @Override

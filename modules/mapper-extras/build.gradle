@@ -18,6 +18,19 @@ esplugin {
 
 restResources {
   restApi {
-    include '_common', 'cluster', 'field_caps', 'nodes', 'indices', 'index', 'search', 'get'
+    include '_common', 'bulk', 'cluster', 'field_caps', 'nodes', 'indices', 'index', 'search', 'get', 'synonyms'
   }
+}
+
+dependencies {
+  clusterModules project(':modules:analysis-common')
+  clusterModules project(':modules:reindex')
+}
+
+testClusters.configureEach {
+  module ':modules:analysis-common'
+}
+
+tasks.named("yamlRestCompatTestTransform").configure { task ->
+  task.skipTest("match_only_text/10_basic/synthetic_source match_only_text as multi-field with ignored keyword as parent", "ignore_above now uses sorted binary doc values")
 }

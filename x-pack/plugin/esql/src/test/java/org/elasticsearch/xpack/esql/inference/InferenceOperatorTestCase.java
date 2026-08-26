@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -26,21 +27,26 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
 import org.elasticsearch.compute.test.AsyncOperatorTestCase;
+import org.elasticsearch.compute.test.operator.blocksource.AbstractBlockSourceOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.RerankAction;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.HashSet;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
@@ -124,6 +130,11 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
 
     @SuppressWarnings("unchecked")
     protected InferenceService mockedInferenceService() {
+        return mockedInferenceService(new AtomicBoolean(false), new RuntimeException("default error"));
+    }
+
+    @SuppressWarnings("unchecked")
+    protected InferenceService mockedInferenceService(AtomicBoolean shouldFail, Exception failureException) {
         Client mockClient = new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -131,14 +142,44 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
                 Request request,
                 ActionListener<Response> listener
             ) {
-                runWithRandomDelay(() -> {
-                    if (action instanceof InferenceAction && request instanceof InferenceAction.Request inferenceRequest) {
-                        listener.onResponse((Response) new InferenceAction.Response(mockInferenceResult(inferenceRequest)));
-                        return;
-                    }
+                try {
+                    runWithRandomDelay(() -> {
+                        if (shouldFail.get()) {
+                            listener.onFailure(failureException);
+                            return;
+                        }
+                        if (action instanceof InferenceAction && request instanceof InferenceAction.Request inferenceRequest) {
+                            listener.onResponse((Response) new InferenceAction.Response(mockInferenceResult(inferenceRequest)));
+                            return;
+                        }
+                        if (action instanceof EmbeddingAction && request instanceof EmbeddingAction.Request embeddingRequest) {
+                            List<String> inputs = embeddingRequest.getEmbeddingRequest()
+                                .inputs()
+                                .stream()
+                                .map(group -> group.value().value())
+                                .toList();
+                            InferenceAction.Request syntheticRequest = InferenceAction.Request.builder(
+                                embeddingRequest.getInferenceEntityId(),
+                                embeddingRequest.getTaskType()
+                            ).setInput(inputs).build();
+                            listener.onResponse((Response) new InferenceAction.Response(mockInferenceResult(syntheticRequest)));
+                            return;
+                        }
+                        if (action instanceof RerankAction && request instanceof RerankAction.Request rerankRequest) {
+                            List<String> inputs = rerankRequest.getRerankRequest().inputs().stream().map(InferenceString::value).toList();
+                            InferenceAction.Request syntheticRequest = InferenceAction.Request.builder(
+                                rerankRequest.getInferenceEntityId(),
+                                rerankRequest.getTaskType()
+                            ).setInput(inputs).build();
+                            listener.onResponse((Response) new InferenceAction.Response(mockInferenceResult(syntheticRequest)));
+                            return;
+                        }
 
-                    listener.onFailure(new UnsupportedOperationException("Unexpected action: " + action));
-                });
+                        listener.onFailure(new UnsupportedOperationException("Unexpected action: " + action));
+                    });
+                } catch (EsRejectedExecutionException e) {
+                    listener.onFailure(e);
+                }
             }
 
             private void runWithRandomDelay(Runnable runnable) {
@@ -204,8 +245,8 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
         assertBlockContentEquals(input, result, (BytesRefBlock b, Integer pos) -> b.getBytesRef(pos, readBuffer), BytesRefBlock.class);
     }
 
-    protected EvalOperator.ExpressionEvaluator.Factory evaluatorFactory(int channel) {
-        return context -> new EvalOperator.ExpressionEvaluator() {
+    protected ExpressionEvaluator.Factory evaluatorFactory(int channel) {
+        return context -> new ExpressionEvaluator() {
             @Override
             public Block eval(Page page) {
                 Block b = page.getBlock(channel);

@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.support;
 
+import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
@@ -26,6 +28,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -72,10 +75,6 @@ public final class Automatons {
     private static int maxDeterminizedStates = 100000;
     private static Cache<Object, Automaton> cache = buildCache(Settings.EMPTY);
 
-    static final char WILDCARD_STRING = '*';     // String equality with support for wildcards
-    static final char WILDCARD_CHAR = '?';       // Char equality with support for wildcards
-    static final char WILDCARD_ESCAPE = '\\';    // Escape character
-
     // for testing only -Dtests.jvm.argline="-Dtests.automaton.record.patterns=true"
     public static final boolean recordPatterns = System.getProperty("tests.automaton.record.patterns", "false").equals("true");
     private static final Map<Automaton, List<String>> patternsMap = new HashMap<>();
@@ -98,17 +97,66 @@ public final class Automatons {
             return EMPTY;
         }
         if (cache == null) {
-            return maybeRecordPatterns(buildAutomaton(patterns), patterns);
+            return maybeRecordPatterns(buildAutomatonWithLiteralPartition(patterns), patterns);
         } else {
             try {
                 return cache.computeIfAbsent(
                     Sets.newHashSet(patterns),
-                    p -> maybeRecordPatterns(buildAutomaton((Set<String>) p), patterns)
+                    p -> maybeRecordPatterns(buildAutomatonWithLiteralPartition((Set<String>) p), patterns)
                 );
             } catch (ExecutionException e) {
                 throw unwrapCacheException(e);
             }
         }
+    }
+
+    /**
+     * Builds the union automaton for the given patterns directly, bypassing the pattern cache and selecting either the legacy
+     * general builder or the literal-partition builder.
+     * <p>
+     * <strong>Visible for benchmarking/regression comparison only.</strong> It lets a benchmark drive each build strategy in
+     * isolation without reaching into private internals. It is not part of the supported API; production code must go through
+     * {@link #patterns(Collection)} (which uses, and caches, the literal-partition strategy).
+     *
+     * @param literalPartition {@code true} to use {@link #buildAutomatonWithLiteralPartition(Collection)} (the production
+     *                         strategy), {@code false} to use the legacy {@link #buildAutomaton(Collection)} general builder.
+     */
+    public static Automaton buildPatternsAutomaton(Collection<String> patterns, boolean literalPartition) {
+        return literalPartition ? buildAutomatonWithLiteralPartition(patterns) : buildAutomaton(patterns);
+    }
+
+    private static Automaton literalStringUnion(List<BytesRef> refs) {
+        Collections.sort(refs);
+        return Automata.makeStringUnion(refs);
+    }
+
+    private static Automaton buildAutomatonWithLiteralPartition(Collection<String> patterns) {
+        List<BytesRef> literals = new ArrayList<>();
+        List<String> others = new ArrayList<>();
+        for (String pattern : patterns) {
+            // makeStringUnion only accepts literals, and rejects terms whose UTF-8 length exceeds
+            // Automata.MAX_STRING_UNION_TERM_LENGTH (measured in bytes, not Java chars). Longer literals, and any
+            // non-literal, fall to the general path.
+            final BytesRef ref = (pattern.isEmpty() == false && isLiteralPattern(pattern)) ? new BytesRef(pattern) : null;
+            if (ref != null && ref.length <= Automata.MAX_STRING_UNION_TERM_LENGTH) {
+                literals.add(ref);
+            } else {
+                others.add(pattern);
+            }
+        }
+
+        // Without at least two literals there is nothing for makeStringUnion to accelerate, so defer entirely to the general
+        // path rather than pay for an extra wrapping union + minimize.
+        if (literals.size() <= 1) {
+            return buildAutomaton(patterns);
+        }
+
+        // A pure-literal set is already minimal and deterministic, so return it directly without a trailing minimize.
+        if (others.isEmpty()) {
+            return literalStringUnion(literals);
+        }
+
+        return unionAndMinimize(List.of(literalStringUnion(literals), buildAutomaton(others)));
     }
 
     private static Automaton buildAutomaton(Collection<String> patterns) {
@@ -214,6 +262,24 @@ public final class Automatons {
         return str.length() > 1 && str.charAt(0) == '/' && str.charAt(str.length() - 1) == '/';
     }
 
+    /**
+     * Returns {@code true} if the string is a literal with no pattern syntax — no wildcards ({@code *}, {@code ?}),
+     * no escape sequences ({@code \}), and no leading {@code /} (which denotes a Lucene regex).
+     * The automaton built from such a string accepts exactly the string itself.
+     */
+    public static boolean isLiteralPattern(String pattern) {
+        if (!pattern.isEmpty() && pattern.charAt(0) == '/') {
+            return false;
+        }
+        for (int i = pattern.length() - 1; i >= 0; i--) {
+            char c = pattern.charAt(i);
+            if (c == WildcardQuery.WILDCARD_STRING || c == WildcardQuery.WILDCARD_CHAR || c == WildcardQuery.WILDCARD_ESCAPE) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private static Automaton buildAutomaton(String pattern) {
         if (pattern.startsWith("/")) { // it's a lucene regexp
             if (pattern.length() == 1 || pattern.endsWith("/") == false) {
@@ -253,20 +319,20 @@ public final class Automatons {
     static Automaton wildcard(String text) {
         List<Automaton> automata = new ArrayList<>();
         for (int i = 0; i < text.length();) {
-            final char c = text.charAt(i);
-            int length = 1;
+            final int c = text.codePointAt(i);
+            int length = Character.charCount(c);
             switch (c) {
-                case WILDCARD_STRING:
+                case WildcardQuery.WILDCARD_STRING:
                     automata.add(Automata.makeAnyString());
                     break;
-                case WILDCARD_CHAR:
+                case WildcardQuery.WILDCARD_CHAR:
                     automata.add(Automata.makeAnyChar());
                     break;
-                case WILDCARD_ESCAPE:
+                case WildcardQuery.WILDCARD_ESCAPE:
                     // add the next codepoint instead, if it exists
                     if (i + length < text.length()) {
-                        final char nextChar = text.charAt(i + length);
-                        length += 1;
+                        final int nextChar = text.codePointAt(i + length);
+                        length += Character.charCount(nextChar);
                         automata.add(Automata.makeChar(nextChar));
                         break;
                     } // else fallthru, lenient parsing with a trailing \

@@ -41,7 +41,6 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
         return 1;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/95322")
     public void testFailedSearchWithWrongQuery() throws Exception {
         logger.info("Start Testing failed search with wrong query");
         assertAcked(prepareCreate("test", 1).setMapping("foo", "type=geo_point"));

@@ -64,11 +64,14 @@ public class Netty4TransportPublishAddressIT extends ESNetty4IntegTestCase {
                 assertThat(boundTransportAddress.boundAddresses()[0].getPort(), equalTo(boundTransportAddress.publishAddress().getPort()));
             } else {
                 assertThat(boundTransportAddress.boundAddresses().length, greaterThan(1));
+                // Determine if the publish address is IPv4 or IPv6
+                boolean publishIsV4 = boundTransportAddress.publishAddress().address().getAddress() instanceof Inet4Address;
                 for (TransportAddress boundAddress : boundTransportAddress.boundAddresses()) {
                     assertThat(boundAddress, instanceOf(TransportAddress.class));
                     TransportAddress inetBoundAddress = boundAddress;
-                    if (inetBoundAddress.address().getAddress() instanceof Inet4Address) {
-                        // IPv4 address is preferred publish address for _local_
+                    boolean boundIsV4 = inetBoundAddress.address().getAddress() instanceof Inet4Address;
+                    if (boundIsV4 == publishIsV4) {
+                        // The bound address matching the publish address type should have the same port
                         assertThat(inetBoundAddress.getPort(), equalTo(boundTransportAddress.publishAddress().getPort()));
                     }
                 }

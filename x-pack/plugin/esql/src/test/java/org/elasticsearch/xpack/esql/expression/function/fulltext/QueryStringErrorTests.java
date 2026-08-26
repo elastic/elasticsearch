@@ -71,11 +71,12 @@ public class QueryStringErrorTests extends ErrorsForCasesWithoutExamplesTestCase
             }
         }
 
-        try {
-            return typeErrorMessage(true, validPerPosition, signature, positionalErrorMessageSupplier);
-        } catch (IllegalStateException e) {
-            // This means all the positional args were okay, so the expected error is for nulls or from the combination
-            return EsqlBinaryComparison.formatIncompatibleTypesMessage(signature.get(0), signature.get(1), sourceForSignature(signature));
-        }
+        return typeErrorMessage(
+            true,
+            validPerPosition,
+            signature,
+            positionalErrorMessageSupplier,
+            () -> EsqlBinaryComparison.formatIncompatibleTypesMessage(signature.get(0), signature.get(1), sourceForSignature(signature))
+        );
     }
 }

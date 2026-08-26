@@ -59,7 +59,6 @@ public class LagDetector {
     public static final Setting<TimeValue> CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING = Setting.timeSetting(
         "cluster.follower_lag.timeout",
         TimeValue.timeValueMillis(90000),
-        TimeValue.timeValueMillis(1),
         Setting.Property.NodeScope
     );
 
@@ -114,19 +113,22 @@ public class LagDetector {
         if (laggingTrackers.isEmpty()) {
             logger.trace("lag detection for version {} is unnecessary: {}", version, appliedStateTrackersByNode.values());
         } else {
-            logger.debug("starting lag detector for version {}: {}", version, laggingTrackers);
+            if (clusterStateApplicationTimeout.millis() <= 0) {
+                logger.debug("lag detector for version {} skipped: {}", version, laggingTrackers);
+            } else {
+                logger.debug("starting lag detector for version {}: {}", version, laggingTrackers);
+                threadPool.scheduleUnlessShuttingDown(clusterStateApplicationTimeout, clusterCoordinationExecutor, new Runnable() {
+                    @Override
+                    public void run() {
+                        laggingTrackers.forEach(t -> t.checkForLag(version));
+                    }
 
-            threadPool.scheduleUnlessShuttingDown(clusterStateApplicationTimeout, clusterCoordinationExecutor, new Runnable() {
-                @Override
-                public void run() {
-                    laggingTrackers.forEach(t -> t.checkForLag(version));
-                }
-
-                @Override
-                public String toString() {
-                    return "lag detector for version " + version + " on " + laggingTrackers;
-                }
-            });
+                    @Override
+                    public String toString() {
+                        return "lag detector for version " + version + " on " + laggingTrackers;
+                    }
+                });
+            }
         }
     }
 
@@ -180,11 +182,14 @@ public class LagDetector {
             }
 
             logger.warn(
-                "node [{}] is lagging at cluster state version [{}], although publication of cluster state version [{}] completed [{}] ago",
+                """
+                    node [{}] is lagging at cluster state version [{}], although publication of \
+                    cluster state version [{}] completed [{}] ago; see {} for further information""",
                 discoveryNode,
                 appliedVersion,
                 version,
-                clusterStateApplicationTimeout
+                clusterStateApplicationTimeout,
+                ReferenceDocs.LAGGING_NODE_TROUBLESHOOTING
             );
             lagListener.onLagDetected(discoveryNode, appliedVersion, version);
         }

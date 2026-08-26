@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -87,8 +86,7 @@ public class ExchangeBufferTests extends ESTestCase {
 
     private static MockBlockFactory blockFactory() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        return new MockBlockFactory(breaker, bigArrays);
+        return new MockBlockFactory(BlockFactory.builder(bigArrays));
     }
 
     private static Page randomPage(BlockFactory blockFactory) {

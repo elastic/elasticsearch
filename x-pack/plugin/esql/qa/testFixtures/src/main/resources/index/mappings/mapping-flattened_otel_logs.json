@@ -1,0 +1,19 @@
+{
+  "properties": {
+    "@timestamp": {
+      "type": "date"
+    },
+    "resource": {
+      "type": "object",
+      "properties": {
+        "attributes": {
+          "type": "flattened"
+        }
+      }
+    },
+    "attributes": {
+      "type": "flattened",
+      "index": "false"
+    }
+  }
+}

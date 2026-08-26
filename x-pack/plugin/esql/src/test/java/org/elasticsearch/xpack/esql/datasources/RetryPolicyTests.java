@@ -1,0 +1,680 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.datasources;
+
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+
+import java.io.IOException;
+import java.net.ConnectException;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
+
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+
+public class RetryPolicyTests extends ESTestCase {
+
+    public void testNoRetryPolicyNeverRetries() {
+        RetryPolicy policy = RetryPolicy.NONE;
+        assertFalse(policy.isRetryable(new SocketTimeoutException("timeout")));
+        assertEquals(0, policy.maxRetries());
+    }
+
+    public void testSocketTimeoutIsRetryable() {
+        RetryPolicy policy = RetryPolicy.DEFAULT;
+        assertTrue(policy.isRetryable(new SocketTimeoutException("Read timed out")));
+    }
+
+    public void testConnectExceptionIsRetryable() {
+        RetryPolicy policy = RetryPolicy.DEFAULT;
+        assertTrue(policy.isRetryable(new ConnectException("Connection refused")));
+    }
+
+    public void testConnectExceptionWithDnsFailureIsNotRetryable() {
+        RetryPolicy policy = RetryPolicy.DEFAULT;
+        ConnectException ce = new ConnectException("Connection refused");
+        ce.initCause(new UnknownHostException("no-such-bucket.s3.amazonaws.com"));
+        assertFalse(policy.isRetryable(ce));
+    }
+
+    public void testConnectExceptionWithNestedDnsFailureIsNotRetryable() {
+        RetryPolicy policy = RetryPolicy.DEFAULT;
+        ConnectException ce = new ConnectException("Connection refused");
+        IOException wrapper = new IOException("resolve failed");
+        wrapper.initCause(new UnknownHostException("no-such-host.example.com"));
+        ce.initCause(wrapper);
+        assertFalse(policy.isRetryable(ce));
+    }
+
+    public void testConnectionResetIsRetryable() {
+        RetryPolicy policy = RetryPolicy.DEFAULT;
+        assertTrue(policy.isRetryable(new SocketException("Connection reset")));
+    }
+
+    public void testAnySocketExceptionIsRetryable() {
+        RetryPolicy policy = RetryPolicy.DEFAULT;
+        // Connection reset and broken pipe are both transport faults; on a read either can be re-opened and
+        // resumed, so both are retryable by type — no message inspection.
+        assertTrue(policy.isRetryable(new SocketException("Connection reset")));
+        assertTrue(policy.isRetryable(new SocketException("Broken pipe")));
+    }
+
+    public void testTransientStorageMarkerIsRetryable() {
+        RetryPolicy policy = RetryPolicy.DEFAULT;
+        // Providers classify transient transport faults and retryable server responses (500 / 503 / 429) by
+        // type and status code, then raise this typed marker; the retry layer reacts to the type, not text.
+        assertTrue(policy.isRetryable(new ExternalUnavailableException("transient transport fault", (Throwable) null)));
+        assertTrue(policy.isRetryable(new ExternalUnavailableException(true, "throttled")));
+    }
+
+    public void testWrappedTransientMarkerIsRetryable() {
+        RetryPolicy policy = RetryPolicy.DEFAULT;
+        assertTrue(policy.isRetryable(new RuntimeException("wrapper", new ExternalUnavailableException("transient", (Throwable) null))));
+    }
+
+    public void testNonTransientErrorIsNotRetryable() {
+        RetryPolicy policy = RetryPolicy.DEFAULT;
+        // A bare throwable with no transport type and no typed marker is a real error regardless of message —
+        // a 503 that was not classified into the typed marker by a provider is not retried here.
+        assertFalse(policy.isRetryable(new IOException("Access Denied")));
+        assertFalse(policy.isRetryable(new IOException("NoSuchKey")));
+        assertFalse(policy.isRetryable(new IOException("Service Unavailable")));
+        assertFalse(policy.isRetryable(new SecurityException("forbidden")));
+    }
+
+    public void testNullMessageIsNotRetryable() {
+        RetryPolicy policy = RetryPolicy.DEFAULT;
+        assertFalse(policy.isRetryable(new IOException((String) null)));
+    }
+
+    public void testWrappedTransientTransportErrorIsRetryable() {
+        RetryPolicy policy = RetryPolicy.DEFAULT;
+        assertTrue(policy.isRetryable(new RuntimeException("wrapper", new SocketTimeoutException("timeout"))));
+    }
+
+    public void testWrappedNonTransientErrorIsNotRetryable() {
+        RetryPolicy policy = RetryPolicy.DEFAULT;
+        assertFalse(policy.isRetryable(new RuntimeException("wrapper", new IOException("Access Denied"))));
+    }
+
+    public void testDelayGrowsExponentially() {
+        RetryPolicy policy = new RetryPolicy(5, 100, 10000);
+        long d0 = policy.delayMillis(0);
+        long d1 = policy.delayMillis(1);
+        long d2 = policy.delayMillis(2);
+        assertTrue("delay should grow: d0=" + d0 + " d1=" + d1, d1 > d0 / 2);
+        assertTrue("delay should grow: d1=" + d1 + " d2=" + d2, d2 > d1 / 2);
+    }
+
+    public void testDelayIsCappedAtMax() {
+        RetryPolicy policy = new RetryPolicy(10, 100, 500);
+        for (int i = 0; i < 10; i++) {
+            long delay = policy.delayMillis(i);
+            assertTrue("delay " + delay + " exceeds max+jitter", delay <= 500 + 500 / 4 + 1);
+        }
+    }
+
+    public void testExecuteSucceedsOnFirstAttempt() throws IOException {
+        RetryPolicy policy = RetryPolicy.DEFAULT;
+        AtomicInteger calls = new AtomicInteger();
+        StoragePath path = StoragePath.of("s3://bucket/key");
+
+        String result = policy.execute(() -> {
+            calls.incrementAndGet();
+            return "ok";
+        }, "test", path);
+
+        assertEquals("ok", result);
+        assertEquals(1, calls.get());
+    }
+
+    public void testExecuteRetriesOnTransientFailure() throws IOException {
+        RetryPolicy policy = new RetryPolicy(3, 1, 10);
+        AtomicInteger calls = new AtomicInteger();
+        StoragePath path = StoragePath.of("s3://bucket/key");
+
+        String result = policy.execute(() -> {
+            if (calls.incrementAndGet() < 3) {
+                throw new SocketTimeoutException("timeout");
+            }
+            return "ok";
+        }, "test", path);
+
+        assertEquals("ok", result);
+        assertEquals(3, calls.get());
+    }
+
+    public void testExecuteRetriesPermitExhaustionAndSucceeds() throws IOException {
+        // Permit exhaustion surfaces as a 503-class ExternalUnavailableException (throttling=false), which execute()
+        // treats as a transient fault: it catches the exception and re-attempts, succeeding once the permit frees.
+        RetryPolicy policy = new RetryPolicy(3, 1, 10);
+        AtomicInteger calls = new AtomicInteger();
+        StoragePath path = StoragePath.of("s3://bucket/key");
+
+        String result = policy.execute(() -> {
+            if (calls.incrementAndGet() < 3) {
+                throw new ExternalUnavailableException("at admission capacity", (Throwable) null);
+            }
+            return "ok";
+        }, "test", path);
+
+        assertEquals("ok", result);
+        assertEquals(3, calls.get());
+    }
+
+    public void testDecideRetriesPermitExhaustionOnNormalBudgetWithoutRampingBackoff() {
+        // Permit exhaustion is a throttling=false ExternalUnavailableException, so decide() (the shared async/sync
+        // classification point) treats it as a transient, non-throttle fault: it retries on the NORMAL budget, the
+        // higher throttle budget does not apply, and the cross-request adaptive backoff is never fed.
+        AdaptiveBackoff backoff = new AdaptiveBackoff(AdaptiveBackoff.MAX_MULTIPLIER, () -> 0L);
+        RetryPolicy policy = new RetryPolicy(2, 1, 10, 8, 1, 10, RetryPolicy.NO_BUDGET, null).withAdaptiveBackoff(backoff);
+        ExternalUnavailableException permitExhaustion = new ExternalUnavailableException("at admission capacity", (Throwable) null);
+
+        assertTrue("within the normal budget it must retry", policy.decide(permitExhaustion, 0, System.nanoTime()).retry());
+        assertFalse(
+            "at the normal-budget limit it must give up; the higher throttle budget must not apply",
+            policy.decide(permitExhaustion, 2, System.nanoTime()).retry()
+        );
+        assertEquals("node-local exhaustion must not ramp the adaptive backoff", 1, backoff.currentMultiplier());
+    }
+
+    public void testExecuteThrowsAfterMaxRetries() {
+        RetryPolicy policy = new RetryPolicy(2, 1, 10);
+        AtomicInteger calls = new AtomicInteger();
+        StoragePath path = StoragePath.of("s3://bucket/key");
+
+        IOException ex = expectThrows(IOException.class, () -> policy.execute(() -> {
+            calls.incrementAndGet();
+            throw new SocketTimeoutException("timeout");
+        }, "test", path));
+
+        assertEquals("timeout", ex.getMessage());
+        assertEquals(3, calls.get());
+    }
+
+    public void testExecuteDoesNotRetryDnsFailure() {
+        RetryPolicy policy = RetryPolicy.DEFAULT;
+        AtomicInteger calls = new AtomicInteger();
+        StoragePath path = StoragePath.of("s3://bucket/key");
+
+        ConnectException ce = new ConnectException("Connection refused");
+        ce.initCause(new UnknownHostException("no-such-host.example.com"));
+
+        IOException ex = expectThrows(IOException.class, () -> policy.execute(() -> {
+            calls.incrementAndGet();
+            throw ce;
+        }, "test", path));
+
+        assertEquals("Connection refused", ex.getMessage());
+        assertEquals(1, calls.get());
+    }
+
+    public void testExecuteDoesNotRetryNonTransientError() {
+        RetryPolicy policy = RetryPolicy.DEFAULT;
+        AtomicInteger calls = new AtomicInteger();
+        StoragePath path = StoragePath.of("s3://bucket/key");
+
+        IOException ex = expectThrows(IOException.class, () -> policy.execute(() -> {
+            calls.incrementAndGet();
+            throw new IOException("Access Denied");
+        }, "test", path));
+
+        assertEquals("Access Denied", ex.getMessage());
+        assertEquals(1, calls.get());
+    }
+
+    // --- Total duration budget tests ---
+
+    public void testWithTotalDurationBudgetPreservesRetryParameters() {
+        RetryPolicy base = new RetryPolicy(5, 100, 2000);
+        RetryPolicy budgeted = base.withTotalDurationBudget(10_000);
+
+        assertEquals(5, budgeted.maxRetries());
+        assertEquals(10_000, budgeted.maxTotalDurationMs());
+    }
+
+    public void testDefaultPolicyHasNoBudget() {
+        assertEquals(RetryPolicy.NO_BUDGET, RetryPolicy.DEFAULT.maxTotalDurationMs());
+    }
+
+    public void testNonePolicyHasNoBudget() {
+        assertEquals(RetryPolicy.NO_BUDGET, RetryPolicy.NONE.maxTotalDurationMs());
+    }
+
+    public void testExecuteAbortsWhenBudgetExceeded() {
+        RetryPolicy policy = new RetryPolicy(10, 500, 5000, 100);
+        AtomicInteger calls = new AtomicInteger();
+        StoragePath path = StoragePath.of("s3://bucket/key");
+
+        IOException ex = expectThrows(IOException.class, () -> policy.execute(() -> {
+            calls.incrementAndGet();
+            throw new SocketTimeoutException("timeout");
+        }, "test", path));
+
+        assertEquals("timeout", ex.getMessage());
+        assertTrue("should abort on first failure when delay exceeds budget, got " + calls.get(), calls.get() <= 2);
+    }
+
+    public void testExecuteSucceedsWithinBudget() throws IOException {
+        RetryPolicy policy = new RetryPolicy(3, 1, 10, 60_000);
+        AtomicInteger calls = new AtomicInteger();
+        StoragePath path = StoragePath.of("s3://bucket/key");
+
+        String result = policy.execute(() -> {
+            if (calls.incrementAndGet() < 3) {
+                throw new SocketTimeoutException("timeout");
+            }
+            return "ok";
+        }, "test", path);
+
+        assertEquals("ok", result);
+        assertEquals(3, calls.get());
+    }
+
+    // --- Throttle-specific retry budget tests ---
+
+    public void testThrottlingErrorGetsHigherRetryBudget() throws IOException {
+        RetryPolicy policy = new RetryPolicy(2, 1, 10, 8, 1, 10, RetryPolicy.NO_BUDGET, null);
+        AtomicInteger calls = new AtomicInteger();
+        StoragePath path = StoragePath.of("s3://bucket/key");
+
+        String result = policy.execute(() -> {
+            if (calls.incrementAndGet() <= 6) {
+                throw new ExternalUnavailableException(true, "throttled");
+            }
+            return "ok";
+        }, "test", path);
+
+        assertEquals("ok", result);
+        assertEquals(7, calls.get());
+    }
+
+    public void testNonThrottleErrorUsesStandardBudget() {
+        RetryPolicy policy = new RetryPolicy(2, 1, 10, 8, 1, 10, RetryPolicy.NO_BUDGET, null);
+        AtomicInteger calls = new AtomicInteger();
+        StoragePath path = StoragePath.of("s3://bucket/key");
+
+        IOException ex = expectThrows(IOException.class, () -> policy.execute(() -> {
+            calls.incrementAndGet();
+            throw new SocketTimeoutException("timeout");
+        }, "test", path));
+
+        assertEquals("timeout", ex.getMessage());
+        assertEquals(3, calls.get());
+    }
+
+    public void testThrottlingDelayIsLongerThanStandardDelay() {
+        RetryPolicy policy = RetryPolicy.DEFAULT;
+        long standardDelay = policy.delayMillis(0, false);
+        long throttleDelay = policy.delayMillis(0, true);
+        assertTrue(
+            "throttle delay [" + throttleDelay + "] should be >= standard delay [" + standardDelay + "]",
+            throttleDelay >= standardDelay
+        );
+    }
+
+    public void testIsThrottlingErrorClassification() {
+        // Throttling is decided by the provider (from the HTTP status) and flagged on the typed marker; it is
+        // no longer inferred from message text. The throttling marker is recognized through the cause chain.
+        assertTrue(RetryPolicy.isThrottlingError(new ExternalUnavailableException(true, "throttled")));
+        assertTrue(RetryPolicy.isThrottlingError(new RuntimeException("wrapper", new ExternalUnavailableException(true, "throttled"))));
+
+        // A plain transient marker is retryable but not throttling.
+        assertFalse(RetryPolicy.isThrottlingError(new ExternalUnavailableException(false, "transient transport")));
+        assertFalse(RetryPolicy.isThrottlingError(new SocketTimeoutException("timeout")));
+        assertFalse(RetryPolicy.isThrottlingError(new ConnectException("refused")));
+        assertFalse(RetryPolicy.isThrottlingError(new IOException("Service Unavailable")));
+        assertFalse(RetryPolicy.isThrottlingError(new IOException((String) null)));
+    }
+
+    public void testAdaptiveBackoffScalesDelay() {
+        AtomicLong clock = new AtomicLong(0);
+        AdaptiveBackoff backoff = new AdaptiveBackoff(AdaptiveBackoff.MAX_MULTIPLIER, clock::get);
+        backoff.onThrottled();
+        backoff.onThrottled();
+
+        RetryPolicy policy = RetryPolicy.DEFAULT.withAdaptiveBackoff(backoff);
+        long normalDelay = RetryPolicy.DEFAULT.delayMillis(0, true);
+        long adaptiveDelay = policy.delayMillis(0, true);
+        assertTrue("adaptive delay [" + adaptiveDelay + "] should be > normal delay [" + normalDelay + "]", adaptiveDelay > normalDelay);
+    }
+
+    public void testDecideDoesNotRampAdaptiveBackoffWhenGivingUp() {
+        // The onThrottled() feed sits AFTER the give-up checks in decide(), so abandoning a throttle
+        // must not ramp the cross-request multiplier. Pins that ordering.
+        AtomicLong clock = new AtomicLong(0);
+        AdaptiveBackoff backoff = new AdaptiveBackoff(AdaptiveBackoff.MAX_MULTIPLIER, clock::get);
+        RetryPolicy policy = RetryPolicy.DEFAULT.withAdaptiveBackoff(backoff);
+        ExternalUnavailableException throttle = new ExternalUnavailableException(true, (Throwable) null, "throttled (HTTP 503)");
+
+        // Sanity cap reached (attempt == throttleMaxRetries / THROTTLE_RETRIES_SANITY_CAP) -> GIVE_UP,
+        // and the backoff must stay at baseline.
+        RetryPolicy.RetryDecision giveUp = policy.decide(throttle, policy.throttleMaxRetries(), System.nanoTime());
+        assertFalse("sanity-cap throttle must give up", giveUp.retry());
+        assertEquals("giving up must not ramp the adaptive backoff", 1, backoff.currentMultiplier());
+
+        // Positive control: a within-budget throttle commits to a retry and DOES ramp the backoff.
+        RetryPolicy.RetryDecision retry = policy.decide(throttle, 0, System.nanoTime());
+        assertTrue("a within-budget throttle must retry", retry.retry());
+        assertEquals("a committed retry ramps the adaptive backoff", 2, backoff.currentMultiplier());
+    }
+
+    public void testThrottleMaxRetriesAccessor() {
+        RetryPolicy policy = RetryPolicy.DEFAULT;
+        assertEquals(RetryPolicy.THROTTLE_RETRIES_SANITY_CAP, policy.throttleMaxRetries());
+    }
+
+    public void testWithThrottleConfig() {
+        RetryPolicy policy = RetryPolicy.DEFAULT.withThrottleConfig(20, 1000, 60_000);
+        assertEquals(20, policy.throttleMaxRetries());
+        assertEquals(RetryPolicy.DEFAULT_MAX_RETRIES, policy.maxRetries());
+    }
+
+    // --- Cancellation-aware backoff tests ---
+
+    public void testExecuteAbortsBackoffWhenCancelled() {
+        // A high throttle budget with long delays would otherwise keep this thread sleeping for a long time;
+        // under an active cancellation scope the first scheduled retry must abort instead of sleeping.
+        RetryPolicy policy = new RetryPolicy(0, 0, 0, 10, 30_000, 30_000, RetryPolicy.NO_BUDGET, null);
+        AtomicInteger calls = new AtomicInteger();
+        StoragePath path = StoragePath.of("s3://bucket/key");
+
+        TaskCancelledException ex = expectThrows(
+            TaskCancelledException.class,
+            () -> StorageRetryCancellation.runWithCancellation(() -> true, () -> policy.execute(() -> {
+                calls.incrementAndGet();
+                throw new ExternalUnavailableException(true, "throttled");
+            }, "test", path))
+        );
+
+        assertNotNull(ex.getMessage());
+        // Only the initial attempt ran; cancellation aborted before the first backoff sleep.
+        assertEquals(1, calls.get());
+    }
+
+    public void testExecuteDoesNotAbortWhenNotCancelled() throws IOException {
+        // With the cancellation supplier reporting false, behavior is unchanged: retries proceed to success.
+        RetryPolicy policy = new RetryPolicy(3, 1, 10);
+        AtomicInteger calls = new AtomicInteger();
+        StoragePath path = StoragePath.of("s3://bucket/key");
+
+        String result = StorageRetryCancellation.callWithCancellation(() -> false, () -> policy.execute(() -> {
+            if (calls.incrementAndGet() < 3) {
+                throw new SocketTimeoutException("timeout");
+            }
+            return "ok";
+        }, "test", path));
+
+        assertEquals("ok", result);
+        assertEquals(3, calls.get());
+    }
+
+    public void testExecuteAbortsSleepWhenCancelledDuringBackoff() {
+        // Long throttle delays so a non-cancellable sleep would block this thread for ~30s. The signal is
+        // NOT cancelled at the pre-sleep check nor at the sleep start, then flips true during the sleep.
+        RetryPolicy policy = new RetryPolicy(0, 0, 0, 10, 30_000, 30_000, RetryPolicy.NO_BUDGET, null);
+        AtomicInteger calls = new AtomicInteger();
+        AtomicInteger polls = new AtomicInteger();
+        // poll 1 = execute() pre-sleep check, poll 2 = sleep start, poll 3+ = in-sleep -> cancelled.
+        BooleanSupplier cancel = () -> polls.incrementAndGet() > 2;
+        StoragePath path = StoragePath.of("s3://bucket/key");
+
+        long startNanos = System.nanoTime();
+        expectThrows(TaskCancelledException.class, () -> StorageRetryCancellation.callWithCancellation(cancel, () -> policy.execute(() -> {
+            calls.incrementAndGet();
+            throw new ExternalUnavailableException(true, "throttled");
+        }, "test", path)));
+        long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
+
+        assertEquals("only the initial attempt ran", 1, calls.get());
+        assertThat("a cancel during the backoff must abort, not wait out the full delay", elapsedMs, lessThan(5_000L));
+    }
+
+    public void testExecuteAbortsSleepWhenCancelledFromAnotherThread() throws Exception {
+        RetryPolicy policy = new RetryPolicy(0, 0, 0, 10, 30_000, 30_000, RetryPolicy.NO_BUDGET, null);
+        StoragePath path = StoragePath.of("s3://bucket/key");
+        AtomicBoolean cancelled = new AtomicBoolean(false);
+        CountDownLatch sleeping = new CountDownLatch(1);
+        AtomicReference<Throwable> thrown = new AtomicReference<>();
+
+        Thread worker = new Thread(() -> {
+            try {
+                StorageRetryCancellation.runWithCancellation(cancelled::get, () -> policy.execute(() -> {
+                    // Signal that we have entered the operation (which fails and parks in backoff next).
+                    sleeping.countDown();
+                    throw new ExternalUnavailableException(true, "throttled");
+                }, "test", path));
+            } catch (Throwable t) {
+                thrown.set(t);
+            }
+        }, "retry-policy-cancellation-test");
+
+        long startNanos = System.nanoTime();
+        worker.start();
+        assertTrue("worker did not enter the operation", sleeping.await(5, TimeUnit.SECONDS));
+        cancelled.set(true);
+        worker.join(TimeUnit.SECONDS.toMillis(15));
+        long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
+
+        assertFalse("worker should have aborted the backoff and finished", worker.isAlive());
+        assertThat(thrown.get(), instanceOf(TaskCancelledException.class));
+        assertThat("a cross-thread cancel must not wait out the full throttle delay", elapsedMs, lessThan(15_000L));
+    }
+
+    public void testExecuteIgnoresCancellationOutsideScope() throws IOException {
+        // No ambient scope is active, so a cancelled-looking environment cannot affect the retry loop.
+        RetryPolicy policy = new RetryPolicy(3, 1, 10);
+        AtomicInteger calls = new AtomicInteger();
+        StoragePath path = StoragePath.of("s3://bucket/key");
+
+        String result = policy.execute(() -> {
+            if (calls.incrementAndGet() < 3) {
+                throw new SocketTimeoutException("timeout");
+            }
+            return "ok";
+        }, "test", path);
+
+        assertEquals("ok", result);
+        assertEquals(3, calls.get());
+    }
+
+    // --- Budget-governed throttle arm tests ---
+
+    public void testThrottleRetriesAreNotTruncatedByTheDurationBudget() {
+        // Acceptance test: esql-planning#1658.
+        // Production config: RetryPolicy.DEFAULT + 30s budget (what StorageProviderRegistry.buildRetryPolicy
+        // produces from esql.external.throttle_max_retry_duration). A fast injected clock lets the test run
+        // without real sleeps. The loop advances the clock by each decision's delay and counts retries until
+        // GIVE_UP; the budget must be genuinely spent, not truncated by an attempt-count limit.
+        AtomicLong clockNanos = new AtomicLong(0L);
+        RetryPolicy policy = RetryPolicy.DEFAULT.withTotalDurationBudget(30_000).withClock(clockNanos::get);
+        long startNanos = 0L;
+        ExternalUnavailableException throttle = new ExternalUnavailableException(true, "throttled");
+        int retries = 0;
+        RetryPolicy.RetryDecision decision;
+        do {
+            decision = policy.decide(throttle, retries, startNanos);
+            if (decision.retry()) {
+                clockNanos.addAndGet(decision.delayMillis() * 1_000_000L);
+                retries++;
+            }
+        } while (decision.retry());
+
+        long elapsedMs = clockNanos.get() / 1_000_000L;
+        // Must exceed the old attempt-count limit of 5 — budget, not attempt count, is the governing bound.
+        assertThat("retries should be budget-governed, not attempt-count-limited", retries, greaterThan(5));
+        // Must not overshoot the budget.
+        assertThat("clock must not exceed the budget", elapsedMs, lessThanOrEqualTo(30_000L));
+        // Budget must be nearly spent (within one initial delay of exhaustion).
+        assertThat(
+            "budget must be nearly spent before giving up",
+            elapsedMs,
+            greaterThan(30_000L - RetryPolicy.DEFAULT_THROTTLE_INITIAL_DELAY_MS)
+        );
+    }
+
+    public void testRetryAfterHintIsUsedAsDelay() {
+        // When the exception carries a Retry-After hint, that hint must be used as the delay.
+        AtomicLong clockNanos = new AtomicLong(0L);
+        RetryPolicy policy = RetryPolicy.DEFAULT.withTotalDurationBudget(30_000).withClock(clockNanos::get);
+        long hint = 5_000L;
+        ExternalUnavailableException throttle = new ExternalUnavailableException(true, hint, "throttled with hint");
+
+        RetryPolicy.RetryDecision decision = policy.decide(throttle, 0, 0L);
+
+        assertTrue("must retry within budget", decision.retry());
+        assertEquals("delay must equal the server hint", hint, decision.delayMillis());
+    }
+
+    public void testRetryAfterHintExceedingBudgetGivesUp() {
+        // When the (capped) hint exceeds the remaining budget, retrying before the stated wait is spam;
+        // the policy must give up immediately rather than use a shorter delay.
+        // Use a hint of 20s against a 10s budget (hint stays under throttleMaxDelayMs=30s so it is not capped).
+        AtomicLong clockNanos = new AtomicLong(0L);
+        long budget = 10_000L;
+        RetryPolicy policy = RetryPolicy.DEFAULT.withTotalDurationBudget(budget).withClock(clockNanos::get);
+        long hint = 20_000L;
+        ExternalUnavailableException throttle = new ExternalUnavailableException(true, hint, "throttled with large hint");
+
+        RetryPolicy.RetryDecision decision = policy.decide(throttle, 0, 0L);
+
+        assertFalse("hint exceeds budget — must give up", decision.retry());
+    }
+
+    public void testRetryAfterHintCappedAtMaxThrottleDelay() {
+        // A pathological server returning Retry-After: 86400 (one day) must not cause an unbounded sleep;
+        // the hint is capped at throttleMaxDelayMs.
+        AtomicLong clockNanos = new AtomicLong(0L);
+        RetryPolicy policy = RetryPolicy.DEFAULT.withClock(clockNanos::get);
+        long hint = 86_400_000L;
+        ExternalUnavailableException throttle = new ExternalUnavailableException(true, hint, "throttled with huge hint");
+
+        RetryPolicy.RetryDecision decision = policy.decide(throttle, 0, 0L);
+
+        assertTrue("must retry", decision.retry());
+        assertThat(
+            "delay must be capped at throttleMaxDelayMs",
+            decision.delayMillis(),
+            lessThanOrEqualTo(RetryPolicy.DEFAULT_THROTTLE_MAX_DELAY_MS)
+        );
+    }
+
+    public void testRetryAfterHintFromWrappedException() {
+        // isThrottlingError() walks the cause chain; retryAfterMs must too — a hint on a wrapped
+        // ExternalUnavailableException must not be silently discarded.
+        AtomicLong clockNanos = new AtomicLong(0L);
+        RetryPolicy policy = RetryPolicy.DEFAULT.withTotalDurationBudget(30_000).withClock(clockNanos::get);
+        long hint = 5_000L;
+        ExternalUnavailableException inner = new ExternalUnavailableException(true, hint, "throttled");
+        RuntimeException wrapper = new RuntimeException("outer wrapper", inner);
+
+        RetryPolicy.RetryDecision decision = policy.decide(wrapper, 0, 0L);
+
+        assertTrue("wrapped throttle must retry", decision.retry());
+        assertEquals("hint must be extracted from cause chain", hint, decision.delayMillis());
+    }
+
+    public void testComputedThrottleDelayTruncatesToRemainingBudget() {
+        // When the computed backoff exceeds the remaining budget, the delay is truncated (not refused),
+        // so the last retry sleeps out the remaining budget rather than giving up with time left.
+        long budget = 30_000L;
+        long elapsed = 29_000L;  // 1s remaining
+        AtomicLong clockNanos = new AtomicLong(elapsed * 1_000_000L);
+        RetryPolicy policy = RetryPolicy.DEFAULT.withTotalDurationBudget(budget).withClock(clockNanos::get);
+        ExternalUnavailableException throttle = new ExternalUnavailableException(true, "throttled");
+
+        // At attempt 5, the computed delay would be ~16s — far beyond the 1s remaining.
+        RetryPolicy.RetryDecision decision = policy.decide(throttle, 5, 0L);
+
+        assertTrue("should still retry with truncated delay", decision.retry());
+        assertThat("delay must be capped at remaining budget", decision.delayMillis(), lessThanOrEqualTo(budget - elapsed));
+    }
+
+    public void testAdaptiveMultiplierAt16xStillYieldsFullBudget() {
+        // Before the fix, a 16x adaptive multiplier caused the budget check to refuse retry 3 of 5 because
+        // the inflated delay exceeded the remaining budget. With truncation, the multiplier changes pacing
+        // within the budget but cannot convert pressure into early give-up.
+        AtomicLong clockNanos = new AtomicLong(0L);
+        AdaptiveBackoff backoff = new AdaptiveBackoff(AdaptiveBackoff.MAX_MULTIPLIER, () -> 0L);
+        // Ramp to the 16x cap.
+        for (int i = 0; i < 8; i++) {
+            backoff.onThrottled();
+        }
+        assertEquals("backoff must be at the cap for this test", AdaptiveBackoff.MAX_MULTIPLIER, backoff.currentMultiplier());
+
+        RetryPolicy policy = RetryPolicy.DEFAULT.withTotalDurationBudget(30_000).withAdaptiveBackoff(backoff).withClock(clockNanos::get);
+        ExternalUnavailableException throttle = new ExternalUnavailableException(true, "throttled");
+        int retries = 0;
+        RetryPolicy.RetryDecision decision;
+        do {
+            decision = policy.decide(throttle, retries, 0L);
+            if (decision.retry()) {
+                clockNanos.addAndGet(decision.delayMillis() * 1_000_000L);
+                retries++;
+            }
+        } while (decision.retry());
+
+        // At 16x the first computed delay is 8000ms (500ms * 16); jitter can make the first two delays consume
+        // most of the 30s budget, so the retry count is not deterministic. The invariant is that the budget is
+        // genuinely exhausted: remaining < throttleInitialDelayMs triggers give-up, so elapsed >= 29_500ms.
+        // Before the fix, the clock stopped at ~24_000ms because the inflated delay was refused rather than truncated.
+        assertThat(
+            "16x multiplier must not cause early give-up (pre-fix clock stopped at ~24000ms)",
+            clockNanos.get() / 1_000_000L,
+            greaterThan(29_000L)
+        );
+        assertThat("clock must not exceed budget", clockNanos.get() / 1_000_000L, lessThanOrEqualTo(30_000L));
+    }
+
+    public void testRetryAfterHintZeroFallsBackToComputedDelay() {
+        // retryAfterMs == 0 means absent — must use the computed exponential backoff.
+        AtomicLong clockNanos = new AtomicLong(0L);
+        RetryPolicy policy = RetryPolicy.DEFAULT.withTotalDurationBudget(30_000).withClock(clockNanos::get);
+        ExternalUnavailableException noHint = new ExternalUnavailableException(true, 0L, "throttled no hint");
+
+        RetryPolicy.RetryDecision decision = policy.decide(noHint, 0, 0L);
+
+        assertTrue("must retry", decision.retry());
+        // Computed delay for attempt 0 is 500ms + jitter; it must be at least the initial delay.
+        assertThat(
+            "delay must be at least the initial delay",
+            decision.delayMillis(),
+            greaterThan(RetryPolicy.DEFAULT_THROTTLE_INITIAL_DELAY_MS / 2)
+        );
+    }
+
+    public void testParseRetryAfterMs() {
+        assertEquals(5_000L, ExternalUnavailableException.parseRetryAfterMs("5"));
+        assertEquals(60_000L, ExternalUnavailableException.parseRetryAfterMs("60"));
+        assertEquals(0L, ExternalUnavailableException.parseRetryAfterMs(null));
+        assertEquals(0L, ExternalUnavailableException.parseRetryAfterMs(""));
+        assertEquals(0L, ExternalUnavailableException.parseRetryAfterMs("  "));
+        assertEquals(0L, ExternalUnavailableException.parseRetryAfterMs("abc"));
+        assertEquals(0L, ExternalUnavailableException.parseRetryAfterMs("0"));
+        assertEquals(0L, ExternalUnavailableException.parseRetryAfterMs("-1"));
+        assertEquals(1_000L, ExternalUnavailableException.parseRetryAfterMs(" 1 "));
+        // Values above 86400s (1 day) are capped to prevent overflow on multiplication.
+        assertEquals(86_400_000L, ExternalUnavailableException.parseRetryAfterMs("99999999999999999"));
+        assertEquals(86_400_000L, ExternalUnavailableException.parseRetryAfterMs("86401"));
+        assertEquals(86_400_000L, ExternalUnavailableException.parseRetryAfterMs("86400"));
+        assertEquals(86_399_000L, ExternalUnavailableException.parseRetryAfterMs("86399"));
+    }
+}

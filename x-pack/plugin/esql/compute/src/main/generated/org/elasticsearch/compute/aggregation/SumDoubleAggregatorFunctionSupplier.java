@@ -31,13 +31,13 @@ public final class SumDoubleAggregatorFunctionSupplier implements AggregatorFunc
   @Override
   public SumDoubleAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return SumDoubleAggregatorFunction.create(driverContext, channels);
+    return new SumDoubleAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public SumDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return SumDoubleGroupingAggregatorFunction.create(channels, driverContext);
+    return new SumDoubleGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

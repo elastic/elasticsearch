@@ -12,29 +12,29 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToUnsignedLong}.
+ * {@link ExpressionEvaluator} implementation for {@link ToUnsignedLong}.
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToUnsignedLongFromDoubleEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToUnsignedLongFromDoubleEvaluator.class);
 
-  private final EvalOperator.ExpressionEvaluator dbl;
+  private final ExpressionEvaluator dbl;
 
-  public ToUnsignedLongFromDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator dbl,
+  public ToUnsignedLongFromDoubleEvaluator(Source source, ExpressionEvaluator dbl,
       DriverContext driverContext) {
     super(driverContext, source);
     this.dbl = dbl;
   }
 
   @Override
-  public EvalOperator.ExpressionEvaluator next() {
+  public ExpressionEvaluator next() {
     return dbl;
   }
 
@@ -124,12 +124,12 @@ public final class ToUnsignedLongFromDoubleEvaluator extends AbstractConvertFunc
     return baseRamBytesUsed;
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory dbl;
+    private final ExpressionEvaluator.Factory dbl;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory dbl) {
+    public Factory(Source source, ExpressionEvaluator.Factory dbl) {
       this.source = source;
       this.dbl = dbl;
     }

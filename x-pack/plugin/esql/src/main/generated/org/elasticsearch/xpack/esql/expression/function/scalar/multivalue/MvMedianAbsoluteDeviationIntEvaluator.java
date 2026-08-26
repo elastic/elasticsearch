@@ -10,17 +10,17 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvMedianAbsoluteDeviation}.
+ * {@link ExpressionEvaluator} implementation for {@link MvMedianAbsoluteDeviation}.
  * This class is generated. Edit {@code MvEvaluatorImplementer} instead.
  */
 public final class MvMedianAbsoluteDeviationIntEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvMedianAbsoluteDeviationIntEvaluator.class);
 
-  public MvMedianAbsoluteDeviationIntEvaluator(EvalOperator.ExpressionEvaluator field,
+  public MvMedianAbsoluteDeviationIntEvaluator(ExpressionEvaluator field,
       DriverContext driverContext) {
     super(driverContext, field);
   }
@@ -43,11 +43,11 @@ public final class MvMedianAbsoluteDeviationIntEvaluator extends AbstractMultiva
     try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       MvMedianAbsoluteDeviation.Longs work = new MvMedianAbsoluteDeviation.Longs();
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         if (valueCount == 1) {
           int value = v.getInt(first);
@@ -110,11 +110,11 @@ public final class MvMedianAbsoluteDeviationIntEvaluator extends AbstractMultiva
     try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       MvMedianAbsoluteDeviation.Longs work = new MvMedianAbsoluteDeviation.Longs();
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         assert valueCount == 1;
         int first = v.getFirstValueIndex(p);
         int value = v.getInt(first);
@@ -155,11 +155,11 @@ public final class MvMedianAbsoluteDeviationIntEvaluator extends AbstractMultiva
     try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       MvMedianAbsoluteDeviation.Longs work = new MvMedianAbsoluteDeviation.Longs();
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         int result = MvMedianAbsoluteDeviation.ascending(work, v, first, valueCount);
         builder.appendInt(result);
@@ -191,10 +191,10 @@ public final class MvMedianAbsoluteDeviationIntEvaluator extends AbstractMultiva
     return BASE_RAM_BYTES_USED + field.baseRamBytesUsed();
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+  public static class Factory implements ExpressionEvaluator.Factory {
+    private final ExpressionEvaluator.Factory field;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+    public Factory(ExpressionEvaluator.Factory field) {
       this.field = field;
     }
 

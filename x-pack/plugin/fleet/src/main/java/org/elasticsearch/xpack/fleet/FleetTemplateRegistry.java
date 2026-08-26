@@ -11,6 +11,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -35,7 +36,7 @@ public class FleetTemplateRegistry extends IndexTemplateRegistry {
         new LifecyclePolicyConfig(".fleet-file-fromhost-meta-ilm-policy", "/fleet-file-fromhost-meta-ilm-policy.json")
     );
 
-    public static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
+    final Map<String, ComposableIndexTemplate> composableIndexTemplates = parseComposableTemplates(
         new IndexTemplateConfig(
             ".fleet-fileds-fromhost-meta",
             "/fleet-file-fromhost-meta.json",
@@ -67,9 +68,10 @@ public class FleetTemplateRegistry extends IndexTemplateRegistry {
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        FeatureService featureService
     ) {
-        super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
+        super(nodeSettings, clusterService, threadPool, client, xContentRegistry, featureService);
     }
 
     @Override
@@ -84,6 +86,6 @@ public class FleetTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
-        return COMPOSABLE_INDEX_TEMPLATE_CONFIGS;
+        return composableIndexTemplates;
     }
 }

@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
@@ -27,6 +28,10 @@ import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.INFERENCE_REQUEST_PER_TASK_TIMEOUT_ADDED;
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.OLD_DEFAULT_TIMEOUT;
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 
 public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.Response> {
 
@@ -49,13 +54,19 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
         private final XContentType contentType;
         private final TimeValue timeout;
 
-        public Request(TaskType taskType, String inferenceEntityId, BytesReference content, XContentType contentType, TimeValue timeout) {
+        public Request(
+            TaskType taskType,
+            String inferenceEntityId,
+            BytesReference content,
+            XContentType contentType,
+            @Nullable TimeValue timeout
+        ) {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.taskType = taskType;
             this.inferenceEntityId = inferenceEntityId;
             this.content = content;
             this.contentType = contentType;
-            this.timeout = timeout;
+            this.timeout = Objects.requireNonNullElse(timeout, TIMEOUT_NOT_DETERMINED);
         }
 
         public Request(StreamInput in) throws IOException {
@@ -68,7 +79,7 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
             if (in.getTransportVersion().supports(INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT)) {
                 this.timeout = in.readTimeValue();
             } else {
-                this.timeout = InferenceAction.Request.DEFAULT_TIMEOUT;
+                this.timeout = TIMEOUT_NOT_DETERMINED;
             }
         }
 
@@ -101,7 +112,12 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
             XContentHelper.writeTo(out, contentType);
 
             if (out.getTransportVersion().supports(INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT)) {
-                out.writeTimeValue(timeout);
+                if (timeout.equals(TIMEOUT_NOT_DETERMINED)
+                    && out.getTransportVersion().supports(INFERENCE_REQUEST_PER_TASK_TIMEOUT_ADDED) == false) {
+                    out.writeTimeValue(OLD_DEFAULT_TIMEOUT);
+                } else {
+                    out.writeTimeValue(timeout);
+                }
             }
         }
 

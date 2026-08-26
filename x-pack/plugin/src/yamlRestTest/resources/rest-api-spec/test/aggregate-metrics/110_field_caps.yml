@@ -1,9 +1,10 @@
 setup:
   - requires:
-      cluster_features: ["gte_v8.5.0"]
-      reason: metric params only on time series indices introduced in 8.5.0
+      test_runner_features: [ allowed_warnings ]
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
         index: test_rollup
         body:
@@ -65,6 +66,8 @@ setup:
                 time_series_metric: gauge
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
         index: test_aggregate_metric
         body:
@@ -77,10 +80,6 @@ setup:
 
 ---
 aggregate_metric on standard index:
-  - requires:
-      cluster_features: ["gte_v8.5.0"]
-      reason: aggregate_metric_double field caps changed in 8.5.0
-
   - do:
       field_caps:
         index: test_aggregate_metric
@@ -92,10 +91,6 @@ aggregate_metric on standard index:
 
 ---
 aggregate_metric on standard index conflict with double:
-  - requires:
-      cluster_features: ["gte_v8.5.0"]
-      reason: aggregate_metric_double field caps changed in 8.5.0
-
   - do:
       indices.create:
         index: test_double
@@ -120,10 +115,6 @@ aggregate_metric on standard index conflict with double:
 ---
 # Test field_caps on a rollup index
 field caps on rollup indices:
-  - requires:
-      cluster_features: ["gte_v8.5.0"]
-      reason: metric params only on time series indices introduced in 8.5.0
-
   - do:
       field_caps:
         index: test_rollup
@@ -143,10 +134,6 @@ field caps on rollup indices:
 ---
 # Test field_caps on time-series index (mix of raw and rollup indices)
 field caps on time series indices:
-  - requires:
-      cluster_features: ["gte_v8.5.0"]
-      reason: metric params only on time series indices introduced in 8.5.0
-
   - do:
       field_caps:
         index: [ test_time_series, test_rollup ]
@@ -174,10 +161,6 @@ field caps on time series indices:
 ---
 # Test field_caps on mixed standard and time-series (mix of raw and rollup) indices
 field caps on all indices:
-  - requires:
-      cluster_features: ["gte_v8.5.0"]
-      reason: metric params only on time series indices introduced in 8.5.0
-
   - do:
       field_caps:
         index: [ test_time_series, test_rollup, test_non_time_series ]

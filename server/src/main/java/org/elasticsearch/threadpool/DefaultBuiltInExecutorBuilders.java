@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.threadpool.internal.BuiltInExecutorBuilders;
 
@@ -20,7 +21,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.threadpool.ScalingExecutorBuilder.HOT_THREADS_ON_LARGE_QUEUE_DURATION_THRESHOLD_SETTING;
+import static org.elasticsearch.threadpool.ScalingExecutorBuilder.HOT_THREADS_ON_LARGE_QUEUE_INTERVAL_SETTING;
+import static org.elasticsearch.threadpool.ScalingExecutorBuilder.HOT_THREADS_ON_LARGE_QUEUE_SIZE_THRESHOLD_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING;
+import static org.elasticsearch.threadpool.ThreadPool.WRITE_THREAD_POOL_UTILIZATION_EWMR_HALF_LIFE;
 import static org.elasticsearch.threadpool.ThreadPool.searchAutoscalingEWMA;
 
 public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
@@ -32,6 +37,10 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
         final int halfProcMaxAt10 = ThreadPool.halfAllocatedProcessorsMaxTen(allocatedProcessors);
         final int genericThreadPoolMax = ThreadPool.boundedBy(4 * allocatedProcessors, 128, 512);
         final double indexAutoscalingEWMA = WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING.get(settings);
+        final int hotThreadsOnLargeQueueSizeThreshold = HOT_THREADS_ON_LARGE_QUEUE_SIZE_THRESHOLD_SETTING.get(settings);
+        final TimeValue hotThreadsOnLargeQueueDurationThreshold = HOT_THREADS_ON_LARGE_QUEUE_DURATION_THRESHOLD_SETTING.get(settings);
+        final TimeValue hotThreadsOnLargeQueueInterval = HOT_THREADS_ON_LARGE_QUEUE_INTERVAL_SETTING.get(settings);
+        final TimeValue writeThreadPoolUtilizationEWMRHalfLife = WRITE_THREAD_POOL_UTILIZATION_EWMR_HALF_LIFE.get(settings);
 
         Map<String, ExecutorBuilder> result = new HashMap<>();
         result.put(
@@ -60,6 +69,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                     .trackOngoingTasks()
                     .trackMaxQueueLatency()
                     .trackExecutionTime(indexAutoscalingEWMA)
+                    .threadUtilizationEwmrHalfLife(writeThreadPoolUtilizationEWMRHalfLife)
                     .build()
             )
         );
@@ -115,7 +125,12 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 1,
                 ThreadPool.boundedBy(allocatedProcessors, 1, 5),
                 TimeValue.timeValueMinutes(5),
-                false
+                false,
+                new EsExecutors.HotThreadsOnLargeQueueConfig(
+                    hotThreadsOnLargeQueueSizeThreshold,
+                    hotThreadsOnLargeQueueDurationThreshold.millis(),
+                    hotThreadsOnLargeQueueInterval.millis()
+                )
             )
         );
         result.put(
@@ -158,9 +173,15 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
             )
         );
         if (ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.get(settings)) {
+            final double mergeMaxSizeFactor = ThreadPoolMergeExecutorService.INDICES_MERGE_THREAD_POOL_MAX_SIZE_FACTOR_SETTING.get(
+                settings
+            );
+            // Scale the default max size (the number of allocated processors) by the factor, rounding to the nearest integer and
+            // flooring to at least 1 so the pool is always usable. An explicit thread_pool.merge.max still overrides this default.
+            final int mergeMax = Math.min(allocatedProcessors, Math.max(1, (int) Math.round(allocatedProcessors * mergeMaxSizeFactor)));
             result.put(
                 ThreadPool.Names.MERGE,
-                new ScalingExecutorBuilder(ThreadPool.Names.MERGE, 1, allocatedProcessors, TimeValue.timeValueMinutes(5), true)
+                new ScalingExecutorBuilder(ThreadPool.Names.MERGE, 1, mergeMax, TimeValue.timeValueMinutes(5), true)
             );
         }
         result.put(

@@ -7,13 +7,24 @@
 package org.elasticsearch.xpack.sql.qa.security;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.sql.qa.jdbc.SqlSpecTestCase;
+import org.junit.ClassRule;
 
 import java.util.Properties;
 
 public class JdbcSqlSpecIT extends SqlSpecTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = SqlSecurityTestCluster.getCluster();
+
     public JdbcSqlSpecIT(String fileName, String groupName, String testName, Integer lineNumber, String query) {
         super(fileName, groupName, testName, lineNumber, query);
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 
     @Override

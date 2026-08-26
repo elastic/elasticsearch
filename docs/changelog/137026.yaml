@@ -1,5 +1,0 @@
-pr: 137026
-summary: Improve value loading for `match_only_text` mapping
-area: ES|QL
-type: enhancement
-issues: []

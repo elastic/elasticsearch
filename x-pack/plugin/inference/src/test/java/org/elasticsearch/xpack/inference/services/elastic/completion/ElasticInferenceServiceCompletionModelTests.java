@@ -7,12 +7,17 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.completion;
 
-import org.elasticsearch.inference.EmptySecretSettings;
-import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
+import org.elasticsearch.xpack.inference.services.settings.ImmutableEmptyTaskSettings;
 
 import java.util.List;
 
@@ -21,18 +26,10 @@ import static org.hamcrest.Matchers.is;
 public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
 
     public void testOverridingModelId() {
-        var originalModel = new ElasticInferenceServiceCompletionModel(
-            "id",
-            TaskType.COMPLETION,
-            "elastic",
-            new ElasticInferenceServiceCompletionServiceSettings("model_id"),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
-            ElasticInferenceServiceComponents.of("url")
-        );
+        var originalModel = createModel("url", "model_id", TaskType.COMPLETION);
 
         var request = new UnifiedCompletionRequest(
-            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("message"), "user", null, null)),
+            List.of(new Message(new ContentString("message"), "user", null, null)),
             "new_model_id",
             null,
             null,
@@ -49,35 +46,36 @@ public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
     }
 
     public void testUriCreation() {
-        var url = "http://eis-gateway.com";
-        var model = createModel(url, "my-model-id");
+        var model = createModel("http://eis-gateway.com", "my-model-id", TaskType.COMPLETION);
 
-        var uri = model.uri();
-        assertThat(uri.toString(), is(url + "/api/v1/chat"));
+        assertThat(model.uri().toString(), is("http://eis-gateway.com/api/v1/chat"));
+    }
+
+    public void testUriCreation_WithTrailingSlash() {
+        var model = createModel("http://eis-gateway.com/", "my-model-id", TaskType.COMPLETION);
+
+        assertThat(model.uri().toString(), is("http://eis-gateway.com/api/v1/chat"));
     }
 
     public void testGetServiceSettings() {
         var modelId = "test-model";
-        var model = createModel("http://eis-gateway.com", modelId);
+        var model = createModel("http://eis-gateway.com", modelId, TaskType.COMPLETION);
 
         var serviceSettings = model.getServiceSettings();
         assertThat(serviceSettings.modelId(), is(modelId));
     }
 
     public void testGetTaskType() {
-        var model = createModel("http://eis-gateway.com", "my-model-id");
+        var model = createModel("http://eis-gateway.com", "my-model-id", TaskType.COMPLETION);
         assertThat(model.getTaskType(), is(TaskType.COMPLETION));
     }
 
     public void testGetInferenceEntityId() {
         var inferenceEntityId = "test-id";
-        var model = new ElasticInferenceServiceCompletionModel(
+        var model = createModel(
             inferenceEntityId,
             TaskType.COMPLETION,
-            "elastic",
             new ElasticInferenceServiceCompletionServiceSettings("my-model-id"),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             ElasticInferenceServiceComponents.of("http://eis-gateway.com")
         );
 
@@ -85,7 +83,7 @@ public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
     }
 
     public void testModelWithOverriddenServiceSettings() {
-        var originalModel = createModel("http://eis-gateway.com", "original-model");
+        var originalModel = createModel("http://eis-gateway.com", "original-model", TaskType.COMPLETION);
         var newServiceSettings = new ElasticInferenceServiceCompletionServiceSettings("new-model");
 
         var overriddenModel = new ElasticInferenceServiceCompletionModel(originalModel, newServiceSettings);
@@ -95,14 +93,49 @@ public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
         assertThat(overriddenModel.uri().toString(), is(originalModel.uri().toString()));
     }
 
-    public static ElasticInferenceServiceCompletionModel createModel(String url, String modelId) {
-        return new ElasticInferenceServiceCompletionModel(
+    public static ElasticInferenceServiceCompletionModel createModel(String url, String modelId, TaskType taskType) {
+        return createModel(
             "id",
-            TaskType.COMPLETION,
-            "elastic",
+            taskType,
             new ElasticInferenceServiceCompletionServiceSettings(modelId),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
+            ElasticInferenceServiceComponents.of(url)
+        );
+    }
+
+    public static ElasticInferenceServiceCompletionModel createModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        ElasticInferenceServiceCompletionServiceSettings serviceSettings,
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents
+    ) {
+        return new ElasticInferenceServiceCompletionModel(
+            inferenceEntityId,
+            taskType,
+            serviceSettings,
+            elasticInferenceServiceComponents,
+            null,
+            ImmutableEmptyTaskSettings.INSTANCE
+        );
+    }
+
+    public static ElasticInferenceServiceCompletionModel createModel(
+        String url,
+        String inferenceId,
+        String modelId,
+        TaskType taskType,
+        TaskSettings taskSettings
+    ) {
+        return new ElasticInferenceServiceCompletionModel(
+            new ModelConfigurations(
+                inferenceId,
+                taskType,
+                ElasticInferenceService.NAME,
+                new ElasticInferenceServiceCompletionServiceSettings(modelId),
+                taskSettings,
+                null,
+                null
+            ),
+            ModelSecrets.emptySecrets(),
             ElasticInferenceServiceComponents.of(url)
         );
     }

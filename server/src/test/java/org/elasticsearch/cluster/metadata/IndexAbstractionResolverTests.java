@@ -21,6 +21,7 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -49,10 +50,8 @@ public class IndexAbstractionResolverTests extends ESTestCase {
     // Only used when resolving wildcard expressions
     private final Set<String> defaultMask = Set.of("index1", "index2", "data-stream1");
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-
+    @Before
+    public void initResolvers() throws Exception {
         // Try to resist failing at midnight on the first/last day of the month. Time generally moves forward, so make a timestamp for
         // the next day and if they're different, add both to the cluster state. Check for either in date math tests.
         long timeMillis = System.currentTimeMillis();
@@ -76,7 +75,6 @@ public class IndexAbstractionResolverTests extends ESTestCase {
             TestProjectResolvers.singleProject(projectMetadata.id())
         );
         indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
-
     }
 
     public void testResolveIndexAbstractions() {
@@ -221,6 +219,17 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         assertThat(isIndexVisible("data-stream1", null), is(true));
         assertThat(isIndexVisible("data-stream1", "data"), is(true));
         assertThat(isIndexVisible("data-stream1", "failures"), is(true));
+
+        assertFalse(
+            IndexAbstractionResolver.isIndexVisibleUnderConcreteAccess(
+                "data-stream1",
+                null,
+                IndicesOptions.DEFAULT,
+                projectMetadata,
+                indexNameExpressionResolver,
+                false
+            )
+        );
     }
 
     public void testIsNetNewSystemIndexVisible() {
@@ -266,14 +275,8 @@ public class IndexAbstractionResolverTests extends ESTestCase {
 
         // these indices options are for the GET _data_streams case
         final IndicesOptions noHiddenNoAliases = IndicesOptions.builder()
-            .wildcardOptions(
-                IndicesOptions.WildcardOptions.builder()
-                    .matchOpen(true)
-                    .matchClosed(true)
-                    .includeHidden(false)
-                    .resolveAliases(false)
-                    .build()
-            )
+            .wildcardOptions(IndicesOptions.WildcardOptions.builder().matchOpen(true).matchClosed(true).includeHidden(false).build())
+            .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveAliases(false).build())
             .build();
 
         {
@@ -379,7 +382,7 @@ public class IndexAbstractionResolverTests extends ESTestCase {
     }
 
     private boolean isIndexVisible(String index, String selector, IndicesOptions indicesOptions) {
-        return IndexAbstractionResolver.isIndexVisible(
+        return IndexAbstractionResolver.isIndexVisibleUnderWildcardAccess(
             "*",
             selector,
             index,

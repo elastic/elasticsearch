@@ -11,6 +11,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
+import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -19,8 +20,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createRerankInferenceEndpoint;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteRerankInferenceEndpoint;
 import static org.hamcrest.core.StringContains.containsString;
 
 public class RestRerankTestCase extends ESRestTestCase {
@@ -36,7 +35,7 @@ public class RestRerankTestCase extends ESRestTestCase {
 
     @Before
     public void setUpInferenceEndpoint() throws IOException {
-        createRerankInferenceEndpoint(adminClient());
+        CsvTestsDataLoader.createInferenceEndpoint(adminClient(), CsvTestsDataLoader.INFERENCE_CONFIGS.get("test_reranker"));
     }
 
     @Before
@@ -77,7 +76,7 @@ public class RestRerankTestCase extends ESRestTestCase {
             }
         }
 
-        deleteRerankInferenceEndpoint(adminClient());
+        CsvTestsDataLoader.deleteInferenceEndpoint(adminClient(), "test_reranker");
     }
 
     public void testRerankWithSingleField() throws IOException {

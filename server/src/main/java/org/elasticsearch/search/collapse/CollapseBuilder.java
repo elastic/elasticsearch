@@ -202,6 +202,9 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
     }
 
     public CollapseContext build(SearchExecutionContext searchExecutionContext) {
+        if (field == null) {
+            throw new IllegalArgumentException("no collapse field specified");
+        }
         MappedFieldType fieldType = searchExecutionContext.getFieldType(field);
         if (fieldType == null) {
             throw new IllegalArgumentException("no mapping found for `" + field + "` in order to collapse on");

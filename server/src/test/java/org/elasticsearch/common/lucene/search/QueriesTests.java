@@ -13,6 +13,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -47,7 +48,10 @@ public class QueriesTests extends ESTestCase {
             new BooleanQuery.Builder().add(Queries.ALL_DOCS_INSTANCE, Occur.FILTER)
                 .add(new TermQuery(new Term("foo", "bar")), Occur.MUST_NOT)
                 .build(),
-            Queries.fixNegativeQueryIfNeeded(new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), Occur.MUST_NOT).build())
+            Queries.fixNegativeQueryIfNeeded(
+                new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), Occur.MUST_NOT).build(),
+                QueryVisitor.EMPTY_VISITOR
+            )
         );
     }
 }

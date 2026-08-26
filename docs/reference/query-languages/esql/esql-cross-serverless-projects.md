@@ -1,0 +1,423 @@
+---
+applies_to:
+  stack: unavailable
+  serverless: preview
+products:
+  - id: elasticsearch
+description: Learn how to use the ES|QL language in Elasticsearch to query across multiple Serverless projects. Learn about index resolution, project routing, and accessing project metadata.
+navigation_title: "Query across serverless projects"
+---
+
+# Query across {{serverless-short}} projects with {{esql}}
+
+[Cross-project search](docs-content://explore-analyze/cross-project-search.md) (CPS) enables you to run queries across multiple [linked {{serverless-short}} projects](docs-content://explore-analyze/cross-project-search.md#project-linking) from a single request.
+
+There are several ways to control which projects a query runs against:
+
+- **[Query all projects](#query-all-projects-default)**: If you just want to query across all linked projects, no special syntax is required. Queries automatically run against the origin and all linked projects by default.
+- **[Use project routing](#use-project-routing)**: Use project routing to limit the scope of your search to specific projects before query execution. Excluded projects are not queried.
+- **[Use index expressions](#use-index-expressions)**: Use index expressions for fine-grained control over which projects and indices are queried, by qualifying index names with a project alias. Search expressions can be used independently or combined with project routing.
+
+## Before you begin
+
+This page covers {{esql}}-specific CPS behavior. Before continuing, make sure you are familiar with the following:
+
+* [Cross-project search](docs-content://explore-analyze/cross-project-search.md)
+* [Linked projects](docs-content://explore-analyze/cross-project-search/cross-project-search-link-projects.md)
+* [How search works in CPS](docs-content://explore-analyze/cross-project-search/cross-project-search-search.md)
+* [Project routing in CPS](docs-content://explore-analyze/cross-project-search/cross-project-search-project-routing.md)
+* [Tags in CPS](docs-content://explore-analyze/cross-project-search/cross-project-search-tags.md)
+
+## Query all projects (default)
+
+The default behavior is to query across the origin project and all linked projects automatically.
+The following example queries the `data` index and includes the `_index` metadata field to identify which project each result came from:
+
+```console
+GET /_query
+{
+  "query": "FROM data METADATA _index", <1>
+  "include_execution_metadata": true     <2>
+}
+```
+
+1. `METADATA _index` returns the fully-qualified index name for each document. Documents from linked projects include the project alias prefix, for example `linked-project-1:data`.
+2. Required to include the `_clusters` object in the response. Defaults to `false`.
+
+The response includes:
+- a `_clusters` object showing the status of each participating project
+- a `values` array where each row includes the qualified index name identifying which project the document came from
+
+:::{dropdown} Example response
+```json
+{
+  "took": 329,
+  "is_partial": false,
+  "columns": [
+    { "name": "_index", "type": "keyword" }
+  ],
+  "values": [
+    ["data"],                      <1>
+    ["linked-project-1:data"]      <2>
+  ],
+  "_clusters": {
+    "total": 2,
+    "successful": 2,
+    "running": 0,
+    "skipped": 0,
+    "partial": 0,
+    "failed": 0,
+    "details": {
+      "_origin": {                 <3>
+        "status": "successful",
+        "indices": "data",
+        "took": 328,
+        "_shards": { "total": 1, "successful": 1, "skipped": 0, "failed": 0 }
+      },
+      "linked-project-1": {        <4>
+        "status": "successful",
+        "indices": "data",
+        "took": 256,
+        "_shards": { "total": 1, "successful": 1, "skipped": 0, "failed": 0 }
+      }
+    }
+  }
+}
+```
+
+1. Documents from the origin project show an unqualified index name.
+2. Documents from linked projects show a qualified index name: the project alias, a colon, then the index name.
+3. `_origin` is the reserved identifier for the origin project.
+4. Each linked project is identified by its project alias.
+:::
+
+## Use project routing
+
+[Project routing](docs-content://explore-analyze/cross-project-search/cross-project-search-project-routing.md) limits the scope of a query to specific projects, based on tag values.
+Project routing happens before query execution, so excluded projects are never queried. This can help reduce cost and latency.
+
+Project routing expressions use Lucene query syntax, so you're not limited to a single tag or an exact match. The colon (`:`) separates a tag from its value. For example, `_csp:aws` matches projects on Amazon Web Services (AWS).
+
+You can route on any project tag:
+
+- Predefined tags, such as `_alias`, `_csp`, and `_region`. For the full list, refer to [Tags in CPS](docs-content://explore-analyze/cross-project-search/cross-project-search-tags.md).
+- Custom tags that you define in the {{ecloud}} UI.
+
+In an expression, you can:
+
+- Combine tags with the `AND`, `OR`, and `NOT` operators.
+- Group terms with parentheses.
+- Match part of a tag value with a prefix or suffix wildcard (`*`).
+
+Tag value matching is case-insensitive, so `_csp:AWS` matches the value `aws`. Tag names are case-sensitive, so use `_csp`, not `_CSP`. The syntax is the same for {{esql}} and the `_search` API.
+
+:::{note}
+You can optionally add the `_project.` prefix to a tag name, for example `_project._csp:aws`. This is the same prefix used to reference tags in queries. In project routing the prefix is optional, so `_csp:aws` and `_project._csp:aws` are equivalent.
+:::
+
+The following expressions are all valid:
+
+| Expression | Projects matched |
+| --- | --- |
+| `_csp:azure` | Projects on Azure |
+| `_alias:lin*` | Projects whose alias starts with `lin` |
+| `_csp:aws AND _region:us*` | AWS projects in a US region |
+| `(_region:us-* AND _csp:aws) OR _csp:gcp` | AWS projects in a US region, or any project on Google Cloud |
+| `_csp:GCP` | Google Cloud projects (value matching is case-insensitive, so this also matches `gcp`) |
+
+:::{note}
+Every term in an expression needs a tag name, and every tag must be defined. These expressions fail:
+
+- `_csp:aws OR gcp` fails because the bare term `gcp` has no tag name. Use `_csp:aws OR _csp:gcp` instead.
+- `_foo:bar` fails because `_foo` isn't a defined tag.
+- `NOT _csp:azure` fails because an expression can't be only a negation. To match every project except Azure, include first and then exclude: `_csp:* AND NOT _csp:azure`.
+:::
+
+You can specify project routing in two ways:
+
+- [Embed project routing in the query with `SET`](#option-1-use-the-set-directive): This approach works wherever you can write an {{esql}} query.
+- [Pass project routing in the `_query` API request body](#option-2-pass-project_routing-in-the-api-request-body): You can pass a `project_routing` field to keep project routing logic separate from the query string.
+
+:::{important}
+If both options are combined, `SET project_routing` takes precedence.
+:::
+
+### Option 1: Use the `SET` directive
+
+`SET project_routing` embeds project routing directly within the {{esql}} query. You can use this approach wherever you write {{esql}}. [`SET`](/reference/query-languages/esql/directives/set.md) must appear before other {{esql}} commands. The semicolon after the last parameter separates it from the rest of the query. The order of parameters within `SET` does not matter.
+
+```esql
+SET project_routing="_csp:aws AND _region:us*";    <1>
+FROM data
+| STATS COUNT(*)
+```
+
+1. Routes the query to projects on AWS in a US region.
+
+### Option 2: Pass `project_routing` in the API request body
+
+If you are constructing the full `_query` request, you can pass the `project_routing` field in the request body. This keeps project routing logic separate from the query string:
+
+```console
+GET /_query
+{
+  "query": "FROM data | STATS COUNT(*)",
+  "project_routing": "_csp:aws AND _region:us*"    <1>
+}
+```
+
+1. Routes the query to projects on AWS in a US region.
+
+### Reference a named project routing expression
+
+Both options support referencing a named project routing expression using the `@` prefix.
+Before you can reference a named expression, you must create it using the `_project_routing` API.
+For instructions, refer to [Using named project routing expressions](docs-content://explore-analyze/cross-project-search/cross-project-search-project-routing.md#creating-and-managing-named-project-routing-expressions).
+
+::::{tab-set}
+
+:::{tab-item} Request body
+```console
+GET /_query
+{
+  "query": "FROM logs | STATS COUNT(*)",
+  "project_routing": "@custom-expression"
+}
+```
+:::
+
+:::{tab-item} SET directive
+```esql
+SET project_routing="@custom-expression";
+FROM logs
+| STATS COUNT(*)
+```
+:::
+
+::::
+
+:::{note}
+Reference a named expression on its own. You can't combine it with a direct expression or with another named expression. For example, both `@custom-expression OR _csp:aws` and `@custom-expression OR @another-expression` fail.
+:::
+
+## Use index expressions
+
+{{esql}} supports two types of [index expressions](docs-content://explore-analyze/cross-project-search/cross-project-search-search.md#search-expressions):
+
+- **Unqualified expressions** have no project prefix and search across all projects. Example: `logs*`.
+- **Qualified expressions** include a project alias prefix to target a specific project or set of projects. Example: `project1:logs*`.
+
+### Restrict to the origin project
+
+Use `_origin:` to target only the project from which the query is run:
+
+```esql
+FROM _origin:data    <1>
+| STATS COUNT(*)
+```
+
+1. `_origin` always refers to the origin project, regardless of its alias.
+
+### Restrict to a specific linked project
+
+Prefix the index name with the linked project's alias:
+
+```esql
+FROM linked-project-1:data    <1>
+| STATS COUNT(*)
+```
+
+1. Replace `linked-project-1` with the actual project alias.
+
+### Exclude specific projects
+
+Prefix an index expression with `-` to exclude it from the resolved set.
+The following example uses `-_origin:*` to exclude all indices from the origin project:
+
+```esql
+FROM data,-_origin:*    <1>
+| STATS COUNT(*)
+```
+
+1. `data` is resolved across all projects except the origin project.
+
+::::{note}
+`*:` in CPS does not behave like `*:` in [cross-cluster search (CCS)](/reference/query-languages/esql/esql-cross-clusters.md) (which is used to query across clusters in non-serverless deployments):
+
+- In CCS, `*:` targets all remote clusters and excludes the local cluster.
+- In CPS, `*:` resolves against all projects including the origin, the same as an unqualified expression.
+::::
+
+#### Exclude specific indices from a project
+
+To exclude a specific index from a linked project, prefix the index with a minus sign after the project alias, such as `linked-project-1:-logs-archive`:
+
+```esql
+FROM logs*,linked-project-1:-logs-archive    <1>
+| STATS COUNT(*)
+```
+
+1. `logs*` is resolved across all projects. On `linked-project-1`, the `logs-archive` index is excluded.
+
+You can also place the minus sign on the project alias. For example, `-linked-project-1:logs-archive` is equivalent to `linked-project-1:-logs-archive`. This works for any index name or wildcard pattern other than `*`. Both forms can appear on their own.
+
+The same applies to the origin project. For example, `-_origin:logs` is equivalent to `_origin:-logs`.
+
+::::{note}
+`-linked-project-1:*` behaves differently. It is a project-level exclusion that removes the entire project and requires a preceding inclusion pattern.
+::::
+
+Combining both prefixes, such as `-linked-project-1:-logs-archive`, is not valid.
+
+### Combine qualified and unqualified expressions
+
+You can mix unqualified and qualified expressions in the same query:
+
+```esql
+FROM data, _origin:logs    <1>
+| LIMIT 100
+```
+
+1. `data` is resolved across all projects. `_origin:logs` is resolved only in the origin project.
+
+::::{tip}
+Error handling differs between expression types. Unqualified expressions fail only if the index exists in none of the searched projects. Qualified expressions fail if the index is missing from the targeted project, regardless of whether it exists elsewhere.
+For a detailed explanation, refer to [Unqualified expression behavior](docs-content://explore-analyze/cross-project-search/cross-project-search-search.md#behavior-unqualified).
+::::
+
+## Include project metadata in results
+
+Use the `METADATA` keyword in a `FROM` command to include project-level information alongside query results.
+Project metadata fields use the `_project.` prefix to distinguish them from document fields.
+
+You can use project metadata fields in two ways:
+
+* As columns in returned result rows, to identify which project each document came from.
+* In downstream commands such as `WHERE`, `STATS`, and `KEEP`, to filter, aggregate, or sort results by project. Note: `WHERE` [filters results after all projects are queried](#filter-results-by-project-tag) and does not limit query scope.
+
+Available fields include all predefined tags and any custom tags you have defined.
+You can also use wildcard patterns such as `_project.my-prefix*` or `_project.*`.
+
+For a full list of predefined tags, refer to [Tags in CPS](docs-content://explore-analyze/cross-project-search/cross-project-search-tags.md).
+
+::::{important}
+You must declare a project metadata field in the `METADATA` clause to use it anywhere in the query, including in `WHERE`, `STATS`, `KEEP`, and other downstream commands.
+::::
+
+### Return project alias alongside results
+
+Include `_project._alias` in `METADATA` to add the project alias as a column on each result row:
+
+```esql
+FROM logs* METADATA _project._alias    <1>
+| KEEP @timestamp, message, _project._alias
+```
+
+1. Declaring `_project._alias` in `METADATA` makes it available in `KEEP` and other downstream commands.
+
+:::{dropdown} Example response
+```json
+{
+  "took": 47,
+  "is_partial": false,
+  "columns": [
+    { "name": "@timestamp", "type": "date" },
+    { "name": "message", "type": "keyword" },
+    { "name": "_project._alias", "type": "keyword" }
+  ],
+  "values": [
+    ["2025-01-15T10:23:00.000Z", "connection established", "origin-project"],    <1>
+    ["2025-01-15T10:24:00.000Z", "request timeout", "linked-project-1"],         <2>
+    ["2025-01-15T10:25:00.000Z", "disk full", "linked-project-1"]
+  ]
+}
+```
+
+1. Documents from the origin project show its project alias.
+2. Documents from linked projects show the linked project's alias.
+:::
+
+### Aggregate results by project
+
+Include `_project._alias` in `METADATA` to group and count results by project:
+
+```esql
+FROM logs* METADATA _project._alias    <1>
+| STATS doc_count = COUNT(*) BY _project._alias
+```
+
+1. `_project._alias` must be in `METADATA` to use it in `STATS ... BY`.
+
+### Filter results by project tag
+
+A project tag in a `WHERE` clause filters the result set after the query runs across all projects. It does not limit which projects are queried.
+
+The following examples show the difference between filtering with `WHERE` and restricting the query scope with project routing.
+
+#### Filter with `WHERE` (post-query)
+
+```esql
+FROM logs* METADATA _project._csp    <1>
+| WHERE _project._csp == "aws"       <2>
+```
+
+1. Declare the tag in `METADATA` to use it in downstream commands.
+2. All linked projects are queried. Only results from AWS projects are returned.
+
+::::{important}
+Filtering with `WHERE` on a project tag happens after all projects are queried. To optimize a query, use [project routing](#use-project-routing) to select projects before execution.
+::::
+
+#### Restrict with project routing (pre-query)
+
+```esql
+SET project_routing="_csp:aws";    <1>
+FROM logs*
+| STATS COUNT(*)
+```
+
+1. Only projects on AWS are queried. No data is fetched from other projects.
+
+### Use project routing and METADATA together
+
+Project routing and project metadata serve different purposes and are independent of each other.
+Project routing determines which projects are queried, before execution.
+METADATA makes tag values available in query results and downstream commands, at query time.
+
+Using a tag in `METADATA` does not route the query. Using project routing does not populate `METADATA` fields.
+To both restrict queried projects and include tag values in results, specify both:
+
+```esql
+SET project_routing="_alias:*linked*";    <1>
+FROM logs METADATA _project._alias        <2>
+| STATS COUNT(*) BY _project._alias
+```
+
+1. Routes the query to projects whose alias matches `*linked*`. Only those projects are queried.
+2. Declares `_project._alias` so it can be used in `STATS`. Results show a count per matched project.
+
+## Limitations
+
+Two [{{esql}} cross-cluster search limitations](/reference/query-languages/esql/esql-cross-clusters.md#ccq-limitations) also apply to cross-project search: [inference endpoints](/reference/query-languages/esql/esql-cross-clusters.md#ccq-inference-endpoints) and [relevance scores across clusters](/reference/query-languages/esql/esql-cross-clusters.md#ccq-scores). Inference endpoints for `RERANK`, `COMPLETION`, `TEXT_EMBEDDING`, and `EMBEDDING` must exist in the origin project. Querying a `semantic_text` field needs that field's `search_inference_id` endpoint in every project that holds the data being queried.
+
+### LOOKUP JOIN across projects
+
+{{esql}} `LOOKUP JOIN` follows the same constraints as [{{esql}} cross-cluster `LOOKUP JOIN`](/reference/query-languages/esql/esql-lookup-join.md#cross-cluster-support). By default, {{esql}} resolves the lookup index on every project in the query and each project joins against its own local index with that name. In this case, the lookup index must exist on every project being queried.
+
+If the lookup index is missing from one or more linked projects, use [coordinator mode](/reference/query-languages/esql/esql-lookup-join.md#coordinator-mode) to join against an origin project lookup index copy.
+
+### Views across projects
+
+[{{esql}} views](/reference/query-languages/esql/esql-views.md) allows virtual indexes to be defined using {{esql}} queries.
+These queries will run in serverless just like a normal {{esql}} query. With some limitations:
+:::{include} _snippets/common/cps_view_limitations.md
+:::
+
+
+## Related pages
+
+* [ES|QL cross-cluster search](/reference/query-languages/esql/esql-cross-clusters.md): the equivalent feature for non-serverless deployments.
+* [`FROM` command](/reference/query-languages/esql/commands/from.md): full reference for index expressions and `METADATA` syntax.
+* [`SET` directive](/reference/query-languages/esql/directives/set.md): full reference for the `SET` directive in {{esql}}.
+* [ES|QL metadata fields](/reference/query-languages/esql/esql-metadata-fields.md): full reference for metadata fields available in ES|QL queries.
+* [ES|QL `LOOKUP JOIN`](/reference/query-languages/esql/esql-lookup-join.md): details on `LOOKUP JOIN` constraints, including cross-cluster and cross-project support.

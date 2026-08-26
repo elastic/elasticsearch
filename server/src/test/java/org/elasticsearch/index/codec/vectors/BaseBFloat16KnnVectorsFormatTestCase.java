@@ -65,6 +65,11 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 public abstract class BaseBFloat16KnnVectorsFormatTestCase extends BaseKnnVectorsFormatTestCase {
 
     @Override
+    protected boolean supportsFloatVectorFallback() {
+        return false;
+    }
+
+    @Override
     protected VectorEncoding randomVectorEncoding() {
         return VectorEncoding.FLOAT32;
     }
@@ -96,6 +101,11 @@ public abstract class BaseBFloat16KnnVectorsFormatTestCase extends BaseKnnVector
 
     @Override
     public void testRandomBytes() throws Exception {
+        throw new AssumptionViolatedException("No bytes");
+    }
+
+    @Override
+    public void testWriterByteVectorRamEstimate() throws Exception {
         throw new AssumptionViolatedException("No bytes");
     }
 

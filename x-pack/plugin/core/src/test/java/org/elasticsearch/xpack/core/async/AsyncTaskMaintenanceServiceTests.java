@@ -12,6 +12,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -70,20 +71,23 @@ public class AsyncTaskMaintenanceServiceTests extends ESTestCase {
         final Metadata.Builder metadataBuilder = Metadata.builder();
         final GlobalRoutingTable.Builder grtBuilder = GlobalRoutingTable.builder();
 
+        final IndexMetadata p1IndexMetadata = getIndexMetadata();
         final ProjectId p1 = ProjectId.fromId("p1");
-        metadataBuilder.put(ProjectMetadata.builder(p1).put(getIndexMetadata(), false));
-        grtBuilder.put(p1, buildRoutingTableWithIndex(localNodeId));
+        metadataBuilder.put(ProjectMetadata.builder(p1).put(p1IndexMetadata, false));
+        grtBuilder.put(p1, buildRoutingTableWithIndex(p1IndexMetadata.getIndex(), localNodeId));
 
+        final IndexMetadata p2IndexMetadata = getIndexMetadata();
         final ProjectId p2 = ProjectId.fromId("p2");
-        metadataBuilder.put(ProjectMetadata.builder(p2).put(getIndexMetadata(), false));
-        grtBuilder.put(p2, buildRoutingTableWithIndex(alternateNodeId));
+        metadataBuilder.put(ProjectMetadata.builder(p2).put(p2IndexMetadata, false));
+        grtBuilder.put(p2, buildRoutingTableWithIndex(p2IndexMetadata.getIndex(), alternateNodeId));
 
         final ProjectId p3 = ProjectId.fromId("p3");
         grtBuilder.put(p3, RoutingTable.builder());
 
+        final IndexMetadata p4IndexMetadata = getIndexMetadata();
         final ProjectId p4 = ProjectId.fromId("p4");
-        metadataBuilder.put(ProjectMetadata.builder(p4).put(getIndexMetadata(), false));
-        grtBuilder.put(p4, buildRoutingTableWithIndex(localNodeId));
+        metadataBuilder.put(ProjectMetadata.builder(p4).put(p4IndexMetadata, false));
+        grtBuilder.put(p4, buildRoutingTableWithIndex(p4IndexMetadata.getIndex(), localNodeId));
 
         metadataBuilder.put(ProjectMetadata.builder(p3));
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -182,11 +186,14 @@ public class AsyncTaskMaintenanceServiceTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(threadPoolSpy);
 
         // Update the cluster state to add project 4 again
+        final IndexMetadata p4ReaddedIndexMetadata = getIndexMetadata();
         previousState = clusterState;
         clusterState = ClusterState.builder(previousState)
-            .metadata(Metadata.builder(previousState.metadata()).put(ProjectMetadata.builder(p4).put(getIndexMetadata(), false)))
+            .metadata(Metadata.builder(previousState.metadata()).put(ProjectMetadata.builder(p4).put(p4ReaddedIndexMetadata, false)))
             .routingTable(
-                GlobalRoutingTable.builder(previousState.globalRoutingTable()).put(p4, buildRoutingTableWithIndex(localNodeId)).build()
+                GlobalRoutingTable.builder(previousState.globalRoutingTable())
+                    .put(p4, buildRoutingTableWithIndex(p4ReaddedIndexMetadata.getIndex(), localNodeId))
+                    .build()
             )
             .build();
 
@@ -208,12 +215,70 @@ public class AsyncTaskMaintenanceServiceTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(threadPoolSpy);
     }
 
+    @SuppressWarnings("unchecked")
+    public void testWorksWithAliases() {
+        final String localNodeId = randomIdentifier();
+        final String concreteIndexName = ASYNC_RESULTS_INDEX + "-000001";
+
+        final IndexMetadata indexMetadata = IndexMetadata.builder(concreteIndexName)
+            .settings(indexSettings(IndexVersion.current(), 1, 0))
+            .putAlias(AliasMetadata.builder(ASYNC_RESULTS_INDEX).writeIndex(true))
+            .build();
+
+        final ProjectId project = ProjectId.fromId("p1");
+        final Index concreteIndex = indexMetadata.getIndex();
+
+        final Metadata.Builder metadataBuilder = Metadata.builder().put(ProjectMetadata.builder(project).put(indexMetadata, false));
+
+        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder()
+            .add(
+                IndexRoutingTable.builder(concreteIndex)
+                    .addShard(TestShardRouting.newShardRouting(new ShardId(concreteIndex, 0), localNodeId, true, ShardRoutingState.STARTED))
+                    .build()
+            );
+
+        final GlobalRoutingTable.Builder grtBuilder = GlobalRoutingTable.builder().put(project, routingTableBuilder);
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadataBuilder)
+            .routingTable(grtBuilder.build())
+            .build();
+
+        final ClusterService clusterService = Mockito.mock(ClusterService.class);
+        final ThreadPool threadPoolSpy = Mockito.spy(threadPool);
+
+        final Client client = Mockito.mock(Client.class);
+        Mockito.doAnswer(invocationOnMock -> {
+            ActionListener<?> listener = invocationOnMock.getArgument(2, ActionListener.class);
+            listener.onResponse(null);
+            return null;
+        }).when(client).execute(same(DeleteByQueryAction.INSTANCE), any(DeleteByQueryRequest.class), any(ActionListener.class));
+
+        final ProjectResolver projectResolver = Mockito.spy(TestProjectResolvers.mustExecuteFirst());
+
+        final AsyncTaskMaintenanceService service = new AsyncTaskMaintenanceService(
+            clusterService,
+            projectResolver,
+            localNodeId,
+            Settings.EMPTY,
+            threadPoolSpy,
+            client
+        );
+
+        service.start();
+
+        service.clusterChanged(new ClusterChangedEvent(getTestName(), clusterState, ClusterState.EMPTY_STATE));
+
+        verify(projectResolver, times(1)).executeOnProject(eq(project), any(CheckedRunnable.class));
+        verify(client, times(1)).execute(same(DeleteByQueryAction.INSTANCE), any(DeleteByQueryRequest.class), any(ActionListener.class));
+        verify(threadPoolSpy, times(1)).schedule(any(Runnable.class), eq(timeValueHours(1)), any(ExecutorService.class));
+    }
+
     private static IndexMetadata getIndexMetadata() {
         return IndexMetadata.builder(ASYNC_RESULTS_INDEX).settings(indexSettings(IndexVersion.current(), 1, 0)).build();
     }
 
-    private static RoutingTable.Builder buildRoutingTableWithIndex(String nodeId) {
-        final Index index = new Index(ASYNC_RESULTS_INDEX, randomUUID());
+    private static RoutingTable.Builder buildRoutingTableWithIndex(Index index, String nodeId) {
         return RoutingTable.builder()
             .add(
                 IndexRoutingTable.builder(index)

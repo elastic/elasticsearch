@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.histogram;
 
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -16,16 +15,19 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.TDigestHolder;
-import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramQuantile;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.search.aggregations.metrics.MemoryTrackingTDigestArrays;
+import org.elasticsearch.tdigest.TDigest;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -43,7 +45,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * Note that this function is currently only intended for usage in surrogates and not available as a user-facing function.
  * Therefore, it is intentionally not registered in {@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry}.
  */
-public class HistogramPercentile extends EsqlScalarFunction {
+public class HistogramPercentile extends EsqlScalarFunction implements AnyNullIsNull {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -54,7 +56,11 @@ public class HistogramPercentile extends EsqlScalarFunction {
     private final Expression histogram;
     private final Expression percentile;
 
-    @FunctionInfo(returnType = { "double" })
+    @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
+        returnType = { "double" },
+        briefSummary = "Calculates a percentile value from a histogram."
+    )
     public HistogramPercentile(
         Source source,
         @Param(name = "histogram", type = { "exponential_histogram", "tdigest" }) Expression histogram,
@@ -137,12 +143,12 @@ public class HistogramPercentile extends EsqlScalarFunction {
         DoubleBlock.Builder resultBuilder,
         TDigestHolder value,
         double percentile,
-        @Fixed(scope = Fixed.Scope.THREAD_LOCAL) CircuitBreaker breaker
+        @Fixed(scope = Fixed.Scope.THREAD_LOCAL) MemoryTrackingTDigestArrays tdigestArrays
     ) {
         checkPercentileRange(percentile);
         // TODO: add a way of clearing a TDigestState, so that we can reuse it via @Fixed across calls
-        try (TDigestState scratch = TDigestState.create(breaker, TDigestStates.COMPRESSION)) {
-            value.addTo(scratch);
+        try (TDigest scratch = TDigest.createMergingDigest(tdigestArrays, TDigestStates.COMPRESSION)) {
+            scratch.add(value);
             double result = scratch.quantile(percentile / 100.0);
             if (Double.isNaN(result)) { // can happen if the histogram is empty
                 resultBuilder.appendNull();
@@ -159,7 +165,7 @@ public class HistogramPercentile extends EsqlScalarFunction {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(histogram);
         var percentileEvaluator = Cast.cast(source(), percentile.dataType(), DataType.DOUBLE, toEvaluator.apply(percentile));
         DataType valueType = histogram.dataType();
@@ -173,7 +179,7 @@ public class HistogramPercentile extends EsqlScalarFunction {
                 source(),
                 fieldEvaluator,
                 percentileEvaluator,
-                DriverContext::breaker
+                driverContext -> new MemoryTrackingTDigestArrays(driverContext.breaker())
             );
             default -> throw EsqlIllegalArgumentException.illegalDataType(valueType);
         };

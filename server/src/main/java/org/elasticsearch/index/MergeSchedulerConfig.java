@@ -9,11 +9,10 @@
 
 package org.elasticsearch.index;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 
 /**
  * The merge scheduler (<code>ConcurrentMergeScheduler</code>) controls the execution of
@@ -27,9 +26,10 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
  * <li> <code>index.merge.scheduler.max_thread_count</code>:
  *
  *     The maximum number of threads that may be merging at once. Defaults to
- *     <code>Math.max(1, Math.min(4, {@link EsExecutors#allocatedProcessors(Settings)} / 2))</code>
- *     which works well for a good solid-state-disk (SSD).  If your index is on
- *     spinning platter drives instead, decrease this to 1.
+ *     half of {@link Runtime#availableProcessors()}, with a minimum of 1,
+ *     which works well for a good non-volatile memory express (NVMe) solid-state-disk (SSD).
+ *     If your index is on spinning platter drives instead, decrease this to 1.
+ *     This default is independent of {@code node.processors}.
  *
  * <li><code>index.merge.scheduler.auto_throttle</code>:
  *
@@ -45,7 +45,7 @@ public final class MergeSchedulerConfig {
 
     public static final Setting<Integer> MAX_THREAD_COUNT_SETTING = new Setting<>(
         "index.merge.scheduler.max_thread_count",
-        (s) -> Integer.toString(Math.max(1, Math.min(4, EsExecutors.allocatedProcessors(s) / 2))),
+        (s) -> Integer.toString(Math.max(1, Runtime.getRuntime().availableProcessors() / 2)),
         (s) -> Setting.parseInt(s, 1, "index.merge.scheduler.max_thread_count"),
         Property.Dynamic,
         Property.IndexScope
@@ -64,14 +64,20 @@ public final class MergeSchedulerConfig {
         Property.IndexScope
     );
 
+    /**
+     * Snapshot of the last applied merge-scheduler thread/merge counts.
+     */
+    record AppliedCounts(int requestedMaxThreadCount, int maxThreadCount, int maxMergeCount) {
+        boolean isMaxThreadCountClamped() {
+            return maxThreadCount < requestedMaxThreadCount;
+        }
+    }
+
     private volatile boolean autoThrottle;
-    private volatile int maxThreadCount;
-    private volatile int maxMergeCount;
+    private volatile AppliedCounts appliedCounts;
 
     MergeSchedulerConfig(IndexSettings indexSettings) {
-        int maxThread = indexSettings.getValue(MAX_THREAD_COUNT_SETTING);
-        int maxMerge = indexSettings.getValue(MAX_MERGE_COUNT_SETTING);
-        setMaxThreadAndMergeCount(maxThread, maxMerge);
+        setMaxThreadAndMergeCount(indexSettings.getValue(MAX_THREAD_COUNT_SETTING), indexSettings.getValue(MAX_MERGE_COUNT_SETTING));
         this.autoThrottle = indexSettings.getValue(AUTO_THROTTLE_SETTING);
     }
 
@@ -95,12 +101,29 @@ public final class MergeSchedulerConfig {
      * Returns {@code maxThreadCount}.
      */
     public int getMaxThreadCount() {
-        return maxThreadCount;
+        return appliedCounts.maxThreadCount();
     }
 
     /**
-     * Expert: directly set the maximum number of merge threads and
-     * simultaneous merges allowed.
+     * Returns {@code maxMergeCount}.
+     */
+    public int getMaxMergeCount() {
+        return appliedCounts.maxMergeCount();
+    }
+
+    /**
+     * Returns the last applied counts snapshot.
+     */
+    AppliedCounts getAppliedCounts() {
+        return appliedCounts;
+    }
+
+    /**
+     * Expert: set the maximum number of merge threads and simultaneous merges allowed.
+     * {@code maxThreadCount} is capped at {@code maxMergeCount} so cluster-state application
+     * cannot fail when a node-local default exceeds a published setting. Callers that own a
+     * live index should log when the applied counts are clamped; throwaway
+     * {@link IndexSettings} constructions must stay silent.
      */
     void setMaxThreadAndMergeCount(int maxThreadCount, int maxMergeCount) {
         if (maxThreadCount < 1) {
@@ -109,19 +132,24 @@ public final class MergeSchedulerConfig {
         if (maxMergeCount < 1) {
             throw new IllegalArgumentException("maxMergeCount should be at least 1");
         }
-        if (maxThreadCount > maxMergeCount) {
-            throw new IllegalArgumentException(
-                "maxThreadCount (= " + maxThreadCount + ") should be <= maxMergeCount (= " + maxMergeCount + ")"
-            );
-        }
-        this.maxThreadCount = maxThreadCount;
-        this.maxMergeCount = maxMergeCount;
+        this.appliedCounts = new AppliedCounts(maxThreadCount, Math.min(maxThreadCount, maxMergeCount), maxMergeCount);
     }
 
     /**
-     * Returns {@code maxMergeCount}.
+     * Logs when the current applied counts had {@code max_thread_count} clamped to {@code max_merge_count}.
      */
-    public int getMaxMergeCount() {
-        return maxMergeCount;
+    void warnIfMaxThreadCountClamped(Logger logger) {
+        final AppliedCounts counts = this.appliedCounts;
+        if (counts.isMaxThreadCountClamped() == false) {
+            return;
+        }
+        logger.warn(
+            "[{}] (= {}) exceeds [{}] (= {}); using {}",
+            MAX_THREAD_COUNT_SETTING.getKey(),
+            counts.requestedMaxThreadCount(),
+            MAX_MERGE_COUNT_SETTING.getKey(),
+            counts.maxMergeCount(),
+            counts.maxThreadCount()
+        );
     }
 }

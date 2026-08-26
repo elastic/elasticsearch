@@ -1,0 +1,3 @@
+SET unmapped_fields="nullify"; FROM employees
+| KEEP does_not_exist_field
+| EVAL does_not_exist_field = 42

@@ -14,6 +14,8 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
@@ -205,7 +207,7 @@ public class OpenAiCompletionPayloadTests extends SageMakerSchemaPayloadTestCase
     }
 
     public void testChatCompletionRequest() throws Exception {
-        var message = new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("Hello, world!"), "user", null, null);
+        var message = new Message(new ContentString("Hello, world!"), "user", null, null);
         var unifiedRequest = new UnifiedCompletionRequest(List.of(message), null, null, null, null, null, null, null);
         var sdkBytes = payload.chatCompletionRequestBytes(mockModel("coolUser"), unifiedRequest);
         assertJsonSdkBytes(sdkBytes, """

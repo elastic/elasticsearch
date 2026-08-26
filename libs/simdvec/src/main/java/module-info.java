@@ -14,21 +14,15 @@
  * using significant amounts of CPU intrinsics to utilise specific SIMD operations.
  * The method handles are loaded using FFI, and made available through a series
  * of wrapper classes to be called from Elasticsearch-defined vector formats.
- * <p>
- * Because the APIs used to perform SIMD operations from Java
- * and call native code changes between JVM versions,
- * there are different implementations of the wrapper classes for different JVM versions.
- * This is handled using multi-release jars, with the JVM-specific implementations
- * contained in the {@code mainXX} source sets.
- * <p>
- * As a result, some of the implementations in the {@code main} source set are not actually
- * called at runtime, and only exist to be compiled against. The correct implementation to use
- * at runtime is selected by the multi-release classloader.
  */
 module org.elasticsearch.simdvec {
-    requires org.elasticsearch.nativeaccess;
-    requires org.apache.lucene.core;
+    requires org.elasticsearch.base;
     requires org.elasticsearch.logging;
+    requires org.elasticsearch.foreign;
+    requires org.elasticsearch.foreign.adapter;
+    requires org.elasticsearch.nativeaccess;
+    requires org.elasticsearch.lucene.store;
+    requires org.apache.lucene.core;
 
-    exports org.elasticsearch.simdvec to org.elasticsearch.server;
+    exports org.elasticsearch.simdvec to org.elasticsearch.server, org.elasticsearch.columnar;
 }

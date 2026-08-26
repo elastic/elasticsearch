@@ -28,6 +28,7 @@ public record SnapshotMetrics(
     LongCounter shardsStartedCounter,
     LongCounter shardsCompletedCounter,
     DoubleHistogram shardsDurationHistogram,
+    DoubleHistogram shardsQueueTimeHistogram,
     LongCounter blobsUploadedCounter,
     LongCounter bytesUploadedCounter,
     LongCounter uploadDurationCounter,
@@ -48,6 +49,7 @@ public record SnapshotMetrics(
     public static final String SNAPSHOT_SHARDS_IN_PROGRESS = "es.repositories.snapshots.shards.current";
     public static final String SNAPSHOT_SHARDS_BY_STATE = "es.repositories.snapshots.shards.by_state.current";
     public static final String SNAPSHOT_SHARDS_DURATION = "es.repositories.snapshots.shards.duration.histogram";
+    public static final String SNAPSHOT_SHARDS_QUEUE_TIME = "es.repositories.snapshots.shards.queue_time.histogram";
     public static final String SNAPSHOT_BLOBS_UPLOADED = "es.repositories.snapshots.blobs.uploaded.total";
     public static final String SNAPSHOT_BYTES_UPLOADED = "es.repositories.snapshots.upload.bytes.total";
     public static final String SNAPSHOT_UPLOAD_DURATION = "es.repositories.snapshots.upload.upload_time.total";
@@ -67,6 +69,7 @@ public record SnapshotMetrics(
             // We use seconds rather than milliseconds due to the limitations of the default bucket boundaries
             // see https://www.elastic.co/docs/reference/apm/agents/java/config-metrics#config-custom-metrics-histogram-boundaries
             meterRegistry.registerDoubleHistogram(SNAPSHOT_SHARDS_DURATION, "shard snapshots duration", "s"),
+            meterRegistry.registerDoubleHistogram(SNAPSHOT_SHARDS_QUEUE_TIME, "shard snapshots queue time", "s"),
             meterRegistry.registerLongCounter(SNAPSHOT_BLOBS_UPLOADED, "snapshot blobs uploaded", "unit"),
             meterRegistry.registerLongCounter(SNAPSHOT_BYTES_UPLOADED, "snapshot bytes uploaded", "bytes"),
             meterRegistry.registerLongCounter(SNAPSHOT_UPLOAD_DURATION, "snapshot upload duration", "ms"),
@@ -78,7 +81,7 @@ public record SnapshotMetrics(
     }
 
     public void createSnapshotShardsInProgressMetric(Supplier<Collection<LongWithAttributes>> shardSnapshotsInProgressObserver) {
-        meterRegistry.registerLongsGauge(
+        meterRegistry.registerLongsAsyncGauge(
             SNAPSHOT_SHARDS_IN_PROGRESS,
             "shard snapshots in progress",
             "unit",
@@ -87,11 +90,16 @@ public record SnapshotMetrics(
     }
 
     public void createSnapshotShardsByStateMetric(Supplier<Collection<LongWithAttributes>> shardSnapshotsByStatusObserver) {
-        meterRegistry.registerLongsGauge(SNAPSHOT_SHARDS_BY_STATE, "snapshotting shards by state", "unit", shardSnapshotsByStatusObserver);
+        meterRegistry.registerLongsAsyncGauge(
+            SNAPSHOT_SHARDS_BY_STATE,
+            "snapshotting shards by state",
+            "unit",
+            shardSnapshotsByStatusObserver
+        );
     }
 
     public void createSnapshotsByStateMetric(Supplier<Collection<LongWithAttributes>> snapshotsByStatusObserver) {
-        meterRegistry.registerLongsGauge(SNAPSHOTS_BY_STATE, "snapshots by state", "unit", snapshotsByStatusObserver);
+        meterRegistry.registerLongsAsyncGauge(SNAPSHOTS_BY_STATE, "snapshots by state", "unit", snapshotsByStatusObserver);
     }
 
     @FixForMultiProject(description = "When multi-project arrives we should add project ID to the labels")

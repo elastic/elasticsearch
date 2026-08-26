@@ -1,0 +1,6 @@
+SET approximation={};
+FROM many_numbers
+  | MV_EXPAND mv
+  | EVAL plus_one = mv+1
+  | STATS avg=AVG(plus_one)
+  | EVAL avg_squared = avg*avg

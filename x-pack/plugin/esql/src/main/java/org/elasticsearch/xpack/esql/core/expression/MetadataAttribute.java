@@ -11,10 +11,13 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.IndexModeFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMapper;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -22,15 +25,18 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Objects;
 
-public class MetadataAttribute extends TypedAttribute {
+public final class MetadataAttribute extends TypedAttribute {
     public static final String TIMESTAMP_FIELD = "@timestamp"; // this is not a true metadata attribute
     public static final String TSID_FIELD = "_tsid";
     public static final String SCORE = "_score";
     public static final String INDEX = "_index";
     public static final String TIMESERIES = "_timeseries";
+    public static final String SIZE = "_size";
+    public static final String DOC = "_doc";
 
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
@@ -38,17 +44,32 @@ public class MetadataAttribute extends TypedAttribute {
         MetadataAttribute::readFrom
     );
 
-    private static final Map<String, MetadataAttributeConfiguration> ATTRIBUTES_MAP = Map.ofEntries(
-        Map.entry("_version", new MetadataAttributeConfiguration(DataType.LONG, false)),
-        Map.entry(INDEX, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
+    public static final Map<String, MetadataAttributeConfiguration> ATTRIBUTES_MAP = createMetadataAttributes();
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, MetadataAttributeConfiguration> createMetadataAttributes() {
+        var entries = new ArrayList<Map.Entry<String, MetadataAttributeConfiguration>>();
+        entries.add(Map.entry("_version", new MetadataAttributeConfiguration(DataType.LONG, false)));
+        entries.add(Map.entry(INDEX, new MetadataAttributeConfiguration(DataType.KEYWORD, true)));
         // actually _id is searchable, but fielddata access on it is disallowed by default
-        Map.entry(IdFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, false)),
-        Map.entry(IgnoredFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
-        Map.entry(SourceFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.SOURCE, false)),
-        Map.entry(IndexModeFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
-        Map.entry(SCORE, new MetadataAttributeConfiguration(DataType.DOUBLE, false)),
-        Map.entry(TSID_FIELD, new MetadataAttributeConfiguration(DataType.TSID_DATA_TYPE, false))
-    );
+        entries.add(Map.entry(IdFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, false)));
+        entries.add(Map.entry(IgnoredFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)));
+        entries.add(Map.entry(SourceFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.SOURCE, false)));
+        entries.add(Map.entry(IndexModeFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)));
+        entries.add(Map.entry(SCORE, new MetadataAttributeConfiguration(DataType.DOUBLE, false)));
+        entries.add(Map.entry(TSID_FIELD, new MetadataAttributeConfiguration(DataType.TSID_DATA_TYPE, false)));
+        // Searchable field added by the mapper-size plugin.
+        // See https://www.elastic.co/docs/reference/elasticsearch/plugins/mapper-size-usage
+        entries.add(Map.entry(SIZE, new MetadataAttributeConfiguration(DataType.INTEGER, true)));
+        if (EsqlCapabilities.Cap.METADATA_TIER_FIELD.isEnabled()) {
+            entries.add(Map.entry(DataTierFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)));
+        }
+        if (EsqlCapabilities.Cap.METADATA_SLICE.isEnabled()) {
+            // _slice is the virtual routing alias used by slice-enabled indices. Backed by _routing sorted doc values.
+            entries.add(Map.entry(SliceIndexing.FIELD_NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)));
+        }
+        return Map.ofEntries(entries.toArray(Map.Entry[]::new));
+    }
 
     private record MetadataAttributeConfiguration(DataType dataType, boolean searchable) {}
 
@@ -144,9 +165,13 @@ public class MetadataAttribute extends TypedAttribute {
         return searchable;
     }
 
-    public static MetadataAttribute create(Source source, String name) {
+    public static NamedExpression create(Source source, String name) {
         var t = ATTRIBUTES_MAP.get(name);
-        return t != null ? new MetadataAttribute(source, name, t.dataType(), t.searchable()) : null;
+        if (t != null) {
+            return new MetadataAttribute(source, name, t.dataType(), t.searchable());
+        }
+
+        return new UnresolvedMetadataAttributeExpression(source, name);
     }
 
     public static DataType dataType(String name) {
@@ -162,8 +187,12 @@ public class MetadataAttribute extends TypedAttribute {
         return a instanceof MetadataAttribute ma && ma.name().equals(SCORE);
     }
 
+    public static boolean isTimeSeriesAttributeName(String name) {
+        return TIMESERIES.equals(name);
+    }
+
     public static boolean isTimeSeriesAttribute(Expression a) {
-        return a instanceof Attribute ma && ma.name().equals(TIMESERIES);
+        return a instanceof TimeSeriesMetadataAttribute || a instanceof NamedExpression named && isTimeSeriesAttributeName(named.name());
     }
 
     @Override

@@ -16,6 +16,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.XContentParser;
 
+import java.util.List;
+
 /**
  * Simplified version of {@link DocumentParserContext} to be used in tests.
  * Every non final method throws {@link UnsupportedOperationException} and can be implemented as needed.
@@ -37,11 +39,11 @@ public class TestDocumentParserContext extends DocumentParserContext {
     }
 
     public TestDocumentParserContext(Settings settings) {
-        this(MappingLookup.EMPTY, null, null, settings);
+        this(MappingLookup.EMPTY, null, null, settings, IndexVersion.current());
     }
 
     public TestDocumentParserContext(XContentParser parser) {
-        this(MappingLookup.EMPTY, null, parser, Settings.EMPTY);
+        this(MappingLookup.EMPTY, null, parser, Settings.EMPTY, IndexVersion.current());
     }
 
     /**
@@ -49,23 +51,40 @@ public class TestDocumentParserContext extends DocumentParserContext {
      * that depend on them are called while executing tests.
      */
     public TestDocumentParserContext(MappingLookup mappingLookup, SourceToParse source) {
-        this(mappingLookup, source, null, Settings.EMPTY);
+        this(mappingLookup, source, null, Settings.EMPTY, IndexVersion.current());
     }
 
-    private TestDocumentParserContext(MappingLookup mappingLookup, SourceToParse source, XContentParser parser, Settings settings) {
+    public TestDocumentParserContext(MappingLookup mappingLookup, SourceToParse source, XContentParser parser) {
+        this(mappingLookup, source, parser, Settings.EMPTY, IndexVersion.current());
+    }
+
+    public TestDocumentParserContext(MappingLookup mappingLookup, SourceToParse source, IndexVersion version) {
+        this(mappingLookup, source, null, Settings.EMPTY, version);
+    }
+
+    public TestDocumentParserContext(MappingLookup mappingLookup, SourceToParse source, Settings settings) {
+        this(mappingLookup, source, null, settings, IndexVersion.current());
+    }
+
+    private TestDocumentParserContext(
+        MappingLookup mappingLookup,
+        SourceToParse source,
+        XContentParser parser,
+        Settings settings,
+        IndexVersion version
+    ) {
         super(
             mappingLookup,
             new MappingParserContext(
                 s -> null,
                 s -> null,
                 s -> null,
-                IndexVersion.current(),
+                version,
                 () -> TransportVersion.current(),
                 () -> null,
                 null,
                 (type, name) -> Lucene.STANDARD_ANALYZER,
-                MapperTestCase.createIndexSettings(IndexVersion.current(), settings),
-                null,
+                MapperTestCase.createIndexSettings(version, settings),
                 query -> {
                     throw new UnsupportedOperationException();
                 },
@@ -111,5 +130,10 @@ public class TestDocumentParserContext extends DocumentParserContext {
     @Override
     public BytesRef getTsid() {
         return null;
+    }
+
+    @Override
+    public List<LuceneDocument> luceneDocumentsInShardIndexOrder() {
+        throw new UnsupportedOperationException();
     }
 }

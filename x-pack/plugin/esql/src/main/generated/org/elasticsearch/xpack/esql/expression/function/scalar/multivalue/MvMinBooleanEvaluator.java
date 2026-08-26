@@ -10,18 +10,17 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvMin}.
+ * {@link ExpressionEvaluator} implementation for {@link MvMin}.
  * This class is generated. Edit {@code MvEvaluatorImplementer} instead.
  */
 public final class MvMinBooleanEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvMinBooleanEvaluator.class);
 
-  public MvMinBooleanEvaluator(EvalOperator.ExpressionEvaluator field,
-      DriverContext driverContext) {
+  public MvMinBooleanEvaluator(ExpressionEvaluator field, DriverContext driverContext) {
     super(driverContext, field);
   }
 
@@ -42,11 +41,11 @@ public final class MvMinBooleanEvaluator extends AbstractMultivalueFunction.Abst
     int positionCount = v.getPositionCount();
     try (BooleanBlock.Builder builder = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         int end = first + valueCount;
         boolean value = v.getBoolean(first);
@@ -96,11 +95,11 @@ public final class MvMinBooleanEvaluator extends AbstractMultivalueFunction.Abst
     int positionCount = v.getPositionCount();
     try (BooleanBlock.Builder builder = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         int idx = MvMin.ascendingIndex(valueCount);
         boolean result = v.getBoolean(first + idx);
@@ -133,10 +132,10 @@ public final class MvMinBooleanEvaluator extends AbstractMultivalueFunction.Abst
     return BASE_RAM_BYTES_USED + field.baseRamBytesUsed();
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+  public static class Factory implements ExpressionEvaluator.Factory {
+    private final ExpressionEvaluator.Factory field;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+    public Factory(ExpressionEvaluator.Factory field) {
       this.field = field;
     }
 

@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -42,7 +43,7 @@ public class ModelTests extends AbstractBWCWireSerializationTestCase<Model> {
         return new Model(
             new ModelConfigurations(
                 randomAlphaOfLength(6),
-                randomFrom(TaskType.values()),
+                randomFrom(EnumSet.complementOf(EnumSet.of(TaskType.ANY))),
                 randomAlphaOfLength(6),
                 new TestServiceSettings(
                     randomAlphaOfLength(10),

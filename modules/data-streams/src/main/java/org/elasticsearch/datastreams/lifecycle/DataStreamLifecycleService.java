@@ -16,6 +16,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResultDeduplicator;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
@@ -36,10 +37,12 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
@@ -58,26 +61,33 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.scheduler.TimeValueSchedule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.datastreams.DownsamplingOperations;
 import org.elasticsearch.datastreams.lifecycle.downsampling.DeleteSourceAndAddDownsampleIndexExecutor;
 import org.elasticsearch.datastreams.lifecycle.downsampling.DeleteSourceAndAddDownsampleToDS;
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
+import org.elasticsearch.datastreams.lifecycle.transitions.steps.MarkIndexForDLMForceMergeAction;
+import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
+import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -94,10 +104,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.DataStream.DatastreamIndexTypes.BACKING_INDICES;
+import static org.elasticsearch.cluster.metadata.DataStream.DatastreamIndexTypes.FAILURE_INDICES;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus.STARTED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_DOWNSAMPLE_STATUS;
@@ -136,20 +149,18 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
-    /**
-     * This setting controls how often we signal that an index is in the error state when it comes to its data stream lifecycle
-     * progression.
-     * The signalling is currently logging at the `error` level but in the future it can signify other types of signalling.
-     */
-    public static final Setting<Integer> DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING = Setting.intSetting(
-        "data_streams.lifecycle.signalling.error_retry_interval",
-        10,
+
+    public static final String DOWNSAMPLED_INDEX_PREFIX = "downsample-";
+
+    public static final int DEFAULT_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_PER_DATA_STREAM = 10;
+
+    public static final Setting<Integer> DATA_STREAM_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_SETTING = Setting.intSetting(
+        "data_streams.lifecycle.downsampling.max_indices_in_progress",
+        DEFAULT_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_PER_DATA_STREAM,
         1,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
-
-    public static final String DOWNSAMPLED_INDEX_PREFIX = "downsample-";
 
     private static final Logger logger = LogManager.getLogger(DataStreamLifecycleService.class);
     /**
@@ -160,6 +171,14 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * This is the key for data stream lifecycle related custom index metadata.
      */
     public static final String FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY = "force_merge_completed_timestamp";
+    public static final String FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY = "dlm_freeze_with";
+    public static final String DLM_CREATED_SETTING_KEY = IndexMetadata.INDEX_SETTING_PREFIX + "dlm.frozen.created";
+    public static final Setting<Boolean> DLM_CREATED_SETTING = Setting.boolSetting(
+        DLM_CREATED_SETTING_KEY,
+        false,
+        Setting.Property.IndexScope,
+        Setting.Property.InternalIndex
+    );
     private final Settings settings;
     private final Client client;
     private final ClusterService clusterService;
@@ -168,9 +187,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     final ResultDeduplicator<Tuple<ProjectId, String>, Void> clusterStateChangesDeduplicator;
     private final DataStreamLifecycleHealthInfoPublisher dslHealthInfoPublisher;
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
+    private final DownsamplingOperations downsamplingOperations;
     private LongSupplier nowSupplier;
     private final Clock clock;
     private final DataStreamLifecycleErrorStore errorStore;
+    private final AtomicBoolean dlmCurrentlyRunning = new AtomicBoolean(false);
     private volatile boolean isMaster = false;
     private volatile TimeValue pollInterval;
     private volatile RolloverConfiguration rolloverConfiguration;
@@ -178,12 +199,16 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
     private final MasterServiceTaskQueue<UpdateForceMergeCompleteTask> forceMergeClusterStateUpdateTaskQueue;
     private final MasterServiceTaskQueue<DeleteSourceAndAddDownsampleToDS> swapSourceWithDownsampleIndexQueue;
+    private final MasterServiceTaskQueue<MarkIndexForDlmForceMergeTask> markIndexForDlmForceMergeQueue;
+    private final MasterServiceTaskQueue<MarkIndicesForFrozenTask> markIndicesForFrozenQueue;
     private volatile ByteSizeValue targetMergePolicyFloorSegment;
     private volatile int targetMergePolicyFactor;
+    private volatile int maxDownsamplingIndicesInProgress;
     /**
      * The number of retries for a particular index and error after which DSL will emmit a signal (e.g. log statement)
      */
     private volatile int signallingErrorRetryInterval;
+    private volatile String defaultRepository;
 
     /**
      * The following stats are tracking how the data stream lifecycle runs are performing time wise
@@ -216,7 +241,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         DataStreamLifecycleErrorStore errorStore,
         AllocationService allocationService,
         DataStreamLifecycleHealthInfoPublisher dataStreamLifecycleHealthInfoPublisher,
-        DataStreamGlobalRetentionSettings globalRetentionSettings
+        DataStreamGlobalRetentionSettings globalRetentionSettings,
+        DownsamplingOperations downsamplingOperations
     ) {
         this.settings = settings;
         this.client = client;
@@ -228,13 +254,16 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         this.nowSupplier = nowSupplier;
         this.errorStore = errorStore;
         this.globalRetentionSettings = globalRetentionSettings;
+        this.downsamplingOperations = downsamplingOperations;
         this.scheduledJob = null;
         this.pollInterval = DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING.get(settings);
         this.targetMergePolicyFloorSegment = DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING.get(settings);
         this.targetMergePolicyFactor = DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING.get(settings);
-        this.signallingErrorRetryInterval = DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING.get(settings);
+        this.maxDownsamplingIndicesInProgress = DATA_STREAM_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_SETTING.get(settings);
+        this.signallingErrorRetryInterval = DataStreamLifecycleErrorStore.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING.get(settings);
         this.rolloverConfiguration = clusterService.getClusterSettings()
             .get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING);
+        this.defaultRepository = RepositoriesService.DEFAULT_REPOSITORY_SETTING.get(settings);
         this.forceMergeClusterStateUpdateTaskQueue = clusterService.createTaskQueue(
             "data-stream-lifecycle-forcemerge-state-update",
             Priority.LOW,
@@ -244,6 +273,16 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             "data-stream-lifecycle-swap-source-with-downsample",
             Priority.URGENT, // urgent priority as this deletes indices
             new DeleteSourceAndAddDownsampleIndexExecutor(allocationService)
+        );
+        this.markIndexForDlmForceMergeQueue = clusterService.createTaskQueue(
+            "dlm-mark-index-for-force-merge",
+            Priority.LOW,
+            new MarkIndexForDLMForceMergeExecutor()
+        );
+        this.markIndicesForFrozenQueue = clusterService.createTaskQueue(
+            "dlm-mark-index-for-frozen",
+            Priority.LOW,
+            new MarkIndicesForFrozenExecutor()
         );
         this.dslHealthInfoPublisher = dataStreamLifecycleHealthInfoPublisher;
     }
@@ -260,9 +299,19 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING, this::updateMergePolicyFactor);
         clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                DATA_STREAM_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_SETTING,
+                this::updateMaxDownsamplingIndicesInProgress
+            );
+        clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING, this::updateMergePolicyFloorSegment);
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING, this::updateSignallingRetryThreshold);
+            .addSettingsUpdateConsumer(
+                DataStreamLifecycleErrorStore.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING,
+                this::updateSignallingRetryThreshold
+            );
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(RepositoriesService.DEFAULT_REPOSITORY_SETTING, this::updateDefaultRepository);
     }
 
     @Override
@@ -339,18 +388,28 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      */
     // default visibility for testing purposes
     void run(ClusterState state) {
-        long startTime = nowSupplier.getAsLong();
-        if (lastRunStartedAt != null) {
-            timeBetweenStarts = startTime - lastRunStartedAt;
-        }
-        lastRunStartedAt = startTime;
-        for (var projectId : state.metadata().projects().keySet()) {
-            // We catch inside the loop to avoid one broken project preventing DLM to run on other projects.
-            try {
-                run(state.projectState(projectId));
-            } catch (Exception e) {
-                logger.warn(Strings.format("Data stream lifecycle failed to run on project [%s]", projectId), e);
+        // Ensure that if DLM execution takes longer than its invocation interval, that we still only run a single invocation at once.
+        if (dlmCurrentlyRunning.compareAndSet(false, true)) {
+            long startTime = nowSupplier.getAsLong();
+            if (lastRunStartedAt != null) {
+                timeBetweenStarts = startTime - lastRunStartedAt;
             }
+            lastRunStartedAt = startTime;
+            try {
+                for (var projectId : state.metadata().projects().keySet()) {
+                    // We catch inside the loop to avoid one broken project preventing DLM to run on other projects.
+                    try {
+                        run(state.projectState(projectId));
+                    } catch (Exception e) {
+                        logger.warn(Strings.format("Data stream lifecycle failed to run on project [%s]", projectId), e);
+                    }
+                }
+            } finally {
+                // Ensure that no matter what, we unset the running flag.
+                dlmCurrentlyRunning.set(false);
+            }
+        } else {
+            logger.debug("DLM skipping run because it is already running, last run was started at [{}]", lastRunStartedAt);
         }
     }
 
@@ -358,6 +417,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         final var project = projectState.metadata();
         int affectedIndices = 0;
         int affectedDataStreams = 0;
+        final Set<Index> indicesForFrozenConversion = new HashSet<>();
+        Set<Index> activelyDownsampled = downsamplingOperations.getActivelyDownsampledIndexNames(project);
         for (DataStream dataStream : project.dataStreams().values()) {
             clearErrorStoreForUnmanagedIndices(project, dataStream);
             var dataLifecycleEnabled = dataStream.getDataLifecycle() != null && dataStream.getDataLifecycle().enabled();
@@ -375,9 +436,25 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             // the following indices should not be considered for the remainder of this service run, for various reasons.
             Set<Index> indicesToExcludeForRemainingRun = new HashSet<>();
 
+            // Seed the exclusion set with any indices that have index.lifecycle.skip=true so they are ignored by every phase below.
+            for (Index index : dataStream.getIndices()) {
+                if (isLifecycleSkipped(project, index)) {
+                    indicesToExcludeForRemainingRun.add(index);
+                }
+            }
+            for (Index index : dataStream.getFailureIndices()) {
+                if (isLifecycleSkipped(project, index)) {
+                    indicesToExcludeForRemainingRun.add(index);
+                }
+            }
+
             // These are the pre-rollover write indices. They may or may not be the write index after maybeExecuteRollover has executed,
             // depending on rollover criteria, for this reason we exclude them for the remaining run.
-            indicesToExcludeForRemainingRun.add(maybeExecuteRollover(project, dataStream, dataRetention, false));
+            // Note: rollover is applied on data stream level, this is why we still need to check the index mode of the data stream
+            // and skip it if the mode is lookup.
+            if (dataStream.getIndexMode() != IndexMode.LOOKUP) {
+                indicesToExcludeForRemainingRun.add(maybeExecuteRollover(project, dataStream, dataRetention, false));
+            }
             Index failureStoreWriteIndex = maybeExecuteRollover(project, dataStream, failuresRetention, true);
             if (failureStoreWriteIndex != null) {
                 indicesToExcludeForRemainingRun.add(failureStoreWriteIndex);
@@ -425,12 +502,19 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 );
             }
 
+            int activeDownsamplingCount = 0;
+            if (dataLifecycleEnabled && dataStream.getDataLifecycle().downsamplingRounds() != null) {
+                Set<Index> indicesBeingDownsampled = Sets.intersection(new HashSet<>(dataStream.getIndices()), activelyDownsampled);
+                activeDownsamplingCount += indicesBeingDownsampled.size();
+                indicesToExcludeForRemainingRun.addAll(indicesBeingDownsampled);
+            }
             try {
                 indicesToExcludeForRemainingRun.addAll(
                     maybeExecuteDownsampling(
                         projectState,
                         dataStream,
-                        getTargetIndices(dataStream, indicesToExcludeForRemainingRun, project::index, false)
+                        getTargetIndices(dataStream, indicesToExcludeForRemainingRun, project::index, false),
+                        activeDownsamplingCount
                     )
                 );
             } catch (Exception e) {
@@ -444,9 +528,51 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 );
             }
 
+            try {
+                // Collect all candidates for conversion to a frozen index.
+                // These will be processed at the end of the loop where we mark all the indices at once.
+                Set<Index> candidatesForFrozen = candidatesForFrozen(
+                    project,
+                    dataStream,
+                    nowSupplier,
+                    getTargetIndices(dataStream, indicesToExcludeForRemainingRun, project::index, false)
+                );
+
+                // Exclude these candidates from the rest of the run
+                indicesToExcludeForRemainingRun.addAll(candidatesForFrozen);
+                // Add them to the list to be marked for conversion
+                indicesForFrozenConversion.addAll(candidatesForFrozen);
+            } catch (Exception e) {
+                logger.warn(
+                    () -> String.format(
+                        Locale.ROOT,
+                        "Data stream lifecycle failed to collect candidates for converting to frozen index for data stream [%s]",
+                        dataStream.getName()
+                    ),
+                    e
+                );
+            }
+
             affectedIndices += indicesToExcludeForRemainingRun.size();
             affectedDataStreams++;
         }
+
+        try {
+            // Only identify and mark indices if the default repository setting is set,
+            // if it's entirely unset, no work could proceed, so we should just skip
+            // the frozen step entirely.
+            if (Strings.hasText(defaultRepository)) {
+                maybeMarkIndicesForFrozen(projectState, indicesForFrozenConversion);
+            } else if (indicesForFrozenConversion.isEmpty() == false) {
+                logger.debug(
+                    "DLM identified {} indices as candidates to convert to frozen, but no default repository is configured",
+                    indicesForFrozenConversion.size()
+                );
+            }
+        } catch (Exception e) {
+            logger.warn("Data stream lifecycle failed to mark candidates for converting to frozen index for data stream", e);
+        }
+
         lastRunDuration = nowSupplier.getAsLong() - lastRunStartedAt;
         logger.trace(
             "Data stream lifecycle service ran for {} and performed operations on [{}] indices, part of [{}] data streams, in project [{}]",
@@ -457,13 +583,120 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         );
     }
 
+    /**
+     * Formats an execution time in milliseconds to a human-readable string using {@link TimeValue}.
+     */
+    static String formatExecutionTime(long executionTimeMillis) {
+        return executionTimeMillis + "ms/" + TimeValue.timeValueMillis(executionTimeMillis).toString();
+    }
+
+    /**
+     * Returns true if the index has been marked with custom metadata indicating it should be converted to a frozen index.
+     */
+    public static boolean indexMarkedForFrozen(IndexMetadata indexMetadata) {
+        if (indexMetadata == null) {
+            return false;
+        }
+        return Optional.ofNullable(indexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY))
+            .filter(m -> m.get(FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY) != null)
+            .isPresent();
+    }
+
+    /**
+     * Returns true if the index has already completed its frozen tier transition, purely from cluster state.
+     * {@link #DLM_CREATED_SETTING} alone is not sufficient because it is also set on the intermediate clone
+     * index created while a transition is still in progress; requiring a searchable-snapshot store as well
+     * distinguishes the completed, mounted result from that still-converting clone.
+     */
+    public static boolean frozenTransitionCompleted(IndexMetadata indexMetadata) {
+        return DLM_CREATED_SETTING.get(indexMetadata.getSettings())
+            && SearchableSnapshotsSettings.isSearchableSnapshotStore(indexMetadata.getSettings());
+    }
+
+    /**
+     * Returns the backing indices of the given data stream that are past its `frozen_after` age. This is the same age check
+     * DLM itself uses to decide which indices are old enough to be frozen, so it is also used to report per-index eligibility
+     * in the lifecycle explain API.
+     *
+     * @param projectMetadata the project the data stream belongs to
+     * @param dataStream the data stream whose backing indices are checked
+     * @param nowSupplier supplies the current time used to compute index age
+     * @return the backing indices past `frozen_after`, or an empty set if the lifecycle does not configure `frozen_after`
+     */
+    public static Set<Index> indicesPastFrozenAfter(ProjectMetadata projectMetadata, DataStream dataStream, LongSupplier nowSupplier) {
+        DataStreamLifecycle lifecycle = dataStream.getDataLifecycle();
+        if (lifecycle == null || lifecycle.frozenAfter() == null) {
+            return Set.of();
+        }
+        return dataStream.getIndicesOlderThan(projectMetadata::index, nowSupplier, lifecycle.frozenAfter(), BACKING_INDICES);
+    }
+
+    /**
+     * Return a set of indices that are past the `frozen_after` date and are also candidates in the supplied list of available indices.
+     */
+    static Set<Index> candidatesForFrozen(
+        ProjectMetadata projectMetadata,
+        DataStream dataStream,
+        LongSupplier nowSupplier,
+        List<Index> availableIndices
+    ) {
+        Set<Index> candidates = new HashSet<>();
+        for (Index index : indicesPastFrozenAfter(projectMetadata, dataStream, nowSupplier)) {
+            if (availableIndices.contains(index) == false) {
+                // If it's not in the available candidates (where no other DLM action is working on it), then skip it
+                continue;
+            }
+            Optional.ofNullable(projectMetadata.index(index))
+                .filter(indexMeta -> indexMarkedForFrozen(indexMeta) == false)
+                .filter(indexMeta -> frozenTransitionCompleted(indexMeta) == false)
+                .ifPresent(metadata -> candidates.add(metadata.getIndex()));
+        }
+        return candidates;
+    }
+
+    /**
+     * Mark the given indices as ready to be converted into frozen indices. If the list is empty, nothing is done.
+     */
+    public void maybeMarkIndicesForFrozen(ProjectState projectState, Set<Index> indicesForFrozenConversion) {
+        if (indicesForFrozenConversion.isEmpty()) {
+            return;
+        }
+        logger.trace(
+            "DLM submitting request to mark {} indices to be converted to frozen {}",
+            indicesForFrozenConversion.size(),
+            indicesForFrozenConversion.stream().map(Index::getName).toList()
+        );
+        markIndicesForFrozenQueue.submitTask(
+            "dlm-mark-[" + indicesForFrozenConversion.size() + "]-indices-for-frozen",
+            new MarkIndicesForFrozenTask(
+                projectState.projectId(),
+                indicesForFrozenConversion,
+                ActionListener.wrap(
+                    ackedResponse -> logger.info(
+                        "DLM successfully marked {} indices as ready to be frozen: {}",
+                        indicesForFrozenConversion.size(),
+                        indicesForFrozenConversion.stream().map(Index::getName).toList()
+                    ),
+                    exception -> logger.warn(
+                        Strings.format(
+                            "DLM was unable to mark %s indices as ready to be frozen, it will be retried",
+                            indicesForFrozenConversion.size()
+                        ),
+                        exception
+                    )
+                )
+            ),
+            null
+        );
+    }
+
     // visible for testing
     static Set<Index> timeSeriesIndicesStillWithinTimeBounds(ProjectMetadata project, List<Index> targetIndices, LongSupplier nowSupplier) {
         Set<Index> tsIndicesWithinBounds = new HashSet<>();
         for (Index index : targetIndices) {
             IndexMetadata backingIndex = project.index(index);
             assert backingIndex != null : "the data stream backing indices must exist";
-            if (IndexSettings.MODE.get(backingIndex.getSettings()) == IndexMode.TIME_SERIES) {
+            if (IndexSettings.MODE.get(backingIndex.getSettings()).isTsdb()) {
                 Instant configuredEndTime = IndexSettings.TIME_SERIES_END_TIME.get(backingIndex.getSettings());
                 assert configuredEndTime != null
                     : "a time series index must have an end time configured but [" + index.getName() + "] does not";
@@ -495,10 +728,20 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * Returns a set of indices that now have in-flight operations triggered by downsampling (it could be marking them as read-only,
      * replacing an index in the data stream, deleting a source index, or downsampling itself) so these indices can be skipped in case
      * there are other operations to be executed by the data stream lifecycle after downsampling.
+     *
+     * At most {@link #DATA_STREAM_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_SETTING} downsampling operations are triggered per data stream
+     * concurrently. {@code activeDownsamplingCount} represents the number of backing indices already being downsampled
+     * (via persistent tasks) and counts against this limit.
      */
-    Set<Index> maybeExecuteDownsampling(ProjectState projectState, DataStream dataStream, List<Index> targetIndices) {
+    Set<Index> maybeExecuteDownsampling(
+        ProjectState projectState,
+        DataStream dataStream,
+        List<Index> targetIndices,
+        int activeDownsamplingCount
+    ) {
         Set<Index> affectedIndices = new HashSet<>();
         final var project = projectState.metadata();
+        int throttledIndexCount = 0;
         for (Index index : targetIndices) {
             IndexMetadata backingIndexMeta = project.index(index);
             assert backingIndexMeta != null : "the data stream backing indices must exist";
@@ -525,12 +768,35 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 // - is read-only
                 // So let's wait for an in-progress downsampling operation to succeed or trigger the last matching round
                 var downsamplingMethod = dataStream.getDataLifecycle().downsamplingMethod();
-                affectedIndices.addAll(
-                    waitForInProgressOrTriggerDownsampling(dataStream, backingIndexMeta, downsamplingRounds, downsamplingMethod, project)
+                boolean canTriggerNewDownsampling = activeDownsamplingCount < maxDownsamplingIndicesInProgress;
+                Index downsamplingIndex = waitForInProgressOrTriggerDownsampling(
+                    dataStream,
+                    backingIndexMeta,
+                    downsamplingRounds,
+                    downsamplingMethod,
+                    project,
+                    canTriggerNewDownsampling
                 );
+                if (downsamplingIndex != null) {
+                    affectedIndices.add(downsamplingIndex);
+                    if (canTriggerNewDownsampling) {
+                        activeDownsamplingCount++;
+                    } else {
+                        throttledIndexCount++;
+                    }
+                }
             }
         }
 
+        if (throttledIndexCount > 0) {
+            logger.debug(
+                "Data stream lifecycle delayed downsampling for [{}] indices of [{}] because [{}] downsampling "
+                    + "operations are already in progress. The remaining indices will be downsampled in a future run.",
+                throttledIndexCount,
+                dataStream.getName(),
+                activeDownsamplingCount
+            );
+        }
         return affectedIndices;
     }
 
@@ -538,23 +804,23 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * Iterate over the matching downsampling rounds for the backing index (if any) and either wait for an early round to complete,
      * add an early completed downsampling round to the data stream, or otherwise trigger the last matching downsampling round.
      *
-     * Returns the indices for which we triggered an action/operation.
+     * Returns the index for which we triggered an action/operation, null otherwise
      */
-    private Set<Index> waitForInProgressOrTriggerDownsampling(
+    @Nullable
+    private Index waitForInProgressOrTriggerDownsampling(
         DataStream dataStream,
         IndexMetadata backingIndex,
         List<DataStreamLifecycle.DownsamplingRound> downsamplingRounds,
         DownsampleConfig.SamplingMethod downsamplingMethod,
-        ProjectMetadata project
+        ProjectMetadata project,
+        boolean canTriggerNewDownsampling
     ) {
         assert dataStream.getIndices().contains(backingIndex.getIndex())
             : "the provided backing index must be part of data stream:" + dataStream.getName();
         assert downsamplingRounds.isEmpty() == false : "the index should be managed and have matching downsampling rounds";
-        Set<Index> affectedIndices = new HashSet<>();
         DataStreamLifecycle.DownsamplingRound lastRound = downsamplingRounds.get(downsamplingRounds.size() - 1);
 
-        Index index = backingIndex.getIndex();
-        String indexName = index.getName();
+        Index sourceIndex = backingIndex.getIndex();
         for (DataStreamLifecycle.DownsamplingRound round : downsamplingRounds) {
             // the downsample index name for each round is deterministic
             String downsampleIndexName = DownsampleConfig.generateDownsampleIndexName(
@@ -566,7 +832,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             boolean targetDownsampleIndexExists = targetDownsampleIndexMeta != null;
 
             if (targetDownsampleIndexExists) {
-                Set<Index> downsamplingNotComplete = evaluateDownsampleStatus(
+                Index downsamplingNotComplete = evaluateDownsampleStatus(
                     project.id(),
                     dataStream,
                     INDEX_DOWNSAMPLE_STATUS.get(targetDownsampleIndexMeta.getSettings()),
@@ -576,20 +842,32 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     backingIndex,
                     targetDownsampleIndexMeta.getIndex()
                 );
-                if (downsamplingNotComplete.isEmpty() == false) {
-                    affectedIndices.addAll(downsamplingNotComplete);
-                    break;
+                if (downsamplingNotComplete != null) {
+                    return sourceIndex;
                 }
             } else {
                 if (round.equals(lastRound)) {
-                    // no maintenance needed for previously started downsampling actions and we are on the last matching round so it's time
-                    // to kick off downsampling
-                    affectedIndices.add(index);
-                    downsampleIndexOnce(round, downsamplingMethod, project.id(), backingIndex, downsampleIndexName);
+                    // no maintenance needed for previously started downsampling actions and we are on the last matching round, so it's time
+                    // to kick off downsampling if possible
+                    String sourceIndexName = sourceIndex.getName();
+                    if (canTriggerNewDownsampling) {
+                        ErrorEntry error = errorStore.getError(project.id(), sourceIndexName);
+                        if (ThrottledDownsampledIndexWarning.isThrottledDownsampledIndexWarning(error)) {
+                            errorStore.clearRecordedError(project.id(), sourceIndexName);
+                        }
+                        downsampleIndexOnce(round, downsamplingMethod, project.id(), backingIndex, downsampleIndexName);
+                    } else {
+                        errorStore.recordError(
+                            project.id(),
+                            sourceIndexName,
+                            new ThrottledDownsampledIndexWarning(sourceIndexName, dataStream.getName(), maxDownsamplingIndicesInProgress)
+                        );
+                    }
+                    return sourceIndex;
                 }
             }
         }
-        return affectedIndices;
+        return null;
     }
 
     /**
@@ -645,7 +923,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * Depending on the status, we'll either error (if it's UNKNOWN and we've reached the last round), wait for it to complete (if it's
      * STARTED), or replace the backing index with the downsample index in the data stream (if the status is SUCCESS).
      */
-    private Set<Index> evaluateDownsampleStatus(
+    private Index evaluateDownsampleStatus(
         ProjectId projectId,
         DataStream dataStream,
         IndexMetadata.DownsampleTaskStatus downsampleStatus,
@@ -655,7 +933,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         IndexMetadata backingIndex,
         Index downsampleIndex
     ) {
-        Set<Index> affectedIndices = new HashSet<>();
         String indexName = backingIndex.getIndex().getName();
         String downsampleIndexName = downsampleIndex.getName();
         return switch (downsampleStatus) {
@@ -663,11 +940,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 if (currentRound.equals(lastRound)) {
                     // target downsampling index exists and is not a downsampling index (name clash?)
                     // we fail now but perhaps we should just randomise the name?
-
-                    recordAndLogError(
+                    errorStore.recordAndLogError(
                         projectId,
                         indexName,
-                        errorStore,
                         new ResourceAlreadyExistsException(downsampleIndexName),
                         String.format(
                             Locale.ROOT,
@@ -681,40 +956,36 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                         signallingErrorRetryInterval
                     );
                 }
-                yield affectedIndices;
+                yield null;
             }
             case STARTED -> {
-                // we'll wait for this round to complete
-                // TODO add support for cancelling a current in-progress operation if another, later, round matches
+                // Being here means that we have a downsampled index created, but there is no persistent task yet (otherwise
+                // we would have skipped the index).
+                // There could be at least two things here at play:
+                // - the downsampling request is in progress, it has created the downsampling target, but it hasn't kick-started the
+                // persistent task yet. In this case, the deduplicator will stop this from being re-executed.
+                // - there was a disruption while the downsampling request was in progress, for example, master failover or a failure.
+                // In this case, we re-issue the downsample request to capture the error.
+                // This part is not protected by the floodgate on purpose. It is possible that if DLM runs are very close to each other
+                // we might miss counting this in-progress request, but there has been an error we prefer to surface it asap.
                 logger.trace(
-                    "Data stream lifecycle service waits for index [{}] to be downsampled. Current status is [{}] and the "
-                        + "downsample index name is [{}]",
-                    indexName,
+                    "Data stream lifecycle service detected [{}] with status [{}], it's either that source index [{}] just started"
+                        + " downsampling or something interfered and downsampling failed",
+                    downsampleIndex,
                     STARTED,
-                    downsampleIndexName
+                    indexName
                 );
-                // this request here might seem weird, but hear me out:
-                // if we triggered a downsample operation, and then had a master failover (so DSL starts from scratch)
-                // we can't really find out if the downsampling persistent task failed (if it was successful, no worries, the next case
-                // SUCCESS branch will catch it and we will cruise forward)
-                // if the downsampling persistent task failed, we will find out only via re-issuing the downsample request (and we will
-                // continue to re-issue the request until we get SUCCESS)
-
-                // NOTE that the downsample request is made through the deduplicator so it will only really be executed if
-                // there isn't one already in-flight. This can happen if a previous request timed-out, failed, or there was a
-                // master failover and data stream lifecycle needed to restart
                 downsampleIndexOnce(currentRound, downsamplingMethod, projectId, backingIndex, downsampleIndexName);
-                affectedIndices.add(backingIndex.getIndex());
-                yield affectedIndices;
+                yield backingIndex.getIndex();
             }
             case SUCCESS -> {
                 if (dataStream.getIndices().contains(downsampleIndex) == false) {
                     // at this point the source index is part of the data stream and the downsample index is complete but not
                     // part of the data stream. we need to replace the source index with the downsample index in the data stream
-                    affectedIndices.add(backingIndex.getIndex());
                     replaceBackingIndexWithDownsampleIndexOnce(projectId, dataStream, indexName, downsampleIndexName);
+                    yield downsampleIndex;
                 }
-                yield affectedIndices;
+                yield null;
             }
         };
     }
@@ -771,9 +1042,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     }
 
     /**
-     * Issues a request to delete the provided index through the transport action deduplicator.
+     * Issues a request to delete the provided index through the transport action deduplicator. If the index is a searchable
+     * snapshot index mounted by the data stream lifecycle's convert-to-frozen transition, the backing snapshot is also deleted
+     * once the index deletion is acknowledged.
      */
-    private void deleteIndexOnce(ProjectId projectId, String indexName, String reason) {
+    private void deleteIndexOnce(ProjectId projectId, String indexName, String reason, @Nullable FrozenBackingSnapshot backingSnapshot) {
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexName).masterNodeTimeout(TimeValue.MAX_VALUE);
         transportActionsDeduplicator.executeOnce(
             Tuple.tuple(projectId, deleteIndexRequest),
@@ -785,9 +1058,34 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 Strings.format("Data stream lifecycle encountered an error trying to delete index [%s]", indexName),
                 signallingErrorRetryInterval
             ),
-            (req, reqListener) -> deleteIndex(projectId, deleteIndexRequest, reason, reqListener)
+            (req, reqListener) -> deleteIndex(projectId, deleteIndexRequest, reason, backingSnapshot, reqListener)
         );
     }
+
+    /**
+     * Identifies the repository and snapshot name backing an index that was mounted as a searchable snapshot by the data
+     * stream lifecycle's convert-to-frozen transition, so that the backing snapshot can be deleted alongside the index.
+     * Returns {@code null} if the index is not such a mounted searchable snapshot.
+     */
+    @Nullable
+    private static FrozenBackingSnapshot dlmCreatedBackingSnapshot(IndexMetadata indexMetadata) {
+        if (indexMetadata.isSearchableSnapshot() == false || DLM_CREATED_SETTING.get(indexMetadata.getSettings()) == false) {
+            return null;
+        }
+        Settings settings = indexMetadata.getSettings();
+        String repository = settings.get(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY);
+        String snapshotName = settings.get(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY);
+        if (Strings.hasText(repository) == false || Strings.hasText(snapshotName) == false) {
+            return null;
+        }
+        return new FrozenBackingSnapshot(repository, snapshotName);
+    }
+
+    /**
+     * Identifies the repository and snapshot backing a searchable snapshot index mounted by the data stream lifecycle's
+     * convert-to-frozen transition.
+     */
+    private record FrozenBackingSnapshot(String repository, String snapshotName) {}
 
     /**
      * Issues a request to add a WRITE index block for the provided index through the transport action deduplicator.
@@ -836,6 +1134,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         return targetIndices;
     }
 
+    private static boolean isLifecycleSkipped(ProjectMetadata project, Index index) {
+        IndexMetadata indexMetadata = project.index(index);
+        return indexMetadata != null
+            && (IndexMetadata.LIFECYCLE_SKIP_SETTING.get(indexMetadata.getSettings())
+                || IndexSettings.MODE.get(indexMetadata.getSettings()) == IndexMode.LOOKUP);
+    }
+
     /**
      * This clears the error store for the case where a data stream or some backing indices were managed by data stream lifecycle, failed in
      * their lifecycle execution, and then they were not managed by the data stream lifecycle (maybe they were switched to ILM).
@@ -873,8 +1178,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             return null;
         }
         try {
-            if (dataStream.isIndexManagedByDataStreamLifecycle(currentRunWriteIndex, project::index)) {
-                DataStreamLifecycle lifecycle = rolloverFailureStore ? dataStream.getFailuresLifecycle() : dataStream.getDataLifecycle();
+            if (isLifecycleSkipped(project, currentRunWriteIndex) == false
+                && dataStream.isIndexManagedByDataStreamLifecycle(currentRunWriteIndex, project::index)) {
                 RolloverRequest rolloverRequest = getDefaultRolloverRequest(
                     rolloverConfiguration,
                     dataStream.getName(),
@@ -940,17 +1245,17 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         if (dataRetention == null && failureRetention == null) {
             return Set.of();
         }
-        List<Index> backingIndicesOlderThanRetention = dataStream.getIndicesPastRetention(
+        Set<Index> backingIndicesOlderThanRetention = dataStream.getIndicesOlderThan(
             project::index,
             nowSupplier,
             dataRetention,
-            false
+            BACKING_INDICES
         );
-        List<Index> failureIndicesOlderThanRetention = dataStream.getIndicesPastRetention(
+        Set<Index> failureIndicesOlderThanRetention = dataStream.getIndicesOlderThan(
             project::index,
             nowSupplier,
             failureRetention,
-            true
+            FAILURE_INDICES
         );
         if (backingIndicesOlderThanRetention.isEmpty() && failureIndicesOlderThanRetention.isEmpty()) {
             return Set.of();
@@ -984,7 +1289,12 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                         // there's an opportunity here to batch the delete requests (i.e. delete 100 indices / request)
                         // let's start simple and reevaluate
                         String indexName = backingIndex.getIndex().getName();
-                        deleteIndexOnce(project.id(), indexName, "the lapsed [" + dataRetention + "] retention period");
+                        deleteIndexOnce(
+                            project.id(),
+                            indexName,
+                            "the lapsed [" + dataRetention + "] retention period",
+                            dlmCreatedBackingSnapshot(backingIndex)
+                        );
                     }
                 }
             }
@@ -999,7 +1309,12 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     // there's an opportunity here to batch the delete requests (i.e. delete 100 indices / request)
                     // let's start simple and reevaluate
                     String indexName = failureIndex.getIndex().getName();
-                    deleteIndexOnce(project.id(), indexName, "the lapsed [" + failureRetention + "] retention period");
+                    deleteIndexOnce(
+                        project.id(),
+                        indexName,
+                        "the lapsed [" + failureRetention + "] retention period",
+                        dlmCreatedBackingSnapshot(failureIndex)
+                    );
                 }
             }
         }
@@ -1262,7 +1577,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         });
     }
 
-    private void deleteIndex(ProjectId projectId, DeleteIndexRequest deleteIndexRequest, String reason, ActionListener<Void> listener) {
+    private void deleteIndex(
+        ProjectId projectId,
+        DeleteIndexRequest deleteIndexRequest,
+        String reason,
+        @Nullable FrozenBackingSnapshot backingSnapshot,
+        ActionListener<Void> listener
+    ) {
         assert deleteIndexRequest.indices() != null && deleteIndexRequest.indices().length == 1
             : "Data stream lifecycle deletes one index at a time";
         // "saving" the index name here so we don't capture the entire request
@@ -1273,6 +1594,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 if (acknowledgedResponse.isAcknowledged()) {
                     logger.info("Data stream lifecycle successfully deleted index [{}] due to {}", targetIndex, reason);
+                    if (backingSnapshot != null) {
+                        deleteBackingSnapshot(backingSnapshot, targetIndex);
+                    }
                 } else {
                     logger.trace(
                         "The delete request for index [{}] was not acknowledged. Data stream lifecycle service will retry on the"
@@ -1289,6 +1613,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     logger.trace("Data stream lifecycle did not delete index [{}] as it was already deleted", targetIndex);
                     // index was already deleted, treat this as a success
                     errorStore.clearRecordedError(projectId, targetIndex);
+                    if (backingSnapshot != null) {
+                        deleteBackingSnapshot(backingSnapshot, targetIndex);
+                    }
                     listener.onResponse(null);
                     return;
                 }
@@ -1301,6 +1628,52 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     );
                 }
                 listener.onFailure(e);
+            }
+        });
+    }
+
+    /**
+     * Best-effort deletion of the snapshot backing a frozen searchable snapshot index that data stream lifecycle just deleted.
+     * Failures are logged but do not fail the retention run: any snapshot left behind here is reclaimed later by the periodic
+     * data stream lifecycle frozen cleanup's orphaned snapshot scan.
+     */
+    private void deleteBackingSnapshot(FrozenBackingSnapshot backingSnapshot, String sourceIndex) {
+        DeleteSnapshotRequest deleteSnapshotRequest = new DeleteSnapshotRequest(
+            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+            backingSnapshot.repository(),
+            backingSnapshot.snapshotName()
+        );
+        client.admin().cluster().deleteSnapshot(deleteSnapshotRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                logger.info(
+                    "Data stream lifecycle deleted backing snapshot [{}] from repository [{}] for deleted frozen index [{}]",
+                    backingSnapshot.snapshotName(),
+                    backingSnapshot.repository(),
+                    sourceIndex
+                );
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (e instanceof SnapshotMissingException) {
+                    logger.trace(
+                        "Data stream lifecycle did not delete backing snapshot [{}] for index [{}] as it was already deleted",
+                        backingSnapshot.snapshotName(),
+                        sourceIndex
+                    );
+                    return;
+                }
+                logger.warn(
+                    () -> Strings.format(
+                        "Data stream lifecycle failed to delete backing snapshot [%s] from repository [%s] for deleted frozen "
+                            + "index [%s]; it will be reclaimed by the periodic data stream lifecycle frozen cleanup",
+                        backingSnapshot.snapshotName(),
+                        backingSnapshot.repository(),
+                        sourceIndex
+                    ),
+                    e
+                );
             }
         });
     }
@@ -1418,106 +1791,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         return timeBetweenStarts;
     }
 
-    /**
-     * Action listener that records the encountered failure using the provided recordError callback for the
-     * provided target index. If the listener is notified of success it will clear the recorded entry for the provided
-     * target index using the clearErrorRecord callback.
-     */
-    static class ErrorRecordingActionListener implements ActionListener<Void> {
-
-        private final String actionName;
-        private final ProjectId projectId;
-        private final String targetIndex;
-        private final DataStreamLifecycleErrorStore errorStore;
-        private final String errorLogMessage;
-        private final int signallingErrorRetryThreshold;
-
-        ErrorRecordingActionListener(
-            String actionName,
-            ProjectId projectId,
-            String targetIndex,
-            DataStreamLifecycleErrorStore errorStore,
-            String errorLogMessage,
-            int signallingErrorRetryThreshold
-        ) {
-            this.actionName = actionName;
-            this.projectId = projectId;
-            this.targetIndex = targetIndex;
-            this.errorStore = errorStore;
-            this.errorLogMessage = errorLogMessage;
-            this.signallingErrorRetryThreshold = signallingErrorRetryThreshold;
-        }
-
-        @Override
-        public void onResponse(Void unused) {
-            logger.trace("Clearing recorded error for index [{}] because the [{}] action was successful", targetIndex, actionName);
-            errorStore.clearRecordedError(projectId, targetIndex);
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            recordAndLogError(projectId, targetIndex, errorStore, e, errorLogMessage, signallingErrorRetryThreshold);
-        }
-    }
-
-    /**
-     * Records the provided error for the index in the error store and logs the error message at `ERROR` level if the error for the index
-     * is different to what's already in the error store or if the same error was in the error store for a number of retries divible by
-     * the provided signallingErrorRetryThreshold (i.e. we log to level `error` every signallingErrorRetryThreshold retries, if the error
-     * stays the same)
-     * This allows us to not spam the logs, but signal to the logs if DSL is not making progress.
-     */
-    static void recordAndLogError(
-        ProjectId projectId,
-        String targetIndex,
-        DataStreamLifecycleErrorStore errorStore,
-        Exception e,
-        String logMessage,
-        int signallingErrorRetryThreshold
-    ) {
-        ErrorEntry previousError = errorStore.recordError(projectId, targetIndex, e);
-        ErrorEntry currentError = errorStore.getError(projectId, targetIndex);
-        if (previousError == null || (currentError != null && previousError.error().equals(currentError.error()) == false)) {
-            logger.warn(logMessage, e);
-        } else {
-            if (currentError != null) {
-                if (currentError.retryCount() % signallingErrorRetryThreshold == 0) {
-                    logger.warn(
-                        String.format(
-                            Locale.ROOT,
-                            "%s\nFailing since [%d], operation retried [%d] times",
-                            logMessage,
-                            currentError.firstOccurrenceTimestamp(),
-                            currentError.retryCount()
-                        ),
-                        e
-                    );
-                } else {
-                    logger.trace(
-                        String.format(
-                            Locale.ROOT,
-                            "%s\nFailing since [%d], operation retried [%d] times",
-                            logMessage,
-                            currentError.firstOccurrenceTimestamp(),
-                            currentError.retryCount()
-                        ),
-                        e
-                    );
-                }
-            } else {
-                logger.trace(
-                    String.format(
-                        Locale.ROOT,
-                        "Index [%s] encountered error [%s] but there's no record in the error store anymore",
-                        targetIndex,
-                        logMessage
-                    ),
-                    e
-                );
-            }
-        }
-    }
-
     static RolloverRequest getDefaultRolloverRequest(
         RolloverConfiguration rolloverConfiguration,
         String dataStream,
@@ -1549,8 +1822,16 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         this.targetMergePolicyFactor = newFactor;
     }
 
+    private void updateMaxDownsamplingIndicesInProgress(int newMax) {
+        this.maxDownsamplingIndicesInProgress = newMax;
+    }
+
     public void updateSignallingRetryThreshold(int retryThreshold) {
         this.signallingErrorRetryInterval = retryThreshold;
+    }
+
+    public void updateDefaultRepository(String defaultRepository) {
+        this.defaultRepository = defaultRepository;
     }
 
     private void cancelJob() {
@@ -1641,57 +1922,83 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     }
 
     /**
-     * This wrapper exists only to provide equals and hashCode implementations of a ForceMergeRequest for transportActionsDeduplicator.
-     * It intentionally ignores forceMergeUUID (which ForceMergeRequest's equals/hashCode would have to if they existed) because we don't
-     * care about it for data stream lifecycle deduplication. This class is non-private for the sake of unit testing, but should not be used
-     * outside of Data Stream Lifecycle Service.
+     * MarkIndexForDLMForceMergeExecutor for the MarkIndexForDlmForceMergeTask.
+     * Public for testing.
      */
-    static final class ForceMergeRequestWrapper extends ForceMergeRequest {
-        ForceMergeRequestWrapper(ForceMergeRequest original) {
-            super(original.indices());
-            this.maxNumSegments(original.maxNumSegments());
-            this.onlyExpungeDeletes(original.onlyExpungeDeletes());
-            this.flush(original.flush());
-            this.indicesOptions(original.indicesOptions());
-            this.setShouldStoreResult(original.getShouldStoreResult());
-            this.setRequestId(original.getRequestId());
-            this.timeout(original.timeout());
-            this.setParentTask(original.getParentTask());
-        }
-
+    public static class MarkIndexForDLMForceMergeExecutor implements ClusterStateTaskExecutor<MarkIndexForDlmForceMergeTask> {
         @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
+        public ClusterState execute(BatchExecutionContext<MarkIndexForDlmForceMergeTask> batchExecutionContext) {
+            var state = batchExecutionContext.initialState();
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
+                try {
+                    final MarkIndexForDlmForceMergeTask task = taskContext.getTask();
+                    state = task.execute(state);
+                    taskContext.success(task);
+                } catch (Exception e) {
+                    taskContext.onFailure(e);
+                }
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            ForceMergeRequest that = (ForceMergeRequest) o;
-            return Arrays.equals(indices, that.indices())
-                && maxNumSegments() == that.maxNumSegments()
-                && onlyExpungeDeletes() == that.onlyExpungeDeletes()
-                && flush() == that.flush()
-                && Objects.equals(indicesOptions(), that.indicesOptions())
-                && getShouldStoreResult() == that.getShouldStoreResult()
-                && getRequestId() == that.getRequestId()
-                && Objects.equals(timeout(), that.timeout())
-                && Objects.equals(getParentTask(), that.getParentTask());
+            return state;
         }
+    }
 
+    /**
+     * Executor for marking indices for conversion to frozen
+     */
+    public static class MarkIndicesForFrozenExecutor implements ClusterStateTaskExecutor<MarkIndicesForFrozenTask> {
         @Override
-        public int hashCode() {
-            return Objects.hash(
-                Arrays.hashCode(indices),
-                maxNumSegments(),
-                onlyExpungeDeletes(),
-                flush(),
-                indicesOptions(),
-                getShouldStoreResult(),
-                getRequestId(),
-                timeout(),
-                getParentTask()
+        public ClusterState execute(BatchExecutionContext<MarkIndicesForFrozenTask> batchExecutionContext) {
+            var state = batchExecutionContext.initialState();
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
+                try {
+                    final MarkIndicesForFrozenTask task = taskContext.getTask();
+                    state = task.execute(state);
+                    taskContext.success(task);
+                } catch (Exception e) {
+                    taskContext.onFailure(e);
+                }
+            }
+            return state;
+        }
+    }
+
+    /**
+     * Marks the given index to be force merged for DLM by updating the cluster state with the name of the index to be force merged in the
+     * custom metadata of the source index. This method returns immediately, but the update to the cluster state happens asynchronously and
+     * the listener is notified on success or failure of the cluster state update.
+     * @param projectId the id of the project the index belongs to
+     * @param request the request
+     * @param listener the listener to be notified on success or failure of the cluster state update.
+     */
+    public void markIndexForDlmForceMerge(
+        ProjectId projectId,
+        MarkIndexForDLMForceMergeAction.Request request,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        markIndexForDlmForceMergeQueue.submitTask(
+            Strings.format("DLM marking index [%s] to be force merged for DLM", request.getIndexToBeForceMerged()),
+            new MarkIndexForDlmForceMergeTask(listener, projectId, request),
+            null
+        );
+    }
+
+    static final class ThrottledDownsampledIndexWarning extends Exception {
+        private static final String IDENTIFYING_SUBSTRING = "] has reached the maximum number of downsampling operations [";
+
+        ThrottledDownsampledIndexWarning(String indexName, String dataStreamName, int limit) {
+            super(
+                "Downsampling index ["
+                    + indexName
+                    + "] cannot be started because data stream ["
+                    + dataStreamName
+                    + IDENTIFYING_SUBSTRING
+                    + limit
+                    + "]"
             );
+        }
+
+        public static boolean isThrottledDownsampledIndexWarning(ErrorEntry errorEntry) {
+            return errorEntry != null && errorEntry.error().contains(IDENTIFYING_SUBSTRING);
         }
     }
 }

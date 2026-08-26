@@ -15,6 +15,7 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
@@ -41,7 +42,16 @@ public class MappingLookupTests extends ESTestCase {
         List<ObjectMapper> objectMappers,
         List<RuntimeField> runtimeFields
     ) {
-        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
+        return createMappingLookup(fieldMappers, objectMappers, runtimeFields, randomFrom(IndexMode.availableModes()));
+    }
+
+    private static MappingLookup createMappingLookup(
+        List<FieldMapper> fieldMappers,
+        List<ObjectMapper> objectMappers,
+        List<RuntimeField> runtimeFields,
+        IndexMode indexMode
+    ) {
+        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc");
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
         builder.addRuntimeFields(runtimeFieldTypes);
         Mapping mapping = new Mapping(
@@ -49,7 +59,7 @@ public class MappingLookupTests extends ESTestCase {
             new MetadataFieldMapper[0],
             Collections.emptyMap()
         );
-        return MappingLookup.fromMappers(mapping, fieldMappers, objectMappers);
+        return MappingLookup.fromMappers(mapping, fieldMappers, objectMappers, indexMode);
     }
 
     public void testOnlyRuntimeField() {
@@ -62,6 +72,25 @@ public class MappingLookupTests extends ESTestCase {
         assertEquals(0, mappingLookup.objectMappers().size());
         assertNull(mappingLookup.getMapper("test"));
         assertThat(mappingLookup.fieldTypesLookup().get("test"), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
+    }
+
+    public void testFirstFieldNotReconstructableFromDocValues() {
+        // The columnar contract allows a field only if its _source is reconstructable from doc-value columns (synthetic
+        // source mode NATIVE); a FALLBACK field is flagged so the index mode can reject it. Use fake mappers so this
+        // tests the rule itself rather than the current behaviour of any specific field type.
+        FieldMapper nativeField = new MockFieldMapper("native_field") {
+            @Override
+            protected SyntheticSourceSupport syntheticSourceSupport() {
+                return new SyntheticSourceSupport.Native(() -> SourceLoader.SyntheticFieldLoader.NOTHING);
+            }
+        };
+        FieldMapper fallbackField = new MockFieldMapper("fallback_field"); // no native synthetic source -> FALLBACK
+
+        MappingLookup withFallback = createMappingLookup(List.of(nativeField, fallbackField), emptyList(), emptyList());
+        assertEquals("fallback_field", withFallback.firstFieldNotReconstructableFromDocValues());
+
+        MappingLookup allNative = createMappingLookup(List.of(nativeField), emptyList(), emptyList());
+        assertNull(allNative.firstFieldNotReconstructableFromDocValues());
     }
 
     public void testRuntimeFieldLeafOverride() {
@@ -147,13 +176,28 @@ public class MappingLookupTests extends ESTestCase {
         FakeFieldType plain = new FakeFieldType("plain");
         FieldMapper plainMapper = new FakeFieldMapper(plain, "index1");
 
-        MappingLookup mappingLookup = createMappingLookup(List.of(dimMapper, metricMapper, plainMapper), emptyList(), emptyList());
+        MappingLookup mappingLookup = createMappingLookup(
+            List.of(dimMapper, metricMapper, plainMapper),
+            emptyList(),
+            emptyList(),
+            randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.availableModes()))
+        );
         mappingLookup.validateDoesNotShadow("not_mapped");
-        Exception e = expectThrows(MapperParsingException.class, () -> mappingLookup.validateDoesNotShadow("dim"));
+        mappingLookup.validateDoesNotShadow("dim");
+        mappingLookup.validateDoesNotShadow("metric");
+
+        MappingLookup tsMappingLookup = createMappingLookup(
+            List.of(dimMapper, metricMapper, plainMapper),
+            emptyList(),
+            emptyList(),
+            IndexMode.TIME_SERIES
+        );
+        tsMappingLookup.validateDoesNotShadow("not_mapped");
+        Exception e = expectThrows(MapperParsingException.class, () -> tsMappingLookup.validateDoesNotShadow("dim"));
         assertThat(e.getMessage(), equalTo("Field [dim] attempted to shadow a time_series_dimension"));
-        e = expectThrows(MapperParsingException.class, () -> mappingLookup.validateDoesNotShadow("metric"));
+        e = expectThrows(MapperParsingException.class, () -> tsMappingLookup.validateDoesNotShadow("metric"));
         assertThat(e.getMessage(), equalTo("Field [metric] attempted to shadow a time_series_metric"));
-        mappingLookup.validateDoesNotShadow("plain");
+        tsMappingLookup.validateDoesNotShadow("plain");
     }
 
     public void testShadowingOnConstruction() {
@@ -177,9 +221,17 @@ public class MappingLookupTests extends ESTestCase {
         boolean shadowDim = randomBoolean();
         TestRuntimeField shadowing = new TestRuntimeField(shadowDim ? "dim" : "metric", "keyword");
 
+        // We expect no errors in non time series indices
+        createMappingLookup(
+            List.of(dimMapper, metricMapper),
+            emptyList(),
+            List.of(shadowing),
+            randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.availableModes()))
+        );
+
         Exception e = expectThrows(
             MapperParsingException.class,
-            () -> createMappingLookup(List.of(dimMapper, metricMapper), emptyList(), List.of(shadowing))
+            () -> createMappingLookup(List.of(dimMapper, metricMapper), emptyList(), List.of(shadowing), IndexMode.TIME_SERIES)
         );
         assertThat(
             e.getMessage(),

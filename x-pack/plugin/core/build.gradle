@@ -43,7 +43,6 @@ configurations {
 }
 
 dependencies {
-  compileOnly project(":server")
   api project(':libs:grok')
   api project(":libs:ssl-config")
 
@@ -75,6 +74,7 @@ dependencies {
   testImplementation project(path: ':modules:aggregations')
   testImplementation project(path: ':modules:data-streams')
   testImplementation project(':modules:mapper-extras')
+  testImplementation(testArtifact(project(':server')))
 
   // security deps
   api "com.unboundid:unboundid-ldapsdk:${versions.ldapsdk}"
@@ -89,7 +89,7 @@ dependencies {
   testImplementation project(path: ':modules:rest-root')
   testImplementation project(path: ':modules:health-shards-availability')
   // Needed for Fips140ProviderVerificationTests
-  testCompileOnly('org.bouncycastle:bc-fips:1.0.2.6')
+  testCompileOnly('org.bouncycastle:bc-fips:1.0.2.7')
 
   testImplementation(project(':x-pack:license-tools')) {
     transitive = false
@@ -161,6 +161,16 @@ tasks.named("thirdPartyAudit").configure {
     'javax.jms.Message',
     // HttpClient5 can use Conscrypt (TLS using BoringSSL), but we don't want that
     'org.conscrypt.Conscrypt',
+    // HttpClient5 5.6.x / HttpCore5 5.4.x support optional content compression (zstd, brotli, commons-compress),
+    // none of which we bundle
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
+    'com.aayushatharva.brotli4j.encoder.EncoderJNI$Operation',
+    'com.aayushatharva.brotli4j.encoder.EncoderJNI$Wrapper',
+    'com.github.luben.zstd.ZstdDecompressCtx',
+    'com.github.luben.zstd.ZstdDirectBufferCompressingStream',
+    'org.apache.commons.compress.compressors.CompressorStreamFactory',
   )
 }
 

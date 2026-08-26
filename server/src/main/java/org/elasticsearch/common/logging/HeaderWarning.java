@@ -54,8 +54,8 @@ public class HeaderWarning {
     static Pattern getPatternWithSemanticVersion() {
         return Pattern.compile("299 " + // log level code
             "Elasticsearch-" + // warn agent
-            semanticVersionPattern + "-" + // warn agent: semantic version
-            "(?:[a-f0-9]{7}(?:[a-f0-9]{33})?|unknown) " + // warn agent: hash
+            "(?:" + semanticVersionPattern + "-)?" + // warn agent: optional semantic version
+            "(?:[a-f0-9]{7,40}|unknown) " + // warn agent: hash
             // quoted warning value, captured. Do not add more greedy qualifiers later to avoid excessive backtracking
             "\"(?<quotedStringValue>.*)\"( " +
             // quoted RFC 1123 date format
@@ -326,6 +326,73 @@ public class HeaderWarning {
         } else {
             return s;
         }
+    }
+
+    /**
+     * Reverse {@link #escapeAndEncode}: percent-decode then unescape backslashes and quotes.
+     * Used when reading warning values out of RFC 7234 headers so that the plain text can
+     * be re-formatted without double-escaping or double-encoding.
+     */
+    public static String decodeAndUnescape(String s) {
+        return unescapeBackslashesAndQuotes(decode(s));
+    }
+
+    /**
+     * Reverse the percent-encoding applied by {@link #encode}: {@code %XX} sequences are
+     * decoded back to the original UTF-8 characters.
+     */
+    static String decode(String s) {
+        if (s.indexOf('%') < 0) {
+            return s;
+        }
+        byte[] bytes = s.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream(bytes.length);
+        for (int i = 0; i < bytes.length; i++) {
+            byte b = bytes[i];
+            if (b == '%' && i + 2 < bytes.length) {
+                int hi = Character.digit((char) bytes[i + 1], 16);
+                int lo = Character.digit((char) bytes[i + 2], 16);
+                if (hi >= 0 && lo >= 0) {
+                    out.write((hi << 4) | lo);
+                    i += 2;
+                    continue;
+                }
+            }
+            out.write(b);
+        }
+        return out.toString(java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Reverse the escaping applied by {@link #escapeBackslashesAndQuotes}: {@code \\} → {@code \}
+     * and {@code \"} → {@code "}. Used when reading warning values out of RFC 7234 headers so
+     * that the plain text can be re-formatted without double-escaping.
+     */
+    static String unescapeBackslashesAndQuotes(String s) {
+        boolean unescapingNeeded = false;
+        for (int i = 0; i < s.length() - 1; i++) {
+            if (s.charAt(i) == '\\') {
+                unescapingNeeded = true;
+                break;
+            }
+        }
+        if (unescapingNeeded == false) {
+            return s;
+        }
+        StringBuilder sb = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '\\' && i + 1 < s.length()) {
+                char next = s.charAt(i + 1);
+                if (next == '\\' || next == '"') {
+                    sb.append(next);
+                    i++;
+                    continue;
+                }
+            }
+            sb.append(c);
+        }
+        return sb.toString();
     }
 
     /**

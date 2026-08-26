@@ -7,13 +7,16 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
-import org.elasticsearch.compute.lucene.LuceneQueryEvaluator.ShardConfig;
-import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator;
-import org.elasticsearch.compute.lucene.LuceneQueryScoreEvaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.ScoreOperator;
+import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
+import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator.ShardConfig;
+import org.elasticsearch.compute.lucene.query.LuceneQueryExpressionEvaluator;
+import org.elasticsearch.compute.lucene.query.LuceneQueryScoreEvaluator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
@@ -21,18 +24,23 @@ import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAwa
 import org.elasticsearch.xpack.esql.capabilities.RewriteableAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
@@ -41,11 +49,22 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -66,6 +85,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPostOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeQuery;
@@ -84,6 +104,14 @@ public abstract class FullTextFunction extends Function
         PostOptimizationVerificationAware,
         RewriteableAware,
         PostOptimizationPlanVerificationAware {
+
+    public static final TransportVersion ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS = TransportVersion.fromName("esql_options_for_search_functions");
+
+    // TODO: This message omits HIGHLIGHT, which supports MATCH, MATCH_PHRASE, QSTR, and KQL (see
+    // HighlightQueryBuilders#verifyQueryStructure). We cannot simply append it because KNN also shares this message but
+    // remains unsupported in HIGHLIGHT, and many tests assert the exact wording.
+    private static final String UNSUPPORTED_LOCATION_FAILURE =
+        "[{}] {} is only supported in WHERE and STATS commands or in EVAL within score(.) function";
 
     private final Expression query;
     private final QueryBuilder queryBuilder;
@@ -190,6 +218,10 @@ public abstract class FullTextFunction extends Function
         return FullTextFunction::checkFullTextQueryFunctions;
     }
 
+    public boolean isRuntimeSearch() {
+        return false;
+    }
+
     /**
      * Checks full text query functions for invalid usage.
      *
@@ -203,25 +235,32 @@ public abstract class FullTextFunction extends Function
             checkFullTextFunctionsInAggs(agg, failures);
         } else if (plan instanceof LookupJoin lookupJoin) {
             checkFullTextQueryFunctionForCondition(plan, failures, lookupJoin.config().joinOnConditions(), true, true);
+        } else if (plan instanceof Highlight highlight) {
+            checkFullTextFunctionsInHighlight(plan, highlight, failures);
         } else {
             List<FullTextFunction> scoredFTFs = new ArrayList<>();
             plan.forEachExpression(Score.class, scoreFunction -> {
                 checkScoreFunction(plan, failures, scoreFunction);
                 plan.forEachExpression(FullTextFunction.class, scoredFTFs::add);
             });
-            plan.forEachExpression(FullTextFunction.class, ftf -> {
-                if (scoredFTFs.remove(ftf) == false) {
-                    failures.add(
-                        fail(
-                            ftf,
-                            "[{}] {} is only supported in WHERE and STATS commands or in EVAL within score(.) function",
-                            ftf.functionName(),
-                            ftf.functionType()
-                        )
-                    );
-                }
-            });
+            failFullTextFunctionsOutside(plan, failures, scoredFTFs);
         }
+    }
+
+    private static void checkFullTextFunctionsInHighlight(LogicalPlan plan, Highlight highlight, Failures failures) {
+        List<FullTextFunction> allowedFTFs = new ArrayList<>();
+        if (highlight.query() != null) {
+            highlight.query().forEachDown(FullTextFunction.class, allowedFTFs::add);
+        }
+        failFullTextFunctionsOutside(plan, failures, allowedFTFs);
+    }
+
+    private static void failFullTextFunctionsOutside(LogicalPlan plan, Failures failures, List<FullTextFunction> allowedFTFs) {
+        plan.forEachExpression(FullTextFunction.class, ftf -> {
+            if (allowedFTFs.remove(ftf) == false) {
+                failures.add(fail(ftf, UNSUPPORTED_LOCATION_FAILURE, ftf.functionName(), ftf.functionType()));
+            }
+        });
     }
 
     private static void checkFullTextFunctionsInFilter(Filter filter, Failures failures, boolean checkFullTextFunctionsAboveSubqueries) {
@@ -249,7 +288,7 @@ public abstract class FullTextFunction extends Function
         // because join is not pushed down into subqueries yet.
         boolean checkCommandsBeforeExpression = isLookupJoinOnCondition
             || checkFullTextFunctionsAboveSubqueries
-            || hasSubqueryInChildrenPlans(plan) == false;
+            || hasFilterPushdownTarget(plan) == false;
         if (checkCommandsBeforeExpression) {
             if (isLookupJoinOnCondition == false) {
                 List.of(QueryString.class, Kql.class).forEach(functionClass -> {
@@ -258,7 +297,11 @@ public abstract class FullTextFunction extends Function
                         plan,
                         condition,
                         functionClass,
-                        lp -> (lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation),
+                        lp -> (lp instanceof Filter
+                            || lp instanceof OrderBy
+                            || lp instanceof EsRelation
+                            || lp instanceof ParameterizedQuery
+                            || lp instanceof Sample),
                         fullTextFunction -> "[" + fullTextFunction.functionName() + "] " + fullTextFunction.functionType(),
                         failures
                     );
@@ -269,7 +312,14 @@ public abstract class FullTextFunction extends Function
                 plan,
                 condition,
                 FullTextFunction.class,
-                lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false) && (lp instanceof UnionAll == false),
+                lp -> (lp instanceof Limit == false)
+                    && (lp instanceof Aggregate == false)
+                    && (lp instanceof MvExpand == false)
+                    && (lp instanceof Fork == false)
+                    && (lp instanceof LimitBy == false)
+                    && (lp instanceof TopNBy == false)
+                    && (lp instanceof Dedup == false)
+                    && (lp instanceof Highlight == false),
                 m -> "[" + m.functionName() + "] " + m.functionType(),
                 failures
             );
@@ -321,13 +371,33 @@ public abstract class FullTextFunction extends Function
     ) {
         condition.forEachDown(typeToken, exp -> {
             plan.forEachDown(LogicalPlan.class, lp -> {
-                if (commandCheck.test(lp) == false) {
+                // `checkCommandsBeforeExpression` should be completely skipped for search functions that do not operate on index fields,
+                // but for now all checks apply, except for MV_EXPAND which can be used before a runtime search function
+                if ((lp instanceof MvExpand && exp instanceof FullTextFunction ftf && ftf.isRuntimeSearch()) == false
+                    && commandCheck.test(lp) == false) {
+                    if (lp instanceof ExternalRelation externalRelation) {
+                        // Federated sources are never Lucene-backed, so functions gated to Lucene-only relations (e.g. KQL/QSTR)
+                        // fail here regardless of position. Name the actual limitation instead of the generic positional
+                        // message below, which reads like the function is misplaced rather than unsupported on this source.
+                        failures.add(
+                            fail(
+                                plan,
+                                "{} is not supported on federated data sources [{}]; it requires an index. Use "
+                                    + "MATCH(field, \"term\") for full-text search on non-indexed data.",
+                                typeErrorMsgProvider.apply(exp),
+                                externalRelation.datasetName() != null ? externalRelation.datasetName() : lp.sourceText()
+                            )
+                        );
+                        return;
+                    }
                     String sourceText = lp.sourceText();
-                    String errorMessage = sourceText.split(" ")[0].toUpperCase(Locale.ROOT);
+                    String errorMessage;
                     if (lp instanceof UnionAll) {
                         errorMessage = sourceText.length() > Node.TO_STRING_MAX_WIDTH
                             ? sourceText.substring(0, Node.TO_STRING_MAX_WIDTH) + "..."
                             : sourceText;
+                    } else {
+                        errorMessage = sourceText.split(" ")[0].toUpperCase(Locale.ROOT);
                     }
                     failures.add(fail(plan, "{} cannot be used after {}", typeErrorMsgProvider.apply(exp), errorMessage));
                 }
@@ -379,7 +449,17 @@ public abstract class FullTextFunction extends Function
         return null;
     }
 
-    protected void fieldVerifier(LogicalPlan plan, FullTextFunction function, Expression field, Failures failures) {
+    /**
+     * The {@code analysisRegistry} is only available in the post-analysis pass; the post-optimization re-run passes
+     * {@code null}, so registry-backed checks must be skipped when it is absent.
+     */
+    protected void fieldVerifier(
+        LogicalPlan plan,
+        FullTextFunction function,
+        Expression field,
+        @Nullable AnalysisRegistry analysisRegistry,
+        Failures failures
+    ) {
         // Only run the check if the current node contains the full-text function
         // This is to avoid running the check multiple times in the same plan
         // Field can be null when the field does not exist in the mapping
@@ -390,17 +470,26 @@ public abstract class FullTextFunction extends Function
         if (Expressions.isGuaranteedNull(field)) {
             return;
         }
-        var fieldAttribute = fieldAsFieldAttribute(field);
+        var fieldAttribute = resolveToFieldAttribute(plan, field);
         if (fieldAttribute == null) {
+            if (function.isRuntimeSearch()) {
+                return;
+            }
+
             plan.forEachExpression(function.getClass(), m -> {
                 if (function.children().contains(field) && hasSubqueryInChildrenPlans(plan) == false) {
+                    String fieldName = field.sourceText().isEmpty() && field instanceof Attribute attr ? attr.name() : field.sourceText();
+                    String federatedSourceClause = isFieldFromFederatedSource(plan, field)
+                        ? " (the source is a federated data source, not an index)"
+                        : "";
                     failures.add(
                         fail(
                             field,
-                            "[{}] {} cannot operate on [{}], which is not a field from an index mapping",
+                            "[{}] {} cannot operate on [{}], which is not a field from an index mapping{}",
                             m.functionName(),
                             m.functionType(),
-                            field.sourceText()
+                            fieldName,
+                            federatedSourceClause
                         )
                     );
                 }
@@ -435,38 +524,142 @@ public abstract class FullTextFunction extends Function
         }
     }
 
+    /**
+     * Resolves the given field expression to a {@link FieldAttribute} by following rename alias chains
+     * through {@link Project} nodes in the plan.
+     */
+    private FieldAttribute resolveToFieldAttribute(LogicalPlan plan, Expression field) {
+        FieldAttribute fa = fieldAsFieldAttribute(field);
+        if (fa != null) {
+            return fa;
+        }
+
+        Expression fieldExpression = field;
+        if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
+            fieldExpression = convertFunction.field();
+        }
+        if (fieldExpression instanceof Attribute == false) {
+            return null;
+        }
+
+        Holder<Attribute> current = new Holder<>((Attribute) fieldExpression);
+        Holder<FieldAttribute> resolved = new Holder<>();
+        plan.forEachDownMayReturnEarly((p, breakEarly) -> {
+            if (p instanceof Project project) {
+                for (NamedExpression ne : project.projections()) {
+                    if (ne instanceof Alias alias && alias.toAttribute().id().equals(current.get().id())) {
+                        FieldAttribute candidate = fieldAsFieldAttribute(alias.child());
+                        if (candidate != null) {
+                            resolved.set(candidate);
+                            breakEarly.set(true);
+                        } else if (alias.child() instanceof Attribute next) {
+                            current.set(next);
+                        } else {
+                            breakEarly.set(true);
+                        }
+                        return;
+                    }
+                }
+            }
+
+            // Fork's own output exposes ReferenceAttributes, so to reach the underlying
+            // FieldAttribute we look inside each branch's output and match by name.
+            if (p instanceof Fork fork) {
+                String currentName = current.get().name();
+                // resolve when current field is part of the Fork output
+                boolean inForkOutput = fork.output().stream().anyMatch(a -> a.id().equals(current.get().id()));
+                if (inForkOutput == false) {
+                    breakEarly.set(true);
+                    return;
+                }
+
+                // Every branch must contain this field, not just one
+                FieldAttribute candidate = null;
+                for (LogicalPlan branch : fork.children()) {
+                    FieldAttribute match = branch.output()
+                        .stream()
+                        .filter(a -> a.name().equals(currentName) && a instanceof FieldAttribute)
+                        .map(a -> (FieldAttribute) a)
+                        .findFirst()
+                        .orElse(null);
+                    if (match == null) {
+                        candidate = null;
+                        break;
+                    }
+                    candidate = match;
+                }
+                if (candidate != null) {
+                    resolved.set(candidate);
+                }
+                breakEarly.set(true);
+                return;
+            }
+
+            // Resolve the underlying FieldAttribute by stepping through MvExpand
+            // from its `expanded` output back to its `target`.
+            if (p instanceof MvExpand mvExpand && mvExpand.expanded().id().equals(current.get().id())) {
+                FieldAttribute candidate = fieldAsFieldAttribute(mvExpand.target());
+                if (candidate != null) {
+                    resolved.set(candidate);
+                    breakEarly.set(true);
+                } else if (mvExpand.target() instanceof Attribute next) {
+                    current.set(next);
+                } else {
+                    breakEarly.set(true);
+                }
+                return;
+            }
+
+        });
+        return resolved.get();
+    }
+
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return new LuceneQueryExpressionEvaluator.Factory(toShardConfigs(toEvaluator.shardContexts()));
     }
 
     /**
      * Returns the query builder to be used when the function cannot be pushed down to Lucene, but uses a
-     * {@link org.elasticsearch.compute.lucene.LuceneQueryEvaluator} instead
+     * {@link LuceneQueryEvaluator} instead
      *
-     * @return the query builder to be used in the {@link org.elasticsearch.compute.lucene.LuceneQueryEvaluator}
+     * @return the query builder to be used in the {@link LuceneQueryEvaluator}
      */
     protected QueryBuilder evaluatorQueryBuilder() {
-        // Use the same query builder as for the translation by default
-        return queryBuilder();
+        QueryBuilder builder = queryBuilder();
+        if (builder != null) {
+            return builder;
+        }
+        // Coordinator-side query-builder rewrite is skipped for runtime search (see requiresQueryBuilderRewrite).
+        // ReplacePotentiallyUnmappedFieldWithMappedField can later make the field pushable on a data node without
+        // attaching a rewritten QueryBuilder to the expression, so build it here when needed.
+        assert isRuntimeSearch() == false : "runtime search must not use LuceneQueryEvaluator";
+        return asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER).toQueryBuilder();
     }
 
     @Override
-    public ScoreOperator.ExpressionScorer.Factory toScorer(ToScorer toScorer) {
+    public ExpressionEvaluator.Factory toScorer(ToScorer toScorer) {
         return new LuceneQueryScoreEvaluator.Factory(toShardConfigs(toScorer.shardContexts()));
+    }
+
+    @Override
+    public boolean contributesToScore() {
+        // Runtime search is evaluated per row rather than through a Lucene query, and does not contribute to the
+        // score (yet).
+        return isRuntimeSearch() == false;
     }
 
     private IndexedByShardId<ShardConfig> toShardConfigs(IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> contexts) {
         return contexts.map(sc -> new ShardConfig(sc.toQuery(evaluatorQueryBuilder()), sc.searcher()));
     }
 
-    // TODO: this should likely be replaced by calls to FieldAttribute#fieldName; the MultiTypeEsField case looks
-    // wrong if `fieldAttribute` is a subfield, e.g. `parent.child` - multiTypeEsField#getName will just return `child`.
+    // TODO: this should likely be replaced by calls to FieldAttribute#fieldName; the UnionTypeEsField case looks
+    // wrong if `fieldAttribute` is a subfield, e.g. `parent.child` - EsField#getName will just return `child`.
     protected String getNameFromFieldAttribute(FieldAttribute fieldAttribute) {
         String fieldName = fieldAttribute.name();
-        if (fieldAttribute.field() instanceof MultiTypeEsField multiTypeEsField) {
-            // If we have multiple field types, we allow the query to be done, but getting the underlying field name
-            fieldName = multiTypeEsField.getName();
+        if (fieldAttribute.field() instanceof UnionTypeEsField unionTypeEsField) {
+            // If we have multiple field types, we allow the query to be done, but get the underlying field name
+            fieldName = unionTypeEsField.getName();
         }
         return fieldName;
     }
@@ -477,7 +670,22 @@ public abstract class FullTextFunction extends Function
         if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
             fieldExpression = convertFunction.field();
         }
-        return fieldExpression instanceof FieldAttribute fieldAttribute ? fieldAttribute : null;
+
+        if (fieldExpression instanceof FieldAttribute == false) {
+            return null;
+        }
+
+        FieldAttribute fieldAttribute = (FieldAttribute) fieldExpression;
+
+        // we do an explicit to_text conversion and not all underlying fields already have the TEXT type
+        // which means we cannot effectively push down a single lexical match query to the shards
+        if (field.dataType() == TEXT
+            && fieldAttribute.field() instanceof CompactMultiTypeEsField compactMultiTypeEsField
+            && compactMultiTypeEsField.getTypeToConversionExpressions().keySet().stream().anyMatch(dataType -> dataType != TEXT)) {
+            return null;
+        }
+
+        return fieldAttribute;
     }
 
     @Override
@@ -496,8 +704,27 @@ public abstract class FullTextFunction extends Function
         return (logicalPlan, failures) -> {
             if (logicalPlan instanceof Filter f) {
                 checkFullTextFunctionsInFilter(f, failures, true);
+                // After optimization, if a coordinator-executed join still sits anywhere beneath this filter
+                // (not just as a direct child), the push-down optimizer could not move the filter to the data
+                // nodes. Full-text functions require a Lucene shard context that the coordinator does not have.
+                if (f.anyMatch(p -> p instanceof Join join && join.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR)) {
+                    failures.add(
+                        fail(
+                            this,
+                            "[{}] {} cannot be used in a WHERE clause that references both data-side and lookup-side "
+                                + "fields after LOOKUP JOIN _coordinator:",
+                            functionName(),
+                            functionType()
+                        )
+                    );
+                }
             }
         };
+    }
+
+    @Override
+    public boolean requiresQueryBuilderRewrite() {
+        return false == isRuntimeSearch();
     }
 
     /**
@@ -524,5 +751,54 @@ public abstract class FullTextFunction extends Function
             }
         });
         return hasSubquery.get();
+    }
+
+    private static boolean hasFilterPushdownTarget(LogicalPlan plan) {
+        return plan.anyMatch(p -> p instanceof UnionAll || p instanceof Highlight);
+    }
+
+    /**
+     * Whether {@code field} originates - possibly through one or more {@code RENAME}/{@code Project} aliases -
+     * from an output attribute of an {@link ExternalRelation} in {@code plan}, i.e. the field is backed by a
+     * federated (non-Lucene) data source rather than a genuinely unmapped/computed expression on a real index.
+     * <p>
+     * This is only reachable for {@link MatchPhrase} and {@link org.elasticsearch.xpack.esql.expression.function.vector.Knn}
+     * - the {@link SingleFieldFullTextFunction}s whose {@link #isRuntimeSearch()} is {@code false}; {@link Match} returns
+     * from {@link #fieldVerifier} before this is ever called.
+     * <p>
+     * Only {@code RENAME}/{@code Project} chains are followed here; {@code MV_EXPAND} and {@code FORK} are deliberately
+     * not chased. For {@code MatchPhrase}/{@code Knn}, both commands are already unconditionally rejected by the
+     * general position check in {@link #checkCommandsBeforeExpression} - neither function overrides
+     * {@link #isRuntimeSearch()}, so no exemption applies to either. A query that reaches this method through an
+     * intervening {@code MV_EXPAND} or {@code FORK} is therefore already guaranteed to fail on that unrelated,
+     * always-present error; chasing through them would only cosmetically enrich an already-doomed second message,
+     * never change whether the query is accepted. {@code RENAME} is different: it's allowed to precede these
+     * functions, so it's the only chain that determines whether the sole failure message correctly names the
+     * federation limitation on an otherwise-valid query.
+     */
+    private static boolean isFieldFromFederatedSource(LogicalPlan plan, Expression field) {
+        Expression fieldExpression = field;
+        if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
+            fieldExpression = convertFunction.field();
+        }
+        if (fieldExpression instanceof Attribute == false) {
+            return false;
+        }
+
+        AttributeMap.Builder<Attribute> aliases = AttributeMap.builder();
+        List<ExternalRelation> externalRelations = new ArrayList<>();
+        plan.forEachDown(p -> {
+            if (p instanceof ExternalRelation externalRelation) {
+                externalRelations.add(externalRelation);
+            } else if (p instanceof Project project) {
+                for (NamedExpression ne : project.projections()) {
+                    // Projections are just aliases for attributes, so casting is safe.
+                    aliases.put(ne.toAttribute(), (Attribute) Alias.unwrap(ne));
+                }
+            }
+        });
+
+        Attribute resolved = aliases.build().resolve(fieldExpression, (Attribute) fieldExpression);
+        return externalRelations.stream().anyMatch(er -> er.output().stream().anyMatch(a -> a.id().equals(resolved.id())));
     }
 }

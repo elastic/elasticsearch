@@ -12,7 +12,7 @@ import software.amazon.awssdk.services.bedrockruntime.model.ConverseResponse;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.AmazonBedrockRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.response.AmazonBedrockResponseHandler;
 
@@ -23,9 +23,9 @@ public class AmazonBedrockChatCompletionResponseHandler extends AmazonBedrockRes
     public AmazonBedrockChatCompletionResponseHandler() {}
 
     @Override
-    public InferenceServiceResults parseResult(Request request, HttpResult result) throws RetryException {
+    public InferenceServiceResults parseResult(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
         var response = new AmazonBedrockChatCompletionResponse(responseResult);
-        return response.accept((AmazonBedrockRequest) request);
+        return response.accept((AmazonBedrockRequest) outboundRequest);
     }
 
     @Override
@@ -35,5 +35,10 @@ public class AmazonBedrockChatCompletionResponseHandler extends AmazonBedrockRes
 
     public void acceptChatCompletionResponseObject(ConverseResponse response) {
         this.responseResult = response;
+    }
+
+    @Override
+    public boolean canHandleStreamingResponses() {
+        return true;
     }
 }

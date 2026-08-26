@@ -7,24 +7,25 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.request;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockBaseClient;
 
 import java.net.URI;
+import java.util.Objects;
 
-public abstract class AmazonBedrockRequest implements Request {
+public abstract class AmazonBedrockRequest implements OutboundRequest {
 
     protected final AmazonBedrockModel amazonBedrockModel;
     protected final String inferenceId;
     protected final TimeValue timeout;
 
     protected AmazonBedrockRequest(AmazonBedrockModel model, @Nullable TimeValue timeout) {
-        this.amazonBedrockModel = model;
+        this.amazonBedrockModel = Objects.requireNonNull(model);
         this.inferenceId = model.getInferenceEntityId();
         this.timeout = timeout;
     }
@@ -39,8 +40,8 @@ public abstract class AmazonBedrockRequest implements Request {
      * Amazon Bedrock uses the AWS SDK, and will not create its own Http Request
      */
     @Override
-    public final HttpRequest createHttpRequest() {
-        throw new UnsupportedOperationException("Amazon Bedrock does not use Http Requests");
+    public final void createHttpRequest(ActionListener<HttpRequest> listener) {
+        listener.onFailure(new UnsupportedOperationException("Amazon Bedrock does not use Http Requests"));
     }
 
     /**
@@ -57,7 +58,7 @@ public abstract class AmazonBedrockRequest implements Request {
      * @return null
      */
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         return this;
     }
 
@@ -78,6 +79,4 @@ public abstract class AmazonBedrockRequest implements Request {
     public TimeValue timeout() {
         return timeout;
     }
-
-    public abstract TaskType taskType();
 }

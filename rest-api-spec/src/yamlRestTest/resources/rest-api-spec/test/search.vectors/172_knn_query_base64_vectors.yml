@@ -1,0 +1,462 @@
+setup:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ knn_query_vector_base64 ]
+      test_runner_features: [ capabilities ]
+      reason: Capability required to run test
+
+  - do:
+      indices.create:
+        index: knn_query_base64_index
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            dynamic: false
+            properties:
+              name:
+                type: keyword
+              vector_float:
+                type: dense_vector
+                dims: 3
+                index: true
+                element_type: float
+                similarity: l2_norm
+              vector_byte:
+                type: dense_vector
+                dims: 3
+                index: true
+                element_type: byte
+                similarity: l2_norm
+              vector_bfloat16:
+                type: dense_vector
+                dims: 3
+                index: true
+                element_type: bfloat16
+                similarity: l2_norm
+              vector_bit:
+                type: dense_vector
+                dims: 8
+                index: true
+                element_type: bit
+                similarity: l2_norm
+
+  - do:
+      index:
+        index: knn_query_base64_index
+        id: "1"
+        body:
+          name: doc1
+          vector_float: [0.1, 0.2, 0.3]
+          vector_byte: [10, 20, 30]
+          vector_bfloat16: [0.1, 0.2, 0.3]
+          vector_bit: [3]
+
+  - do:
+      index:
+        index: knn_query_base64_index
+        id: "2"
+        body:
+          name: doc2
+          vector_float: [0.2, 0.3, 0.4]
+          vector_byte: [20, 30, 40]
+          vector_bfloat16: [0.2, 0.3, 0.4]
+          vector_bit: [5]
+
+  - do:
+      index:
+        index: knn_query_base64_index
+        id: "3"
+        body:
+          name: doc3
+          vector_float: [0.4, 0.5, 0.6]
+          vector_byte: [40, 50, 60]
+          vector_bfloat16: [0.4, 0.5, 0.6]
+          vector_bit: [7]
+
+  - do:
+      indices.refresh: {}
+
+---
+"kNN query with base64 float vector":
+  # [0.1, 0.2, 0.3] is encoded as 'PczMzT5MzM0+mZma'
+  - do:
+      search:
+        index: knn_query_base64_index
+        body:
+          fields: [ "name" ]
+          query:
+            knn:
+              field: vector_float
+              query_vector: "PczMzT5MzM0+mZma"
+              k: 2
+              num_candidates: 3
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0.fields.name.0: "doc1" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1.fields.name.0: "doc2" }
+
+---
+"kNN query with base64 byte vector":
+  # [10, 20, 30] is encoded as 'ChQe'
+  - do:
+      search:
+        index: knn_query_base64_index
+        body:
+          fields: [ "name" ]
+          query:
+            knn:
+              field: vector_byte
+              query_vector: "ChQe"
+              k: 2
+              num_candidates: 3
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0.fields.name.0: "doc1" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1.fields.name.0: "doc2" }
+
+---
+"kNN query with hex byte vector":
+  # [10, 20, 30] is encoded as hex bytes in lowercase as '0a141e'
+  - do:
+      search:
+        index: knn_query_base64_index
+        body:
+          fields: [ "name" ]
+          query:
+            knn:
+              field: vector_byte
+              query_vector: "0a141e"
+              k: 2
+              num_candidates: 3
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0.fields.name.0: "doc1" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1.fields.name.0: "doc2" }
+
+---
+"kNN query with ambiguous hex/base64 byte string prefers hex":
+  # "000000" is 3 bytes in hex (00 00 00), but 4 bytes if base64-decoded; dims=3 should prefer hex
+  - do:
+      search:
+        index: knn_query_base64_index
+        body:
+          fields: [ "name" ]
+          query:
+            knn:
+              field: vector_byte
+              query_vector: "000000"
+              k: 2
+              num_candidates: 3
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "/^[123]$/" }
+  - match: { hits.hits.1._id: "/^[123]$/" }
+
+---
+"kNN query with base64 produces same results as float array":
+  - do:
+      search:
+        index: knn_query_base64_index
+        body:
+          fields: [ "name" ]
+          query:
+            knn:
+              field: vector_float
+              query_vector: [0.1, 0.2, 0.3]
+              k: 2
+              num_candidates: 3
+
+  - set: { hits.hits.0._id: array_result_1 }
+  - set: { hits.hits.1._id: array_result_2 }
+
+  # [0.1, 0.2, 0.3] is encoded as 'PczMzT5MzM0+mZma'
+  - do:
+      search:
+        index: knn_query_base64_index
+        body:
+          fields: [ "name" ]
+          query:
+            knn:
+              field: vector_float
+              query_vector: "PczMzT5MzM0+mZma"
+              k: 2
+              num_candidates: 3
+
+  - match: { hits.hits.0._id: $array_result_1 }
+  - match: { hits.hits.1._id: $array_result_2 }
+
+---
+"kNN query with base64 produces same results as bfloat16 array":
+  - do:
+      search:
+        index: knn_query_base64_index
+        body:
+          fields: [ "name" ]
+          query:
+            knn:
+              field: vector_bfloat16
+              query_vector: [0.1, 0.2, 0.3]
+              k: 2
+              num_candidates: 3
+
+  - set: { hits.hits.0._id: bfloat16_result_1 }
+  - set: { hits.hits.1._id: bfloat16_result_2 }
+
+  # [0.1, 0.2, 0.3] is encoded as bfloat16 bytes in base64 as 'Pc0+TT6a'
+  - do:
+      search:
+        index: knn_query_base64_index
+        body:
+          fields: [ "name" ]
+          query:
+            knn:
+              field: vector_bfloat16
+              query_vector: "Pc0+TT6a"
+              k: 2
+              num_candidates: 3
+
+  - match: { hits.hits.0._id: $bfloat16_result_1 }
+  - match: { hits.hits.1._id: $bfloat16_result_2 }
+
+  # [0.1, 0.2, 0.3] is encoded as float32 bytes in base64 as 'PczMzT5MzM0+mZma'
+  - do:
+      search:
+        index: knn_query_base64_index
+        body:
+          fields: [ "name" ]
+          query:
+            knn:
+              field: vector_bfloat16
+              query_vector: "PczMzT5MzM0+mZma"
+              k: 2
+              num_candidates: 3
+
+  - match: { hits.hits.0._id: $bfloat16_result_1 }
+  - match: { hits.hits.1._id: $bfloat16_result_2 }
+
+---
+"kNN query with base64 produces same results as bit array":
+  - do:
+      search:
+        index: knn_query_base64_index
+        body:
+          fields: [ "name" ]
+          query:
+            knn:
+              field: vector_bit
+              query_vector: [3]
+              k: 2
+              num_candidates: 3
+
+  - set: { hits.hits.0._id: bit_result_1 }
+  - set: { hits.hits.1._id: bit_result_2 }
+
+  # [3] is encoded as 'Aw=='
+  - do:
+      search:
+        index: knn_query_base64_index
+        body:
+          fields: [ "name" ]
+          query:
+            knn:
+              field: vector_bit
+              query_vector: "Aw=="
+              k: 2
+              num_candidates: 3
+
+  - match: { hits.hits.0._id: $bit_result_1 }
+  - match: { hits.hits.1._id: $bit_result_2 }
+
+  # [3] is encoded as hex byte '03'
+  - do:
+      search:
+        index: knn_query_base64_index
+        body:
+          fields: [ "name" ]
+          query:
+            knn:
+              field: vector_bit
+              query_vector: "03"
+              k: 2
+              num_candidates: 3
+
+  - match: { hits.hits.0._id: $bit_result_1 }
+  - match: { hits.hits.1._id: $bit_result_2 }
+
+---
+"Base64 float vector with decoded length not divisible by 4 fails":
+  # "AQID" decodes to 3 bytes (0x01 0x02 0x03)
+  - do:
+      catch: bad_request
+      search:
+        index: knn_query_base64_index
+        body:
+          query:
+            knn:
+              field: vector_float
+              query_vector: "AQID"
+              k: 2
+              num_candidates: 3
+
+---
+"Invalid base64 encoding fails":
+  - do:
+      catch: bad_request
+      search:
+        index: knn_query_base64_index
+        body:
+          query:
+            knn:
+              field: vector_float
+              query_vector: "not-valid-base64!!!"
+              k: 2
+              num_candidates: 3
+
+---
+"Wrong dimensions in base64 vector fails":
+  - do:
+      catch: bad_request
+      search:
+        index: knn_query_base64_index
+        body:
+          query:
+            knn:
+              field: vector_float
+              # [0.1, 0.2] - only 2 dimensions instead of 3
+              query_vector: "PczMzT5MzM0="
+              k: 2
+              num_candidates: 3
+
+---
+"kNN query with base64 bfloat16 length divisible by 4":
+  - do:
+      indices.create:
+        index: knn_query_base64_bfloat16_len4
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            dynamic: false
+            properties:
+              name:
+                type: keyword
+              vector_bfloat16:
+                type: dense_vector
+                dims: 4
+                index: true
+                element_type: bfloat16
+                similarity: l2_norm
+
+  - do:
+      index:
+        index: knn_query_base64_bfloat16_len4
+        id: "1"
+        body:
+          name: doc1
+          vector_bfloat16: [0.1, 0.2, 0.3, 0.4]
+
+  - do:
+      indices.refresh:
+        index: knn_query_base64_bfloat16_len4
+
+  # [0.1, 0.2, 0.3, 0.4] encoded as bfloat16 bytes in base64: 'Pcw+TD6ZPsw='
+  - do:
+      search:
+        index: knn_query_base64_bfloat16_len4
+        body:
+          fields: [ "name" ]
+          query:
+            knn:
+              field: vector_bfloat16
+              query_vector: "Pcw+TD6ZPsw="
+              k: 1
+              num_candidates: 1
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0.fields.name.0: "doc1" }
+
+  # [0.1, 0.2, 0.3, 0.4] encoded as float32 bytes in base64: 'PczMzT5MzM0+mZmaPszMzQ=='
+  - do:
+      search:
+        index: knn_query_base64_bfloat16_len4
+        body:
+          fields: [ "name" ]
+          query:
+            knn:
+              field: vector_bfloat16
+              query_vector: "PczMzT5MzM0+mZmaPszMzQ=="
+              k: 1
+              num_candidates: 1
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0.fields.name.0: "doc1" }
+
+---
+"kNN query on empty index with dynamic dims returns empty results":
+  # Create an index with dynamic dimensions (dims not specified) and no documents
+  - do:
+      indices.create:
+        index: knn_empty_dynamic_dims_index
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                index: true
+                similarity: l2_norm
+
+  # Array-based query returns empty results (MatchNoDocsQuery)
+  - do:
+      search:
+        index: knn_empty_dynamic_dims_index
+        body:
+          query:
+            knn:
+              field: vector
+              query_vector: [0.1, 0.2, 0.3]
+              k: 1
+              num_candidates: 1
+
+  - match: { hits.total.value: 0 }
+  - length: { hits.hits: 0 }
+
+  # Base64 encoded query also returns empty results (consistent behavior)
+  - do:
+      search:
+        index: knn_empty_dynamic_dims_index
+        body:
+          query:
+            knn:
+              field: vector
+              query_vector: "PczMzT5MzM0+mZma"
+              k: 1
+              num_candidates: 1
+
+  - match: { hits.total.value: 0 }
+  - length: { hits.hits: 0 }
+
+  # Hex encoded query also returns empty results
+  - do:
+      search:
+        index: knn_empty_dynamic_dims_index
+        body:
+          query:
+            knn:
+              field: vector
+              query_vector: "0a141e"
+              k: 1
+              num_candidates: 1
+
+  - match: { hits.total.value: 0 }
+  - length: { hits.hits: 0 }

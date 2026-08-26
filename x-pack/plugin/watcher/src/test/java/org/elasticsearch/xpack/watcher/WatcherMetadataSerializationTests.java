@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.watcher;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -67,8 +69,10 @@ public class WatcherMetadataSerializationTests extends ESTestCase {
         builder.endObject();
         // deserialize metadata again
         Metadata metadata = Metadata.Builder.fromXContent(createParser(builder));
+        @FixForMultiProject(description = "watcher is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         // check that custom metadata still present
-        assertThat(metadata.getProject().custom(watcherMetadata.getWriteableName()), notNullValue());
+        assertThat(metadata.getProject(projectId).custom(watcherMetadata.getWriteableName()), notNullValue());
         assertThat(metadata.custom(nodesShutdownMetadata.getWriteableName()), notNullValue());
     }
 

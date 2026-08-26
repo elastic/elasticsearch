@@ -9,53 +9,35 @@
 
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
+import io.opentelemetry.api.metrics.DoubleGauge;
 import io.opentelemetry.api.metrics.Meter;
-import io.opentelemetry.api.metrics.ObservableDoubleGauge;
 
-import org.elasticsearch.telemetry.apm.AbstractInstrument;
-import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
-
-import java.util.Collection;
+import java.util.Map;
 import java.util.Objects;
-import java.util.function.Supplier;
 
-/**
- * DoubleGaugeAdapter wraps an otel ObservableLongGauge
- */
-public class DoubleGaugeAdapter extends AbstractInstrument<ObservableDoubleGauge>
-    implements
-        org.elasticsearch.telemetry.metric.DoubleGauge {
-
-    public DoubleGaugeAdapter(
-        Meter meter,
-        String name,
-        String description,
-        String unit,
-        Supplier<Collection<DoubleWithAttributes>> observer
-    ) {
-        super(meter, new Builder(name, description, unit, observer));
+class DoubleGaugeAdapter extends AbstractInstrument<DoubleGauge> implements org.elasticsearch.telemetry.metric.DoubleGauge {
+    DoubleGaugeAdapter(Meter meter, String name, String description, String unit) {
+        super(meter, new Builder(name, description, unit));
     }
 
     @Override
-    public void close() throws Exception {
-        getInstrument().close();
+    public void set(double value) {
+        getInstrument().set(value);
     }
 
-    private static class Builder extends AbstractInstrument.Builder<ObservableDoubleGauge> {
-        private final Supplier<Collection<DoubleWithAttributes>> observer;
+    @Override
+    public void set(double value, Map<String, Object> attributes) {
+        getInstrument().set(value, OtelHelper.fromMap(getName(), attributes));
+    }
 
-        private Builder(String name, String description, String unit, Supplier<Collection<DoubleWithAttributes>> observer) {
+    private static class Builder extends AbstractInstrument.Builder<DoubleGauge> {
+        private Builder(String name, String description, String unit) {
             super(name, description, unit);
-            this.observer = Objects.requireNonNull(observer);
         }
 
         @Override
-        public ObservableDoubleGauge build(Meter meter) {
-            return Objects.requireNonNull(meter)
-                .gaugeBuilder(name)
-                .setDescription(description)
-                .setUnit(unit)
-                .buildWithCallback(OtelHelper.doubleMeasurementCallback(observer));
+        public DoubleGauge build(Meter meter) {
+            return Objects.requireNonNull(meter).gaugeBuilder(name).setDescription(description).setUnit(unit).build();
         }
     }
 }

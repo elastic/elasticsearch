@@ -216,17 +216,15 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
     }
 
     /**
-     * Get a {@link Map} of the coordinating only nodes (nodes which are neither master, nor data, nor ingest nodes) arranged by their ids
+     * Get a {@link Map} of the coordinating only nodes arranged by their ids
      *
      * @return {@link Map} of the coordinating only nodes arranged by their ids
      */
     public Map<String, DiscoveryNode> getCoordinatingOnlyNodes() {
-        return filteredNodes(nodes, n -> n.canContainData() == false && n.isMasterNode() == false && n.isIngestNode() == false);
+        return filteredNodes(nodes, DiscoveryNode::isCoordinatingOnlyNode);
     }
 
-    private static final Comparator<DiscoveryNode> MASTERS_FIRST_COMPARATOR
-    // Ugly hack: when https://github.com/elastic/elasticsearch/issues/94946 is fixed, remove the sorting by ephemeral ID here
-        = Comparator.<DiscoveryNode>comparingInt(n -> n.isMasterNode() ? 0 : 1).thenComparing(DiscoveryNode::getEphemeralId);
+    private static final Comparator<DiscoveryNode> MASTERS_FIRST_COMPARATOR = Comparator.comparingInt(n -> n.isMasterNode() ? 0 : 1);
 
     /**
      * Returns a stream of all nodes, with master nodes at the front

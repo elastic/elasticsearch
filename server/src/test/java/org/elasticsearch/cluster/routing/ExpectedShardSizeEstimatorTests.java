@@ -17,8 +17,7 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -28,7 +27,6 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY;
@@ -55,7 +53,7 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
                 randomFrom(RecoverySource.EmptyStoreRecoverySource.INSTANCE, RecoverySource.ExistingStoreRecoverySource.INSTANCE)
             ).build();
 
-        var allocation = createRoutingAllocation(state, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY);
+        var allocation = TestRoutingAllocationFactory.forClusterState(state).build();
 
         assertThat(getExpectedShardSize(shard, defaultValue, allocation), equalTo(defaultValue));
         assertFalse(
@@ -74,7 +72,7 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
             .build();
 
         var clusterInfo = createClusterInfo(shard, shardSize);
-        var allocation = createRoutingAllocation(state, clusterInfo, SnapshotShardSizeInfo.EMPTY);
+        var allocation = TestRoutingAllocationFactory.forClusterState(state).clusterInfo(clusterInfo).build();
 
         assertThat(getExpectedShardSize(shard, defaultValue, allocation), equalTo(shardSize));
         assertTrue("Should reserve space for relocating shard", shouldReserveSpaceForInitializingShard(shard, allocation));
@@ -89,7 +87,7 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
         var replica = newShardRouting("my-index", 0, randomIdentifier(), false, ShardRoutingState.INITIALIZING);
 
         var clusterInfo = createClusterInfo(primary, shardSize);
-        var allocation = createRoutingAllocation(state, clusterInfo, SnapshotShardSizeInfo.EMPTY);
+        var allocation = TestRoutingAllocationFactory.forClusterState(state).clusterInfo(clusterInfo).build();
 
         assertThat(getExpectedShardSize(replica, defaultValue, allocation), equalTo(shardSize));
         assertTrue("Should reserve space for peer recovery", shouldReserveSpaceForInitializingShard(replica, allocation));
@@ -128,7 +126,7 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
         var snapshotShardSizeInfo = new SnapshotShardSizeInfo(
             Map.of(new InternalSnapshotsInfoService.SnapshotShard(snapshot, indexId, shard.shardId()), snapshotShardSize)
         );
-        var allocation = createRoutingAllocation(state, ClusterInfo.EMPTY, snapshotShardSizeInfo);
+        var allocation = TestRoutingAllocationFactory.forClusterState(state).shardSizeInfo(snapshotShardSizeInfo).build();
 
         assertThat(getExpectedShardSize(shard, defaultValue, allocation), equalTo(snapshotShardSize));
         if (state.metadata().getProject().index("my-index").isPartialSearchableSnapshot() == false) {
@@ -169,21 +167,13 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
             .build();
 
         var clusterInfo = createClusterInfo(source, sourceShardSize);
-        var allocation = createRoutingAllocation(state, clusterInfo, SnapshotShardSizeInfo.EMPTY);
+        var allocation = TestRoutingAllocationFactory.forClusterState(state).clusterInfo(clusterInfo).build();
 
         assertThat(getExpectedShardSize(target, defaultValue, allocation), equalTo(sourceShardSize));
         assertFalse(
             "Should NOT reserve space when using fs hardlink for clone/shrink/split",
             shouldReserveSpaceForInitializingShard(target, state.metadata())
         );
-    }
-
-    private static RoutingAllocation createRoutingAllocation(
-        ClusterState state,
-        ClusterInfo clusterInfo,
-        SnapshotShardSizeInfo snapshotShardSizeInfo
-    ) {
-        return new RoutingAllocation(new AllocationDeciders(List.of()), state, clusterInfo, snapshotShardSizeInfo, 0);
     }
 
     private static IndexMetadata.Builder index(String name) {

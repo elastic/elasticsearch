@@ -24,7 +24,7 @@ import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAUL
 
 public class ES814HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFormat {
 
-    static final String NAME = "ES814HnswScalarQuantizedVectorsFormat";
+    public static final String NAME = "ES814HnswScalarQuantizedVectorsFormat";
 
     /** The format for storing, reading, merging vectors on disk */
     final FlatVectorsFormat flatVectorsFormat;
@@ -46,7 +46,7 @@ public class ES814HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFo
         int numMergeWorkers,
         ExecutorService mergeExec
     ) {
-        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec);
+        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, DEFAULT_HNSW_GRAPH_THRESHOLD);
         this.flatVectorsFormat = new ES814ScalarQuantizedVectorsFormat(confidenceInterval, bits, compress);
     }
 

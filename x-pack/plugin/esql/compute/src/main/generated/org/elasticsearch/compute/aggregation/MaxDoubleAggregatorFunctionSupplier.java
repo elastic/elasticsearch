@@ -31,13 +31,13 @@ public final class MaxDoubleAggregatorFunctionSupplier implements AggregatorFunc
   @Override
   public MaxDoubleAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return MaxDoubleAggregatorFunction.create(driverContext, channels);
+    return new MaxDoubleAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public MaxDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return MaxDoubleGroupingAggregatorFunction.create(channels, driverContext);
+    return new MaxDoubleGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

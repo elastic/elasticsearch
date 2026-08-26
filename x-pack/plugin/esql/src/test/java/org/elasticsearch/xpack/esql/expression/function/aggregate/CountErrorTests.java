@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 
 public class CountErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
@@ -27,33 +28,28 @@ public class CountErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Count(source, args.get(0));
+        return args.size() == 1 ? new Count(source, args.get(0)) : new Count(source, args.get(0), args.get(1));
     }
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(
-            typeErrorMessage(
-                false,
-                validPerPosition,
-                signature,
-                (v, p) -> "any type except counter types, dense_vector, tdigest, histogram, or exponential_histogram"
-            )
-        );
+        if (signature.size() == 2) {
+            if (signature.get(0) != DataType.EXPONENTIAL_HISTOGRAM && signature.get(0) != DataType.TDIGEST) {
+                return equalTo(
+                    "argument of ["
+                        + sourceForSignature(signature)
+                        + "] must be [exponential_histogram or tdigest], found value [] type ["
+                        + signature.get(0).typeName()
+                        + "]"
+                );
+            }
+            return typeErrorMessage(signature, 1, "double_range");
+        }
+        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> "any type except counter types or histogram"));
     }
 
     @Override
     protected void assertCheckedSignatures(Set<List<DataType>> invalidSignatureSamples) {
-        assertThat(
-            invalidSignatureSamples,
-            equalTo(
-                Set.of(
-                    List.of(DataType.DENSE_VECTOR),
-                    List.of(DataType.EXPONENTIAL_HISTOGRAM),
-                    List.of(DataType.TDIGEST),
-                    List.of(DataType.HISTOGRAM)
-                )
-            )
-        );
+        assertThat(invalidSignatureSamples, hasItem(List.of(DataType.HISTOGRAM)));
     }
 }

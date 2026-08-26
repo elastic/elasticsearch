@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.hamcrest.CoreMatchers;
+import org.junit.Before;
 
 import java.util.Collection;
 import java.util.List;
@@ -50,10 +51,8 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
         return pluginList(LocalStateSpatialPlugin.class, LocalStateCompositeXPackPlugin.class);
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-
+    @Before
+    public void setupShapeIndex() throws Exception {
         String mapping = Strings.toString(createDefaultMapping());
         indicesAdmin().prepareCreate(defaultIndexName).setMapping(mapping).get();
         ensureGreen();

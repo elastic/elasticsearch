@@ -7,7 +7,8 @@
 
 package org.elasticsearch.compute.lucene;
 
-import java.util.Collection;
+import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
+
 import java.util.function.Function;
 
 /**
@@ -17,20 +18,23 @@ import java.util.function.Function;
  * DataNodeComputeHandler and with the help of the ComputeSearchContextByShardId subclass, which is the main production implementation.
  *
  * When you see this class, it will usually be parameterized by {@link ShardContext}, its super classes, or one of its variants,
- * e.g., {@link org.elasticsearch.compute.lucene.LuceneQueryEvaluator.ShardConfig}.
+ * e.g., {@link LuceneQueryEvaluator.ShardConfig}.
  * These shard IDs are sliced up by DataNodeComputeHandler, and depend on the MAX_CONCURRENT_SHARDS_PER_NODE setting.
  */
 public interface IndexedByShardId<T> {
     T get(int shardId);
 
     /**
-     * This is not necessarily a list of all values visible via get(int), but rather, a list of the relevant values.
+     * This is not necessarily an iterable of all values visible via get(int), but rather, an iterable of the relevant values.
      * This is useful when you need to perform an operation over all relevant values, e.g., closing them.
      */
-    Collection<? extends T> collection();
+    Iterable<? extends T> iterable();
+
+    /** The number of elements returned by {@link IndexedByShardId#iterable()}. */
+    int size();
 
     default boolean isEmpty() {
-        return collection().isEmpty();
+        return iterable().iterator().hasNext() == false;
     }
 
     /**

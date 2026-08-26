@@ -113,12 +113,14 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
             AzureStorageSettings.SAS_TOKEN_SETTING,
             AzureStorageSettings.ENDPOINT_SUFFIX_SETTING,
             AzureStorageSettings.TIMEOUT_SETTING,
+            AzureStorageSettings.MAX_CONNECTIONS_SETTING,
             AzureStorageSettings.MAX_RETRIES_SETTING,
             AzureStorageSettings.PROXY_TYPE_SETTING,
             AzureStorageSettings.PROXY_HOST_SETTING,
             AzureStorageSettings.PROXY_PORT_SETTING,
             AzureStorageSettings.ENDPOINT_SETTING,
-            AzureStorageSettings.SECONDARY_ENDPOINT_SETTING
+            AzureStorageSettings.SECONDARY_ENDPOINT_SETTING,
+            AzureStorageSettings.READ_TIMEOUT_SETTING
         );
     }
 

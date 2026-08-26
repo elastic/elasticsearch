@@ -14,32 +14,32 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToGeoShape}.
+ * {@link ExpressionEvaluator} implementation for {@link ToGeoShape}.
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToGeoShapeFromGeoGridEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToGeoShapeFromGeoGridEvaluator.class);
 
-  private final EvalOperator.ExpressionEvaluator in;
+  private final ExpressionEvaluator in;
 
   private final DataType dataType;
 
-  public ToGeoShapeFromGeoGridEvaluator(Source source, EvalOperator.ExpressionEvaluator in,
-      DataType dataType, DriverContext driverContext) {
+  public ToGeoShapeFromGeoGridEvaluator(Source source, ExpressionEvaluator in, DataType dataType,
+      DriverContext driverContext) {
     super(driverContext, source);
     this.in = in;
     this.dataType = dataType;
   }
 
   @Override
-  public EvalOperator.ExpressionEvaluator next() {
+  public ExpressionEvaluator next() {
     return in;
   }
 
@@ -129,14 +129,14 @@ public final class ToGeoShapeFromGeoGridEvaluator extends AbstractConvertFunctio
     return baseRamBytesUsed;
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory in;
+    private final ExpressionEvaluator.Factory in;
 
     private final DataType dataType;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory in, DataType dataType) {
+    public Factory(Source source, ExpressionEvaluator.Factory in, DataType dataType) {
       this.source = source;
       this.in = in;
       this.dataType = dataType;

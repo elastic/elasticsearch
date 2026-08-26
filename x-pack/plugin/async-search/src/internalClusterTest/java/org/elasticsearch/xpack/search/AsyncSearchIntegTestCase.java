@@ -154,9 +154,18 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         ensureAllSearchContextsReleased();
 
         internalCluster().restartNode(node.getName(), new InternalTestCluster.RestartCallback() {
+            @Override
+            public void onNodeStarted(String nodeName) {
+                // Pause before the service's first scheduled run to prevent it from opening reader
+                // contexts on still-initializing shards that would outlast the drain below.
+                pauseMaintenanceService();
+            }
         });
+        // ensureGreen so any waitForSearchReady callbacks registered before the pause have fired
+        // (and opened their contexts) by the time we drain.
+        ensureGreen(ASYNC_RESULTS_INDEX, indexName);
+        ensureAllSearchContextsReleased();
         unpauseMaintenanceService();
-        ensureYellow(ASYNC_RESULTS_INDEX, indexName);
     }
 
     protected AsyncSearchResponse submitAsyncSearch(SubmitAsyncSearchRequest request) throws ExecutionException, InterruptedException {

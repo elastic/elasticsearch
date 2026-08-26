@@ -7,22 +7,29 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.authorization;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.common.InferencePreferences;
+import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceResponseHandler;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.AuthenticationFactory;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
+import org.elasticsearch.xpack.inference.services.elastic.compatibility.CompletionCompatibilityService;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceAuthorizationRequest;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
@@ -56,17 +63,31 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
     private final Logger logger;
     private final CountDownLatch requestCompleteLatch = new CountDownLatch(1);
     private final AuthenticationFactory authFactory;
+    private final CCMFeature ccmFeature;
+    private final CCMService ccmService;
+    private final CompletionCompatibilityService completionCompatibilityService;
+    private final InferencePreferencesCache inferencePreferencesCache;
 
     public ElasticInferenceServiceAuthorizationRequestHandler(
         @Nullable String baseUrl,
         ThreadPool threadPool,
-        AuthenticationFactory authFactory
+        AuthenticationFactory authFactory,
+        CCMFeature ccmFeature,
+        CCMService ccmService,
+        ClusterService clusterService,
+        FeatureService featureService,
+        InferencePreferencesCache inferencePreferencesCache
     ) {
         this(
             baseUrl,
             Objects.requireNonNull(threadPool),
             LogManager.getLogger(ElasticInferenceServiceAuthorizationRequestHandler.class),
-            authFactory
+            authFactory,
+            ccmFeature,
+            ccmService,
+            clusterService,
+            featureService,
+            inferencePreferencesCache
         );
     }
 
@@ -75,12 +96,24 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
         @Nullable String baseUrl,
         ThreadPool threadPool,
         Logger logger,
-        AuthenticationFactory authFactory
+        AuthenticationFactory authFactory,
+        CCMFeature ccmFeature,
+        CCMService ccmService,
+        ClusterService clusterService,
+        FeatureService featureService,
+        InferencePreferencesCache inferencePreferencesCache
     ) {
         this.baseUrl = baseUrl;
         this.threadPool = Objects.requireNonNull(threadPool);
         this.logger = Objects.requireNonNull(logger);
         this.authFactory = Objects.requireNonNull(authFactory);
+        this.ccmFeature = Objects.requireNonNull(ccmFeature);
+        this.ccmService = Objects.requireNonNull(ccmService);
+        this.completionCompatibilityService = new CompletionCompatibilityService(
+            Objects.requireNonNull(clusterService),
+            Objects.requireNonNull(featureService)
+        );
+        this.inferencePreferencesCache = Objects.requireNonNull(inferencePreferencesCache);
     }
 
     /**
@@ -89,55 +122,132 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
      * @param sender a {@link Sender} for making the request to the Elastic Inference Service
      */
     public void getAuthorization(ActionListener<ElasticInferenceServiceAuthorizationModel> listener, Sender sender) {
-        try {
-            logger.debug("Retrieving authorization information from the Elastic Inference Service.");
+        getAuthorization(listener, sender, false, null);
+    }
 
-            if (Strings.isNullOrEmpty(baseUrl)) {
-                logger.debug("The base URL for the authorization service is not valid, rejecting authorization.");
-                listener.onResponse(ElasticInferenceServiceAuthorizationModel.unauthorized());
-                return;
+    /**
+     * Retrieves the authorization information from Elastic Inference Service. This will skip making a request if CCM is not enabled
+     * and it is a supported environment. A supported environment is on-prem or ECK. ECH and serverless are not supported
+     * environments for CCM (because they can already connect to EIS). For environments where CCM is not supported, it will always
+     * attempt to retrieve the authorization information.
+     * @param listener a listener to receive the response
+     * @param sender a {@link Sender} for making the request to the Elastic Inference Service
+     */
+    public void getAuthorizationIfPermittedEnvironment(ActionListener<ElasticInferenceServiceAuthorizationModel> listener, Sender sender) {
+        getAuthorization(listener, sender, true, null);
+    }
+
+    /**
+     * Retrieves the authorization information from Elastic Inference Service using the provided preferences instead of the
+     * cached ones. This allows checking what the effect of a not-yet-applied {@link InferencePreferences} (e.g. a proposed
+     * region policy) would be. Like {@link #getAuthorizationIfPermittedEnvironment}, this will skip making a request (returning
+     * an unauthorized/empty model) if CCM is supported but not enabled, since no endpoints could be authorized via EIS in that
+     * case anyway.
+     * @param listener a listener to receive the response
+     * @param sender a {@link Sender} for making the request to the Elastic Inference Service
+     * @param preferences the preferences to use for the request, in place of the cached ones
+     */
+    public void getAuthorizationWithPreferences(
+        ActionListener<ElasticInferenceServiceAuthorizationModel> listener,
+        Sender sender,
+        InferencePreferences preferences
+    ) {
+        getAuthorization(listener, sender, true, preferences);
+    }
+
+    private void getAuthorization(
+        ActionListener<ElasticInferenceServiceAuthorizationModel> listener,
+        Sender sender,
+        boolean checkCcmState,
+        @Nullable InferencePreferences overridePreferences
+    ) {
+        var countdownListener = ActionListener.runAfter(listener, requestCompleteLatch::countDown);
+
+        try {
+            if (checkCcmState && ccmFeature.isCcmSupportedEnvironment()) {
+                var isCcmEnabledListener = ActionListener.<Boolean>wrap(enabled -> {
+                    if (enabled == null || enabled == false) {
+                        logger.debug("CCM is not enabled, skipping authorization request to Elastic Inference Service");
+                        countdownListener.onResponse(ElasticInferenceServiceAuthorizationModel.unauthorized());
+                    } else {
+                        retrieveAuthorizationInformation(countdownListener, sender, overridePreferences);
+                    }
+                }, e -> {
+                    logger.warn("Failed to determine if CCM is enabled, returning unauthorized", e);
+                    countdownListener.onResponse(ElasticInferenceServiceAuthorizationModel.unauthorized());
+                });
+
+                ccmService.isEnabled(isCcmEnabledListener);
+            } else {
+                retrieveAuthorizationInformation(countdownListener, sender, overridePreferences);
+            }
+        } catch (Exception e) {
+            logger.warn("Retrieving the authorization information encountered an exception", e);
+            countdownListener.onFailure(e);
+        }
+    }
+
+    private void retrieveAuthorizationInformation(
+        ActionListener<ElasticInferenceServiceAuthorizationModel> listener,
+        Sender sender,
+        @Nullable InferencePreferences overridePreferences
+    ) {
+        if (overridePreferences != null) {
+            sendAuthorizationRequest(listener, sender, overridePreferences);
+        } else {
+            SubscribableListener.<InferencePreferences>newForked(inferencePreferencesCache::get)
+                .addListener(listener.delegateFailureAndWrap((l, preferences) -> sendAuthorizationRequest(l, sender, preferences)));
+        }
+    }
+
+    private void sendAuthorizationRequest(
+        ActionListener<ElasticInferenceServiceAuthorizationModel> listener,
+        Sender sender,
+        @Nullable InferencePreferences preferences
+    ) {
+        logger.debug("Retrieving authorization information from the Elastic Inference Service.");
+
+        if (Strings.isNullOrEmpty(baseUrl)) {
+            logger.debug("The base URL for the authorization service is not valid, rejecting authorization.");
+            listener.onResponse(ElasticInferenceServiceAuthorizationModel.unauthorized());
+            return;
+        }
+
+        var handleFailuresListener = listener.delegateResponse((authModelListener, e) -> {
+            // unwrap because it's likely a retry exception
+            var exception = ExceptionsHelper.unwrapCause(e);
+
+            logger.warn(Strings.format(FAILED_TO_RETRIEVE_MESSAGE + " Encountered an exception: %s", exception), exception);
+            authModelListener.onFailure(e);
+        });
+
+        SubscribableListener.<InferenceServiceResults>newForked(
+            resultListener -> authFactory.getAuthenticationApplier(resultListener.delegateFailureAndWrap((authListener, authApplier) -> {
+                var requestMetadata = extractRequestMetadataFromThreadContext(threadPool.getThreadContext());
+                var request = new ElasticInferenceServiceAuthorizationRequest(
+                    baseUrl,
+                    getCurrentTraceInfo(),
+                    requestMetadata,
+                    authApplier,
+                    preferences
+                );
+                sender.sendWithoutQueuing(logger, request, AUTH_RESPONSE_HANDLER, DEFAULT_AUTH_TIMEOUT, authListener);
+            }))
+        ).andThenApply(authResult -> {
+            if (authResult instanceof ElasticInferenceServiceAuthorizationResponseEntity authResponseEntity) {
+                logger.debug(() -> Strings.format("Received authorization information from gateway %s", authResponseEntity));
+                return ElasticInferenceServiceAuthorizationModel.of(authResponseEntity, baseUrl, completionCompatibilityService);
             }
 
-            var handleFailuresListener = listener.delegateResponse((authModelListener, e) -> {
-                // unwrap because it's likely a retry exception
-                var exception = ExceptionsHelper.unwrapCause(e);
+            var errorMessage = Strings.format(
+                "%s Received an invalid response type from the Elastic Inference Service: %s",
+                FAILED_TO_RETRIEVE_MESSAGE,
+                authResult.getClass().getSimpleName()
+            );
 
-                logger.warn(Strings.format(FAILED_TO_RETRIEVE_MESSAGE + " Encountered an exception: %s", exception), exception);
-                authModelListener.onFailure(e);
-            });
-
-            SubscribableListener.newForked(sender::startAsynchronously)
-                .andThen(authFactory::getAuthenticationApplier)
-                .<InferenceServiceResults>andThen((authListener, authApplier) -> {
-                    var requestMetadata = extractRequestMetadataFromThreadContext(threadPool.getThreadContext());
-                    var request = new ElasticInferenceServiceAuthorizationRequest(
-                        baseUrl,
-                        getCurrentTraceInfo(),
-                        requestMetadata,
-                        authApplier
-                    );
-                    sender.sendWithoutQueuing(logger, request, AUTH_RESPONSE_HANDLER, DEFAULT_AUTH_TIMEOUT, authListener);
-                })
-                .andThenApply(authResult -> {
-                    if (authResult instanceof ElasticInferenceServiceAuthorizationResponseEntity authResponseEntity) {
-                        logger.debug(() -> Strings.format("Received authorization information from gateway %s", authResponseEntity));
-                        return ElasticInferenceServiceAuthorizationModel.of(authResponseEntity, baseUrl);
-                    }
-
-                    var errorMessage = Strings.format(
-                        "%s Received an invalid response type from the Elastic Inference Service: %s",
-                        FAILED_TO_RETRIEVE_MESSAGE,
-                        authResult.getClass().getSimpleName()
-                    );
-
-                    logger.warn(errorMessage);
-                    throw new ElasticsearchException(errorMessage);
-                })
-                .addListener(ActionListener.runAfter(handleFailuresListener, requestCompleteLatch::countDown));
-        } catch (Exception e) {
-            logger.warn(Strings.format("Retrieving the authorization information encountered an exception: %s", e));
-            requestCompleteLatch.countDown();
-        }
+            logger.warn(errorMessage);
+            throw new ElasticsearchException(errorMessage);
+        }).addListener(handleFailuresListener);
     }
 
     private TraceContext getCurrentTraceInfo() {

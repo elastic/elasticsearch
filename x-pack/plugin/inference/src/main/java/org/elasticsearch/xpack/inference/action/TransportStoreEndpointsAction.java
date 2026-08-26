@@ -66,7 +66,7 @@ public class TransportStoreEndpointsAction extends TransportMasterNodeAction<
         ActionListener<StoreInferenceEndpointsAction.Response> masterListener
     ) {
         SubscribableListener.<List<ModelStoreResponse>>newForked(
-            listener -> modelRegistry.storeModels(request.getModels(), listener, request.masterNodeTimeout())
+            listener -> modelRegistry.storeModels(request.getModels(), true, listener, request.masterNodeTimeout())
         ).andThenApply(StoreInferenceEndpointsAction.Response::new).addListener(masterListener);
     }
 

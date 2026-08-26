@@ -43,18 +43,97 @@ public class HttpHeaderParserTests extends ESTestCase {
         );
     }
 
-    public void testParseRangeHeaderEndlessRangeNotMatched() {
-        assertNull(HttpHeaderParser.parseRangeHeader(Strings.format("bytes=%d-", randomLongBetween(0, Long.MAX_VALUE))));
+    public void testParseRangeHeaderEndlessRange() {
+        var bytes = randomLongBetween(0, Long.MAX_VALUE);
+        assertEquals(new HttpHeaderParser.Range(bytes, null), HttpHeaderParser.parseRangeHeader(Strings.format("bytes=%d-", bytes)));
     }
 
-    public void testParseRangeHeaderSuffixLengthNotMatched() {
-        assertNull(HttpHeaderParser.parseRangeHeader(Strings.format("bytes=-%d", randomLongBetween(0, Long.MAX_VALUE))));
+    public void testParseRangeHeaderSuffixLength() {
+        var bytes = randomLongBetween(1, Long.MAX_VALUE);
+        assertEquals(new HttpHeaderParser.Range(-bytes, null), HttpHeaderParser.parseRangeHeader(Strings.format("bytes=-%d", bytes)));
+    }
+
+    public void testParseRangeHeaderSuffixLengthInvalidLong() {
+        final BigInteger longOverflow = BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE).add(randomBigInteger());
+        assertNull(HttpHeaderParser.parseRangeHeader("bytes=-" + longOverflow));
     }
 
     public void testRangeHeaderString() {
         final long start = randomLongBetween(0, 10_000);
         final long end = randomLongBetween(start, start + 10_000);
         assertEquals("bytes=" + start + "-" + end, new HttpHeaderParser.Range(start, end).headerString());
+    }
+
+    public void testOpenEndedRangeHeaderString() {
+        var start = randomLongBetween(0, 10_000);
+        assertEquals("bytes=" + start + "-", new HttpHeaderParser.Range(start, null).headerString());
+    }
+
+    public void testSuffixRangeHeaderString() {
+        var bytes = randomLongBetween(1, Long.MAX_VALUE);
+        assertEquals("bytes=-" + bytes, new HttpHeaderParser.Range(-bytes, null).headerString());
+    }
+
+    public void testRangeTypeFlags() {
+        // bounded: neither open-ended nor suffix
+        var bounded = new HttpHeaderParser.Range(10, 50L);
+        assertFalse(bounded.isOpenEnded());
+        assertFalse(bounded.isSuffixRange());
+
+        // open-ended: open-ended but not suffix
+        var openEnded = new HttpHeaderParser.Range(10, null);
+        assertTrue(openEnded.isOpenEnded());
+        assertFalse(openEnded.isSuffixRange());
+
+        // suffix: suffix but not open-ended (key behavioral distinction)
+        var suffix = new HttpHeaderParser.Range(-30, null);
+        assertFalse(suffix.isOpenEnded());
+        assertTrue(suffix.isSuffixRange());
+    }
+
+    public void testResolveAgainstBounded() {
+        var resolved = new HttpHeaderParser.Range(10, 50L).resolveAgainst(100);
+        assertNotNull(resolved);
+        assertEquals(10, resolved.start());
+        assertEquals(50, resolved.end());
+        assertEquals(41, resolved.length());
+    }
+
+    public void testResolveAgainstOpenEnded() {
+        var resolved = new HttpHeaderParser.Range(80, null).resolveAgainst(100);
+        assertNotNull(resolved);
+        assertEquals(80, resolved.start());
+        assertEquals(99, resolved.end());
+        assertEquals(20, resolved.length());
+    }
+
+    public void testResolveAgainstSuffix() {
+        var resolved = new HttpHeaderParser.Range(-30, null).resolveAgainst(100);
+        assertNotNull(resolved);
+        assertEquals(70, resolved.start());
+        assertEquals(99, resolved.end());
+        assertEquals(30, resolved.length());
+    }
+
+    public void testResolveAgainstSuffixLargerThanContent() {
+        var resolved = new HttpHeaderParser.Range(-200, null).resolveAgainst(100);
+        assertNotNull(resolved);
+        assertEquals(0, resolved.start());
+        assertEquals(99, resolved.end());
+        assertEquals(100, resolved.length());
+    }
+
+    public void testResolveAgainstUnsatisfiable() {
+        assertNull(new HttpHeaderParser.Range(100, 150L).resolveAgainst(100));
+        assertNull(new HttpHeaderParser.Range(200, null).resolveAgainst(100));
+    }
+
+    public void testResolveAgainstClampsEnd() {
+        var resolved = new HttpHeaderParser.Range(50, 200L).resolveAgainst(100);
+        assertNotNull(resolved);
+        assertEquals(50, resolved.start());
+        assertEquals(99, resolved.end());
+        assertEquals(50, resolved.length());
     }
 
     public void testParseContentRangeHeaderFull() {

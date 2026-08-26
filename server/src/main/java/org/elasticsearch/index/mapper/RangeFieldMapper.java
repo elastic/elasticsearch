@@ -13,6 +13,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.network.InetAddresses;
@@ -23,11 +24,13 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.blockloader.docvalues.DateRangeDocValuesLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.DoubleRangeDocValuesLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
@@ -56,10 +59,11 @@ import static org.elasticsearch.index.query.RangeQueryBuilder.LT_FIELD;
 
 /** A {@link FieldMapper} for indexing numeric and date ranges, and creating queries */
 public class RangeFieldMapper extends FieldMapper {
-    public static final NodeFeature DATE_RANGE_INDEXING_FIX = new NodeFeature("mapper.range.date_range_indexing_fix");
-
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
     public static final boolean DEFAULT_INCLUDE_LOWER = true;
+
+    public static final TransportVersion ESQL_LONG_RANGES = TransportVersion.fromName("esql_long_ranges");
+    public static final TransportVersion ESQL_DOUBLE_RANGES = TransportVersion.fromName("esql_double_ranges");
 
     public static class Defaults {
         public static final DateFormatter DATE_FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
@@ -166,6 +170,11 @@ public class RangeFieldMapper extends FieldMapper {
                 coerce.getValue().value(),
                 meta.getValue()
             );
+        }
+
+        @Override
+        public String contentType() {
+            return type.name;
         }
 
         @Override
@@ -341,6 +350,20 @@ public class RangeFieldMapper extends FieldMapper {
                 parser,
                 context
             );
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (hasDocValues() == false) {
+                return ConstantNull.INSTANCE;
+            }
+            return switch (rangeType) {
+                case DATE -> new DateRangeDocValuesLoader(name());
+                case DOUBLE -> new DoubleRangeDocValuesLoader(name());
+                case INTEGER, LONG, FLOAT, IP -> throw new UnsupportedOperationException(
+                    "loading blocks is not supported for [" + rangeType.typeName() + "] fields"
+                );
+            };
         }
     }
 

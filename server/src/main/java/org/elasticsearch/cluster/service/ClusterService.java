@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
@@ -64,7 +65,7 @@ public class ClusterService extends AbstractLifecycleComponent {
             settings,
             clusterSettings,
             new ProjectScopedSettings(settings, Collections.emptySet()),
-            new MasterService(settings, clusterSettings, threadPool, taskManager),
+            new MasterService(settings, clusterSettings, threadPool, taskManager, MeterRegistry.NOOP),
             new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool)
         );
     }
@@ -74,13 +75,14 @@ public class ClusterService extends AbstractLifecycleComponent {
         ClusterSettings clusterSettings,
         ProjectScopedSettings projectScopedSettings,
         ThreadPool threadPool,
-        TaskManager taskManager
+        TaskManager taskManager,
+        MeterRegistry meterRegistry
     ) {
         this(
             settings,
             clusterSettings,
             projectScopedSettings,
-            new MasterService(settings, clusterSettings, threadPool, taskManager),
+            new MasterService(settings, clusterSettings, threadPool, taskManager, meterRegistry),
             new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool)
         );
     }

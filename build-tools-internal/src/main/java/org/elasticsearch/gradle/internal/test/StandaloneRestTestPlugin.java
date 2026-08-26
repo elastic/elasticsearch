@@ -22,7 +22,6 @@ import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.testing.Test;
-import org.gradle.plugins.ide.eclipse.model.EclipseModel;
 import org.gradle.plugins.ide.idea.model.IdeaModel;
 
 import java.util.Arrays;
@@ -63,13 +62,6 @@ public class StandaloneRestTestPlugin implements Plugin<Project> {
         // create a compileOnly configuration as others might expect it
         project.getConfigurations().maybeCreate("compileOnly");
         RestTestUtil.setupJavaRestTestDependenciesDefaults(project, testSourceSet);
-
-        EclipseModel eclipse = project.getExtensions().getByType(EclipseModel.class);
-        eclipse.getClasspath().setSourceSets(Arrays.asList(testSourceSet));
-        eclipse.getClasspath()
-            .setPlusConfigurations(
-                Arrays.asList(project.getConfigurations().getByName(JavaPlugin.TEST_RUNTIME_CLASSPATH_CONFIGURATION_NAME))
-            );
 
         IdeaModel idea = project.getExtensions().getByType(IdeaModel.class);
         idea.getModule().getTestSources().from(testSourceSet.getJava().getSrcDirs());

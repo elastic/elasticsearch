@@ -23,13 +23,14 @@ import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.ProjectSecrets;
-import org.elasticsearch.common.settings.SecureClusterStateSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.repositories.gcs.GoogleCloudStorageService.GoogleCloudStorageClientsManager;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -67,9 +68,8 @@ public class GoogleCloudStorageClientsManagerTests extends ESTestCase {
     private GoogleCloudStorageService googleCloudStorageService;
     private GoogleCloudStorageClientsManager gcsClientsManager;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initClientsManager() throws Exception {
         privateKeyIdGenerators = ConcurrentCollections.newConcurrentMap();
         statsCollector = new GcsRepositoryStatsCollector();
         clientNames = Stream.concat(Stream.of("default"), IntStream.range(0, between(1, 4)).mapToObj(i -> randomIdentifier() + "_" + i))
@@ -107,9 +107,8 @@ public class GoogleCloudStorageClientsManagerTests extends ESTestCase {
         assertNotNull(gcsClientsManager.getPerProjectClientsHolders());
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void cleanup() throws Exception {
         clusterService.close();
         threadPool.close();
     }
@@ -136,7 +135,7 @@ public class GoogleCloudStorageClientsManagerTests extends ESTestCase {
             ClusterState.builder(clusterService.state())
                 .putProjectMetadata(
                     ProjectMetadata.builder(projectId)
-                        .putCustom(ProjectSecrets.TYPE, new ProjectSecrets(new SecureClusterStateSettings(mockSecureSettings)))
+                        .putCustom(ProjectSecrets.TYPE, new ProjectSecrets(mockSecureSettings.toSecureClusterStateSettings()))
                 )
                 .build()
         );
@@ -353,7 +352,7 @@ public class GoogleCloudStorageClientsManagerTests extends ESTestCase {
                 randomByteArrayOfLength(between(8, 20))
             );
         }
-        final var secureClusterStateSettings = new SecureClusterStateSettings(mockSecureSettings);
+        final var secureClusterStateSettings = mockSecureSettings.toSecureClusterStateSettings();
 
         synchronized (this) {
             final ClusterState initialState = clusterService.state();

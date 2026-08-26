@@ -30,7 +30,13 @@ public record RepositoriesMetrics(
     LongCounter unsuccessfulOperationCounter,
     LongHistogram exceptionHistogram,
     LongHistogram throttleHistogram,
-    LongHistogram httpRequestTimeInMillisHistogram
+    LongHistogram httpRequestTimeInMillisHistogram,
+    LongCounter inputStreamRetryStartedCounter,
+    LongCounter inputStreamRetryCompletedCounter,
+    LongHistogram inputStreamRetryHistogram,
+    LongCounter transientErrorRetryCounter,
+    LongCounter transientErrorRetrySuccessCounter,
+    LongCounter TransientErrorRetryFailureCounter
 ) {
 
     public static final RepositoriesMetrics NOOP = new RepositoriesMetrics(MeterRegistry.NOOP);
@@ -41,6 +47,24 @@ public record RepositoriesMetrics(
      * Exposed as {@link #requestCounter()}
      */
     public static final String METRIC_REQUESTS_TOTAL = "es.repositories.requests.total";
+    /**
+     * Is incremented each time the first attempt of an action fails and we start retrying
+     *
+     * Exposed as {@link #inputStreamRetryStartedCounter()}
+     */
+    public static final String METRIC_INPUT_STREAM_RETRY_EVENT_TOTAL = "es.repositories.input_stream.retry.event.total";
+    /**
+     * Is incremented for each retry success on a blob store input stream
+     *
+     * Exposed as {@link #inputStreamRetryCompletedCounter()}
+     */
+    public static final String METRIC_INPUT_STREAM_RETRY_SUCCESS_TOTAL = "es.repositories.input_stream.retry.success.total";
+    /**
+     * Each time an operation on a blob store input stream has one or more retries, the count of those is sampled
+     *
+     * Exposed via {@link #inputStreamRetryHistogram()}
+     */
+    public static final String METRIC_INPUT_STREAM_RETRY_ATTEMPTS_HISTOGRAM = "es.repositories.input_stream.retry.attempts.histogram";
     /**
      * Is incremented for each request which returns a non <code>2xx</code> response OR fails to return a response
      * (includes throttling and retryable errors)
@@ -95,6 +119,14 @@ public record RepositoriesMetrics(
      * Exposed via {@link #httpRequestTimeInMillisHistogram()}
      */
     public static final String HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM = "es.repositories.requests.http_request_time.histogram";
+    /**
+     * Shard allocation processes are susceptible to transient errors from cloud provider repositories,
+     * including network connectivity and identity authorization issues.
+     * This metric records the number of retry attempts in response to such events.
+     */
+    public static final String METRIC_TRANSIENT_ERROR_RETRY_ATTEMPTS_TOTAL = "es.repositories.transient_error.retry.attempt.total";
+    public static final String METRIC_TRANSIENT_ERROR_RETRY_SUCCESS_TOTAL = "es.repositories.transient_error.retry.success.total";
+    public static final String METRIC_TRANSIENT_ERROR_RETRY_TOTAL = "es.repositories.transient_error.retry.failure.total";
 
     public RepositoriesMetrics(MeterRegistry meterRegistry) {
         this(
@@ -115,7 +147,21 @@ public record RepositoriesMetrics(
                 HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM,
                 "HttpRequestTime in milliseconds expressed as as a histogram",
                 "ms"
-            )
+            ),
+            meterRegistry.registerLongCounter(METRIC_INPUT_STREAM_RETRY_EVENT_TOTAL, "retrying input stream retry event count", "unit"),
+            meterRegistry.registerLongCounter(METRIC_INPUT_STREAM_RETRY_SUCCESS_TOTAL, "retrying input stream retry success count", "unit"),
+            meterRegistry.registerLongHistogram(
+                METRIC_INPUT_STREAM_RETRY_ATTEMPTS_HISTOGRAM,
+                "retrying input stream retry attempts histogram",
+                "unit"
+            ),
+            meterRegistry.registerLongCounter(METRIC_TRANSIENT_ERROR_RETRY_ATTEMPTS_TOTAL, "retrying transient error event total", "unit"),
+            meterRegistry.registerLongCounter(
+                METRIC_TRANSIENT_ERROR_RETRY_SUCCESS_TOTAL,
+                "retrying transient error success event total",
+                "unit"
+            ),
+            meterRegistry.registerLongCounter(METRIC_TRANSIENT_ERROR_RETRY_TOTAL, "retrying transient error failure event total", "unit")
         );
     }
 

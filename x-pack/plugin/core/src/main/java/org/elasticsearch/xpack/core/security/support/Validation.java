@@ -10,9 +10,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -227,6 +229,119 @@ public final class Validation {
             }
             if (allowReserved == false && ReservedRolesStore.isReserved(roleName)) {
                 return new Error("Role [" + roleName + "] is reserved and may not be used.");
+            }
+            return null;
+        }
+    }
+
+    /**
+     * Validation helpers for API key create and clone requests.
+     */
+    public static final class ApiKey {
+
+        public static final int MAX_NAME_LENGTH = 256;
+
+        private ApiKey() {}
+
+        /**
+         * Validates API key name. Returns an error if invalid, null if valid.
+         */
+        public static Error validateName(String name) {
+            if (Strings.isNullOrEmpty(name)) {
+                return new Error("api key name is required");
+            }
+            if (name.length() > MAX_NAME_LENGTH) {
+                return new Error("api key name may not be more than 256 characters long");
+            }
+            if (name.equals(name.trim()) == false) {
+                return new Error("api key name may not begin or end with whitespace");
+            }
+            if (name.startsWith("_")) {
+                return new Error("api key name may not begin with an underscore");
+            }
+            return null;
+        }
+
+        /**
+         * Validates API key metadata. Returns an error if metadata contains reserved keys, null if valid or metadata is null.
+         */
+        public static Error validateMetadata(Map<String, Object> metadata) {
+            if (metadata != null && MetadataUtils.containsReservedMetadata(metadata)) {
+                return new Error("API key metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]");
+            }
+            return null;
+        }
+    }
+
+    /**
+     * Validation helpers for the {@code {namespace}/{service-name}} ID of a user-managed service account.
+     * <p>
+     * Built-in accounts are declared in code, so the only rules they need are the structural ones enforced by
+     * {@link org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId}. A user-managed ID
+     * is caller-supplied and ends up in a document ID, an authenticated principal and audit records, so it is held to
+     * a narrower charset than a username is.
+     */
+    public static final class UserManagedServiceAccounts {
+
+        public static final int MAX_COMPONENT_LENGTH = 128;
+
+        private static final Pattern VALID_COMPONENT = Pattern.compile("^[a-zA-Z0-9][a-zA-Z0-9_-]*$");
+
+        private UserManagedServiceAccounts() {}
+
+        public static Error validateNamespace(String namespace) {
+            if (namespace != null && ServiceAccountSettings.BUILTIN_NAMESPACE.equalsIgnoreCase(namespace)) {
+                return new Error(
+                    "the [" + ServiceAccountSettings.BUILTIN_NAMESPACE + "] namespace is reserved for built-in service accounts"
+                );
+            }
+            return validateComponent(namespace, "namespace");
+        }
+
+        public static Error validateServiceName(String serviceName) {
+            return validateComponent(serviceName, "service name");
+        }
+
+        public static Error validatePrincipal(String principal) {
+            if (principal == null) {
+                return new Error("service account principal is missing");
+            }
+            final int split = principal.indexOf('/');
+            if (split == -1) {
+                return new Error("a service account ID must be in the form {namespace}/{service-name}, but was [" + principal + "]");
+            }
+            final Error namespaceError = validateNamespace(principal.substring(0, split));
+            if (namespaceError != null) {
+                return namespaceError;
+            }
+            return validateServiceName(principal.substring(split + 1));
+        }
+
+        private static Error validateComponent(String component, String label) {
+            if (Strings.isNullOrEmpty(component)) {
+                return new Error("service account " + label + " is missing");
+            }
+            if (component.length() > MAX_COMPONENT_LENGTH) {
+                return new Error(
+                    "service account "
+                        + label
+                        + " may not be more than "
+                        + MAX_COMPONENT_LENGTH
+                        + " characters long, but ["
+                        + component
+                        + "] is "
+                        + component.length()
+                );
+            }
+            if (VALID_COMPONENT.matcher(component).matches() == false) {
+                return new Error(
+                    "service account "
+                        + label
+                        + " ["
+                        + component
+                        + "] must begin with a letter or digit and may contain only letters, digits, hyphens (-) "
+                        + "and underscores (_)"
+                );
             }
             return null;
         }

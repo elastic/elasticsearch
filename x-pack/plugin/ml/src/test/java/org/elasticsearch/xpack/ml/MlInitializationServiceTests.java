@@ -21,6 +21,7 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.Before;
 
 import java.util.Map;
@@ -73,6 +74,7 @@ public class MlInitializationServiceTests extends ESTestCase {
             Settings.EMPTY,
             threadPool,
             clusterService,
+            mock(AnomalyDetectionAuditor.class),
             client,
             adaptiveAllocationsScalerService,
             mlAssignmentNotifier,
@@ -91,6 +93,7 @@ public class MlInitializationServiceTests extends ESTestCase {
             Settings.EMPTY,
             threadPool,
             clusterService,
+            mock(AnomalyDetectionAuditor.class),
             client,
             adaptiveAllocationsScalerService,
             mlAssignmentNotifier,

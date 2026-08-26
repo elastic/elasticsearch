@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -31,6 +32,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
@@ -88,14 +90,17 @@ import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.AbstractCreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyCredentials;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.apikey.BaseBulkUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BaseUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.CertificateIdentity;
+import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -115,9 +120,10 @@ import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermi
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyCredentials;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyDoc;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.CachedApiKeyHashResult;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
@@ -172,9 +178,11 @@ import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_METADATA_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_TYPE_KEY;
+import static org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.DatasourcePrivileges.ESQL_DATASOURCE_PRIVILEGE;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.security.authc.ApiKeyService.CLONED_FROM_RESERVED_METADATA_KEY;
 import static org.elasticsearch.xpack.security.authc.ApiKeyService.LEGACY_SUPERUSER_ROLE_DESCRIPTOR;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -398,7 +406,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             searchRequest.set((SearchRequest) invocationOnMock.getArguments()[0]);
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[1];
-            ActionListener.respondAndRelease(listener, SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY));
+            ActionListener.respondAndRelease(listener, SearchResponse.emptyResponseBuilder().tookInMillis(1L).build());
             return null;
         }).when(client).search(any(SearchRequest.class), anyActionListener());
         String[] realmNames = generateRandomStringArray(4, 4, true, true);
@@ -461,7 +469,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         CheckedSupplier<SearchResponse, IOException> searchResponseSupplier = () -> {
             // 2 API keys, one with a "null" (missing) realm type
             SearchHit[] searchHits = new SearchHit[2];
-            searchHits[0] = SearchHit.unpooled(randomIntBetween(0, Integer.MAX_VALUE), "0");
+            searchHits[0] = new SearchHit(randomIntBetween(0, Integer.MAX_VALUE), "0");
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 Map<String, Object> apiKeySourceDoc = buildApiKeySourceDoc("some_hash".toCharArray());
                 ((Map<String, Object>) apiKeySourceDoc.get("creator")).put("realm", realm1);
@@ -469,7 +477,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 builder.map(apiKeySourceDoc);
                 searchHits[0].sourceRef(BytesReference.bytes(builder));
             }
-            searchHits[1] = SearchHit.unpooled(randomIntBetween(0, Integer.MAX_VALUE), "1");
+            searchHits[1] = new SearchHit(randomIntBetween(0, Integer.MAX_VALUE), "1");
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 Map<String, Object> apiKeySourceDoc = buildApiKeySourceDoc("some_hash".toCharArray());
                 ((Map<String, Object>) apiKeySourceDoc.get("creator")).put("realm", realm2);
@@ -481,16 +489,17 @@ public class ApiKeyServiceTests extends ESTestCase {
                 builder.map(apiKeySourceDoc);
                 searchHits[1].sourceRef(BytesReference.bytes(builder));
             }
-            return SearchResponseUtils.successfulResponse(
-                SearchHits.unpooled(
-                    searchHits,
-                    new TotalHits(searchHits.length, TotalHits.Relation.EQUAL_TO),
-                    randomFloat(),
-                    null,
-                    null,
-                    null
-                )
+            var responseHits = new SearchHits(
+                searchHits,
+                new TotalHits(searchHits.length, TotalHits.Relation.EQUAL_TO),
+                randomFloat(),
+                null,
+                null,
+                null
             );
+            var searchResponse = SearchResponseUtils.successfulResponse(responseHits);
+            responseHits.decRef(); // transfer ownership to searchResponse
+            return searchResponse;
         };
         doAnswer(invocation -> {
             ActionListener.respondAndRelease((ActionListener<SearchResponse>) invocation.getArguments()[1], searchResponseSupplier.get());
@@ -549,7 +558,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             searchRequest.set((SearchRequest) invocationOnMock.getArguments()[0]);
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[1];
-            ActionListener.respondAndRelease(listener, SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY));
+            ActionListener.respondAndRelease(listener, SearchResponse.emptyResponseBuilder().tookInMillis(1L).build());
             return null;
         }).when(client).search(any(SearchRequest.class), anyActionListener());
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
@@ -620,24 +629,22 @@ public class ApiKeyServiceTests extends ESTestCase {
         when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(new SearchRequestBuilder(client));
         doAnswer(invocation -> {
             final var listener = (ActionListener<SearchResponse>) invocation.getArguments()[1];
-            final var searchHit = SearchHit.unpooled(docId, apiKeyId);
+            final var searchHit = new SearchHit(docId, apiKeyId);
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 builder.map(buildApiKeySourceDoc("some_hash".toCharArray()));
                 searchHit.sourceRef(BytesReference.bytes(builder));
             }
-            ActionListener.respondAndRelease(
-                listener,
-                SearchResponseUtils.successfulResponse(
-                    SearchHits.unpooled(
-                        new SearchHit[] { searchHit },
-                        new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-                        randomFloat(),
-                        null,
-                        null,
-                        null
-                    )
-                )
+            var responseHits = new SearchHits(
+                new SearchHit[] { searchHit },
+                new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                randomFloat(),
+                null,
+                null,
+                null
             );
+            var searchResponse = SearchResponseUtils.successfulResponse(responseHits);
+            responseHits.decRef(); // transfer ownership to searchResponse
+            ActionListener.respondAndRelease(listener, searchResponse);
             return null;
         }).when(client).search(any(SearchRequest.class), anyActionListener());
 
@@ -701,7 +708,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(new SearchRequestBuilder(client));
         doAnswer(invocation -> {
             final var listener = (ActionListener<SearchResponse>) invocation.getArguments()[1];
-            final var searchHit = SearchHit.unpooled(docId, apiKeyId);
+            final var searchHit = new SearchHit(docId, apiKeyId);
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 Map<String, Object> apiKeyDocMap = buildApiKeySourceDoc("some_hash".toCharArray());
                 // Ensure type is null
@@ -709,19 +716,17 @@ public class ApiKeyServiceTests extends ESTestCase {
                 builder.map(apiKeyDocMap);
                 searchHit.sourceRef(BytesReference.bytes(builder));
             }
-            ActionListener.respondAndRelease(
-                listener,
-                SearchResponseUtils.successfulResponse(
-                    SearchHits.unpooled(
-                        new SearchHit[] { searchHit },
-                        new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-                        randomFloat(),
-                        null,
-                        null,
-                        null
-                    )
-                )
+            var responseHits = new SearchHits(
+                new SearchHit[] { searchHit },
+                new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                randomFloat(),
+                null,
+                null,
+                null
             );
+            var searchResponse = SearchResponseUtils.successfulResponse(responseHits);
+            responseHits.decRef(); // transfer ownership to searchResponse
+            ActionListener.respondAndRelease(listener, searchResponse);
             return null;
         }).when(client).search(any(SearchRequest.class), anyActionListener());
 
@@ -829,7 +834,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("Authorization", headerValue);
-            ApiKeyService.ApiKeyCredentials creds = apiKeyService.parseCredentialsFromApiKeyString(
+            ApiKeyCredentials creds = apiKeyService.parseCredentialsFromApiKeyString(
                 getAuthenticatorContext(threadContext).getApiKeyString()
             );
             assertNotNull(creds);
@@ -841,7 +846,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         headerValue = apiKeyAuthScheme + Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8));
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("Authorization", headerValue);
-            ApiKeyService.ApiKeyCredentials creds = apiKeyService.parseCredentialsFromApiKeyString(
+            ApiKeyCredentials creds = apiKeyService.parseCredentialsFromApiKeyString(
                 getAuthenticatorContext(threadContext).getApiKeyString()
             );
             assertNull(creds);
@@ -1016,6 +1021,216 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("authentication via API key not supported: only the owner user can update an API key"));
     }
 
+    public void testCloneApiKeySuccess() throws Exception {
+        final ApiKeyService service = createApiKeyService();
+
+        final String sourceId = randomAlphaOfLength(12);
+        final String sourceKey = randomAlphaOfLength(16);
+        final String clonedName = randomAlphaOfLengthBetween(3, 8);
+        final User user = new User(
+            randomAlphaOfLengthBetween(3, 16),
+            randomArray(1, 4, String[]::new, () -> randomAlphaOfLengthBetween(3, 12)),
+            randomBoolean() ? randomAlphaOfLengthBetween(1, 20) : null,
+            randomBoolean() ? randomAlphaOfLengthBetween(5, 10) + "@example.com" : null,
+            randomBoolean() ? Map.of() : Map.of(randomAlphaOfLength(5), randomAlphaOfLength(5)),
+            randomBoolean()
+        );
+        final Duration expiration = Duration.ofSeconds(randomLongBetween(3600, 86400 * 30));
+        final List<RoleDescriptor> keyRoles = randomBoolean()
+            ? null
+            : List.copyOf(
+                ApiKeyService.removeUserRoleDescriptorDescriptions(randomSet(1, 3, RoleDescriptorTestHelper::randomRoleDescriptor))
+            );
+        final List<RoleDescriptor> userRoles = randomList(1, 3, RoleDescriptorTestHelper::randomRoleDescriptor);
+        final Map<String, Object> sourceDoc = mockKeyDocument(
+            sourceId,
+            newApiKeyDocument(sourceKey, user, null, false, expiration, keyRoles, ApiKey.Type.REST, userRoles).v1()
+        );
+
+        final TimeValue cloneExpiry = randomFrom(TimeValue.MINUS_ONE, randomPositiveTimeValue(), null);
+        final Map<String, Object> cloneMetadata = randomBoolean()
+            ? null
+            : randomMap(0, 5, () -> new Tuple<>(randomAlphaOfLengthBetween(5, 12), randomAlphaOfLengthBetween(3, 5)));
+
+        final Instant now = Instant.now();
+        when(clock.instant()).thenReturn(now);
+
+        when(client.threadPool()).thenReturn(threadPool);
+        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client));
+        when(client.prepareIndex(anyString())).thenReturn(new IndexRequestBuilder(client));
+
+        final AtomicReference<AssertionError> asyncFailure = new AtomicReference<>();
+        doAnswer(inv -> {
+            final Object[] args = inv.getArguments();
+            final BulkRequest bulkRequest = (BulkRequest) args[1];
+            @SuppressWarnings("unchecked")
+            final ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) args[2];
+            assertThat(bulkRequest.numberOfActions(), is(1));
+            assertThat(bulkRequest.requests().get(0), instanceOf(IndexRequest.class));
+
+            final IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
+            final Map<String, Object> indexDoc = XContentHelper.convertToMap(indexRequest.source(), true, XContentType.JSON).v2();
+
+            try {
+                assertThat(indexDoc.get("name"), equalTo(clonedName));
+                if (cloneExpiry == null) {
+                    assertThat(indexDoc.get("expiration_time"), equalTo(sourceDoc.get("expiration_time")));
+                    assertThat(indexDoc.get("expiration_time"), equalTo(sourceDoc.get("expiration_time")));
+                } else if (cloneExpiry.millis() < 0) {
+                    assertThat(indexDoc.get("expiration_time"), nullValue());
+                } else {
+                    final long expected = now.toEpochMilli() + cloneExpiry.millis();
+                    assertThat(indexDoc.get("expiration_time"), is(expected));
+                }
+
+                final Map<String, Object> expectedMetadata = new HashMap<>();
+                expectedMetadata.put(CLONED_FROM_RESERVED_METADATA_KEY, sourceId);
+                if (cloneMetadata == null) {
+                    @SuppressWarnings("unchecked")
+                    final Map<String, Object> sourceMetadata = (Map<String, Object>) sourceDoc.get("metadata_flattened");
+                    expectedMetadata.putAll(sourceMetadata);
+                } else {
+                    expectedMetadata.putAll(cloneMetadata);
+                }
+                @SuppressWarnings("unchecked")
+                final Map<String, Object> indexMetadata = (Map<String, Object>) indexDoc.get("metadata_flattened");
+                assertThat(indexMetadata, notNullValue());
+                assertThat(indexMetadata, equalTo(expectedMetadata));
+
+                assertThat(indexDoc.get("role_descriptors"), equalTo(sourceDoc.get("role_descriptors")));
+                assertThat(indexDoc.get("limited_by_role_descriptors"), equalTo(sourceDoc.get("limited_by_role_descriptors")));
+
+                @SuppressWarnings("unchecked")
+                final Map<String, Object> indexCreator = (Map<String, Object>) indexDoc.get("creator");
+                assertThat(indexCreator, notNullValue());
+                assertThat(indexCreator.get("principal"), equalTo(user.principal()));
+                assertThat(indexCreator.get("full_name"), equalTo(user.fullName()));
+                assertThat(indexCreator.get("email"), equalTo(user.email()));
+                assertThat(indexCreator.get("metadata"), equalTo(user.metadata()));
+                assertThat(indexCreator, equalTo(sourceDoc.get("creator")));
+            } catch (AssertionError failure) {
+                asyncFailure.set(failure);
+            }
+            final IndexResponse indexResponse = new IndexResponse(
+                new ShardId(INTERNAL_SECURITY_MAIN_INDEX_7, randomAlphaOfLength(22), randomIntBetween(0, 1)),
+                indexRequest.id(),
+                randomLongBetween(1, 99),
+                randomLongBetween(1, 99),
+                randomIntBetween(1, 99),
+                true
+            );
+            listener.onResponse(
+                new BulkResponse(
+                    new BulkItemResponse[] { BulkItemResponse.success(randomInt(), DocWriteRequest.OpType.INDEX, indexResponse) },
+                    randomLongBetween(0, 100)
+                )
+            );
+            return null;
+        }).when(client).execute(eq(TransportBulkAction.TYPE), any(BulkRequest.class), any());
+
+        final CloneApiKeyRequest cloneRequest = new CloneApiKeyRequest();
+        cloneRequest.setName(clonedName);
+        cloneRequest.setExpiration(cloneExpiry);
+        cloneRequest.setMetadata(cloneMetadata);
+        cloneRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        try (ApiKeyCredentials credentials = getApiKeyCredentials(sourceId, sourceKey, ApiKey.Type.REST)) {
+            final PlainActionFuture<CreateApiKeyResponse> listener = new PlainActionFuture<>();
+            service.cloneApiKey(cloneRequest, credentials, listener);
+            if (asyncFailure.get() != null) {
+                throw asyncFailure.get();
+            }
+            final CreateApiKeyResponse response = listener.actionGet();
+            assertThat(response.getId(), equalTo(cloneRequest.getId()));
+            assertThat(response.getName(), equalTo(clonedName));
+            assertThat(response.getKey(), notNullValue());
+        }
+    }
+
+    public void testCloneApiKeyFailsWhenSourceIsCrossCluster() throws Exception {
+        final ApiKeyService service = createApiKeyService();
+
+        final String sourceId = randomAlphaOfLength(12);
+        final String sourceKey = randomAlphaOfLength(16);
+        final User user = new User("hulk", "superuser");
+        mockKeyDocument(sourceId, sourceKey, user, null, false, Duration.ofSeconds(3600), null, ApiKey.Type.CROSS_CLUSTER);
+
+        when(client.threadPool()).thenReturn(threadPool);
+
+        final CloneApiKeyRequest cloneRequest = new CloneApiKeyRequest();
+        cloneRequest.setName(randomAlphaOfLengthBetween(3, 8));
+        cloneRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
+        try (ApiKeyCredentials credentials = getApiKeyCredentials(sourceId, sourceKey, ApiKey.Type.REST)) {
+            final PlainActionFuture<CreateApiKeyResponse> listener = new PlainActionFuture<>();
+            service.cloneApiKey(cloneRequest, credentials, listener);
+            final ElasticsearchException e = expectThrows(ElasticsearchException.class, listener::actionGet);
+            assertThat(e.getMessage(), containsString("cross_cluster"));
+        }
+    }
+
+    public void testCloneApiKeyFailsWhenSourceInvalidated() throws Exception {
+        final ApiKeyService service = createApiKeyService();
+
+        final String sourceId = randomAlphaOfLength(12);
+        final String sourceKey = randomAlphaOfLength(16);
+        final User user = new User("hulk", "superuser");
+        mockKeyDocument(sourceId, sourceKey, user, null, true, Duration.ofSeconds(3600), null, ApiKey.Type.REST);
+
+        when(client.threadPool()).thenReturn(threadPool);
+
+        final CloneApiKeyRequest cloneRequest = new CloneApiKeyRequest();
+        cloneRequest.setName(randomAlphaOfLengthBetween(3, 8));
+        cloneRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
+        try (ApiKeyCredentials credentials = getApiKeyCredentials(sourceId, sourceKey, ApiKey.Type.REST)) {
+            final PlainActionFuture<CreateApiKeyResponse> listener = new PlainActionFuture<>();
+            service.cloneApiKey(cloneRequest, credentials, listener);
+            final Exception e = expectThrows(Exception.class, listener::actionGet);
+            assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("invalidated"));
+        }
+    }
+
+    public void testCloneApiKeyFailsWhenSourceExpired() throws Exception {
+        final ApiKeyService service = createApiKeyService();
+
+        final String sourceId = randomAlphaOfLength(12);
+        final String sourceKey = randomAlphaOfLength(16);
+        final User user = new User("hulk", "superuser");
+        mockKeyDocument(sourceId, sourceKey, user, null, false, Duration.ofSeconds(-1), null, ApiKey.Type.REST);
+
+        when(client.threadPool()).thenReturn(threadPool);
+
+        final CloneApiKeyRequest cloneRequest = new CloneApiKeyRequest();
+        cloneRequest.setName(randomAlphaOfLengthBetween(3, 8));
+        cloneRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
+        try (ApiKeyCredentials credentials = getApiKeyCredentials(sourceId, sourceKey, ApiKey.Type.REST)) {
+            final PlainActionFuture<CreateApiKeyResponse> listener = new PlainActionFuture<>();
+            service.cloneApiKey(cloneRequest, credentials, listener);
+            final Exception e = expectThrows(Exception.class, listener::actionGet);
+            assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("expired"));
+        }
+    }
+
+    public void testCloneApiKeyFailsWithInvalidCredentials() throws Exception {
+        final ApiKeyService service = createApiKeyService();
+
+        final String sourceId = randomAlphaOfLength(12);
+        final String realKey = randomAlphaOfLength(16);
+        final String wrongKey = "#" + realKey.substring(1);
+        final User user = new User("hulk", "superuser");
+        mockKeyDocument(sourceId, realKey, user, null, false, Duration.ofSeconds(3600), null, ApiKey.Type.REST);
+
+        when(client.threadPool()).thenReturn(threadPool);
+
+        final CloneApiKeyRequest cloneRequest = new CloneApiKeyRequest();
+        cloneRequest.setName(randomAlphaOfLengthBetween(3, 8));
+        cloneRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
+        try (ApiKeyCredentials credentials = getApiKeyCredentials(sourceId, wrongKey, ApiKey.Type.REST)) {
+            final PlainActionFuture<CreateApiKeyResponse> listener = new PlainActionFuture<>();
+            service.cloneApiKey(cloneRequest, credentials, listener);
+            final Exception e = expectThrows(Exception.class, listener::actionGet);
+            assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("invalid credentials"));
+        }
+    }
+
     public void testCrossClusterApiKeyUsageStats() {
         final Instant now = Instant.now();
         when(clock.instant()).thenReturn(now);
@@ -1041,19 +1256,17 @@ public class ApiKeyServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             searchRequest.set(invocationOnMock.getArgument(0));
             final ActionListener<SearchResponse> listener = invocationOnMock.getArgument(1);
-            ActionListener.respondAndRelease(
-                listener,
-                SearchResponseUtils.successfulResponse(
-                    SearchHits.unpooled(
-                        searchHits.toArray(SearchHit[]::new),
-                        new TotalHits(searchHits.size(), TotalHits.Relation.EQUAL_TO),
-                        randomFloat(),
-                        null,
-                        null,
-                        null
-                    )
-                )
+            SearchHits hits = new SearchHits(
+                searchHits.toArray(SearchHit[]::new),
+                new TotalHits(searchHits.size(), TotalHits.Relation.EQUAL_TO),
+                randomFloat(),
+                null,
+                null,
+                null
             );
+            SearchResponse response = SearchResponseUtils.successfulResponse(hits);
+            hits.decRef(); // transfer ownership to response
+            ActionListener.respondAndRelease(listener, response);
             return null;
         }).when(client).search(any(SearchRequest.class), anyActionListener());
 
@@ -1098,7 +1311,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         };
         final int docId = randomIntBetween(0, Integer.MAX_VALUE);
         final String apiKeyId = randomAlphaOfLength(20);
-        final var searchHit = SearchHit.unpooled(docId, apiKeyId);
+        final var searchHit = new SearchHit(docId, apiKeyId);
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.map(XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.format("""
                 {
@@ -1181,12 +1394,17 @@ public class ApiKeyServiceTests extends ESTestCase {
         @Nullable List<RoleDescriptor> userRoles
     ) throws IOException {
         var apiKeyDoc = newApiKeyDocument(key, user, authUser, invalidated, expiry, keyRoles, type, userRoles);
+        mockKeyDocument(id, apiKeyDoc.v1());
+        return apiKeyDoc.v2();
+    }
+
+    private Map<String, Object> mockKeyDocument(String id, Map<String, Object> apiKeyDoc) throws IOException {
         SecurityMocks.mockGetRequest(
             client,
             id,
-            BytesReference.bytes(XContentBuilder.builder(XContentType.JSON.xContent()).map(apiKeyDoc.v1()))
+            BytesReference.bytes(XContentBuilder.builder(XContentType.JSON.xContent()).map(apiKeyDoc))
         );
-        return apiKeyDoc.v2();
+        return apiKeyDoc;
     }
 
     private static Tuple<Map<String, Object>, Map<String, Object>> newApiKeyDocument(
@@ -1755,7 +1973,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final String docId2 = randomValueOtherThan(docId, () -> randomAlphaOfLength(16));
         final String apiKey2 = randomValueOtherThan(apiKey, () -> randomAlphaOfLength(16));
         ApiKeyCredentials apiKeyCredentials2 = getApiKeyCredentials(docId2, apiKey2, type);
-        final Map<String, Object> metadata2 = mockKeyDocument(
+        mockKeyDocument(
             docId2,
             apiKey2,
             new User("spider-man", "monitoring_user"),
@@ -2130,7 +2348,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             null,
             type
         );
-        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<Tuple<User, ApiKeyDoc>>> future = new PlainActionFuture<>();
         service.loadApiKeyAndValidateCredentials(threadContext, apiKeyCredentials, future);
         final ApiKeyService.CachedApiKeyDoc cachedApiKeyDoc = service.getDocCache().get(docId);
         assertNotNull(cachedApiKeyDoc);
@@ -2172,7 +2390,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             null,
             type
         );
-        PlainActionFuture<AuthenticationResult<User>> future2 = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<Tuple<User, ApiKeyDoc>>> future2 = new PlainActionFuture<>();
         service.loadApiKeyAndValidateCredentials(threadContext, apiKeyCredentials2, future2);
         final ApiKeyService.CachedApiKeyDoc cachedApiKeyDoc2 = service.getDocCache().get(docId2);
         assertNotNull(cachedApiKeyDoc2);
@@ -2210,7 +2428,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             keyRoles,
             type
         );
-        PlainActionFuture<AuthenticationResult<User>> future3 = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<Tuple<User, ApiKeyDoc>>> future3 = new PlainActionFuture<>();
         service.loadApiKeyAndValidateCredentials(threadContext, apiKeyCredentials3, future3);
         final ApiKeyService.CachedApiKeyDoc cachedApiKeyDoc3 = service.getDocCache().get(docId3);
         assertNotNull(cachedApiKeyDoc3);
@@ -2278,23 +2496,23 @@ public class ApiKeyServiceTests extends ESTestCase {
             null,
             type
         );
-        PlainActionFuture<AuthenticationResult<User>> future4 = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<Tuple<User, ApiKeyDoc>>> future4 = new PlainActionFuture<>();
         service.loadApiKeyAndValidateCredentials(threadContext, getApiKeyCredentials(docId, apiKey, type), future4);
         verify(client, times(1)).get(any(GetRequest.class), anyActionListener());
         assertEquals(2, service.getRoleDescriptorsBytesCache().count());
-        final AuthenticationResult<User> authResult4 = future4.get();
+        final AuthenticationResult<Tuple<User, ApiKeyDoc>> authResult4 = future4.get();
         assertSame(AuthenticationResult.Status.SUCCESS, authResult4.getStatus());
         assertThat(authResult4.getMetadata().get(API_KEY_TYPE_KEY), is(type.value()));
-        checkAuthApiKeyMetadata(metadata4, authResult4);
+        checkAuthApiKeyDocMetadata(metadata4, authResult4);
 
         // 5. Cached entries will be used for the same API key doc
         SecurityMocks.mockGetRequestException(client, new EsRejectedExecutionException("rejected"));
-        PlainActionFuture<AuthenticationResult<User>> future5 = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<Tuple<User, ApiKeyDoc>>> future5 = new PlainActionFuture<>();
         service.loadApiKeyAndValidateCredentials(threadContext, getApiKeyCredentials(docId, apiKey, type), future5);
-        final AuthenticationResult<User> authResult5 = future5.get();
+        final AuthenticationResult<Tuple<User, ApiKeyDoc>> authResult5 = future5.get();
         assertSame(AuthenticationResult.Status.SUCCESS, authResult5.getStatus());
         assertThat(authResult5.getMetadata().get(API_KEY_TYPE_KEY), is(type.value()));
-        checkAuthApiKeyMetadata(metadata4, authResult5);
+        checkAuthApiKeyDocMetadata(metadata4, authResult5);
     }
 
     public void testWillInvalidateAuthCacheWhenDocNotFound() {
@@ -2322,7 +2540,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 null
             )
         );
-        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<Tuple<User, ApiKeyDoc>>> future = new PlainActionFuture<>();
         service.loadApiKeyAndValidateCredentials(threadContext, apiKeyCredentials, future);
         assertNull(service.getApiKeyAuthCache().get(docId));
     }
@@ -2567,14 +2785,83 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(e, is(rejectedExecutionException));
     }
 
-    public void testCreationFailsIfAuthenticationIsCloudApiKey() throws InterruptedException {
+    public void testCreationSucceedsIfAuthenticationIsCloudApiKey() {
         final Authentication authentication = AuthenticationTestHelper.randomCloudApiKeyAuthentication();
+        final User cloudApiKeyUser = authentication.getEffectiveSubject().getUser();
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null);
+        final Set<RoleDescriptor> userRoleDescriptors = Set.of(
+            new RoleDescriptor("cloud_user_role", new String[] { "monitor" }, null, null)
+        );
+
+        final ApiKeyService service = createApiKeyService(Settings.EMPTY);
+        when(client.prepareIndex(anyString())).thenReturn(new IndexRequestBuilder(client));
+        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client));
+        when(client.threadPool()).thenReturn(threadPool);
+        final AtomicReference<AssertionError> asyncFailure = new AtomicReference<>();
+        doAnswer(inv -> {
+            final Object[] args = inv.getArguments();
+            final BulkRequest bulkRequest = (BulkRequest) args[1];
+            @SuppressWarnings("unchecked")
+            final ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) args[2];
+            assertThat(bulkRequest.numberOfActions(), is(1));
+            assertThat(bulkRequest.requests().get(0), instanceOf(IndexRequest.class));
+
+            final IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
+            final Map<String, Object> indexDoc = XContentHelper.convertToMap(indexRequest.source(), true, XContentType.JSON).v2();
+            try {
+                @SuppressWarnings("unchecked")
+                final Map<String, Object> creator = (Map<String, Object>) indexDoc.get("creator");
+                assertThat(creator, notNullValue());
+                assertThat(creator.get("principal"), equalTo(cloudApiKeyUser.principal()));
+                assertThat(creator.get("realm"), equalTo(AuthenticationField.CLOUD_API_KEY_REALM_NAME));
+                assertThat(creator.get("realm_type"), equalTo(AuthenticationField.CLOUD_API_KEY_REALM_TYPE));
+                assertThat(creator.get("metadata"), equalTo(cloudApiKeyUser.metadata()));
+                assertThat(creator.containsKey("realm_domain"), is(false));
+
+                @SuppressWarnings("unchecked")
+                final Map<String, Object> limitedBy = (Map<String, Object>) indexDoc.get("limited_by_role_descriptors");
+                assertThat(limitedBy, notNullValue());
+                assertThat(limitedBy.keySet(), contains("cloud_user_role"));
+            } catch (AssertionError failure) {
+                asyncFailure.set(failure);
+            }
+            final IndexResponse indexResponse = new IndexResponse(
+                new ShardId(INTERNAL_SECURITY_MAIN_INDEX_7, randomAlphaOfLength(22), randomIntBetween(0, 1)),
+                createApiKeyRequest.getId(),
+                randomLongBetween(1, 99),
+                randomLongBetween(1, 99),
+                randomIntBetween(1, 99),
+                true
+            );
+            listener.onResponse(
+                new BulkResponse(
+                    new BulkItemResponse[] { BulkItemResponse.success(randomInt(), DocWriteRequest.OpType.INDEX, indexResponse) },
+                    randomLongBetween(0, 100)
+                )
+            );
+            return null;
+        }).when(client).execute(eq(TransportBulkAction.TYPE), any(BulkRequest.class), any());
+
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        service.createApiKey(authentication, createApiKeyRequest, userRoleDescriptors, future);
+        final CreateApiKeyResponse createApiKeyResponse = future.actionGet();
+        if (asyncFailure.get() != null) {
+            throw asyncFailure.get();
+        }
+        assertThat(createApiKeyResponse.getId(), equalTo(createApiKeyRequest.getId()));
+    }
+
+    public void testCrossClusterApiKeyCreationFailsIfAuthenticationIsCloudApiKey() throws IOException {
+        final Authentication authentication = AuthenticationTestHelper.randomCloudApiKeyAuthentication();
+        final CreateCrossClusterApiKeyRequest createCrossClusterApiKeyRequest = CreateCrossClusterApiKeyRequest.withNameAndAccess(
+            randomAlphaOfLengthBetween(3, 8),
+            randomCrossClusterApiKeyAccessField()
+        );
         ApiKeyService service = createApiKeyService(Settings.EMPTY);
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
-        service.createApiKey(authentication, createApiKeyRequest, Set.of(), future);
+        service.createApiKey(authentication, createCrossClusterApiKeyRequest, Set.of(), future);
         final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, future);
-        assertThat(iae.getMessage(), equalTo("creating elasticsearch api keys using cloud api keys is not supported"));
+        assertThat(iae.getMessage(), equalTo("cross-cluster API keys cannot be created with a cloud API key"));
     }
 
     public void testCachedApiKeyValidationWillNotBeBlockedByUnCachedApiKey() throws IOException, ExecutionException, InterruptedException {
@@ -3100,6 +3387,49 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(auth3.getMetadata(), hasEntry(API_KEY_TYPE_KEY, apiKeyDoc3.type.value()));
     }
 
+    public void testCreateApiKeyWithDatasourcePrivilegeRejectedInMixedCluster() {
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD, ApiKeyService.DELETE_INTERVAL))
+        );
+        final ClusterState clusterState = mock(ClusterState.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterState.getMinTransportVersion()).thenReturn(TransportVersionUtils.getPreviousVersion(ESQL_DATASOURCE_PRIVILEGE));
+        final ApiKeyService service = new ApiKeyService(
+            Settings.EMPTY,
+            clock,
+            client,
+            securityIndex,
+            clusterService,
+            cacheInvalidatorRegistry,
+            threadPool,
+            MeterRegistry.NOOP,
+            mock(FeatureService.class)
+        );
+
+        final var datasourcePrivileges = new ConfigurableClusterPrivileges.DatasourcePrivileges(
+            List.of(
+                new ConfigurableClusterPrivileges.DatasourcePrivileges.DatasourcePermissionGroup(
+                    new String[] { "my-ds" },
+                    new String[] { "read" }
+                )
+            )
+        );
+        final List<RoleDescriptor> requestRoleDescriptors = List.of(
+            new RoleDescriptor("test-role", null, null, null, new ConfigurableClusterPrivilege[] { datasourcePrivileges }, null, null, null)
+        );
+
+        final AbstractCreateApiKeyRequest createRequest = mock(AbstractCreateApiKeyRequest.class);
+        when(createRequest.getType()).thenReturn(ApiKey.Type.REST);
+        when(createRequest.getRoleDescriptors()).thenReturn(requestRoleDescriptors);
+
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        service.createApiKey(authentication, createRequest, Set.of(), future);
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("datasource privilege"));
+    }
+
     public void testValidateOwnerUserRoleDescriptorsWithWorkflowsRestriction() {
         final Authentication authentication = AuthenticationTestHelper.builder().build();
         final ClusterService clusterService = mock(ClusterService.class);
@@ -3108,7 +3438,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         );
         final ClusterState clusterState = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(clusterState);
-        final TransportVersion minTransportVersion = TransportVersionUtils.randomCompatibleVersion(random());
+        final TransportVersion minTransportVersion = TransportVersionUtils.randomCompatibleVersion();
         when(clusterState.getMinTransportVersion()).thenReturn(minTransportVersion);
         final ApiKeyService service = new ApiKeyService(
             Settings.EMPTY,
@@ -3486,7 +3816,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             PlainActionFuture<AuthenticationResult<User>> authenticationResultFuture = new PlainActionFuture<>();
             apiKeyService.completeApiKeyAuthentication(
                 apiKeyDoc,
-                new ApiKeyService.ApiKeyCredentials("id", new SecureString(randomAlphaOfLength(16).toCharArray()), ApiKey.Type.REST),
+                new ApiKeyCredentials("id", new SecureString(randomAlphaOfLength(16).toCharArray()), ApiKey.Type.REST),
                 Clock.systemUTC(),
                 authenticationResultFuture
             );
@@ -3655,13 +3985,17 @@ public class ApiKeyServiceTests extends ESTestCase {
         );
     }
 
+    private void checkAuthApiKeyDocMetadata(Object metadata, AuthenticationResult<Tuple<User, ApiKeyDoc>> authResult) throws IOException {
+        checkAuthApiKeyMetadata(metadata, authResult.map(Tuple::v1));
+    }
+
     @SuppressWarnings("unchecked")
-    private void checkAuthApiKeyMetadata(Object metadata, AuthenticationResult<User> authResult1) throws IOException {
+    private void checkAuthApiKeyMetadata(Object metadata, AuthenticationResult<User> authResult) throws IOException {
         if (metadata == null) {
-            assertThat(authResult1.getMetadata().containsKey(API_KEY_METADATA_KEY), is(false));
+            assertThat(authResult.getMetadata().containsKey(API_KEY_METADATA_KEY), is(false));
         } else {
             assertThat(
-                asInstanceOf(BytesReference.class, authResult1.getMetadata().get(API_KEY_METADATA_KEY)),
+                asInstanceOf(BytesReference.class, authResult.getMetadata().get(API_KEY_METADATA_KEY)),
                 equalBytes(XContentTestUtils.convertToXContent((Map<String, Object>) metadata, XContentType.JSON))
             );
         }

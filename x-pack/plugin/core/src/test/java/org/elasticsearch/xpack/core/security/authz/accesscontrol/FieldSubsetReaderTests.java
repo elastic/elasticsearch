@@ -60,6 +60,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.settings.Settings;
@@ -69,10 +70,14 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
+import org.elasticsearch.index.mapper.OnFailureStoredValues;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
@@ -807,17 +812,15 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
     public void testIgnoredSourceFilteringIntegration() throws Exception {
         IndexVersion indexVersion = randomBoolean() ? getVersion() : IndexVersions.MATCH_ONLY_TEXT_STORED_AS_BYTES;
-        DocumentMapper mapper = createMapperService(
-            indexVersion,
-            Settings.builder()
-                .put("index.mapping.total_fields.limit", 1)
-                .put("index.mapping.total_fields.ignore_dynamic_beyond_limit", true)
-                .put("index.mapping.source.mode", "synthetic")
-                .build(),
-            mapping(b -> {
-                b.startObject("foo").field("type", "keyword").endObject();
-            })
-        ).documentMapper();
+        Settings mapperSettings = Settings.builder()
+            .put("index.mapping.total_fields.limit", 1)
+            .put("index.mapping.total_fields.ignore_dynamic_beyond_limit", true)
+            .put("index.mapping.source.mode", "synthetic")
+            .build();
+        var indexSettings = createIndexSettings(indexVersion, mapperSettings);
+        DocumentMapper mapper = createMapperService(indexVersion, mapperSettings, mapping(b -> {
+            b.startObject("foo").field("type", "keyword").endObject();
+        })).documentMapper();
 
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
@@ -838,7 +841,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
                         new CharacterRunAutomaton(automaton),
-                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexVersion),
+                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings),
                         (fieldName) -> true
                     )
                 ) {
@@ -857,7 +860,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
                         new CharacterRunAutomaton(automaton),
-                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexVersion),
+                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings),
                         (fieldName) -> true
                     )
                 ) {
@@ -873,7 +876,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
                         new CharacterRunAutomaton(automaton),
-                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexVersion),
+                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings),
                         (fieldName) -> true
                     )
                 ) {
@@ -893,7 +896,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
                         new CharacterRunAutomaton(automaton),
-                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexVersion),
+                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings),
                         (fieldName) -> true
                     )
                 ) {
@@ -909,7 +912,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
                         new CharacterRunAutomaton(automaton),
-                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexVersion),
+                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings),
                         (fieldName) -> true
                     )
                 ) {
@@ -929,13 +932,259 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
                         new CharacterRunAutomaton(automaton),
-                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexVersion),
+                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings),
                         (fieldName) -> true
                     )
                 ) {
                     String syntheticSource = syntheticSource(mapper, indexReader, doc.docs().size() - 1);
                     assertEquals("""
                         {"arr":[{}],"fieldA":"testA","fieldB":"testB","obj":{"fieldC":"testC"}}""", syntheticSource);
+                }
+            }
+        }
+    }
+
+    /**
+     * Same shape as {@link #testIgnoredSourceFilteringIntegration()}, but on an index that stores _ignored_source in binary doc values
+     * (logsdb / time-series doc values format) with the SeparateCount framing, and using an FLS automaton built the way roles actually
+     * build it ({@link FieldPermissions#buildPermittedFieldsAutomaton}), which unions in the "_*" metadata automaton and therefore also
+     * exposes the "_ignored_source.counts" companion field to the reader.
+     */
+    public void testIgnoredSourceDocValuesFilteringIntegration() throws Exception {
+        doTestIgnoredSourceDocValuesFilteringIntegration(1);
+    }
+
+    public void testIgnoredSourceDocValuesFilteringIntegrationMultiValue() throws Exception {
+        doTestIgnoredSourceDocValuesFilteringIntegration(2);
+    }
+
+    /**
+     * Nine surviving entries, so the bogus value length read off the blob (9) is large enough that decode() reaches substring() rather
+     * than failing earlier in the String constructor. Reproduces the exact reported signature "Range [0, 1552) out of bounds for length 5".
+     */
+    public void testIgnoredSourceDocValuesFilteringIntegrationManyValues() throws Exception {
+        doTestIgnoredSourceDocValuesFilteringIntegration(9);
+    }
+
+    private void doTestIgnoredSourceDocValuesFilteringIntegration(int survivingCount) throws Exception {
+        IndexVersion indexVersion = IndexVersion.current();
+        assertTrue(indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES));
+        Settings mapperSettings = Settings.builder()
+            .put("index.mapping.total_fields.limit", 1)
+            .put("index.mapping.total_fields.ignore_dynamic_beyond_limit", true)
+            .put("index.mapping.source.mode", "synthetic")
+            .put("index.use_time_series_doc_values_format", true)
+            .build();
+        var indexSettings = createIndexSettings(indexVersion, mapperSettings);
+        var format = IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings);
+        assertEquals(IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE, format);
+
+        DocumentMapper mapper = createMapperService(indexVersion, mapperSettings, mapping(b -> {
+            b.startObject("foo").field("type", "keyword").endObject();
+        })).documentMapper();
+
+        // A role that grants everything except one field, exactly like the reported "logs-* minus dns.question.*" role.
+        var filter = new CharacterRunAutomaton(
+            FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "*" }, new String[] { "excluded" })
+        );
+
+        // survivingCount == 1: .counts says 1, so the reader takes the count==1 "the whole blob is the value" fast path.
+        // survivingCount > 1: the reader takes the multi-value length-prefixed path and misreads the leading count vInt as a length.
+        // The first entry is always "fieldA": "testA", i.e. a 16-byte singular blob (4 header + 6 name + 6 encoded value).
+        StringBuilder expected = new StringBuilder("{");
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
+            ParsedDocument doc = mapper.parse(source(b -> {
+                b.field("fieldA", "testA");
+                for (int i = 1; i < survivingCount; i++) {
+                    b.field("field" + (char) ('A' + i), "test" + (char) ('A' + i));
+                }
+                if (survivingCount > 1) {
+                    b.field("excluded", "secret");
+                }
+            }));
+            for (int i = 0; i < survivingCount; i++) {
+                char suffix = (char) ('A' + i);
+                expected.append(i == 0 ? "" : ",").append("\"field").append(suffix).append("\":\"test").append(suffix).append('"');
+            }
+            expected.append('}');
+            doc.updateSeqID(0, 0);
+            doc.version().setLongValue(0);
+            iw.addDocuments(doc.docs());
+            iw.close();
+            try (
+                DirectoryReader indexReader = FieldSubsetReader.wrap(
+                    wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                    filter,
+                    format,
+                    (fieldName) -> true
+                )
+            ) {
+                assertEquals(expected.toString(), syntheticSource(mapper, indexReader, doc.docs().size() - 1));
+            }
+        }
+    }
+
+    /**
+     * A field-level-security role that filters out an array field must also hide that field's {@code .offsets} companion. Otherwise
+     * synthetic source reconstruction reads the hidden field's offsets (which point at now-absent values) and takes the "all values are
+     * null" branch, tripping an assertion (node crash with assertions enabled) or emitting an array of nulls in production.
+     */
+    public void testFilteredArrayFieldOffsetsAreHidden() throws Exception {
+        IndexVersion indexVersion = IndexVersion.current();
+        Settings mapperSettings = Settings.builder()
+            .put("index.mapping.source.mode", "synthetic")
+            .put("index.mapping.synthetic_source_keep", "arrays")
+            .build();
+        var indexSettings = createIndexSettings(indexVersion, mapperSettings);
+        var format = IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings);
+
+        DocumentMapper mapper = createMapperService(indexVersion, mapperSettings, mapping(b -> {
+            b.startObject("keep").field("type", "long").endObject();
+            b.startObject("excluded").field("type", "long").endObject();
+        })).documentMapper();
+
+        var filter = new CharacterRunAutomaton(
+            FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "*" }, new String[] { "excluded" })
+        );
+
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
+            ParsedDocument doc = mapper.parse(source(b -> {
+                b.array("keep", 3, 1, 2);
+                b.array("excluded", 30, 10, 20);
+            }));
+            doc.updateSeqID(0, 0);
+            doc.version().setLongValue(0);
+            iw.addDocuments(doc.docs());
+            iw.close();
+            try (
+                DirectoryReader indexReader = FieldSubsetReader.wrap(
+                    wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                    filter,
+                    format,
+                    (fieldName) -> mapper.mappers().getFieldType(fieldName) != null
+                )
+            ) {
+                assertEquals("{\"keep\":[3,1,2]}", syntheticSource(mapper, indexReader, doc.docs().size() - 1));
+            }
+        }
+    }
+
+    /**
+     * When a field survives an exact FLS grant, its {@code ._ignore_malformed} companion is re-mapped to the parent name so it survives
+     * too, but the companion's own {@code .counts} field is not - an exact grant of {@code keep} matches {@code keep} but not
+     * {@code keep._ignore_malformed.counts}, so the counts get dropped while the binary blob stays visible. The modern reader then decodes
+     * a multi-valued blob as a single plain-binary value, corrupting synthetic source. Both malformed values must round-trip intact.
+     */
+    public void testFilteredIgnoreMalformedCountsFollowParent() throws Exception {
+        IndexVersion indexVersion = IndexVersion.current();
+        Settings mapperSettings = Settings.builder()
+            .put("index.mapping.source.mode", "synthetic")
+            .put("index.mapping.synthetic_source_keep", "arrays")
+            .build();
+        var indexSettings = createIndexSettings(indexVersion, mapperSettings);
+        var format = IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings);
+
+        DocumentMapper mapper = createMapperService(indexVersion, mapperSettings, mapping(b -> {
+            b.startObject("keep").field("type", "long").field("ignore_malformed", true).endObject();
+        })).documentMapper();
+
+        var filter = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "keep" }, null));
+
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
+            ParsedDocument doc = mapper.parse(source(b -> b.array("keep", "aa", "bb")));
+            doc.updateSeqID(0, 0);
+            doc.version().setLongValue(0);
+            iw.addDocuments(doc.docs());
+            iw.close();
+            try (
+                DirectoryReader indexReader = FieldSubsetReader.wrap(
+                    wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                    filter,
+                    format,
+                    (fieldName) -> mapper.mappers().getFieldType(fieldName) != null
+                )
+            ) {
+                assertEquals("{\"keep\":[\"aa\",\"bb\"]}", syntheticSource(mapper, indexReader, doc.docs().size() - 1));
+            }
+        }
+    }
+
+    /**
+     * Each stored-value fallback companion ({@code ._original}, {@code ._ignore_malformed}, {@code ._on_failure}) is written as binary doc
+     * values with a sibling {@code .counts} field. When the parent survives an exact FLS grant, the binary blob and its {@code .counts}
+     * must stay visible together; dropping the counts alone makes the reader mis-decode a multi-valued blob as a single value.
+     */
+    public void testFilteredCompanionCountsFollowParent() throws Exception {
+        String counts = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+        for (String suffix : List.of(
+            TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX,
+            IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX,
+            OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX
+        )) {
+            try (Directory dir = newDirectory()) {
+                try (IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(null))) {
+                    Document doc = new Document();
+                    String kept = randomAlphaOfLength(5);
+                    String dropped = randomAlphaOfLength(6);
+                    doc.add(new BinaryDocValuesField(kept + suffix, new BytesRef("v")));
+                    doc.add(new NumericDocValuesField(kept + suffix + counts, 2));
+                    doc.add(new BinaryDocValuesField(dropped + suffix, new BytesRef("v")));
+                    doc.add(new NumericDocValuesField(dropped + suffix + counts, 2));
+                    iw.addDocument(doc);
+
+                    var filter = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { kept }, null));
+                    try (
+                        DirectoryReader ir = FieldSubsetReader.wrap(
+                            wrapInMockESDirectoryReader(DirectoryReader.open(iw)),
+                            filter,
+                            IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
+                            (fieldName) -> false
+                        )
+                    ) {
+                        LeafReader leaf = ir.leaves().get(0).reader();
+                        // Granted field keeps both its companion binary and the companion's .counts sibling.
+                        assertNotNull(suffix + " binary should follow its granted parent", leaf.getBinaryDocValues(kept + suffix));
+                        assertNotNull(
+                            suffix + " counts should follow its base companion",
+                            leaf.getNumericDocValues(kept + suffix + counts)
+                        );
+                        // Ungranted field drops both.
+                        assertNull(leaf.getBinaryDocValues(dropped + suffix));
+                        assertNull(leaf.getNumericDocValues(dropped + suffix + counts));
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * A user-mapped field whose name happens to end like a companion's counts (".counts") must be filtered under its own name, never
+     * truncated to a parent. The isMapped guard already covers this: a real mapped field reports isMapped == true, so the companion
+     * re-mapping is skipped.
+     */
+    public void testMappedFieldEndingInCountsIsNotTruncated() throws Exception {
+        String counts = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+        String mapped = "keep" + IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX + counts;
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(null))) {
+                Document doc = new Document();
+                doc.add(new NumericDocValuesField(mapped, 2));
+                iw.addDocument(doc);
+
+                var filter = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { mapped }, null));
+                try (
+                    DirectoryReader ir = FieldSubsetReader.wrap(
+                        wrapInMockESDirectoryReader(DirectoryReader.open(iw)),
+                        filter,
+                        IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
+                        (fieldName) -> true
+                    )
+                ) {
+                    LeafReader leaf = ir.leaves().get(0).reader();
+                    assertNotNull("a mapped field ending in .counts must not be truncated", leaf.getNumericDocValues(mapped));
                 }
             }
         }
@@ -1157,6 +1406,36 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         expected = new HashMap<>();
         expected.put("bar", Arrays.asList(new HashMap<>(), Collections.singletonMap("baz", "2")));
         assertEquals(expected, filtered);
+    }
+
+    public void testSourceFilteringWithSupplementaryCodePoints() {
+        // Field names containing a supplementary (non-BMP) code point, e.g. U+1D54F, occupy two Java chars (a UTF-16
+        // surrogate pair). Both the pattern automaton (Automatons#patterns) and the source-map matcher
+        // (FieldSubsetReader#step) must walk whole code points; if the matcher steps by char it cannot traverse the
+        // builder's single code-point transition, and a granted non-BMP field is wrongly stripped from _source.
+        final String x = "\uD835\uDD4F"; // U+1D54F MATHEMATICAL DOUBLE-STRUCK CAPITAL X
+        final String y = "\uD835\uDD50"; // U+1D550 (a different supplementary code point)
+
+        // top-level: only "field𝕏" is granted; the other non-BMP field and the plain field are excluded
+        Map<String, Object> map = new HashMap<>();
+        map.put("field" + x, 1);
+        map.put("field" + y, 2);
+        map.put("plain", 3);
+
+        CharacterRunAutomaton include = new CharacterRunAutomaton(Automatons.patterns("field" + x));
+        Map<String, Object> filtered = FieldSubsetReader.filter(map, include, 0);
+        assertEquals(Map.of("field" + x, 1), filtered);
+
+        // nested object with non-BMP segments on both levels: "obj𝕏.inner𝕏" is granted, sibling is dropped
+        Map<String, Object> inner = new HashMap<>();
+        inner.put("inner" + x, 42);
+        inner.put("other", 6);
+        map = new HashMap<>();
+        map.put("obj" + x, inner);
+
+        include = new CharacterRunAutomaton(Automatons.patterns("obj" + x + ".inner" + x));
+        filtered = FieldSubsetReader.filter(map, include, 0);
+        assertEquals(Map.of("obj" + x, Map.of("inner" + x, 42)), filtered);
     }
 
     /**
@@ -1489,19 +1768,21 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
     @SuppressWarnings("unchecked")
     public void testMappingsFilteringDuelWithSourceFiltering() throws Exception {
-        Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 0)).putMapping(MAPPING_TEST_ITEM))
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(
+                IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 0)).putMapping(MAPPING_TEST_ITEM).build(),
+                true
+            )
             .build();
 
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "*inner1" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            Map<String, MappingMetadata> mappings = metadata.getProject()
-                .findMappings(
-                    new String[] { "index" },
-                    index -> fieldPermissions::grantsAccessTo,
-                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
-                );
+            Map<String, MappingMetadata> mappings = projectMetadata.findMappings(
+                new String[] { "index" },
+                index -> fieldPermissions::grantsAccessTo,
+                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+            );
             MappingMetadata index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
@@ -1537,12 +1818,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "object*" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            Map<String, MappingMetadata> mappings = metadata.getProject()
-                .findMappings(
-                    new String[] { "index" },
-                    index -> fieldPermissions::grantsAccessTo,
-                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
-                );
+            Map<String, MappingMetadata> mappings = projectMetadata.findMappings(
+                new String[] { "index" },
+                index -> fieldPermissions::grantsAccessTo,
+                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+            );
             MappingMetadata index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
@@ -1577,12 +1857,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "object" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            Map<String, MappingMetadata> mappings = metadata.getProject()
-                .findMappings(
-                    new String[] { "index" },
-                    index -> fieldPermissions::grantsAccessTo,
-                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
-                );
+            Map<String, MappingMetadata> mappings = projectMetadata.findMappings(
+                new String[] { "index" },
+                index -> fieldPermissions::grantsAccessTo,
+                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+            );
             MappingMetadata index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
@@ -1607,12 +1886,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "nested.inner2" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            Map<String, MappingMetadata> mappings = metadata.getProject()
-                .findMappings(
-                    new String[] { "index" },
-                    index -> fieldPermissions::grantsAccessTo,
-                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
-                );
+            Map<String, MappingMetadata> mappings = projectMetadata.findMappings(
+                new String[] { "index" },
+                index -> fieldPermissions::grantsAccessTo,
+                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+            );
             MappingMetadata index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
@@ -1675,6 +1953,81 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             assertNotNull(lf.getSequentialStoredFieldsReader());
         }
         IOUtils.close(ir, iw, dir);
+    }
+
+    public void testSyntheticSourceWithCopyToAndFLSCoalesced() throws Exception {
+        final DocumentMapper mapper = createMapperService(
+            Settings.builder().put("index.mapping.source.mode", "synthetic").build(),
+            mapping(b -> {
+                b.startObject("user").field("type", "keyword").field("copy_to", "catch_all").endObject();
+                b.startObject("domain").field("type", "keyword").field("copy_to", "catch_all").endObject();
+                b.startObject("catch_all").field("type", "text").endObject();
+            })
+        ).documentMapper();
+
+        try (Directory directory = newDirectory()) {
+            final IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig());
+            final ParsedDocument doc = mapper.parse(source(b -> {
+                b.field("user", "darth.vader");
+                b.field("domain", "empire.gov");
+            }));
+            writer.addDocuments(doc.docs());
+            writer.commit();
+
+            final Automaton automaton = Automatons.patterns(Arrays.asList("user", "domain", IgnoredSourceFieldMapper.NAME));
+            try (
+                DirectoryReader reader = FieldSubsetReader.wrap(
+                    DirectoryReader.open(writer),
+                    new CharacterRunAutomaton(automaton),
+                    IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE,
+                    (fieldName) -> false
+                );
+            ) {
+                assertEquals(
+                    "{\"domain\":\"empire.gov\",\"user\":\"darth.vader\"}",
+                    syntheticSource(mapper, reader, doc.docs().size() - 1)
+                );
+            }
+            IOUtils.close(writer, directory);
+        }
+    }
+
+    public void testSyntheticSourceWithCopyToAndFLSLegacy() throws Exception {
+        final DocumentMapper mapper = createMapperService(
+            IndexVersions.MATCH_ONLY_TEXT_STORED_AS_BYTES, // before IGNORED_SOURCE_COALESCED_ENTRIES_WITH_FF
+            Settings.builder().put("index.mapping.source.mode", "synthetic").build(),
+            mapping(b -> {
+                b.startObject("user").field("type", "keyword").field("copy_to", "catch_all").endObject();
+                b.startObject("domain").field("type", "keyword").field("copy_to", "catch_all").endObject();
+                b.startObject("catch_all").field("type", "text").endObject();
+            })
+        ).documentMapper();
+
+        try (Directory directory = newDirectory()) {
+            final IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig());
+            final ParsedDocument doc = mapper.parse(source(b -> {
+                b.field("user", "darth.vader");
+                b.field("domain", "empire.gov");
+            }));
+            writer.addDocuments(doc.docs());
+            writer.commit();
+
+            final Automaton automaton = Automatons.patterns(Arrays.asList("user", "domain", IgnoredSourceFieldMapper.NAME));
+            try (
+                DirectoryReader reader = FieldSubsetReader.wrap(
+                    DirectoryReader.open(writer),
+                    new CharacterRunAutomaton(automaton),
+                    IgnoredSourceFieldMapper.IgnoredSourceFormat.LEGACY_SINGLE_IGNORED_SOURCE,
+                    (fieldName) -> false
+                );
+            ) {
+                assertEquals(
+                    "{\"domain\":\"empire.gov\",\"user\":\"darth.vader\"}",
+                    syntheticSource(mapper, reader, doc.docs().size() - 1)
+                );
+            }
+            IOUtils.close(writer, directory);
+        }
     }
 
     private static final String DOC_TEST_ITEM = """

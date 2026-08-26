@@ -36,7 +36,7 @@ public class BlockBuilderCopyFromTests extends ESTestCase {
                 continue;
             }
             for (boolean nullAllowed : new boolean[] { false, true }) {
-                if (e == ElementType.AGGREGATE_METRIC_DOUBLE) {
+                if (e == ElementType.AGGREGATE_METRIC_DOUBLE || e == ElementType.LONG_RANGE) {
                     // doesn't support multi-values
                     params.add(new Object[] { e, nullAllowed, 0, 1 });
                     continue;
@@ -114,6 +114,8 @@ public class BlockBuilderCopyFromTests extends ESTestCase {
                     (AggregateMetricDoubleBlock) block,
                     i
                 );
+                case LONG_RANGE -> ((LongRangeBlockBuilder) builder).copyFrom((LongRangeBlock) block, i);
+                case DOUBLE_RANGE -> ((DoubleRangeBlockBuilder) builder).copyFrom((DoubleRangeBlock) block, i);
                 default -> throw new IllegalArgumentException("unsupported type: " + elementType);
             }
 
@@ -130,6 +132,6 @@ public class BlockBuilderCopyFromTests extends ESTestCase {
     private Block randomFilteredBlock() {
         int keepers = between(0, 4);
         Block orig = randomBlock();
-        return orig.filter(IntStream.range(0, orig.getPositionCount()).filter(i -> i % 5 == keepers).toArray());
+        return orig.filter(false, IntStream.range(0, orig.getPositionCount()).filter(i -> i % 5 == keepers).toArray());
     }
 }

@@ -13,11 +13,13 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.ConstantBytes;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DelegateDocValuesField;
@@ -84,7 +86,7 @@ public class IndexModeFieldMapper extends MetadataFieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             final String indexMode = blContext.indexSettings().getMode().getName();
-            return BlockLoader.constantBytes(new BytesRef(indexMode));
+            return new ConstantBytes(new BytesRef(indexMode));
         }
 
         @Override
@@ -113,5 +115,11 @@ public class IndexModeFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        // No preParse/postParse override — nothing to port for the columnar path either.
+        return true;
     }
 }

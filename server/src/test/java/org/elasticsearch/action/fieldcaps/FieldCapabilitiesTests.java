@@ -15,6 +15,10 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -29,6 +33,7 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<FieldCapabilities> {
     private static final String FIELD_NAME = "field";
@@ -50,188 +55,244 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
 
     public void testBuilder() {
         FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
-        builder.add(new String[] { "index1" }, false, true, false, false, null, Collections.emptyMap());
-        builder.add(new String[] { "index2" }, false, true, false, false, null, Collections.emptyMap());
-        builder.add(new String[] { "index3" }, false, true, false, false, null, Collections.emptyMap());
+        builder.add(new String[] { "index1" }, false, true, false, false, false, null, Collections.emptyMap());
+        builder.add(new String[] { "index2" }, false, true, false, false, false, null, Collections.emptyMap());
+        builder.add(new String[] { "index3" }, false, true, false, false, false, null, Collections.emptyMap());
 
         {
             FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(true));
             assertThat(cap1.isAggregatable(), equalTo(false));
+            assertThat(cap1.isInference(), equalTo(false));
             assertThat(cap1.isDimension(), equalTo(false));
             assertNull(cap1.getMetricType());
             assertNull(cap1.indices());
             assertNull(cap1.nonSearchableIndices());
             assertNull(cap1.nonAggregatableIndices());
+            assertNull(cap1.nonInferenceIndices());
             assertNull(cap1.nonDimensionIndices());
             assertEquals(Collections.emptyMap(), cap1.meta());
 
             FieldCapabilities cap2 = builder.build(true);
             assertThat(cap2.isSearchable(), equalTo(true));
             assertThat(cap2.isAggregatable(), equalTo(false));
+            assertThat(cap2.isInference(), equalTo(false));
             assertThat(cap2.isDimension(), equalTo(false));
             assertNull(cap2.getMetricType());
             assertThat(cap2.indices().length, equalTo(3));
             assertThat(cap2.indices(), equalTo(new String[] { "index1", "index2", "index3" }));
             assertNull(cap2.nonSearchableIndices());
             assertNull(cap2.nonAggregatableIndices());
+            assertNull(cap2.nonInferenceIndices());
             assertNull(cap2.nonDimensionIndices());
             assertEquals(Collections.emptyMap(), cap2.meta());
         }
 
         builder = new FieldCapabilities.Builder("field", "type");
-        builder.add(new String[] { "index1" }, false, false, true, true, null, Collections.emptyMap());
-        builder.add(new String[] { "index2" }, false, true, false, false, TimeSeriesParams.MetricType.COUNTER, Collections.emptyMap());
-        builder.add(new String[] { "index3" }, false, false, false, false, null, Collections.emptyMap());
+        builder.add(new String[] { "index1" }, false, false, true, true, true, null, Collections.emptyMap());
+        builder.add(
+            new String[] { "index2" },
+            false,
+            true,
+            false,
+            false,
+            false,
+            TimeSeriesParams.MetricType.COUNTER,
+            Collections.emptyMap()
+        );
+        builder.add(new String[] { "index3" }, false, false, false, false, false, null, Collections.emptyMap());
         {
             FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(false));
             assertThat(cap1.isAggregatable(), equalTo(false));
+            assertThat(cap1.isInference(), equalTo(false));
             assertThat(cap1.isDimension(), equalTo(false));
             assertNull(cap1.getMetricType());
             assertNull(cap1.indices());
             assertThat(cap1.nonSearchableIndices(), equalTo(new String[] { "index1", "index3" }));
             assertThat(cap1.nonAggregatableIndices(), equalTo(new String[] { "index2", "index3" }));
+            assertThat(cap1.nonInferenceIndices(), equalTo(new String[] { "index2", "index3" }));
             assertThat(cap1.nonDimensionIndices(), equalTo(new String[] { "index2", "index3" }));
             assertEquals(Collections.emptyMap(), cap1.meta());
 
             FieldCapabilities cap2 = builder.build(true);
             assertThat(cap2.isSearchable(), equalTo(false));
             assertThat(cap2.isAggregatable(), equalTo(false));
+            assertThat(cap2.isInference(), equalTo(false));
             assertThat(cap2.isDimension(), equalTo(false));
             assertNull(cap2.getMetricType());
             assertThat(cap2.indices().length, equalTo(3));
             assertThat(cap2.indices(), equalTo(new String[] { "index1", "index2", "index3" }));
             assertThat(cap2.nonSearchableIndices(), equalTo(new String[] { "index1", "index3" }));
             assertThat(cap2.nonAggregatableIndices(), equalTo(new String[] { "index2", "index3" }));
+            assertThat(cap2.nonInferenceIndices(), equalTo(new String[] { "index2", "index3" }));
             assertThat(cap2.nonDimensionIndices(), equalTo(new String[] { "index2", "index3" }));
             assertEquals(Collections.emptyMap(), cap2.meta());
         }
 
         builder = new FieldCapabilities.Builder("field", "type");
-        builder.add(new String[] { "index1" }, false, true, true, true, TimeSeriesParams.MetricType.COUNTER, Collections.emptyMap());
-        builder.add(new String[] { "index2" }, false, true, true, true, TimeSeriesParams.MetricType.COUNTER, Map.of("foo", "bar"));
-        builder.add(new String[] { "index3" }, false, true, true, true, TimeSeriesParams.MetricType.COUNTER, Map.of("foo", "quux"));
+        builder.add(new String[] { "index1" }, false, true, true, true, true, TimeSeriesParams.MetricType.COUNTER, Collections.emptyMap());
+        builder.add(new String[] { "index2" }, false, true, true, true, true, TimeSeriesParams.MetricType.COUNTER, Map.of("foo", "bar"));
+        builder.add(new String[] { "index3" }, false, true, true, true, true, TimeSeriesParams.MetricType.COUNTER, Map.of("foo", "quux"));
         {
             FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(true));
             assertThat(cap1.isAggregatable(), equalTo(true));
+            assertThat(cap1.isInference(), equalTo(true));
             assertThat(cap1.isDimension(), equalTo(true));
             assertThat(cap1.getMetricType(), equalTo(TimeSeriesParams.MetricType.COUNTER));
             assertNull(cap1.indices());
             assertNull(cap1.nonSearchableIndices());
             assertNull(cap1.nonAggregatableIndices());
+            assertNull(cap1.nonInferenceIndices());
             assertNull(cap1.nonDimensionIndices());
             assertEquals(Map.of("foo", Set.of("bar", "quux")), cap1.meta());
 
             FieldCapabilities cap2 = builder.build(true);
             assertThat(cap2.isSearchable(), equalTo(true));
             assertThat(cap2.isAggregatable(), equalTo(true));
+            assertThat(cap2.isInference(), equalTo(true));
             assertThat(cap2.isDimension(), equalTo(true));
             assertThat(cap2.getMetricType(), equalTo(TimeSeriesParams.MetricType.COUNTER));
             assertThat(cap2.indices().length, equalTo(3));
             assertThat(cap2.indices(), equalTo(new String[] { "index1", "index2", "index3" }));
             assertNull(cap2.nonSearchableIndices());
             assertNull(cap2.nonAggregatableIndices());
+            assertNull(cap2.nonInferenceIndices());
             assertNull(cap2.nonDimensionIndices());
             assertEquals(Map.of("foo", Set.of("bar", "quux")), cap2.meta());
         }
 
         builder = new FieldCapabilities.Builder("field", "type");
-        builder.add(new String[] { "index1" }, false, true, true, true, TimeSeriesParams.MetricType.COUNTER, Collections.emptyMap());
-        builder.add(new String[] { "index2" }, false, true, true, true, TimeSeriesParams.MetricType.GAUGE, Map.of("foo", "bar"));
-        builder.add(new String[] { "index3" }, false, true, true, true, TimeSeriesParams.MetricType.COUNTER, Map.of("foo", "quux"));
+        builder.add(new String[] { "index1" }, false, true, true, true, true, TimeSeriesParams.MetricType.COUNTER, Collections.emptyMap());
+        builder.add(new String[] { "index2" }, false, true, true, true, true, TimeSeriesParams.MetricType.GAUGE, Map.of("foo", "bar"));
+        builder.add(new String[] { "index3" }, false, true, true, true, true, TimeSeriesParams.MetricType.COUNTER, Map.of("foo", "quux"));
         {
             FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(true));
             assertThat(cap1.isAggregatable(), equalTo(true));
+            assertThat(cap1.isInference(), equalTo(true));
             assertThat(cap1.isDimension(), equalTo(true));
             assertNull(cap1.getMetricType());
             assertNull(cap1.indices());
             assertNull(cap1.nonSearchableIndices());
             assertNull(cap1.nonAggregatableIndices());
+            assertNull(cap1.nonInferenceIndices());
             assertNull(cap1.nonDimensionIndices());
             assertEquals(Map.of("foo", Set.of("bar", "quux")), cap1.meta());
 
             FieldCapabilities cap2 = builder.build(true);
             assertThat(cap2.isSearchable(), equalTo(true));
             assertThat(cap2.isAggregatable(), equalTo(true));
+            assertThat(cap2.isInference(), equalTo(true));
             assertThat(cap2.isDimension(), equalTo(true));
             assertNull(cap2.getMetricType());
             assertThat(cap2.indices().length, equalTo(3));
             assertThat(cap2.indices(), equalTo(new String[] { "index1", "index2", "index3" }));
             assertNull(cap2.nonSearchableIndices());
             assertNull(cap2.nonAggregatableIndices());
+            assertNull(cap2.nonInferenceIndices());
             assertNull(cap2.nonDimensionIndices());
             assertEquals(Map.of("foo", Set.of("bar", "quux")), cap2.meta());
         }
     }
 
     public void testRandomBuilder() {
-        String[] indices = IntStream.range(0, randomIntBetween(1, 50)).mapToObj(n -> Strings.format("index_%2d", n)).toArray(String[]::new);
+        for (int round = 0; round < 100; round++) {
+            String[] indices = IntStream.range(0, randomIntBetween(1, 50))
+                .mapToObj(n -> Strings.format("index_%2d", n))
+                .toArray(String[]::new);
 
-        List<String> nonSearchableIndices = new ArrayList<>();
-        List<String> nonAggregatableIndices = new ArrayList<>();
-        List<String> nonDimensionIndices = new ArrayList<>();
+            List<String> nonSearchableIndices = new ArrayList<>();
+            List<String> nonAggregatableIndices = new ArrayList<>();
+            List<String> nonInferenceIndices = new ArrayList<>();
+            List<String> nonDimensionIndices = new ArrayList<>();
 
-        FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
-        for (int i = 0; i < indices.length;) {
-            int bulkSize = randomIntBetween(1, indices.length - i);
-            String[] groupIndices = ArrayUtil.copyOfSubArray(indices, i, i + bulkSize);
-            final boolean searchable = randomBoolean();
-            if (searchable == false) {
-                nonSearchableIndices.addAll(Arrays.asList(groupIndices));
+            FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
+            for (int i = 0; i < indices.length;) {
+                int bulkSize = randomIntBetween(1, indices.length - i);
+                String[] groupIndices = ArrayUtil.copyOfSubArray(indices, i, i + bulkSize);
+
+                final boolean searchable = randomBoolean();
+                if (searchable == false) {
+                    nonSearchableIndices.addAll(Arrays.asList(groupIndices));
+                }
+
+                final boolean aggregatable = randomBoolean();
+                if (aggregatable == false) {
+                    nonAggregatableIndices.addAll(Arrays.asList(groupIndices));
+                }
+
+                final boolean isInference = randomBoolean();
+                if (isInference == false) {
+                    nonInferenceIndices.addAll(Arrays.asList(groupIndices));
+                }
+
+                final boolean isDimension = randomBoolean();
+                if (isDimension == false) {
+                    nonDimensionIndices.addAll(Arrays.asList(groupIndices));
+                }
+
+                builder.add(groupIndices, false, searchable, aggregatable, isInference, isDimension, null, Map.of());
+                i += bulkSize;
             }
-            final boolean aggregatable = randomBoolean();
-            if (aggregatable == false) {
-                nonAggregatableIndices.addAll(Arrays.asList(groupIndices));
+
+            boolean withIndices = randomBoolean();
+            FieldCapabilities fieldCaps = builder.build(withIndices);
+            if (withIndices) {
+                assertThat(fieldCaps.indices(), equalTo(indices));
             }
-            final boolean isDimension = randomBoolean();
-            if (isDimension == false) {
-                nonDimensionIndices.addAll(Arrays.asList(groupIndices));
-            }
-            builder.add(groupIndices, false, searchable, aggregatable, isDimension, null, Map.of());
-            i += bulkSize;
-        }
-        boolean withIndices = randomBoolean();
-        FieldCapabilities fieldCaps = builder.build(withIndices);
-        if (withIndices) {
-            assertThat(fieldCaps.indices(), equalTo(indices));
-        }
-        // search
-        if (nonSearchableIndices.isEmpty()) {
-            assertTrue(fieldCaps.isSearchable());
-            assertNull(fieldCaps.nonSearchableIndices());
-        } else {
-            assertFalse(fieldCaps.isSearchable());
-            if (nonSearchableIndices.size() == indices.length) {
-                assertThat(fieldCaps.nonSearchableIndices(), equalTo(null));
+
+            // search
+            if (nonSearchableIndices.isEmpty()) {
+                assertTrue(fieldCaps.isSearchable());
+                assertNull(fieldCaps.nonSearchableIndices());
             } else {
-                assertThat(fieldCaps.nonSearchableIndices(), equalTo(nonSearchableIndices.toArray(String[]::new)));
+                assertFalse(fieldCaps.isSearchable());
+                if (nonSearchableIndices.size() == indices.length) {
+                    assertThat(fieldCaps.nonSearchableIndices(), equalTo(null));
+                } else {
+                    assertThat(fieldCaps.nonSearchableIndices(), equalTo(nonSearchableIndices.toArray(String[]::new)));
+                }
             }
-        }
-        // aggregate
-        if (nonAggregatableIndices.isEmpty()) {
-            assertTrue(fieldCaps.isAggregatable());
-            assertNull(fieldCaps.nonAggregatableIndices());
-        } else {
-            assertFalse(fieldCaps.isAggregatable());
-            if (nonAggregatableIndices.size() == indices.length) {
-                assertThat(fieldCaps.nonAggregatableIndices(), equalTo(null));
+
+            // aggregate
+            if (nonAggregatableIndices.isEmpty()) {
+                assertTrue(fieldCaps.isAggregatable());
+                assertNull(fieldCaps.nonAggregatableIndices());
             } else {
-                assertThat(fieldCaps.nonAggregatableIndices(), equalTo(nonAggregatableIndices.toArray(String[]::new)));
+                assertFalse(fieldCaps.isAggregatable());
+                if (nonAggregatableIndices.size() == indices.length) {
+                    assertThat(fieldCaps.nonAggregatableIndices(), equalTo(null));
+                } else {
+                    assertThat(fieldCaps.nonAggregatableIndices(), equalTo(nonAggregatableIndices.toArray(String[]::new)));
+                }
             }
-        }
-        // dimension
-        if (nonDimensionIndices.isEmpty()) {
-            assertTrue(fieldCaps.isDimension());
-            assertNull(fieldCaps.nonDimensionIndices());
-        } else {
-            assertFalse(fieldCaps.isDimension());
-            if (nonDimensionIndices.size() == indices.length) {
-                assertThat(fieldCaps.nonDimensionIndices(), equalTo(null));
+
+            // inference
+            if (nonInferenceIndices.isEmpty()) {
+                assertTrue(fieldCaps.isInference());
+                assertNull(fieldCaps.nonInferenceIndices());
             } else {
-                assertThat(fieldCaps.nonDimensionIndices(), equalTo(nonDimensionIndices.toArray(String[]::new)));
+                assertFalse(fieldCaps.isInference());
+                if (nonInferenceIndices.size() == indices.length) {
+                    assertThat(fieldCaps.nonInferenceIndices(), equalTo(null));
+                } else {
+                    assertThat(fieldCaps.nonInferenceIndices(), equalTo(nonInferenceIndices.toArray(String[]::new)));
+                }
+            }
+
+            // dimension
+            if (nonDimensionIndices.isEmpty()) {
+                assertTrue(fieldCaps.isDimension());
+                assertNull(fieldCaps.nonDimensionIndices());
+            } else {
+                assertFalse(fieldCaps.isDimension());
+                if (nonDimensionIndices.size() == indices.length) {
+                    assertThat(fieldCaps.nonDimensionIndices(), equalTo(null));
+                } else {
+                    assertThat(fieldCaps.nonDimensionIndices(), equalTo(nonDimensionIndices.toArray(String[]::new)));
+                }
             }
         }
     }
@@ -241,7 +302,16 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         TimeSeriesParams.MetricType metric = randomBoolean() ? null : randomFrom(TimeSeriesParams.MetricType.values());
         FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
         for (String index : indices) {
-            builder.add(new String[] { index }, randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), metric, Map.of());
+            builder.add(
+                new String[] { index },
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                metric,
+                Map.of()
+            );
         }
         FieldCapabilities fieldCaps = builder.build(randomBoolean());
         assertThat(fieldCaps.getMetricType(), equalTo(metric));
@@ -260,6 +330,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         for (String index : indices) {
             builder.add(
                 new String[] { index },
+                randomBoolean(),
                 randomBoolean(),
                 randomBoolean(),
                 randomBoolean(),
@@ -291,6 +362,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
                 randomBoolean(),
                 randomBoolean(),
                 randomBoolean(),
+                randomBoolean(),
                 randomFrom(TimeSeriesParams.MetricType.values()),
                 Map.of()
             );
@@ -303,11 +375,32 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
                 randomBoolean(),
                 randomBoolean(),
                 randomBoolean(),
+                randomBoolean(),
                 randomFrom(TimeSeriesParams.MetricType.values()),
                 Map.of()
             );
         });
         assertThat(error.getMessage(), containsString("indices aren't sorted"));
+    }
+
+    public void testBuilderWithPreInferenceFieldTransportVersionOmitsInference() throws IOException {
+        // Build a field where some indices are inference fields and some are not. On a current cluster
+        // this produces isInference=false with a nonInferenceIndices array. When the cluster's min
+        // transport version is too old to report inference status, both fields must be null / absent.
+        FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
+        builder.setMinTransportVersion(
+            randomBoolean() ? TransportVersionUtils.randomVersionNotSupporting(FieldCapabilities.FIELD_CAPS_INFERENCE_FIELD) : null
+        );
+        builder.add(new String[] { "index1" }, false, true, false, true, false, null, Collections.emptyMap());
+        builder.add(new String[] { "index2" }, false, true, false, false, false, null, Collections.emptyMap());
+
+        FieldCapabilities cap = builder.build(randomBoolean());
+        assertNull(cap.isInference());
+        assertNull(cap.nonInferenceIndices());
+
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder();
+        cap.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+        assertThat(xContentBuilder.toString(), not(containsString("inference")));
     }
 
     static FieldCapabilities randomFieldCaps(String fieldName) {
@@ -330,6 +423,14 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
             nonAggregatableIndices = new String[randomIntBetween(0, 5)];
             for (int i = 0; i < nonAggregatableIndices.length; i++) {
                 nonAggregatableIndices[i] = randomAlphaOfLengthBetween(5, 20);
+            }
+        }
+
+        String[] nonInferenceIndices = null;
+        if (randomBoolean()) {
+            nonInferenceIndices = new String[randomIntBetween(0, 5)];
+            for (int i = 0; i < nonInferenceIndices.length; i++) {
+                nonInferenceIndices[i] = randomAlphaOfLengthBetween(5, 20);
             }
         }
 
@@ -362,10 +463,12 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
+            randomBoolean(),
             randomFrom(TimeSeriesParams.MetricType.values()),
             indices,
             nonSearchableIndices,
             nonAggregatableIndices,
+            nonInferenceIndices,
             nonDimensionIndices,
             metricConflictsIndices,
             meta
@@ -379,15 +482,17 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         boolean isMetadataField = instance.isMetadataField();
         boolean isSearchable = instance.isSearchable();
         boolean isAggregatable = instance.isAggregatable();
+        boolean isInference = instance.isInference();
         boolean isDimension = instance.isDimension();
         TimeSeriesParams.MetricType metricType = instance.getMetricType();
         String[] indices = instance.indices();
         String[] nonSearchableIndices = instance.nonSearchableIndices();
         String[] nonAggregatableIndices = instance.nonAggregatableIndices();
+        String[] nonInferenceIndices = instance.nonInferenceIndices();
         String[] nonDimensionIndices = instance.nonDimensionIndices();
         String[] metricConflictsIndices = instance.metricConflictsIndices();
         Map<String, Set<String>> meta = instance.meta();
-        switch (between(0, 12)) {
+        switch (between(0, 14)) {
             case 0:
                 name += randomAlphaOfLengthBetween(1, 10);
                 break;
@@ -401,6 +506,9 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
                 isAggregatable = isAggregatable == false;
                 break;
             case 4:
+                isInference = isInference == false;
+                break;
+            case 5:
                 String[] newIndices;
                 int startIndicesPos = 0;
                 if (indices == null) {
@@ -414,7 +522,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
                 }
                 indices = newIndices;
                 break;
-            case 5:
+            case 6:
                 String[] newNonSearchableIndices;
                 int startNonSearchablePos = 0;
                 if (nonSearchableIndices == null) {
@@ -428,7 +536,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
                 }
                 nonSearchableIndices = newNonSearchableIndices;
                 break;
-            case 6:
+            case 7:
                 String[] newNonAggregatableIndices;
                 int startNonAggregatablePos = 0;
                 if (nonAggregatableIndices == null) {
@@ -442,7 +550,21 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
                 }
                 nonAggregatableIndices = newNonAggregatableIndices;
                 break;
-            case 7:
+            case 8:
+                String[] newNonInferenceIndices;
+                int startNonInferencePos = 0;
+                if (nonInferenceIndices == null) {
+                    newNonInferenceIndices = new String[between(1, 10)];
+                } else {
+                    newNonInferenceIndices = Arrays.copyOf(nonInferenceIndices, nonInferenceIndices.length + between(1, 10));
+                    startNonInferencePos = nonInferenceIndices.length;
+                }
+                for (int i = startNonInferencePos; i < newNonInferenceIndices.length; i++) {
+                    newNonInferenceIndices[i] = randomAlphaOfLengthBetween(5, 20);
+                }
+                nonInferenceIndices = newNonInferenceIndices;
+                break;
+            case 9:
                 Map<String, Set<String>> newMeta;
                 if (meta.isEmpty()) {
                     newMeta = Map.of("foo", Set.of("bar"));
@@ -451,13 +573,13 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
                 }
                 meta = newMeta;
                 break;
-            case 8:
+            case 10:
                 isMetadataField = isMetadataField == false;
                 break;
-            case 9:
+            case 11:
                 isDimension = isDimension == false;
                 break;
-            case 10:
+            case 12:
                 if (metricType == null) {
                     metricType = randomFrom(TimeSeriesParams.MetricType.values());
                 } else {
@@ -468,7 +590,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
                     }
                 }
                 break;
-            case 11:
+            case 13:
                 String[] newTimeSeriesDimensionsConflictsIndices;
                 int startTimeSeriesDimensionsConflictsPos = 0;
                 if (nonDimensionIndices == null) {
@@ -485,7 +607,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
                 }
                 nonDimensionIndices = newTimeSeriesDimensionsConflictsIndices;
                 break;
-            case 12:
+            case 14:
                 String[] newMetricConflictsIndices;
                 int startMetricConflictsPos = 0;
                 if (metricConflictsIndices == null) {
@@ -508,11 +630,13 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
             isMetadataField,
             isSearchable,
             isAggregatable,
+            isInference,
             isDimension,
             metricType,
             indices,
             nonSearchableIndices,
             nonAggregatableIndices,
+            nonInferenceIndices,
             nonDimensionIndices,
             metricConflictsIndices,
             meta

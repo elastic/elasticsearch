@@ -34,13 +34,13 @@ public final class StdDevFloatAggregatorFunctionSupplier implements AggregatorFu
   @Override
   public StdDevFloatAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return StdDevFloatAggregatorFunction.create(driverContext, channels, stdDev);
+    return new StdDevFloatAggregatorFunction(driverContext, channels, stdDev);
   }
 
   @Override
   public StdDevFloatGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return StdDevFloatGroupingAggregatorFunction.create(channels, driverContext, stdDev);
+    return new StdDevFloatGroupingAggregatorFunction(channels, driverContext, stdDev);
   }
 
   @Override

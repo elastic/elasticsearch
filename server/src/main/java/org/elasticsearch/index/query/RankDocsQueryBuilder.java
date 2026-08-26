@@ -24,7 +24,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
-public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuilder> {
+public class RankDocsQueryBuilder extends LeafQueryBuilder<RankDocsQueryBuilder> {
 
     public static final String NAME = "rank_docs_query";
 

@@ -12,9 +12,9 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.List;
@@ -46,7 +46,7 @@ public class DocCountFieldMapperTests extends MetadataMapperTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.field("foo", 500).field(CONTENT_TYPE, 100)));
 
         IndexableField field = doc.rootDoc().getField(DOC_COUNT_FIELD);
-        assertEquals(DOC_COUNT_FIELD, field.stringValue());
+        assertEquals(100, field.numericValue().intValue());
         assertEquals(1, doc.rootDoc().getFields(DOC_COUNT_FIELD).size());
     }
 
@@ -98,11 +98,10 @@ public class DocCountFieldMapperTests extends MetadataMapperTestCase {
                 iw.addDocument(mapper.documentMapper().parse(source(b -> b.field("doc", doc).field(CONTENT_TYPE, c))).rootDoc());
             }
         }, reader -> {
-            SourceLoader loader = mapper.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
-            assertThat(loader.requiredStoredFields(), Matchers.contains("_ignored_source"));
+            SourceLoader loader = mapper.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
             for (LeafReaderContext leaf : reader.leaves()) {
                 int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
-                SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf.reader(), docIds);
+                SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf, docIds);
                 LeafStoredFieldLoader storedFieldLoader = StoredFieldLoader.empty().getLoader(leaf, docIds);
                 for (int docId : docIds) {
                     String source = sourceLoaderLeaf.source(storedFieldLoader, docId).internalSourceRef().utf8ToString();
@@ -130,11 +129,10 @@ public class DocCountFieldMapperTests extends MetadataMapperTestCase {
                 })).rootDoc());
             }
         }, reader -> {
-            SourceLoader loader = mapper.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
-            assertThat(loader.requiredStoredFields(), Matchers.contains("_ignored_source"));
+            SourceLoader loader = mapper.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
             for (LeafReaderContext leaf : reader.leaves()) {
                 int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
-                SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf.reader(), docIds);
+                SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf, docIds);
                 LeafStoredFieldLoader storedFieldLoader = StoredFieldLoader.empty().getLoader(leaf, docIds);
                 for (int docId : docIds) {
                     String source = sourceLoaderLeaf.source(storedFieldLoader, docId).internalSourceRef().utf8ToString();
@@ -144,5 +142,40 @@ public class DocCountFieldMapperTests extends MetadataMapperTestCase {
                 }
             }
         });
+    }
+
+    public void testSyntheticSourceFilterAppliesToDocCount() throws IOException {
+        MapperService mapper = createSytheticSourceMapperService(mapping(b -> b.startObject("count").field("type", "integer").endObject()));
+        int count = between(1, 1000);
+        SourceFilter filter = new SourceFilter(new String[] { "count" }, null);
+        SourceFilter filterWithDocCount = new SourceFilter(new String[] { "count", "_doc_count" }, null);
+        withLuceneIndex(
+            mapper,
+            iw -> iw.addDocument(mapper.documentMapper().parse(source(b -> b.field("count", 42).field(CONTENT_TYPE, count))).rootDoc()),
+            reader -> {
+                SourceLoader withoutFilter = mapper.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
+                SourceLoader withFilter = mapper.mappingLookup().newSourceLoader(filter, SourceFieldMetrics.NOOP, null);
+                SourceLoader withFilterAndDocCount = mapper.mappingLookup()
+                    .newSourceLoader(filterWithDocCount, SourceFieldMetrics.NOOP, null);
+                for (LeafReaderContext leaf : reader.leaves()) {
+                    int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
+
+                    LeafStoredFieldLoader sf1 = StoredFieldLoader.empty().getLoader(leaf, docIds);
+                    String unfilteredSource = withoutFilter.leaf(leaf, docIds).source(sf1, 0).internalSourceRef().utf8ToString();
+                    assertThat(unfilteredSource, equalTo("{\"_doc_count\":" + count + ",\"count\":42}"));
+
+                    LeafStoredFieldLoader sf2 = StoredFieldLoader.empty().getLoader(leaf, docIds);
+                    String filteredSource = withFilter.leaf(leaf, docIds).source(sf2, 0).internalSourceRef().utf8ToString();
+                    assertThat(filteredSource, equalTo("{\"count\":42}"));
+
+                    LeafStoredFieldLoader sf3 = StoredFieldLoader.empty().getLoader(leaf, docIds);
+                    String filteredSourceWithDocCount = withFilterAndDocCount.leaf(leaf, docIds)
+                        .source(sf3, 0)
+                        .internalSourceRef()
+                        .utf8ToString();
+                    assertThat(filteredSourceWithDocCount, equalTo("{\"_doc_count\":" + count + ",\"count\":42}"));
+                }
+            }
+        );
     }
 }

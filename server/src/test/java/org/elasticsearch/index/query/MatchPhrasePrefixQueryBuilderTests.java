@@ -119,17 +119,17 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
     public void testPhraseOnFieldWithNoTerms() {
         MatchPhrasePrefixQueryBuilder matchQuery = new MatchPhrasePrefixQueryBuilder(DATE_FIELD_NAME, "three term phrase");
         matchQuery.analyzer("whitespace");
-        expectThrows(IllegalArgumentException.class, () -> matchQuery.doToQuery(createSearchExecutionContext()));
+        expectThrows(IllegalArgumentException.class, () -> matchQuery.toQuery(createSearchExecutionContext()));
     }
 
     public void testPhrasePrefixZeroTermsQuery() throws IOException {
         MatchPhrasePrefixQueryBuilder matchQuery = new MatchPhrasePrefixQueryBuilder(TEXT_FIELD_NAME, "");
         matchQuery.zeroTermsQuery(ZeroTermsQueryOption.NONE);
-        assertEquals(Queries.NO_DOCS_INSTANCE, matchQuery.doToQuery(createSearchExecutionContext()));
+        assertEquals(Queries.NO_DOCS_INSTANCE, matchQuery.toQuery(createSearchExecutionContext()));
 
         matchQuery = new MatchPhrasePrefixQueryBuilder(TEXT_FIELD_NAME, "");
         matchQuery.zeroTermsQuery(ZeroTermsQueryOption.ALL);
-        assertEquals(Queries.ALL_DOCS_INSTANCE, matchQuery.doToQuery(createSearchExecutionContext()));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, matchQuery.toQuery(createSearchExecutionContext()));
     }
 
     public void testPhrasePrefixMatchQuery() throws IOException {

@@ -10,13 +10,13 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvSum}.
+ * {@link ExpressionEvaluator} implementation for {@link MvSum}.
  * This class is generated. Edit {@code MvEvaluatorImplementer} instead.
  */
 public final class MvSumIntEvaluator extends AbstractMultivalueFunction.AbstractNullableEvaluator {
@@ -26,8 +26,7 @@ public final class MvSumIntEvaluator extends AbstractMultivalueFunction.Abstract
 
   private Warnings warnings;
 
-  public MvSumIntEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
-      DriverContext driverContext) {
+  public MvSumIntEvaluator(Source source, ExpressionEvaluator field, DriverContext driverContext) {
     super(driverContext, field);
     this.source = source;
   }
@@ -46,11 +45,11 @@ public final class MvSumIntEvaluator extends AbstractMultivalueFunction.Abstract
     int positionCount = v.getPositionCount();
     try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         try {
           int first = v.getFirstValueIndex(p);
           int end = first + valueCount;
@@ -72,12 +71,7 @@ public final class MvSumIntEvaluator extends AbstractMultivalueFunction.Abstract
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }
@@ -87,12 +81,12 @@ public final class MvSumIntEvaluator extends AbstractMultivalueFunction.Abstract
     return BASE_RAM_BYTES_USED + field.baseRamBytesUsed();
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final ExpressionEvaluator.Factory field;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field) {
+    public Factory(Source source, ExpressionEvaluator.Factory field) {
       this.source = source;
       this.field = field;
     }

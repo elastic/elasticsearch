@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyCredentials;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignatureManager;
@@ -90,7 +91,7 @@ public class CrossClusterAccessHeadersTests extends ESTestCase {
             AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(randomRoleDescriptorsIntersection())
         );
 
-        final ApiKeyService.ApiKeyCredentials actual = headers.credentials();
+        final ApiKeyCredentials actual = headers.credentials();
 
         assertThat(actual.getId(), equalTo(id));
         assertThat(actual.getKey().toString(), equalTo(key));

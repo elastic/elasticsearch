@@ -23,7 +23,7 @@ To remove these duplicate tokens, add the [`remove_duplicates`](/reference/text-
 ::::
 
 
-The `keyword_repeat` filter uses Lucene’s [KeywordRepeatFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/KeywordRepeatFilter.md).
+The `keyword_repeat` filter uses Lucene’s [KeywordRepeatFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/KeywordRepeatFilter.html).
 
 ## Example [analysis-keyword-repeat-tokenfilter-analyze-ex]
 

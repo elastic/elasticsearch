@@ -44,6 +44,7 @@ GET /_search
         {
           "filter": { "match": { "test": "bar" } },
           "random_score": {}, <2>
+          "_name": "bar_function", <3>
           "weight": 23
         },
         {
@@ -63,6 +64,7 @@ GET /_search
 
 1. Boost for the whole query.
 2. See [Function score](#score-functions) for a list of supported functions.
+3. Name for the function's filter query {applies_to}`stack: ga 9.4` {applies_to}`serverless: all`. Will appear in `matched_queries` if the function matched and show the score if the flag `include_named_queries_score` is provided in the search request.
 
 
 ::::{note}
@@ -274,7 +276,7 @@ There are a number of options for the `field_value_factor` function:
 
 | Modifier | Meaning |
 | --- | --- |
-| `none` | Do not apply any multiplier to the field value |
+| `none` | Do not apply any modifier to the field value |
 | `log` | Take the [common logarithm](https://en.wikipedia.org/wiki/Common_logarithm) of the field value.          Because this function will return a negative value and cause an error if used on values          between 0 and 1, it is recommended to use `log1p` instead. |
 | `log1p` | Add 1 to the field value and take the common logarithm |
 | `log2p` | Add 2 to the field value and take the common logarithm |

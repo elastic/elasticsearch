@@ -11,27 +11,37 @@ package org.elasticsearch.node;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.node.internal.TerminationHandler;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.core.Strings.format;
 
 /**
  * This class was created to extract out the logic from {@link Node#prepareForClose()} to facilitate testing.
@@ -43,6 +53,8 @@ import static org.elasticsearch.core.Strings.format;
  * logic should use Node Shutdown, see {@link org.elasticsearch.cluster.metadata.NodesShutdownMetadata}.
  */
 public class ShutdownPrepareService {
+
+    public static final String CANNOT_RELOCATE_REINDEX_CANCEL_REASON = "node shutting down";
 
     private record ShutdownHook(String name, Runnable action) {}
 
@@ -58,8 +70,17 @@ public class ShutdownPrepareService {
         Setting.Property.NodeScope
     );
 
-    private final Logger logger = LogManager.getLogger(ShutdownPrepareService.class);
+    /**
+     * How long we'll wait for the non-relocatable reindexing tasks to cancel before
+     * we proceed with shutdown. This should not be very long because we've already timed out
+     * waiting for the tasks to relocate.
+     */
+    private static final TimeValue REINDEXING_CANCELLATION_TIMEOUT = TimeValue.timeValueSeconds(10);
+
+    private static final Logger logger = LogManager.getLogger(ShutdownPrepareService.class);
+
     private final TimeValue maxTimeout;
+    private final TerminationHandler terminationHandler;
     private final List<ShutdownHook> hooks = new ArrayList<>();
     private volatile boolean isShuttingDown = false;
 
@@ -67,15 +88,16 @@ public class ShutdownPrepareService {
     public ShutdownPrepareService(
         Settings settings,
         HttpServerTransport httpServerTransport,
-        TaskManager taskManager,
+        TransportService transportService,
         TerminationHandler terminationHandler
     ) {
         this.maxTimeout = MAXIMUM_SHUTDOWN_TIMEOUT_SETTING.get(settings);
+        this.terminationHandler = terminationHandler;
 
         final var reindexTimeout = MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(settings);
         addShutdownHook("http-server-transport-stop", httpServerTransport::close);
-        addShutdownHook("async-search-stop", () -> awaitSearchTasksComplete(maxTimeout, taskManager));
-        addShutdownHook("reindex-stop", () -> awaitReindexTasksComplete(reindexTimeout, taskManager));
+        addShutdownHook("async-search-stop", () -> awaitSearchTasksComplete(maxTimeout, transportService.getTaskManager()));
+        addShutdownHook("reindex-stop", () -> relocateReindexTasksAndAwaitComplete(reindexTimeout, transportService.getTaskManager()));
         if (terminationHandler != null) {
             addShutdownHook("termination-handler-stop", terminationHandler::handleTermination);
         }
@@ -100,6 +122,15 @@ public class ShutdownPrepareService {
     public void prepareForShutdown() {
         assert isShuttingDown == false;
         isShuttingDown = true;
+
+        // first make sure the node can safely be shutdown
+        if (terminationHandler != null) {
+            try {
+                terminationHandler.blockTermination();
+            } catch (RuntimeException e) {
+                logger.warn("termination handler failed; proceeding with shutdown", e);
+            }
+        }
 
         record Stopper(String name, SubscribableListener<Void> listener) {
             boolean isIncomplete() {
@@ -148,49 +179,181 @@ public class ShutdownPrepareService {
         }
     }
 
-    private void awaitTasksComplete(TimeValue timeout, String taskName, TaskManager taskManager) {
+    /// The polling interval used by [#awaitTasksCompleteInternal]. Chosen to allow short response times, but (since checking the tasks list
+    /// is relatively expensive) not so short that we waste CPU time we could be spending on finishing those tasks.
+    static final TimeValue AWAIT_TASKS_POLL_INTERVAL = TimeValue.timeValueMillis(500);
+
+    // exists and package-private for testing
+    protected static class Sleeper {
+
+        void sleep(TimeValue interval) throws InterruptedException {
+            Thread.sleep(interval.millis());
+        }
+    }
+
+    protected boolean awaitTasksComplete(
+        TimeValue timeout,
+        Sleeper sleeper,
+        String taskName,
+        TaskManager taskManager,
+        @Nullable Consumer<Task> taskNotifier,
+        @Nullable Consumer<List<Task>> onTimeout
+    ) {
+        return awaitTasksCompleteInternal(timeout, sleeper, taskName, taskManager, taskNotifier, onTimeout);
+    }
+
+    /// Repeatedly polls the `taskManager` to list tasks whose action name is `taskName`, invoking `sleeper` to sleep for
+    /// [#AWAIT_TASKS_POLL_INTERVAL] between each poll, until either no matching tasks are returned or the total time waited reaches
+    /// `timeout`. Invokes `taskNotifier` exactly once for each matching task encountered. Returns true if it found no matching tasks, false
+    /// if it timed out or was interrupted.
+    // package-private for testing
+    static boolean awaitTasksCompleteInternal(
+        TimeValue timeout,
+        Sleeper sleeper,
+        String taskName,
+        TaskManager taskManager,
+        @Nullable Consumer<Task> taskNotifier,
+        @Nullable Consumer<List<Task>> onTimeout
+    ) {
         long millisWaited = 0;
+        Set<Long> tasksNotified = new HashSet<>();
         while (true) {
-            long tasksRemaining = taskManager.getTasks().values().stream().filter(task -> taskName.equals(task.getAction())).count();
-            if (tasksRemaining == 0) {
-                logger.debug("all " + taskName + " tasks complete");
-                return;
+            List<Task> tasksRemaining = taskManager.getTasks().values().stream().filter(task -> taskName.equals(task.getAction())).toList();
+            if (tasksRemaining.isEmpty()) {
+                logger.debug("all {} tasks complete", taskName);
+                return true;
             } else {
-                // Let the system work on those tasks for a while. We're on a dedicated thread to manage app shutdown, so we
-                // literally just want to wait and not take up resources on this thread for now. Poll period chosen to allow short
-                // response times, but checking the tasks list is relatively expensive, and we don't want to waste CPU time we could
-                // be spending on finishing those tasks.
-                final TimeValue pollPeriod = TimeValue.timeValueMillis(500);
-                millisWaited += pollPeriod.millis();
-                if (TimeValue.ZERO.equals(timeout) == false && millisWaited >= timeout.millis()) {
-                    logger.warn(
-                        format("timed out after waiting [%s] for [%d] " + taskName + " tasks to finish", timeout.toString(), tasksRemaining)
-                    );
-                    return;
+                // Notify all remaining tasks that a shutdown is happening, if a notifier is provided and if we have not already done so.
+                if (taskNotifier != null) {
+                    for (Task task : tasksRemaining) {
+                        if (tasksNotified.add(task.getId())) {
+                            taskNotifier.accept(task);
+                        }
+                    }
                 }
-                logger.debug(format("waiting for [%s] " + taskName + " tasks to finish, next poll in [%s]", tasksRemaining, pollPeriod));
+                // Let the system work on those tasks for a while. We're on a dedicated thread to manage app shutdown, so we
+                // literally just want to wait and not take up resources on this thread for now.
+                millisWaited += AWAIT_TASKS_POLL_INTERVAL.millis();
+                if (TimeValue.ZERO.equals(timeout) == false && millisWaited >= timeout.millis()) {
+                    logger.warn("timed out after waiting [{}] for [{}] {} tasks to finish", timeout, tasksRemaining.size(), taskName);
+                    if (onTimeout != null) {
+                        onTimeout.accept(tasksRemaining);
+                    }
+                    return false;
+                }
+                logger.debug(
+                    "waiting for [{}] {} tasks to finish, next poll in [{}]",
+                    tasksRemaining.size(),
+                    taskName,
+                    AWAIT_TASKS_POLL_INTERVAL
+                );
                 try {
-                    Thread.sleep(pollPeriod.millis());
+                    sleeper.sleep(AWAIT_TASKS_POLL_INTERVAL);
                 } catch (InterruptedException ex) {
-                    logger.warn(
-                        format(
-                            "interrupted while waiting [%s] for [%d] " + taskName + " tasks to finish",
-                            timeout.toString(),
-                            tasksRemaining
-                        )
-                    );
-                    return;
+                    Thread.currentThread().interrupt();
+                    logger.warn("interrupted while waiting [{}] for [{}] {} tasks to finish", timeout, tasksRemaining.size(), taskName);
+                    return false;
                 }
             }
         }
     }
 
     private void awaitSearchTasksComplete(TimeValue asyncSearchTimeout, TaskManager taskManager) {
-        awaitTasksComplete(asyncSearchTimeout, TransportSearchAction.NAME, taskManager);
+        awaitTasksComplete(asyncSearchTimeout, new Sleeper(), TransportSearchAction.NAME, taskManager, null, null);
     }
 
-    private void awaitReindexTasksComplete(TimeValue asyncReindexTimeout, TaskManager taskManager) {
-        awaitTasksComplete(asyncReindexTimeout, ReindexAction.NAME, taskManager);
+    private void relocateReindexTasksAndAwaitComplete(TimeValue asyncReindexTimeout, TaskManager taskManager) {
+        final var sleeper = new Sleeper();
+        awaitTasksComplete(
+            asyncReindexTimeout,
+            sleeper,
+            ReindexAction.NAME,
+            taskManager,
+            task -> maybeRequestRelocationForBulkByPaginatedSearch(task, taskManager),
+            tasks -> {
+                // Cancel any reindex tasks that could not be relocated, then wait a short time
+                // for them to exit the task manager before proceeding with shutdown.
+                tasks.forEach(t -> {
+                    if (t instanceof CancellableTask cancellable) {
+                        try {
+                            // We know that BulkByPaginatedSearchTask implements ensureCancellable, so call it
+                            // first to avoid cancelling actively relocating tasks
+                            // TaskManager should probably do this (see https://github.com/elastic/elasticsearch/issues/155444)
+                            cancellable.ensureCancellable();
+                            taskManager.cancelTaskAndDescendants(
+                                cancellable,
+                                CANNOT_RELOCATE_REINDEX_CANCEL_REASON,
+                                false,
+                                ActionListener.noop()
+                            );
+                        } catch (ElasticsearchStatusException e) {
+                            if (logger.isDebugEnabled()) {
+                                logger.debug(() -> Strings.format("Unable to cancel reindex task %s", t), e);
+                            }
+                        }
+                    } else {
+                        assert false : "Expected reindex tasks to be cancellable";
+                    }
+                });
+                awaitTasksComplete(REINDEXING_CANCELLATION_TIMEOUT, sleeper, ReindexAction.NAME, taskManager, null, null);
+            }
+        );
     }
 
+    // package-private for tests
+    static void maybeRequestRelocationForBulkByPaginatedSearch(Task task, TaskManager taskManager) {
+        if (task instanceof BulkByPaginatedSearchTask bulkByPaginatedSearchTask) {
+            TaskId parentTaskId = task.getParentTaskId();
+            boolean hasLocalParent = parentTaskId.isSet() && parentTaskId.getNodeId().equals(bulkByPaginatedSearchTask.getNodeId());
+            Task localParent = hasLocalParent ? taskManager.getTask(parentTaskId.getId()) : null;
+            boolean isChildTaskOfSameType = localParent != null && localParent.getAction().equals(task.getAction());
+            if (bulkByPaginatedSearchTask.isEligibleForRelocationOnShutdown()) {
+                assert !bulkByPaginatedSearchTask.isRelocationRequested() : "Requested relocation multiple times for task " + task.getId();
+                if (!isChildTaskOfSameType) {
+                    logger.info("Requesting relocation for bulk-by-paginated-search task {}", bulkByPaginatedSearchTask.getId());
+                } else {
+                    logger.debug(
+                        "Requesting relocation for child bulk-by-paginated-search task {} (parent: {})",
+                        bulkByPaginatedSearchTask.getId(),
+                        bulkByPaginatedSearchTask.getParentTaskId()
+                    );
+                }
+                bulkByPaginatedSearchTask.requestRelocation();
+            } else {
+                if (!isChildTaskOfSameType) {
+                    if (localParent != null) {
+                        logger.info(
+                            "Not requesting relocation for bulk-by-paginated-search task {} as not eligible (parent action: {})",
+                            bulkByPaginatedSearchTask.getId(),
+                            localParent.getAction()
+                        );
+                    } else if (hasLocalParent) {
+                        logger.info(
+                            "Not requesting relocation for bulk-by-paginated-search task {} as not eligible "
+                                + "(parent task is local but not found)",
+                            bulkByPaginatedSearchTask.getId()
+                        );
+                    } else if (parentTaskId.isSet()) {
+                        logger.info(
+                            "Not requesting relocation for bulk-by-paginated-search task {} as not eligible (parent task is not local)",
+                            bulkByPaginatedSearchTask.getId()
+                        );
+                    } else {
+                        logger.info(
+                            "Not requesting relocation for bulk-by-paginated-search task {} as not eligible (no parent task)",
+                            bulkByPaginatedSearchTask.getId()
+                        );
+                    }
+                } else {
+                    logger.debug(
+                        "Not requesting relocation for child bulk-by-paginated-search task {} as not eligible (parent: {})",
+                        bulkByPaginatedSearchTask.getId(),
+                        bulkByPaginatedSearchTask.getParentTaskId()
+                    );
+                }
+            }
+        } else {
+            logger.warn("Requested relocation task for non-bulk-by-paginated-search task {}", task);
+        }
+    }
 }

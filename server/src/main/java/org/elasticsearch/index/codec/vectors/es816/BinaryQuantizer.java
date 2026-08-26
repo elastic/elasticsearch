@@ -21,7 +21,6 @@ package org.elasticsearch.index.codec.vectors.es816;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
@@ -123,7 +122,7 @@ public class BinaryQuantizer {
         float[] paddedCentroid = BQVectorUtils.pad(centroid, discretizedDimensions);
         float[] paddedVector = BQVectorUtils.pad(vector, discretizedDimensions);
 
-        float oDotC = VectorUtil.dotProduct(paddedVector, paddedCentroid);
+        float oDotC = ESVectorUtil.dotProduct(paddedVector, paddedCentroid);
         BQVectorUtils.subtractInPlace(paddedVector, paddedCentroid);
 
         float normOC = BQVectorUtils.norm(paddedVector);
@@ -203,9 +202,9 @@ public class BinaryQuantizer {
             );
         }
         vector = ArrayUtil.copyArray(vector);
-        float distToC = VectorUtil.squareDistance(vector, centroid);
+        float distToC = ESVectorUtil.squareDistance(vector, centroid);
         // only need vdotc for dot-products similarity, but not for euclidean
-        float vDotC = similarityFunction != EUCLIDEAN ? VectorUtil.dotProduct(vector, centroid) : 0f;
+        float vDotC = similarityFunction != EUCLIDEAN ? ESVectorUtil.dotProduct(vector, centroid) : 0f;
         BQVectorUtils.subtractInPlace(vector, centroid);
         // both euclidean and dot-product need the norm of the vector, just at different times
         float normVmC = BQVectorUtils.norm(vector);
@@ -227,7 +226,7 @@ public class BinaryQuantizer {
 
         // q¯ = Δ · q¯𝑢 + 𝑣𝑙 · 1𝐷
         // q¯ is an approximation of q′ (scalar quantized approximation)
-        ESVectorUtil.transposeHalfByte(byteQuery, queryDestination);
+        ESVectorUtil.stride4BitValues(byteQuery, queryDestination);
         QueryFactors factors = new QueryFactors(quantResult.quantizedSum, distToC, lower, width, normVmC, vDotC);
         final float[] indexCorrections;
         if (similarityFunction == EUCLIDEAN) {
@@ -276,7 +275,7 @@ public class BinaryQuantizer {
 
         switch (similarityFunction) {
             case EUCLIDEAN:
-                float distToCentroid = (float) Math.sqrt(VectorUtil.squareDistance(vector, centroid));
+                float distToCentroid = (float) Math.sqrt(ESVectorUtil.squareDistance(vector, centroid));
 
                 SubspaceOutput subspaceOutput = generateSubSpace(vector, centroid, destination);
                 corrections = new float[2];
@@ -345,7 +344,7 @@ public class BinaryQuantizer {
             );
         }
 
-        float distToC = VectorUtil.squareDistance(vector, centroid);
+        float distToC = ESVectorUtil.squareDistance(vector, centroid);
 
         // FIXME: make a copy of vector so we don't overwrite it here?
         // ... (could subtractInPlace but the passed vector is modified) <<---
@@ -368,11 +367,11 @@ public class BinaryQuantizer {
 
         // q¯ = Δ · q¯𝑢 + 𝑣𝑙 · 1𝐷
         // q¯ is an approximation of q′ (scalar quantized approximation)
-        ESVectorUtil.transposeHalfByte(byteQuery, destination);
+        ESVectorUtil.stride4BitValues(byteQuery, destination);
 
         QueryFactors factors;
         if (similarityFunction != EUCLIDEAN) {
-            float vDotC = VectorUtil.dotProduct(vector, centroid);
+            float vDotC = ESVectorUtil.dotProduct(vector, centroid);
             // FIXME: quantize the corrections as well so we store less
             factors = new QueryFactors(quantResult.quantizedSum, distToC, lower, width, normVmC, vDotC);
         } else {

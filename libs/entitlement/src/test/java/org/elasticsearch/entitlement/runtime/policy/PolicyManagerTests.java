@@ -22,22 +22,27 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlemen
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
-import org.elasticsearch.test.jar.JarUtils;
 import org.junit.BeforeClass;
 
-import java.io.IOException;
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.lang.StackWalker.StackFrame;
 import java.lang.module.Configuration;
+import java.lang.module.ModuleDescriptor;
 import java.lang.module.ModuleFinder;
-import java.net.URL;
-import java.net.URLClassLoader;
+import java.lang.module.ModuleReader;
+import java.lang.module.ModuleReference;
+import java.net.URI;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ComponentKind.SERVER;
@@ -161,9 +166,51 @@ public class PolicyManagerTests extends ESTestCase {
         assertEquals("Map is unchanged", Map.of(requestingClass.getModule(), expectedEntitlements), policyManager.moduleEntitlementsMap);
     }
 
-    public void testAgentsEntitlements() throws IOException, ClassNotFoundException {
-        Path home = createTempDir();
-        Path unnamedJar = createMockPluginJarForUnnamedModule(home);
+    /**
+     * Full registration→lookup chain: the policy map must be keyed by the same descriptor name
+     * {@code ScopeResolver} resolves to, otherwise {@code getEntitlements} returns the empty set.
+     */
+    public void testGetEntitlementsForPluginWithDirectoryNameDifferentFromDescriptorName() {
+        String descriptorName = "myPlugin";
+        var pluginPolicy = new Policy(
+            descriptorName,
+            List.of(new Scope(PolicyManager.ALL_UNNAMED, List.of(new OutboundNetworkEntitlement())))
+        );
+
+        var correctlyKeyed = new PolicyManager(
+            createEmptyTestServerPolicy(),
+            List.of(),
+            Map.of(descriptorName, pluginPolicy),
+            c -> PolicyScope.plugin(descriptorName, PolicyManager.ALL_UNNAMED),
+            name -> Collections.emptyList(),
+            TEST_PATH_LOOKUP
+        );
+        var entitlements = correctlyKeyed.getEntitlements(getClass());
+        assertThat(
+            "policy keyed by descriptor name must produce the granted entitlement at runtime lookup",
+            entitlements.hasEntitlement(OutboundNetworkEntitlement.class),
+            is(true)
+        );
+
+        // Inverse: with the map mis-keyed by directory name, ScopeResolver's descriptor-name lookup misses.
+        var directoryName = "my-plugin";
+        var misKeyed = new PolicyManager(
+            createEmptyTestServerPolicy(),
+            List.of(),
+            Map.of(directoryName, pluginPolicy),
+            c -> PolicyScope.plugin(descriptorName, PolicyManager.ALL_UNNAMED),
+            name -> Collections.emptyList(),
+            TEST_PATH_LOOKUP
+        );
+        var misKeyedEntitlements = misKeyed.getEntitlements(getClass());
+        assertThat(
+            "policy keyed by anything other than descriptor name causes the runtime lookup to miss",
+            misKeyedEntitlements.hasEntitlement(OutboundNetworkEntitlement.class),
+            is(false)
+        );
+    }
+
+    public void testAgentsEntitlements() throws ClassNotFoundException {
         var notAgentClass = makeClassInItsOwnModule();
         var policyManager = new PolicyManager(
             createEmptyTestServerPolicy(),
@@ -181,11 +228,9 @@ public class PolicyManagerTests extends ESTestCase {
         assertThat(agentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
         ModuleEntitlements notAgentsEntitlements = policyManager.getEntitlements(notAgentClass);
         assertThat(notAgentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(false));
-        try (URLClassLoader classLoader = new URLClassLoader(new URL[] { unnamedJar.toUri().toURL() }, getClass().getClassLoader())) {
-            var unnamedNotAgentClass = classLoader.loadClass("q.B");
-            notAgentsEntitlements = policyManager.getEntitlements(unnamedNotAgentClass);
-            assertThat(notAgentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(false));
-        }
+        var unnamedNotAgentClass = createUnnamedModuleClassLoader().loadClass("q.B");
+        notAgentsEntitlements = policyManager.getEntitlements(unnamedNotAgentClass);
+        assertThat(notAgentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(false));
     }
 
     public void testDuplicateEntitlements() {
@@ -367,10 +412,9 @@ public class PolicyManagerTests extends ESTestCase {
         );
     }
 
-    static Class<?> makeClassInItsOwnModule() throws IOException, ClassNotFoundException {
-        final Path home = createTempDir();
-        Path jar = createMockPluginJar(home);
-        var layer = createLayerForJar(jar, "org.example.plugin");
+    static Class<?> makeClassInItsOwnModule() throws ClassNotFoundException {
+        ModuleReference ref = createMockModuleRef();
+        ModuleLayer layer = createLayer(ref, "org.example.plugin");
         return layer.findLoader("org.example.plugin").loadClass("q.B");
     }
 
@@ -378,34 +422,35 @@ public class PolicyManagerTests extends ESTestCase {
         return new Policy("server", List.of());
     }
 
-    private static Path createMockPluginJarForUnnamedModule(Path home) throws IOException {
-        Path jar = home.resolve("unnamed-mock-plugin.jar");
-
-        Map<String, CharSequence> sources = Map.ofEntries(entry("q.B", "package q; public class B { }"));
-
-        var classToBytes = InMemoryJavaCompiler.compile(sources);
-        JarUtils.createJarWithEntries(jar, Map.ofEntries(entry("q/B.class", classToBytes.get("q.B"))));
-        return jar;
+    private static ClassLoader createUnnamedModuleClassLoader() {
+        var classBytes = InMemoryJavaCompiler.compile(Map.of("q.B", "package q; public class B { }"));
+        return new ClassLoader(PolicyManagerTests.class.getClassLoader()) {
+            @Override
+            protected Class<?> findClass(String name) throws ClassNotFoundException {
+                byte[] bytes = classBytes.get(name);
+                if (bytes != null) {
+                    return defineClass(name, bytes, 0, bytes.length);
+                }
+                throw new ClassNotFoundException(name);
+            }
+        };
     }
 
-    private static Path createMockPluginJar(Path home) throws IOException {
-        Path jar = home.resolve("mock-plugin.jar");
-
+    private static ModuleReference createMockModuleRef() {
+        ModuleDescriptor descriptor = ModuleDescriptor.newModule("org.example.plugin").exports("q").build();
         Map<String, CharSequence> sources = Map.ofEntries(
             entry("module-info", "module org.example.plugin { exports q; }"),
             entry("q.B", "package q; public class B { }")
         );
 
         var classToBytes = InMemoryJavaCompiler.compile(sources);
-        JarUtils.createJarWithEntries(
-            jar,
-            Map.ofEntries(entry("module-info.class", classToBytes.get("module-info")), entry("q/B.class", classToBytes.get("q.B")))
-        );
-        return jar;
+        return new InMemoryModuleReference(descriptor, classToBytes);
     }
 
-    private static ModuleLayer createLayerForJar(Path jar, String moduleName) {
-        Configuration cf = ModuleLayer.boot().configuration().resolve(ModuleFinder.of(jar), ModuleFinder.of(), Set.of(moduleName));
+    private static ModuleLayer createLayer(ModuleReference moduleRef, String moduleName) {
+        Configuration cf = ModuleLayer.boot()
+            .configuration()
+            .resolve(new InMemoryModuleFinder(moduleRef), ModuleFinder.of(), Set.of(moduleName));
         var moduleController = ModuleLayer.defineModulesWithOneLoader(
             cf,
             List.of(ModuleLayer.boot()),
@@ -458,6 +503,62 @@ public class PolicyManagerTests extends ESTestCase {
 
     static String moduleName(Class<?> c) {
         return ScopeResolver.getScopeName(c.getModule());
+    }
+
+    private static class InMemoryModuleReference extends ModuleReference {
+        private final Map<String, byte[]> classBytes;
+
+        protected InMemoryModuleReference(ModuleDescriptor descriptor, Map<String, byte[]> classBytes) {
+            super(descriptor, null);
+            this.classBytes = classBytes;
+        }
+
+        @Override
+        public ModuleReader open() {
+            return new ModuleReader() {
+                @Override
+                public Optional<URI> find(String name) {
+                    return Optional.empty();
+                }
+
+                @Override
+                public Optional<InputStream> open(String name) {
+                    // ModuleLayer's Loader requests resources as "q/B.class"; map back to "q.B"
+                    String key = name.endsWith(".class") ? name.substring(0, name.length() - 6).replace('/', '.') : name.replace('/', '.');
+                    byte[] bytes = classBytes.get(key);
+                    return bytes == null ? Optional.empty() : Optional.of(new ByteArrayInputStream(bytes));
+                }
+
+                @Override
+                public Stream<String> list() {
+                    return classBytes.keySet().stream();
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+    }
+
+    private static class InMemoryModuleFinder implements ModuleFinder {
+        private final ModuleReference ref;
+        private final String name;
+
+        private InMemoryModuleFinder(ModuleReference mref) {
+            this.ref = mref;
+            this.name = mref.descriptor().name();
+        }
+
+        @Override
+        public Optional<ModuleReference> find(String name) {
+            Objects.requireNonNull(name);
+            return Optional.ofNullable(this.name.equals(name) ? ref : null);
+        }
+
+        @Override
+        public Set<ModuleReference> findAll() {
+            return Set.of(ref);
+        }
     }
 
 }

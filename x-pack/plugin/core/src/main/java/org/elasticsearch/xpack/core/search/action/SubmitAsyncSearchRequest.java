@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.search.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,12 +28,13 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *
  * @see AsyncSearchResponse
  */
-public class SubmitAsyncSearchRequest extends LegacyActionRequest {
+public class SubmitAsyncSearchRequest extends UntypedActionRequest {
     public static final long MIN_KEEP_ALIVE = TimeValue.timeValueSeconds(1).millis();
+    public static final TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
 
     private TimeValue waitForCompletionTimeout = TimeValue.timeValueSeconds(1);
     private boolean keepOnCompletion = false;
-    private TimeValue keepAlive = TimeValue.timeValueDays(5);
+    private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
 
     private final SearchRequest request;
 

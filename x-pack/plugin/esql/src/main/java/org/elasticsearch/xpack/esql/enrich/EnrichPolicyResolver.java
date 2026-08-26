@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
@@ -74,7 +75,7 @@ import static org.elasticsearch.xpack.esql.session.EsqlCCSUtils.markClusterWithF
  * This approach requires at most one cross-cluster call for each cluster.
  */
 public class EnrichPolicyResolver {
-    private static final String RESOLVE_ACTION_NAME = "cluster:monitor/xpack/enrich/esql/resolve_policy";
+    public static final String RESOLVE_ACTION_NAME = "cluster:monitor/xpack/enrich/esql/resolve_policy";
 
     public static final TransportVersion ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION = TransportVersion.fromName(
         "esql_use_minimum_version_for_enrich_resolution"
@@ -107,9 +108,14 @@ public class EnrichPolicyResolver {
         );
     }
 
-    public record UnresolvedPolicy(String name, Enrich.Mode mode) {
-        public static UnresolvedPolicy from(Enrich e) {
-            return new UnresolvedPolicy(stringLiteralValueOf(e.policyName(), "Enrich policy must be a constant string"), e.mode());
+    public record UnresolvedPolicy(String name, Enrich.Mode mode, Source source, Set<String> scope) {
+        public static UnresolvedPolicy from(Enrich e, Set<String> scope) {
+            return new UnresolvedPolicy(
+                stringLiteralValueOf(e.policyName(), "Enrich policy must be a constant string"),
+                e.mode(),
+                e.source(),
+                scope
+            );
         }
     }
 
@@ -117,6 +123,9 @@ public class EnrichPolicyResolver {
      * Resolves a set of enrich policies
      *
      * @param enriches           the unresolved policies
+     * @param enrichScopes       the clusters that feed rows into each enrich, keyed by {@link Enrich#source()} - see
+     *                           {@code EsqlSession#computeEnrichScope}. A policy is only required to exist on the clusters in
+     *                           its own scope, not on every cluster touched anywhere in the query.
      * @param executionInfo      the execution info
      * @param minimumVersion     the minimum transport version of all clusters involved in the query; used for making the resolved mapping
      *                           compatible with all involved clusters in case of CCS.
@@ -125,6 +134,7 @@ public class EnrichPolicyResolver {
      */
     public void resolvePolicies(
         List<Enrich> enriches,
+        Map<Source, Set<String>> enrichScopes,
         EsqlExecutionInfo executionInfo,
         TransportVersion minimumVersion,
         ActionListener<EnrichResolution> listener
@@ -136,7 +146,7 @@ public class EnrichPolicyResolver {
 
         doResolvePolicies(
             executionInfo.clusterInfo.isEmpty() ? new HashSet<>() : executionInfo.getRunningClusterAliases().collect(toSet()),
-            enriches.stream().map(EnrichPolicyResolver.UnresolvedPolicy::from).toList(),
+            enriches.stream().map(e -> UnresolvedPolicy.from(e, enrichScopes.getOrDefault(e.source(), Set.of()))).toList(),
             executionInfo,
             minimumVersion,
             listener
@@ -155,10 +165,14 @@ public class EnrichPolicyResolver {
             return;
         }
 
+        // remoteClusters/includeLocal here only drive the network fetch below: we always fetch policy existence from every
+        // cluster touched anywhere in the query, a safe superset of what any single policy actually requires. The per-policy
+        // scope narrowing happens afterward, in the merge loop, using each UnresolvedPolicy's own scope.
         final boolean includeLocal = remoteClusters.isEmpty() || remoteClusters.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         lookupPolicies(remoteClusters, includeLocal, unresolvedPolicies, executionInfo, minimumVersion, listener.map(lookupResponses -> {
             final EnrichResolution enrichResolution = new EnrichResolution();
             final Map<String, LookupResponse> lookupResponsesToProcess = new HashMap<>();
+            final Set<String> unavailableClusters = new HashSet<>();
             for (Map.Entry<String, LookupResponse> entry : lookupResponses.entrySet()) {
                 String clusterAlias = entry.getKey();
                 if (entry.getValue().connectionError != null) {
@@ -170,32 +184,40 @@ public class EnrichPolicyResolver {
                         EsqlExecutionInfo.Cluster.Status.SKIPPED,
                         entry.getValue().connectionError
                     );
-                    // remove unavailable cluster from the list of clusters which is used below to create the ResolvedEnrichPolicy
-                    remoteClusters.remove(clusterAlias);
+                    // remove unavailable cluster from consideration when computing each policy's own target clusters below
+                    unavailableClusters.add(clusterAlias);
                 } else {
                     lookupResponsesToProcess.put(clusterAlias, entry.getValue());
                 }
             }
 
             for (UnresolvedPolicy unresolved : unresolvedPolicies) {
+                Set<String> scope = new HashSet<>(unresolved.scope);
+                scope.removeAll(unavailableClusters);
                 Tuple<ResolvedEnrichPolicy, String> resolved = mergeLookupResults(
                     unresolved,
-                    calculateTargetClusters(unresolved.mode, includeLocal, remoteClusters),
+                    calculateTargetClusters(unresolved.mode, scope),
                     lookupResponsesToProcess
                 );
 
                 if (resolved.v1() != null) {
-                    enrichResolution.addResolvedPolicy(unresolved.name, unresolved.mode, resolved.v1());
+                    enrichResolution.addResolvedPolicy(unresolved.source, resolved.v1());
                 } else {
                     assert resolved.v2() != null;
-                    enrichResolution.addError(unresolved.name, unresolved.mode, resolved.v2());
+                    enrichResolution.addError(unresolved.source, resolved.v2());
                 }
             }
             return enrichResolution;
         }));
     }
 
-    private Collection<String> calculateTargetClusters(Enrich.Mode mode, boolean includeLocal, Set<String> remoteClusters) {
+    /**
+     * Computes the clusters a single enrich policy must be resolved against, given the clusters that actually feed rows into
+     * that specific ENRICH ({@code scope}) - not every cluster touched anywhere in the query.
+     */
+    private Collection<String> calculateTargetClusters(Enrich.Mode mode, Set<String> scope) {
+        Set<String> remoteClusters = new HashSet<>(scope);
+        boolean includeLocal = remoteClusters.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         return switch (mode) {
             case ANY -> CollectionUtils.appendToCopy(remoteClusters, RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             case COORDINATOR -> List.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
@@ -337,6 +359,7 @@ public class EnrichPolicyResolver {
                     getRemoteConnection(cluster, skipOnFailure == false, new ActionListener<Transport.Connection>() {
                         @Override
                         public void onResponse(Transport.Connection connection) {
+                            executionInfo.queryProfile().incFieldCapsCalls();
                             transportService.sendRequest(
                                 connection,
                                 RESOLVE_ACTION_NAME,
@@ -363,6 +386,7 @@ public class EnrichPolicyResolver {
                 .map(u -> u.name)
                 .collect(toSet());
             if (localPolicies.isEmpty() == false) {
+                executionInfo.queryProfile().incFieldCapsCalls();
                 transportService.sendRequest(
                     transportService.getLocalNode(),
                     RESOLVE_ACTION_NAME,
@@ -385,9 +409,9 @@ public class EnrichPolicyResolver {
         }
     }
 
-    private static class LookupRequest extends AbstractTransportRequest {
+    public static class LookupRequest extends AbstractTransportRequest {
         private final String clusterAlias;
-        private final Collection<String> policyNames;
+        public final Collection<String> policyNames;
         // The minimum version of all clusters involved in executing the ESQL query.
         final TransportVersion minimumVersion;
 
@@ -478,7 +502,7 @@ public class EnrichPolicyResolver {
                     }
                     try (ThreadContext.StoredContext ignored = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
                         String indexName = EnrichPolicy.getBaseName(policyName);
-                        indexResolver.resolveIndices(
+                        indexResolver.resolveLookupIndices(
                             indexName,
                             IndexResolver.ALL_FIELDS,
                             request.minimumVersion,

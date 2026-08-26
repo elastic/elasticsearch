@@ -1187,6 +1187,86 @@ public final class RestoreService implements ClusterStateApplier {
     }
 
     /**
+     * Returns {@code true} when the given primary shard routing is actively being restored from a snapshot and that restore is still
+     * in progress according to the supplied {@link RestoreInProgress} custom.
+     *
+     * <p>All seven conditions below must hold simultaneously. The chain exists to distinguish a genuine mid-restore INITIALIZING primary
+     * from other INITIALIZING causes (peer recovery, empty-store allocation, relocation target), which must not be affected:
+     *
+     * <ol>
+     *   <li>The routing's {@link RecoverySource} is a {@link SnapshotRecoverySource}; without this the shard is not being restored
+     *       from a snapshot at all.</li>
+     *   <li>The restore UUID is not {@link SnapshotRecoverySource#NO_API_RESTORE_UUID}; that sentinel marks searchable-snapshot
+     *       allocations, which are not API-level restores and must not be treated as such.</li>
+     *   <li>The UUID resolves to a live {@link RestoreInProgress.Entry}; without an entry the restore either never started or its
+     *       cluster-state record has already been cleaned up.</li>
+     *   <li>The entry's source snapshot matches the routing's recovery source snapshot; a mismatch would indicate corrupt or
+     *       inconsistent cluster state, where the UUID in the shard routing does not agree with the snapshot recorded in the
+     *       corresponding {@link RestoreInProgress.Entry}.</li>
+     *   <li>The entry's overall state is not {@link RestoreInProgress.State#completed() completed}; this is a cheap early-exit
+     *       before the per-shard lookup, since a completed entry implies all shard statuses are also completed.</li>
+     *   <li>The entry contains this exact {@link org.elasticsearch.index.shard.ShardId}; it is legitimate for an entry to cover
+     *       only a subset of an index's shards.</li>
+     *   <li>The shard's restore status is not completed; a {@link RestoreInProgress.State#completed() completed} status
+     *       ({@link RestoreInProgress.State#SUCCESS} or {@link RestoreInProgress.State#FAILURE}) means the restore is already
+     *       done for this shard even though the cluster-state entry may not yet have been cleaned up.</li>
+     * </ol>
+     *
+     * <p>The caller is responsible for passing a {@link RestoreInProgress} resolved from the same {@link ClusterState} as the
+     * routing table that produced {@code primary}, so that the two cannot disagree.
+     *
+     * @param restoreInProgress the restore custom from the current cluster state
+     * @param primary           the primary shard routing being evaluated; must be in the INITIALIZING state
+     * @return {@code true} if the shard is demonstrably mid-restore, {@code false} if any condition is not met
+     */
+    public static boolean isRestoringShardFromSnapshot(RestoreInProgress restoreInProgress, ShardRouting primary) {
+        if (!(primary.recoverySource() instanceof SnapshotRecoverySource source)) {
+            return false;
+        }
+        if (SnapshotRecoverySource.NO_API_RESTORE_UUID.equals(source.restoreUUID())) {
+            return false;
+        }
+        RestoreInProgress.Entry entry = restoreInProgress.get(source.restoreUUID());
+        if (entry == null) {
+            logger.debug(
+                "shard [{}] has restore UUID [{}] but no matching RestoreInProgress entry exists; treating shard as not actively restoring",
+                primary.shardId(),
+                source.restoreUUID()
+            );
+            return false;
+        }
+        if (entry.snapshot().equals(source.snapshot()) == false) {
+            assert false
+                : "shard ["
+                    + primary.shardId()
+                    + "] has restore UUID ["
+                    + source.restoreUUID()
+                    + "] that resolves to snapshot ["
+                    + entry.snapshot()
+                    + "] but routing recovery source names snapshot ["
+                    + source.snapshot()
+                    + "]";
+            logger.error(
+                "shard [{}] has restore UUID [{}] that resolves to snapshot [{}] but routing recovery source names snapshot [{}]; "
+                    + "treating shard as not actively restoring",
+                primary.shardId(),
+                source.restoreUUID(),
+                entry.snapshot(),
+                source.snapshot()
+            );
+            return false;
+        }
+        if (entry.state().completed()) {
+            return false;
+        }
+        RestoreInProgress.ShardRestoreStatus shardStatus = entry.shards().get(primary.shardId());
+        if (shardStatus == null) {
+            return false;
+        }
+        return shardStatus.state().completed() == false;
+    }
+
+    /**
      * Set to true if {@link #removeCompletedRestoresFromClusterState()} already has an in-flight state update running that will clean up
      * all completed restores from the cluster state.
      */
@@ -1798,6 +1878,13 @@ public final class RestoreService implements ClusterStateApplier {
         }
     }
 
+    /// Converts a legacy index (created before [org.elasticsearch.index.IndexVersions#MINIMUM_READONLY_COMPATIBLE])
+    /// into a degraded read-only archive so it can be opened on the current version.
+    ///
+    /// The conversion sets `index.version.compatibility` to the minimum index version supported by the cluster's
+    /// nodes, adds a write block, and rewrites the index mappings with a best-effort approach.
+    /// The original field mappings are stored under `_meta/legacy_mappings` and replaced with a minimal schema
+    /// that the current version can parse.
     private static IndexMetadata convertLegacyIndex(
         IndexMetadata snapshotIndexMetadata,
         ClusterState clusterState,

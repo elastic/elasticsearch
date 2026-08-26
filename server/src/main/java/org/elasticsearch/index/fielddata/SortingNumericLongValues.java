@@ -31,6 +31,7 @@ public abstract class SortingNumericLongValues extends SortedNumericLongValues {
     }
 
     protected SortingNumericLongValues(LongConsumer circuitBreakerConsumer) {
+        super(null);
         values = new long[1];
         valuesCursor = 0;
         sorter = new InPlaceMergeSorter() {

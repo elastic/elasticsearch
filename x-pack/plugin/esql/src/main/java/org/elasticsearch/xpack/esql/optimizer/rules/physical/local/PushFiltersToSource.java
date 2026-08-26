@@ -12,11 +12,18 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Queries;
+import org.elasticsearch.xpack.esql.datasources.FilterEvaluationOrderEstimator;
+import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
+import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
+import org.elasticsearch.xpack.esql.datasources.PhysicalNames;
+import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
@@ -28,11 +35,16 @@ import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.ParameterizedQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
@@ -48,25 +60,20 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
             plan = planFilterExec(filterExec, queryExec, ctx);
         } else if (filterExec.child() instanceof EvalExec evalExec && evalExec.child() instanceof EsQueryExec queryExec) {
             plan = planFilterExec(filterExec, evalExec, queryExec, ctx);
+        } else if (filterExec.child() instanceof ExternalSourceExec externalExec) {
+            plan = planFilterExecForExternalSource(filterExec, externalExec, ctx);
+        } else if (filterExec.child() instanceof EvalExec evalExec && evalExec.child() instanceof ParameterizedQueryExec pqExec) {
+            plan = planFilterExec(filterExec, evalExec, pqExec, ctx);
+        } else if (filterExec.child() instanceof ParameterizedQueryExec pqExec) {
+            plan = planFilterExec(filterExec, pqExec, ctx);
         }
         return plan;
     }
 
     private static PhysicalPlan planFilterExec(FilterExec filterExec, EsQueryExec queryExec, LocalPhysicalOptimizerContext ctx) {
         LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags());
-        List<Expression> pushable = new ArrayList<>();
-        List<Expression> nonPushable = new ArrayList<>();
-        for (Expression exp : splitAnd(filterExec.condition())) {
-            switch (translatable(exp, pushdownPredicates).finish()) {
-                case NO -> nonPushable.add(exp);
-                case YES -> pushable.add(exp);
-                case RECHECK -> {
-                    pushable.add(exp);
-                    nonPushable.add(exp);
-                }
-            }
-        }
-        return rewrite(pushdownPredicates, filterExec, queryExec, pushable, nonPushable, List.of());
+        PushdownClassification classified = classifyFilters(filterExec.condition(), pushdownPredicates);
+        return rewrite(pushdownPredicates, filterExec, queryExec, classified.pushable, classified.nonPushable, List.of());
     }
 
     private static PhysicalPlan planFilterExec(
@@ -77,22 +84,9 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
     ) {
         LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags());
         AttributeMap<Attribute> aliasReplacedBy = getAliasReplacedBy(evalExec);
-        List<Expression> pushable = new ArrayList<>();
-        List<Expression> nonPushable = new ArrayList<>();
-        for (Expression exp : splitAnd(filterExec.condition())) {
-            Expression resExp = exp.transformUp(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
-            switch (translatable(resExp, pushdownPredicates).finish()) {
-                case NO -> nonPushable.add(exp);
-                case YES -> pushable.add(exp);
-                case RECHECK -> {
-                    nonPushable.add(exp);
-                    nonPushable.add(exp);
-                }
-            }
-        }
-        // Replace field references with their actual field attributes
-        pushable.replaceAll(e -> e.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r)));
-        return rewrite(pushdownPredicates, filterExec, queryExec, pushable, nonPushable, evalExec.fields());
+        PushdownClassification classified = classifyFilters(filterExec.condition(), pushdownPredicates, aliasReplacedBy);
+        classified.pushable.replaceAll(e -> e.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r)));
+        return rewrite(pushdownPredicates, filterExec, queryExec, classified.pushable, classified.nonPushable, evalExec.fields());
     }
 
     static AttributeMap<Attribute> getAliasReplacedBy(EvalExec evalExec) {
@@ -102,6 +96,16 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
                 aliasReplacedByBuilder.put(alias.toAttribute(), attr);
             }
         });
+        return aliasReplacedByBuilder.build();
+    }
+
+    static AttributeMap<Attribute> getAliasReplacedBy(ProjectExec projectExec) {
+        AttributeMap.Builder<Attribute> aliasReplacedByBuilder = AttributeMap.builder();
+        for (NamedExpression ne : projectExec.projections()) {
+            if (ne instanceof Alias alias && alias.child() instanceof Attribute attr) {
+                aliasReplacedByBuilder.put(alias.toAttribute(), attr);
+            }
+        }
         return aliasReplacedByBuilder.build();
     }
 
@@ -214,5 +218,217 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
             }
         }
         return changed ? CollectionUtils.combine(others, bcs, ranges) : pushable;
+    }
+
+    /**
+     * Push filters to external source using the SPI-based FilterPushdownSupport.
+     * <p>
+     * Resolves pushdown support via {@link FormatReader#filterPushdownSupport()} through
+     * the {@link FormatReaderRegistry}. The pushdown support converts ESQL expressions to
+     * source-specific filters (e.g., ORC SearchArgument, Parquet FilterPredicate).
+     * <p>
+     * The pushed filter is stored as an opaque Object in {@link ExternalSourceExec#pushedFilter()}.
+     * It is built locally during physical plan optimization and consumed by the operator factory
+     * in the same JVM — it is never part of the wire protocol.
+     *
+     * @param filterExec the filter execution node
+     * @param externalExec the external source execution node
+     * @param ctx the optimizer context (provides registries for pushdown lookup)
+     * @return the optimized plan
+     */
+    private static PhysicalPlan planFilterExecForExternalSource(
+        FilterExec filterExec,
+        ExternalSourceExec externalExec,
+        LocalPhysicalOptimizerContext ctx
+    ) {
+        // If the external source already has a pushed filter, don't push again.
+        // With RECHECK semantics the FilterExec remains in the plan for row-level
+        // correctness, so the rule would see the same FilterExec -> ExternalSourceExec
+        // pattern on every iteration. Without this guard, the optimizer loops until
+        // the rule execution limit is reached.
+        if (externalExec.pushedFilter() != null) {
+            return filterExec;
+        }
+
+        String formatName = resolveFormatName(externalExec.config(), externalExec.sourcePath());
+        FilterPushdownSupport pushdownSupport = resolveFilterPushdownSupport(formatName, ctx);
+        if (pushdownSupport == null) {
+            return filterExec;
+        }
+
+        // Split filter condition by AND and reorder by estimated selectivity
+        List<Expression> filters = splitAnd(filterExec.condition());
+
+        // Conjuncts that reference partition columns are evaluated against the constant blocks
+        // injected by VirtualColumnIterator (and used as L1 pruning hints in FileSplitProvider).
+        // They must NOT be minted into the format-reader predicate: partition columns are path-derived
+        // and absent from the file payload. A RECHECK conjunct (==, IN, range) would be re-corrected by
+        // the retained FilterExec, but a YES-pushed conjunct (the LIKE family — see
+        // ParquetFilterPushdownSupport) is dropped from the FilterExec entirely and never re-checked, so
+        // every row survives and the query silently returns rows from every partition. Hold these
+        // conjuncts in the FilterExec on every node. The names come from the serialized stamp via the
+        // node-safe accessor — never the coordinator-only fileList, which is UNRESOLVED on a data node
+        // (reading it there returned an empty set and pushed the partition conjunct: the bug this fixes).
+        Set<String> partitionColumnNames = externalExec.partitionColumnNames();
+        List<Expression> partitionConjuncts = new ArrayList<>();
+        List<Expression> pushableCandidates = new ArrayList<>();
+        if (partitionColumnNames.isEmpty()) {
+            pushableCandidates = filters;
+        } else {
+            for (Expression filter : filters) {
+                if (referencesAnyColumn(filter, partitionColumnNames)) {
+                    partitionConjuncts.add(filter);
+                } else {
+                    pushableCandidates.add(filter);
+                }
+            }
+        }
+
+        var effectiveStats = externalExec.effectiveSplitStats();
+        pushableCandidates = FilterEvaluationOrderEstimator.orderByEstimatedCost(pushableCandidates, effectiveStats);
+
+        // A declared `path` rename lives in logical space in the plan, but the opaque per-format predicate the SPI
+        // mints must reference the file's PHYSICAL columns. Physicalize only the conjuncts handed to the mint; map the
+        // returned pushed/remainder expressions back to logical (via inverse, NameId-preserving) so the plan's FilterExec
+        // and reconciliation stay logical. No-op when the dataset declares no rename.
+        Map<String, String> renames = externalExec.declaredReadSpec().renames();
+        Map<String, String> toLogical = PhysicalNames.inverse(renames);
+        List<Expression> mintInput = PhysicalNames.translateExpressionNames(pushableCandidates, renames);
+        // Invariant: no logical rename-source name may survive into the opaque predicate the reader receives. This is the
+        // correctness-critical surface (a mistranslated pushed predicate silently drops/keeps the wrong rows), so make it
+        // an explicit tripwire rather than trusting the translation blindly.
+        assert PhysicalNames.noLogicalNamesRemain(
+            mintInput.stream().flatMap(e -> e.references().stream()).map(Attribute::name).toList(),
+            renames
+        ) : "logical rename-source name leaked into the pushed filter: " + mintInput;
+
+        // Use the SPI to push filters
+        FilterPushdownSupport.PushdownResult result = pushableCandidates.isEmpty()
+            ? FilterPushdownSupport.PushdownResult.none(List.of())
+            : pushdownSupport.pushFilters(mintInput);
+
+        if (result.hasPushedFilter()) {
+            // Create new ExternalSourceExec with the (physical) pushed filter and the pushed ESQL expressions in logical space
+            ExternalSourceExec newExternalExec = externalExec.withPushedFilterAndExpressions(
+                result.pushedFilter(),
+                PhysicalNames.translateExpressionNames(result.pushedExpressions(), toLogical)
+            );
+
+            // Combine partition conjuncts (always kept) with the SPI's remainder (mapped back to logical), if any.
+            List<Expression> remainder = new ArrayList<>(partitionConjuncts);
+            if (result.hasRemainder()) {
+                remainder.addAll(PhysicalNames.translateExpressionNames(result.remainder(), toLogical));
+            }
+            if (remainder.isEmpty()) {
+                return newExternalExec;
+            }
+            return new FilterExec(filterExec.source(), newExternalExec, Predicates.combineAnd(remainder));
+        }
+
+        // No pushable filters - return original plan
+        return filterExec;
+    }
+
+    static boolean referencesAnyColumn(Expression expr, Set<String> columnNames) {
+        return expr.references().stream().anyMatch(a -> columnNames.contains(a.name()));
+    }
+
+    static String resolveFormatName(Map<String, Object> config, String sourcePath) {
+        return FormatNameResolver.resolve(config, sourcePath);
+    }
+
+    /**
+     * Resolves filter pushdown support for the given format via {@link FormatReader#filterPushdownSupport()}.
+     */
+    private static FilterPushdownSupport resolveFilterPushdownSupport(String formatName, LocalPhysicalOptimizerContext ctx) {
+        FormatReaderRegistry formatReaderRegistry = ctx.external() == null ? null : ctx.external().formatReaderRegistry();
+        if (formatReaderRegistry == null) {
+            return null;
+        }
+        FormatReader formatReader = formatReaderRegistry.findByName(formatName);
+        return formatReader != null ? formatReader.filterPushdownSupport() : null;
+    }
+
+    private static PhysicalPlan planFilterExec(FilterExec filterExec, ParameterizedQueryExec pqExec, LocalPhysicalOptimizerContext ctx) {
+        LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags());
+        PushdownClassification classified = classifyFilters(filterExec.condition(), pushdownPredicates);
+        return rewrite(pushdownPredicates, filterExec, pqExec, classified.pushable, classified.nonPushable, List.of());
+    }
+
+    private static PhysicalPlan planFilterExec(
+        FilterExec filterExec,
+        EvalExec evalExec,
+        ParameterizedQueryExec pqExec,
+        LocalPhysicalOptimizerContext ctx
+    ) {
+        LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags());
+        AttributeMap<Attribute> aliasReplacedBy = getAliasReplacedBy(evalExec);
+        PushdownClassification classified = classifyFilters(filterExec.condition(), pushdownPredicates, aliasReplacedBy);
+        classified.pushable.replaceAll(e -> e.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r)));
+        return rewrite(pushdownPredicates, filterExec, pqExec, classified.pushable, classified.nonPushable, evalExec.fields());
+    }
+
+    private static PhysicalPlan rewrite(
+        LucenePushdownPredicates pushdownPredicates,
+        FilterExec filterExec,
+        ParameterizedQueryExec pqExec,
+        List<Expression> pushable,
+        List<Expression> nonPushable,
+        List<Alias> evalFields
+    ) {
+        // Combine GT, GTE, LT and LTE in pushable to Range if possible
+        List<Expression> newPushable = combineEligiblePushableToRange(pushable);
+        if (newPushable.size() > 0) { // update the executable with pushable conditions
+            Query queryDSL = TRANSLATOR_HANDLER.asQuery(pushdownPredicates, Predicates.combineAnd(newPushable));
+            QueryBuilder planQuery = queryDSL.toQueryBuilder();
+            QueryBuilder query = Queries.combine(Queries.Clause.FILTER, asList(pqExec.query(), planQuery));
+            PhysicalPlan plan = pqExec.withQuery(query);
+            plan = evalFields.isEmpty() ? plan : new EvalExec(filterExec.source(), plan, evalFields);
+            if (nonPushable.size() > 0) {
+                // update filter with remaining non-pushable conditions
+                return new FilterExec(filterExec.source(), plan, Predicates.combineAnd(nonPushable));
+            } else {
+                // prune Filter entirely
+                return plan;
+            }
+        } // else: nothing changes
+        return filterExec;
+    }
+
+    private record PushdownClassification(List<Expression> pushable, List<Expression> nonPushable) {}
+
+    private static PushdownClassification classifyFilters(Expression condition, LucenePushdownPredicates pushdownPredicates) {
+        return classifyFilters(condition, pushdownPredicates, AttributeMap.emptyAttributeMap());
+    }
+
+    /**
+     * Classifies filter expressions into pushable and non-pushable lists.
+     * When {@code aliasReplacedBy} is non-empty, alias resolution is applied before
+     * the translatability check, but the original (unresolved) expressions are stored
+     * so that non-pushable filters still reference the EvalExec output attributes.
+     */
+    private static PushdownClassification classifyFilters(
+        Expression condition,
+        LucenePushdownPredicates pushdownPredicates,
+        AttributeMap<Attribute> aliasReplacedBy
+    ) {
+        List<Expression> conjuncts = splitAnd(condition);
+
+        List<Expression> pushable = new ArrayList<>();
+        List<Expression> nonPushable = new ArrayList<>();
+        for (Expression exp : conjuncts) {
+            Expression resExp = aliasReplacedBy.isEmpty()
+                ? exp
+                : exp.transformUp(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
+            switch (translatable(resExp, pushdownPredicates).finish()) {
+                case NO -> nonPushable.add(exp);
+                case YES -> pushable.add(exp);
+                case RECHECK -> {
+                    pushable.add(exp);
+                    nonPushable.add(exp);
+                }
+            }
+        }
+        return new PushdownClassification(pushable, nonPushable);
     }
 }

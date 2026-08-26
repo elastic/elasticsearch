@@ -15,6 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformField;
@@ -34,12 +35,14 @@ public final class TransformConfigUpdate implements Writeable {
 
     public static final String NAME = "data_frame_transform_config_update";
 
+    public static final ParseField FORCE_REKEYING = new ParseField("_force_rekeying");
+
     public static final TransformConfigUpdate EMPTY = new TransformConfigUpdate(null, null, null, null, null, null, null, null);
 
-    private static final ConstructingObjectParser<TransformConfigUpdate, String> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<TransformConfigUpdate, TransformParsingContext> PARSER = new ConstructingObjectParser<>(
         NAME,
         false,
-        (args) -> {
+        (args, context) -> {
             SourceConfig source = (SourceConfig) args[0];
             DestConfig dest = (DestConfig) args[1];
             TimeValue frequency = args[2] == null
@@ -51,15 +54,26 @@ public final class TransformConfigUpdate implements Writeable {
             @SuppressWarnings("unchecked")
             Map<String, Object> metadata = (Map<String, Object>) args[6];
             RetentionPolicyConfig retentionPolicyConfig = (RetentionPolicyConfig) args[7];
-            return new TransformConfigUpdate(source, dest, frequency, syncConfig, description, settings, metadata, retentionPolicyConfig);
+            boolean forceRekeying = Boolean.TRUE.equals(args[8]);
+            return new TransformConfigUpdate(
+                source,
+                dest,
+                frequency,
+                syncConfig,
+                description,
+                settings,
+                metadata,
+                retentionPolicyConfig,
+                forceRekeying
+            );
         }
     );
 
     static {
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> SourceConfig.fromXContent(p, false), TransformField.SOURCE);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> SourceConfig.fromXContent(p, false, c), TransformField.SOURCE);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> DestConfig.fromXContent(p, false), TransformField.DESTINATION);
         PARSER.declareString(optionalConstructorArg(), TransformField.FREQUENCY);
-        PARSER.declareNamedObject(optionalConstructorArg(), (p, c, n) -> p.namedObject(SyncConfig.class, n, c), TransformField.SYNC);
+        PARSER.declareNamedObject(optionalConstructorArg(), (p, c, n) -> p.namedObject(SyncConfig.class, n, null), TransformField.SYNC);
         PARSER.declareString(optionalConstructorArg(), TransformField.DESCRIPTION);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> SettingsConfig.fromXContent(p, false), TransformField.SETTINGS);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapOrdered(), TransformField.METADATA);
@@ -67,11 +81,12 @@ public final class TransformConfigUpdate implements Writeable {
             XContentParser.Token token = p.nextToken();
             assert token == XContentParser.Token.FIELD_NAME;
             String currentName = p.currentName();
-            RetentionPolicyConfig namedObject = p.namedObject(RetentionPolicyConfig.class, currentName, c);
+            RetentionPolicyConfig namedObject = p.namedObject(RetentionPolicyConfig.class, currentName, null);
             token = p.nextToken();
             assert token == XContentParser.Token.END_OBJECT;
             return namedObject;
         }, NullRetentionPolicyConfig.INSTANCE, TransformField.RETENTION_POLICY);
+        PARSER.declareBoolean(optionalConstructorArg(), FORCE_REKEYING);
     }
 
     private final SourceConfig source;
@@ -82,6 +97,7 @@ public final class TransformConfigUpdate implements Writeable {
     private final SettingsConfig settings;
     private final Map<String, Object> metadata;
     private final RetentionPolicyConfig retentionPolicyConfig;
+    private final boolean forceRekeying;
     private Map<String, String> headers;
 
     public TransformConfigUpdate(
@@ -94,6 +110,20 @@ public final class TransformConfigUpdate implements Writeable {
         final Map<String, Object> metadata,
         final RetentionPolicyConfig retentionPolicyConfig
     ) {
+        this(source, dest, frequency, syncConfig, description, settings, metadata, retentionPolicyConfig, false);
+    }
+
+    public TransformConfigUpdate(
+        final SourceConfig source,
+        final DestConfig dest,
+        final TimeValue frequency,
+        final SyncConfig syncConfig,
+        final String description,
+        final SettingsConfig settings,
+        final Map<String, Object> metadata,
+        final RetentionPolicyConfig retentionPolicyConfig,
+        final boolean forceRekeying
+    ) {
         this.source = source;
         this.dest = dest;
         this.frequency = frequency;
@@ -105,6 +135,7 @@ public final class TransformConfigUpdate implements Writeable {
         this.settings = settings;
         this.metadata = metadata;
         this.retentionPolicyConfig = retentionPolicyConfig;
+        this.forceRekeying = forceRekeying;
     }
 
     public TransformConfigUpdate(final StreamInput in) throws IOException {
@@ -119,6 +150,7 @@ public final class TransformConfigUpdate implements Writeable {
         settings = in.readOptionalWriteable(SettingsConfig::new);
         metadata = in.readGenericMap();
         retentionPolicyConfig = in.readOptionalNamedWriteable(RetentionPolicyConfig.class);
+        forceRekeying = in.getTransportVersion().supports(TransformConfig.TRANSFORM_FORCE_REKEYING) && in.readBoolean();
     }
 
     public SourceConfig getSource() {
@@ -157,6 +189,10 @@ public final class TransformConfigUpdate implements Writeable {
         return retentionPolicyConfig;
     }
 
+    public boolean isForceRekeying() {
+        return forceRekeying;
+    }
+
     public Map<String, String> getHeaders() {
         return headers;
     }
@@ -181,6 +217,9 @@ public final class TransformConfigUpdate implements Writeable {
         out.writeOptionalWriteable(settings);
         out.writeGenericMap(metadata);
         out.writeOptionalNamedWriteable(retentionPolicyConfig);
+        if (out.getTransportVersion().supports(TransformConfig.TRANSFORM_FORCE_REKEYING)) {
+            out.writeBoolean(forceRekeying);
+        }
     }
 
     @Override
@@ -203,22 +242,40 @@ public final class TransformConfigUpdate implements Writeable {
             && Objects.equals(this.settings, that.settings)
             && Objects.equals(this.metadata, that.metadata)
             && Objects.equals(this.retentionPolicyConfig, that.retentionPolicyConfig)
+            && this.forceRekeying == that.forceRekeying
             && Objects.equals(this.headers, that.headers);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(source, dest, frequency, syncConfig, description, settings, metadata, retentionPolicyConfig, headers);
+        return Objects.hash(
+            source,
+            dest,
+            frequency,
+            syncConfig,
+            description,
+            settings,
+            metadata,
+            retentionPolicyConfig,
+            forceRekeying,
+            headers
+        );
     }
 
-    public static TransformConfigUpdate fromXContent(final XContentParser parser) {
-        return PARSER.apply(parser, null);
+    public static TransformConfigUpdate fromXContent(final XContentParser parser, TransformParsingContext context) {
+        return PARSER.apply(parser, context);
     }
 
     public boolean isEmpty() {
         return this.equals(EMPTY);
     }
 
+    /**
+     * Returns whether applying this update would leave {@code config} unchanged for stored fields.
+     * {@code _force_rekeying} is request-only (not applied onto {@link TransformConfig});
+     * {@code TransformUpdater} treats it as a non-noop for minting separately, matching datafeed
+     * {@code CredentialTransitions}.
+     */
     boolean isNoop(TransformConfig config) {
         return isNullOrEqual(source, config.getSource())
             && isNullOrEqual(dest, config.getDestination())

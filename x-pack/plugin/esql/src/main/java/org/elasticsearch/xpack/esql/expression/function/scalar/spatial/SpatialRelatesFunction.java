@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.Geohash;
@@ -27,9 +27,13 @@ import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
+import org.elasticsearch.xpack.esql.core.querydsl.query.MatchAll;
+import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -44,16 +48,19 @@ import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.expression.Foldables.valueOf;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometry;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.makeGeometryFromLiteral;
 
 public abstract class SpatialRelatesFunction extends BinarySpatialFunction
     implements
         EvaluatorMapper,
         SpatialEvaluatorFactory.SpatialSourceSupplier,
         TranslationAware,
-        SurrogateExpression {
+        SurrogateExpression,
+        AnyNullIsNull {
 
     protected SpatialRelatesFunction(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
         super(source, left, right, leftDocValues, rightDocValues, false, false);
@@ -86,6 +93,45 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
         return DataType.BOOLEAN;
     }
 
+    /** Spatial relates functions always use Lucene GeometryDocValueReader and Component2D instead of geometries */
+    @Override
+    protected Object fold(Geometry leftGeom, Geometry rightGeom) {
+        throw new UnsupportedOperationException("spatial relation [" + this.queryRelation() + "] does not support geometry folding");
+    }
+
+    protected Object foldGeoGrid(FoldContext ctx, Expression spatialExp, Expression gridExp, DataType gridType) {
+        long gridId = (Long) valueOf(ctx, gridExp);
+        Geometry geometry = makeGeometryFromLiteral(ctx, spatialExp);
+        if (geometry == null) {
+            return null;
+        }
+        return getSpatialRelations().compareGeometryAndGrid(geometry, gridId, gridType);
+    }
+
+    /** This exposes class-level static information within objects and should only be used for folding optimizations */
+    protected abstract SpatialRelations getSpatialRelations();
+
+    @Override
+    public Object fold(FoldContext ctx) {
+        try {
+            if (this.spatialTypeResolver.supportsGrid) {
+                if (DataType.isGeoGrid(left().dataType())) {
+                    return foldGeoGrid(ctx, right(), left(), left().dataType());
+                } else if (DataType.isGeoGrid(right().dataType())) {
+                    return foldGeoGrid(ctx, left(), right(), right().dataType());
+                }
+            }
+            GeometryDocValueReader docValueReader = asGeometryDocValueReader(ctx, crsType(), left());
+            Component2D component2D = asLuceneComponent2D(ctx, crsType(), right());
+            if (docValueReader == null || component2D == null) {
+                return null;
+            }
+            return getSpatialRelations().geometryRelatesGeometry(docValueReader, component2D);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to fold constant fields: " + e.getMessage(), e);
+        }
+    }
+
     /**
      * Produce a map of rules defining combinations of incoming types to the evaluator factory that should be used.
      */
@@ -100,7 +146,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return SpatialEvaluatorFactory.makeSpatialEvaluator(this, evaluatorRules(), toEvaluator);
     }
 
@@ -143,7 +189,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
             long gridId,
             DataType gridType
         ) {
-            if (wkb.getValueCount(position) < 1) {
+            if (wkb.isNull(position)) {
                 builder.appendNull();
             } else {
                 builder.appendBoolean(compareGeometryAndGrid(asGeometry(wkb, position), gridId, gridType));
@@ -157,7 +203,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
             LongBlock gridIds,
             DataType gridType
         ) {
-            if (wkb.getValueCount(position) < 1 || gridIds.getValueCount(position) < 1) {
+            if (wkb.isNull(position) || gridIds.isNull(position)) {
                 builder.appendNull();
             } else {
                 builder.appendBoolean(compareGeometryAndGrid(asGeometry(wkb, position), gridIds.getLong(position), gridType));
@@ -186,7 +232,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
             long gridId,
             DataType gridType
         ) {
-            if (encodedPoint.getValueCount(position) < 1) {
+            if (encodedPoint.isNull(position)) {
                 builder.appendNull();
             } else {
                 final Point point = spatialCoordinateType.longAsPoint(encodedPoint.getLong(position));
@@ -202,7 +248,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
             LongBlock gridIds,
             DataType gridType
         ) {
-            if (encodedPoint.getValueCount(position) < 1 || gridIds.getValueCount(position) < 1) {
+            if (encodedPoint.isNull(position) || gridIds.isNull(position)) {
                 builder.appendNull();
             } else {
                 final Point point = spatialCoordinateType.longAsPoint(encodedPoint.getLong(position));
@@ -229,7 +275,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
 
         protected void processSourceAndConstant(BooleanBlock.Builder builder, int position, BytesRefBlock left, Component2D right)
             throws IOException {
-            if (left.getValueCount(position) < 1) {
+            if (left.isNull(position)) {
                 builder.appendNull();
             } else {
                 final GeometryDocValueReader reader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, left, position);
@@ -239,7 +285,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
 
         protected void processSourceAndSource(BooleanBlock.Builder builder, int position, BytesRefBlock left, BytesRefBlock right)
             throws IOException {
-            if (left.getValueCount(position) < 1 || right.getValueCount(position) < 1) {
+            if (left.isNull(position) || right.isNull(position)) {
                 builder.appendNull();
             } else {
                 final GeometryDocValueReader reader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, left, position);
@@ -254,7 +300,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
             LongBlock leftValue,
             Component2D rightValue
         ) throws IOException {
-            if (leftValue.getValueCount(position) < 1) {
+            if (leftValue.isNull(position)) {
                 builder.appendNull();
             } else {
                 final GeometryDocValueReader reader = asGeometryDocValueReader(
@@ -274,7 +320,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
             LongBlock leftValue,
             BytesRefBlock rightValue
         ) throws IOException {
-            if (leftValue.getValueCount(position) < 1 || rightValue.getValueCount(position) < 1) {
+            if (leftValue.isNull(position) || rightValue.isNull(position)) {
                 builder.appendNull();
             } else {
                 final GeometryDocValueReader reader = asGeometryDocValueReader(
@@ -325,6 +371,11 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
         try {
             // TODO: Support geo-grid query pushdown
             Geometry shape = SpatialRelatesUtils.makeGeometryFromLiteral(constantExpression);
+            if (shape == null) {
+                // The constant geometry literal failed to parse; it already folded to null with a registered warning.
+                // ST_<relation>(field, NULL) is NULL for every row, so the filter matches nothing.
+                return new NotQuery(source(), new MatchAll(source()));
+            }
             return new SpatialRelatesQuery(source(), name, queryRelation(), shape, attribute.dataType());
         } catch (IllegalArgumentException e) {
             throw new QlIllegalArgumentException(e.getMessage(), e);

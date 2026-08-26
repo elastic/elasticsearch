@@ -9,45 +9,35 @@
 
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
+import io.opentelemetry.api.metrics.LongGauge;
 import io.opentelemetry.api.metrics.Meter;
-import io.opentelemetry.api.metrics.ObservableLongGauge;
 
-import org.elasticsearch.telemetry.apm.AbstractInstrument;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
-
-import java.util.Collection;
+import java.util.Map;
 import java.util.Objects;
-import java.util.function.Supplier;
 
-/**
- * LongGaugeAdapter wraps an otel ObservableLongGauge
- */
-public class LongGaugeAdapter extends AbstractInstrument<ObservableLongGauge> implements org.elasticsearch.telemetry.metric.LongGauge {
-    public LongGaugeAdapter(Meter meter, String name, String description, String unit, Supplier<Collection<LongWithAttributes>> observer) {
-        super(meter, new Builder(name, description, unit, observer));
+class LongGaugeAdapter extends AbstractInstrument<LongGauge> implements org.elasticsearch.telemetry.metric.LongGauge {
+    LongGaugeAdapter(Meter meter, String name, String description, String unit) {
+        super(meter, new Builder(name, description, unit));
     }
 
     @Override
-    public void close() throws Exception {
-        getInstrument().close();
+    public void set(long value) {
+        getInstrument().set(value);
     }
 
-    private static class Builder extends AbstractInstrument.Builder<ObservableLongGauge> {
-        private final Supplier<Collection<LongWithAttributes>> observer;
+    @Override
+    public void set(long value, Map<String, Object> attributes) {
+        getInstrument().set(value, OtelHelper.fromMap(getName(), attributes));
+    }
 
-        private Builder(String name, String description, String unit, Supplier<Collection<LongWithAttributes>> observer) {
+    private static class Builder extends AbstractInstrument.Builder<LongGauge> {
+        private Builder(String name, String description, String unit) {
             super(name, description, unit);
-            this.observer = observer;
         }
 
         @Override
-        public ObservableLongGauge build(Meter meter) {
-            return Objects.requireNonNull(meter)
-                .gaugeBuilder(name)
-                .ofLongs()
-                .setDescription(description)
-                .setUnit(unit)
-                .buildWithCallback(OtelHelper.longMeasurementCallback(observer));
+        public LongGauge build(Meter meter) {
+            return Objects.requireNonNull(meter).gaugeBuilder(name).ofLongs().setDescription(description).setUnit(unit).build();
         }
     }
 }

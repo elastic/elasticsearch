@@ -29,16 +29,19 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class IndicesMetricsIT extends ESIntegTestCase {
@@ -107,6 +110,49 @@ public class IndicesMetricsIT extends ESIntegTestCase {
     static final String LOGSDB_INDEXING_TIME = "es.indices.logsdb.indexing.time";
     static final String LOGSDB_INDEXING_FAILURE = "es.indices.logsdb.indexing.failure.total";
     static final String LOGSDB_INDEXING_FAILURE_DUE_TO_VERSION_CONFLICT = "es.indices.logsdb.indexing.failure.version_conflict.total";
+
+    static final String FIELD_INFOS_CACHED_CURRENT = "es.indices.field_infos.cached.current";
+    static final String FIELD_INFOS_CURRENT = "es.indices.field_infos.current";
+    static final String MAPPING_FIELDS_CURRENT = "es.indices.mapping.fields.current";
+
+    public void testFieldInfoMetrics() {
+        String indexNode = internalCluster().startNode();
+        ensureStableCluster(1);
+        TestTelemetryPlugin telemetry = internalCluster().getInstance(PluginsService.class, indexNode)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        telemetry.resetMeter();
+
+        String indexName = "field_info_metrics";
+        client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build())
+            .setMapping("a", "type=keyword", "b", "type=long", "c", "type=text")
+            .get();
+        indexDoc(indexName, "1", "a", "x", "b", "1", "c", "hello");
+        flush(indexName);
+        refresh(indexName);
+
+        collectThenAssertMetrics(
+            telemetry,
+            1,
+            Map.of(
+                MAPPING_FIELDS_CURRENT,
+                greaterThanOrEqualTo(3L),
+                FIELD_INFOS_CURRENT,
+                greaterThan(0L),
+                // FieldInfoCachingDirectory may or may not be active depending on the feature flag, but the cache size
+                // can never exceed the raw per-segment field count.
+                FIELD_INFOS_CACHED_CURRENT,
+                greaterThanOrEqualTo(0L)
+            )
+        );
+        long cached = telemetry.getLongGaugeMeasurement(FIELD_INFOS_CACHED_CURRENT).getLast().getLong();
+        long total = telemetry.getLongGaugeMeasurement(FIELD_INFOS_CURRENT).getLast().getLong();
+        assertThat("cached.current must not exceed field_infos.current", cached, lessThanOrEqualTo(total));
+    }
 
     public void testIndicesMetrics() {
         String indexNode = internalCluster().startNode();
@@ -352,6 +398,22 @@ public class IndicesMetricsIT extends ESIntegTestCase {
         verifyStatsPerIndexMode(
             Map.of(IndexMode.STANDARD, numStandardDocs, IndexMode.LOGSDB, numLogsdbDocs, IndexMode.TIME_SERIES, numTimeSeriesDocs)
         );
+    }
+
+    public void testStatsResponseIncludesOnlyAvailableModes() {
+        String indexNode = internalCluster().startNode();
+        ensureStableCluster(1);
+        createIndex("standard-test", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build());
+        indexDoc("standard-test", "1", "f", "1");
+        flush("standard-test");
+        refresh("standard-test");
+
+        final var nodes = clusterService().state().nodes().stream().toArray(DiscoveryNode[]::new);
+        final var request = new IndexModeStatsActionType.StatsRequest(nodes);
+        final var response = client(indexNode).execute(IndexModeStatsActionType.TYPE, request).actionGet();
+        final var stats = response.stats();
+        final Set<IndexMode> expectedModes = Set.copyOf(Arrays.asList(IndexMode.availableModes()));
+        assertThat(stats.keySet(), equalTo(expectedModes));
     }
 
     void collectThenAssertMetrics(TestTelemetryPlugin telemetry, int times, Map<String, Matcher<Long>> matchers) {

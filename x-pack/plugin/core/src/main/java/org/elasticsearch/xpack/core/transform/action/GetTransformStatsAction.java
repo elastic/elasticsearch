@@ -81,9 +81,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
 
         @Override
         public boolean match(Task task) {
-            // Only get tasks that we have expanded to
-            return expandedIds.stream()
-                .anyMatch(transformId -> task.getDescription().equals(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX + transformId));
+            return task instanceof TransformTaskMatcher matcher && matcher.match(expandedIds);
         }
 
         public String getId() {

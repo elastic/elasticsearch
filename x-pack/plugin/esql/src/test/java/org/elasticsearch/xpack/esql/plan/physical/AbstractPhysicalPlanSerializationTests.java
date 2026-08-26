@@ -10,14 +10,20 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.esql.WriteableExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.tree.Node;
+import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
+import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
+import org.elasticsearch.xpack.esql.plan.logical.RemoteFetchSource;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -57,9 +63,16 @@ public abstract class AbstractPhysicalPlanSerializationTests<T extends PhysicalP
         entries.addAll(new SearchModule(Settings.EMPTY, List.of()).getNamedWriteables()); // Query builders
         entries.add(Add.ENTRY); // Used by the eval tests
         entries.add(AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.ENTRY);
+        entries.add(LongRangeBlockBuilder.LongRange.ENTRY);
+        entries.add(DoubleRangeBlockBuilder.DoubleRange.ENTRY);
         entries.add(LookupJoinExec.ENTRY);
         entries.add(WriteableExponentialHistogram.ENTRY);
         entries.add(TDigestHolder.ENTRY);
+        entries.add(FileSplit.ENTRY);
+        entries.add(CoalescedSplit.ENTRY);
+        entries.add(EncryptedData.ENTRY);
+        entries.add(RemoteFetchExec.ENTRY);
+        entries.add(RemoteFetchSource.ENTRY);
         return new NamedWriteableRegistry(entries);
     }
 

@@ -10,15 +10,38 @@ permissions:
   contents: read
 
 jobs:
-  compose:
+  setup-matrix:
     if: github.repository == 'elastic/elasticsearch'
     runs-on: ubuntu-latest
+    outputs:
+      branches: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: set-matrix
+        run: |
+          BRANCHES=$(jq -c '[.branches[].branch]' branches.json)
+          echo "matrix=$BRANCHES" >> $GITHUB_OUTPUT
+
+  compose:
+    needs: setup-matrix
+    if: github.repository == 'elastic/elasticsearch'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        branch: ${{ fromJson(needs.setup-matrix.outputs.branches) }}
     permissions:
       contents: write
       packages: read
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.branch }}
+
+      - name: Update branch in SCM values
+        run: |
+          yq eval '.scm.branch = "${{ matrix.branch }}"' -i .github/updatecli/values.d/scm.yml
 
       - uses: docker/login-action@0d4c9c5ea7693da7b068278f7b52bda2a190a446 # v3.2.0
         with:
@@ -28,12 +51,7 @@ jobs:
 
       - uses: elastic/oblt-actions/updatecli/run@v1
         with:
-          command: --experimental compose diff
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: elastic/oblt-actions/updatecli/run@v1
-        with:
-          command: --experimental compose apply
+          # Runs in "--debug" mode to provide logs if the PR creation fails
+          command: --experimental compose apply --debug
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

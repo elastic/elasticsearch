@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
@@ -31,6 +32,8 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteConnectionManager.RemoteConnectionInfo;
+import org.junit.After;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -67,9 +70,8 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
     );
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void terminateThreadPool() throws Exception {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
@@ -105,6 +107,8 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
     public void testProxyStrategyWillOpenExpectedNumberOfConnectionsToAddress() {
         try (MockTransportService transport1 = startTransport("node1", VersionInformation.CURRENT, TransportVersion.current())) {
             TransportAddress address1 = transport1.boundAddress().publishAddress();
+            final ProjectId originProjectId = randomUniqueProjectId();
+            final ProjectId linkedProjectId = randomUniqueProjectId();
 
             try (
                 MockTransportService localService = spy(
@@ -126,6 +130,12 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                     final Optional<String> optionalClusterAlias = RemoteConnectionManager.resolveRemoteClusterAlias(connection);
                     assertTrue(optionalClusterAlias.isPresent());
                     assertEquals(clusterAlias, optionalClusterAlias.get());
+                    final Optional<RemoteConnectionInfo> optionalRemoteClusterProjectInfo = RemoteConnectionManager
+                        .resolveRemoteClusterProjectInfo(connection);
+                    assertTrue(optionalRemoteClusterProjectInfo.isPresent());
+                    assertEquals(originProjectId, optionalRemoteClusterProjectInfo.get().originProjectId());
+                    assertEquals(linkedProjectId, optionalRemoteClusterProjectInfo.get().linkedProjectId());
+                    assertEquals(clusterAlias, optionalRemoteClusterProjectInfo.get().linkedClusterAlias());
                     invocation.callRealMethod();
                     return null;
                 }).when(localService).handshake(any(), any(), any(), any());
@@ -139,6 +149,8 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 try (
                     RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(
                         clusterAlias,
+                        originProjectId,
+                        linkedProjectId,
                         RemoteClusterCredentialsManager.EMPTY,
                         connectionManager
                     );
@@ -249,7 +261,10 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersion.current()
         );
-        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible());
+        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(
+            TransportVersion.minimumCompatible(),
+            true
+        );
         try (MockTransportService transport1 = startTransport("incompatible-node", incompatibleVersion, incompatibleTransportVersion)) {
             TransportAddress address1 = transport1.boundAddress().publishAddress();
 

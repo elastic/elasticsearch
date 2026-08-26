@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,7 +16,10 @@ import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.DequeUtils;
 
 import java.io.IOException;
@@ -30,6 +32,36 @@ import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunkNullable;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CACHED_TOKENS_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CACHE_WRITE_TOKENS_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_CACHE_WRITE_TOKENS_SUPPORT_ADDED;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_REASONING_SUPPORT_ADDED;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHOICES_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.COMPLETION_TOKENS_DETAILS_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.COMPLETION_TOKENS_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CONTENT_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.DELTA_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.FINISH_REASON_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.FUNCTION_ARGUMENTS_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.FUNCTION_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.FUNCTION_NAME_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.ID_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.INDEX_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.INFERENCE_CACHED_TOKENS;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MODEL_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.OBJECT_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.PROMPT_TOKENS_DETAILS_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.PROMPT_TOKENS_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REASONING_DETAILS_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REASONING_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REASONING_TOKENS_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REFUSAL_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.ROLE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOOL_CALLS_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOTAL_TOKENS_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TYPE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.USAGE_FIELD;
 import static org.elasticsearch.xpack.core.inference.DequeUtils.dequeEquals;
 import static org.elasticsearch.xpack.core.inference.DequeUtils.dequeHashCode;
 import static org.elasticsearch.xpack.core.inference.DequeUtils.readDeque;
@@ -40,29 +72,6 @@ import static org.elasticsearch.xpack.core.inference.DequeUtils.readDeque;
 public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publisher) implements InferenceServiceResults {
 
     public static final String NAME = "chat_completion_chunk";
-    public static final String MODEL_FIELD = "model";
-    public static final String OBJECT_FIELD = "object";
-    public static final String USAGE_FIELD = "usage";
-    public static final String INDEX_FIELD = "index";
-    public static final String ID_FIELD = "id";
-    public static final String FUNCTION_NAME_FIELD = "name";
-    public static final String FUNCTION_ARGUMENTS_FIELD = "arguments";
-    public static final String FUNCTION_FIELD = "function";
-    public static final String CHOICES_FIELD = "choices";
-    public static final String DELTA_FIELD = "delta";
-    public static final String CONTENT_FIELD = "content";
-    public static final String REFUSAL_FIELD = "refusal";
-    public static final String ROLE_FIELD = "role";
-    private static final String TOOL_CALLS_FIELD = "tool_calls";
-    public static final String FINISH_REASON_FIELD = "finish_reason";
-    public static final String COMPLETION_TOKENS_FIELD = "completion_tokens";
-    public static final String TOTAL_TOKENS_FIELD = "total_tokens";
-    public static final String PROMPT_TOKENS_FIELD = "prompt_tokens";
-    public static final String PROMPT_TOKENS_DETAILS_FIELD = "prompt_tokens_details";
-    public static final String CACHED_TOKENS_FIELD = "cached_tokens";
-    public static final String TYPE_FIELD = "type";
-
-    private static final TransportVersion INFERENCE_CACHED_TOKENS = TransportVersion.fromName("inference_cached_tokens");
 
     /**
      * OpenAI Spec only returns one result at a time, and Chat Completion adheres to that spec as much as possible.
@@ -193,8 +202,14 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
                         .field(COMPLETION_TOKENS_FIELD, usage.completionTokens())
                         .field(PROMPT_TOKENS_FIELD, usage.promptTokens())
                         .field(TOTAL_TOKENS_FIELD, usage.totalTokens());
-                    if (usage.cachedTokens() != null) {
-                        builder.startObject(PROMPT_TOKENS_DETAILS_FIELD).field(CACHED_TOKENS_FIELD, usage.cachedTokens()).endObject();
+                    var promptTokensDetails = usage.promptTokensDetails();
+                    if (promptTokensDetails != null) {
+                        promptTokensDetails.toXContent(builder, params);
+                    }
+                    if (usage.completionTokenDetails() != null && usage.completionTokenDetails().reasoningTokens() != null) {
+                        builder.startObject(COMPLETION_TOKENS_DETAILS_FIELD)
+                            .field(REASONING_TOKENS_FIELD, usage.completionTokenDetails().reasoningTokens())
+                            .endObject();
                     }
                     return builder.endObject();
                 }) : Collections.emptyIterator(),
@@ -232,7 +247,7 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
                 return Iterators.concat(
                     ChunkedToXContentHelper.startObject(),
                     delta.toXContentChunked(params),
-                    optionalField(FINISH_REASON_FIELD, finishReason),
+                    chunkNullable(FINISH_REASON_FIELD, finishReason),
                     chunk((b, p) -> b.field(INDEX_FIELD, index)),
                     ChunkedToXContentHelper.endObject()
                 );
@@ -245,14 +260,34 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
                 out.writeInt(index);
             }
 
-            public record Delta(String content, String refusal, String role, List<ToolCall> toolCalls) implements Writeable {
+            public record Delta(
+                @Nullable String content,
+                @Nullable String refusal,
+                @Nullable String role,
+                @Nullable List<ToolCall> toolCalls,
+                @Nullable String reasoning,
+                @Nullable List<ReasoningDetail> reasoningDetails
+            ) implements Writeable {
+
+                public Delta(
+                    @Nullable String content,
+                    @Nullable String refusal,
+                    @Nullable String role,
+                    @Nullable List<ToolCall> toolCalls
+                ) {
+                    this(content, refusal, role, toolCalls, null, null);
+                }
 
                 private Delta(StreamInput in) throws IOException {
                     this(
                         in.readOptionalString(),
                         in.readOptionalString(),
                         in.readOptionalString(),
-                        in.readOptionalCollectionAsList(ToolCall::new)
+                        in.readOptionalCollectionAsList(ToolCall::new),
+                        in.getTransportVersion().supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED) ? in.readOptionalString() : null,
+                        in.getTransportVersion().supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED)
+                            ? in.readOptionalNamedWriteableCollectionAsList(ReasoningDetail.class)
+                            : null
                     );
                 }
 
@@ -262,14 +297,17 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
                     refusal?: string | null;
                     role?: 'system' | 'user' | 'assistant' | 'tool';
                     tool_calls?: Array<{ ... }>;
+                    reasoning?: string | null;
+                    reasoning_details?: Array<{ ... }>;
                 };
                 */
                 public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
                     var xContent = Iterators.concat(
                         ChunkedToXContentHelper.startObject(DELTA_FIELD),
-                        optionalField(CONTENT_FIELD, content),
-                        optionalField(REFUSAL_FIELD, refusal),
-                        optionalField(ROLE_FIELD, role)
+                        chunkNullable(CONTENT_FIELD, content),
+                        chunkNullable(REFUSAL_FIELD, refusal),
+                        chunkNullable(ROLE_FIELD, role),
+                        chunkNullable(REASONING_FIELD, reasoning)
                     );
 
                     if (toolCalls != null && toolCalls.isEmpty() == false) {
@@ -277,6 +315,15 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
                             xContent,
                             ChunkedToXContentHelper.startArray(TOOL_CALLS_FIELD),
                             Iterators.flatMap(toolCalls.iterator(), t -> t.toXContentChunked(params)),
+                            ChunkedToXContentHelper.endArray()
+                        );
+                    }
+
+                    if (reasoningDetails != null && reasoningDetails.isEmpty() == false) {
+                        xContent = Iterators.concat(
+                            xContent,
+                            ChunkedToXContentHelper.startArray(REASONING_DETAILS_FIELD),
+                            Iterators.flatMap(reasoningDetails.iterator(), r -> r.toXContentChunked(params)),
                             ChunkedToXContentHelper.endArray()
                         );
                     }
@@ -291,6 +338,10 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
                     out.writeOptionalString(refusal);
                     out.writeOptionalString(role);
                     out.writeOptionalCollection(toolCalls);
+                    if (out.getTransportVersion().supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED)) {
+                        out.writeOptionalString(reasoning);
+                        out.writeOptionalNamedWriteableCollection(reasoningDetails);
+                    }
                 }
 
                 public record ToolCall(int index, String id, ChatCompletionChunk.Choice.Delta.ToolCall.Function function, String type)
@@ -321,15 +372,15 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
                         var content = Iterators.concat(
                             ChunkedToXContentHelper.startObject(),
                             chunk((b, p) -> b.field(INDEX_FIELD, index)),
-                            optionalField(ID_FIELD, id)
+                            chunkNullable(ID_FIELD, id)
                         );
 
                         if (function != null) {
                             content = Iterators.concat(
                                 content,
                                 ChunkedToXContentHelper.startObject(FUNCTION_FIELD),
-                                optionalField(FUNCTION_ARGUMENTS_FIELD, function.arguments()),
-                                optionalField(FUNCTION_NAME_FIELD, function.name()),
+                                chunkNullable(FUNCTION_ARGUMENTS_FIELD, function.arguments()),
+                                chunkNullable(FUNCTION_NAME_FIELD, function.name()),
                                 ChunkedToXContentHelper.endObject()
                             );
                         }
@@ -366,9 +417,16 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
             }
         }
 
-        public record Usage(int completionTokens, int promptTokens, int totalTokens, @Nullable Integer cachedTokens) implements Writeable {
+        public record Usage(
+            int completionTokens,
+            int promptTokens,
+            int totalTokens,
+            @Nullable PromptTokensDetails promptTokensDetails,
+            @Nullable CompletionTokenDetails completionTokenDetails
+        ) implements Writeable {
+
             public Usage(int completionTokens, int promptTokens, int totalTokens) {
-                this(completionTokens, promptTokens, totalTokens, null);
+                this(completionTokens, promptTokens, totalTokens, null, null);
             }
 
             private Usage(StreamInput in) throws IOException {
@@ -376,7 +434,10 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
                     in.readInt(),
                     in.readInt(),
                     in.readInt(),
-                    in.getTransportVersion().supports(INFERENCE_CACHED_TOKENS) ? in.readOptionalInt() : null
+                    readOptionalPromptTokensDetails(in),
+                    in.getTransportVersion().supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED)
+                        ? in.readOptionalWriteable(CompletionTokenDetails::new)
+                        : null
                 );
             }
 
@@ -385,19 +446,86 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
                 out.writeInt(completionTokens);
                 out.writeInt(promptTokens);
                 out.writeInt(totalTokens);
-                if (out.getTransportVersion().supports(INFERENCE_CACHED_TOKENS)) {
-                    out.writeOptionalInt(cachedTokens);
+                if (out.getTransportVersion().supports(CHAT_COMPLETION_CACHE_WRITE_TOKENS_SUPPORT_ADDED)) {
+                    out.writeOptionalWriteable(promptTokensDetails);
+                } else if (out.getTransportVersion().supports(INFERENCE_CACHED_TOKENS)) {
+                    out.writeOptionalInt(promptTokensDetails() == null ? null : promptTokensDetails().cachedTokens);
+                }
+                if (out.getTransportVersion().supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED)) {
+                    out.writeOptionalWriteable(completionTokenDetails);
                 }
             }
-        }
 
-        private static Iterator<ToXContent> optionalField(String name, String value) {
-            if (value == null) {
-                return Collections.emptyIterator();
-            } else {
-                return ChunkedToXContentHelper.chunk((b, p) -> b.field(name, value));
+            public record CompletionTokenDetails(@Nullable Integer reasoningTokens) implements Writeable {
+
+                private CompletionTokenDetails(StreamInput in) throws IOException {
+                    this(in.readOptionalVInt());
+                }
+
+                @Override
+                public void writeTo(StreamOutput out) throws IOException {
+                    out.writeOptionalVInt(reasoningTokens);
+                }
+            }
+
+            public record PromptTokensDetails(@Nullable Integer cachedTokens, @Nullable Integer cacheWriteTokens)
+                implements
+                    ToXContentFragment,
+                    Writeable {
+
+                private PromptTokensDetails(StreamInput in) throws IOException {
+                    this(in.readOptionalVInt(), in.readOptionalVInt());
+                }
+
+                @Nullable
+                public static PromptTokensDetails ofNullable(@Nullable Integer cachedTokens, @Nullable Integer cacheWriteTokens) {
+                    if (cachedTokens == null && cacheWriteTokens == null) {
+                        return null;
+                    }
+                    return new PromptTokensDetails(cachedTokens, cacheWriteTokens);
+                }
+
+                @Override
+                public void writeTo(StreamOutput out) throws IOException {
+                    out.writeOptionalVInt(cachedTokens);
+                    out.writeOptionalVInt(cacheWriteTokens);
+                }
+
+                @Override
+                public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                    if (isEmpty()) {
+                        return builder;
+                    }
+
+                    builder.startObject(PROMPT_TOKENS_DETAILS_FIELD);
+
+                    if (cachedTokens() != null) {
+                        builder.field(CACHED_TOKENS_FIELD, cachedTokens());
+                    }
+
+                    if (cacheWriteTokens() != null) {
+                        builder.field(CACHE_WRITE_TOKENS_FIELD, cacheWriteTokens());
+                    }
+
+                    builder.endObject();
+
+                    return builder;
+                }
+
+                private boolean isEmpty() {
+                    return cachedTokens() == null && cacheWriteTokens() == null;
+                }
+            }
+
+            private static PromptTokensDetails readOptionalPromptTokensDetails(StreamInput in) throws IOException {
+                if (in.getTransportVersion().supports(CHAT_COMPLETION_CACHE_WRITE_TOKENS_SUPPORT_ADDED)) {
+                    return in.readOptionalWriteable(PromptTokensDetails::new);
+                } else if (in.getTransportVersion().supports(INFERENCE_CACHED_TOKENS)) {
+                    return PromptTokensDetails.ofNullable(in.readOptionalInt(), null);
+                }
+
+                return null;
             }
         }
-
     }
 }

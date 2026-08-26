@@ -9,10 +9,6 @@ mapped_pages:
 
 The *Elastic GMail connector* is a [connector](/reference/search-connectors/index.md) for GMail.
 
-::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
-::::
-
 ## **Self-managed connector reference** [es-connectors-gmail-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-gmail-client-availability]
@@ -158,6 +154,9 @@ The following configuration fields are required:
 
 `Include spam and trash emails`
 :   Toggle to fetch spam and trash emails. Also works with DLS.
+
+`Index full raw email (including headers)`
+:   Toggle to index the full raw RFC 822 message. Disabled by default: only the email body (preferring `text/plain` over `text/html`) and a minimal set of headers (`Subject`, `From`, `Reply-To`, `To`, `Cc`, `Bcc`, `Date`, `Message-ID`) are indexed; routing/authentication headers and binary attachments are dropped. Enable to restore the passthrough behavior for edge cases where body extraction misses content.
 
 `Enable document level security`
 :   Toggle to enable [document level security (DLS](/reference/search-connectors/document-level-security.md). DLS is supported for the GMail connector. When enabled:

@@ -8,53 +8,31 @@
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AbstractAlibabaCloudSearchServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettingsTests;
-import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.is;
-
-public class AlibabaCloudSearchCompletionServiceSettingsTests extends AbstractWireSerializingTestCase<
+public class AlibabaCloudSearchCompletionServiceSettingsTests extends AbstractAlibabaCloudSearchServiceSettingsTests<
     AlibabaCloudSearchCompletionServiceSettings> {
+
     public static AlibabaCloudSearchCompletionServiceSettings createRandom() {
         var commonSettings = AlibabaCloudSearchServiceSettingsTests.createRandom();
         return new AlibabaCloudSearchCompletionServiceSettings(commonSettings);
     }
 
-    public void testFromMap() {
-        var model = "model";
-        var host = "host";
-        var workspaceName = "default";
-        var httpSchema = "https";
-        var serviceSettings = AlibabaCloudSearchCompletionServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    AlibabaCloudSearchServiceSettings.HOST,
-                    host,
-                    AlibabaCloudSearchServiceSettings.SERVICE_ID,
-                    model,
-                    AlibabaCloudSearchServiceSettings.WORKSPACE_NAME,
-                    workspaceName,
-                    AlibabaCloudSearchServiceSettings.HTTP_SCHEMA_NAME,
-                    httpSchema
-                )
-            ),
-            null
-        );
+    @Override
+    protected AlibabaCloudSearchCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
+        return AlibabaCloudSearchCompletionServiceSettings.fromMap(map, context);
+    }
 
-        MatcherAssert.assertThat(
-            serviceSettings,
-            is(
-                new AlibabaCloudSearchCompletionServiceSettings(
-                    new AlibabaCloudSearchServiceSettings(model, host, workspaceName, httpSchema, null)
-                )
-            )
-        );
+    @Override
+    protected AlibabaCloudSearchCompletionServiceSettings createServiceSettings(AlibabaCloudSearchServiceSettings commonSettings) {
+        return new AlibabaCloudSearchCompletionServiceSettings(commonSettings);
     }
 
     @Override
@@ -70,7 +48,9 @@ public class AlibabaCloudSearchCompletionServiceSettingsTests extends AbstractWi
     @Override
     protected AlibabaCloudSearchCompletionServiceSettings mutateInstance(AlibabaCloudSearchCompletionServiceSettings instance)
         throws IOException {
-        return createRandom();
+        return new AlibabaCloudSearchCompletionServiceSettings(
+            randomValueOtherThan(instance.getCommonSettings(), AlibabaCloudSearchServiceSettingsTests::createRandom)
+        );
     }
 
     public static Map<String, Object> getServiceSettingsMap(String serviceId, String host, String workspaceName) {

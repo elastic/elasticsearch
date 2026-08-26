@@ -11,10 +11,6 @@ The *Elastic MongoDB connector* is a [connector](/reference/search-connectors/in
 
 View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/mongo) (branch *main*, compatible with Elastic *9.0*).
 
-::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
-::::
-
 ## **Self-managed connector** [es-connectors-mongodb-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-mongodb-client-prerequisites]
@@ -84,6 +80,22 @@ Atlas users can leave this blank because [Atlas uses a widely trusted root CA](h
 
 ::::{note}
 We strongly recommend leaving this option disabled in production environments.
+
+::::
+
+
+`datetime_conversion`
+:   How to handle MongoDB dates that fall outside the range supported by Python (years 1–9999). Available in the advanced configuration options. Available values:
+
+    * `DATETIME` — Raise an error (legacy). The sync fails when it encounters an out-of-range date. This preserves the historical behavior.
+    * `DATETIME_CLAMP` — Out-of-range dates are clamped to the minimum or maximum supported date and indexed as ordinary date strings, so the sync can continue.
+    * `DATETIME_AUTO` — In-range dates are indexed as date strings, while out-of-range dates are indexed as raw milliseconds since the epoch.
+    * `DATETIME_MS` — All dates are indexed as raw milliseconds since the epoch.
+
+    Default value is `DATETIME`.
+
+::::{note}
+The `DATETIME_AUTO` option can produce mixed types for the same field (date strings and numbers), which might cause Elasticsearch mapping conflicts. Prefer `DATETIME_CLAMP` if you need the sync to continue past out-of-range dates.
 
 ::::
 

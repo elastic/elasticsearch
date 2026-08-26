@@ -7,17 +7,13 @@
 
 package org.elasticsearch.xpack.inference.services.contextualai;
 
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
-import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.contextualai.action.ContextualAiActionVisitor;
-import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.net.URI;
@@ -25,55 +21,40 @@ import java.util.Map;
 import java.util.Objects;
 
 public abstract class ContextualAiModel extends RateLimitGroupingModel {
+    private final URI uri;
 
-    private final SecureString apiKey;
-    private final ContextualAiRateLimitServiceSettings rateLimitServiceSettings;
-
-    public ContextualAiModel(
-        ModelConfigurations configurations,
-        ModelSecrets secrets,
-        @Nullable ApiKeySecrets apiKeySecrets,
-        ContextualAiRateLimitServiceSettings rateLimitServiceSettings
-    ) {
+    protected ContextualAiModel(ModelConfigurations configurations, ModelSecrets secrets, URI uri) {
         super(configurations, secrets);
-
-        this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
-        apiKey = ServiceUtils.apiKey(apiKeySecrets);
+        this.uri = Objects.requireNonNull(uri);
     }
 
     protected ContextualAiModel(ContextualAiModel model, TaskSettings taskSettings) {
         super(model, taskSettings);
-
-        rateLimitServiceSettings = model.rateLimitServiceSettings();
-        apiKey = model.apiKey();
+        this.uri = model.uri;
     }
 
-    protected ContextualAiModel(ContextualAiModel model, ServiceSettings serviceSettings) {
-        super(model, serviceSettings);
-
-        rateLimitServiceSettings = model.rateLimitServiceSettings();
-        apiKey = model.apiKey();
+    public URI uri() {
+        return uri;
     }
 
-    public SecureString apiKey() {
-        return apiKey;
+    @Override
+    public RateLimitSettings rateLimitSettings() {
+        return getServiceSettings().rateLimitSettings();
     }
 
-    public ContextualAiRateLimitServiceSettings rateLimitServiceSettings() {
-        return rateLimitServiceSettings;
+    @Override
+    public ContextualAiServiceSettings getServiceSettings() {
+        return (ContextualAiServiceSettings) super.getServiceSettings();
+    }
+
+    @Override
+    public DefaultSecretSettings getSecretSettings() {
+        return (DefaultSecretSettings) super.getSecretSettings();
     }
 
     public abstract ExecutableAction accept(ContextualAiActionVisitor creator, Map<String, Object> taskSettings);
 
-    public RateLimitSettings rateLimitSettings() {
-        return rateLimitServiceSettings.rateLimitSettings();
-    }
-
     public int rateLimitGroupingHash() {
-        return apiKey().hashCode();
-    }
-
-    public URI baseUri() {
-        return rateLimitServiceSettings.uri();
+        return Objects.hashCode(getSecretSettings().apiKey());
     }
 }

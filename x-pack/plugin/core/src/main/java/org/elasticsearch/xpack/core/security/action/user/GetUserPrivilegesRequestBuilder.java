@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.action.user;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 
 /**
  * Request builder for checking a user's privileges
@@ -23,6 +24,11 @@ public class GetUserPrivilegesRequestBuilder extends ActionRequestBuilder<GetUse
      */
     public GetUserPrivilegesRequestBuilder username(String username) {
         request.username(username);
+        return this;
+    }
+
+    public GetUserPrivilegesRequestBuilder unwrapLimitedRole(RoleReference.ApiKeyRoleType innerRoleType) {
+        request.unwrapLimitedRole(innerRoleType);
         return this;
     }
 }

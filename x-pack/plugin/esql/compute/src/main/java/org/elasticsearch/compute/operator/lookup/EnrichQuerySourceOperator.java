@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator.lookup;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -16,19 +17,29 @@ import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.ShardContext;
+import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.function.LongSupplier;
 
 /**
  * Lookup document IDs for the input queries.
@@ -38,13 +49,19 @@ import java.io.UncheckedIOException;
 public final class EnrichQuerySourceOperator extends SourceOperator {
     private final BlockFactory blockFactory;
     private final LookupEnrichQueryGenerator queryList;
+    private final Page originalPage;
+    private final BlockOptimization blockOptimization;
+    private Page optimizedPage;
     private int queryPosition = -1;
     private final IndexedByShardId<? extends ShardContext> shardContexts;
     private final ShardContext shardContext;
+    private final SearchExecutionContext searchExecutionContext;
     private final IndexReader indexReader;
     private final IndexSearcher searcher;
     private final Warnings warnings;
     private final int maxPageSize;
+    private final LongSupplier directoryBytesRead;
+    private long totalBytesRead = 0L;
 
     // using smaller pages enables quick cancellation and reduces sorting costs
     public static final int DEFAULT_MAX_PAGE_SIZE = 256;
@@ -53,19 +70,69 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         BlockFactory blockFactory,
         int maxPageSize,
         LookupEnrichQueryGenerator queryList,
+        Page originalPage,
+        BlockOptimization blockOptimization,
         IndexedByShardId<? extends ShardContext> shardContexts,
         int shardId,
-        Warnings warnings
+        SearchExecutionContext searchExecutionContext,
+        Warnings warnings,
+        LongSupplier directoryBytesRead
     ) {
         this.blockFactory = blockFactory;
         this.maxPageSize = maxPageSize;
         this.queryList = queryList;
+        this.originalPage = originalPage;
+        this.blockOptimization = blockOptimization;
         this.shardContexts = shardContexts;
         this.shardContext = shardContexts.get(shardId);
         this.shardContext.incRef();
-        this.searcher = shardContext.searcher();
-        this.indexReader = searcher.getIndexReader();
+        this.searchExecutionContext = searchExecutionContext;
+        this.directoryBytesRead = directoryBytesRead;
+        try {
+            if (shardContext.searcher().getIndexReader() instanceof DirectoryReader directoryReader) {
+                // This optimization is currently disabled for ParallelCompositeReader
+                this.indexReader = new CachedDirectoryReader(directoryReader);
+            } else {
+                this.indexReader = shardContext.searcher().getIndexReader();
+            }
+            this.searcher = new IndexSearcher(this.indexReader);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
         this.warnings = warnings;
+    }
+
+    /**
+     * Get the input page to use for queryList calls.
+     * Creates optimized page on-demand if needed (DICTIONARY state).
+     */
+    private Page getInputPageInternal() {
+        if (blockOptimization == BlockOptimization.DICTIONARY) {
+            if (optimizedPage == null) {
+                // Create optimized page on-demand
+                OrdinalBytesRefBlock ordinalsBytesRefBlock = BlockOptimization.extractOrdinalBlock(originalPage);
+                Block optimizedBlock = ordinalsBytesRefBlock.getDictionaryVector().asBlock();
+                Block[] blocks = new Block[originalPage.getBlockCount()];
+                blocks[0] = optimizedBlock;
+                optimizedBlock.incRef();
+                for (int i = 1; i < blocks.length; i++) {
+                    Block originalBlock = originalPage.getBlock(i);
+                    originalBlock.incRef();
+                    blocks[i] = originalBlock;
+                }
+                optimizedPage = new Page(blocks);
+            }
+            return optimizedPage;
+        }
+        return originalPage;
+    }
+
+    /**
+     * Get the input page (may be optimized, e.g., using dictionary block instead of ordinal block).
+     * Exposed for testing to verify optimization behavior.
+     */
+    public Page getInputPage() {
+        return getInputPageInternal();
     }
 
     @Override
@@ -73,12 +140,20 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
 
     @Override
     public boolean isFinished() {
-        return queryPosition >= queryList.getPositionCount();
+        Page inputPage = getInputPageInternal();
+        return queryPosition >= queryList.getPositionCount(inputPage);
+    }
+
+    @Override
+    public Operator.Status status() {
+        return new Status(totalBytesRead);
     }
 
     @Override
     public Page getOutput() {
-        int estimatedSize = Math.min(maxPageSize, queryList.getPositionCount() - queryPosition);
+        long bytesBefore = directoryBytesRead.getAsLong();
+        Page inputPage = getInputPageInternal();
+        int estimatedSize = Math.min(maxPageSize, queryList.getPositionCount(inputPage) - queryPosition);
         IntVector.Builder positionsBuilder = null;
         IntVector.Builder docsBuilder = null;
         IntVector.Builder segmentsBuilder = null;
@@ -87,6 +162,9 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
             docsBuilder = blockFactory.newIntVectorBuilder(estimatedSize);
             if (indexReader.leaves().size() > 1) {
                 segmentsBuilder = blockFactory.newIntVectorBuilder(estimatedSize);
+            }
+            if (queryList.getBulkKeywordLookup() != null) {
+                return processBulkQueries(inputPage, positionsBuilder, segmentsBuilder, docsBuilder);
             }
             int totalMatches = 0;
             do {
@@ -131,8 +209,43 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         } finally {
+            totalBytesRead += Math.max(0L, directoryBytesRead.getAsLong() - bytesBefore);
             Releasables.close(docsBuilder, segmentsBuilder, positionsBuilder);
         }
+    }
+
+    private Page processBulkQueries(
+        Page inputPage,
+        IntVector.Builder positionsBuilder,
+        IntVector.Builder segmentsBuilder,
+        IntVector.Builder docsBuilder
+    ) throws IOException {
+        BulkKeywordLookup bulkKeywordLookup = queryList.getBulkKeywordLookup();
+
+        if (queryPosition < 0) {
+            queryPosition = 0;
+            bulkKeywordLookup.initializeCaches(indexReader);
+        }
+
+        int totalMatches = 0;
+        do {
+            if (queryPosition >= queryList.getPositionCount(inputPage)) break;
+
+            final int matches = bulkKeywordLookup.processQuery(
+                inputPage,
+                queryPosition,
+                indexReader,
+                docsBuilder,
+                segmentsBuilder,
+                positionsBuilder
+            );
+            totalMatches += matches;
+            queryPosition++;
+
+        } while (totalMatches < maxPageSize);
+
+        final Page result = buildPage(totalMatches, positionsBuilder, segmentsBuilder, docsBuilder);
+        return result;
     }
 
     Page buildPage(int positions, IntVector.Builder positionsBuilder, IntVector.Builder segmentsBuilder, IntVector.Builder docsBuilder) {
@@ -151,7 +264,7 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
             }
             docsVector = docsBuilder.build();
             page = new Page(
-                new DocVector(shardContexts, shardsVector, segmentsVector, docsVector, null).asBlock(),
+                new DocVector(shardContexts, shardsVector, segmentsVector, docsVector, DocVector.config().mayContainDuplicates()).asBlock(),
                 positionsVector.asBlock()
             );
         } finally {
@@ -164,8 +277,9 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
 
     private Query nextQuery() {
         ++queryPosition;
+        Page inputPage = getInputPageInternal();
         while (isFinished() == false) {
-            Query query = queryList.getQuery(queryPosition);
+            Query query = queryList.getQuery(queryPosition, inputPage, searchExecutionContext);
             if (query != null) {
                 return query;
             }
@@ -197,5 +311,76 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
     @Override
     public void close() {
         this.shardContext.decRef();
+        // Release optimized page if it was created
+        if (optimizedPage != null && optimizedPage != originalPage) {
+            Releasables.close(optimizedPage);
+        }
+    }
+
+    public static class Status implements Operator.Status {
+        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            Operator.Status.class,
+            "enrich_query_source",
+            Status::new
+        );
+
+        public static final TransportVersion ESQL_ENRICH_BYTES_READ = TransportVersion.fromName("esql_enrich_bytes_read");
+
+        private final long bytesRead;
+
+        Status(long bytesRead) {
+            this.bytesRead = bytesRead;
+        }
+
+        Status(StreamInput in) throws IOException {
+            this.bytesRead = in.getTransportVersion().supports(ESQL_ENRICH_BYTES_READ) ? in.readVLong() : 0L;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            if (out.getTransportVersion().supports(ESQL_ENRICH_BYTES_READ)) {
+                out.writeVLong(bytesRead);
+            }
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return ESQL_ENRICH_BYTES_READ;
+        }
+
+        @Override
+        public long bytesRead() {
+            return bytesRead;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("bytes_read", bytesRead);
+            return builder.endObject();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Status status = (Status) o;
+            return bytesRead == status.bytesRead;
+        }
+
+        @Override
+        public int hashCode() {
+            return Long.hashCode(bytesRead);
+        }
+
+        @Override
+        public String toString() {
+            return "EnrichQuerySourceOperator.Status[bytesRead=" + bytesRead + "]";
+        }
     }
 }

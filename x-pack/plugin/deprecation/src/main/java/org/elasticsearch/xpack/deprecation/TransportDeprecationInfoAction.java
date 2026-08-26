@@ -41,6 +41,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -95,7 +96,8 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         NodeClient client,
         NamedXContentRegistry xContentRegistry,
         ClusterInfoService clusterInfoService,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        RepositoriesService repositoriesService
     ) {
         super(
             DeprecationInfoAction.NAME,
@@ -119,7 +121,8 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
             new IndexDeprecationChecker(indexNameExpressionResolver),
             new DataStreamDeprecationChecker(indexNameExpressionResolver),
             new TemplateDeprecationChecker(),
-            new IlmPolicyDeprecationChecker()
+            new IlmPolicyDeprecationChecker(),
+            new RepositoryDeprecationChecker(repositoriesService)
         );
         this.projectResolver = projectResolver;
         // Safe to register this here because it happens synchronously before the cluster service is started:
@@ -438,6 +441,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
             .map(Map.Entry::getKey)
             .map(discoveryNodes::get)
             .filter(Objects::nonNull)
+            .filter(node -> node.canContainData() && node.isDedicatedFrozenNode() == false)
             .map(DiscoveryNode::getName)
             .sorted()
             .toList();

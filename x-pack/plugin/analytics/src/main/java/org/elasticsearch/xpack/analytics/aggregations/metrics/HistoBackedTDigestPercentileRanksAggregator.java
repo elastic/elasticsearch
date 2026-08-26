@@ -7,19 +7,20 @@
 
 package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
+import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentileRanks;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.xpack.analytics.aggregations.support.HistogramValuesSource;
 
 import java.io.IOException;
 import java.util.Map;
 
-public class HistoBackedTDigestPercentileRanksAggregator extends AbstractHistoBackedTDigestPercentilesAggregator {
+public class HistoBackedTDigestPercentileRanksAggregator extends AbstractTDigestOrExponentialPercentileRanksAggregator {
 
     public HistoBackedTDigestPercentileRanksAggregator(
         String name,
@@ -37,27 +38,8 @@ public class HistoBackedTDigestPercentileRanksAggregator extends AbstractHistoBa
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        TDigestState state = getState(owningBucketOrdinal);
-        if (state == null) {
-            return buildEmptyAggregation();
-        } else {
-            return new InternalTDigestPercentileRanks(name, keys, state, keyed, formatter, metadata());
-        }
-    }
-
-    @Override
-    public InternalAggregation buildEmptyAggregation() {
-        return InternalTDigestPercentileRanks.empty(name, keys, compression, executionHint, keyed, formatter, metadata());
-    }
-
-    @Override
-    public double metric(String name, long bucketOrd) {
-        TDigestState state = getState(bucketOrd);
-        if (state == null) {
-            return Double.NaN;
-        } else {
-            return InternalTDigestPercentileRanks.percentileRank(state, Double.parseDouble(name));
-        }
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
+        final HistogramValues values = ((HistogramValuesSource.Histogram) valuesSource).getHistogramValues(aggCtx.getLeafReaderContext());
+        return mergingTDigestCollector(sub, values);
     }
 }

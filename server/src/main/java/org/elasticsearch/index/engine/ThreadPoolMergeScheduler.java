@@ -43,6 +43,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+/// A Lucene [MergeScheduler] that delegates merge execution to a shared, node-level [ThreadPoolMergeExecutorService]
+/// thread pool. This is the default merge scheduler in Elasticsearch.
+///
+/// @see ThreadPoolMergeExecutorService
+/// @see org.elasticsearch.index.MergePolicyConfig
+///
 public class ThreadPoolMergeScheduler extends MergeScheduler implements ElasticsearchMergeScheduler {
     /**
      * This setting switches between the original {@link ElasticsearchConcurrentMergeScheduler}
@@ -133,6 +139,10 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     @Override
     public MergeScheduler getMergeScheduler() {
         return this;
+    }
+
+    protected ThreadPoolMergeExecutorService getThreadPoolMergeExecutorService() {
+        return threadPoolMergeExecutorService;
     }
 
     @Override
@@ -293,7 +303,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         int activeMerges = (int) (submittedMergesCount - doneMergesCount);
         if (activeMerges > configuredMaxMergeCount
             // only throttle indexing if disk IO is un-throttled (if enabled), and we still can't keep up with the merge load
-            && (config.isAutoThrottle() == false || threadPoolMergeExecutorService.usingMaxTargetIORateBytesPerSec())
+            && (isAutoThrottle() == false || threadPoolMergeExecutorService.usingMaxTargetIORateBytesPerSec())
             && shouldThrottleIncomingMerges.get() == false) {
             // maybe enable merge task throttling
             synchronized (shouldThrottleIncomingMerges) {

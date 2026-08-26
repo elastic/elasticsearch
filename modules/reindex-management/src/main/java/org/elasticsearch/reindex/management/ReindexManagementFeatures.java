@@ -21,6 +21,6 @@ public class ReindexManagementFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return ReindexPlugin.REINDEX_RESILIENCE_ENABLED ? Set.of(NEW_ENDPOINTS) : Set.of();
+        return Set.of(NEW_ENDPOINTS, ReindexPlugin.RELOCATE_ON_SHUTDOWN_NODE_FEATURE, ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE);
     }
 }

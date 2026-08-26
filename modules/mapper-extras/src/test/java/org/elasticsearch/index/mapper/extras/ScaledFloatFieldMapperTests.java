@@ -10,14 +10,18 @@
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -26,9 +30,11 @@ import org.elasticsearch.index.mapper.NumberFieldMapperTests;
 import org.elasticsearch.index.mapper.NumberTypeOutOfRangeSpec;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.SyntheticSourceMalformedValueSorter;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -55,6 +61,12 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
     }
 
     @Override
+    protected FieldMapper.DocValuesParameter.Values getDocValuesParameters(MapperService mapperService) {
+        ScaledFloatFieldMapper mapper = (ScaledFloatFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        return mapper.docValuesParameters();
+    }
+
+    @Override
     protected Object getSampleValueForDocument() {
         return 123;
     }
@@ -74,7 +86,8 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
-        checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((ScaledFloatFieldMapper) m).coerce()));
+        checker.registerUpdateCheck("coerce", b -> b.field("coerce", false), m -> assertFalse(((ScaledFloatFieldMapper) m).coerce()));
+        checker.registerConflictCheck("time_series_metric", b -> b.field("time_series_metric", "gauge"));
     }
 
     @Override
@@ -126,7 +139,8 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         assertThat(e.getMessage(), containsString("[scaling_factor] must be a positive number, got [-1.0]"));
     }
 
-    public void testNotIndexed() throws Exception {
+    @Override
+    public void testNotIndexed() throws IOException {
         DocumentMapper mapper = createDocumentMapper(
             fieldMapping(b -> b.field("type", "scaled_float").field("index", false).field("scaling_factor", 10.0))
         );
@@ -142,6 +156,7 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         List<IndexableField> fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.size());
         IndexableField dvField = fields.get(0);
+        assertEquals(IndexOptions.NONE, dvField.fieldType().indexOptions());
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
         assertEquals(1230, dvField.numericValue().longValue());
     }
@@ -368,12 +383,17 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        return new ScaledFloatSyntheticSourceSupport(ignoreMalformed);
+        return new ScaledFloatSyntheticSourceSupport(ignoreMalformed, false);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupportColumnar(boolean ignoreMalformed) {
+        return new ScaledFloatSyntheticSourceSupport(ignoreMalformed, true);
     }
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode sourceKeepMode) {
-        return new ScaledFloatSyntheticSourceSupport(ignoreMalformed) {
+        return new ScaledFloatSyntheticSourceSupport(ignoreMalformed, false) {
             @Override
             public SyntheticSourceExample example(int maxVals) {
                 var example = super.example(maxVals);
@@ -390,11 +410,18 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
 
     private static class ScaledFloatSyntheticSourceSupport implements SyntheticSourceSupport {
         private final boolean ignoreMalformedEnabled;
+        private final boolean isColumnar;
         private final double scalingFactor = randomDoubleBetween(0, Double.MAX_VALUE, false);
         private final Double nullValue = usually() ? null : round(randomValue());
 
-        private ScaledFloatSyntheticSourceSupport(boolean ignoreMalformedEnabled) {
+        private ScaledFloatSyntheticSourceSupport(boolean ignoreMalformedEnabled, boolean isColumnar) {
             this.ignoreMalformedEnabled = ignoreMalformedEnabled;
+            this.isColumnar = isColumnar;
+        }
+
+        @Override
+        public boolean isColumnar() {
+            return isColumnar;
         }
 
         @Override
@@ -409,11 +436,16 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
             List<Value> values = randomList(1, maxValues, this::generateValue);
             List<Object> in = values.stream().map(Value::input).toList();
 
-            List<Double> outputFromDocValues = values.stream().filter(v -> v.malformedOutput == null).map(Value::output).sorted().toList();
-            Stream<Object> malformedOutput = values.stream().filter(v -> v.malformedOutput != null).map(Value::malformedOutput);
+            Stream<Double> nonMalformedOutputs = values.stream().filter(v -> v.malformedOutput == null).map(Value::output);
+            List<Double> outputFromDocValues = (isColumnar ? nonMalformedOutputs : nonMalformedOutputs.sorted()).toList();
+            List<Object> malformedOutput = values.stream()
+                .filter(v -> v.malformedOutput != null)
+                .map(Value::malformedOutput)
+                .sorted(SyntheticSourceMalformedValueSorter.comparator())
+                .toList();
 
-            // Malformed values are always last in the implementation.
-            List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput).toList();
+            // Malformed values are always last in the implementation (sorted by encoded BytesRef).
+            List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput.stream()).toList();
             Object out = outList.size() == 1 ? outList.get(0) : outList;
 
             return new SyntheticSourceExample(in, out, this::mapping);
@@ -430,10 +462,17 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
             // Here we mostly want to verify behavior of arrays that contain malformed
             // values since there are modifications specific to synthetic source.
             if (ignoreMalformedEnabled && randomBoolean()) {
-                List<Supplier<Object>> choices = List.of(
-                    () -> randomAlphaOfLengthBetween(1, 10),
-                    () -> Map.of(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10))
-                );
+                List<Supplier<Object>> choices;
+                if (isColumnar) {
+                    // Columnar mode uses subobjects:false, so object values are flattened into dynamic sub-fields
+                    // instead of being rejected by ignore_malformed, breaking the round-trip comparison.
+                    choices = List.of(() -> randomAlphaOfLengthBetween(1, 10));
+                } else {
+                    choices = List.of(
+                        () -> randomAlphaOfLengthBetween(1, 10),
+                        () -> Map.of(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10))
+                    );
+                }
                 var malformedInput = randomFrom(choices).get();
                 return new Value(malformedInput, null, malformedInput);
             }
@@ -656,5 +695,51 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
             // TODO doubles currently disable pruning, can we re-enable?
             new SortShortcutSupport(this::minimalMapping, this::writeField, false)
         );
+    }
+
+    public void testColumnarArrayOrderRoundTrip() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name()).build();
+        double scalingFactor = 100.0;
+        DocumentMapper mapper = createMapperService(
+            settings,
+            mapping(b -> b.startObject("field").field("type", "scaled_float").field("scaling_factor", scalingFactor).endObject())
+        ).documentMapper();
+
+        // Pick raw ints then divide by the scaling factor so values already lie on the scaled grid — no quantization loss.
+        double v1 = randomIntBetween(0, 100_000) / scalingFactor;
+        double v2 = randomIntBetween(0, 100_000) / scalingFactor;
+        double v3 = randomIntBetween(0, 100_000) / scalingFactor;
+
+        String src = syntheticSource(mapper, b -> b.array("field", v2, v1, v3, v2));
+        assertThat(src, containsString("\"field\":[" + v2 + "," + v1 + "," + v3 + "," + v2 + "]"));
+    }
+
+    /**
+     * scaled_float only began honoring the index-level {@code doc_values} settings in
+     * {@link IndexVersions#DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS}. Indices created before that version must keep the legacy
+     * behavior of ignoring the settings (defaulting {@code multi_value=true}), so their persisted mappings stay stable across
+     * upgrade; indices created on/after must honor them.
+     */
+    public void testColumnarDocValuesDefaultsGatedByIndexVersion() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), false)
+            .build();
+
+        MapperService onOrAfter = createMapperService(
+            IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS,
+            settings,
+            fieldMapping(b -> b.field("type", "scaled_float").field("scaling_factor", 10.0))
+        );
+        ScaledFloatFieldMapper honored = (ScaledFloatFieldMapper) onOrAfter.documentMapper().mappers().getMapper("field");
+        assertThat(honored.docValuesParameters().multiValue(), equalTo(false));
+
+        MapperService before = createMapperService(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS),
+            settings,
+            fieldMapping(b -> b.field("type", "scaled_float").field("scaling_factor", 10.0))
+        );
+        ScaledFloatFieldMapper ignored = (ScaledFloatFieldMapper) before.documentMapper().mappers().getMapper("field");
+        assertThat(ignored.docValuesParameters().multiValue(), equalTo(true));
     }
 }

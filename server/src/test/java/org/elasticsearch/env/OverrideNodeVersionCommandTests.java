@@ -11,6 +11,7 @@ package org.elasticsearch.env;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.MockTerminal;
@@ -136,7 +137,7 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
                 containsString("too old"),
                 containsString("data loss"),
                 containsString("You should not use this tool"),
-                containsString(Version.CURRENT.toString()),
+                containsString(Build.current().version()),
                 containsString(nodeVersion.toString())
             )
         );
@@ -161,7 +162,7 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
             allOf(
                 containsString("data loss"),
                 containsString("You should not use this tool"),
-                containsString(Version.CURRENT.toString()),
+                containsString(Build.current().version()),
                 containsString(nodeVersion.toString())
             )
         );
@@ -183,7 +184,7 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
                 containsString("too old"),
                 containsString("data loss"),
                 containsString("You should not use this tool"),
-                containsString(Version.CURRENT.toString()),
+                containsString(Build.current().version()),
                 containsString(nodeVersion.toString()),
                 containsString(OverrideNodeVersionCommand.SUCCESS_MESSAGE)
             )
@@ -205,7 +206,7 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
             allOf(
                 containsString("data loss"),
                 containsString("You should not use this tool"),
-                containsString(Version.CURRENT.toString()),
+                containsString(Build.current().version()),
                 containsString(nodeVersion.toString()),
                 containsString(OverrideNodeVersionCommand.SUCCESS_MESSAGE)
             )

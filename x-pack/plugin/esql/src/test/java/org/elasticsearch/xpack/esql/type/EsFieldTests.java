@@ -9,26 +9,64 @@ package org.elasticsearch.xpack.esql.type;
 
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.EsField.TimeSeriesFieldType;
 
 import java.util.Map;
 
-public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
-    public static EsField randomEsField(int maxPropertiesDepth) {
-        String name = randomAlphaOfLength(4);
-        DataType esDataType = randomValueOtherThanMany(
-            t -> false == t.supportedVersion().supportedLocally(),
-            () -> randomFrom(DataType.types())
-        );
-        Map<String, EsField> properties = randomProperties(maxPropertiesDepth);
-        boolean aggregatable = randomBoolean();
-        boolean isAlias = randomBoolean();
-        EsField.TimeSeriesFieldType tsType = randomFrom(EsField.TimeSeriesFieldType.values());
-        return new EsField(name, esDataType, properties, aggregatable, isAlias, tsType);
-    }
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomEsField;
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomProperties;
+import static org.hamcrest.Matchers.equalTo;
 
+public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
     @Override
     protected EsField createTestInstance() {
         return randomEsField(4);
+    }
+
+    public void testTimeSeriesFieldTypeMergeMetricWithDimensionThrows() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> TimeSeriesFieldType.METRIC.merge(TimeSeriesFieldType.DIMENSION)
+        );
+        assertThat(e.getMessage(), equalTo("Time Series Metadata conflict.  Cannot merge [DIMENSION] with [METRIC]."));
+    }
+
+    public void testTimeSeriesFieldTypeMergeDimensionWithMetricThrows() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> TimeSeriesFieldType.DIMENSION.merge(TimeSeriesFieldType.METRIC)
+        );
+        assertThat(e.getMessage(), equalTo("Time Series Metadata conflict.  Cannot merge [METRIC] with [DIMENSION]."));
+    }
+
+    public void testTimeSeriesFieldTypeMergeMetricWithNonDimension() {
+        for (TimeSeriesFieldType other : new TimeSeriesFieldType[] {
+            TimeSeriesFieldType.UNKNOWN,
+            TimeSeriesFieldType.NONE,
+            TimeSeriesFieldType.METRIC }) {
+            assertThat(TimeSeriesFieldType.METRIC.merge(other), equalTo(TimeSeriesFieldType.METRIC));
+        }
+    }
+
+    public void testTimeSeriesFieldTypeMergeDimensionWithNonMetric() {
+        for (TimeSeriesFieldType other : new TimeSeriesFieldType[] {
+            TimeSeriesFieldType.UNKNOWN,
+            TimeSeriesFieldType.NONE,
+            TimeSeriesFieldType.DIMENSION }) {
+            assertThat(TimeSeriesFieldType.DIMENSION.merge(other), equalTo(TimeSeriesFieldType.DIMENSION));
+        }
+    }
+
+    public void testTimeSeriesFieldTypeMergeUnknown() {
+        for (TimeSeriesFieldType other : TimeSeriesFieldType.values()) {
+            assertThat(TimeSeriesFieldType.UNKNOWN.merge(other), equalTo(other));
+        }
+    }
+
+    public void testTimeSeriesFieldTypeMergeNone() {
+        for (TimeSeriesFieldType other : TimeSeriesFieldType.values()) {
+            assertThat(TimeSeriesFieldType.NONE.merge(other), equalTo(other));
+        }
     }
 
     @Override

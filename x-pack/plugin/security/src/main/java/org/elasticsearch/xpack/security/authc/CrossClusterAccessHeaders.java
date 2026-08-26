@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.authc;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyCredentials;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignatureManager;
 import org.elasticsearch.xpack.security.transport.X509CertificateSignature;
@@ -86,7 +87,7 @@ public final class CrossClusterAccessHeaders {
         );
     }
 
-    public ApiKeyService.ApiKeyCredentials credentials() {
+    public ApiKeyCredentials credentials() {
         return parseCredentialsHeader(credentialsHeader, getCertificateIdentity(signature));
     }
 
@@ -108,11 +109,11 @@ public final class CrossClusterAccessHeaders {
         return signablePayload;
     }
 
-    static ApiKeyService.ApiKeyCredentials parseCredentialsHeader(String credentialsHeader) {
+    static ApiKeyCredentials parseCredentialsHeader(String credentialsHeader) {
         return parseCredentialsHeader(credentialsHeader, null);
     }
 
-    static ApiKeyService.ApiKeyCredentials parseCredentialsHeader(final String header, @Nullable String expectedCertificateIdentity) {
+    static ApiKeyCredentials parseCredentialsHeader(final String header, @Nullable String expectedCertificateIdentity) {
         try {
             return Objects.requireNonNull(
                 ApiKeyService.getCredentialsFromHeader(header, expectedCertificateIdentity, ApiKey.Type.CROSS_CLUSTER)

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.lucene;
 
-import java.util.Collection;
 import java.util.List;
 
 /** An {@link IndexedByShardId} used by only in tests, but placed here so it's visible for all test modules. */
@@ -24,8 +23,13 @@ public class IndexedByShardIdFromList<T> implements IndexedByShardId<T> {
     }
 
     @Override
-    public Collection<? extends T> collection() {
+    public Iterable<? extends T> iterable() {
         return list;
+    }
+
+    @Override
+    public int size() {
+        return list.size();
     }
 
     @Override

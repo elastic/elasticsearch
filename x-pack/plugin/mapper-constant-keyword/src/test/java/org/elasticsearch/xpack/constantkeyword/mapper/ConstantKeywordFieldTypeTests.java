@@ -58,6 +58,34 @@ public class ConstantKeywordFieldTypeTests extends ConstantFieldTypeTestCase {
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("B*r", null, true, null));
     }
 
+    public void testWildcardQueryWithQuestionMark() {
+        // gh-141785: ? should match exactly one character, not be treated as a literal.
+        ConstantKeywordFieldType foo = new ConstantKeywordFieldType("f", "foo");
+        assertEquals(Queries.ALL_DOCS_INSTANCE, foo.wildcardQuery("f?o", null, false, null));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, foo.wildcardQuery("F?o", null, true, null));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, foo.wildcardQuery("???", null, false, null));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, foo.wildcardQuery("f?o*", null, false, null));
+        // ? matches exactly one character, so "f?" against "foo" must not match.
+        assertEquals(Queries.NO_DOCS_INSTANCE, foo.wildcardQuery("f?", null, false, null));
+        // No match against the constant value.
+        assertEquals(Queries.NO_DOCS_INSTANCE, foo.wildcardQuery("b?r", null, false, null));
+
+        ConstantKeywordFieldType none = new ConstantKeywordFieldType("f", null);
+        assertEquals(Queries.NO_DOCS_INSTANCE, none.wildcardQuery("f?o", null, false, null));
+    }
+
+    public void testNormalizedWildcardQuery() {
+        ConstantKeywordFieldType none = new ConstantKeywordFieldType("f", null);
+        assertEquals(Queries.NO_DOCS_INSTANCE, none.normalizedWildcardQuery("f*", null, null));
+        ConstantKeywordFieldType foo = new ConstantKeywordFieldType("f", "foo");
+        assertEquals(Queries.ALL_DOCS_INSTANCE, foo.normalizedWildcardQuery("f*", null, null));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, foo.normalizedWildcardQuery("*o", null, null));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, foo.normalizedWildcardQuery("*o*", null, null));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, foo.normalizedWildcardQuery("f*o", null, null));
+        assertEquals(Queries.NO_DOCS_INSTANCE, foo.normalizedWildcardQuery("*ar", null, null));
+        assertEquals(Queries.NO_DOCS_INSTANCE, foo.normalizedWildcardQuery("ba*", null, null));
+    }
+
     public void testPrefixQuery() {
         ConstantKeywordFieldType bar = new ConstantKeywordFieldType("f", "bar");
         assertEquals(Queries.NO_DOCS_INSTANCE, bar.prefixQuery("fo", null, false, null));

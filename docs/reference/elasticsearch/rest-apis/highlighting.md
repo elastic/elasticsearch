@@ -8,7 +8,7 @@ applies_to:
 
 # Highlighting [highlighting]
 
-Highlighters enable you to retrieve the best-matching highlighted snippets from one or more fields in your search results so you can show users where the query matches are. When you request highlights, the response contains an additional `highlight` element for each search hit that includes the highlighted fields and the highlighted fragments.
+You can use the Search API's [`highlight` parameter](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#operation-search-body-application-json-highlight)￼to retrieve the best-matching highlighted snippets from one or more fields in your search results so you can show users where the query matches are. When you request highlights, the response contains an additional `highlight` element for each search hit that includes the highlighted fields and the highlighted fragments. For the most up-to-date API details, refer to [search APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-search).
 
 ::::{note}
 Highlighters don’t reflect the boolean logic of a query when extracting terms to highlight. Thus, for some complex boolean queries (e.g nested boolean queries, queries using `minimum_should_match` etc.), parts of documents may be highlighted that don’t correspond to query matches.
@@ -36,7 +36,7 @@ GET /_search
 
 ## Highlighting types [highlighting-types]
 
-{{es}} supports three highlighters: `unified`, `plain`, and `fvh` (fast vector highlighter) for `text` and `keyword` fields and the `semantic` highlighter for `semantic_text` fields. You can specify the highlighter `type` you want to use for each field or rely on the field type’s default highlighter.
+{{es}} supports three highlighters: `unified`, `plain`, and `fvh` (fast vector highlighter) for `text` and `keyword` fields and the `semantic` highlighter for `semantic` and `semantic_text` fields. You can specify the highlighter `type` you want to use for each field or rely on the field type’s default highlighter.
 
 
 ### Unified highlighter [unified-highlighter]
@@ -48,9 +48,9 @@ This is the default highlighter for all `text` and `keyword` fields.
 
 ### Semantic Highlighter [semantic-highlighter]
 
-The `semantic` highlighter is specifically designed for use with the [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) field. It identifies and extracts the most relevant fragments from the field based on semantic similarity between the query and each fragment.
+The `semantic` highlighter is designed for use with [`semantic`](/reference/elasticsearch/mapping-reference/semantic-field.md) and [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) fields. It identifies and extracts the most relevant field values or text fragments based on their semantic similarity to the query. For non-text values in a `semantic` field, it returns the complete data URL of each matching value.
 
-By default, [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) fields use the semantic highlighter.
+By default, `semantic` and `semantic_text` fields use the semantic highlighter.
 
 
 ### Plain highlighter [plain-highlighter]

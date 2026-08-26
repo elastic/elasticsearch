@@ -69,7 +69,8 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
     final String INDEX_UUID = "_indexUUID_";
 
     final Settings enabledSummariesSettings = Settings.builder()
-        .put(AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_SETTING.getKey(), true)
+        .put(AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_METRICS_SETTING.getKey(), true)
+        .put(AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING.getKey(), true)
         .build();
     final Settings disabledDefaultEmptySettings = Settings.builder().build();
 
@@ -92,7 +93,7 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
 
     /**
      * Test that the service is disabled and no logging occurs when
-     * {@link AllocationBalancingRoundSummaryService#ENABLE_BALANCER_ROUND_SUMMARIES_SETTING} defaults to false.
+     * {@link AllocationBalancingRoundSummaryService#ENABLE_BALANCER_ROUND_SUMMARIES_METRICS_SETTING} defaults to false.
      */
     public void testServiceDisabledByDefault() {
         var recordingMeterRegistry = new RecordingMeterRegistry();
@@ -296,14 +297,16 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
     }
 
     /**
-     * Test that the service is disabled by setting {@link AllocationBalancingRoundSummaryService#ENABLE_BALANCER_ROUND_SUMMARIES_SETTING}
-     * to false.
+     * Test that the service is disabled by setting both
+     * {@link AllocationBalancingRoundSummaryService#ENABLE_BALANCER_ROUND_SUMMARIES_METRICS_SETTING} and
+     * {@link AllocationBalancingRoundSummaryService#ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING} to false.
      */
     public void testEnableAndThenDisableService() {
         var recordingMeterRegistry = new RecordingMeterRegistry();
         var balancingRoundMetrics = new AllocationBalancingRoundMetrics(recordingMeterRegistry);
         var disabledSettingsUpdate = Settings.builder()
-            .put(AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_SETTING.getKey(), false)
+            .put(AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_METRICS_SETTING.getKey(), false)
+            .put(AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING.getKey(), false)
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(enabledSummariesSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         var service = new AllocationBalancingRoundSummaryService(testThreadPool, clusterSettings, balancingRoundMetrics);
@@ -359,6 +362,75 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
                 Map.of("node1", List.of(2.0), "node2", List.of(2.0)),
                 Map.of("node1", List.of(3.0), "node2", List.of(3.0)),
                 Map.of("node1", List.of(4.0), "node2", List.of(4.0))
+            );
+        }
+
+    }
+
+    /**
+     * Test that the logging portion of the service and its queued summaries are cleared/disabled
+     * by setting {@link AllocationBalancingRoundSummaryService#ENABLE_BALANCER_ROUND_SUMMARIES_METRICS_SETTING} to false.
+     */
+    public void testMetricsRemainEnabledWhenLoggingIsDisabled() {
+        var disabledSettingsUpdate = Settings.builder()
+            .put(AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING.getKey(), false)
+            .build();
+        var recordingMeterRegistry = new RecordingMeterRegistry();
+        var balancingRoundMetrics = new AllocationBalancingRoundMetrics(recordingMeterRegistry);
+        ClusterSettings clusterSettings = new ClusterSettings(enabledSummariesSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        var service = new AllocationBalancingRoundSummaryService(testThreadPool, clusterSettings, balancingRoundMetrics);
+
+        try (var mockLog = MockLog.capture(AllocationBalancingRoundSummaryService.class)) {
+            /**
+             * Add some summaries, but then disable the service before logging occurs. Disabling logging should drain and discard any
+             * summaries waiting to be reported.
+             */
+
+            service.addBalancerRoundSummary(new BalancingRoundSummary(NODE_NAME_TO_WEIGHT_CHANGES, 50));
+            service.verifyNumberOfSummaries(1);
+
+            assertMetricsCollected(
+                recordingMeterRegistry,
+                List.of(1L),
+                List.of(50L),
+                Map.of("node1", List.of(1L), "node2", List.of(1L)),
+                Map.of("node1", List.of(2.0), "node2", List.of(2.0)),
+                Map.of("node1", List.of(3.0), "node2", List.of(3.0)),
+                Map.of("node1", List.of(4.0), "node2", List.of(4.0))
+            );
+
+            clusterSettings.applySettings(disabledSettingsUpdate);
+            service.verifyNumberOfSummaries(0);
+
+            /**
+             * Verify that any additional summaries are not retained, since logging is disabled.
+             */
+            service.addBalancerRoundSummary(new BalancingRoundSummary(NODE_NAME_TO_WEIGHT_CHANGES, 100));
+            service.verifyNumberOfSummaries(0);
+
+            // Check that the service never logged anything.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "Running balancer summary logging",
+                    AllocationBalancingRoundSummaryService.class.getName(),
+                    Level.INFO,
+                    "*"
+                )
+            );
+            deterministicTaskQueue.advanceTime();
+            deterministicTaskQueue.runAllRunnableTasks();
+            mockLog.awaitAllExpectationsMatched();
+            service.verifyNumberOfSummaries(0);
+
+            // check that metrics continued to be collected
+            assertMetricsCollected(
+                recordingMeterRegistry,
+                List.of(1L, 1L),
+                List.of(50L, 100L),
+                Map.of("node1", List.of(1L, 1L), "node2", List.of(1L, 1L)),
+                Map.of("node1", List.of(2.0, 2.0), "node2", List.of(2.0, 2.0)),
+                Map.of("node1", List.of(3.0, 3.0), "node2", List.of(3.0, 3.0)),
+                Map.of("node1", List.of(4.0, 4.0), "node2", List.of(4.0, 4.0))
             );
         }
     }

@@ -31,13 +31,13 @@ public final class ValuesBytesRefAggregatorFunctionSupplier implements Aggregato
   @Override
   public ValuesBytesRefAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return ValuesBytesRefAggregatorFunction.create(driverContext, channels);
+    return new ValuesBytesRefAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public ValuesBytesRefGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return ValuesBytesRefGroupingAggregatorFunction.create(channels, driverContext);
+    return new ValuesBytesRefGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

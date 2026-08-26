@@ -319,7 +319,7 @@ public class RemoteClusterSecurityCrossClusterApiKeySigningIT extends AbstractRe
                   "remote_indices": [
                     {
                       "names": ["index1", "not_found_index", "prefixed_index"],
-                      "privileges": ["read", "read_cross_cluster"],
+                      "privileges": ["read"],
                       "clusters": ["my_remote_cluster"]
                     }
                   ]

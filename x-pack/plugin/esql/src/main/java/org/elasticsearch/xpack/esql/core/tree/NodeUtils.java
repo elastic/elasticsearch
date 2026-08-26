@@ -6,6 +6,9 @@
  */
 package org.elasticsearch.xpack.esql.core.tree;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+
 import java.util.Collection;
 import java.util.Iterator;
 
@@ -58,29 +61,84 @@ public abstract class NodeUtils {
 
     private static final int TO_STRING_LIMIT = 52;
 
-    public static <E> String limitedToString(Collection<E> c) {
-        Iterator<E> it = c.iterator();
+    /**
+     * Render {@code node} via {@link Node#nodeString}, or append {@code null} when the node is absent.
+     */
+    public static void toString(StringBuilder sb, @Nullable Node<?> node, Node.NodeStringFormat format, NodeStringMapper mapper) {
+        if (node == null) {
+            sb.append("null");
+        } else {
+            node.nodeString(sb, format, mapper);
+        }
+    }
+
+    public static void toString(
+        StringBuilder sb,
+        Collection<? extends Attribute> c,
+        Node.NodeStringFormat format,
+        NodeStringMapper mapper
+    ) {
+        // LIMITED truncates to keep human-readable toString bounded; FULL prints the whole list.
+        // Both routes render each attribute through nodeString with the supplied format + mapper so
+        // identifier mapping (anonymization) propagates correctly.
+        if (format == Node.NodeStringFormat.LIMITED) {
+            limitedToString(sb, c, format, mapper);
+        } else {
+            unlimitedToString(sb, c, format, mapper);
+        }
+    }
+
+    private static void limitedToString(
+        StringBuilder sb,
+        Collection<? extends Attribute> c,
+        Node.NodeStringFormat format,
+        NodeStringMapper mapper
+    ) {
+        Iterator<? extends Attribute> it = c.iterator();
         if (it.hasNext() == false) {
-            return "[]";
+            sb.append("[]");
+            return;
         }
 
-        // ..]
-        StringBuilder sb = new StringBuilder(TO_STRING_LIMIT + 4);
+        // track how many characters we've added since the opening '[' for the truncation limit
+        int start = sb.length();
         sb.append('[');
         for (;;) {
-            E e = it.next();
-            String next = e == c ? "(this Collection)" : String.valueOf(e);
-            if (next.length() + sb.length() > TO_STRING_LIMIT) {
-                sb.append(next.substring(0, Math.max(0, TO_STRING_LIMIT - sb.length())));
+            Attribute a = it.next();
+            StringBuilder render = new StringBuilder();
+            toString(render, a, format, mapper);
+            String next = render.toString();
+            int used = sb.length() - start;
+            if (next.length() + used > TO_STRING_LIMIT) {
+                sb.append(next, 0, Math.max(0, TO_STRING_LIMIT - used));
                 sb.append('.').append('.').append(']');
-                return sb.toString();
+                return;
             } else {
                 sb.append(next);
             }
             if (it.hasNext() == false) {
-                return sb.append(']').toString();
+                sb.append(']');
+                return;
             }
             sb.append(',').append(' ');
         }
+    }
+
+    private static void unlimitedToString(
+        StringBuilder sb,
+        Collection<? extends Attribute> c,
+        Node.NodeStringFormat format,
+        NodeStringMapper mapper
+    ) {
+        sb.append('[');
+        boolean first = true;
+        for (Attribute s : c) {
+            if (first == false) {
+                sb.append(", ");
+            }
+            toString(sb, s, format, mapper);
+            first = false;
+        }
+        sb.append(']');
     }
 }

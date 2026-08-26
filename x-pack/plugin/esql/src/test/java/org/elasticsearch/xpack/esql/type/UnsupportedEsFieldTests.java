@@ -13,19 +13,10 @@ import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomProperties;
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomUnsupportedEsField;
+
 public class UnsupportedEsFieldTests extends AbstractEsFieldTypeTests<UnsupportedEsField> {
-    public static UnsupportedEsField randomUnsupportedEsField(int maxPropertiesDepth) {
-        String name = randomAlphaOfLength(4);
-        List<String> originalTypes = randomOriginalTypes();
-        String inherited = randomBoolean() ? null : randomAlphaOfLength(5);
-        Map<String, EsField> properties = randomProperties(maxPropertiesDepth);
-        return new UnsupportedEsField(name, originalTypes, inherited, properties);
-    }
-
-    public static List<String> randomOriginalTypes() {
-        return randomBoolean() ? List.of(randomAlphaOfLength(5)) : randomList(4, 4, () -> randomAlphaOfLength(5));
-    }
-
     @Override
     protected UnsupportedEsField createTestInstance() {
         return randomUnsupportedEsField(4);
@@ -39,7 +30,10 @@ public class UnsupportedEsFieldTests extends AbstractEsFieldTypeTests<Unsupporte
         Map<String, EsField> properties = instance.getProperties();
         switch (between(0, 3)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
-            case 1 -> originalTypes = randomValueOtherThan(originalTypes, UnsupportedEsFieldTests::randomOriginalTypes);
+            case 1 -> originalTypes = randomValueOtherThan(
+                originalTypes,
+                org.elasticsearch.xpack.esql.type.EsFieldTestUtils::randomOriginalTypes
+            );
             case 2 -> inherited = randomValueOtherThan(inherited, () -> randomBoolean() ? null : randomAlphaOfLength(4));
             case 3 -> properties = randomValueOtherThan(properties, () -> randomProperties(4));
             default -> throw new IllegalArgumentException();

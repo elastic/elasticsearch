@@ -61,6 +61,6 @@ public class BaseNodesXContentResponseTests extends ESTestCase {
               },
               "cluster_name" : "elasticsearch",
               "content" : { }
-            }""", Strings.toString(fullResponse, true, false));
+            }""", Strings.toTruncatedString(fullResponse, true, false));
     }
 }

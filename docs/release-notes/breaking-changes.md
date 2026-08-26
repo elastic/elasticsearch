@@ -12,11 +12,140 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
-## 9.2.3 [elasticsearch-9.2.3-breaking-changes]
+## 9.5.2 [elasticsearch-9.5.2-breaking-changes]
+```{applies_to}
+stack: ga 9.5.2
+```
+
+There are no breaking changes associated with this release.
+
+## 9.5.1 [elasticsearch-9.5.1-breaking-changes]
+
+ILM:
+* When `number_of_replicas` is specified in the ILM `allocate` action, `auto_expand_replicas` is now explicitly removed from the index settings. [#155279](https://github.com/elastic/elasticsearch/pull/155279) (issue: [#150407](https://github.com/elastic/elasticsearch/issues/150407))
+
+## 9.4.5 [elasticsearch-9.4.5-breaking-changes]
+
+ILM:
+* When `number_of_replicas` is specified in the ILM `allocate` action, `auto_expand_replicas` is now explicitly removed from the index settings. [#155279](https://github.com/elastic/elasticsearch/pull/155279) (issue: [#150407](https://github.com/elastic/elasticsearch/issues/150407))
+
+## 9.5.0 [elasticsearch-9.5.0-breaking-changes]
+
+CCS:
+* Correctly handle order for remote cluster exclusions in CCS. An exclusion affects targets listed before it and has no impact on targets listed after it. [#143338](https://github.com/elastic/elasticsearch/pull/143338)
+
+ES|QL:
+* Rewire FUSE to use FIRST for passthrough columns [#150220](https://github.com/elastic/elasticsearch/pull/150220) (issue: [#141596](https://github.com/elastic/elasticsearch/issues/141596))
+
+TSDB:
+* In standard data streams, when a rollover occurs the ingestion traffic is routed directly to the new backing index, this has two benefits: changes in the settings or mappings will take effect immediately, and the old index will not keep accepting new data if the rollover conditions were met.
+In time series data streams (TSDS) all backing indices are potentially write indices because the documents are being routed to the right backing index based on their `@timestamp`. Assuming that the majority of ingestion traffic has a current `@timestamp`, after a rollover occurs, there is a delay up to `index.look_ahead_time` for the majority of the ingestion traffic to be routed to the new index. This delays the benefits of writing to the new index.
+We reduce this delay from 30 minutes to 9 minutes. This will make the rollover more effective. The side-effect is that documents with `@timestamp` more than 9 minutes in the future will be rejected since their timestamp will be outside the look-forward time window.
+In order to revert this, you can set the `index.look_ahead_time` to an appropriate higher value in the data stream's composable or component templates. [#145552](https://github.com/elastic/elasticsearch/pull/145552) (issue: [#142602](https://github.com/elastic/elasticsearch/issues/142602))
+
+## 9.4.4 [elasticsearch-9.4.4-breaking-changes]
+
+Inference:
+* [Inference API] Prevent overriding `secret_parameters` [#153309](https://github.com/elastic/elasticsearch/pull/153309)
+
+## 9.3.8 [elasticsearch-9.3.8-breaking-changes]
+
+Inference:
+* Prevent overriding `secret_parameters` in the Inference API [#153309](https://github.com/elastic/elasticsearch/pull/153309)
+
+## 9.3.7 [elasticsearch-9.3.7-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.4.3 [elasticsearch-9.4.3-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.3.6 [elasticsearch-9.3.6-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.4.2 [elasticsearch-9.4.2-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.3.5 [elasticsearch-9.3.5-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.4.1 [elasticsearch-9.4.1-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.4.0 [elasticsearch-9.4.0-breaking-changes]
+
+ILM:
+* In earlier versions of Elasticsearch the downsampling API was force merging the downsampled index. In Elasticsearch `9.3.0` and later we moved this behaviour from the downsampling API to the ILM downsampling action and we enabled by default. This allowed users to disabled it if they wished.
+Seeing that the force merge is not inherently needed by the downsampling operation, in Elasticsearch `9.4.0`, we choose to disable it by default. This change only affects the downsampling ILM actions; other actions that force merge an index by default, such as the searchable snapshot action, will remain unchanged.
+If a user was relying on this behaviour they will need to update their ILM policy, either by adding a force merge action in the same or a subsequent phase of the policy or by setting the `force_merge_index` parameter of the downsample action to `true`. [#145400](https://github.com/elastic/elasticsearch/pull/145400) (issue: [#140811](https://github.com/elastic/elasticsearch/issues/140811))
+
+Mapping:
+* OTLP endpoint: use exponential_histograms by default [#145065](https://github.com/elastic/elasticsearch/pull/145065)
+
+TSDB:
+* Sequence numbers have significant storage footprint in metrics applications (up to 30% for OTLP). To alleviate this, we are disabling sequence numbers for indices in time-series mode, meaning that they get trimmed once they are no longer needed for replication. This helps with storage efficiency, as well as reducing the overhead for segment merging.
+The downside is that [Optimistic Concurrency Control](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/optimistic-concurrency-control) is no longer applicable to these indices. Index, update and delete operations using `if_seq_no` error out, and search calls with `seq_no_primary_term` set return sentinel values for sequence numbers. Moreover, `update_by_query` and `delete_by_query` operations proceed without conflict detection, so concurrent modifications may silently overwrite the affected docs without triggering version conflict errors.
+This is largely a favorable tradeoff as concurrent modifications are rather rare in metrics applications and the storage savings are substantial. Still, users requiring OCC support can restore the old behavior by setting `index.disable_sequence_numbers` to `false` in their time-series index templates. [#145737](https://github.com/elastic/elasticsearch/pull/145737) (issue: [#136305](https://github.com/elastic/elasticsearch/issues/136305))
+
+## 9.3.4 [elasticsearch-9.3.4-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.2.8 [elasticsearch-9.2.8-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.3.3 [elasticsearch-9.3.3-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.2.7 [elasticsearch-9.2.7-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.3.2 [elasticsearch-9.3.2-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.2.6 [elasticsearch-9.2.6-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.3.1 [elasticsearch-9.3.1-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.3.0 [elasticsearch-9.3.0-breaking-changes]
+
+Mapping:
+* Implement native synthetic source for normalized keywords [#136915](https://github.com/elastic/elasticsearch/pull/136915)
+
+Search:
+* Disable cross-cluster functionality for `_fleet/_fleet_msearch` [#136703](https://github.com/elastic/elasticsearch/pull/136703)
+* Disable cross-cluster functionality for `_fleet/_fleet_search` [#136039](https://github.com/elastic/elasticsearch/pull/136039)
+
+## 9.2.5 [elasticsearch-9.2.5-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.1.10 [elasticsearch-9.1.10-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.2.4 [elasticsearch-9.2.4-breaking-changes]
 
 There are no breaking changes associated with this release.
 
 ## 9.1.9 [elasticsearch-9.1.9-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.2.3 [elasticsearch-9.2.3-breaking-changes]
 
 There are no breaking changes associated with this release.
 
@@ -50,8 +179,6 @@ Mapping:
 
 Vector Search:
 * Enable `exclude_source_vectors` by default for new indices [#131907](https://github.com/elastic/elasticsearch/pull/131907)
-
-
 
 ## 9.0.8 [elasticsearch-9.0.8-breaking-changes]
 
@@ -193,9 +320,6 @@ Test the upgrade in a non-production environment. Adapt your configuration to th
 For more information, view [#126843](https://github.com/elastic/elasticsearch/pull/126843) (issue: [#120993](https://github.com/elastic/elasticsearch/issues/120993))
 :::
 
-
-
-
 ## 9.0.4 [elasticsearch-9.0.4-breaking-changes]
 
 There are no breaking changes associated with this release.
@@ -208,8 +332,6 @@ There are no breaking changes associated with this release.
 
 Snapshot/Restore:
 * Make S3 custom query parameter optional [#128043](https://github.com/elastic/elasticsearch/pull/128043)
-
-
 
 ## 9.0.1 [elasticsearch-9.0.1-breaking-changes]
 

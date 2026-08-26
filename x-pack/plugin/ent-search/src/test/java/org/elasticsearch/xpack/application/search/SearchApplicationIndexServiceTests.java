@@ -14,9 +14,11 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
@@ -37,6 +39,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.application.search.SearchApplicationIndexService.SEARCH_APPLICATION_CONCRETE_INDEX_NAME;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.contains;
 
 public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
     private static final int NUM_INDICES = 10;
@@ -116,10 +119,13 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
     }
 
     private void checkAliases(SearchApplication searchApp) {
+        @NotMultiProjectCapable
+        final ProjectId projectId = ProjectId.DEFAULT;
         Metadata metadata = clusterService.state().metadata();
+        assertThat("Test assumes [" + projectId + "] project only", metadata.projects().keySet(), contains(projectId));
         final String aliasName = searchApp.name();
-        assertTrue(metadata.getProject().hasAlias(aliasName));
-        final Set<String> aliasedIndices = metadata.getProject()
+        assertTrue(metadata.getProject(projectId).hasAlias(aliasName));
+        final Set<String> aliasedIndices = metadata.getProject(projectId)
             .aliasedIndices(aliasName)
             .stream()
             .map(index -> index.getName())

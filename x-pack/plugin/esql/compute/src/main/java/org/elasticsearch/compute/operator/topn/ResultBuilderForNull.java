@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator.topn;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.ConstantNullBlock;
 
 public class ResultBuilderForNull implements ResultBuilder {
     private final BlockFactory blockFactory;
@@ -20,7 +21,7 @@ public class ResultBuilderForNull implements ResultBuilder {
     }
 
     @Override
-    public void decodeKey(BytesRef keys) {
+    public void decodeKey(BytesRef keys, boolean asc) {
         throw new AssertionError("somehow got a value for a null key");
     }
 
@@ -36,6 +37,11 @@ public class ResultBuilderForNull implements ResultBuilder {
     @Override
     public Block build() {
         return blockFactory.newConstantNullBlock(positions);
+    }
+
+    @Override
+    public long estimatedBytes() {
+        return ConstantNullBlock.RAM_BYTES_USED;
     }
 
     @Override

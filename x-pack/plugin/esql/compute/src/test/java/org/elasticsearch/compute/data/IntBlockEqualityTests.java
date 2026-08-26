@@ -23,9 +23,9 @@ public class IntBlockEqualityTests extends ComputeTestCase {
             blockFactory.newIntArrayVector(new int[] {}, 0),
             blockFactory.newIntArrayVector(new int[] { 0 }, 0),
             blockFactory.newConstantIntVector(0, 0),
-            blockFactory.newConstantIntVector(0, 0).filter(),
+            blockFactory.newConstantIntVector(0, 0).filter(false),
             blockFactory.newIntBlockBuilder(0).build().asVector(),
-            blockFactory.newIntBlockBuilder(0).appendInt(1).build().asVector().filter()
+            blockFactory.newIntBlockBuilder(0).appendInt(1).build().asVector().filter(false)
         );
         assertAllEquals(vectors);
     }
@@ -49,8 +49,8 @@ public class IntBlockEqualityTests extends ComputeTestCase {
             ),
             blockFactory.newConstantIntBlockWith(0, 0),
             blockFactory.newIntBlockBuilder(0).build(),
-            blockFactory.newIntBlockBuilder(0).appendInt(1).build().filter(),
-            blockFactory.newIntBlockBuilder(0).appendNull().build().filter(),
+            blockFactory.newIntBlockBuilder(0).appendInt(1).build().filter(false),
+            blockFactory.newIntBlockBuilder(0).appendNull().build().filter(false),
             (ConstantNullBlock) blockFactory.newConstantNullBlock(0)
         );
         assertAllEquals(blocks);
@@ -62,14 +62,21 @@ public class IntBlockEqualityTests extends ComputeTestCase {
             blockFactory.newIntArrayVector(new int[] { 1, 2, 3 }, 3),
             blockFactory.newIntArrayVector(new int[] { 1, 2, 3 }, 3).asBlock().asVector(),
             blockFactory.newIntArrayVector(new int[] { 1, 2, 3, 4 }, 3),
-            blockFactory.newIntArrayVector(new int[] { 1, 2, 3 }, 3).filter(0, 1, 2),
-            blockFactory.newIntArrayVector(new int[] { 1, 2, 3, 4 }, 4).filter(0, 1, 2),
-            blockFactory.newIntArrayVector(new int[] { 0, 1, 2, 3 }, 4).filter(1, 2, 3),
-            blockFactory.newIntArrayVector(new int[] { 1, 4, 2, 3 }, 4).filter(0, 2, 3),
+            blockFactory.newIntArrayVector(new int[] { 1, 2, 3 }, 3).filter(false, 0, 1, 2),
+            blockFactory.newIntArrayVector(new int[] { 1, 2, 3, 4 }, 4).filter(false, 0, 1, 2),
+            blockFactory.newIntArrayVector(new int[] { 0, 1, 2, 3 }, 4).filter(false, 1, 2, 3),
+            blockFactory.newIntArrayVector(new int[] { 1, 4, 2, 3 }, 4).filter(false, 0, 2, 3),
             blockFactory.newIntBlockBuilder(3).appendInt(1).appendInt(2).appendInt(3).build().asVector(),
-            blockFactory.newIntBlockBuilder(3).appendInt(1).appendInt(2).appendInt(3).build().asVector().filter(0, 1, 2),
-            blockFactory.newIntBlockBuilder(3).appendInt(1).appendInt(4).appendInt(2).appendInt(3).build().filter(0, 2, 3).asVector(),
-            blockFactory.newIntBlockBuilder(3).appendInt(1).appendInt(4).appendInt(2).appendInt(3).build().asVector().filter(0, 2, 3)
+            blockFactory.newIntBlockBuilder(3).appendInt(1).appendInt(2).appendInt(3).build().asVector().filter(false, 0, 1, 2),
+            blockFactory.newIntBlockBuilder(3)
+                .appendInt(1)
+                .appendInt(4)
+                .appendInt(2)
+                .appendInt(3)
+                .build()
+                .filter(false, 0, 2, 3)
+                .asVector(),
+            blockFactory.newIntBlockBuilder(3).appendInt(1).appendInt(4).appendInt(2).appendInt(3).build().asVector().filter(false, 0, 2, 3)
         );
         assertAllEquals(vectors);
 
@@ -78,15 +85,22 @@ public class IntBlockEqualityTests extends ComputeTestCase {
             blockFactory.newIntArrayVector(new int[] { 1, 1, 1 }, 3),
             blockFactory.newIntArrayVector(new int[] { 1, 1, 1 }, 3).asBlock().asVector(),
             blockFactory.newIntArrayVector(new int[] { 1, 1, 1, 1 }, 3),
-            blockFactory.newIntArrayVector(new int[] { 1, 1, 1 }, 3).filter(0, 1, 2),
-            blockFactory.newIntArrayVector(new int[] { 1, 1, 1, 4 }, 4).filter(0, 1, 2),
-            blockFactory.newIntArrayVector(new int[] { 3, 1, 1, 1 }, 4).filter(1, 2, 3),
-            blockFactory.newIntArrayVector(new int[] { 1, 4, 1, 1 }, 4).filter(0, 2, 3),
+            blockFactory.newIntArrayVector(new int[] { 1, 1, 1 }, 3).filter(false, 0, 1, 2),
+            blockFactory.newIntArrayVector(new int[] { 1, 1, 1, 4 }, 4).filter(false, 0, 1, 2),
+            blockFactory.newIntArrayVector(new int[] { 3, 1, 1, 1 }, 4).filter(false, 1, 2, 3),
+            blockFactory.newIntArrayVector(new int[] { 1, 4, 1, 1 }, 4).filter(false, 0, 2, 3),
             blockFactory.newConstantIntBlockWith(1, 3).asVector(),
             blockFactory.newIntBlockBuilder(3).appendInt(1).appendInt(1).appendInt(1).build().asVector(),
-            blockFactory.newIntBlockBuilder(3).appendInt(1).appendInt(1).appendInt(1).build().asVector().filter(0, 1, 2),
-            blockFactory.newIntBlockBuilder(3).appendInt(1).appendInt(4).appendInt(1).appendInt(1).build().filter(0, 2, 3).asVector(),
-            blockFactory.newIntBlockBuilder(3).appendInt(1).appendInt(4).appendInt(1).appendInt(1).build().asVector().filter(0, 2, 3)
+            blockFactory.newIntBlockBuilder(3).appendInt(1).appendInt(1).appendInt(1).build().asVector().filter(false, 0, 1, 2),
+            blockFactory.newIntBlockBuilder(3)
+                .appendInt(1)
+                .appendInt(4)
+                .appendInt(1)
+                .appendInt(1)
+                .build()
+                .filter(false, 0, 2, 3)
+                .asVector(),
+            blockFactory.newIntBlockBuilder(3).appendInt(1).appendInt(4).appendInt(1).appendInt(1).build().asVector().filter(false, 0, 2, 3)
         );
         assertAllEquals(moreVectors);
     }
@@ -111,14 +125,14 @@ public class IntBlockEqualityTests extends ComputeTestCase {
                 randomFrom(Block.MvOrdering.values()),
                 blockFactory
             ),
-            new IntArrayVector(new int[] { 1, 2, 3 }, 3, blockFactory).filter(0, 1, 2).asBlock(),
-            new IntArrayVector(new int[] { 1, 2, 3, 4 }, 3, blockFactory).filter(0, 1, 2).asBlock(),
-            new IntArrayVector(new int[] { 1, 2, 3, 4 }, 4, blockFactory).filter(0, 1, 2).asBlock(),
-            new IntArrayVector(new int[] { 1, 2, 4, 3 }, 4, blockFactory).filter(0, 1, 3).asBlock(),
+            new IntArrayVector(new int[] { 1, 2, 3 }, 3, blockFactory).filter(false, 0, 1, 2).asBlock(),
+            new IntArrayVector(new int[] { 1, 2, 3, 4 }, 3, blockFactory).filter(false, 0, 1, 2).asBlock(),
+            new IntArrayVector(new int[] { 1, 2, 3, 4 }, 4, blockFactory).filter(false, 0, 1, 2).asBlock(),
+            new IntArrayVector(new int[] { 1, 2, 4, 3 }, 4, blockFactory).filter(false, 0, 1, 3).asBlock(),
             blockFactory.newIntBlockBuilder(3).appendInt(1).appendInt(2).appendInt(3).build(),
-            blockFactory.newIntBlockBuilder(3).appendInt(1).appendInt(2).appendInt(3).build().filter(0, 1, 2),
-            blockFactory.newIntBlockBuilder(3).appendInt(1).appendInt(4).appendInt(2).appendInt(3).build().filter(0, 2, 3),
-            blockFactory.newIntBlockBuilder(3).appendInt(1).appendNull().appendInt(2).appendInt(3).build().filter(0, 2, 3)
+            blockFactory.newIntBlockBuilder(3).appendInt(1).appendInt(2).appendInt(3).build().filter(false, 0, 1, 2),
+            blockFactory.newIntBlockBuilder(3).appendInt(1).appendInt(4).appendInt(2).appendInt(3).build().filter(false, 0, 2, 3),
+            blockFactory.newIntBlockBuilder(3).appendInt(1).appendNull().appendInt(2).appendInt(3).build().filter(false, 0, 2, 3)
         );
         assertAllEquals(blocks);
 
@@ -139,15 +153,15 @@ public class IntBlockEqualityTests extends ComputeTestCase {
                 BitSet.valueOf(new byte[] { 0b100 }),
                 randomFrom(Block.MvOrdering.values())
             ),
-            blockFactory.newIntArrayVector(new int[] { 9, 9 }, 2).filter(0, 1).asBlock(),
-            blockFactory.newIntArrayVector(new int[] { 9, 9, 4 }, 2).filter(0, 1).asBlock(),
-            blockFactory.newIntArrayVector(new int[] { 9, 9, 4 }, 3).filter(0, 1).asBlock(),
-            blockFactory.newIntArrayVector(new int[] { 9, 4, 9 }, 3).filter(0, 2).asBlock(),
+            blockFactory.newIntArrayVector(new int[] { 9, 9 }, 2).filter(false, 0, 1).asBlock(),
+            blockFactory.newIntArrayVector(new int[] { 9, 9, 4 }, 2).filter(false, 0, 1).asBlock(),
+            blockFactory.newIntArrayVector(new int[] { 9, 9, 4 }, 3).filter(false, 0, 1).asBlock(),
+            blockFactory.newIntArrayVector(new int[] { 9, 4, 9 }, 3).filter(false, 0, 2).asBlock(),
             blockFactory.newConstantIntBlockWith(9, 2),
             blockFactory.newIntBlockBuilder(2).appendInt(9).appendInt(9).build(),
-            blockFactory.newIntBlockBuilder(2).appendInt(9).appendInt(9).build().filter(0, 1),
-            blockFactory.newIntBlockBuilder(2).appendInt(9).appendInt(4).appendInt(9).build().filter(0, 2),
-            blockFactory.newIntBlockBuilder(2).appendInt(9).appendNull().appendInt(9).build().filter(0, 2)
+            blockFactory.newIntBlockBuilder(2).appendInt(9).appendInt(9).build().filter(false, 0, 1),
+            blockFactory.newIntBlockBuilder(2).appendInt(9).appendInt(4).appendInt(9).build().filter(false, 0, 2),
+            blockFactory.newIntBlockBuilder(2).appendInt(9).appendNull().appendInt(9).build().filter(false, 0, 2)
         );
         assertAllEquals(moreBlocks);
     }
@@ -161,7 +175,7 @@ public class IntBlockEqualityTests extends ComputeTestCase {
             blockFactory.newIntArrayVector(new int[] { 1, 2, 3 }, 3),
             blockFactory.newIntArrayVector(new int[] { 1, 2, 4 }, 3),
             blockFactory.newConstantIntBlockWith(9, 2).asVector(),
-            blockFactory.newIntBlockBuilder(2).appendInt(1).appendInt(2).build().asVector().filter(1),
+            blockFactory.newIntBlockBuilder(2).appendInt(1).appendInt(2).build().asVector().filter(false, 1),
             blockFactory.newIntBlockBuilder(3).appendInt(1).appendInt(2).appendInt(5).build().asVector(),
             blockFactory.newIntBlockBuilder(1).appendInt(1).appendInt(2).appendInt(3).appendInt(4).build().asVector()
         );
@@ -177,7 +191,7 @@ public class IntBlockEqualityTests extends ComputeTestCase {
             blockFactory.newIntArrayVector(new int[] { 1, 2, 3 }, 3).asBlock(),
             blockFactory.newIntArrayVector(new int[] { 1, 2, 4 }, 3).asBlock(),
             blockFactory.newConstantIntBlockWith(9, 2),
-            blockFactory.newIntBlockBuilder(2).appendInt(1).appendInt(2).build().filter(1),
+            blockFactory.newIntBlockBuilder(2).appendInt(1).appendInt(2).build().filter(false, 1),
             blockFactory.newIntBlockBuilder(3).appendInt(1).appendInt(2).appendInt(5).build(),
             blockFactory.newIntBlockBuilder(1).appendInt(1).appendInt(2).appendInt(3).appendInt(4).build(),
             blockFactory.newIntBlockBuilder(1).appendInt(1).appendNull().build(),

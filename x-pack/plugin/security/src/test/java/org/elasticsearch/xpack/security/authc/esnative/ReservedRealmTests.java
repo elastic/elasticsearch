@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc.esnative;
 import org.elasticsearch.ElasticsearchAuthenticationProcessingError;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -447,6 +448,80 @@ public class ReservedRealmTests extends ESTestCase {
         } else {
             assertThat(userFuture.actionGet(), empty());
         }
+    }
+
+    public void testGetUsersPropagatesUnavailableShardsAs503() {
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            Settings.EMPTY,
+            usersStore,
+            new AnonymousUser(Settings.EMPTY),
+            threadPool
+        );
+        doAnswer(i -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<Map<String, ReservedUserInfo>> callback = (ActionListener<Map<String, ReservedUserInfo>>) i.getArguments()[0];
+            callback.onFailure(new UnavailableShardsException(null, "security index not available"));
+            return null;
+        }).when(usersStore).getAllReservedUserInfo(anyActionListener());
+
+        PlainActionFuture<Collection<User>> userFuture = new PlainActionFuture<>();
+        reservedRealm.users(userFuture);
+        ElasticsearchAuthenticationProcessingError e = expectThrows(
+            ElasticsearchAuthenticationProcessingError.class,
+            userFuture::actionGet
+        );
+        assertThat(e.status(), is(RestStatus.SERVICE_UNAVAILABLE));
+        assertThat(e.getMessage(), containsString("failed to retrieve reserved users"));
+    }
+
+    public void testGetUsersFallsBackOnNonShardFailure() {
+        final boolean anonymousEnabled = randomBoolean();
+        Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), anonymousEnabled ? "user" : "").build();
+        final AnonymousUser anonymousUser = new AnonymousUser(settings);
+        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore, anonymousUser, threadPool);
+        doAnswer(i -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<Map<String, ReservedUserInfo>> callback = (ActionListener<Map<String, ReservedUserInfo>>) i.getArguments()[0];
+            callback.onFailure(new RuntimeException("store threw"));
+            return null;
+        }).when(usersStore).getAllReservedUserInfo(anyActionListener());
+
+        PlainActionFuture<Collection<User>> userFuture = new PlainActionFuture<>();
+        reservedRealm.users(userFuture);
+        if (anonymousEnabled) {
+            assertThat(userFuture.actionGet(), contains(anonymousUser));
+        } else {
+            assertThat(userFuture.actionGet(), empty());
+        }
+    }
+
+    public void testAuthenticatePropagatesUnavailableShardsAs503() {
+        MockSecureSettings mockSecureSettings = new MockSecureSettings();
+        mockSecureSettings.setString("bootstrap.password", "foobar longer than 14 chars because of FIPS");
+        Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            settings,
+            usersStore,
+            new AnonymousUser(Settings.EMPTY),
+            threadPool
+        );
+        doAnswer(i -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<ReservedUserInfo> callback = (ActionListener<ReservedUserInfo>) i.getArguments()[1];
+            callback.onFailure(new UnavailableShardsException(null, "security index not available"));
+            return null;
+        }).when(usersStore).getReservedUserInfo(eq(ElasticUser.NAME), anyActionListener());
+
+        PlainActionFuture<AuthenticationResult<User>> listener = new PlainActionFuture<>();
+        reservedRealm.doAuthenticate(
+            new UsernamePasswordToken(ElasticUser.NAME, mockSecureSettings.getString("bootstrap.password")),
+            listener
+        );
+        ElasticsearchAuthenticationProcessingError e = expectThrows(ElasticsearchAuthenticationProcessingError.class, listener::actionGet);
+        assertThat(e.status(), is(RestStatus.SERVICE_UNAVAILABLE));
+        assertThat(e.getMessage(), containsString("failed to retrieve password hash for reserved user [" + ElasticUser.NAME + "]"));
     }
 
     public void testFailedAuthentication() throws Exception {

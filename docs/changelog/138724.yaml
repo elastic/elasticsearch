@@ -1,5 +1,0 @@
-pr: 138724
-summary: '`AggregateMetricDouble` fields should not build BKD indexes'
-area: Mapping
-type: feature
-issues: []

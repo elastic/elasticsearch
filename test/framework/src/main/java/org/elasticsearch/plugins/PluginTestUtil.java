@@ -9,7 +9,9 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -38,7 +40,7 @@ public class PluginTestUtil {
             "version",
             "1.0.0",
             "elasticsearch.version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "java.version",
             System.getProperty("java.specification.version"),
             "classname",
@@ -65,5 +67,9 @@ public class PluginTestUtil {
     public static void writeNamedComponentsFile(Path pluginDir, String namedComponentsJson) throws IOException {
         Path namedComponentsFile = pluginDir.resolve(PluginDescriptor.NAMED_COMPONENTS_FILENAME);
         Files.writeString(namedComponentsFile, namedComponentsJson);
+    }
+
+    public static ActionPlugin.RestHandlersServices emptyRestHandlersServices() {
+        return new ActionPlugin.RestHandlersServices(Settings.EMPTY, null, null, CrossProjectModeDecider.NOOP);
     }
 }

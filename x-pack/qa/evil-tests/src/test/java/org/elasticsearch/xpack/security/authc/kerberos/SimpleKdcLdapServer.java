@@ -17,6 +17,7 @@ import org.apache.kerby.kerberos.kerb.server.SimpleKdcServer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -28,9 +29,6 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
@@ -55,7 +53,7 @@ public class SimpleKdcLdapServer {
     // KDC properties
     private String transport = ESTestCase.randomFrom("TCP", "UDP");
     private int kdcPort = 0;
-    private String host;
+    private String host = NetworkAddress.format(InetAddress.getLoopbackAddress());
     private String realm;
     private boolean krb5DebugBackupConfigValue;
 
@@ -82,24 +80,16 @@ public class SimpleKdcLdapServer {
         this.realm = domainName.toUpperCase(Locale.ROOT) + "." + orgName.toUpperCase(Locale.ROOT);
         this.baseDn = "dc=" + domainName + ",dc=" + orgName;
         this.ldiff = ldiff;
-        this.krb5DebugBackupConfigValue = AccessController.doPrivileged(new PrivilegedExceptionAction<Boolean>() {
-            @Override
-            @SuppressForbidden(reason = "set or clear system property krb5 debug in kerberos tests")
-            public Boolean run() throws Exception {
-                boolean oldDebugSetting = Booleans.parseBoolean(System.getProperty("sun.security.krb5.debug", "false"));
-                System.setProperty("sun.security.krb5.debug", Boolean.TRUE.toString());
-                return oldDebugSetting;
-            }
-        });
-
-        AccessController.doPrivileged(new PrivilegedExceptionAction<Void>() {
-            @Override
-            public Void run() throws Exception {
-                assertBusy(() -> assertTrue("Failed to initialize SimpleKdcLdapServer", init()));
-                return null;
-            }
-        });
+        this.krb5DebugBackupConfigValue = initKrb5Debug();
+        assertBusy(() -> assertTrue("Failed to initialize SimpleKdcLdapServer", init()));
         logger.info("SimpleKdcLdapServer started.");
+    }
+
+    @SuppressForbidden(reason = "set or clear system property krb5 debug in kerberos tests")
+    private static boolean initKrb5Debug() {
+        boolean oldDebugSetting = Booleans.parseBoolean(System.getProperty("sun.security.krb5.debug", "false"));
+        System.setProperty("sun.security.krb5.debug", Boolean.TRUE.toString());
+        return oldDebugSetting;
     }
 
     @SuppressForbidden(reason = "Uses Apache Kdc which requires usage of java.io.File in order to create a SimpleKdcServer")
@@ -144,7 +134,9 @@ public class SimpleKdcLdapServer {
     private void createLdapBackendConf() throws IOException {
         String backendConf = KdcConfigKey.KDC_IDENTITY_BACKEND.getPropertyKey()
             + " = org.apache.kerby.kerberos.kdc.identitybackend.LdapIdentityBackend\n"
-            + "host=127.0.0.1\n"
+            + "host="
+            + host
+            + "\n"
             + "port="
             + ldapPort
             + "\n"
@@ -235,48 +227,34 @@ public class SimpleKdcLdapServer {
         }
     }
 
-    /**
-     * Stop Simple Kdc Server
-     *
-     * @throws PrivilegedActionException when privileged action threw exception
-     */
-    public synchronized void stop() throws PrivilegedActionException {
-        AccessController.doPrivileged(new PrivilegedExceptionAction<Void>() {
-
-            @Override
-            @SuppressForbidden(reason = "set or clear system property krb5 debug in kerberos tests")
-            public Void run() throws Exception {
-                if (simpleKdc != null) {
-                    try {
-                        simpleKdc.stop();
-                    } catch (KrbException e) {
-                        throw ExceptionsHelper.convertToRuntime(e);
-                    } finally {
-                        System.setProperty("sun.security.krb5.debug", Boolean.toString(krb5DebugBackupConfigValue));
-                    }
-                }
-
-                if (ldapServer != null) {
-                    ldapServer.shutDown(true);
-                }
-                return null;
+    @SuppressForbidden(reason = "set or clear system property krb5 debug in kerberos tests")
+    public synchronized void stop() throws Exception {
+        if (simpleKdc != null) {
+            try {
+                simpleKdc.stop();
+            } catch (KrbException e) {
+                throw ExceptionsHelper.convertToRuntime(e);
+            } finally {
+                System.setProperty("sun.security.krb5.debug", Boolean.toString(krb5DebugBackupConfigValue));
             }
-        });
+        }
+
+        if (ldapServer != null) {
+            ldapServer.shutDown(true);
+        }
         logger.info("SimpleKdcServer stoppped.");
     }
 
     private static int getServerPort(String transport) {
         if (transport != null && transport.trim().equalsIgnoreCase("TCP")) {
-            try (
-                ServerSocket serverSocket = ServerSocketFactory.getDefault().createServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))
-            ) {
+            try (ServerSocket serverSocket = ServerSocketFactory.getDefault().createServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
                 serverSocket.setReuseAddress(true);
                 return serverSocket.getLocalPort();
             } catch (Exception ex) {
                 throw new RuntimeException("Failed to get a TCP server socket point");
             }
         } else if (transport != null && transport.trim().equalsIgnoreCase("UDP")) {
-            try (DatagramSocket socket = new DatagramSocket(0, InetAddress.getByName("127.0.0.1"))) {
+            try (DatagramSocket socket = new DatagramSocket(0, InetAddress.getLoopbackAddress())) {
                 socket.setReuseAddress(true);
                 return socket.getLocalPort();
             } catch (Exception ex) {

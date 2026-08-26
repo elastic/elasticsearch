@@ -39,6 +39,11 @@
       "typed_keys": {
         "type": "boolean",
         "description": "Specify whether aggregation and suggester names should be prefixed by their respective types in the response"
+      },
+      "return_intermediate_results": {
+        "type": "boolean",
+        "description": "Indicates whether partial intermediate results should be returned when the wait for completion timeout occurs and the query is not yet complete.",
+        "default": true
       }
     }
   }

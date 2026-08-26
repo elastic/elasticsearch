@@ -7,26 +7,24 @@
 
 package org.elasticsearch.xpack.fleet;
 
+import org.elasticsearch.Build;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction.Request;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.ExecutorNames;
@@ -37,9 +35,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.fleet.action.DeleteSecretAction;
 import org.elasticsearch.xpack.fleet.action.GetGlobalCheckpointsAction;
@@ -74,15 +69,22 @@ import static org.elasticsearch.xpack.core.ClientHelper.FLEET_ORIGIN;
 public class Fleet extends Plugin implements SystemIndexPlugin {
 
     public static final String FLEET_SECRETS_INDEX_NAME = ".fleet-secrets";
+    static final Setting<Integer> FLEET_AGENTS_INDEX_NUMBER_OF_SHARDS_SETTING = Setting.intSetting(
+        "xpack.fleet.agents.index.number_of_shards",
+        1,
+        1,
+        1024,
+        Setting.Property.NodeScope
+    );
 
     private static final int CURRENT_INDEX_VERSION = 7;
     private static final String MAPPING_VERSION_VARIABLE = "fleet.version";
     private static final List<String> ALLOWED_PRODUCTS = List.of("kibana", "fleet");
     private static final int FLEET_ACTIONS_MAPPINGS_VERSION = 2;
-    private static final int FLEET_AGENTS_MAPPINGS_VERSION = 5;
+    private static final int FLEET_AGENTS_MAPPINGS_VERSION = 11;
     private static final int FLEET_ENROLLMENT_API_KEYS_MAPPINGS_VERSION = 3;
     private static final int FLEET_SECRETS_MAPPINGS_VERSION = 1;
-    private static final int FLEET_POLICIES_MAPPINGS_VERSION = 2;
+    private static final int FLEET_POLICIES_MAPPINGS_VERSION = 3;
     private static final int FLEET_POLICIES_LEADER_MAPPINGS_VERSION = 1;
     private static final int FLEET_SERVERS_MAPPINGS_VERSION = 1;
     private static final int FLEET_ARTIFACTS_MAPPINGS_VERSION = 1;
@@ -96,7 +98,8 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             services.clusterService(),
             services.threadPool(),
             services.client(),
-            services.xContentRegistry()
+            services.xContentRegistry(),
+            services.featureService()
         );
         registry.initialize();
         return List.of();
@@ -106,7 +109,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return List.of(
             fleetActionsSystemIndexDescriptor(),
-            fleetAgentsSystemIndexDescriptor(),
+            fleetAgentsSystemIndexDescriptor(settings),
             fleetEnrollmentApiKeysSystemIndexDescriptor(),
             fleetSecretsSystemIndexDescriptor(),
             fleetPoliciesSystemIndexDescriptor(),
@@ -115,6 +118,11 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             fleetArtifactsSystemIndexDescriptors(),
             fleetIntegrationKnowledgeSystemIndexDescriptor()
         );
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(FLEET_AGENTS_INDEX_NUMBER_OF_SHARDS_SETTING);
     }
 
     @Override
@@ -133,15 +141,9 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     }
 
     private static SystemIndexDescriptor fleetActionsSystemIndexDescriptor() {
-        PutIndexTemplateRequest request = new PutIndexTemplateRequest();
-        request.source(loadTemplateSource("/fleet-actions.json", FLEET_ACTIONS_MAPPINGS_VERSION), XContentType.JSON);
-
-        return SystemIndexDescriptor.builder()
-            .setType(Type.EXTERNAL_MANAGED)
+        return systemIndexDescriptorBuilderFrom("/fleet-actions.json", FLEET_ACTIONS_MAPPINGS_VERSION).setType(Type.EXTERNAL_MANAGED)
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
-            .setMappings(request.mappings())
-            .setSettings(request.settings())
             .setPrimaryIndex(".fleet-actions-" + CURRENT_INDEX_VERSION)
             .setIndexPattern(".fleet-actions~(-results*)")
             .setAliasName(".fleet-actions")
@@ -149,16 +151,15 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .build();
     }
 
-    private static SystemIndexDescriptor fleetAgentsSystemIndexDescriptor() {
-        PutIndexTemplateRequest request = new PutIndexTemplateRequest();
-        request.source(loadTemplateSource("/fleet-agents.json", FLEET_AGENTS_MAPPINGS_VERSION), XContentType.JSON);
-
-        return SystemIndexDescriptor.builder()
-            .setType(Type.EXTERNAL_MANAGED)
+    private static SystemIndexDescriptor fleetAgentsSystemIndexDescriptor(Settings settings) {
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), FLEET_AGENTS_INDEX_NUMBER_OF_SHARDS_SETTING.get(settings))
+            .build();
+        return systemIndexDescriptorBuilderFrom("/fleet-agents.json", FLEET_AGENTS_MAPPINGS_VERSION, indexSettings).setType(
+            Type.EXTERNAL_MANAGED
+        )
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
-            .setMappings(request.mappings())
-            .setSettings(request.settings())
             .setPrimaryIndex(".fleet-agents-" + CURRENT_INDEX_VERSION)
             .setIndexPattern(".fleet-agents*")
             .setAliasName(".fleet-agents")
@@ -167,18 +168,11 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     }
 
     private static SystemIndexDescriptor fleetEnrollmentApiKeysSystemIndexDescriptor() {
-        PutIndexTemplateRequest request = new PutIndexTemplateRequest();
-        request.source(
-            loadTemplateSource("/fleet-enrollment-api-keys.json", FLEET_ENROLLMENT_API_KEYS_MAPPINGS_VERSION),
-            XContentType.JSON
-        );
-
-        return SystemIndexDescriptor.builder()
-            .setType(Type.EXTERNAL_MANAGED)
+        return systemIndexDescriptorBuilderFrom("/fleet-enrollment-api-keys.json", FLEET_ENROLLMENT_API_KEYS_MAPPINGS_VERSION).setType(
+            Type.EXTERNAL_MANAGED
+        )
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
-            .setMappings(request.mappings())
-            .setSettings(request.settings())
             .setPrimaryIndex(".fleet-enrollment-api-keys-" + CURRENT_INDEX_VERSION)
             .setIndexPattern(".fleet-enrollment-api-keys*")
             .setAliasName(".fleet-enrollment-api-keys")
@@ -187,13 +181,8 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     }
 
     private static SystemIndexDescriptor fleetSecretsSystemIndexDescriptor() {
-        PutIndexTemplateRequest request = new PutIndexTemplateRequest();
-        request.source(loadTemplateSource("/fleet-secrets.json", FLEET_SECRETS_MAPPINGS_VERSION), XContentType.JSON);
-        return SystemIndexDescriptor.builder()
-            .setType(Type.INTERNAL_MANAGED)
+        return systemIndexDescriptorBuilderFrom("/fleet-secrets.json", FLEET_SECRETS_MAPPINGS_VERSION).setType(Type.INTERNAL_MANAGED)
             .setOrigin(FLEET_ORIGIN)
-            .setMappings(request.mappings())
-            .setSettings(request.settings())
             .setPrimaryIndex(FLEET_SECRETS_INDEX_NAME + "-" + CURRENT_INDEX_VERSION)
             .setIndexPattern(FLEET_SECRETS_INDEX_NAME + "*")
             .setAliasName(FLEET_SECRETS_INDEX_NAME)
@@ -202,15 +191,9 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     }
 
     private static SystemIndexDescriptor fleetPoliciesSystemIndexDescriptor() {
-        PutIndexTemplateRequest request = new PutIndexTemplateRequest();
-        request.source(loadTemplateSource("/fleet-policies.json", FLEET_POLICIES_MAPPINGS_VERSION), XContentType.JSON);
-
-        return SystemIndexDescriptor.builder()
-            .setType(Type.EXTERNAL_MANAGED)
+        return systemIndexDescriptorBuilderFrom("/fleet-policies.json", FLEET_POLICIES_MAPPINGS_VERSION).setType(Type.EXTERNAL_MANAGED)
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
-            .setMappings(request.mappings())
-            .setSettings(request.settings())
             .setPrimaryIndex(".fleet-policies-" + CURRENT_INDEX_VERSION)
             .setIndexPattern(".fleet-policies-[0-9]+*")
             .setAliasName(".fleet-policies")
@@ -219,15 +202,11 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     }
 
     private static SystemIndexDescriptor fleetPoliciesLeaderSystemIndexDescriptor() {
-        PutIndexTemplateRequest request = new PutIndexTemplateRequest();
-        request.source(loadTemplateSource("/fleet-policies-leader.json", FLEET_POLICIES_LEADER_MAPPINGS_VERSION), XContentType.JSON);
-
-        return SystemIndexDescriptor.builder()
-            .setType(Type.EXTERNAL_MANAGED)
+        return systemIndexDescriptorBuilderFrom("/fleet-policies-leader.json", FLEET_POLICIES_LEADER_MAPPINGS_VERSION).setType(
+            Type.EXTERNAL_MANAGED
+        )
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
-            .setMappings(request.mappings())
-            .setSettings(request.settings())
             .setPrimaryIndex(".fleet-policies-leader-" + CURRENT_INDEX_VERSION)
             .setIndexPattern(".fleet-policies-leader*")
             .setAliasName(".fleet-policies-leader")
@@ -236,15 +215,9 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     }
 
     private static SystemIndexDescriptor fleetServersSystemIndexDescriptors() {
-        PutIndexTemplateRequest request = new PutIndexTemplateRequest();
-        request.source(loadTemplateSource("/fleet-servers.json", FLEET_SERVERS_MAPPINGS_VERSION), XContentType.JSON);
-
-        return SystemIndexDescriptor.builder()
-            .setType(Type.EXTERNAL_MANAGED)
+        return systemIndexDescriptorBuilderFrom("/fleet-servers.json", FLEET_SERVERS_MAPPINGS_VERSION).setType(Type.EXTERNAL_MANAGED)
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
-            .setMappings(request.mappings())
-            .setSettings(request.settings())
             .setPrimaryIndex(".fleet-servers-" + CURRENT_INDEX_VERSION)
             .setIndexPattern(".fleet-servers*")
             .setAliasName(".fleet-servers")
@@ -253,15 +226,9 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     }
 
     private static SystemIndexDescriptor fleetArtifactsSystemIndexDescriptors() {
-        PutIndexTemplateRequest request = new PutIndexTemplateRequest();
-        request.source(loadTemplateSource("/fleet-artifacts.json", FLEET_ARTIFACTS_MAPPINGS_VERSION), XContentType.JSON);
-
-        return SystemIndexDescriptor.builder()
-            .setType(Type.EXTERNAL_MANAGED)
+        return systemIndexDescriptorBuilderFrom("/fleet-artifacts.json", FLEET_ARTIFACTS_MAPPINGS_VERSION).setType(Type.EXTERNAL_MANAGED)
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
-            .setMappings(request.mappings())
-            .setSettings(request.settings())
             .setPrimaryIndex(".fleet-artifacts-" + CURRENT_INDEX_VERSION)
             .setIndexPattern(".fleet-artifacts*")
             .setAliasName(".fleet-artifacts")
@@ -270,21 +237,14 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     }
 
     private static SystemIndexDescriptor fleetIntegrationKnowledgeSystemIndexDescriptor() {
-        PutIndexTemplateRequest request = new PutIndexTemplateRequest();
-        request.source(
-            loadTemplateSource("/fleet-integration-knowledge.json", FLEET_INTEGRATION_KNOWLEDGE_MAPPINGS_VERSION),
-            XContentType.JSON
-        );
-
-        return SystemIndexDescriptor.builder()
-            .setType(Type.EXTERNAL_MANAGED)
+        return systemIndexDescriptorBuilderFrom("/fleet-integration-knowledge.json", FLEET_INTEGRATION_KNOWLEDGE_MAPPINGS_VERSION).setType(
+            Type.EXTERNAL_MANAGED
+        )
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
             // This is a regular search index so it uses the shared thread pools.
             // The only difference is that its mappings and settings are managed internally by Elasticsearch.
             .setThreadPools(ExecutorNames.DEFAULT_INDEX_THREAD_POOLS)
-            .setMappings(request.mappings())
-            .setSettings(request.settings())
             .setPrimaryIndex(".integration_knowledge-" + CURRENT_INDEX_VERSION)
             .setIndexPattern(".integration_knowledge*")
             .setAliasName(".integration_knowledge")
@@ -293,9 +253,15 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     }
 
     private static SystemDataStreamDescriptor fleetActionsResultsDescriptor() {
-        final String source = loadTemplateSource("/fleet-actions-results.json", FLEET_ACTIONS_RESULTS_MAPPINGS_VERSION);
-        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, source)) {
-            ComposableIndexTemplate composableIndexTemplate = ComposableIndexTemplate.parse(parser);
+        try {
+            ComposableIndexTemplate composableIndexTemplate = TemplateUtils.loadTemplate(
+                "/fleet-actions-results.json",
+                Build.current().version(),
+                MAPPING_VERSION_VARIABLE,
+                Map.of("fleet.managed.index.version", Integer.toString(FLEET_ACTIONS_RESULTS_MAPPINGS_VERSION)),
+                false,
+                ComposableIndexTemplate::parse
+            );
             return new SystemDataStreamDescriptor(
                 ".fleet-actions-results",
                 "Result history of fleet actions",
@@ -372,13 +338,29 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         }
     }
 
-    private static String loadTemplateSource(String resource, int mappingsVersion) {
-        return TemplateUtils.loadTemplate(
-            resource,
-            Version.CURRENT.toString(),
-            MAPPING_VERSION_VARIABLE,
-            Map.of("fleet.managed.index.version", Integer.toString(mappingsVersion))
-        );
+    private static SystemIndexDescriptor.Builder systemIndexDescriptorBuilderFrom(String resource, int mappingsVersion) {
+        return systemIndexDescriptorBuilderFrom(resource, mappingsVersion, Settings.EMPTY);
+    }
+
+    private static SystemIndexDescriptor.Builder systemIndexDescriptorBuilderFrom(
+        String resource,
+        int mappingsVersion,
+        Settings additionalSettings
+    ) {
+        try {
+            Template template = TemplateUtils.loadTemplate(
+                resource,
+                Build.current().version(),
+                MAPPING_VERSION_VARIABLE,
+                Map.of("fleet.managed.index.version", Integer.toString(mappingsVersion)),
+                false,
+                Template::parse
+            );
+            Settings settings = Settings.builder().put(template.settings()).put(additionalSettings).build();
+            return SystemIndexDescriptor.builder().setMappings(template.mappings().string()).setSettings(settings);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("invalid template [{}]", resource);
+        }
     }
 
     @Override
@@ -394,16 +376,12 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
+        RestController restController = restHandlersServices.restController();
+        Settings settings = restHandlersServices.settings();
         return List.of(
             new RestGetGlobalCheckpointsAction(),
             new RestFleetSearchAction(restController.getSearchUsageHolder(), clusterSupportsFeature),

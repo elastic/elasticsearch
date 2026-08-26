@@ -13,7 +13,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -22,21 +21,23 @@ import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
-import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.BitsIterator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.profile.Timer;
@@ -54,7 +55,7 @@ import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
-import java.util.function.Supplier;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -62,6 +63,7 @@ import java.util.stream.Collectors;
  */
 public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private static final MatchNoDocsQuery REWRITE_TIMEOUT = new MatchNoDocsQuery("rewrite timed out");
+    private static final Releasable NOOP_RELEASABLE = () -> {};
 
     /**
      * The interval at which we check for search cancellation when we cannot use
@@ -75,6 +77,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
+
+    @Nullable
+    private CircuitBreaker circuitBreaker;
+
+    private final AtomicReference<PointRangeExecutionAccounting> pointRangeAccounting = new AtomicReference<>();
+
     private final MutableQueryTimeout cancellable;
 
     private final boolean hasExecutor;
@@ -164,12 +172,53 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         this.profiler = profiler;
     }
 
+    public void setCircuitBreaker(@Nullable CircuitBreaker circuitBreaker) {
+        PointRangeExecutionAccounting previous = pointRangeAccounting.getAndSet(null);
+        if (previous != null) {
+            previous.close();
+        }
+        this.circuitBreaker = circuitBreaker;
+    }
+
+    /**
+     * The request circuit breaker for {@code searcher}, or {@code null} when it is not a {@link ContextIndexSearcher} or has no breaker
+     * configured (e.g. percolator or tests). Meant to be called from {@code Query#createWeight} to capture the breaker for later checks.
+     */
+    @Nullable
+    public static CircuitBreaker circuitBreakerOrNull(IndexSearcher searcher) {
+        return searcher instanceof ContextIndexSearcher cis ? cis.circuitBreaker : null;
+    }
+
+    /**
+     * Checkpoint for query-time binary doc values decoding. A large should-fan-out of binary-doc-values matcher queries opens one decoder
+     * per surviving clause/segment pair, each holding a multi-hundred-KB decode buffer that is invisible to any breaker. Passing 0 bytes
+     * means the child breaker never accumulates (nothing to release), but the call still runs the parent's real-heap check, which trips
+     * once the accumulating buffers push heap over the limit - turning a node OOM into a recoverable
+     * {@link org.elasticsearch.common.breaker.CircuitBreakingException}.
+     */
+    public static void checkBinaryDvDecodeBreaker(@Nullable CircuitBreaker breaker) {
+        if (breaker != null) {
+            // Passing 0 bytes means the child breaker never accumulates and hence there is no need to explicitly release anything.
+            // The call still runs the parent's real-heap check, which trips once the accumulating buffers push heap over the limit.
+            breaker.addEstimateBytesAndMaybeBreak(0L, "binary_doc_values_decode");
+        }
+    }
+
     /**
      * Add a {@link Runnable} that will be run on a regular basis while accessing documents in the
      * DirectoryReader but also while collecting them and check for query cancellation or timeout.
      */
     public void addQueryCancellation(Runnable action) {
         this.cancellable.add(action);
+    }
+
+    /**
+     * Runs all registered cancellation/timeout checks; throws when one fires (e.g.
+     * {@link TimeExceededException}, {@link org.elasticsearch.tasks.TaskCancelledException}).
+     * No-op if none registered.
+     */
+    public void checkCancelled() {
+        this.cancellable.checkCancelled();
     }
 
     /**
@@ -187,6 +236,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // A cancellable can contain an indirect reference to the search context, which potentially retains a significant amount
         // of memory.
         this.cancellable.clear();
+
+        PointRangeExecutionAccounting accounting = pointRangeAccounting.getAndSet(null);
+        if (accounting != null) {
+            accounting.close();
+        }
     }
 
     // clear all registered cancellation callbacks to prevent them from leaking into other phases
@@ -235,6 +289,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public Weight createWeight(Query query, ScoreMode scoreMode, float boost) throws IOException {
+        final Weight weight;
         if (profiler != null) {
             // createWeight() is called for each query in the tree, so we tell the queryProfiler
             // each invocation so that it can build an internal representation of the query
@@ -242,17 +297,60 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             QueryProfileBreakdown profile = profiler.getQueryBreakdown(query);
             Timer timer = profile.getNewTimer(QueryTimingType.CREATE_WEIGHT);
             timer.start();
-            final Weight weight;
+            final Weight innerWeight;
             try {
-                weight = query.createWeight(this, scoreMode, boost);
+                innerWeight = query.createWeight(this, scoreMode, boost);
             } finally {
                 timer.stop();
                 profiler.pollLastElement();
             }
-            return new ProfileWeight(query, weight, profile);
+            weight = new ProfileWeight(query, innerWeight, profile);
         } else {
-            return super.createWeight(query, scoreMode, boost);
+            weight = super.createWeight(query, scoreMode, boost);
         }
+
+        PointRangeQuery pointRangeQuery = pointRangeQueryOrNull(query);
+        if (circuitBreaker != null && pointRangeQuery != null) {
+            getOrCreatePointRangeAccounting();
+            return new PointRangeBreakerWeight(this, weight, pointRangeQuery, query instanceof IndexOrDocValuesQuery);
+        }
+        return weight;
+    }
+
+    void chargeLeaf(LeafReaderContext ctx, long bytes) {
+        PointRangeExecutionAccounting accounting = getOrCreatePointRangeAccounting();
+        if (accounting != null) {
+            accounting.charge(ctx, bytes);
+        }
+    }
+
+    @Nullable
+    private PointRangeExecutionAccounting getOrCreatePointRangeAccounting() {
+        PointRangeExecutionAccounting existing = pointRangeAccounting.get();
+        if (existing != null) {
+            return existing;
+        }
+        CircuitBreaker breaker = this.circuitBreaker;
+        if (breaker == null) {
+            return null;
+        }
+        PointRangeExecutionAccounting created = new PointRangeExecutionAccounting(breaker, getLeafContexts().size());
+        return pointRangeAccounting.compareAndSet(null, created) ? created : pointRangeAccounting.get();
+    }
+
+    /** Test-only */
+    boolean hasPointRangeAccounting() {
+        return pointRangeAccounting.get() != null;
+    }
+
+    private static PointRangeQuery pointRangeQueryOrNull(Query query) {
+        if (query instanceof PointRangeQuery prq) {
+            return prq;
+        }
+        if (query instanceof IndexOrDocValuesQuery iodvq && iodvq.getIndexQuery() instanceof PointRangeQuery prq) {
+            return prq;
+        }
+        return null;
     }
 
     /**
@@ -457,53 +555,57 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     @Override
     protected void searchLeaf(LeafReaderContext ctx, int minDocId, int maxDocId, Weight weight, Collector collector) throws IOException {
         cancellable.checkCancelled();
-        final LeafCollector leafCollector;
-        try {
-            leafCollector = collector.getLeafCollector(ctx);
-        } catch (CollectionTerminatedException e) {
-            // there is no doc of interest in this reader context
-            // continue with the following leaf
-            // We don't need to finish leaf collector as collection was terminated before it was created
-            return;
-        }
-        Bits liveDocs = ctx.reader().getLiveDocs();
-        int numDocs = ctx.reader().numDocs();
-        // This threshold comes from the previous heuristic that checked whether the BitSet was a SparseFixedBitSet, which uses this
-        // threshold at creation time. But a higher threshold would likely perform better?
-        int threshold = ctx.reader().maxDoc() >> 7;
-        if (numDocs >= threshold) {
-            BulkScorer bulkScorer = weight.bulkScorer(ctx);
-            if (bulkScorer != null) {
-                if (cancellable.isEnabled()) {
-                    bulkScorer = new CancellableBulkScorer(bulkScorer, cancellable::checkCancelled);
+
+        final PointRangeExecutionAccounting accounting = this.pointRangeAccounting.get();
+        try (Releasable ignored = accounting == null ? NOOP_RELEASABLE : accounting.enterLeaf(ctx)) {
+            final LeafCollector leafCollector;
+            try {
+                leafCollector = collector.getLeafCollector(ctx);
+            } catch (CollectionTerminatedException e) {
+                // there is no doc of interest in this reader context
+                // continue with the following leaf
+                // We don't need to finish leaf collector as collection was terminated before it was created
+                return;
+            }
+            Bits liveDocs = ctx.reader().getLiveDocs();
+            int numDocs = ctx.reader().numDocs();
+            // This threshold comes from the previous heuristic that checked whether the BitSet was a SparseFixedBitSet, which uses this
+            // threshold at creation time. But a higher threshold would likely perform better?
+            int threshold = ctx.reader().maxDoc() >> 7;
+            if (numDocs >= threshold) {
+                BulkScorer bulkScorer = weight.bulkScorer(ctx);
+                if (bulkScorer != null) {
+                    if (cancellable.isEnabled()) {
+                        bulkScorer = new CancellableBulkScorer(bulkScorer, cancellable::checkCancelled);
+                    }
+                    try {
+                        bulkScorer.score(leafCollector, liveDocs, minDocId, maxDocId);
+                    } catch (CollectionTerminatedException e) {
+                        // collection was terminated prematurely
+                        // continue with the following leaf
+                    }
                 }
-                try {
-                    bulkScorer.score(leafCollector, liveDocs, minDocId, maxDocId);
-                } catch (CollectionTerminatedException e) {
-                    // collection was terminated prematurely
-                    // continue with the following leaf
+            } else {
+                // if the role query result set is sparse then we should use the SparseFixedBitSet for advancing:
+                Scorer scorer = weight.scorer(ctx);
+                if (scorer != null) {
+                    try {
+                        intersectScorerAndBitSet(
+                            scorer,
+                            liveDocs,
+                            leafCollector,
+                            this.cancellable.isEnabled() ? cancellable::checkCancelled : () -> {}
+                        );
+                    } catch (CollectionTerminatedException e) {
+                        // collection was terminated prematurely
+                        // continue with the following leaf
+                    }
                 }
             }
-        } else {
-            // if the role query result set is sparse then we should use the SparseFixedBitSet for advancing:
-            Scorer scorer = weight.scorer(ctx);
-            if (scorer != null) {
-                try {
-                    intersectScorerAndBitSet(
-                        scorer,
-                        liveDocs,
-                        leafCollector,
-                        this.cancellable.isEnabled() ? cancellable::checkCancelled : () -> {}
-                    );
-                } catch (CollectionTerminatedException e) {
-                    // collection was terminated prematurely
-                    // continue with the following leaf
-                }
-            }
+            // Finish the leaf collection in preparation for the next.
+            // This includes any collection that was terminated early via `CollectionTerminatedException`
+            leafCollector.finish();
         }
-        // Finish the leaf collection in preparation for the next.
-        // This includes any collection that was terminated early via `CollectionTerminatedException`
-        leafCollector.finish();
     }
 
     static void intersectScorerAndBitSet(Scorer scorer, Bits acceptDocs, LeafCollector collector, Runnable checkCancelled)
@@ -562,7 +664,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (termStatistics == null) {
             return totalTermFreq;
         }
-        return termStatistics.docFreq();
+        return termStatistics.totalTermFreq();
     }
 
     private TermStatistics termStatisticsFromDfs(Term term) {
@@ -616,42 +718,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * {@link TooManyNestedClauses} if the limit is exceeded.
      */
     private static void verifyQueryLimit(Query query) {
-        final int[] numClauses = new int[1];
         final int maxClauseCount = getMaxClauseCount();
-        query.visit(new QueryVisitor() {
-            @Override
-            public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
-                // Return this instance even for MUST_NOT and not an empty QueryVisitor
-                return this;
-            }
-
-            @Override
-            public void visitLeaf(Query query) {
-                if (numClauses[0] > maxClauseCount) {
-                    throw new TooManyNestedClauses();
-                }
-                ++numClauses[0];
-            }
-
-            @Override
-            public void consumeTerms(Query query, Term... terms) {
-                if (numClauses[0] > maxClauseCount) {
-                    throw new TooManyNestedClauses();
-                }
-                numClauses[0] += terms.length;
-            }
-
-            @Override
-            public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
-                if (numClauses[0] > maxClauseCount) {
-                    throw new TooManyNestedClauses();
-                }
-                ++numClauses[0];
-            }
-        });
-
-        if (numClauses[0] > maxClauseCount) {
-            throw new TooManyNestedClauses();
-        }
+        query.visit(new MaxClauseCountQueryVisitor(maxClauseCount));
     }
 }

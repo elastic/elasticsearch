@@ -62,10 +62,14 @@ public class AmazonBedrockEmbeddingsModel extends AmazonBedrockModel {
         ChunkingSettings chunkingSettings,
         AwsSecretSettings secrets
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secrets)
         );
+    }
+
+    public AmazonBedrockEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets);
     }
 
     public AmazonBedrockEmbeddingsModel(Model model, ServiceSettings serviceSettings) {

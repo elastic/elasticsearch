@@ -24,12 +24,16 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptCompiler;
@@ -60,6 +64,7 @@ import static org.elasticsearch.search.SearchService.DEFAULT_ALLOW_PARTIAL_SEARC
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
  */
 public class QueryRewriteContext {
+
     protected final MapperService mapperService;
     protected final MappingLookup mappingLookup;
     protected final Map<String, MappedFieldType> runtimeMappings;
@@ -76,7 +81,7 @@ public class QueryRewriteContext {
     protected final Client client;
     protected final LongSupplier nowInMillis;
     private final List<BiConsumer<Client, ActionListener<?>>> asyncActions = new ArrayList<>();
-    private final Map<QueryRewriteAsyncAction<?, ?>, List<Consumer<?>>> uniqueAsyncActions = new HashMap<>();
+    protected final Map<QueryRewriteAsyncAction<?, ?>, List<Consumer<?>>> uniqueAsyncActions = new HashMap<>();
     protected boolean allowUnmappedFields;
     protected boolean mapUnmappedFieldAsString;
     protected Predicate<String> allowedFields;
@@ -88,6 +93,8 @@ public class QueryRewriteContext {
     private final boolean isProfile;
     private Long timeRangeFilterFromMillis;
     private boolean trackTimeRangeFilterFrom = true;
+    @Nullable
+    private Boolean hasAnyLocalInferenceFields;
     private final boolean allowPartialSearchResults;
 
     public QueryRewriteContext(
@@ -389,8 +396,13 @@ public class QueryRewriteContext {
         if (allowedFields != null && false == allowedFields.test(name)) {
             return null;
         }
-        MappedFieldType fieldType = runtimeMappings.get(name);
-        return fieldType == null ? mappingLookup.getFieldType(name) : fieldType;
+        final String fieldName = resolveSliceAlias(name);
+        MappedFieldType fieldType = runtimeMappings.get(fieldName);
+        return fieldType == null ? mappingLookup.getFieldType(fieldName) : fieldType;
+    }
+
+    private String resolveSliceAlias(String fieldName) {
+        return isSliceFieldAlias(fieldName) ? RoutingFieldMapper.NAME : fieldName;
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -400,11 +412,18 @@ public class QueryRewriteContext {
         return mapperService.getIndexAnalyzers();
     }
 
+    /**
+     * @return a supplier that can be used to check whether loading field data from _id field's inverted index is allowed.
+     */
+    public BooleanSupplier idFieldDataEnabled() {
+        return mapperService.getIdFieldDataEnabled();
+    }
+
     MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
         if (fieldMapping != null || allowUnmappedFields) {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
-            TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, getIndexAnalyzers());
+            TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, indexSettings, getIndexAnalyzers(), false);
             return builder.build(MapperBuilderContext.root(false, false)).fieldType();
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
@@ -563,6 +582,13 @@ public class QueryRewriteContext {
      * @param pattern the field name pattern
      */
     public Set<String> getMatchingFieldNames(String pattern) {
+        if (isSliceFieldAlias(pattern)) {
+            return Set.of(SliceIndexing.FIELD_NAME);
+        }
+        if (isRoutingHiddenBySlice(pattern)) {
+            // A slice-enabled index hides _routing from field retrieval; it is fetched as _slice instead.
+            return Set.of();
+        }
         Set<String> matches;
         if (runtimeMappings.isEmpty()) {
             matches = mappingLookup.getMatchingFieldNames(pattern);
@@ -587,6 +613,22 @@ public class QueryRewriteContext {
         return allowedFields == null ? matches : matches.stream().filter(allowedFields).collect(Collectors.toSet());
     }
 
+    protected final boolean isSliceFieldAlias(String fieldName) {
+        return isSliceFieldAliasEnabled() && SliceIndexing.FIELD_NAME.equals(fieldName);
+    }
+
+    /**
+     * A slice-enabled index keeps routing and slicing non-overlapping: {@code _routing} is not retrievable by name (it is
+     * surfaced as {@code _slice} instead). Its {@link #getFieldType} stays resolvable so slice routing filters still work.
+     */
+    protected final boolean isRoutingHiddenBySlice(String fieldName) {
+        return isSliceFieldAliasEnabled() && RoutingFieldMapper.NAME.equals(fieldName);
+    }
+
+    private boolean isSliceFieldAliasEnabled() {
+        return SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && indexSettings != null && indexSettings.isSliceEnabled();
+    }
+
     /**
      * @return An {@link Iterable} with key the field name and value the MappedFieldType
      */
@@ -605,8 +647,60 @@ public class QueryRewriteContext {
         return () -> Iterators.concat(allEntrySet.iterator(), runtimeEntrySet.iterator());
     }
 
+    /**
+     * Returns {@code true} if {@code name} is a concrete mapped field in this index — either an
+     * explicitly mapped field, a runtime field, or a dynamically-resolved sub-field of a
+     * {@link MetadataFieldMapper} — and is permitted by the {@link #allowedFields} predicate when set.
+     * <p>
+     *     Unlike {@link SearchExecutionContext#isFieldMapped}, this does <em>not</em>
+     *     include fields that are only dynamically resolved, such as sub-keys of
+     *     {@code flattened} fields. Those sub-keys are not visible to the coordinator
+     *     via field caps and using them in a block loader would cause element-type
+     *     mismatches at runtime. Sub-fields of {@link MetadataFieldMapper} instances
+     *     (e.g. {@code _project._alias}) are allowed because they are registered
+     *     metadata mappers and are reported by field caps.
+     * </p>
+     * <p>
+     *      This is <strong>mostly</strong> used by ESQL because it exposes flattened
+     *      sub-fields using its own machinery.
+     * </p>
+     */
+    public boolean isMappedField(String name) {
+        if (allowedFields != null && false == allowedFields.test(name)) {
+            return false;
+        }
+        String fieldName = resolveSliceAlias(name);
+        if (mappingLookup.getFullNameToFieldType().containsKey(fieldName) || runtimeMappings.containsKey(fieldName)) {
+            return true;
+        }
+        int dotIndex = fieldName.indexOf('.');
+        if (dotIndex > 0) {
+            return mappingLookup.getMapper(fieldName.substring(0, dotIndex)) instanceof MetadataFieldMapper metaMapper
+                && metaMapper.fieldType() instanceof DynamicFieldType dft
+                && dft.getChildFieldType(fieldName.substring(dotIndex + 1)) != null;
+        }
+        return false;
+    }
+
     public ResolvedIndices getResolvedIndices() {
         return resolvedIndices;
+    }
+
+    /**
+     * Returns whether concrete local indices include any inference fields. Returns {@code null} if unknown.
+     */
+    @Nullable
+    public Boolean getHasAnyLocalInferenceFields() {
+        return hasAnyLocalInferenceFields;
+    }
+
+    /**
+     * Sets whether concrete local indices include any inference fields.
+     */
+    public void setHasAnyLocalInferenceFields(boolean hasAnyLocalInferenceFields) {
+        // we don't expect this to ever change during the lifetime of the context
+        assert this.hasAnyLocalInferenceFields == null || this.hasAnyLocalInferenceFields == hasAnyLocalInferenceFields;
+        this.hasAnyLocalInferenceFields = hasAnyLocalInferenceFields;
     }
 
     /**
@@ -623,16 +717,18 @@ public class QueryRewriteContext {
      */
     @Nullable
     public String getTierPreference() {
-        Settings settings = getIndexSettings().getSettings();
+        return getFirstTierPreference(getIndexSettings().getSettings(), null);
+    }
+
+    public static String getFirstTierPreference(Settings settings, String defaultTierPreference) {
         String value = DataTier.TIER_PREFERENCE_SETTING.get(settings);
-
         if (Strings.hasText(value) == false) {
-            return null;
+            return defaultTierPreference;
         }
-
         // Tier preference can be a comma-delimited list of tiers, ordered by preference
         // It was decided we should only test the first of these potentially multiple preferences.
-        return value.split(",")[0].trim();
+        int separatorPosition = value.indexOf(',');
+        return (separatorPosition != -1 ? value.substring(0, separatorPosition) : value).trim();
     }
 
     public QueryRewriteInterceptor getQueryRewriteInterceptor() {
@@ -686,6 +782,10 @@ public class QueryRewriteContext {
      */
     public void setTrackTimeRangeFilterFrom(boolean trackTimeRangeFilterFrom) {
         this.trackTimeRangeFilterFrom = trackTimeRangeFilterFrom;
+    }
+
+    public boolean isTrackTimeRangeFilterFrom() {
+        return trackTimeRangeFilterFrom;
     }
 
     /**

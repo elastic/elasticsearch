@@ -25,12 +25,14 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.IntOrLongMatcher;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.AssertWarnings;
+import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.After;
@@ -97,7 +99,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     private static final String MAPPING_ALL_TYPES_LOOKUP;
 
     static {
-        String properties = EsqlTestUtils.loadUtf8TextFile("/mapping-all-types.json");
+        String properties = CsvTestsDataLoader.getResourceString("/index/mappings/mapping-all-types.json");
         MAPPING_FIELD = "\"mappings\": " + properties;
         MAPPING_ALL_TYPES = "{" + MAPPING_FIELD + "}";
         String settings = "\"settings\" : {\"mode\" : \"lookup\"}";
@@ -135,8 +137,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         private final XContentBuilder builder;
         private boolean isBuilt = false;
 
-        private Map<String, Map<String, TypeAndValues>> tables;
-
         private Boolean keepOnCompletion = null;
 
         private Boolean profile = null;
@@ -159,11 +159,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             return this;
         }
 
-        public RequestObjectBuilder tables(Map<String, Map<String, TypeAndValues>> tables) {
-            this.tables = tables;
-            return this;
-        }
-
         public RequestObjectBuilder columnar(boolean columnar) throws IOException {
             builder.field("columnar", columnar);
             return this;
@@ -175,7 +170,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
 
         public RequestObjectBuilder timeZone(ZoneId zoneId) throws IOException {
-            builder.field("time_zone", zoneId.toString());
+            return timeZone(zoneId.toString());
+        }
+
+        public RequestObjectBuilder timeZone(String timezone) throws IOException {
+            builder.field("time_zone", timezone);
             return this;
         }
 
@@ -240,19 +239,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         public RequestObjectBuilder build() throws IOException {
             if (isBuilt == false) {
-                if (tables != null) {
-                    builder.startObject("tables");
-                    for (var table : tables.entrySet()) {
-                        builder.startObject(table.getKey());
-                        for (var column : table.getValue().entrySet()) {
-                            builder.startObject(column.getKey());
-                            builder.field(column.getValue().type(), column.getValue().values());
-                            builder.endObject();
-                        }
-                        builder.endObject();
-                    }
-                    builder.endObject();
-                }
                 if (profile != null) {
                     builder.field("profile", profile);
                 }
@@ -289,7 +275,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     public void testGetAnswer() throws IOException {
         Map<String, Object> answer = runEsql(requestObjectBuilder().query("row a = 1, b = 2"));
-        assertEquals(9, answer.size());
+        assertEquals(13, answer.size());
         assertThat(((Integer) answer.get("took")).intValue(), greaterThanOrEqualTo(0));
         Map<String, String> colA = Map.of("name", "a", "type", "integer");
         Map<String, String> colB = Map.of("name", "b", "type", "integer");
@@ -299,6 +285,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 .entry("is_partial", any(Boolean.class))
                 .entry("documents_found", 0)
                 .entry("values_loaded", 0)
+                .entry("rows_emitted", IntOrLongMatcher.isIntOrLong())
+                .entry("bytes_read", IntOrLongMatcher.isIntOrLong())
+                .entry("read_nanos", IntOrLongMatcher.isIntOrLong())
+                .entry("cpu_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("columns", List.of(colA, colB))
                 .entry("values", List.of(List.of(1, 2)))
                 .entry("completion_time_in_millis", greaterThan(0L))
@@ -415,6 +405,27 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         String actual = Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
         assertEquals("keyword0,0\r\n", actual);
         assertWarnings(response, new AssertWarnings.NoWarnings(), actual);
+    }
+
+    public void testMarkdownMode() throws IOException {
+        int count = randomIntBetween(0, 100);
+        bulkLoadTestData(count);
+        var builder = requestObjectBuilder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
+        assertEquals(expectedTextBody("md", count, null), runEsqlAsTextWithFormat(builder, "md", null, mode));
+    }
+
+    public void testMarkdownHeaderAbsentIsError() throws IOException {
+        bulkLoadTestData(1);
+        var builder = requestObjectBuilder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
+        Request request = prepareRequest(SYNC);
+        String mediaType = attachBody(builder.build(), request);
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("Content-Type", mediaType);
+        options.addHeader("Accept", "text/markdown; header=absent");
+        request.setOptions(options);
+        ResponseException e = expectThrows(ResponseException.class, () -> performRequest(request));
+        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+        assertThat(e.getMessage(), containsString("[header=absent] is not supported for the [md] format"));
     }
 
     public void testOutOfRangeComparisons() throws IOException {
@@ -1443,11 +1454,19 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             }
             case "csv" -> sb.append("keyword").append(csvDelimiter).append("integer\r\n");
             case "tsv" -> sb.append("keyword\tinteger\n");
+            case "md" -> {
+                sb.append("| keyword | integer |\n");
+                sb.append("| --- | --- |\n");
+            }
             default -> {
                 assert false : "unexpected format type [" + format + "]";
             }
         }
         for (int i = 0; i < count; i++) {
+            if (format.equals("md")) {
+                sb.append("| keyword").append(i).append(" | ").append(i).append(" |\n");
+                continue;
+            }
             sb.append("keyword").append(i);
             int iLen = String.valueOf(i).length();
             switch (format) {
@@ -1628,7 +1647,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             profileLogger.extractProfile(result, profileEnabled);
         }
         assertWarnings(response, assertWarnings, result);
-        assertDeletable(id);
+        assertAsyncQueryResultDeleted(id);
         return removeAsyncProperties(result);
     }
 
@@ -1660,6 +1679,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 throw new UncheckedIOException(e);
             }
         });
+    }
+
+    public static boolean doesntHaveCapabilities(RestClient client, List<String> capabilities) {
+        return capabilities.stream().noneMatch(cap -> hasCapabilities(client, List.of(cap)));
     }
 
     private static Object removeOriginalTypesAndSuggestedCast(Object response) {
@@ -1917,9 +1940,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             """.formatted(testIndexName(), randomLong()));
 
         var timeZone = randomZone();
-        var interval = randomFrom("1 hour", "1 day", "1 month");
+        var unit = randomFrom("hour", "day", "month");
         var functions = Stream.of("DATE_TRUNC(\"%s\", @timestamp)", "BUCKET(@timestamp, \"%s\")", "TBUCKET(\"%s\")")
-            .map(f -> f.formatted(interval))
+            .map(f -> f.formatted("1 " + unit))
             .toList();
 
         Object firstResultValues = null;
@@ -1946,7 +1969,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 assertResultMap(
                     result,
                     getResultMatcher(result),
-                    matchesList().item(matchesMap().entry("name", "bucket").entry("type", "date")),
+                    matchesList().item(
+                        matchesMap() //
+                            .entry("name", "bucket")
+                            .entry("type", "date")
+                            // meta is only present if request is routed to a node supporting this feature
+                            .optionalEntry("_meta", Map.of("bucket", Map.of("interval", 1, "unit", unit)))
+                    ),
                     hasSize(greaterThanOrEqualTo(1))
                 );
 
@@ -1963,6 +1992,36 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 }
             }
         }
+    }
+
+    public void testApproximationColumnMetadata() throws IOException {
+        assumeTrue("approximation support", EsqlCapabilities.Cap.APPROXIMATION_V7.isEnabled());
+        bulkLoadTestData(10);
+
+        String query = "SET approximation=true; " + fromIndex() + " | STATS count=COUNT()";
+        Map<String, Object> result = runEsql(requestObjectBuilder().query(query));
+
+        assertResultMap(
+            result,
+            matchesList().item(matchesMap().entry("name", "count").entry("type", "long"))
+                .item(
+                    matchesMap().entry("name", "_approximation_confidence_interval(count)")
+                        .entry("type", "long")
+                        .entry(
+                            "_meta",
+                            matchesMap().entry("approximation", matchesMap().entry("type", "confidence_interval").entry("column", "count"))
+                        )
+                )
+                .item(
+                    matchesMap().entry("name", "_approximation_certified(count)")
+                        .entry("type", "boolean")
+                        .entry(
+                            "_meta",
+                            matchesMap().entry("approximation", matchesMap().entry("type", "certified").entry("column", "count"))
+                        )
+                ),
+            matchesList().item(matchesList().item(10).item(matchesList().item(10).item(10)).item(true))
+        );
     }
 
     protected static Request prepareRequestWithOptions(RequestObjectBuilder requestObject, Mode mode) throws IOException {
@@ -2019,7 +2078,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
     }
 
-    static void assertDeletable(String id) throws IOException {
+    /**
+     * Removes the result of an async esql query. Asserts that it returned {@code 200 OK}
+     * and that deleting it a second time gives a {@code 404 Not Found}.
+     */
+    static void assertAsyncQueryResultDeleted(String id) throws IOException {
         var request = prepareAsyncDeleteRequest(id);
         performRequest(request);
 
@@ -2033,7 +2096,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertEquals(404, response.getStatusLine().getStatusCode());
     }
 
-    static String runEsqlAsTextWithFormat(RequestObjectBuilder builder, String format, @Nullable Character delimiter, Mode mode)
+    protected static String runEsqlAsTextWithFormat(RequestObjectBuilder builder, String format, @Nullable Character delimiter, Mode mode)
         throws IOException {
         Request request = prepareRequest(mode);
         if (mode == ASYNC) {
@@ -2052,6 +2115,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 case "txt" -> options.addHeader("Accept", "text/plain");
                 case "csv" -> options.addHeader("Accept", "text/csv");
                 case "tsv" -> options.addHeader("Accept", "text/tab-separated-values");
+                case "md" -> options.addHeader("Accept", "text/markdown");
             }
         }
         if (delimiter != null) {
@@ -2103,6 +2167,12 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                         assertEquals("\n", initialValue);
                         initialValue = "";
                     }
+                    case "md" -> {
+                        // the markdown formatter always writes a header row and a separator row, even when no
+                        // columns are known yet (the still-running response has no column info)
+                        assertEquals("|\n|\n", initialValue);
+                        initialValue = "";
+                    }
                 }
             }
             // issue a second request to "async get" the results
@@ -2128,7 +2198,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             assertEquals(initialValue, newValue);
         }
 
-        assertDeletable(id);
+        assertAsyncQueryResultDeleted(id);
         return newValue;
     }
 
@@ -2150,7 +2220,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return request;
     }
 
-    private static String attachBody(RequestObjectBuilder requestObject, Request request) throws IOException {
+    public static String attachBody(RequestObjectBuilder requestObject, Request request) throws IOException {
         String mediaType = requestObject.contentType().mediaTypeWithoutParameters();
         try (ByteArrayOutputStream bos = (ByteArrayOutputStream) requestObject.getOutputStream()) {
             request.setEntity(new NByteArrayEntity(bos.toByteArray(), ContentType.getByMimeType(mediaType)));

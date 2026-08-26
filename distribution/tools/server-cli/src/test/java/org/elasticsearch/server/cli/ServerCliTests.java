@@ -18,9 +18,9 @@ import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.ProcessInfo;
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.cli.terminal.Terminal;
+import org.elasticsearch.cli.terminal.Terminal.Verbosity;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSettings;
@@ -34,27 +34,22 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.BrokenBarrierException;
-import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.emptyString;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class ServerCliTests extends CommandTestCase {
 
@@ -150,17 +145,13 @@ public class ServerCliTests extends CommandTestCase {
         assertOk("-p", "pid");
     }
 
-    public void assertDaemonized(boolean daemonized, String... args) throws Exception {
-        argsValidator = serverArgs -> assertThat(serverArgs.daemonize(), equalTo(daemonized));
-        assertOk(args);
-        assertThat(mockServer.detachCalled, is(daemonized));
-        assertThat(mockServer.waitForCalled, not(equalTo(daemonized)));
-    }
-
     public void testDaemonize() throws Exception {
-        assertDaemonized(true, "-d");
-        assertDaemonized(true, "--daemonize");
-        assertDaemonized(false);
+        argsValidator = serverArgs -> assertThat(serverArgs.daemonize(), equalTo(true));
+        assertOk("-d");
+        argsValidator = serverArgs -> assertThat(serverArgs.daemonize(), equalTo(true));
+        assertOk("--daemonize");
+        argsValidator = serverArgs -> assertThat(serverArgs.daemonize(), equalTo(false));
+        assertOk();
     }
 
     public void testQuiet() throws Exception {
@@ -306,11 +297,12 @@ public class ServerCliTests extends CommandTestCase {
         assertKeystorePassword("a-dummy-password");
     }
 
-    public void testCloseStopsServer() throws Exception {
+    public void testCloseIsNoop() throws Exception {
+        // The preparer no longer manages the server process, so close() is a no-op
         Command command = newCommand();
         command.main(new String[0], terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
         command.close();
-        assertThat(mockServer.stopCalled, is(true));
+        // No assertions about server stopping - that's the launcher's job now
     }
 
     public void testIgnoreNullExceptionOutput() throws Exception {
@@ -323,30 +315,11 @@ public class ServerCliTests extends CommandTestCase {
         assertThat(terminal.getErrorOutput(), not(containsString("null")));
     }
 
-    public void testOptionsBuildingInterrupted() throws IOException {
-        Command command = new TestServerCli() {
-            @Override
-            protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) throws Exception {
-                throw new InterruptedException("interrupted while get jvm options");
-            }
-        };
-
-        int exitCode = command.main(new String[0], terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
-        assertThat(exitCode, is(ExitCodes.CODE_ERROR));
-
-        String[] lines = terminal.getErrorOutput().split(System.lineSeparator());
-        assertThat(List.of(lines), hasSize(greaterThan(10))); // at least decent sized stacktrace
-        assertThat(lines[0], is("java.lang.InterruptedException: interrupted while get jvm options"));
-        assertThat(lines[1], matchesRegex("\\tat org.elasticsearch.server.cli.ServerCliTests.+startServer\\(ServerCliTests.java:\\d+\\)"));
-        assertThat(lines[lines.length - 1], matchesRegex("\tat java.base/java.lang.Thread.run\\(Thread.java:\\d+\\)"));
-
-        command.close();
-    }
-
-    public void testServerExitsNonZero() throws Exception {
-        mockServerExitCode = 140;
-        int exitCode = executeMain();
-        assertThat(exitCode, equalTo(140));
+    public void testPrepareLaunchCalled() throws Exception {
+        AtomicBoolean prepareLaunchCalled = new AtomicBoolean(false);
+        argsValidator = args -> prepareLaunchCalled.set(true);
+        assertOk();
+        assertThat(prepareLaunchCalled.get(), is(true));
     }
 
     public void testSecureSettingsLoaderChoice() throws Exception {
@@ -356,6 +329,20 @@ public class ServerCliTests extends CommandTestCase {
         assertFalse(loader.bootstrapped);
         // assert that we ran the code to verify the environment
         assertTrue(loader.verifiedEnv);
+    }
+
+    public void testSecureSettingsLoader() {
+        ServerCli command = new ServerCli();
+        Function<Map<String, String>, SecureSettingsLoader> factory = sysProps -> command.secureSettingsLoader(
+            new ProcessInfo(sysProps, envVars, esHomeDir)
+        );
+
+        assertThat(factory.apply(Map.of()), is(instanceOf(KeyStoreLoader.class)));
+        assertThat(factory.apply(Map.of("es.secure_settings.source", "keystore")), is(instanceOf(KeyStoreLoader.class)));
+        assertThat(
+            factory.apply(Map.of("es.secure_settings.source", "file_settings")),
+            is(instanceOf(FileSettingsClusterSecretsLoader.class))
+        );
     }
 
     public void testSecureSettingsLoaderWithPassword() throws Exception {
@@ -388,52 +375,6 @@ public class ServerCliTests extends CommandTestCase {
         assertEquals("", loader.password);
     }
 
-    public void testProcessCreationRace() throws Exception {
-        for (int i = 0; i < 10; ++i) {
-            CyclicBarrier raceStart = new CyclicBarrier(2);
-            TestServerCli cli = new TestServerCli() {
-                @Override
-                void syncPlugins(Terminal terminal, Environment env, ProcessInfo processInfo) throws Exception {
-                    super.syncPlugins(terminal, env, processInfo);
-                    raceStart.await();
-                }
-
-                @Override
-                public void close() throws IOException {
-                    try {
-                        raceStart.await();
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        throw new AssertionError(ie);
-                    } catch (BrokenBarrierException e) {
-                        throw new AssertionError(e);
-                    }
-                    super.close();
-                }
-            };
-            Thread closeThread = new Thread(() -> {
-                try {
-                    cli.close();
-                } catch (IOException e) {
-                    throw new AssertionError(e);
-                }
-            });
-            closeThread.start();
-            cli.main(new String[] {}, terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
-            closeThread.join();
-
-            if (cli.getServer() == null) {
-                // close won the race, so server should never have been started
-                assertThat(cli.startServerCalled, is(false));
-            } else {
-                // creation won the race, so check we correctly waited on it and stopped
-                assertThat(cli.getServer(), sameInstance(mockServer));
-                assertThat(mockServer.waitForCalled, is(true));
-                assertThat(mockServer.stopCalled, is(true));
-            }
-        }
-    }
-
     private MockSecureSettingsLoader loadWithMockSecureSettingsLoader() throws Exception {
         var loader = new MockSecureSettingsLoader();
         this.mockSecureSettingsLoader = loader;
@@ -454,8 +395,6 @@ public class ServerCliTests extends CommandTestCase {
     }
 
     Consumer<ServerArgs> argsValidator;
-    private final MockServerProcess mockServer = new MockServerProcess();
-    int mockServerExitCode = 0;
 
     AutoConfigMethod autoConfigCallback;
     private final MockAutoConfigCli AUTO_CONFIG_CLI = new MockAutoConfigCli();
@@ -472,7 +411,6 @@ public class ServerCliTests extends CommandTestCase {
         argsValidator = null;
         autoConfigCallback = null;
         syncPluginsCallback = null;
-        mockServerExitCode = 0;
     }
 
     private class MockAutoConfigCli extends EnvironmentAwareCommand {
@@ -490,7 +428,6 @@ public class ServerCliTests extends CommandTestCase {
 
         @Override
         public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
-            // TODO: fake errors, check password from terminal, allow tests to make elasticsearch.yml change
             if (autoConfigCallback != null) {
                 autoConfigCallback.autoconfig(terminal, options, env, processInfo);
             }
@@ -515,48 +452,7 @@ public class ServerCliTests extends CommandTestCase {
         }
     }
 
-    private class MockServerProcess extends ServerProcess {
-        volatile boolean detachCalled = false;
-        volatile boolean waitForCalled = false;
-        volatile boolean stopCalled = false;
-
-        MockServerProcess() {
-            super(null, null);
-        }
-
-        @Override
-        public long pid() {
-            return 12345;
-        }
-
-        @Override
-        public void detach() {
-            assert detachCalled == false;
-            detachCalled = true;
-        }
-
-        @Override
-        public int waitFor() {
-            assert waitForCalled == false;
-            waitForCalled = true;
-            return mockServerExitCode;
-        }
-
-        @Override
-        public void stop() {
-            assert stopCalled == false;
-            stopCalled = true;
-        }
-
-        void reset() {
-            detachCalled = false;
-            waitForCalled = false;
-            stopCalled = false;
-        }
-    }
-
     private class TestServerCli extends ServerCli {
-        boolean startServerCalled = false;
 
         @Override
         protected Command loadTool(Map<String, String> sysprops, String toolname, String libs) {
@@ -588,7 +484,6 @@ public class ServerCliTests extends CommandTestCase {
         void syncPlugins(Terminal terminal, Environment env, ProcessInfo processInfo) throws Exception {
             if (mockSecureSettingsLoader != null && mockSecureSettingsLoader instanceof MockSecureSettingsLoader mock) {
                 mock.verifiedEnv = true;
-                // equals as a pointer, environment shouldn't be changed if autoconfigure is not supported
                 assertFalse(mockSecureSettingsLoader.supportsSecurityAutoConfiguration());
                 assertTrue(mock.environment == env);
             }
@@ -597,22 +492,19 @@ public class ServerCliTests extends CommandTestCase {
         }
 
         @Override
-        protected SecureSettingsLoader secureSettingsLoader(Environment env) {
+        protected SecureSettingsLoader secureSettingsLoader(ProcessInfo processInfo) {
             if (mockSecureSettingsLoader != null) {
                 return mockSecureSettingsLoader;
             }
-
-            return new KeystoreSecureSettingsLoader();
+            var loader = super.secureSettingsLoader(processInfo);
+            return loader instanceof KeyStoreLoader ? new KeystoreSecureSettingsLoader() : loader;
         }
 
         @Override
-        protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) throws Exception {
-            startServerCalled = true;
+        protected void prepareLaunch(Terminal terminal, ProcessInfo processInfo, ServerArgs args, boolean daemonize) throws Exception {
             if (argsValidator != null) {
                 argsValidator.accept(args);
             }
-            mockServer.reset();
-            return mockServer;
         }
     }
 
@@ -632,8 +524,6 @@ public class ServerCliTests extends CommandTestCase {
         @Override
         public SecureSettingsLoader.LoadedSecrets load(Environment environment, Terminal terminal) throws IOException {
             loaded = true;
-            // Stash the environment pointer, so we can compare it. Environment shouldn't be changed for
-            // loaders that don't autoconfigure.
             this.environment = environment;
 
             SecureString password = null;
@@ -685,7 +575,6 @@ public class ServerCliTests extends CommandTestCase {
         @Override
         public SecureSettings bootstrap(Environment environment, SecureString password) throws Exception {
             this.bootstrapped = true;
-            // make sure we don't fail in fips mode when we run with an empty password
             if (inFipsJvm() && (password == null || password.isEmpty())) {
                 return KeyStoreWrapper.create();
             }

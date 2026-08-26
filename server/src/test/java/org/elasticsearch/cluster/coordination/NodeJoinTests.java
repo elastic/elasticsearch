@@ -39,6 +39,7 @@ import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -99,7 +100,7 @@ public class NodeJoinTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeCoordinator() throws Exception {
         masterService.stop();
         coordinator.stop();
         if (deterministicTaskQueue != null) {
@@ -107,7 +108,6 @@ public class NodeJoinTests extends ESTestCase {
         }
         masterService.close();
         coordinator.close();
-        super.tearDown();
     }
 
     private static ClusterState initialState(DiscoveryNode localNode, long term, long version, VotingConfiguration config) {
@@ -151,7 +151,8 @@ public class NodeJoinTests extends ESTestCase {
             settings,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool,
-            new TaskManager(settings, threadPool, Set.of())
+            new TaskManager(settings, threadPool, Set.of()),
+            MeterRegistry.NOOP
         );
         AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialState);
         masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {

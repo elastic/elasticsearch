@@ -14,28 +14,28 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToVersion}.
+ * {@link ExpressionEvaluator} implementation for {@link ToVersion}.
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToVersionFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToVersionFromStringEvaluator.class);
 
-  private final EvalOperator.ExpressionEvaluator asString;
+  private final ExpressionEvaluator asString;
 
-  public ToVersionFromStringEvaluator(Source source, EvalOperator.ExpressionEvaluator asString,
+  public ToVersionFromStringEvaluator(Source source, ExpressionEvaluator asString,
       DriverContext driverContext) {
     super(driverContext, source);
     this.asString = asString;
   }
 
   @Override
-  public EvalOperator.ExpressionEvaluator next() {
+  public ExpressionEvaluator next() {
     return asString;
   }
 
@@ -130,12 +130,12 @@ public final class ToVersionFromStringEvaluator extends AbstractConvertFunction.
     return baseRamBytesUsed;
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory asString;
+    private final ExpressionEvaluator.Factory asString;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory asString) {
+    public Factory(Source source, ExpressionEvaluator.Factory asString) {
       this.source = source;
       this.asString = asString;
     }

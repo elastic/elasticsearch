@@ -1,5 +1,0 @@
-pr: 139609
-summary: Fix ABSENT/PRESENT on agg with false filter
-area: ES|QL
-type: bug
-issues: []

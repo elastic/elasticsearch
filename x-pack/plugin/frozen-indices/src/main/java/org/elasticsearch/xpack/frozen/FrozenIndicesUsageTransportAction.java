@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.frozen.FrozenIndicesFeatureSetUsage;
 
-@UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT) // Remove this: it is unused in v9 but needed for mixed v8/v9 clusters
+@UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // Remove this: it is unused in v9 but needed for mixed v8/v9 clusters
 public class FrozenIndicesUsageTransportAction extends XPackUsageFeatureTransportAction {
 
     @Inject

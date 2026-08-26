@@ -1,7 +1,4 @@
 tasks.named("javaRestTest").configure {
+  usesDefaultDistribution("SQL Security tests require security module")
   systemProperty 'tests.ssl.enabled', 'false'
-}
-
-testClusters.matching { it.name == "javaRestTest" }.configureEach {
-  setting 'xpack.license.self_generated.type', 'trial'
 }

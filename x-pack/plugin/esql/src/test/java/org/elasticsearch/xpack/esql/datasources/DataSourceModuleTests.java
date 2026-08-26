@@ -1,0 +1,1465 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.datasources;
+
+import org.elasticsearch.Build;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.plugins.spi.SPIClassIterator;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.encryption.spi.EncryptionService;
+import org.elasticsearch.xpack.esql.datasource.brotli.BrotliDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.lz4.Lz4DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.snappy.SnappyDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
+import org.junit.Before;
+
+import java.io.ByteArrayInputStream;
+import java.io.Closeable;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.mock;
+
+/**
+ * Integration tests for DataSourceModule verifying SPI discovery and registration.
+ * These tests ensure all data sources work correctly via the plugin discovery mechanism.
+ *
+ * Note: These tests use a TestDataSourcePlugin that avoids creating HttpClient instances
+ * to prevent thread leaks. The HttpStorageProvider creates HttpClient instances that
+ * spawn daemon threads which are difficult to clean up in unit tests.
+ */
+public class DataSourceModuleTests extends ESTestCase {
+
+    private static final EncryptionService ENCRYPTION_SERVICE = mock(EncryptionService.class);
+
+    private BlockFactory blockFactory;
+
+    @Before
+    public void initBlockFactory() {
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+    }
+
+    /**
+     * Test-only DataSourcePlugin that provides mock storage and format reader
+     * implementations to avoid dependencies on moved classes.
+     */
+    private static class TestDataSourcePlugin implements DataSourcePlugin {
+        @Override
+        public Set<String> supportedSchemes() {
+            return Set.of("file");
+        }
+
+        @Override
+        public Set<FormatSpec> formatSpecs() {
+            return Set.of(FormatSpec.of("csv", ".csv"), FormatSpec.of("tsv", ".tsv"), FormatSpec.of("ndjson", ".ndjson"));
+        }
+
+        @Override
+        public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+            return Map.of("file", StorageProviderFactory.noConfigKeys(MockFileStorageProvider::new));
+        }
+
+        @Override
+        public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+            return Map.of(
+                "csv",
+                (s, bf) -> new MockCsvFormatReader("csv", List.of(".csv")),
+                "tsv",
+                (s, bf) -> new MockTsvFormatReader(),
+                "ndjson",
+                (s, bf) -> new MockCsvFormatReader("ndjson", List.of(".ndjson"))
+            );
+        }
+    }
+
+    /**
+     * Test-only {@link Closeable} DataSourcePlugin used to verify that {@link DataSourceModule#close()}
+     * closes the SPI-discovery plugin instances it owns (the path that releases an
+     * {@code S3DataSourcePlugin}'s lazily built workload-identity resources in production).
+     */
+    private static class ClosingDataSourcePlugin implements DataSourcePlugin, Closeable {
+        private final AtomicBoolean closed = new AtomicBoolean(false);
+
+        @Override
+        public Set<String> supportedSchemes() {
+            return Set.of("closing");
+        }
+
+        @Override
+        public void close() {
+            closed.set(true);
+        }
+    }
+
+    public void testModuleClosesCloseablePluginsOnShutdown() throws Exception {
+        ClosingDataSourcePlugin plugin = new ClosingDataSourcePlugin();
+        List<DataSourcePlugin> plugins = List.of(plugin);
+        DataSourceModule module = new DataSourceModule(
+            plugins,
+            DataSourceCapabilities.build(plugins),
+            Settings.EMPTY,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
+        );
+        assertFalse("plugin must not be closed before module close", plugin.closed.get());
+        module.close();
+        assertTrue("module close must close the Closeable plugin", plugin.closed.get());
+    }
+
+    /**
+     * Mock file storage provider for testing.
+     */
+    private static class MockFileStorageProvider implements StorageProvider {
+        @Override
+        public List<String> supportedSchemes() {
+            return List.of("file");
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path) {
+            throw new UnsupportedOperationException("Mock provider");
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length) {
+            throw new UnsupportedOperationException("Mock provider");
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+            throw new UnsupportedOperationException("Mock provider");
+        }
+
+        @Override
+        public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+            throw new UnsupportedOperationException("Mock provider");
+        }
+
+        @Override
+        public boolean exists(StoragePath path) {
+            return false;
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
+     * Mock CSV format reader for testing.
+     */
+    private static class MockCsvFormatReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        private final String format;
+        private final List<String> extensions;
+
+        MockCsvFormatReader(String format, List<String> extensions) {
+            this.format = format;
+            this.extensions = extensions;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            throw new UnsupportedOperationException("Mock reader");
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            throw new UnsupportedOperationException("Mock reader");
+        }
+
+        @Override
+        public String formatName() {
+            return format;
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return extensions;
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
+     * Mock TSV format reader for testing.
+     */
+    private static class MockTsvFormatReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            throw new UnsupportedOperationException("Mock reader");
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            throw new UnsupportedOperationException("Mock reader");
+        }
+
+        @Override
+        public String formatName() {
+            return "tsv";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".tsv");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
+     * Test-only plugin that exposes NDJSON as a segmentable format with in-memory file payloads.
+     * Used to verify FileSourceFactory's split provider path is wired with registries.
+     */
+    private static class RegistryAwareNdjsonPlugin implements DataSourcePlugin {
+        private final Map<String, byte[]> payloadByPath;
+
+        RegistryAwareNdjsonPlugin(Map<String, byte[]> payloadByPath) {
+            this.payloadByPath = payloadByPath;
+        }
+
+        @Override
+        public Set<String> supportedSchemes() {
+            return Set.of("file");
+        }
+
+        @Override
+        public Set<FormatSpec> formatSpecs() {
+            return Set.of(FormatSpec.of("ndjson", ".ndjson"));
+        }
+
+        @Override
+        public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+            return Map.of("file", StorageProviderFactory.noConfigKeys(() -> new PayloadFileStorageProvider(payloadByPath)));
+        }
+
+        @Override
+        public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+            return Map.of("ndjson", (s, bf) -> new SegmentableTestNdjsonReader());
+        }
+    }
+
+    private static class PayloadFileStorageProvider implements StorageProvider {
+        private final Map<String, byte[]> payloadByPath;
+
+        PayloadFileStorageProvider(Map<String, byte[]> payloadByPath) {
+            this.payloadByPath = payloadByPath;
+        }
+
+        @Override
+        public List<String> supportedSchemes() {
+            return List.of("file");
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path) {
+            byte[] payload = payloadByPath.get(path.toString());
+            if (payload == null) {
+                throw new IllegalArgumentException("Missing payload for path [" + path + "]");
+            }
+            return newObject(path, payload.length, Instant.EPOCH);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length) {
+            return newObject(path, length, Instant.EPOCH);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+            byte[] payload = payloadByPath.get(path.toString());
+            if (payload == null) {
+                throw new IllegalArgumentException("Missing payload for path [" + path + "]");
+            }
+            if (payload.length != length) {
+                throw new IllegalArgumentException("Length mismatch for path [" + path + "]: " + length + " vs " + payload.length);
+            }
+            return new StorageObject() {
+                @Override
+                public InputStream newStream() {
+                    return new ByteArrayInputStream(payload);
+                }
+
+                @Override
+                public InputStream newStream(long position, long rangeLength) {
+                    return new ByteArrayInputStream(payload, Math.toIntExact(position), Math.toIntExact(rangeLength));
+                }
+
+                @Override
+                public long length() {
+                    return payload.length;
+                }
+
+                @Override
+                public Instant lastModified() {
+                    return lastModified;
+                }
+
+                @Override
+                public boolean exists() {
+                    return true;
+                }
+
+                @Override
+                public StoragePath path() {
+                    return path;
+                }
+            };
+        }
+
+        @Override
+        public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+            throw new UnsupportedOperationException("Mock provider");
+        }
+
+        @Override
+        public boolean exists(StoragePath path) {
+            return payloadByPath.containsKey(path.toString());
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    private static class SegmentableTestNdjsonReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            throw new UnsupportedOperationException("Mock reader");
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            throw new UnsupportedOperationException("Mock reader");
+        }
+
+        @Override
+        public String formatName() {
+            return "ndjson";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".ndjson");
+        }
+
+        @Override
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return new RecordSplitter() {
+                @Override
+                public long findNextRecordBoundary(InputStream stream) throws java.io.IOException {
+                    long consumed = 0;
+                    int b;
+                    while ((b = stream.read()) != -1) {
+                        consumed++;
+                        if (consumed > maxRecordBytes) {
+                            return RECORD_TOO_LARGE;
+                        }
+                        if (b == '\n') {
+                            return consumed;
+                        }
+                    }
+                    return -1;
+                }
+
+                @Override
+                public int findLastRecordBoundary(byte[] buf, int offset, int length) {
+                    return -1;
+                }
+
+                @Override
+                public int maxRecordBytes() {
+                    return maxRecordBytes;
+                }
+            };
+        }
+
+        @Override
+        public long minimumSegmentSize() {
+            return 64;
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
+     * The catch-all file factory is registered LAST so plugin-provided factories win when both claim a path, and
+     * {@link ExternalSourceResolver} takes the FIRST factory whose {@code canHandle} claims. That priority is
+     * carried entirely by the map's iteration order, so it must survive publication.
+     * <p>
+     * The claims genuinely overlap: a table catalog claims an extensionless object (a table directory), and the
+     * file factory's config-aware {@code canHandle} claims the same object once an explicit {@code format} is
+     * configured. Publishing through {@code Map.copyOf} — whose iteration order the JDK documents as
+     * unspecified — silently dropped the ordering, so which factory won such a path was undefined. This pin
+     * fails if anyone reintroduces that.
+     */
+    public void testFileFallbackIsRegisteredAfterPluginFactories() {
+        DataSourcePlugin catalogPlugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("catalog-scheme");
+            }
+
+            @Override
+            public Set<String> supportedCatalogs() {
+                // Ordered on purpose: DataSourceModule iterates this set directly, and Set.of's own iteration
+                // order is salt-randomized, so a LinkedHashSet is what makes the expected sequence below stable.
+                return new LinkedHashSet<>(List.of("catalog-a", "catalog-b", "catalog-c", "catalog-d"));
+            }
+        };
+
+        List<DataSourcePlugin> plugins = List.of(catalogPlugin);
+        try (DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory)) {
+            // Assert the FULL sequence, not relative positions: Map.copyOf's iteration order is salt-randomized
+            // per JVM launch, so a positional assertion passes by coincidence often enough to be no pin at all.
+            List<String> order = List.copyOf(module.sourceFactories().keySet());
+            assertEquals(
+                "the file fallback must be registered last so plugin factories claim first",
+                List.of("catalog-a", "catalog-b", "catalog-c", "catalog-d", "file"),
+                order
+            );
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    private static DataSourceModule createModule(List<DataSourcePlugin> plugins, Settings settings, BlockFactory blockFactory) {
+        DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
+        return new DataSourceModule(
+            plugins,
+            capabilities,
+            settings,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
+        );
+    }
+
+    /**
+     * Test that SPI discovery mechanism works for DataSourcePlugin via META-INF/services.
+     * Note: DataSourcePlugin implementations now live in separate plugin modules (esql-datasource-csv,
+     * esql-datasource-http, etc.), so zero plugins may be discovered from the core test classpath.
+     * Full SPI discovery is verified in integration tests where plugins are loaded as separate ES plugins.
+     */
+    public void testSpiDiscoveryFindsPlugins() {
+        List<Class<? extends DataSourcePlugin>> discoveredPluginClasses = new ArrayList<>();
+        SPIClassIterator<DataSourcePlugin> spiIterator = SPIClassIterator.get(DataSourcePlugin.class, getClass().getClassLoader());
+
+        while (spiIterator.hasNext()) {
+            discoveredPluginClasses.add(spiIterator.next());
+        }
+
+        // SPI mechanism should work without errors; plugins may or may not be on the test classpath
+        logger.info("SPI discovery found {} DataSourcePlugin implementations", discoveredPluginClasses.size());
+    }
+
+    /**
+     * Test that DataSourceModule correctly registers storage providers.
+     */
+    public void testStorageProviderRegistration() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+
+        StorageProviderRegistry registry = module.storageProviderRegistry();
+
+        // Verify file provider is registered. file:// gets the same reactive retry/backoff wrapping as every
+        // other scheme (the retry layer is inert for file:// — local reads raise plain IOExceptions, not the
+        // throttling-typed exception it retries — but the wrapping is uniform), so the retrieved provider is
+        // the outer RetryableStorageProvider, not the raw MockFileStorageProvider.
+        assertTrue("File storage provider should be registered", registry.hasProvider("file"));
+        StorageProvider fileProvider = registry.provider(StoragePath.of("file:///tmp/test.csv"));
+        assertNotNull("File storage provider should be retrievable", fileProvider);
+        assertTrue("File provider should be wrapped with the retry layer", fileProvider instanceof RetryableStorageProvider);
+    }
+
+    /**
+     * Test that DataSourceModule correctly registers format readers.
+     */
+    public void testFormatReaderRegistration() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        // Verify CSV reader is registered by name
+        assertTrue("CSV format reader should be registered by name", registry.hasFormat("csv"));
+        FormatReader csvReader = registry.byName("csv");
+        assertNotNull("CSV format reader should be retrievable by name", csvReader);
+        assertTrue("CSV reader should be MockCsvFormatReader", csvReader instanceof MockCsvFormatReader);
+
+        // Verify CSV reader can be found by extension
+        assertTrue("CSV reader should be registered for .csv extension", registry.hasExtension(".csv"));
+        FormatReader csvByExtension = registry.byExtension("data.csv");
+        assertNotNull("CSV reader should be found by .csv extension", csvByExtension);
+        assertTrue("CSV reader by extension should be MockCsvFormatReader", csvByExtension instanceof MockCsvFormatReader);
+
+        // Verify TSV reader is registered separately
+        assertTrue("TSV format reader should be registered by name", registry.hasFormat("tsv"));
+        FormatReader tsvReader = registry.byName("tsv");
+        assertNotNull("TSV format reader should be retrievable by name", tsvReader);
+        assertTrue("TSV reader should be MockTsvFormatReader", tsvReader instanceof MockTsvFormatReader);
+
+        // Verify TSV extension maps to the TSV reader
+        assertTrue("TSV reader should be registered for .tsv extension", registry.hasExtension(".tsv"));
+        FormatReader tsvByExtension = registry.byExtension("data.tsv");
+        assertNotNull("TSV reader should be found by .tsv extension", tsvByExtension);
+        assertTrue("TSV reader by extension should be MockTsvFormatReader", tsvByExtension instanceof MockTsvFormatReader);
+    }
+
+    /**
+     * Test that duplicate storage provider registration throws an exception.
+     */
+    public void testDuplicateStorageProviderThrows() {
+        // Create two plugins that both register file
+        DataSourcePlugin plugin1 = new TestDataSourcePlugin();
+        DataSourcePlugin plugin2 = new TestDataSourcePlugin();
+
+        List<DataSourcePlugin> plugins = List.of(plugin1, plugin2);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createModule(plugins, Settings.EMPTY, blockFactory)
+        );
+        assertTrue(e.getMessage().contains("already registered"));
+    }
+
+    /**
+     * Test that duplicate format reader registration throws an exception.
+     */
+    public void testDuplicateFormatReaderThrows() {
+        // Create two plugins that both register CSV
+        DataSourcePlugin plugin1 = new TestDataSourcePlugin();
+        DataSourcePlugin plugin2 = new TestDataSourcePlugin();
+
+        List<DataSourcePlugin> plugins = List.of(plugin1, plugin2);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createModule(plugins, Settings.EMPTY, blockFactory)
+        );
+        assertTrue(e.getMessage().contains("already registered"));
+    }
+
+    /**
+     * Test that DataSourceModule works with empty plugin list.
+     */
+    public void testEmptyPluginList() {
+        List<DataSourcePlugin> plugins = List.of();
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+
+        // Registries should be empty but not null
+        assertNotNull(module.storageProviderRegistry());
+        assertNotNull(module.formatReaderRegistry());
+        assertNotNull(module.sourceFactories());
+
+        // No providers should be registered
+        assertFalse("No file provider should be registered", module.storageProviderRegistry().hasProvider("file"));
+        assertFalse("No CSV reader should be registered", module.formatReaderRegistry().hasFormat("csv"));
+
+        // The "file" fallback factory should always be present
+        assertTrue("File fallback factory should be registered", module.sourceFactories().containsKey("file"));
+    }
+
+    /**
+     * Test that DataSourceModule correctly creates OperatorFactoryRegistry.
+     */
+    public void testOperatorFactoryRegistryCreation() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+
+        // Create OperatorFactoryRegistry with a simple executor
+        OperatorFactoryRegistry operatorRegistry = module.createOperatorFactoryRegistry(Runnable::run);
+        assertNotNull("OperatorFactoryRegistry should be created", operatorRegistry);
+    }
+
+    /**
+     * {@link DataSourceModule#createOperatorFactoryRegistry(Executor, Executor)} must preserve both
+     * executors: compute coordination ({@link OperatorFactoryRegistry#executor()}, e.g. {@code esql_worker} in
+     * {@link org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction}) and
+     * {@link OperatorFactoryRegistry#fileReadExecutor()} (e.g. {@code generic} for file background reads).
+     */
+    public void testOperatorFactoryRegistryUsesDistinctExecutors() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        Executor main = Runnable::run;
+        Executor fileRead = Runnable::run;
+        OperatorFactoryRegistry registry = module.createOperatorFactoryRegistry(main, fileRead);
+        assertSame(main, registry.executor());
+        assertSame(fileRead, registry.fileReadExecutor());
+    }
+
+    /**
+     * Test that the "file" fallback factory is always present in sourceFactories.
+     */
+    public void testFileSourceFactoryFallbackPresent() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+
+        assertTrue("File fallback factory should be in sourceFactories", module.sourceFactories().containsKey("file"));
+        assertEquals("file", module.sourceFactories().get("file").type());
+    }
+
+    /**
+     * Test that the "file" fallback factory can handle paths with known scheme + extension.
+     */
+    public void testFileSourceFactoryCanHandle() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+
+        var fileFactory = module.sourceFactories().get("file");
+        assertNotNull(fileFactory);
+
+        // file scheme + .csv extension should be handled
+        assertTrue("Should handle file:///tmp/data.csv", fileFactory.canHandle("file:///tmp/data.csv"));
+        // file scheme + .tsv extension should be handled (registered by MockTsvFormatReader)
+        assertTrue("Should handle file:///tmp/data.tsv", fileFactory.canHandle("file:///tmp/data.tsv"));
+        // Unknown extension should not be handled
+        assertFalse("Should not handle file:///tmp/data.xyz", fileFactory.canHandle("file:///tmp/data.xyz"));
+        // No extension should not be handled
+        assertFalse("Should not handle file:///tmp/data", fileFactory.canHandle("file:///tmp/data"));
+        // Unknown scheme should not be handled
+        assertFalse("Should not handle s3://bucket/data.csv", fileFactory.canHandle("s3://bucket/data.csv"));
+    }
+
+    /**
+     * Test that with gzip plugin, compressed paths (.csv.gz) are supported.
+     */
+    public void testFileSourceFactoryCanHandleCompressedPaths() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin(), new GzipDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+
+        var fileFactory = module.sourceFactories().get("file");
+        assertNotNull(fileFactory);
+
+        assertTrue("Should handle file:///tmp/data.csv.gz", fileFactory.canHandle("file:///tmp/data.csv.gz"));
+        assertTrue("Should handle file:///tmp/data.tsv.gz", fileFactory.canHandle("file:///tmp/data.tsv.gz"));
+        assertFalse("Should not handle file:///tmp/data.parquet.gz", fileFactory.canHandle("file:///tmp/data.parquet.gz"));
+    }
+
+    /**
+     * A format reader that does not support whole-file compression (mimics Parquet/ORC).
+     */
+    private static class MockNoWholeFileCompressionReader extends MockCsvFormatReader {
+        MockNoWholeFileCompressionReader() {
+            super("parq", List.of(".parq"));
+        }
+
+        @Override
+        public boolean supportsWholeFileCompression() {
+            return false;
+        }
+    }
+
+    /**
+     * A plugin that registers a format whose reader rejects whole-file compression.
+     */
+    private static class NoWholeFileCompressionPlugin implements DataSourcePlugin {
+        @Override
+        public Set<String> supportedSchemes() {
+            return Set.of();
+        }
+
+        @Override
+        public Set<FormatSpec> formatSpecs() {
+            return Set.of(FormatSpec.of("parq", ".parq"));
+        }
+
+        @Override
+        public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+            return Map.of();
+        }
+
+        @Override
+        public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+            return Map.of("parq", (s, bf) -> new MockNoWholeFileCompressionReader());
+        }
+    }
+
+    /**
+     * Tests that the registry throws a precise error when attempting to resolve a compound
+     * extension whose inner format does not support whole-file compression (e.g. Parquet/ORC).
+     */
+    public void testFormatRegistryRejectsWholeFileCompressionForIncompatibleFormats() {
+        List<DataSourcePlugin> plugins = List.of(
+            new TestDataSourcePlugin(),
+            new NoWholeFileCompressionPlugin(),
+            new GzipDataSourcePlugin(),
+            new ZstdDataSourcePlugin(),
+            new Bzip2DataSourcePlugin(),
+            new SnappyDataSourcePlugin(),
+            new Lz4DataSourcePlugin(),
+            new BrotliDataSourcePlugin()
+        );
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        List<String> compressedExtensions = List.of("gz", "zst", "bz2", "snappy", "lz4", "br");
+        for (String comp : compressedExtensions) {
+            String objectName = "data.parq." + comp;
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> registry.byExtension(objectName));
+            assertThat("Expected rejection for " + objectName, ex.getMessage(), containsString("does not support whole-file compression"));
+            assertThat(ex.getMessage(), containsString("parq"));
+        }
+
+        // Sequential formats must still be wrappable
+        assertNotNull(registry.byExtension("data.csv.gz"));
+        assertNotNull(registry.byExtension("data.tsv.gz"));
+    }
+
+    /**
+     * A scheme nothing on this node reads must name what IS readable. The two forms this replaced named neither
+     * the registered schemes nor any action, and one spoke of an "SPI storage factory" -- the only message
+     * rewritten in this change that nothing else pins.
+     */
+    public void testUnsupportedSchemeNamesTheReadableSchemes() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> module.storageProviderRegistry().provider(StoragePath.of("nope://bucket/data.csv"))
+        );
+
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ex));
+        assertThat(ex.getMessage(), containsString("Unsupported storage scheme [nope]"));
+        assertThat(ex.getMessage(), containsString("Supported schemes:"));
+        assertThat(ex.getMessage(), not(containsString("SPI storage factory")));
+    }
+
+    /**
+     * Naming a format the registry does not know is a client error. It is reachable without any typo: the dataset
+     * CRUD vocabulary is a startup snapshot of the declared format specs, so a dataset stored while a format's
+     * feature flag was on resolves, at query time, against a registry that plugin contributed nothing to. This is
+     * also the one message permitted to advise installing a plugin, because here a missing plugin really is a cause.
+     */
+    public void testUnknownFormatNameIsAClientErrorNamingTheRegisteredFormats() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> registry.byName("nope"));
+
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ex));
+        assertThat(ex.getMessage(), containsString("No reader registered for format [nope]"));
+        assertThat(ex.getMessage(), containsString("Registered formats"));
+        assertThat(ex.getMessage(), containsString("may not be installed"));
+    }
+
+    /**
+     * A compound name whose INNER extension is unknown must report the object the caller actually named, and the
+     * compound extension that failed. The compound branch strips the codec suffix and recurses, so the failure is
+     * raised one frame down against a name that does not exist on disk: it reported "cannot read [data.log]:
+     * extension [.log]" for a file called {@code data.log.gz}, while the resolver path reported "[.log.gz]" for
+     * the very same file. Two answers for one condition is precisely what the shared builder exists to prevent,
+     * and no test covered this route -- every other case reaches the builder through the resolver.
+     */
+    public void testCompoundNameWithUnknownInnerExtensionReportsTheOriginalObject() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin(), new GzipDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> registry.byExtension("data.log.gz"));
+
+        assertThat(ex.getMessage(), containsString("[data.log.gz]"));
+        assertThat(ex.getMessage(), containsString("extension [.log.gz]"));
+        // The stripped intermediate must never surface -- it names a file that does not exist.
+        assertThat(ex.getMessage(), not(containsString("[data.log]")));
+        assertThat(ex.getMessage(), not(containsString("extension [.log]")));
+
+        // Mixed case must report the same normalised extension. Every other fixture here is lowercase, so without
+        // this the normalisation could be dropped and the suite would stay green.
+        IllegalArgumentException mixed = expectThrows(IllegalArgumentException.class, () -> registry.byExtension("DATA.LOG.GZ"));
+        assertThat(mixed.getMessage(), containsString("[DATA.LOG.GZ]"));
+        assertThat(mixed.getMessage(), containsString("extension [.log.gz]"));
+    }
+
+    /**
+     * On release builds the text-format codec surface is gated to {uncompressed, gzip, zstd}: bzip2, snappy,
+     * lz4, and brotli must be rejected at extension-resolution time on every text format (CSV/TSV/NDJSON) with
+     * a message that names the supported set, while gzip and zstd still resolve. See elastic/esql-planning#938.
+     */
+    public void testTextCodecsRejectedOnReleaseBuilds() {
+        assumeFalse("snapshot builds allow all registered codecs", Build.current().isSnapshot());
+
+        List<DataSourcePlugin> plugins = List.of(
+            new TestDataSourcePlugin(),
+            new GzipDataSourcePlugin(),
+            new ZstdDataSourcePlugin(),
+            new Bzip2DataSourcePlugin(),
+            new SnappyDataSourcePlugin(),
+            new Lz4DataSourcePlugin(),
+            new BrotliDataSourcePlugin()
+        );
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        // One disabled codec per text format, covering all four disabled codecs and all three formats.
+        Map<String, String> rejected = new HashMap<>();
+        rejected.put("data.csv.bz2", "bzip2");
+        rejected.put("data.tsv.snappy", "snappy");
+        rejected.put("data.ndjson.lz4", "lz4");
+        rejected.put("data.csv.br", "brotli");
+        for (Map.Entry<String, String> entry : rejected.entrySet()) {
+            String objectName = entry.getKey();
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> registry.byExtension(objectName));
+            assertThat(
+                "Expected rejection for " + objectName,
+                ex.getMessage(),
+                containsString("is not supported; supported: uncompressed, gzip, zstd")
+            );
+            assertThat(ex.getMessage(), containsString(entry.getValue()));
+        }
+
+        // The benchmarked codecs still resolve across the text formats.
+        assertNotNull(registry.byExtension("data.csv.gz"));
+        assertNotNull(registry.byExtension("data.tsv.zst"));
+        assertNotNull(registry.byExtension("data.ndjson.gz"));
+    }
+
+    /**
+     * On snapshot builds the codec gate is bypassed: every registered codec — including bzip2, snappy, lz4, and
+     * brotli — resolves to a {@code CompressionDelegatingFormatReader} for text formats. See elastic/esql-planning#938.
+     */
+    public void testTextCodecsAllowedOnSnapshotBuilds() {
+        assumeTrue("release builds gate the text-format codec surface", Build.current().isSnapshot());
+
+        List<DataSourcePlugin> plugins = List.of(
+            new TestDataSourcePlugin(),
+            new GzipDataSourcePlugin(),
+            new ZstdDataSourcePlugin(),
+            new Bzip2DataSourcePlugin(),
+            new SnappyDataSourcePlugin(),
+            new Lz4DataSourcePlugin(),
+            new BrotliDataSourcePlugin()
+        );
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        List<String> compressed = List.of(
+            "data.csv.gz",
+            "data.tsv.zst",
+            "data.ndjson.gz",
+            "data.csv.bz2",
+            "data.tsv.snappy",
+            "data.ndjson.lz4",
+            "data.csv.br"
+        );
+        for (String objectName : compressed) {
+            FormatReader reader = registry.byExtension(objectName);
+            assertNotNull("Expected " + objectName + " to resolve on snapshot builds", reader);
+            assertTrue(
+                objectName + " should resolve to a CompressionDelegatingFormatReader",
+                reader.getClass().getSimpleName().contains("CompressionDelegating")
+            );
+        }
+    }
+
+    public void testFileSourceSplitProviderUsesRegistriesForNdjsonMacroSplits() {
+        String fileUri = "file:///tmp/registry-backed.ndjson";
+        byte[] payload = buildNdjsonPayload(8_000);
+        Map<String, byte[]> payloadByPath = new HashMap<>();
+        payloadByPath.put(fileUri, payload);
+
+        DataSourceModule module = createModule(List.of(new RegistryAwareNdjsonPlugin(payloadByPath)), Settings.EMPTY, blockFactory);
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(StoragePath.of(fileUri), payload.length, Instant.EPOCH)),
+            "file:///tmp/*.ndjson"
+        );
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            Map.of(FileSplitProvider.CONFIG_TARGET_SPLIT_SIZE, "1kb"),
+            PartitionMetadata.EMPTY,
+            List.of()
+        );
+
+        List<ExternalSplit> splits = module.sourceFactories().get("file").splitProvider().discoverSplits(ctx).splits();
+        assertTrue("Expected newline-aligned macro splits from registry-backed provider", splits.size() > 1);
+
+        long totalLength = 0;
+        for (int i = 0; i < splits.size(); i++) {
+            FileSplit split = (FileSplit) splits.get(i);
+            assertEquals("true", split.config().get(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY));
+            totalLength += split.length();
+            if (i == 0) {
+                assertEquals("true", split.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
+            }
+            if (i == splits.size() - 1) {
+                assertEquals("true", split.config().get(FileSplitProvider.LAST_SPLIT_KEY));
+            }
+        }
+        assertEquals(payload.length, totalLength);
+    }
+
+    /**
+     * Test that with gzip plugin, byExtension returns delegating reader for compound extensions.
+     */
+    public void testFormatReaderRegistryCompressedExtension() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin(), new GzipDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+        assertTrue("Should have compressed extension for data.csv.gz", registry.hasCompressedExtension("data.csv.gz"));
+        assertFalse("Should not have compressed extension for data.csv", registry.hasCompressedExtension("data.csv"));
+
+        FormatReader reader = registry.byExtension("data.csv.gz");
+        assertNotNull(reader);
+        assertEquals("csv", reader.formatName());
+        assertTrue(
+            "Reader should be CompressionDelegatingFormatReader",
+            reader.getClass().getSimpleName().contains("CompressionDelegating")
+        );
+    }
+
+    /**
+     * Regression test for the compressed-read-under-explicit-format fix: an explicit {@code format}
+     * override composes with the resource's outer compression suffix instead of bypassing it.
+     * {@code FormatNameResolver.resolveReader} is the exact chokepoint {@code FileSourceFactory} and
+     * {@code FileSplitProvider} use for the real read path.
+     */
+    public void testExplicitFormatComposesWithCompressionSuffix() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin(), new GzipDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        // Mirrors the reported scenario: settings.format = "csv" over a resource that ends in .csv.gz.
+        FormatReader reader = FormatNameResolver.resolveReader(Map.of("format", "csv"), "hits_00.csv.gz", registry);
+        assertEquals("csv", reader.formatName());
+        assertTrue(
+            "An explicit format over a compressed resource should still wrap in CompressionDelegatingFormatReader",
+            reader.getClass().getSimpleName().contains("CompressionDelegating")
+        );
+    }
+
+    /**
+     * Same fix, via the {@code reader} alias override rather than {@code format}: {@code reader=java} maps
+     * to the {@code parquet} format name ({@link FormatNameResolver#READER_JAVA}), so a mock {@code parquet}
+     * format (unlike the real Parquet reader, this stand-in supports whole-file compression) is registered
+     * to exercise the alias branch of {@link FormatNameResolver#resolveReader} against a compressed object.
+     */
+    public void testExplicitReaderAliasComposesWithCompressionSuffix() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin(), new MockParquetFormatPlugin(), new GzipDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        FormatReader reader = FormatNameResolver.resolveReader(Map.of("reader", "java"), "hits_00.parquet.gz", registry);
+        assertEquals("parquet", reader.formatName());
+        assertTrue(
+            "reader=java over a compressed resource should still wrap in CompressionDelegatingFormatReader",
+            reader.getClass().getSimpleName().contains("CompressionDelegating")
+        );
+    }
+
+    /**
+     * Test-only plugin registering a mock {@code parquet} format so {@code reader=java}/{@code reader=parquet-rs}
+     * resolve to a real registry entry without pulling in the actual (whole-file-compression-incompatible)
+     * Parquet reader.
+     */
+    private static class MockParquetFormatPlugin implements DataSourcePlugin {
+        @Override
+        public Set<String> supportedSchemes() {
+            return Set.of();
+        }
+
+        @Override
+        public Set<FormatSpec> formatSpecs() {
+            return Set.of(FormatSpec.of("parquet", ".parquet"));
+        }
+
+        @Override
+        public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+            return Map.of();
+        }
+
+        @Override
+        public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+            return Map.of("parquet", (s, bf) -> new MockCsvFormatReader("parquet", List.of(".parquet")));
+        }
+    }
+
+    /**
+     * An explicit {@code format} override over an uncompressed resource (the common case) must be
+     * unaffected by the fix: no compression suffix means no wrapping, same reader instance as before.
+     */
+    public void testExplicitFormatWithNoCompressionSuffixIsUnchanged() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin(), new GzipDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        FormatReader reader = FormatNameResolver.resolveReader(Map.of("format", "csv"), "hits_00.csv", registry);
+        assertFalse("An uncompressed resource must not be wrapped", reader.getClass().getSimpleName().contains("CompressionDelegating"));
+        assertTrue(reader instanceof MockCsvFormatReader);
+    }
+
+    /**
+     * An explicit {@code format} naming a format that cannot be wrapped in a whole-file decompressor
+     * (e.g. Parquet/ORC) must be rejected up front — the same error {@link FormatReaderRegistry#byExtension}
+     * already raises for the equivalent extension-inferred case — rather than silently ignoring the
+     * resource's compression suffix and failing later with a confusing parse error.
+     */
+    public void testExplicitFormatRejectsWholeFileCompressionForIncompatibleFormats() {
+        List<DataSourcePlugin> plugins = List.of(
+            new TestDataSourcePlugin(),
+            new NoWholeFileCompressionPlugin(),
+            new GzipDataSourcePlugin()
+        );
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> FormatNameResolver.resolveReader(Map.of("format", "parq"), "data.parq.gz", registry)
+        );
+        assertThat(ex.getMessage(), containsString("does not support whole-file compression"));
+        assertThat(ex.getMessage(), containsString("parq"));
+    }
+
+    /**
+     * On release builds, an explicit {@code format} over a codec outside the GA text-format surface
+     * (bzip2, snappy, lz4, brotli) must be rejected the same way the extension-inferred path already is —
+     * not silently accepted while misreading the compressed bytes. See elastic/esql-planning#938.
+     */
+    public void testExplicitFormatRejectsNonGaCodecsOnReleaseBuilds() {
+        assumeFalse("snapshot builds allow all registered codecs", Build.current().isSnapshot());
+
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin(), new GzipDataSourcePlugin(), new Bzip2DataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> FormatNameResolver.resolveReader(Map.of("format", "csv"), "data.csv.bz2", registry)
+        );
+        assertThat(ex.getMessage(), containsString("is not supported; supported: uncompressed, gzip, zstd"));
+
+        // The benchmarked codec still resolves and still composes with the explicit format.
+        FormatReader reader = FormatNameResolver.resolveReader(Map.of("format", "csv"), "data.csv.gz", registry);
+        assertTrue(reader.getClass().getSimpleName().contains("CompressionDelegating"));
+    }
+
+    /**
+     * Test that DataSourceModule correctly reports table catalog availability.
+     */
+    public void testTableCatalogAvailability() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+
+        // TestDataSourcePlugin doesn't provide table catalogs
+        assertFalse("Test plugin should not have iceberg catalog", module.sourceFactories().containsKey("iceberg"));
+        assertFalse("Test plugin should not have delta catalog", module.sourceFactories().containsKey("delta"));
+    }
+
+    /**
+     * Test that storage providers can create objects for their supported schemes.
+     */
+    public void testStorageProviderSchemeSupport() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+
+        StorageProviderRegistry registry = module.storageProviderRegistry();
+
+        // File provider should support file scheme
+        StorageProvider fileProvider = registry.provider(StoragePath.of("file:///tmp/test.csv"));
+        assertTrue("File provider should support file scheme", fileProvider.supportedSchemes().contains("file"));
+    }
+
+    /**
+     * Test that format readers report correct format names and extensions.
+     */
+    public void testFormatReaderMetadata() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        FormatReader csvReader = registry.byName("csv");
+        assertEquals("CSV reader should report 'csv' as format name", "csv", csvReader.formatName());
+        assertTrue("CSV reader should support .csv extension", csvReader.fileExtensions().contains(".csv"));
+
+        FormatReader tsvReader = registry.byName("tsv");
+        assertEquals("TSV reader should report 'tsv' as format name", "tsv", tsvReader.formatName());
+        assertTrue("TSV reader should support .tsv extension", tsvReader.fileExtensions().contains(".tsv"));
+    }
+
+    /**
+     * Test that settings are passed to plugin factories.
+     */
+    public void testSettingsPassedToFactories() {
+        Settings customSettings = Settings.builder().put("test.setting", "value").build();
+
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
+        // This should not throw - settings are passed to factories
+        DataSourceModule module = createModule(plugins, customSettings, blockFactory);
+
+        assertNotNull(module.storageProviderRegistry());
+        assertNotNull(module.formatReaderRegistry());
+    }
+
+    /**
+     * Test custom DataSourcePlugin implementation.
+     */
+    public void testCustomDataSourcePlugin() {
+        // Create a custom plugin that provides a mock storage provider
+        DataSourcePlugin customPlugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("custom");
+            }
+
+            @Override
+            public Map<String, org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory> storageProviders(Settings settings) {
+                return Map.of("custom", StorageProviderFactory.noConfigKeys(MockStorageProvider::new));
+            }
+        };
+
+        List<DataSourcePlugin> plugins = List.of(customPlugin);
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+
+        assertTrue("Custom provider should be registered", module.storageProviderRegistry().hasProvider("custom"));
+        StorageProvider customProvider = module.storageProviderRegistry().provider(StoragePath.of("custom://bucket/file.txt"));
+        assertNotNull("Custom provider should be retrievable", customProvider);
+        assertTrue("Custom provider should be wrapped with retry for non-file schemes", customProvider instanceof RetryableStorageProvider);
+    }
+
+    /**
+     * Mock storage provider for testing custom plugin registration.
+     */
+    private static class MockStorageProvider implements StorageProvider {
+        @Override
+        public List<String> supportedSchemes() {
+            return List.of("custom");
+        }
+
+        @Override
+        public org.elasticsearch.xpack.esql.datasources.spi.StorageObject newObject(StoragePath path) {
+            throw new UnsupportedOperationException("Mock provider");
+        }
+
+        @Override
+        public org.elasticsearch.xpack.esql.datasources.spi.StorageObject newObject(StoragePath path, long length) {
+            throw new UnsupportedOperationException("Mock provider");
+        }
+
+        @Override
+        public org.elasticsearch.xpack.esql.datasources.spi.StorageObject newObject(
+            StoragePath path,
+            long length,
+            java.time.Instant lastModified
+        ) {
+            throw new UnsupportedOperationException("Mock provider");
+        }
+
+        @Override
+        public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+            throw new UnsupportedOperationException("Mock provider");
+        }
+
+        @Override
+        public boolean exists(StoragePath path) {
+            return false;
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    // ==================== Classloader Isolation Tests ====================
+
+    /**
+     * Test that each DataSourcePlugin implementation has an identifiable classloader.
+     * This verifies that plugins can be tracked by their classloader for isolation purposes.
+     * Note: DataSourcePlugin implementations now live in separate plugin modules, so zero
+     * plugins may be discovered from the core test classpath.
+     */
+    public void testPluginClassloaderIdentification() {
+        List<Class<? extends DataSourcePlugin>> discoveredPluginClasses = new ArrayList<>();
+        SPIClassIterator<DataSourcePlugin> spiIterator = SPIClassIterator.get(DataSourcePlugin.class, getClass().getClassLoader());
+
+        while (spiIterator.hasNext()) {
+            Class<? extends DataSourcePlugin> pluginClass = spiIterator.next();
+            discoveredPluginClasses.add(pluginClass);
+
+            // Each plugin class should have a non-null classloader
+            ClassLoader classLoader = pluginClass.getClassLoader();
+            assertNotNull("Plugin class " + pluginClass.getName() + " should have a classloader", classLoader);
+
+            // Log classloader info for debugging/verification
+            logger.info(
+                "Plugin [{}] loaded by classloader: {} (type: {})",
+                pluginClass.getSimpleName(),
+                classLoader,
+                classLoader.getClass().getName()
+            );
+        }
+
+        // Plugins may or may not be on the test classpath; verify infrastructure works regardless
+        logger.info("Classloader identification test found {} plugins", discoveredPluginClasses.size());
+    }
+
+    /**
+     * Test that plugins loaded from different modules have different classloaders.
+     * This is a key requirement for classloader isolation - each plugin module
+     * should be loaded by its own classloader to prevent jar hell.
+     *
+     * Note: In unit tests, plugins are typically loaded from the same classloader.
+     * This test documents the expected behavior and verifies the infrastructure
+     * is in place for classloader tracking. Full isolation is verified in
+     * integration tests where plugins are loaded as separate ES plugins.
+     */
+    public void testPluginClassloaderDifferentiation() {
+        List<Class<? extends DataSourcePlugin>> discoveredPluginClasses = new ArrayList<>();
+        Map<ClassLoader, List<String>> pluginsByClassloader = new HashMap<>();
+
+        SPIClassIterator<DataSourcePlugin> spiIterator = SPIClassIterator.get(DataSourcePlugin.class, getClass().getClassLoader());
+
+        while (spiIterator.hasNext()) {
+            Class<? extends DataSourcePlugin> pluginClass = spiIterator.next();
+            discoveredPluginClasses.add(pluginClass);
+
+            ClassLoader classLoader = pluginClass.getClassLoader();
+            pluginsByClassloader.computeIfAbsent(classLoader, k -> new ArrayList<>()).add(pluginClass.getName());
+        }
+
+        // Log the classloader distribution for verification
+        logger.info("Classloader distribution for {} discovered plugins:", discoveredPluginClasses.size());
+        for (Map.Entry<ClassLoader, List<String>> entry : pluginsByClassloader.entrySet()) {
+            logger.info("  Classloader [{}]: {}", entry.getKey().getClass().getSimpleName(), entry.getValue());
+        }
+
+        // In production with proper plugin isolation, each plugin would have its own classloader.
+        // In unit tests, they may share a classloader. This test verifies the tracking works.
+        // Note: pluginsByClassloader may be empty if no plugins are on the test classpath.
+        logger.info(
+            "Classloader differentiation test found {} classloaders for {} plugins",
+            pluginsByClassloader.size(),
+            discoveredPluginClasses.size()
+        );
+    }
+
+    /**
+     * Test that instantiated plugin objects maintain their classloader identity.
+     * This ensures that when plugins are instantiated, we can still trace them
+     * back to their originating classloader for isolation verification.
+     */
+    public void testInstantiatedPluginClassloaderTracking() {
+        List<DataSourcePlugin> instantiatedPlugins = new ArrayList<>();
+        Map<String, ClassLoader> pluginClassloaders = new HashMap<>();
+
+        SPIClassIterator<DataSourcePlugin> spiIterator = SPIClassIterator.get(DataSourcePlugin.class, getClass().getClassLoader());
+
+        while (spiIterator.hasNext()) {
+            Class<? extends DataSourcePlugin> pluginClass = spiIterator.next();
+            try {
+                DataSourcePlugin plugin = pluginClass.getConstructor().newInstance();
+                instantiatedPlugins.add(plugin);
+
+                // Track the classloader of the instantiated object
+                ClassLoader instanceClassloader = plugin.getClass().getClassLoader();
+                pluginClassloaders.put(pluginClass.getName(), instanceClassloader);
+
+                // Verify the instance classloader matches the class classloader
+                assertEquals(
+                    "Instance classloader should match class classloader for " + pluginClass.getName(),
+                    pluginClass.getClassLoader(),
+                    instanceClassloader
+                );
+
+                logger.info(
+                    "Instantiated plugin [{}] with classloader: {}",
+                    plugin.getClass().getSimpleName(),
+                    instanceClassloader.getClass().getName()
+                );
+            } catch (Exception e) {
+                // Some plugins may require special construction (e.g., ThreadPool)
+                logger.info("Could not instantiate plugin {} with default constructor: {}", pluginClass.getName(), e.getMessage());
+            }
+        }
+
+        // Plugins may or may not be on the test classpath; verify infrastructure works regardless
+        logger.info("Instantiated plugin classloader tracking test found {} plugins", instantiatedPlugins.size());
+    }
+
+    /**
+     * Test that the SPI interface (DataSourcePlugin) is loaded from the expected classloader.
+     * This verifies the SPI contract - the interface should be loaded from a parent classloader
+     * that is visible to all plugin implementations.
+     */
+    public void testSpiInterfaceClassloaderHierarchy() {
+        ClassLoader spiClassloader = DataSourcePlugin.class.getClassLoader();
+        assertNotNull("DataSourcePlugin interface should have a classloader", spiClassloader);
+
+        logger.info("DataSourcePlugin interface loaded by: {} ({})", spiClassloader, spiClassloader.getClass().getName());
+
+        // Verify that discovered plugins can see the SPI interface
+        SPIClassIterator<DataSourcePlugin> spiIterator = SPIClassIterator.get(DataSourcePlugin.class, getClass().getClassLoader());
+
+        while (spiIterator.hasNext()) {
+            Class<? extends DataSourcePlugin> pluginClass = spiIterator.next();
+            ClassLoader pluginClassloader = pluginClass.getClassLoader();
+
+            // The plugin should be able to load the SPI interface
+            try {
+                Class<?> spiFromPlugin = pluginClassloader.loadClass(DataSourcePlugin.class.getName());
+                assertNotNull("Plugin classloader should be able to load DataSourcePlugin", spiFromPlugin);
+
+                // The loaded class should be the same as the original (same classloader hierarchy)
+                assertEquals(
+                    "DataSourcePlugin loaded by plugin classloader should be the same class",
+                    DataSourcePlugin.class,
+                    spiFromPlugin
+                );
+            } catch (ClassNotFoundException e) {
+                fail("Plugin classloader should be able to find DataSourcePlugin: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Test that multiple plugins from the same module share a classloader,
+     * while plugins from different modules have different classloaders.
+     * This test uses mock plugins to simulate the expected behavior.
+     */
+    public void testClassloaderIsolationWithMockPlugins() {
+        // Create plugins that track their classloader
+        DataSourcePlugin plugin1 = new ClassloaderTrackingPlugin("plugin1");
+        DataSourcePlugin plugin2 = new ClassloaderTrackingPlugin("plugin2");
+
+        // In the same test, both plugins share the test classloader
+        ClassLoader cl1 = plugin1.getClass().getClassLoader();
+        ClassLoader cl2 = plugin2.getClass().getClassLoader();
+
+        // These should be the same in unit tests (same class definition)
+        assertEquals("Mock plugins in same test share classloader", cl1, cl2);
+
+        // But the infrastructure for tracking is in place
+        logger.info("Mock plugin 1 classloader: {}", cl1);
+        logger.info("Mock plugin 2 classloader: {}", cl2);
+    }
+
+    /**
+     * A DataSourcePlugin implementation that tracks its classloader for testing.
+     */
+    private static class ClassloaderTrackingPlugin implements DataSourcePlugin {
+        private final String name;
+        private final ClassLoader classLoader;
+
+        ClassloaderTrackingPlugin(String name) {
+            this.name = name;
+            this.classLoader = getClass().getClassLoader();
+        }
+
+        String name() {
+            return name;
+        }
+
+        ClassLoader trackedClassLoader() {
+            return classLoader;
+        }
+
+        @Override
+        public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+            return Map.of();
+        }
+    }
+
+    /**
+     * Test that verifies classloader isolation can be detected through class identity.
+     * When the same class is loaded by different classloaders, they are different classes.
+     * This is the fundamental mechanism that enables jar hell prevention.
+     */
+    public void testClassIdentityAcrossClassloaders() {
+        // Get the DataSourcePlugin class from the test classloader
+        Class<DataSourcePlugin> testClass = DataSourcePlugin.class;
+        ClassLoader testClassloader = testClass.getClassLoader();
+
+        // Try to load the same class from the same classloader - should be identical
+        try {
+            @SuppressWarnings("unchecked")
+            Class<DataSourcePlugin> reloadedClass = (Class<DataSourcePlugin>) testClassloader.loadClass(DataSourcePlugin.class.getName());
+
+            // Same classloader, same class
+            assertSame("Same classloader should return same class instance", testClass, reloadedClass);
+        } catch (ClassNotFoundException e) {
+            fail("Should be able to reload DataSourcePlugin from test classloader");
+        }
+
+        // Document that in production, different classloaders would return different class instances
+        logger.info(
+            "Class identity test passed - DataSourcePlugin loaded from {} is consistent",
+            testClassloader.getClass().getSimpleName()
+        );
+    }
+
+    private static byte[] buildNdjsonPayload(int rows) {
+        StringBuilder sb = new StringBuilder(rows * 16);
+        for (int i = 0; i < rows; i++) {
+            sb.append("{\"a\":").append(i).append("}\n");
+        }
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
+    }
+}

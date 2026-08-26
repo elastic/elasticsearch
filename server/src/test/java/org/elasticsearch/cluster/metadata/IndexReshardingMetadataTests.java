@@ -59,7 +59,8 @@ public class IndexReshardingMetadataTests extends ESTestCase {
                 // can we advance target?
                 var targetState = split.getTargetShardState(idx);
                 var nextState = randomFrom(IndexReshardingState.Split.TargetShardState.values());
-                if (nextState.ordinal() == targetState.ordinal() + 1) {
+                if (nextState.ordinal() == targetState.ordinal() + 1
+                    || (nextState.ordinal() == targetState.ordinal() && nextState == IndexReshardingState.Split.TargetShardState.HANDOFF)) {
                     splitBuilder.setTargetShardState(idx, nextState);
                 } else {
                     assertThrows(AssertionError.class, () -> splitBuilder.setTargetShardState(idx, nextState));

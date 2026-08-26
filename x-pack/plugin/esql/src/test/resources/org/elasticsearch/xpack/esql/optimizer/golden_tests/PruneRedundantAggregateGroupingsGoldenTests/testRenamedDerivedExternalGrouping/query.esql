@@ -1,0 +1,4 @@
+FROM ext_ds
+| RENAME ClientIP AS cip
+| EVAL c = cip - 1
+| STATS count = COUNT(*) BY cip, c

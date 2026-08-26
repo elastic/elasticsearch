@@ -1,0 +1,3 @@
+FROM books
+| RERANK "war and peace" ON title WITH { "inference_id" : "reranking-inference-id" }
+| LIMIT 3 BY _score, author

@@ -28,7 +28,7 @@ class ResolveTransportVersionConflictFuncTest extends AbstractTransportVersionFu
     def "update flag works with current"() {
         given:
         referableAndReferencedTransportVersion("new_tv", "8123000")
-        file("myserver/src/main/resources/transport/latest/9.2.csv").text =
+        file("myserver/src/main/resources/transport/upper_bounds/9.2.csv").text =
             """
             <<<<<<< HEAD
             existing_92,8123000
@@ -50,7 +50,7 @@ class ResolveTransportVersionConflictFuncTest extends AbstractTransportVersionFu
     def "update flag works with multiple branches"() {
         given:
         referableAndReferencedTransportVersion("new_tv", "8123000,8012001,7123001")
-        file("myserver/src/main/resources/transport/latest/9.2.csv").text =
+        file("myserver/src/main/resources/transport/upper_bounds/9.2.csv").text =
             """
             <<<<<<< HEAD
             existing_92,8123000
@@ -58,7 +58,7 @@ class ResolveTransportVersionConflictFuncTest extends AbstractTransportVersionFu
             new_tv,8123000
             >>>>>> name
             """.strip()
-        file("myserver/src/main/resources/transport/latest/9.1.csv").text =
+        file("myserver/src/main/resources/transport/upper_bounds/9.1.csv").text =
             """
             <<<<<<< HEAD
             existing_92,8012001
@@ -66,7 +66,7 @@ class ResolveTransportVersionConflictFuncTest extends AbstractTransportVersionFu
             new_tv,8012001
             >>>>>> name
             """.strip()
-        file("myserver/src/main/resources/transport/latest/8.19.csv").text =
+        file("myserver/src/main/resources/transport/upper_bounds/8.19.csv").text =
             """
             <<<<<<< HEAD
             initial_8.19.7,7123001
@@ -117,7 +117,6 @@ class ResolveTransportVersionConflictFuncTest extends AbstractTransportVersionFu
         execute("git add .")
         execute("git commit -m branch")
         // and finally initiate the merge
-        System.out.println("Merging commit " + toMerge);
         execute("git merge " + toMerge, testProjectDir.root, true);
 
         when:
@@ -126,5 +125,64 @@ class ResolveTransportVersionConflictFuncTest extends AbstractTransportVersionFu
         then:
         assertResolveAndValidateSuccess(result)
         assertUpperBound("9.2", "branch_new_tv,8125000")
+    }
+
+    def "resolve on release branch with no conflicts is a noop"() {
+        given:
+        file("myserver/build.gradle") << """
+            tasks.named('resolveTransportVersionConflict') {
+                currentUpperBoundName = '9.1'
+            }
+        """
+
+        when:
+        def result = runResolveAndValidateTask().build()
+
+        then:
+        assertResolveAndValidateSuccess(result)
+        assertUpperBound("9.1", "existing_92,8012001")
+    }
+
+    def "resolve on release branch accepts upstream"() {
+        given:
+        // setup main with 2 commits, but we will only cherry pick the second one
+        execute("git checkout main")
+        referableAndReferencedTransportVersion("upstream_new_tv1", "8124000")
+        transportVersionUpperBound("9.2", "upstream_new_tv1", "8124000")
+        execute("git add .")
+        execute("git commit -m update1")
+        referableAndReferencedTransportVersion("upstream_new_tv2", "8125000,8012002")
+        transportVersionUpperBound("9.2", "upstream_new_tv2", "8125000")
+        transportVersionUpperBound("9.1", "upstream_new_tv2", "8012002")
+        execute("git add .")
+        execute("git commit -m update2")
+        String toCherryPick = execute("git rev-parse HEAD")
+        execute("git checkout test") // test is a faux 9.1 branch
+        file("myserver/build.gradle") << """
+            tasks.named('resolveTransportVersionConflict') {
+                currentUpperBoundName = '9.1'
+            }
+            tasks.named('validateTransportVersionResources') {
+                currentUpperBoundName = '9.1'
+            }
+        """
+        execute("git commit -a -m update-branch")
+        execute("git cherry-pick " + toCherryPick, testProjectDir.root, true);
+
+        when:
+        def result = runResolveAndValidateTask().build()
+
+        then:
+        assertResolveAndValidateSuccess(result)
+        assertOutputContains(result.output, "Resolving transport version conflicts by accepting upstream changes...")
+        assertReferableDefinition("upstream_new_tv2", "8125000,8012002")
+        assertUpperBound("9.2", "upstream_new_tv2,8125000")
+        assertUpperBound("9.1", "upstream_new_tv2,8012002")
+
+        when:
+        execute("git cherry-pick --continue")
+
+        then:
+        execute("git status --porcelain").strip().isEmpty()
     }
 }

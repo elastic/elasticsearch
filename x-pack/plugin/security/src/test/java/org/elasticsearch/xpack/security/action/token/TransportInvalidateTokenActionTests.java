@@ -15,7 +15,9 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexClosedException;
@@ -38,7 +40,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.time.Clock;
-import java.util.Collections;
 
 import static org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRequest.Type.ACCESS_TOKEN;
 import static org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRequest.Type.REFRESH_TOKEN;
@@ -62,6 +63,7 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
     private ClusterService clusterService;
     private MockLicenseState license;
     private SecurityContext securityContext;
+    private MockBytesRefRecycler bytesRefRecycler;
 
     @Before
     public void setup() {
@@ -75,6 +77,7 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
         this.clusterService = ClusterServiceUtils.createClusterService(threadPool);
         this.license = mock(MockLicenseState.class);
         when(license.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
+        bytesRefRecycler = new MockBytesRefRecycler();
     }
 
     public void testInvalidateTokensWhenIndexUnavailable() throws Exception {
@@ -94,11 +97,12 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
             securityContext,
             securityIndex,
             securityIndex,
-            clusterService
+            clusterService,
+            bytesRefRecycler
         );
         final TransportInvalidateTokenAction action = new TransportInvalidateTokenAction(
             transportService,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             tokenService
         );
 
@@ -116,7 +120,7 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
         assertThat(ese.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
 
         request = new InvalidateTokenRequest(
-            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.current(), newTokenBytes.v2()),
+            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.current(), newTokenBytes.v2(), bytesRefRecycler),
             REFRESH_TOKEN.getValue(),
             null,
             null
@@ -144,11 +148,12 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
             securityContext,
             securityIndex,
             securityIndex,
-            clusterService
+            clusterService,
+            bytesRefRecycler
         );
         final TransportInvalidateTokenAction action = new TransportInvalidateTokenAction(
             transportService,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             tokenService
         );
 
@@ -166,7 +171,11 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
         assertThat(ese.status(), equalTo(RestStatus.BAD_REQUEST));
 
         request = new InvalidateTokenRequest(
-            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.current(), tokenService.getRandomTokenBytes(true).v2()),
+            TokenService.prependVersionAndEncodeRefreshToken(
+                TransportVersion.current(),
+                tokenService.getRandomTokenBytes(true).v2(),
+                bytesRefRecycler
+            ),
             REFRESH_TOKEN.getValue(),
             null,
             null
@@ -183,5 +192,10 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
         if (threadPool != null) {
             terminate(threadPool);
         }
+    }
+
+    @After
+    public void cleanupMocks() {
+        Releasables.closeExpectNoException(bytesRefRecycler);
     }
 }

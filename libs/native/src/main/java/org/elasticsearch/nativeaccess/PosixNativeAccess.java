@@ -10,31 +10,34 @@
 package org.elasticsearch.nativeaccess;
 
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.nativeaccess.jdk.PosixMappedSegment;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
+import org.elasticsearch.nativeaccess.lib.ParquetRsLibrary;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
-import org.elasticsearch.nativeaccess.lib.VectorLibrary;
 
+import java.io.IOException;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.OptionalLong;
 
-abstract class PosixNativeAccess extends AbstractNativeAccess {
+public abstract class PosixNativeAccess extends AbstractNativeAccess {
 
-    public static final int MCL_CURRENT = 1;
-    public static final int ENOMEM = 12;
-    public static final int O_RDONLY = 0;
-    public static final int O_WRONLY = 1;
+    private static final int MCL_CURRENT = 1;
+    private static final int ENOMEM = 12;
+    private static final int O_RDONLY = 0;
+    private static final int O_WRONLY = 1;
 
     protected final PosixCLibrary libc;
-    protected final VectorSimilarityFunctions vectorDistance;
+    protected final ParquetRsFunctions parquetRsFunctions;
     protected final PosixConstants constants;
     protected final ProcessLimits processLimits;
 
     PosixNativeAccess(String name, NativeLibraryProvider libraryProvider, PosixConstants constants) {
         super(name, libraryProvider);
         this.libc = libraryProvider.getLibrary(PosixCLibrary.class);
-        this.vectorDistance = vectorSimilarityFunctionsOrNull(libraryProvider);
+        this.parquetRsFunctions = parquetRsFunctionsOrNull(libraryProvider);
         this.constants = constants;
         this.processLimits = new ProcessLimits(
             getMaxThreads(),
@@ -64,11 +67,16 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
         }
     }
 
-    static VectorSimilarityFunctions vectorSimilarityFunctionsOrNull(NativeLibraryProvider libraryProvider) {
-        if (isNativeVectorLibSupported()) {
-            var lib = libraryProvider.getLibrary(VectorLibrary.class).getVectorSimilarityFunctions();
-            logger.info("Using native vector library; to disable start with -D" + ENABLE_JDK_VECTOR_LIBRARY + "=false");
-            return lib;
+    static ParquetRsFunctions parquetRsFunctionsOrNull(NativeLibraryProvider libraryProvider) {
+        if (isNativeRustLibSupported()) {
+            try {
+                var lib = libraryProvider.getLibrary(ParquetRsLibrary.class);
+                logger.info("Loaded parquet-rs native library");
+                return new ParquetRsFunctions(lib);
+            } catch (UnsatisfiedLinkError e) {
+                logger.info("parquet-rs native library not available: {}", e.getMessage());
+                return null;
+            }
         }
         return null;
     }
@@ -131,7 +139,7 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
     @Override
     public OptionalLong allocatedSizeInBytes(Path path) {
         assert Files.isRegularFile(path) : path;
-        var stats = libc.newStat64(constants.statStructSize(), constants.statStructSizeOffset(), constants.statStructBlocksOffset());
+        var stats = libc.newStat64();
 
         int fd = libc.open(path.toAbsolutePath().toString(), O_RDONLY);
         if (fd == -1) {
@@ -170,7 +178,7 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
             return;
         }
 
-        var stats = libc.newStat64(constants.statStructSize(), constants.statStructSizeOffset(), constants.statStructBlocksOffset());
+        var stats = libc.newStat64();
         if (libc.fstat64(fd, stats) != 0) {
             logger.warn("Could not get stats for file [" + file + "] to preallocate size: " + libc.strerror(libc.errno()));
         } else {
@@ -187,8 +195,13 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
     protected abstract boolean nativePreallocate(int fd, long currentSize, long newSize);
 
     @Override
-    public Optional<VectorSimilarityFunctions> getVectorSimilarityFunctions() {
-        return Optional.ofNullable(vectorDistance);
+    public Optional<ParquetRsFunctions> getParquetRsFunctions() {
+        return Optional.ofNullable(parquetRsFunctions);
+    }
+
+    @Override
+    public MappedSegment map(FileChannel fileChannel, FileChannel.MapMode mode, long position, long size) throws IOException {
+        return PosixMappedSegment.ofShared(fileChannel, mode, position, size);
     }
 
     String rlimitToString(long value) {
@@ -199,8 +212,8 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
         }
     }
 
-    static boolean isNativeVectorLibSupported() {
-        return Runtime.version().feature() >= 21 && (isMacOrLinuxAarch64() || isLinuxAmd64()) && checkEnableSystemProperty();
+    static boolean isNativeRustLibSupported() {
+        return isMacOrLinuxAarch64() || isLinuxAmd64();
     }
 
     /**
@@ -215,15 +228,5 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
     static boolean isMacOrLinuxAarch64() {
         String name = System.getProperty("os.name");
         return (name.startsWith("Mac") || name.startsWith("Linux")) && System.getProperty("os.arch").equals("aarch64");
-    }
-
-    /** -Dorg.elasticsearch.nativeaccess.enableVectorLibrary=false to disable.*/
-    static final String ENABLE_JDK_VECTOR_LIBRARY = "org.elasticsearch.nativeaccess.enableVectorLibrary";
-
-    @SuppressForbidden(
-        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
-    )
-    static boolean checkEnableSystemProperty() {
-        return Optional.ofNullable(System.getProperty(ENABLE_JDK_VECTOR_LIBRARY)).map(Boolean::valueOf).orElse(Boolean.TRUE);
     }
 }

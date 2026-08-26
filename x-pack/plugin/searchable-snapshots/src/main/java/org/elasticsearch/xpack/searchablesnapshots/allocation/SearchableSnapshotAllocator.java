@@ -280,7 +280,8 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
             allocation
         );
         Decision allocateDecision = result.decision();
-        if (allocateDecision.type() != Decision.Type.YES && (explain == false || asyncFetchStore.get(shardRouting.shardId()) == null)) {
+        if (allocateDecision.type().assignmentAllowed() == false
+            && (explain == false || asyncFetchStore.get(shardRouting.shardId()) == null)) {
             // only return early if we are not in explain mode, or we are in explain mode but we have not
             // yet attempted to fetch any shard data
             logger.trace("{}: ignoring allocation, can't be allocated on any node", shardRouting);
@@ -296,7 +297,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         assert explain == false || matchingNodes.nodeDecisions != null : "in explain mode, we must have individual node decisions";
 
         List<NodeAllocationResult> nodeDecisions = augmentExplanationsWithStoreInfo(result.nodes(), matchingNodes.nodeDecisions);
-        if (allocateDecision.type() != Decision.Type.YES) {
+        if (allocateDecision.type().assignmentAllowed() == false) {
             return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()), nodeDecisions);
         } else if (matchingNodes.nodeWithHighestMatch() != null) {
             RoutingNode nodeWithHighestMatch = allocation.routingNodes().node(matchingNodes.nodeWithHighestMatch().getId());

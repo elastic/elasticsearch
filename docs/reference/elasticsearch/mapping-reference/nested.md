@@ -21,6 +21,10 @@ When ingesting key-value pairs with a large, arbitrary set of keys, you might co
 Nested fields have incomplete support in Kibana. While they are visible and searchable in Discover, they cannot be used to build visualizations in Lens.
 ::::
 
+::::{warning}
+If a parent object field mapping has `subobject` set to `false` or the root object `subobject` set to `false`, then nested field mappings are also auto flattened and only leaf field mappings are retained. This means that the nested field mapping's functionality is disabled.
+::::
+
 
 ## How arrays of objects are flattened [nested-arrays-flattening-objects]
 

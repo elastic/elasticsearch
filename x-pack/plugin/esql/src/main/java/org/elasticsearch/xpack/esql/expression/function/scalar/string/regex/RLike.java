@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string.regex;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
@@ -18,6 +19,8 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.RegexQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -27,20 +30,28 @@ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import java.io.IOException;
 import java.util.function.Predicate;
 
-public class RLike extends RegexMatch<RLikePattern> {
+public class RLike extends RegexMatch<RLikePattern> implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RLike", RLike::new);
     public static final String NAME = "RLIKE";
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "boolean",
+        briefSummary = "Filters data based on string patterns using regular expressions.",
         description = """
             Use `RLIKE` to filter data based on string patterns using
             <<regexp-syntax,regular expressions>>. `RLIKE` usually acts on a field placed on
             the left-hand side of the operator, but it can also act on a constant (literal)
-            expression. The right-hand side of the operator represents the pattern.""",
+            expression. The right-hand side of the operator represents the pattern, which can
+            be a string literal, a query parameter, or any constant expression such as a call
+            to `CONCAT` or `TO_UPPER`.""",
 
         // we use an inline example here because ?pattern not supported in csv-spec test
         detailedDescription = """
+            When used on `text` fields, `RLIKE` treats the field as a `keyword` and does not use the analyzer.
+            This means the pattern matching is case-sensitive and must match the exact string indexed.
+            To perform full-text search, use the `MATCH` or `QSTR` functions.
+
             Matching special characters (eg. `.`, `*`, `(`...) will require escaping.
             The escape character is backslash `\\`. Since also backslash is a special character in string literals,
             it will require further escaping.
@@ -71,6 +82,13 @@ public class RLike extends RegexMatch<RLikePattern> {
             ```{applies_to}
             stack: ga 9.3
             ```
+
+            ```{applies_to}
+            stack: ga 9.6
+            ```
+            The pattern can also be any constant expression, such as a call to `CONCAT` or `TO_UPPER`.
+
+            <<load-esql-example, file=where-like tag=rlikeConstExprConcat>>
             """,
         operator = NAME,
         examples = @Example(file = "docs", tag = "rlike")
@@ -78,7 +96,12 @@ public class RLike extends RegexMatch<RLikePattern> {
     public RLike(
         Source source,
         @Param(name = "str", type = { "keyword", "text" }, description = "A literal value.") Expression value,
-        @Param(name = "pattern", type = { "keyword", "text" }, description = "A regular expression.") RLikePattern pattern
+        @Param(
+            name = "pattern",
+            type = { "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
+            description = "A regular expression."
+        ) RLikePattern pattern
     ) {
         this(source, value, pattern, false);
     }

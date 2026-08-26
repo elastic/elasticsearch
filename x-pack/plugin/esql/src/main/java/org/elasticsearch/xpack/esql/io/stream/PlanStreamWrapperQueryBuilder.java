@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -67,6 +68,15 @@ public class PlanStreamWrapperQueryBuilder implements QueryBuilder {
     @Override
     public Query toQuery(SearchExecutionContext context) throws IOException {
         return next.toQuery(context);
+    }
+
+    @Override
+    public Query toQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor visitor) throws IOException {
+        Query query = next.toQuery(context, visitor);
+        if (query != null) {
+            query.visit(visitor);
+        }
+        return query;
     }
 
     @Override

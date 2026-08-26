@@ -262,11 +262,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     }
                     // We failed to find the status of the shard from the responses we received from data nodes.
                     // This can happen if nodes drop out of the cluster completely or restart during the snapshot.
-                    final SnapshotIndexShardStage stage = switch (shardEntry.getValue().state()) {
-                        case FAILED, ABORTED, MISSING -> SnapshotIndexShardStage.FAILURE;
-                        case INIT, WAITING, PAUSED_FOR_NODE_REMOVAL, QUEUED -> SnapshotIndexShardStage.STARTED;
-                        case SUCCESS -> SnapshotIndexShardStage.DONE;
-                    };
+                    final SnapshotIndexShardStage stage = convertShardStateToSnapshotIndexShardStage(shardEntry.getValue().state());
                     final SnapshotIndexShardStatus shardStatus;
                     if (stage == SnapshotIndexShardStage.DONE) {
                         final ShardId shardId = entry.shardId(shardEntry.getKey());
@@ -298,7 +294,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                 builder.add(
                     new SnapshotStatus(
                         entry.snapshot(),
-                        entry.state(),
+                        convertStateIfFinalizing(entry.state()),
                         Collections.unmodifiableList(shardStatusBuilder),
                         entry.includeGlobalState(),
                         entry.startTime(),
@@ -314,6 +310,22 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         } else {
             listener.onResponse(new SnapshotsStatusResponse(Collections.unmodifiableList(builder)));
         }
+    }
+
+    /// [SnapshotsInProgress] entries have state `SUCCESS` as soon as all shard snapshots complete, but it's still in progress (awaiting
+    /// finalization) so reporting `SUCCESS` in this API doesn't make sense to users. Keep it at `STARTED` until it's really complete.
+    private static SnapshotsInProgress.State convertStateIfFinalizing(SnapshotsInProgress.State state) {
+        return state == SnapshotsInProgress.State.SUCCESS ? SnapshotsInProgress.State.STARTED : state;
+    }
+
+    // Visible for testing
+    SnapshotIndexShardStage convertShardStateToSnapshotIndexShardStage(SnapshotsInProgress.ShardState shardState) {
+        return switch (shardState) {
+            case QUEUED -> SnapshotIndexShardStage.INIT;
+            case FAILED, ABORTED, MISSING -> SnapshotIndexShardStage.FAILURE;
+            case INIT, WAITING, PAUSED_FOR_NODE_REMOVAL -> SnapshotIndexShardStage.STARTED;
+            case SUCCESS -> SnapshotIndexShardStage.DONE;
+        };
     }
 
     private void loadRepositoryData(

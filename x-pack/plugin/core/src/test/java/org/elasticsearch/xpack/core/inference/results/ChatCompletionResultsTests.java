@@ -29,7 +29,7 @@ public class ChatCompletionResultsTests extends AbstractWireSerializingTestCase<
             is(Map.of(ChatCompletionResults.COMPLETION, List.of(Map.of(ChatCompletionResults.Result.RESULT, resultContent))))
         );
 
-        String xContentResult = Strings.toString(result, true, true);
+        String xContentResult = Strings.toTruncatedString(result, true, true);
         assertThat(xContentResult, is("""
             {
               "completion" : [
@@ -61,7 +61,7 @@ public class ChatCompletionResultsTests extends AbstractWireSerializingTestCase<
             )
         );
 
-        String xContentResult = Strings.toString(entity, true, true);
+        String xContentResult = Strings.toTruncatedString(entity, true, true);
         assertThat(xContentResult, is("""
             {
               "completion" : [

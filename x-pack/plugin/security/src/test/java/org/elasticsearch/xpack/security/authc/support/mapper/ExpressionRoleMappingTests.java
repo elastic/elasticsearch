@@ -407,7 +407,7 @@ public class ExpressionRoleMappingTests extends ESTestCase {
     public void testSerialization() throws Exception {
         final ExpressionRoleMapping original = randomRoleMapping(true);
 
-        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
         BytesStreamOutput output = new BytesStreamOutput();
         output.setTransportVersion(version);
         original.writeTo(output);

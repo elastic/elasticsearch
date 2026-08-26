@@ -10,17 +10,17 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvMedian}.
+ * {@link ExpressionEvaluator} implementation for {@link MvMedian}.
  * This class is generated. Edit {@code MvEvaluatorImplementer} instead.
  */
 public final class MvMedianIntEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvMedianIntEvaluator.class);
 
-  public MvMedianIntEvaluator(EvalOperator.ExpressionEvaluator field, DriverContext driverContext) {
+  public MvMedianIntEvaluator(ExpressionEvaluator field, DriverContext driverContext) {
     super(driverContext, field);
   }
 
@@ -42,11 +42,11 @@ public final class MvMedianIntEvaluator extends AbstractMultivalueFunction.Abstr
     try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       MvMedian.Ints work = new MvMedian.Ints();
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         int end = first + valueCount;
         for (int i = first; i < end; i++) {
@@ -96,11 +96,11 @@ public final class MvMedianIntEvaluator extends AbstractMultivalueFunction.Abstr
     try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       MvMedian.Ints work = new MvMedian.Ints();
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         int result = MvMedian.ascending(v, first, valueCount);
         builder.appendInt(result);
@@ -132,10 +132,10 @@ public final class MvMedianIntEvaluator extends AbstractMultivalueFunction.Abstr
     return BASE_RAM_BYTES_USED + field.baseRamBytesUsed();
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+  public static class Factory implements ExpressionEvaluator.Factory {
+    private final ExpressionEvaluator.Factory field;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+    public Factory(ExpressionEvaluator.Factory field) {
       this.field = field;
     }
 

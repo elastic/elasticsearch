@@ -26,6 +26,9 @@ setup:
                 type: integer
               double_field:
                 type: double
+              const_keyword_field:
+                type: constant_keyword
+                value: baz buzz
 
   - do:
       bulk:
@@ -296,3 +299,18 @@ setup:
           }
   - match: { hits.total: 1 }
   - match: { hits.hits.0._id: "doc-1" }
+
+---
+"KQL match term queries (constant_keyword field)":
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "const_keyword_field: baz buzz" } }
+          }
+
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._id: doc-1 }
+  - match: { hits.hits.1._id: doc-42 }

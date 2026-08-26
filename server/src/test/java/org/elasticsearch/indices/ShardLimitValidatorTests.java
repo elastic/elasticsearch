@@ -13,6 +13,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -52,6 +54,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
     private void testOverShardLimit(LimitGroup group, int nodesInCluster) {
         final ShardCounts counts = computeShardCounts(group, nodesInCluster);
         ClusterState state = createClusterForShardLimitTest(
+            randomProjectIdOrDefault(),
             nodesInCluster,
             counts.getFirstIndexShards(),
             counts.getFirstIndexReplicas(),
@@ -103,6 +106,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
         // Calculate the counts for a cluster with maximum of 60% of occupancy
         ShardCounts counts = computeShardCounts(group, (int) (nodesInCluster * 0.6));
         ClusterState state = createClusterForShardLimitTest(
+            randomProjectIdOrDefault(),
             nodesInCluster,
             counts.getFirstIndexShards(),
             counts.getFirstIndexReplicas(),
@@ -143,6 +147,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
             counts.getFirstIndexReplicas(),
             counts.getFailingIndexShards(),
             counts.getFailingIndexReplicas(),
+            counts.getShardsPerNode(),
             group
         );
 
@@ -249,7 +254,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
             case NORMAL, FROZEN -> {
                 int existingShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
                 int availableRoom = maxShardsInCluster - existingShards;
-                int replicas = randomIntBetween(0, 3);
+                int replicas = randomIntBetween(0, Math.min(3, availableRoom - 1));
                 int shards = randomIntBetween(1, Math.max(availableRoom / (replicas + 1), 1));
                 yield new UnderLimitShardCounts(shards, replicas, shards * (replicas + 1));
             }
@@ -263,7 +268,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
             case SEARCH -> {
                 int existingShards = counts.getFirstIndexShards() * counts.getFirstIndexReplicas();
                 int availableRoom = maxShardsInCluster - existingShards;
-                int replicas = randomIntBetween(1, nodesInCluster);
+                int replicas = randomIntBetween(1, Math.max(Math.min(nodesInCluster, availableRoom), 1));
                 int shards = randomIntBetween(1, Math.max(availableRoom / replicas, 1));
                 yield new UnderLimitShardCounts(shards, replicas, shards * replicas);
             }
@@ -284,7 +289,8 @@ public class ShardLimitValidatorTests extends ESTestCase {
         return state;
     }
 
-    public static ClusterState createClusterForShardLimitTest(
+    private static ClusterState createClusterForShardLimitTest(
+        final ProjectId projectId,
         int nodesInCluster,
         int shardsInIndex,
         int replicas,
@@ -302,7 +308,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
             .creationDate(randomLong())
             .numberOfShards(shardsInIndex)
             .numberOfReplicas(replicas);
-        Metadata.Builder metadata = Metadata.builder().put(indexMetadata);
+        Metadata.Builder metadata = Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata));
         Settings.Builder clusterSettings = Settings.builder()
             .put(ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.getKey(), maxShardsPerNode)
             .put(ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), maxShardsPerNode);
@@ -317,15 +323,21 @@ public class ShardLimitValidatorTests extends ESTestCase {
         return ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).nodes(nodes).build();
     }
 
-    public static ClusterState createClusterForShardLimitTest(
+    private static ClusterState createClusterForShardLimitTest(
         int nodesInCluster,
         int openIndexShards,
         int openIndexReplicas,
         int closedIndexShards,
         int closedIndexReplicas,
+        int shardsPerNode,
         LimitGroup group
     ) {
-        DiscoveryNodes nodes = createDiscoveryNodes(nodesInCluster, group);
+        // Index shard capacity is checked before search shard capacity and fails fast. For tests that expect the search shard capacity
+        // to be exceeded, this ensures there are enough index nodes that opening the closed index does not trip the index tier validation
+        final int minIndexNodesForSearch = group == LimitGroup.SEARCH
+            ? (openIndexShards + closedIndexShards + shardsPerNode - 1) / shardsPerNode
+            : 0;
+        DiscoveryNodes nodes = createDiscoveryNodes(nodesInCluster, group, minIndexNodesForSearch);
 
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
         state = addOpenedIndex(Metadata.DEFAULT_PROJECT_ID, randomAlphaOfLengthBetween(5, 15), openIndexShards, openIndexReplicas, state);
@@ -350,6 +362,10 @@ public class ShardLimitValidatorTests extends ESTestCase {
     }
 
     public static DiscoveryNodes createDiscoveryNodes(int nodesInCluster, LimitGroup group) {
+        return createDiscoveryNodes(nodesInCluster, group, 0);
+    }
+
+    private static DiscoveryNodes createDiscoveryNodes(int nodesInCluster, LimitGroup group, int minIndexNodesForSearch) {
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         for (int i = 0; i < nodesInCluster; i++) {
             Set<DiscoveryNodeRole> roles;
@@ -380,8 +396,11 @@ public class ShardLimitValidatorTests extends ESTestCase {
                     )
                 );
         } else if (group == LimitGroup.SEARCH) {
-            // Also add index nodes for search limit group and they should not affect the result of the search group
-            IntStream.range(0, nodesInCluster + 1)
+            // Stateless validation checks shard capacity on index nodes before search nodes and fails fast on the first limit that
+            // is exceeded. Opening a closed index adds primary shards to index nodes and replica shards to search nodes. For tests that
+            // expect the closed index to overflow search nodes, so we must give the index tier enough nodes that its limit still has room
+            int indexNodes = Math.max(nodesInCluster + 1, minIndexNodesForSearch);
+            IntStream.range(0, indexNodes)
                 .forEach(
                     i -> builder.add(
                         DiscoveryNodeUtils.builder(randomAlphaOfLength(16) + i).roles(Set.of(DiscoveryNodeRole.INDEX_ROLE)).build()

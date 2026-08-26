@@ -13,18 +13,17 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.jinaai.JinaAIService.VALID_INPUT_TYPE_VALUES;
 
 /**
@@ -52,7 +51,7 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
         InputType inputType = extractOptionalEnum(
             map,
             INPUT_TYPE,
-            ModelConfigurations.TASK_SETTINGS,
+            TASK_SETTINGS,
             InputType::fromString,
             VALID_INPUT_TYPE_VALUES,
             validationException
@@ -60,18 +59,19 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
 
         Boolean lateChunking = extractOptionalBoolean(map, LATE_CHUNKING, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
+        validationException.throwIfValidationErrorsExist();
+        if (inputType == null && lateChunking == null) {
+            return EMPTY_SETTINGS;
+        } else {
+            return new JinaAIEmbeddingsTaskSettings(inputType, lateChunking);
         }
-
-        return new JinaAIEmbeddingsTaskSettings(inputType, lateChunking);
     }
 
     /**
      * Creates a new {@link JinaAIEmbeddingsTaskSettings} by preferring non-null fields from the provided parameters.
      * For the input type, preference is given to requestInputType if it is not null and not UNSPECIFIED.
      * Then preference is given to the requestTaskSettings and finally to originalSettings even if the value is null.
-     *
+     * <br>
      * Similarly, for the truncation field preference is given to requestTaskSettings if it is not null and then to
      * originalSettings.
      * @param originalSettings the settings stored as part of the inference entity configuration
@@ -196,7 +196,7 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        JinaAIEmbeddingsTaskSettings updatedSettings = JinaAIEmbeddingsTaskSettings.fromMap(new HashMap<>(newSettings));
+        JinaAIEmbeddingsTaskSettings updatedSettings = JinaAIEmbeddingsTaskSettings.fromMap(newSettings);
         return of(this, updatedSettings);
     }
 }

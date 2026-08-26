@@ -64,7 +64,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -88,7 +87,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
      * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
      * we no longer need to support calling this action remotely.
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
     @SuppressWarnings("this-escape")
     @Inject
     public TransportGetDataStreamsAction(
@@ -212,6 +211,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                 MetadataIndexTemplateService.VALIDATE_INDEX_NAME,
                 dataStream.getName(),
                 indexMode,
+                indexTemplate.isRegistryInstalled(),
                 state.metadata(),
                 Instant.now(),
                 settings,
@@ -222,13 +222,13 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
             Settings addlSettings = builder.build();
             var rawMode = addlSettings.get(IndexSettings.MODE.getKey());
             if (rawMode != null) {
-                indexMode = Enum.valueOf(IndexMode.class, rawMode.toUpperCase(Locale.ROOT));
+                indexMode = IndexMode.fromString(rawMode);
             }
         }
         if (indexMode == null) {
             String rawMode = settings.get(IndexSettings.MODE.getKey());
             if (rawMode != null) {
-                indexMode = Enum.valueOf(IndexMode.class, rawMode.toUpperCase(Locale.ROOT));
+                indexMode = IndexMode.fromString(rawMode);
             }
         }
         return indexMode;
@@ -332,7 +332,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
             }
 
             GetDataStreamAction.Response.TimeSeries timeSeries = null;
-            if (dataStream.getIndexMode() == IndexMode.TIME_SERIES) {
+            if (IndexMode.isTsdb(dataStream.getIndexMode())) {
                 record IndexInfo(String name, Instant timeSeriesStart, Instant timeSeriesEnd) implements Comparable<IndexInfo> {
                     @Override
                     public int compareTo(IndexInfo o) {
@@ -350,7 +350,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                 var sortedRanges = dataStream.getIndices()
                     .stream()
                     .map(metadata::index)
-                    .filter(m -> m.getIndexMode() == IndexMode.TIME_SERIES)
+                    .filter(m -> IndexMode.isTsdb(m.getIndexMode()))
                     .map(m -> new IndexInfo(m.getIndex().getName(), m.getTimeSeriesStart(), m.getTimeSeriesEnd()))
                     .sorted()
                     .toList();
@@ -422,6 +422,15 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
     ) {
         for (Index index : backingIndices) {
             IndexMetadata indexMetadata = metadata.index(index);
+            if (indexMetadata == null) {
+                // This should never happen that the index metadata is null,
+                // but protect against it defensively to prevent an NPE below regardless
+                String message = "backing index [" + index.getName() + "] has null metadata in data stream [" + dataStream.getName() + "]";
+                LOGGER.warn(message);
+                assert false : message;
+                backingIndicesSettingsValues.put(index, new IndexProperties(true, null, ManagedBy.UNMANAGED, null));
+                continue;
+            }
             Boolean preferIlm = PREFER_ILM_SETTING.get(indexMetadata.getSettings());
             assert preferIlm != null : "must use the default prefer ilm setting value, if nothing else";
             ManagedBy managedBy;

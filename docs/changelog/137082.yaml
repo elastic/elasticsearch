@@ -1,5 +1,0 @@
-pr: 137082
-summary: Validate multiple GROK patterns individually
-area: ES|QL
-type: bug
-issues: []

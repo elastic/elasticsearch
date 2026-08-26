@@ -47,6 +47,10 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
         this.tasks = taskQueue;
     }
 
+    public String getTaskRunnerName() {
+        return taskRunnerName;
+    }
+
     /**
      * Submits a task for execution. If there are fewer than {@code maxRunningTasks} tasks currently running then this task is immediately
      * submitted to the executor. Otherwise this task is enqueued and will be submitted to the executor in turn on completion of some other
@@ -92,8 +96,9 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
                 if (tasks.peek() == null) break;
             } else {
                 final boolean isForceExecution = isForceExecution(task);
-                executor.execute(new AbstractRunnable() {
+                var runnable = new AbstractRunnable() {
                     private boolean rejected; // need not be volatile - if we're rejected then that happens-before calling onAfter
+                    volatile boolean callerLoopProceeded;
 
                     private final Releasable releasable = Releasables.releaseOnce(() -> {
                         // To avoid missing to run tasks that are enqueued and waiting, we check the queue again once running
@@ -101,7 +106,7 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
                         int decremented = runningTasks.decrementAndGet();
                         assert decremented >= 0;
 
-                        if (rejected == false) {
+                        if (rejected == false && callerLoopProceeded) {
                             pollAndSpawn();
                         }
                     });
@@ -140,7 +145,9 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
                     public String toString() {
                         return task.toString();
                     }
-                });
+                };
+                executor.execute(runnable);
+                runnable.callerLoopProceeded = true;
             }
         }
     }
@@ -155,6 +162,11 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
     // exposed for testing
     int runningTasks() {
         return runningTasks.get();
+    }
+
+    // exposed for testing
+    int queuedTasks() {
+        return tasks.size();
     }
 
     /**

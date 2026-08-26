@@ -615,7 +615,16 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         DirectoryReader reader = DirectoryReader.open(writer);
         reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId(indexService.index(), 0));
         IndexSearcher searcher = newSearcher(reader, false);
-        SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(0, 0, searcher, () -> 0L, null, emptyMap());
+        SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(
+            0,
+            0,
+            searcher,
+            () -> 0L,
+            null,
+            emptyMap(),
+            null,
+            null
+        );
 
         FieldSortBuilder sortBuilder = new FieldSortBuilder("chapters.paragraphs.word_count");
         sortBuilder.setNestedSort(new NestedSortBuilder("chapters").setNestedSort(new NestedSortBuilder("chapters.paragraphs")));

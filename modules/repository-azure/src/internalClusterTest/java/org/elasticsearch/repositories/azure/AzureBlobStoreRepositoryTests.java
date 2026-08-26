@@ -63,13 +63,16 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_REQUESTS_TOTAL;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomRetryingPurpose;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.allOf;
@@ -87,7 +90,6 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
     protected static final String DEFAULT_ACCOUNT_NAME = "account";
     protected static final Predicate<String> LIST_PATTERN = Pattern.compile("GET /[a-zA-Z0-9]+/[a-zA-Z0-9]+\\?.+").asMatchPredicate();
     protected static final Predicate<String> GET_BLOB_PATTERN = Pattern.compile("GET /[a-zA-Z0-9]+/[a-zA-Z0-9]+/.+").asMatchPredicate();
-    private static final AtomicInteger MAX_CONNECTION_SETTING = new AtomicInteger(-1);
     private static final AtomicInteger EVENT_LOOP_THREAD_COUNT_SETTING = new AtomicInteger(-1);
 
     @Override
@@ -103,7 +105,8 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             .put(AzureRepository.Repository.CONTAINER_SETTING.getKey(), "container")
             .put(AzureStorageSettings.ACCOUNT_SETTING.getKey(), "test")
             .put(AzureRepository.Repository.DELETION_BATCH_SIZE_SETTING.getKey(), randomIntBetween(5, 256))
-            .put(AzureRepository.Repository.MAX_CONCURRENT_BATCH_DELETES_SETTING.getKey(), randomIntBetween(1, 10));
+            .put(AzureRepository.Repository.MAX_CONCURRENT_BATCH_DELETES_SETTING.getKey(), randomIntBetween(1, 10))
+            .put(AzureRepository.Repository.COPY_POLL_INTERVAL.getKey(), TimeValue.timeValueMillis(100));
         if (randomBoolean()) {
             settingsBuilder.put(AzureRepository.Repository.BASE_PATH_SETTING.getKey(), randomFrom("test", "test/1"));
         }
@@ -145,16 +148,14 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         }
 
         // see com.azure.storage.blob.BlobUrlParts.parseIpUrl
-        final String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + httpServerUrl() + "/" + accountName;
+        final String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + httpServerUrlLocalhost() + "/" + accountName;
 
         // The first node configured sets these for all nodes
-        MAX_CONNECTION_SETTING.compareAndSet(-1, randomIntBetween(10, 30));
         EVENT_LOOP_THREAD_COUNT_SETTING.compareAndSet(-1, randomIntBetween(1, 3));
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(AzureStorageSettings.ENDPOINT_SUFFIX_SETTING.getConcreteSettingForNamespace("test").getKey(), endpoint)
             .put(AzureClientProvider.EVENT_LOOP_THREAD_COUNT.getKey(), EVENT_LOOP_THREAD_COUNT_SETTING.get())
-            .put(AzureClientProvider.MAX_OPEN_CONNECTIONS.getKey(), MAX_CONNECTION_SETTING.get())
             .put(AzureClientProvider.MAX_IDLE_TIME.getKey(), TimeValue.timeValueSeconds(randomIntBetween(10, 30)))
             .put(AzureClientProvider.OPEN_CONNECTION_TIMEOUT.getKey(), TimeValue.timeValueSeconds(randomIntBetween(10, 30)))
             .setSecureSettings(secureSettings)
@@ -215,6 +216,11 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                 null /* no auth header validation - sometimes it's omitted in these tests (TODO why?) */,
                 MockAzureBlobStore.LeaseExpiryPredicate.NEVER_EXPIRE
             );
+        }
+
+        @Override
+        public Set<String> blobsKeyset() {
+            return blobs().keySet();
         }
     }
 
@@ -291,8 +297,6 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
     }
 
     public void testSettingsTakeEffect() {
-        AzureClientProvider azureClientProvider = internalCluster().getInstance(AzureClientProvider.class);
-        assertEquals(MAX_CONNECTION_SETTING.get(), azureClientProvider.getConnectionProvider().maxConnections());
         ThreadPool nodeThreadPool = internalCluster().getInstance(ThreadPool.class);
         assertEquals(
             EVENT_LOOP_THREAD_COUNT_SETTING.get(),
@@ -402,7 +406,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             container.writeBlob(randomPurpose(), blobName, new ByteArrayInputStream(data), data.length, true);
 
             var originalDataInputStream = new ByteArrayInputStream(data);
-            try (var azureInputStream = container.readBlob(randomPurpose(), blobName)) {
+            try (var azureInputStream = container.readBlob(randomRetryingPurpose(), blobName)) {
                 for (int i = 0; i < data.length; i++) {
                     assertThat(originalDataInputStream.read(), is(equalTo(azureInputStream.read())));
                 }
@@ -412,6 +416,36 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             }
             container.delete(randomPurpose());
         }
+    }
+
+    public void testCopy() throws Exception {
+        final var sourceBlobName = randomIdentifier();
+        final var repoName = createRepository(randomRepositoryName(), false);
+        final var destinationBlobName = randomIdentifier();
+        final var repositoriesService = internalCluster().getAnyMasterNodeInstance(RepositoriesService.class);
+        final var repository = (BlobStoreRepository) repositoriesService.repository(ProjectId.DEFAULT, repoName);
+        final var blobStore = repository.blobStore();
+        final var sourceBlobContainer = blobStore.blobContainer(repository.basePath());
+        final var blobBytes = randomBytesReference(randomIntBetween(100, 2_000_000));
+        sourceBlobContainer.writeBlob(randomPurpose(), sourceBlobName, blobBytes, true);
+        assertBusy(() -> assertTrue(sourceBlobContainer.blobExists(randomPurpose(), sourceBlobName)));
+
+        final var destinationBlobContainer = repository.blobStore().blobContainer(repository.basePath().add("target"));
+        destinationBlobContainer.copyBlob(randomPurpose(), sourceBlobContainer, sourceBlobName, destinationBlobName, blobBytes.length());
+        assertThat(Streams.readFully(destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName)), equalBytes(blobBytes));
+
+        sourceBlobContainer.delete(randomPurpose());
+        assertThrows(
+            NoSuchFileException.class,
+            () -> destinationBlobContainer.copyBlob(
+                randomPurpose(),
+                sourceBlobContainer,
+                sourceBlobName,
+                destinationBlobName,
+                blobBytes.length()
+            )
+        );
+        destinationBlobContainer.delete(randomPurpose());
     }
 
     public void testMetrics() throws Exception {
@@ -498,6 +532,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
     private Map<AzureBlobStore.Operation, Long> getServerMetrics() {
         return getMockRequestCounts().entrySet()
             .stream()
+            .filter(e -> e.getValue() > 0)
             .collect(Collectors.toMap(e -> AzureBlobStore.Operation.fromKey(e.getKey()), Map.Entry::getValue));
     }
 }

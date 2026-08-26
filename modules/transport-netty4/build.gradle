@@ -224,13 +224,7 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerLimitField',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
-    'io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$1',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$2',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$3',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$4',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$5'
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess'
   )
 }
 

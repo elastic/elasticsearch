@@ -36,7 +36,7 @@ public class VersionHttpResourceTests extends ESTestCase {
     private final ActionListener<ResourcePublishResult> publishListener = mockPublishResultActionListener();
 
     public void testDoCheckAndPublishSuccess() {
-        final Version minimumVersion = VersionUtils.randomVersion(random());
+        final Version minimumVersion = VersionUtils.randomVersion();
         final Version version = randomFrom(minimumVersion, Version.CURRENT);
         final Response response = responseForVersion(version);
 

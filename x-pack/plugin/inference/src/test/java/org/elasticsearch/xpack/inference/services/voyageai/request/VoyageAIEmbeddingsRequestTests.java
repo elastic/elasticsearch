@@ -13,6 +13,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.InputTypeTests;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModelTests;
@@ -24,7 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
-import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequestEntity.convertToString;
+import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequestEntity.convertInputTypeToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -37,7 +38,7 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
             VoyageAIEmbeddingsModelTests.createModel("url", "secret", VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null, "model")
         );
 
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -52,7 +53,7 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         if (InputType.isSpecified(inputType)) {
-            var convertedInputType = convertToString(inputType);
+            var convertedInputType = convertInputTypeToString(inputType);
             MatcherAssert.assertThat(
                 requestMap,
                 is(Map.of("input", List.of("abc"), "model", "model", "output_dtype", "float", "input_type", convertedInputType))
@@ -70,7 +71,7 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
             VoyageAIEmbeddingsModelTests.createModel("url", "secret", new VoyageAIEmbeddingsTaskSettings(null, null), null, null, "model")
         );
 
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -85,7 +86,7 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         if (InputType.isSpecified(inputType)) {
-            var convertedInputType = convertToString(inputType);
+            var convertedInputType = convertInputTypeToString(inputType);
             MatcherAssert.assertThat(
                 requestMap,
                 is(Map.of("input", List.of("abc"), "model", "model", "input_type", convertedInputType, "output_dtype", "float"))
@@ -111,7 +112,7 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
             )
         );
 
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -126,7 +127,7 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         if (InputType.isSpecified(inputType)) {
-            var convertedInputType = convertToString(inputType);
+            var convertedInputType = convertInputTypeToString(inputType);
             MatcherAssert.assertThat(
                 requestMap,
                 is(
@@ -181,7 +182,7 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
             )
         );
 
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -196,7 +197,7 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         if (InputType.isSpecified(inputType)) {
-            var convertedInputType = convertToString(inputType);
+            var convertedInputType = convertInputTypeToString(inputType);
             MatcherAssert.assertThat(
                 requestMap,
                 is(
@@ -250,7 +251,7 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
             )
         );
 
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -265,7 +266,7 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         if (InputType.isSpecified(inputType)) {
-            var convertedInputType = convertToString(inputType);
+            var convertedInputType = convertInputTypeToString(inputType);
             MatcherAssert.assertThat(
                 requestMap,
                 is(Map.of("input", List.of("abc"), "model", "model", "input_type", convertedInputType, "output_dtype", "float"))
@@ -291,7 +292,7 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
             )
         );
 
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -306,13 +307,13 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         if (InputType.isSpecified(requestInputType)) {
-            var convertedInputType = convertToString(requestInputType);
+            var convertedInputType = convertInputTypeToString(requestInputType);
             MatcherAssert.assertThat(
                 requestMap,
                 is(Map.of("input", List.of("abc"), "model", "model", "input_type", convertedInputType, "output_dtype", "float"))
             );
         } else if (InputType.isSpecified(taskSettingsInputType)) {
-            var convertedInputType = convertToString(taskSettingsInputType);
+            var convertedInputType = convertInputTypeToString(taskSettingsInputType);
             MatcherAssert.assertThat(
                 requestMap,
                 is(Map.of("input", List.of("abc"), "model", "model", "input_type", convertedInputType, "output_dtype", "float"))

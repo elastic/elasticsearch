@@ -1,0 +1,188 @@
+---
+setup:
+  - do:
+      ingest.put_pipeline:
+        id: "my_registered_domain_pipeline"
+        body:
+          description: "Test registered_domain processor"
+          processors:
+            - registered_domain:
+                field: "domain_input"
+                target_field: "parsed_domain"
+  - do:
+      ingest.put_pipeline:
+        id: "my_registered_domain_pipeline_ignore_missing_true"
+        body:
+          description: "Test registered_domain processor with ignore_missing: true"
+          processors:
+            - registered_domain:
+                field: "domain_input"
+                target_field: "parsed_domain"
+                ignore_missing: true
+  - do:
+      ingest.put_pipeline:
+        id: "my_registered_domain_pipeline_ignore_missing_false"
+        body:
+          description: "Test registered_domain processor with ignore_missing: false"
+          processors:
+            - registered_domain:
+                field: "domain_input"
+                target_field: "parsed_domain"
+                ignore_missing: false
+  - do:
+      indices.create:
+        index: "test_registered_domain"
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              domain_input: { type: keyword }
+              parsed_domain: {
+                type: object,
+                properties: {
+                  domain: { type: keyword },
+                  registered_domain: { type: keyword },
+                  top_level_domain: { type: keyword },
+                  subdomain: { type: keyword }
+                }
+              }
+
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "my_registered_domain_pipeline"
+        ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "my_registered_domain_pipeline_ignore_missing_true"
+        ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "my_registered_domain_pipeline_ignore_missing_false"
+        ignore: 404
+  - do:
+      indices.delete:
+        index: "test_registered_domain"
+        ignore: 404
+
+---
+"Registered Domain Processor: Valid FQDN":
+  - do:
+      index:
+        index: test_registered_domain
+        id: "1"
+        pipeline: "my_registered_domain_pipeline"
+        body: { domain_input: "www.google.com" }
+  - do:
+      get:
+        index: test_registered_domain
+        id: "1"
+  - match: { _source.domain_input: "www.google.com" }
+  - match: { _source.parsed_domain.domain: "www.google.com" }
+  - match: { _source.parsed_domain.registered_domain: "google.com" }
+  - match: { _source.parsed_domain.top_level_domain: "com" }
+  - match: { _source.parsed_domain.subdomain: "www" }
+
+---
+"Registered Domain Processor: Valid Domain Only (no subdomain)":
+  - do:
+      index:
+        index: test_registered_domain
+        id: "2"
+        pipeline: "my_registered_domain_pipeline"
+        body: { domain_input: "example.com" }
+  - do:
+      get:
+        index: test_registered_domain
+        id: "2"
+  - match: { _source.domain_input: "example.com" }
+  - match: { _source.parsed_domain.domain: "example.com" }
+  - match: { _source.parsed_domain.registered_domain: "example.com" }
+  - match: { _source.parsed_domain.top_level_domain: "com" }
+  - is_false: "_source.parsed_domain.subdomain"
+
+---
+"Registered Domain Processor: Valid TLD Only":
+  - do:
+      index:
+        index: test_registered_domain
+        id: "3"
+        pipeline: "my_registered_domain_pipeline"
+        body: { domain_input: "com" }
+  - do:
+      get:
+        index: test_registered_domain
+        id: "3"
+  - match: { _source.domain_input: "com" }
+  - match: { _source.parsed_domain.domain: "com" }
+  - is_false: "_source.parsed_domain.registered_domain"
+  - match: { _source.parsed_domain.top_level_domain: "com" }
+  - is_false: "_source.parsed_domain.subdomain"
+
+---
+"Registered Domain Processor: Complex FQDN":
+  - do:
+      index:
+        index: test_registered_domain
+        id: "4"
+        pipeline: "my_registered_domain_pipeline"
+        body: { domain_input: "www.books.amazon.co.uk" }
+  - do:
+      get:
+        index: test_registered_domain
+        id: "4"
+  - match: { _source.domain_input: "www.books.amazon.co.uk" }
+  - match: { _source.parsed_domain.domain: "www.books.amazon.co.uk" }
+  - match: { _source.parsed_domain.registered_domain: "amazon.co.uk" }
+  - match: { _source.parsed_domain.top_level_domain: "co.uk" }
+  - match: { _source.parsed_domain.subdomain: "www.books" }
+
+---
+"Registered Domain Processor: Unmatchable FQDN":
+  - do:
+      index:
+        index: test_registered_domain
+        id: "5"
+        pipeline: "my_registered_domain_pipeline"
+        body: { domain_input: "foo.bar.baz" }
+  - is_false: "_source.domain_input"
+  - is_false: "_source.parsed_domain" # parsed_domain should not be added
+---
+"Registered Domain Processor: Invalid input":
+  - do:
+      index:
+        index: test_registered_domain
+        id: "6"
+        pipeline: "my_registered_domain_pipeline"
+        body: { domain_input: "123" }
+  - is_false: "_source.domain_input"
+  - is_false: "_source.parsed_domain" # parsed_domain should not be added
+
+---
+"Registered Domain Processor: Field missing with ignore_missing true":
+  - do:
+      index:
+        index: test_registered_domain
+        id: "7"
+        pipeline: "my_registered_domain_pipeline_ignore_missing_true"
+        body: { some_other_field: "value" }
+  - do:
+      get:
+        index: test_registered_domain
+        id: "7"
+  - match: { _source.some_other_field: "value" }
+  - is_false: "_source.parsed_domain" # parsed_domain should not be added
+
+---
+"Registered Domain Processor: Field missing with ignore_missing false causes error":
+  - do:
+      catch: bad_request
+      index:
+        index: test_registered_domain
+        id: "8"
+        pipeline: "my_registered_domain_pipeline_ignore_missing_false"
+        body: { some_other_field: "value" }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "field [domain_input] not present as part of path [domain_input]" }

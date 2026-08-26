@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.googleaistudio.request.GoogleAiStudioEmbeddingsRequest;
 
@@ -40,7 +41,7 @@ public class GoogleAiStudioEmbeddingsRequestTests extends ESTestCase {
         var inputType = InputTypeTests.randomWithNull();
 
         var request = createRequest(model, apiKey, input, null, null, inputType);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -94,7 +95,7 @@ public class GoogleAiStudioEmbeddingsRequestTests extends ESTestCase {
         var inputType = InputTypeTests.randomWithNull();
 
         var request = createRequest(model, apiKey, input, null, dimensions, inputType);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -152,7 +153,7 @@ public class GoogleAiStudioEmbeddingsRequestTests extends ESTestCase {
 
         var request = createRequest(model, apiKey, input, null, dimensions, inputType);
         var truncatedRequest = request.truncate();
-        var httpRequest = truncatedRequest.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();

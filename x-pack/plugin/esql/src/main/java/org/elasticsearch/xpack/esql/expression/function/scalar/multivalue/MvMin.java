@@ -11,15 +11,19 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.MvEvaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
@@ -35,11 +39,14 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRep
 /**
  * Reduce a multivalued field to a single valued field containing the minimum value.
  */
-public class MvMin extends AbstractMultivalueFunction implements BlockLoaderExpression {
+public class MvMin extends AbstractMultivalueFunction implements BlockLoaderExpression, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvMin", MvMin::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvMin.class).unary(MvMin::new).name("mv_min");
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "unsigned_long", "version" },
+        briefSummary = "Returns the smallest value from a multi-value field.",
         description = "Converts a multivalued expression into a single valued column containing the minimum value.",
         examples = {
             @Example(file = "math", tag = "mv_min"),
@@ -55,7 +62,7 @@ public class MvMin extends AbstractMultivalueFunction implements BlockLoaderExpr
         @Param(
             name = "field",
             type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
-            description = "Multivalue expression."
+            description = "Expression that can be null, a single value, or multiple values."
         ) Expression field
     ) {
         super(source, field);
@@ -83,7 +90,7 @@ public class MvMin extends AbstractMultivalueFunction implements BlockLoaderExpr
             case DOUBLE -> new MvMinDoubleEvaluator.Factory(fieldEval);
             case INT -> new MvMinIntEvaluator.Factory(fieldEval);
             case LONG -> new MvMinLongEvaluator.Factory(fieldEval);
-            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
+            case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };
     }

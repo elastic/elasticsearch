@@ -1,0 +1,6 @@
+SET unmapped_fields="nullify"; FROM employees
+| keep emp_no
+| FORK (where true | mv_expand emp_no) (where true | SAMPLE 0.5)
+| stats emp_no = count(*)
+| eval x = least(emp_no, 52, 60)
+| keep emp_no

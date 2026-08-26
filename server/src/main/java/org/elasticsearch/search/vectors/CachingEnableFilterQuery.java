@@ -61,8 +61,7 @@ public class CachingEnableFilterQuery extends Query {
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         var inWeight = in.createWeight(searcher, scoreMode, boost);
-        return new FilterWeight(this, inWeight) {
-        };
+        return new FilterWeight(this, inWeight) {};
     }
 
     @Override

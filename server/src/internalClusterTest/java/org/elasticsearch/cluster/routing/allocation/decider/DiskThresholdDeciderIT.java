@@ -126,7 +126,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
             ClusterInfoServiceUtils.refresh(clusterInfoService);
         });
 
-        final var sourceIndexName = "source-" + randomIdentifier();
+        final var sourceIndexName = randomIdentifier("source-");
         createIndex(sourceIndexName, indexSettings(1, 0).put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms").build());
         final var shardSizes = createReasonableSizedShards(sourceIndexName);
 
@@ -142,7 +142,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         getTestFileStore(dataNodeName).setTotalSpace(totalSpace);
         refreshDiskUsage();
 
-        final var targetIndexName = "target-" + randomIdentifier();
+        final var targetIndexName = randomIdentifier("target-");
         final var resizeRequest = ResizeIndexTestUtils.resizeRequest(
             ResizeType.CLONE,
             sourceIndexName,

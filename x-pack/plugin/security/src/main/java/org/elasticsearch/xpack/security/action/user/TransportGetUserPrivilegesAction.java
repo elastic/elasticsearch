@@ -55,6 +55,11 @@ public class TransportGetUserPrivilegesAction extends HandledTransportAction<Get
             return;
         }
 
-        authorizationService.retrieveUserPrivileges(subject, securityContext.getAuthorizationInfoFromContext(), listener);
+        authorizationService.retrieveUserPrivileges(
+            subject,
+            securityContext.getAuthorizationInfoFromContext(),
+            request.unwrapLimitedRole(),
+            listener
+        );
     }
 }

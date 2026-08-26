@@ -14,10 +14,13 @@ import java.util.Set;
 
 public class RankVectorsFeatures implements FeatureSpecification {
     public static final NodeFeature RANK_VECTORS_FEATURE = new NodeFeature("rank_vectors");
+    static final NodeFeature RANK_VECTORS_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX = new NodeFeature(
+        "mapper.rank_vectors.dynamic_template_dotted_field_fix"
+    );
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(RANK_VECTORS_FEATURE);
+        return Set.of(RANK_VECTORS_FEATURE, RANK_VECTORS_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX);
     }
 
 }

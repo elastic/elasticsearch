@@ -12,10 +12,11 @@ package org.elasticsearch.action.admin.indices.flush;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.replication.ReplicationRequestSplitHelper;
+import org.elasticsearch.action.support.replication.BroadcastRequestSplitHelper;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -85,14 +86,20 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
         }));
     }
 
-    // We are here because there was a mismatch between the SplitShardCountSummary in the request
-    // and that on the primary shard node. We assume that the request is exactly 1 reshard split behind
-    // the current state.
+    /**
+     * We are here because there was mismatch between the SplitShardCountSummary in the request
+     * and that on the primary shard node. In other words, the primary shard has moved ahead due to a split reshard
+     * operation after the request was created by the coordinator.
+     * We can assume that the request is exactly 1 reshard split behind the current state of the primary shard.
+     * This is because requests that are more than 1 reshard operation behind are rejected in
+     * {@link org.elasticsearch.action.support.replication.ReplicationSplitHelper
+     * #needsSplitCoordination(org.apache.logging.log4j.Logger, ReplicationRequest, IndexMetadata)}
+     */
     @Override
-    protected Map<ShardId, ShardFlushRequest> splitRequestOnPrimary(ShardFlushRequest request) {
-        return ReplicationRequestSplitHelper.splitRequest(
+    protected Map<ShardId, ShardFlushRequest> splitRequestOnPrimary(ShardFlushRequest request, ProjectMetadata project) {
+        return BroadcastRequestSplitHelper.splitRequest(
             request,
-            projectResolver.getProjectMetadata(clusterService.state()),
+            project,
             (targetShard, shardCountSummary) -> new ShardFlushRequest(request.getRequest(), targetShard, shardCountSummary)
         );
     }
@@ -103,7 +110,7 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
         Map<ShardId, ShardFlushRequest> splitRequests,
         Map<ShardId, Tuple<ReplicationResponse, Exception>> responses
     ) {
-        return ReplicationRequestSplitHelper.combineSplitResponses(originalRequest, splitRequests, responses);
+        return BroadcastRequestSplitHelper.combineSplitResponses(originalRequest, splitRequests, responses);
     }
 
     @Override

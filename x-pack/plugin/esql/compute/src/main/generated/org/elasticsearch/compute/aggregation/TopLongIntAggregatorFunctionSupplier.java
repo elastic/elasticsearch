@@ -37,13 +37,13 @@ public final class TopLongIntAggregatorFunctionSupplier implements AggregatorFun
   @Override
   public TopLongIntAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return TopLongIntAggregatorFunction.create(driverContext, channels, limit, ascending);
+    return new TopLongIntAggregatorFunction(driverContext, channels, limit, ascending);
   }
 
   @Override
   public TopLongIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return TopLongIntGroupingAggregatorFunction.create(channels, driverContext, limit, ascending);
+    return new TopLongIntGroupingAggregatorFunction(channels, driverContext, limit, ascending);
   }
 
   @Override

@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-operators-general.html
+applies_to:
+  stack: ga
+  serverless: ga
 products:
   - id: painless
 ---
@@ -19,7 +22,7 @@ precedence: '(' expression ')';
 
 **Examples**
 
-* Precedence with numeric operators.
+* Precedence with numeric operators
 
     ```painless
     int x = (5+4)*6;   <1>
@@ -31,7 +34,7 @@ precedence: '(' expression ')';
 
 
 
-## Function Call [function-call-operator]
+## Function call [function-call-operator]
 
 Use the `function call operator ()` to call an existing function. A [function call](/reference/scripting-languages/painless/painless-functions.md) is defined within a script.
 
@@ -43,7 +46,7 @@ function_call: ID '(' ( expression (',' expression)* )? ')'';
 
 **Examples**
 
-* A function call.
+* A function call
 
     ```painless
     int add(int x, int y) { <1>
@@ -97,21 +100,28 @@ conditional: expression '?' expression ':' expression;
 
 **Examples**
 
-* Evaluation of conditionals.
+* Evaluation of conditionals
 
-    ```painless
-    boolean b = true;        <1>
-    int x = b ? 1 : 2;       <2>
-    List y = x > 1 ? new ArrayList() : null; <3>
-    def z = x < 2 ? x : 2.0; <4>
+    ```java
+    boolean b = true;
+    int x = b ? 1 : 2;	<1>
     ```
 
-    1. declare `boolean b`; store `boolean true` to `b`
-    2. declare `int x`; load from `b` → `boolean true` evaluate 1st expression: `int 1` → `int 1`; store `int 1` to `x`
-    3. declare `List y`; load from `x` → `int 1`; `int 1` greater than `int 1` → `boolean false`; evaluate 2nd expression: `null` → `null`; store `null` to `y`;
-    4. declare `def z`; load from `x` → `int 1`; `int 1` less than `int 2` → `boolean true`; evaluate 1st expression: load from `x` → `int 1`; promote `int 1` and `double 2.0`: result `double`; implicit cast `int 1` to `double 1.0` → `double 1.0`; implicit cast `double 1.0` to `def` → `def`; store `def` to `z`;
+    1. declare `int x`; load from `b` → `boolean true` evaluate 1st expression: `int 1` → `int 1`; store `int 1` to `x`
 
 
+    ```java
+    int x = 1;
+    List y = x > 1 ? new ArrayList() : null; <1>
+    ```
+    1. declare `List y`; load from `x` → `int 1`; `int 1` greater than `int 1` → `boolean false`; evaluate 2nd expression: `null` → `null`; store `null` to `y`
+
+    ```java
+    int x = 1;
+    def z = x < 2 ? x : 2.0;	<1>
+    ```
+
+    1. declare `def z`; load from `x` → `int 1`; `int 1` less than `int 2` → `boolean true`; evaluate 1st expression: load from `x` → `int 1`; promote `int 1` and `double 2.0`: result `double`; implicit cast `int 1` to `double 1.0` → `double 1.0`; implicit cast `double 1.0` to `def` → `def`; store `def` to `z`;
 
 ## Assignment [assignment-operator]
 
@@ -143,7 +153,7 @@ non-static member fields:
   * List z
 ```
 
-* Field assignments of different type values.
+* Field assignments of different type values
 
     ```painless
     Example example = new Example(); <1>
@@ -157,7 +167,7 @@ non-static member fields:
     3. load from `example` → `Example reference`; implicit cast `double 2.0` to `def` → `def`; store `def` to `y` of `Example reference`
     4. load from `example` → `Example reference`; allocate `ArrayList` instance → `ArrayList reference`; implicit cast `ArrayList reference` to `List reference` → `List reference`; store `List reference` to `z` of `Example reference`
 
-* A field assignment from a field access.
+* A field assignment from a field access
 
     ```painless
     Example example = new Example(); <1>
@@ -171,7 +181,7 @@ non-static member fields:
 
 
 
-## Compound Assignment [compound-assignment-operator]
+## Compound assignment [compound-assignment-operator]
 
 Use the `compound assignment operator '$='` as a shortcut for an assignment where a binary operation would occur between the variable/field as the left-hand side expression and a separate right-hand side expression.
 
@@ -214,11 +224,11 @@ The table below shows the available operators for use in a compound assignment. 
 compound_assignment: ( ID | field ) '$=' expression;
 ```
 
-Note the use of the `$=` represents the use of any of the possible binary operators.
+The use of the `$=` represents the use of any of the possible binary operators.
 
 **Examples**
 
-* Compound assignment for each numeric operator.
+* Compound assignment for each numeric operator
 
     ```painless
     int i = 10; <1>
@@ -248,7 +258,7 @@ Note the use of the `$=` represents the use of any of the possible binary operat
     11. load from `i` → `int 1`; bitwise xor `int 1` and `int 12` → `int 13`; store `int 13` to `i`; (note this is equivalent to `i = i^2`)
     12. load from `i` → `int 13`; bitwise or `int 13` and `int 2` → `int 15`; store `int 15` to `i`; (note this is equivalent to `i = i|2`)
 
-* Compound assignment for each boolean operator.
+* Compound assignment for each boolean operator
 
     ```painless
     boolean b = true; <1>
@@ -262,7 +272,7 @@ Note the use of the `$=` represents the use of any of the possible binary operat
     3. load from `b` → `boolean false`; boolean xor `boolean false` and `boolean false` → `boolean false`; store `boolean false` to `b`; (note this is equivalent to `b = b ^ false`)
     4. load from `b` → `boolean true`; boolean or `boolean false` and `boolean true` → `boolean true`; store `boolean true` to `b`; (note this is equivalent to `b = b || true`)
 
-* A compound assignment with the string concatenation operator.
+* A compound assignment with the string concatenation operator
 
     ```painless
     String s = 'compound'; <1>
@@ -272,7 +282,7 @@ Note the use of the `$=` represents the use of any of the possible binary operat
     1. declare `String s`; store `String 'compound'` to `s`;
     2. load from `s` → `String 'compound'`; string concat `String 'compound'` and `String ' assignment''` → `String 'compound assignment'`; store `String 'compound assignment'` to `s`; (note this is equivalent to `s = s + ' assignment'`)
 
-* A compound assignment with the `def` type.
+* A compound assignment with the `def` type
 
     ```painless
     def x = 1; <1>
@@ -282,7 +292,7 @@ Note the use of the `$=` represents the use of any of the possible binary operat
     1. declare `def x`; implicit cast `int 1` to `def`; store `def` to `x`;
     2. load from `x` → `def`; implicit cast `def` to `int 1` → `int 1`; add `int 1` and `int 2` → `int 3`; implicit cast `int 3` to `def` → `def`; store `def` to `x`; (note this is equivalent to `x = x+2`)
 
-* A compound assignment with an extra implicit cast.
+* A compound assignment with an extra implicit cast
 
     ```painless
     byte b = 1; <1>

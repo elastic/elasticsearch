@@ -14,6 +14,7 @@ import fixture.s3.S3HttpHandler;
 
 import com.sun.net.httpserver.HttpHandler;
 
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -37,6 +38,7 @@ public abstract class AbstractS3RepositoryAnalysisRestTestCase extends AbstractR
         RepositoryAnalysisHttpFixture(S3ConsistencyModel consistencyModel) {
             super(
                 USE_FIXTURE,
+                null,
                 "bucket",
                 "base_path_integration_tests",
                 () -> consistencyModel,
@@ -111,26 +113,45 @@ public abstract class AbstractS3RepositoryAnalysisRestTestCase extends AbstractR
         final String basePath = System.getProperty("test.s3.base_path");
         assertThat(basePath, not(blankOrNullString()));
 
-        return Settings.builder()
+        final var settings = Settings.builder()
             .put("client", CLIENT_NAME)
             .put("bucket", bucket)
             .put("base_path", basePath)
             .put("delete_objects_max_size", between(1, 1000))
             .put("buffer_size", ByteSizeValue.ofMb(5)) // so some uploads are multipart ones
-            .put("max_copy_size_before_multipart", ByteSizeValue.ofMb(5))
-            // verify we always set the x-purpose header even if disabled for other repository operations
-            .put(randomBooleanSetting("add_purpose_custom_query_parameter"))
-            .put("unsafely_incompatible_with_s3_conditional_writes", consistencyModel().hasConditionalWrites() == false)
-            .build();
-    }
+            .put("max_copy_size_before_multipart", ByteSizeValue.ofMb(5));
 
-    private static Settings randomBooleanSetting(String settingKey) {
-        return randomFrom(Settings.EMPTY, Settings.builder().put(settingKey, randomBoolean()).build());
+        if (randomBoolean()) {
+            // verify we always set the x-purpose header even if disabled for other repository operations
+            settings.put("add_purpose_custom_query_parameter", randomBoolean());
+        }
+
+        if (consistencyModel().hasConditionalWrites()) {
+            if (randomBoolean()) {
+                // even if we have conditional writes (and thus weak MPU abort consistency) the MPU-based impl should still work
+                settings.put("unsafely_incompatible_with_s3_conditional_writes", randomBoolean());
+            }
+        } else {
+            // if the storage doesn't support conditional writes we have to use the MPU-based impl
+            settings.put("unsafely_incompatible_with_s3_conditional_writes", true);
+        }
+
+        return settings.build();
     }
 
     @Override
     protected String repositoryType() {
         return "s3";
+    }
+
+    @Override
+    protected RequestOptions repositoryRegistrationRequestOptions(Settings repositorySettings) {
+        if (repositorySettings.hasValue("unsafely_incompatible_with_s3_conditional_writes")) {
+            return expectWarnings("""
+                [unsafely_incompatible_with_s3_conditional_writes] setting was deprecated in Elasticsearch and will be removed \
+                in a future release. See the breaking changes documentation for the next major version.""");
+        }
+        return RequestOptions.DEFAULT;
     }
 
 }

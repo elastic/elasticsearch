@@ -20,21 +20,20 @@ import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafeRefCounted implements AggregateMetricDoubleBlock {
+public final class AggregateMetricDoubleArrayBlock extends AbstractBlockRefCounted implements AggregateMetricDoubleBlock {
     public static final TransportVersion WRITE_TYPED_BLOCK = TransportVersion.fromName("aggregate_metric_double_typed_block");
 
     private final DoubleBlock minBlock;
     private final DoubleBlock maxBlock;
     private final DoubleBlock sumBlock;
     private final IntBlock countBlock;
-    private final int positionCount;
 
     public AggregateMetricDoubleArrayBlock(DoubleBlock minBlock, DoubleBlock maxBlock, DoubleBlock sumBlock, IntBlock countBlock) {
         this.minBlock = minBlock;
         this.maxBlock = maxBlock;
         this.sumBlock = sumBlock;
         this.countBlock = countBlock;
-        this.positionCount = minBlock.getPositionCount();
+        int positionCount = minBlock.getPositionCount();
         for (Block b : List.of(minBlock, maxBlock, sumBlock, countBlock)) {
             if (b.getPositionCount() != positionCount) {
                 assert false : "expected positionCount=" + positionCount + " but was " + b;
@@ -68,9 +67,14 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
         return new CompositeBlock(blocks);
     }
 
+    private List<Block> getSubBlocks() {
+        return List.of(minBlock, maxBlock, sumBlock, countBlock);
+    }
+
     @Override
-    protected void closeInternal() {
-        Releasables.close(minBlock, maxBlock, sumBlock, countBlock);
+    public int valueMaxByteSize() {
+        // Three dense-double sub-blocks (min, max, sum) plus one dense-int sub-block (count).
+        return 3 * Double.BYTES + Integer.BYTES;
     }
 
     @Override
@@ -79,17 +83,8 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
     }
 
     @Override
-    public int getTotalValueCount() {
-        int totalValueCount = 0;
-        for (Block b : List.of(minBlock, maxBlock, sumBlock, countBlock)) {
-            totalValueCount += b.getTotalValueCount();
-        }
-        return totalValueCount;
-    }
-
-    @Override
     public int getPositionCount() {
-        return positionCount;
+        return minBlock.getPositionCount();
     }
 
     @Override
@@ -98,9 +93,18 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
     }
 
     @Override
+    public int getTotalValueCount() {
+        int totalValueCount = 0;
+        for (Block b : getSubBlocks()) {
+            totalValueCount += b.getTotalValueCount();
+        }
+        return totalValueCount;
+    }
+
+    @Override
     public int getValueCount(int position) {
         int max = 0;
-        for (Block b : List.of(minBlock, maxBlock, sumBlock, countBlock)) {
+        for (Block b : getSubBlocks()) {
             max = Math.max(max, b.getValueCount(position));
         }
         return max;
@@ -118,14 +122,27 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
 
     @Override
     public void allowPassingToDifferentDriver() {
-        for (Block block : List.of(minBlock, maxBlock, sumBlock, countBlock)) {
-            block.allowPassingToDifferentDriver();
+        makeRefCountsThreadSafe();
+        getSubBlocks().forEach(Block::allowPassingToDifferentDriver);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        long bytes = 0;
+        for (Block b : getSubBlocks()) {
+            bytes += b.ramBytesUsed();
         }
+        return bytes;
+    }
+
+    @Override
+    protected void closeInternal() {
+        Releasables.close(getSubBlocks());
     }
 
     @Override
     public boolean isNull(int position) {
-        for (Block block : List.of(minBlock, maxBlock, sumBlock, countBlock)) {
+        for (Block block : getSubBlocks()) {
             if (block.isNull(position) == false) {
                 return false;
             }
@@ -157,69 +174,6 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
     }
 
     @Override
-    public AggregateMetricDoubleBlock filter(int... positions) {
-        AggregateMetricDoubleArrayBlock result = null;
-        DoubleBlock newMinBlock = null;
-        DoubleBlock newMaxBlock = null;
-        DoubleBlock newSumBlock = null;
-        IntBlock newCountBlock = null;
-        try {
-            newMinBlock = minBlock.filter(positions);
-            newMaxBlock = maxBlock.filter(positions);
-            newSumBlock = sumBlock.filter(positions);
-            newCountBlock = countBlock.filter(positions);
-            result = new AggregateMetricDoubleArrayBlock(newMinBlock, newMaxBlock, newSumBlock, newCountBlock);
-            return result;
-        } finally {
-            if (result == null) {
-                Releasables.close(newMinBlock, newMaxBlock, newSumBlock, newCountBlock);
-            }
-        }
-    }
-
-    @Override
-    public AggregateMetricDoubleBlock keepMask(BooleanVector mask) {
-        AggregateMetricDoubleArrayBlock result = null;
-        DoubleBlock newMinBlock = null;
-        DoubleBlock newMaxBlock = null;
-        DoubleBlock newSumBlock = null;
-        IntBlock newCountBlock = null;
-        try {
-            newMinBlock = minBlock.keepMask(mask);
-            newMaxBlock = maxBlock.keepMask(mask);
-            newSumBlock = sumBlock.keepMask(mask);
-            newCountBlock = countBlock.keepMask(mask);
-            result = new AggregateMetricDoubleArrayBlock(newMinBlock, newMaxBlock, newSumBlock, newCountBlock);
-            return result;
-        } finally {
-            if (result == null) {
-                Releasables.close(newMinBlock, newMaxBlock, newSumBlock, newCountBlock);
-            }
-        }
-    }
-
-    @Override
-    public Block deepCopy(BlockFactory blockFactory) {
-        AggregateMetricDoubleArrayBlock result = null;
-        DoubleBlock newMinBlock = null;
-        DoubleBlock newMaxBlock = null;
-        DoubleBlock newSumBlock = null;
-        IntBlock newCountBlock = null;
-        try {
-            newMinBlock = minBlock.deepCopy(blockFactory);
-            newMaxBlock = maxBlock.deepCopy(blockFactory);
-            newSumBlock = sumBlock.deepCopy(blockFactory);
-            newCountBlock = countBlock.deepCopy(blockFactory);
-            result = new AggregateMetricDoubleArrayBlock(newMinBlock, newMaxBlock, newSumBlock, newCountBlock);
-            return result;
-        } finally {
-            if (result == null) {
-                Releasables.close(newMinBlock, newMaxBlock, newSumBlock, newCountBlock);
-            }
-        }
-    }
-
-    @Override
     public ReleasableIterator<? extends AggregateMetricDoubleBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         // TODO: support
         throw new UnsupportedOperationException("can't lookup values from AggregateMetricDoubleBlock");
@@ -235,6 +189,52 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
     public AggregateMetricDoubleBlock expand() {
         this.incRef();
         return this;
+    }
+
+    @Override
+    public AggregateMetricDoubleArrayBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return applyOperationToSubBlocks(b -> b.filter(mayContainDuplicates, positions, offset, length));
+    }
+
+    @Override
+    public AggregateMetricDoubleArrayBlock slice(int beginInclusive, int endExclusive) {
+        return applyOperationToSubBlocks(b -> b.slice(beginInclusive, endExclusive));
+    }
+
+    @Override
+    public AggregateMetricDoubleArrayBlock keepMask(BooleanVector mask) {
+        return applyOperationToSubBlocks(b -> b.keepMask(mask));
+    }
+
+    @Override
+    public AggregateMetricDoubleArrayBlock deepCopy(BlockFactory blockFactory) {
+        return applyOperationToSubBlocks(b -> b.deepCopy(blockFactory));
+    }
+
+    private AggregateMetricDoubleArrayBlock applyOperationToSubBlocks(java.util.function.Function<Block, Block> operation) {
+        DoubleBlock newMinBlock = null;
+        DoubleBlock newMaxBlock = null;
+        DoubleBlock newSumBlock = null;
+        IntBlock newCountBlock = null;
+        boolean success = false;
+        try {
+            newMinBlock = (DoubleBlock) operation.apply(minBlock);
+            newMaxBlock = (DoubleBlock) operation.apply(maxBlock);
+            newSumBlock = (DoubleBlock) operation.apply(sumBlock);
+            newCountBlock = (IntBlock) operation.apply(countBlock);
+            AggregateMetricDoubleArrayBlock result = new AggregateMetricDoubleArrayBlock(
+                newMinBlock,
+                newMaxBlock,
+                newSumBlock,
+                newCountBlock
+            );
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                Releasables.close(newMinBlock, newMaxBlock, newSumBlock, newCountBlock);
+            }
+        }
     }
 
     @Override
@@ -298,11 +298,6 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
                 Releasables.close(minBlock, maxBlock, sumBlock, countBlock);
             }
         }
-    }
-
-    @Override
-    public long ramBytesUsed() {
-        return minBlock.ramBytesUsed() + maxBlock.ramBytesUsed() + sumBlock.ramBytesUsed() + countBlock.ramBytesUsed();
     }
 
     @Override

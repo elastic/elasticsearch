@@ -11,10 +11,6 @@ The Zoom connector is written in Python using the [Elastic connector framework](
 
 View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/zoom) (branch *main*, compatible with Elastic *9.0*).
 
-::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
-::::
-
 ## **Self-managed connector reference** [es-connectors-zoom-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-zoom-client-connector-availability-and-prerequisites]
@@ -104,7 +100,7 @@ Refer to the [{{es}} API documentation](https://www.elastic.co/docs/api/doc/elas
 
 ### Usage [es-connectors-zoom-client-connector-usage]
 
-To use this connector in the UI, select the **Teams** tile when creating a new connector under **Search → Connectors**.
+To use this connector in the UI, select the **Zoom** tile when creating a new connector under **Search → Connectors**.
 
 If you’re already familiar with how connectors work, you can also use the [Connector APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-connector).
 

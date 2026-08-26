@@ -146,15 +146,16 @@ final class BytesRef3BlockHash extends BlockHash {
     }
 
     @Override
-    public Block[] getKeys() {
+    public Block[] getKeys(IntVector selected) {
         // TODO Build Ordinals blocks #114010
-        final int positions = (int) finalHash.size();
+        final int positions = selected.getPositionCount();
         final BytesRef scratch = new BytesRef();
         final BytesRefBlock[] outputBlocks = new BytesRefBlock[3];
         try {
             try (BytesRefBlock.Builder b1 = blockFactory.newBytesRefBlockBuilder(positions)) {
                 for (int i = 0; i < positions; i++) {
-                    int k1 = finalHash.getKey1(i);
+                    int groupId = selected.getInt(i);
+                    int k1 = finalHash.getKey1(groupId);
                     if (k1 == 0) {
                         b1.appendNull();
                     } else {
@@ -165,7 +166,8 @@ final class BytesRef3BlockHash extends BlockHash {
             }
             try (BytesRefBlock.Builder b2 = blockFactory.newBytesRefBlockBuilder(positions)) {
                 for (int i = 0; i < positions; i++) {
-                    int k2 = finalHash.getKey2(i);
+                    int groupId = selected.getInt(i);
+                    int k2 = finalHash.getKey2(groupId);
                     if (k2 == 0) {
                         b2.appendNull();
                     } else {
@@ -176,7 +178,8 @@ final class BytesRef3BlockHash extends BlockHash {
             }
             try (BytesRefBlock.Builder b3 = blockFactory.newBytesRefBlockBuilder(positions)) {
                 for (int i = 0; i < positions; i++) {
-                    int k3 = finalHash.getKey3(i);
+                    int groupId = selected.getInt(i);
+                    int k3 = finalHash.getKey3(groupId);
                     if (k3 == 0) {
                         b3.appendNull();
                     } else {
@@ -200,7 +203,12 @@ final class BytesRef3BlockHash extends BlockHash {
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(0, Math.toIntExact(finalHash.size()), blockFactory);
+        return blockFactory.newIntRangeVector(0, Math.toIntExact(finalHash.size()));
+    }
+
+    @Override
+    public int numKeys() {
+        return Math.toIntExact(finalHash.size());
     }
 
     @Override

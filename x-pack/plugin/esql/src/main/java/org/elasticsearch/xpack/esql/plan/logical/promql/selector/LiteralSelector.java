@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 
 import java.util.Objects;
 
@@ -35,7 +36,7 @@ import static java.util.Collections.emptyList;
  * The literal selector produces a single-value vector with no labels, allowing
  * literals to participate in vector operations and binary expressions.
  */
-public class LiteralSelector extends Selector {
+public final class LiteralSelector extends Selector {
     private final Literal literal;
 
     public LiteralSelector(Source source, Literal literal) {
@@ -84,5 +85,10 @@ public class LiteralSelector extends Selector {
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), literal);
+    }
+
+    @Override
+    public PromqlDataType returnType() {
+        return PromqlDataType.SCALAR;
     }
 }

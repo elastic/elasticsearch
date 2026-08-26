@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigUtils;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorQueryContext;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
@@ -47,6 +48,7 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
     private volatile boolean isCancelled;
     private AggregationToJsonProcessor aggregationToJsonProcessor;
     private final ByteArrayOutputStream outputStream;
+    private List<LinkedClusterState> lastLinkedClusterStates = List.of();
 
     AbstractAggregationDataExtractor(
         Client client,
@@ -99,7 +101,7 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
             InternalAggregations aggs = search();
             if (aggs == null) {
                 hasNext = false;
-                return new Result(searchInterval, Optional.empty());
+                return new Result(searchInterval, Optional.empty(), lastLinkedClusterStates);
             }
             initAggregationProcessor(aggs);
         }
@@ -114,7 +116,8 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
             searchInterval,
             aggregationToJsonProcessor.getKeyValueCount() > 0
                 ? Optional.of(new ByteArrayInputStream(outputStream.toByteArray()))
-                : Optional.empty()
+                : Optional.empty(),
+            lastLinkedClusterStates
         );
     }
 
@@ -126,6 +129,10 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
         try {
             LOGGER.debug("[{}] Search response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
+            lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(
+                lastLinkedClusterStates,
+                DataExtractorUtils.extractLinkedClusterStates(searchResponse)
+            );
             return validateAggs(searchResponse.getAggregations());
         } finally {
             searchResponse.decRef();

@@ -11,6 +11,8 @@ import io.netty.channel.Channel;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.layout.PatternLayout;
+import org.apache.logging.log4j.message.MapMessage;
+import org.apache.logging.log4j.message.Message;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -27,6 +29,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -52,6 +55,8 @@ import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
@@ -95,6 +100,8 @@ import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
+import org.elasticsearch.xpack.core.security.audit.AuditEventContext;
+import org.elasticsearch.xpack.core.security.audit.AuditLogCustomizer;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
@@ -151,6 +158,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -170,10 +178,12 @@ import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.P
 import static org.elasticsearch.xpack.security.authc.ApiKeyServiceTests.Utils.createApiKeyAuthentication;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -769,6 +779,49 @@ public class LoggingAuditTrailTests extends ESTestCase {
         checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "create_apikey");
         checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         assertMsg(generatedGrantKeyAuditEventString, checkedFields);
+        // clear log
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+
+        final String cloneKeyName = randomAlphaOfLength(12);
+        final TimeValue cloneExpiration = randomFrom(ApiKeyTests.randomFutureExpirationTime(), null);
+        final CloneApiKeyRequest cloneRequest = new CloneApiKeyRequest();
+        final String sourceKeyId = randomAlphaOfLength(12);
+        final String sourceKeySecret = randomAlphanumericOfLength(18);
+        final String sourceCredential = Base64.getEncoder()
+            .encodeToString((sourceKeyId + ":" + sourceKeySecret).getBytes(StandardCharsets.UTF_8));
+        cloneRequest.setApiKey(new SecureString(sourceCredential.toCharArray()));
+        cloneRequest.setName(cloneKeyName);
+        cloneRequest.setExpiration(cloneExpiration);
+        cloneRequest.setMetadata(metadataWithSerialization.metadata());
+        cloneRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
+        auditTrail.accessGranted(requestId, authentication, CloneApiKeyAction.NAME, cloneRequest, authorizationInfo);
+        final String expectedCloneKeyAuditEventString = String.format(
+            Locale.ROOT,
+            """
+                "create":{"apikey":{"id":"%s","name":"%s","type":"rest","expiration":%s,"source":{"id":"%s"}%s}}\
+                """,
+            cloneRequest.getId(),
+            cloneKeyName,
+            cloneExpiration != null ? "\"" + cloneExpiration + "\"" : "null",
+            sourceKeyId,
+            cloneRequest.getMetadata() == null ? "" : Strings.format(",\"metadata\":%s", metadataWithSerialization.serialization())
+        );
+        output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        String generatedCloneKeyAuditEventString = output.get(1);
+        assertThat(generatedCloneKeyAuditEventString, containsString(expectedCloneKeyAuditEventString));
+        assertThat(generatedCloneKeyAuditEventString, not(containsString("\"api_key\"")));
+        assertThat(generatedCloneKeyAuditEventString, not(containsString(sourceKeySecret)));
+        assertThat(generatedCloneKeyAuditEventString, not(containsString(sourceCredential)));
+        generatedCloneKeyAuditEventString = generatedCloneKeyAuditEventString.replace(", " + expectedCloneKeyAuditEventString, "");
+        checkedFields = new HashMap<>(commonFields);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+        checkedFields.put("type", "audit");
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change");
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "create_apikey");
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        assertMsg(generatedCloneKeyAuditEventString, checkedFields);
         // clear log
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
 
@@ -2015,6 +2068,152 @@ public class LoggingAuditTrailTests extends ESTestCase {
         updateLoggerSettings(Settings.builder().put(settings).put("xpack.security.audit.logfile.events.exclude", "access_granted").build());
         auditTrail.accessGranted(requestId, authentication, "_action", request, authorizationInfo);
         assertEmptyLog(logger);
+    }
+
+    public void testCustomizerCanSuppressAuditEntry() throws Exception {
+        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(
+            settings,
+            clusterService,
+            logger,
+            threadContext,
+            new AuditLogCustomizer() {
+                @Override
+                public boolean suppress(AuditEventContext ctx) {
+                    return true;
+                }
+            }
+        );
+
+        auditTrail.anonymousAccessDenied(randomRequestId(), "_action", new MockIndicesRequest(threadContext));
+
+        assertEmptyLog(logger);
+    }
+
+    public void testCustomizerCanOverwriteAuditEntryField() throws Exception {
+        final String maskedValue = randomAlphaOfLength(8);
+        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(
+            settings,
+            clusterService,
+            logger,
+            threadContext,
+            new AuditLogCustomizer() {
+                @Override
+                public Message rewrite(AuditEventContext ctx, MapMessage<?, ?> entry) {
+                    // rewrite runs last in build(), so it sees all the fields set by the builder
+                    assertThat(entry.get(LoggingAuditTrail.ACTION_FIELD_NAME), equalTo("_action"));
+                    return new ESLogMessage().withFields(entry.getData()).with(LoggingAuditTrail.ACTION_FIELD_NAME, maskedValue);
+                }
+            }
+        );
+
+        auditTrail.anonymousAccessDenied(randomRequestId(), "_action", new MockIndicesRequest(threadContext));
+
+        final String logLine = singleLogLine(logger);
+        assertThat(logLine, containsString("\"" + LoggingAuditTrail.ACTION_FIELD_NAME + "\":\"" + maskedValue + "\""));
+        assertThat(logLine, not(containsString("\"" + LoggingAuditTrail.ACTION_FIELD_NAME + "\":\"_action\"")));
+    }
+
+    public void testCustomizerCanAddAuditEntryField() throws Exception {
+        final String addedField = LoggingAuditTrail.PRINCIPAL_FIELD_NAME;
+        final String addedValue = randomAlphaOfLength(8);
+        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(
+            settings,
+            clusterService,
+            logger,
+            threadContext,
+            new AuditLogCustomizer() {
+                @Override
+                public Message rewrite(AuditEventContext ctx, MapMessage<?, ?> entry) {
+                    assertThat(entry.get(addedField), nullValue());
+                    return new ESLogMessage().withFields(entry.getData()).with(addedField, addedValue);
+                }
+            }
+        );
+
+        auditTrail.anonymousAccessDenied(randomRequestId(), "_action", new MockIndicesRequest(threadContext));
+
+        final String logLine = singleLogLine(logger);
+        // the newly added field is present
+        assertThat(logLine, containsString("\"" + addedField + "\":\"" + addedValue + "\""));
+        // and existing fields set by the builder are left untouched
+        assertThat(logLine, containsString("\"" + LoggingAuditTrail.ACTION_FIELD_NAME + "\":\"_action\""));
+    }
+
+    public void testCustomizerSuppressReceivesPopulatedContext() throws Exception {
+        // an authentication with a non-null creator realm, so the event carries a realm in its context
+        final Authentication authentication = randomValueOtherThanMany(
+            authc -> ApiKeyService.getCreatorRealmName(authc) == null,
+            this::createAuthentication
+        );
+        final String expectedRealm = ApiKeyService.getCreatorRealmName(authentication);
+        final MockIndicesRequest request = new MockIndicesRequest(threadContext);
+        final String[] expectedIndices = request.indices();
+        final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
+
+        // suppress() only fires when the context carries the event's realm and indices
+        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(
+            settings,
+            clusterService,
+            logger,
+            threadContext,
+            new AuditLogCustomizer() {
+                @Override
+                public boolean suppress(AuditEventContext ctx) {
+                    return expectedRealm.equals(ctx.realm()) && Arrays.equals(expectedIndices, ctx.indices());
+                }
+            }
+        );
+        auditTrail.accessGranted(randomRequestId(), authentication, "_action", request, authorizationInfo);
+
+        assertEmptyLog(logger);
+    }
+
+    public void testCustomizerRewriteReceivesPopulatedContext() throws Exception {
+        // an authentication with a non-null creator realm, so the event carries a realm in its context
+        final Authentication authentication = randomValueOtherThanMany(
+            authc -> ApiKeyService.getCreatorRealmName(authc) == null,
+            this::createAuthentication
+        );
+        final String expectedRealm = ApiKeyService.getCreatorRealmName(authentication);
+        final MockIndicesRequest request = new MockIndicesRequest(threadContext);
+        final String[] expectedIndices = request.indices();
+        final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
+
+        // rewrite() writes a value derived from the context, proving it saw the event's realm, indices and roles
+        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(
+            settings,
+            clusterService,
+            logger,
+            threadContext,
+            new AuditLogCustomizer() {
+                @Override
+                public Message rewrite(AuditEventContext ctx, MapMessage<?, ?> entry) {
+                    return new ESLogMessage().withFields(entry.getData())
+                        .with(
+                            LoggingAuditTrail.ACTION_FIELD_NAME,
+                            ctx.realm() + ":" + ctx.indices().length + ":" + Arrays.toString(ctx.roles())
+                        );
+                }
+            }
+        );
+        auditTrail.accessGranted(randomRequestId(), authentication, "_action", request, authorizationInfo);
+
+        assertThat(
+            singleLogLine(logger),
+            containsString(
+                "\""
+                    + LoggingAuditTrail.ACTION_FIELD_NAME
+                    + "\":\""
+                    + expectedRealm
+                    + ":"
+                    + expectedIndices.length
+                    + ":"
+                    + Arrays.toString(expectedRoles)
+                    + "\""
+            )
+        );
     }
 
     public void testSecurityConfigChangedEventSelection() {

@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.SimpleRefCounted;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -39,7 +40,7 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
         this(new QuerySearchResult(in), new FetchSearchResult(in));
     }
 
-    private QueryFetchSearchResult(QuerySearchResult queryResult, FetchSearchResult fetchResult) {
+    public QueryFetchSearchResult(QuerySearchResult queryResult, FetchSearchResult fetchResult) {
         this.queryResult = queryResult;
         this.fetchResult = fetchResult;
         refCounted = LeakTracker.wrap(new SimpleRefCounted());
@@ -77,6 +78,15 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
     @Override
     public FetchSearchResult fetchResult() {
         return fetchResult;
+    }
+
+    public void setDirectoryMetrics(DirectoryMetrics directoryMetrics) {
+        queryResult.setDirectoryMetrics(directoryMetrics);
+    }
+
+    @Override
+    public DirectoryMetrics getDirectoryMetrics() {
+        return queryResult.getDirectoryMetrics();
     }
 
     @Override

@@ -46,13 +46,14 @@ public class Netty4HttpRequest implements HttpRequest {
     private final AtomicBoolean released;
     private final Exception inboundException;
     private final QueryStringDecoder queryStringDecoder;
+    private final String scheme;
 
-    public Netty4HttpRequest(int sequence, io.netty.handler.codec.http.HttpRequest nettyRequest, Exception exception) {
-        this(sequence, nettyRequest, HttpBody.empty(), new AtomicBoolean(false), exception);
+    public Netty4HttpRequest(int sequence, io.netty.handler.codec.http.HttpRequest nettyRequest, Exception exception, String scheme) {
+        this(sequence, nettyRequest, HttpBody.empty(), new AtomicBoolean(false), exception, scheme);
     }
 
-    public Netty4HttpRequest(int sequence, io.netty.handler.codec.http.HttpRequest nettyRequest, HttpBody content) {
-        this(sequence, nettyRequest, content, new AtomicBoolean(false), null);
+    public Netty4HttpRequest(int sequence, io.netty.handler.codec.http.HttpRequest nettyRequest, HttpBody content, String scheme) {
+        this(sequence, nettyRequest, content, new AtomicBoolean(false), null, scheme);
     }
 
     private Netty4HttpRequest(
@@ -60,7 +61,8 @@ public class Netty4HttpRequest implements HttpRequest {
         io.netty.handler.codec.http.HttpRequest nettyRequest,
         HttpBody content,
         AtomicBoolean released,
-        Exception inboundException
+        Exception inboundException,
+        String scheme
     ) {
         this.sequence = sequence;
         this.nettyRequest = nettyRequest;
@@ -70,6 +72,7 @@ public class Netty4HttpRequest implements HttpRequest {
         this.released = released;
         this.inboundException = inboundException;
         this.queryStringDecoder = new QueryStringDecoder(nettyRequest.uri());
+        this.scheme = scheme;
     }
 
     private static boolean hasContentHeader(io.netty.handler.codec.http.HttpRequest nettyRequest) {
@@ -155,7 +158,12 @@ public class Netty4HttpRequest implements HttpRequest {
             nettyRequest.uri(),
             copiedHeadersWithout
         );
-        return new Netty4HttpRequest(sequence, requestWithoutHeader, content, released, null);
+        return new Netty4HttpRequest(sequence, requestWithoutHeader, content, released, null, scheme);
+    }
+
+    @Override
+    public String getScheme() {
+        return scheme;
     }
 
     @Override

@@ -17,6 +17,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -90,7 +91,7 @@ public class KeyedLockTests extends ESTestCase {
             }
         });
         thread.start();
-        latch.await();
+        safeAwait(latch);
         check.set(true);
         acquire.close();
         foo.close();
@@ -107,19 +108,19 @@ public class KeyedLockTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         Thread t = new Thread(() -> {
             latch.countDown();
-            try (Releasable r = lock.acquire("foo")) {
+            try (Releasable ignored = lock.acquire("foo")) {
                 test.incrementAndGet();
             }
 
         });
         t.start();
-        latch.await();
-        Thread.yield();
+        safeAwait(latch);
+        Thread.yield(); // give t a chance to acquire the lock (test blocking rather than just scheduling/lag)
         assertEquals(0, test.get());
         List<Releasable> list = Arrays.asList(foo, foo2);
         Collections.shuffle(list, random());
         list.get(0).close();
-        Thread.yield();
+        Thread.yield(); // give t a chance to (incorrectly) acquire after the first release (verifies that hold-count matters)
         assertEquals(0, test.get());
         list.get(1).close();
         t.join();
@@ -127,15 +128,48 @@ public class KeyedLockTests extends ESTestCase {
         assertFalse(lock.hasLockedKeys());
     }
 
-    public static class AcquireAndReleaseThread extends Thread {
-        private CountDownLatch startLatch;
-        KeyedLock<String> connectionLock;
-        String[] names;
-        ConcurrentHashMap<String, Integer> counter;
-        ConcurrentHashMap<String, AtomicInteger> safeCounter;
-        final int numRuns = scaledRandomIntBetween(5000, 50000);
+    public void testTryAcquireNoReentrancy() throws InterruptedException {
+        KeyedLock<String> lock = new KeyedLock<>();
 
-        public AcquireAndReleaseThread(
+        // a fresh tryAcquireNoReentrancy succeeds, and a second call from the same thread is rejected
+        Releasable foo = lock.tryAcquireNoReentrancy("foo");
+        assertNotNull(foo);
+        assertNull(lock.tryAcquireNoReentrancy("foo"));
+        // a different key on the same thread is fine
+        Releasable bar = lock.tryAcquireNoReentrancy("bar");
+        assertNotNull(bar);
+        bar.close();
+        // after release the same thread can re-acquire
+        foo.close();
+        assertFalse(lock.hasLockedKeys());
+        foo = lock.tryAcquireNoReentrancy("foo");
+        assertNotNull(foo);
+
+        // the holding thread is also rejected when it acquired via the blocking acquire()
+        Releasable baz = lock.acquire("baz");
+        assertNull(lock.tryAcquireNoReentrancy("baz"));
+        baz.close();
+
+        // another thread sees the lock held and gets null from tryAcquireNoReentrancy
+        final AtomicBoolean otherThreadGotNull = new AtomicBoolean();
+        Thread t = new Thread(() -> otherThreadGotNull.set(lock.tryAcquireNoReentrancy("foo") == null));
+        t.start();
+        t.join();
+        assertTrue(otherThreadGotNull.get());
+
+        foo.close();
+        assertFalse(lock.hasLockedKeys());
+    }
+
+    private static class AcquireAndReleaseThread extends Thread {
+        private final CountDownLatch startLatch;
+        private final KeyedLock<String> connectionLock;
+        private final String[] names;
+        private final ConcurrentHashMap<String, Integer> counter;
+        private final ConcurrentHashMap<String, AtomicInteger> safeCounter;
+        private final int numRuns = scaledRandomIntBetween(5000, 50000);
+
+        AcquireAndReleaseThread(
             CountDownLatch startLatch,
             KeyedLock<String> connectionLock,
             String[] names,
@@ -152,11 +186,7 @@ public class KeyedLockTests extends ESTestCase {
         @Override
         public void run() {
             startLatch.countDown();
-            try {
-                startLatch.await();
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+            safeAwait(startLatch);
             for (int i = 0; i < numRuns; i++) {
                 String curName = names[randomInt(names.length - 1)];
                 assert connectionLock.isHeldByCurrentThread(curName) == false;
@@ -181,25 +211,16 @@ public class KeyedLockTests extends ESTestCase {
                     assert connectionLock.isHeldByCurrentThread(curName);
                     assert connectionLock.isHeldByCurrentThread(curName + "bla") == false;
                     if (randomBoolean()) {
-                        try (Releasable reentrantIgnored = connectionLock.acquire(curName)) {
+                        try (Releasable ignored = connectionLock.acquire(curName)) {
                             // just acquire this and make sure we can :)
-                            Thread.yield();
+                            Thread.yield(); // hold the lock across a yield to increase contention in this stress test
                         }
                     }
-                    Integer integer = counter.get(curName);
-                    if (integer == null) {
-                        counter.put(curName, 1);
-                    } else {
-                        counter.put(curName, integer.intValue() + 1);
-                    }
+                    counter.merge(curName, 1, Integer::sum);
                 }
                 AtomicInteger atomicInteger = new AtomicInteger(0);
                 AtomicInteger value = safeCounter.putIfAbsent(curName, atomicInteger);
-                if (value == null) {
-                    atomicInteger.incrementAndGet();
-                } else {
-                    value.incrementAndGet();
-                }
+                Objects.requireNonNullElse(value, atomicInteger).incrementAndGet();
             }
         }
     }

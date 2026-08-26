@@ -15,6 +15,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
@@ -239,7 +240,7 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
     }
 
     public void testAnalysisSynonym() throws Exception {
-        final MatchQueryParser matchQueryParser = new MatchQueryParser(createSearchExecutionContext());
+        final MatchQueryParser matchQueryParser = new MatchQueryParser(createSearchExecutionContext(), QueryVisitor.EMPTY_VISITOR);
         matchQueryParser.setAnalyzer(new MockSynonymAnalyzer());
         final Query query = matchQueryParser.parse(MatchQueryParser.Type.BOOLEAN_PREFIX, TEXT_FIELD_NAME, "fox dogs red");
 

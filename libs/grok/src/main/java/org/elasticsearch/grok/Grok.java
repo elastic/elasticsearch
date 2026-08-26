@@ -131,7 +131,7 @@ public final class Grok {
             } finally {
                 matcherWatchdog.unregister(matcher);
             }
-
+            handleInterrupted(result);
             if (result < 0) {
                 return res.append(grokPattern).toString();
             }
@@ -186,6 +186,7 @@ public final class Grok {
         } finally {
             matcherWatchdog.unregister(matcher);
         }
+        handleInterrupted(result);
         return (result != -1);
     }
 
@@ -239,11 +240,7 @@ public final class Grok {
         } finally {
             matcherWatchdog.unregister(matcher);
         }
-        if (result == Matcher.INTERRUPTED) {
-            throw new RuntimeException(
-                "grok pattern matching was interrupted after [" + matcherWatchdog.maxExecutionTimeInMillis() + "] ms"
-            );
-        }
+        handleInterrupted(result);
         if (result == Matcher.FAILED) {
             return false;
         }
@@ -260,6 +257,14 @@ public final class Grok {
 
     public Regex getCompiledExpression() {
         return compiledExpression;
+    }
+
+    private void handleInterrupted(int result) {
+        if (result == Matcher.INTERRUPTED) {
+            throw new RuntimeException(
+                "grok pattern matching was interrupted after [" + matcherWatchdog.maxExecutionTimeInMillis() + "] ms"
+            );
+        }
     }
 
     public static String combinePatterns(List<String> patterns) {

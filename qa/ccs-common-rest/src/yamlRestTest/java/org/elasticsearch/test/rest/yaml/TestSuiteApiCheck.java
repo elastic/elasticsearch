@@ -29,17 +29,23 @@ class TestSuiteApiCheck {
      */
     public static boolean shouldExecuteTest(ESClientYamlSuiteTestCase testSuite, String apiName) {
         return switch (testSuite) {
-            case CssSearchYamlTestSuiteIT cssSearch -> isSearchApi(apiName);
-            case RcsCcsSearchYamlTestSuiteIT rssSearch -> isSearchApi(apiName);
+            case CcsSearchYamlTestSuiteIT ccsSearch -> isSearchApi(apiName) && isVectorsApi(apiName) == false;
+            case RcsCcsSearchYamlTestSuiteIT rcsSearch -> isSearchApi(apiName) && isVectorsApi(apiName) == false;
+            case CcsVectorsYamlTestSuiteIT ccsVectors -> isVectorsApi(apiName);
+            case RcsCcsVectorsYamlTestSuiteIT rcsVectors -> isVectorsApi(apiName);
             // Search tests are not executed in the common suite.
-            case CcsCommonYamlTestSuiteIT cssCommon -> isSearchApi(apiName) == false;
-            case RcsCcsCommonYamlTestSuiteIT rssCommon -> isSearchApi(apiName) == false;
+            case CcsCommonYamlTestSuiteIT ccsCommon -> isSearchApi(apiName) == false;
+            case RcsCcsCommonYamlTestSuiteIT rcsCommon -> isSearchApi(apiName) == false;
             default -> throw new IllegalArgumentException("unexpected test suite [" + testSuite.getClass().getSimpleName() + "]");
         };
     }
 
     private static boolean isSearchApi(String apiName) {
         return apiName.startsWith("search") || apiName.startsWith("msearch");
+    }
+
+    private static boolean isVectorsApi(String apiName) {
+        return apiName.equals("search.vectors");
     }
 
     private TestSuiteApiCheck() {}

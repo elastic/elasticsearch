@@ -8,9 +8,10 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -18,6 +19,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -28,18 +30,23 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.async.AsyncTask;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 
 import java.io.IOException;
@@ -65,8 +72,11 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class EsqlQueryRequestTests extends ESTestCase {
+    private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(List.of(EsqlQueryStatus.ENTRY));
 
     public void testParseFields() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);
@@ -91,7 +101,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
-        assertEquals(timeZone, request.timeZone());
+        assertEquals(timeZone.normalized(), request.get(QuerySettings.TIME_ZONE));
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());
@@ -152,7 +162,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
-        assertEquals(timeZone, request.timeZone());
+        assertEquals(timeZone.normalized(), request.get(QuerySettings.TIME_ZONE));
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());
@@ -196,7 +206,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
-        assertEquals(timeZone, request.timeZone());
+        assertEquals(timeZone.normalized(), request.get(QuerySettings.TIME_ZONE));
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());
@@ -245,7 +255,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
-        assertEquals(timeZone, request.timeZone());
+        assertEquals(timeZone.normalized(), request.get(QuerySettings.TIME_ZONE));
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());
@@ -426,6 +436,115 @@ public class EsqlQueryRequestTests extends ESTestCase {
             e1.getCause().getMessage(),
             containsString("[3:60] Parameter contains a null entry: [null, 1.0, null]. Null values are not allowed in multivalued params;")
         );
+    }
+
+    /**
+     * An empty list passed as a named VALUE parameter is equivalent to null.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/147448">#147448</a>.
+     */
+    public void testEmptyListNamedParamIsNull() throws IOException {
+        String query = randomAlphaOfLengthBetween(1, 100);
+        boolean columnar = randomBoolean();
+        ZoneId timeZone = randomZone();
+        Locale locale = randomLocale(random());
+        QueryBuilder filter = randomQueryBuilder();
+
+        String paramsString = """
+            ,"params":[
+             {"n1" : []},
+             {"n2" : null},
+             {"n3" : {"value" : []}},
+             {"n4" : "non-empty"},
+             {"n5" : []},
+             {"n6" : [1, 2, 3]}
+             ] }""";
+
+        List<QueryParam> expected = List.of(
+            new QueryParam("n1", null, NULL, ParserUtils.ParamClassification.VALUE),
+            new QueryParam("n2", null, NULL, ParserUtils.ParamClassification.VALUE),
+            new QueryParam("n3", null, NULL, ParserUtils.ParamClassification.VALUE),
+            paramAsConstant("n4", "non-empty"),
+            new QueryParam("n5", null, NULL, ParserUtils.ParamClassification.VALUE),
+            new QueryParam("n6", List.of(1, 2, 3), INTEGER, ParserUtils.ParamClassification.VALUE)
+        );
+        String json = String.format(Locale.ROOT, """
+            {
+                "query": "%s",
+                "columnar": %s,
+                "time_zone": "%s",
+                "locale": "%s",
+                "filter": %s
+                %s""", query, columnar, timeZone.getId(), locale.toLanguageTag(), filter, paramsString);
+
+        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
+
+        assertEquals(expected.size(), request.params().size());
+        for (int i = 0; i < expected.size(); i++) {
+            QueryParam expectedParam = expected.get(i);
+            QueryParam actualParam = request.params().get(i + 1);
+            assertEquals("param at index " + i, expectedParam, actualParam);
+        }
+
+        QueryParam bareEmpty = request.params().get("n1");
+        QueryParam explicitNull = request.params().get("n2");
+        QueryParam keyedEmpty = request.params().get("n3");
+        assertNull(bareEmpty.value());
+        assertNull(explicitNull.value());
+        assertNull(keyedEmpty.value());
+        assertEquals(NULL, bareEmpty.type());
+        assertEquals(NULL, explicitNull.type());
+        assertEquals(NULL, keyedEmpty.type());
+    }
+
+    public void testEmptyListNamedParamForIdentifierOrPatternIsRejected() throws IOException {
+        String query = randomAlphaOfLengthBetween(1, 100);
+        String paramsString = """
+            "params":[ {"n1" : {"identifier" : []}}, {"n2" : {"pattern" : []}},
+                        {"n3" : {"identifier" : null}}, {"n4" : {"pattern" : null}} ]""";
+        String json = String.format(Locale.ROOT, """
+            {
+                %s,
+                "query": "%s"
+            }""", paramsString, query);
+
+        Exception e = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json));
+        String message = e.getCause().getMessage();
+        // empty lists: rejected as multivalued (only VALUE params can be multivalued)
+        assertThat(message, containsString("n1={identifier=[]} parameter is multivalued, only VALUE parameters can be multivalued"));
+        assertThat(message, containsString("n2={pattern=[]} parameter is multivalued, only VALUE parameters can be multivalued"));
+        // explicit nulls: rejected because null is not a valid identifier/pattern string
+        assertThat(message, containsString("[null] is not a valid value for IDENTIFIER parameter"));
+        assertThat(message, containsString("[null] is not a valid value for PATTERN parameter"));
+    }
+
+    /**
+     * Empty lists as unnamed/positional VALUE params are also coerced to null.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/147448">#147448</a>.
+     */
+    public void testEmptyListPositionalParamIsNull() throws IOException {
+        String query = randomAlphaOfLengthBetween(1, 100);
+        String json = String.format(Locale.ROOT, """
+            {
+                "query": "%s",
+                "params": [[], null, "non-empty", [1, 2, 3]]
+            }""", query);
+
+        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
+        assertEquals(4, request.params().size());
+
+        QueryParam emptyList = request.params().get(1);
+        QueryParam explicitNull = request.params().get(2);
+        assertNull(emptyList.value());
+        assertNull(explicitNull.value());
+        assertEquals(NULL, emptyList.type());
+        assertEquals(NULL, explicitNull.type());
+        assertEquals(ParserUtils.ParamClassification.VALUE, emptyList.classification());
+
+        assertEquals("non-empty", request.params().get(3).value());
+        assertEquals(KEYWORD, request.params().get(3).type());
+
+        assertEquals(List.of(1, 2, 3), request.params().get(4).value());
+        assertEquals(INTEGER, request.params().get(4).type());
     }
 
     public void testInvalidParamsString() {
@@ -615,7 +734,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
-        assertEquals(timeZone, request.timeZone());
+        assertEquals(timeZone.normalized(), request.get(QuerySettings.TIME_ZONE));
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());
@@ -640,6 +759,161 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertFalse(request.keepOnCompletion());
         assertEquals(TimeValue.timeValueSeconds(1), request.waitForCompletionTimeout());
         assertEquals(TimeValue.timeValueDays(5), request.keepAlive());
+    }
+
+    public void testSettingsBlockTimeZoneAndProjectRouting() throws IOException {
+        String json = """
+            {
+                "query": "FROM idx",
+                "settings": {
+                    "time_zone": "Europe/Paris",
+                    "project_routing": "*"
+                }
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
+        assertEquals(ZoneId.of("Europe/Paris"), request.get(QuerySettings.TIME_ZONE));
+        assertEquals("*", request.get(QuerySettings.PROJECT_ROUTING));
+    }
+
+    public void testSettingsBlockColumnMetadataAcceptsStringSpelledBoolean() throws IOException {
+        // XContentParser#booleanValue() is lenient for a VALUE_STRING token spelling "true"/"false" — this is
+        // general XContent behavior, not something column_metadata opts into specifically.
+        String json = """
+            {
+                "query": "FROM idx",
+                "settings": {
+                    "column_metadata": "true"
+                }
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
+        assertEquals(Boolean.TRUE, request.get(QuerySettings.COLUMN_METADATA));
+    }
+
+    public void testSettingsBlockColumnMetadataRejectsNumber() {
+        // Unlike a string, a JSON number isn't coerced — it's rejected rather than silently accepted.
+        Exception e = expectThrows(IllegalArgumentException.class, () -> parseEsqlQueryRequestSync("""
+            {
+                "query": "FROM idx",
+                "settings": {
+                    "column_metadata": 1
+                }
+            }"""));
+        assertThat(e.getMessage(), containsString("settings"));
+        assertThat(e.getCause().getMessage(), containsString("Failed to parse value for setting [column_metadata]"));
+        assertThat(e.getCause().getMessage(), containsString("not of boolean type"));
+    }
+
+    public void testSettingsBlockColumnMetadata() throws IOException {
+        String json = """
+            {
+                "query": "FROM idx",
+                "settings": {
+                    "column_metadata": true
+                }
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
+        assertEquals(Boolean.TRUE, request.get(QuerySettings.COLUMN_METADATA));
+    }
+
+    public void testSettingsBlockApproximationObject() throws IOException {
+        String json = """
+            {
+                "query": "FROM idx",
+                "settings": {
+                    "approximation": {"rows": 10000}
+                }
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
+        assertNotNull(request.get(QuerySettings.APPROXIMATION));
+        assertEquals(Integer.valueOf(10000), request.get(QuerySettings.APPROXIMATION).rows());
+    }
+
+    public void testSettingsBlockRejectsConflictingValuesAtBothLevels() {
+        // The same setting at the legacy top level AND under settings.{} with DIFFERENT values is a client bug,
+        // not an override: reject with a 400 naming the setting rather than silently picking a winner.
+        Exception e = expectThrows(IllegalArgumentException.class, () -> parseEsqlQueryRequestSync("""
+            {
+                "query": "FROM idx",
+                "time_zone": "Europe/Paris",
+                "settings": {
+                    "time_zone": "UTC"
+                }
+            }"""));
+        assertThat(
+            e.getMessage(),
+            containsString("Setting [time_zone] has conflicting values at the top level of the request body and under [settings]")
+        );
+    }
+
+    public void testSettingsBlockRejectsConflictingValuesRegardlessOfOrder() {
+        // Same conflict, JSON order swapped — the check runs after the whole body is parsed, so order is irrelevant.
+        Exception e = expectThrows(IllegalArgumentException.class, () -> parseEsqlQueryRequestSync("""
+            {
+                "query": "FROM idx",
+                "settings": {
+                    "time_zone": "UTC"
+                },
+                "time_zone": "Europe/Paris"
+            }"""));
+        assertThat(
+            e.getMessage(),
+            containsString("Setting [time_zone] has conflicting values at the top level of the request body and under [settings]")
+        );
+    }
+
+    public void testSettingsBlockAllowsIdenticalValueAtBothLevels() throws IOException {
+        // The same value in both places is a fair migration path — accept it, no error.
+        String json = """
+            {
+                "query": "FROM idx",
+                "time_zone": "Europe/Paris",
+                "settings": {
+                    "time_zone": "Europe/Paris"
+                }
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
+        assertEquals(ZoneId.of("Europe/Paris"), request.get(QuerySettings.TIME_ZONE));
+    }
+
+    public void testSettingsBlockAcceptsSameZoneDifferentSpelling() throws IOException {
+        // "UTC" and "Z" are the same zone after normalization, so supplying one at each surface is not a conflict —
+        // the duplicate check compares canonical forms, as parseZoneId's comment promises.
+        String json = """
+            {
+                "query": "FROM idx",
+                "time_zone": "UTC",
+                "settings": {
+                    "time_zone": "Z"
+                }
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
+        assertEquals(ZoneId.of("Z"), request.get(QuerySettings.TIME_ZONE));
+    }
+
+    public void testSettingsBlockRejectsUnknownKey() {
+        // The parser wraps XContentParseException; the inner cause carries our detailed message.
+        Exception e = expectThrows(IllegalArgumentException.class, () -> parseEsqlQueryRequestSync("""
+            {
+                "query": "FROM idx",
+                "settings": {
+                    "no_such_setting": "x"
+                }
+            }"""));
+        assertThat(e.getMessage(), containsString("settings"));
+        assertThat(e.getCause().getMessage(), containsString("Unknown setting [no_such_setting] under [settings]"));
+    }
+
+    public void testSettingsBlockRejectsSetOnlySetting() {
+        // unmapped_fields is in the registry but opted out of body exposure.
+        Exception e = expectThrows(IllegalArgumentException.class, () -> parseEsqlQueryRequestSync("""
+            {
+                "query": "FROM idx",
+                "settings": {
+                    "unmapped_fields": "NULLIFY"
+                }
+            }"""));
+        assertThat(e.getMessage(), containsString("settings"));
+        assertThat(e.getCause().getMessage(), containsString("Setting [unmapped_fields] is not exposed as a request body parameter"));
     }
 
     public void testRejectUnknownFields() {
@@ -696,12 +970,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         Column c = request.tables().get("a").get("c");
         assertThat(c.type(), equalTo(KEYWORD));
-        try (
-            BytesRefBlock.Builder builder = new BlockFactory(
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-                BigArrays.NON_RECYCLING_INSTANCE
-            ).newBytesRefBlockBuilder(10)
-        ) {
+        try (BytesRefBlock.Builder builder = blockFactory().newBytesRefBlockBuilder(10)) {
             builder.appendBytesRef(new BytesRef("a"));
             builder.appendBytesRef(new BytesRef("b"));
             builder.appendNull();
@@ -728,10 +997,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         Column c = request.tables().get("a").get("c");
         assertThat(c.type(), equalTo(INTEGER));
-        try (
-            IntBlock.Builder builder = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
-                .newIntBlockBuilder(10)
-        ) {
+        try (IntBlock.Builder builder = blockFactory().newIntBlockBuilder(10)) {
             builder.appendInt(1);
             builder.appendInt(2);
             builder.appendInt(3);
@@ -756,10 +1022,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         Column c = request.tables().get("a").get("c");
         assertThat(c.type(), equalTo(LONG));
-        try (
-            LongBlock.Builder builder = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
-                .newLongBlockBuilder(10)
-        ) {
+        try (LongBlock.Builder builder = blockFactory().newLongBlockBuilder(10)) {
             builder.appendLong(1);
             builder.appendLong(2);
             builder.appendLong(3);
@@ -784,10 +1047,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         Column c = request.tables().get("a").get("c");
         assertThat(c.type(), equalTo(DOUBLE));
-        try (
-            DoubleBlock.Builder builder = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
-                .newDoubleBlockBuilder(10)
-        ) {
+        try (DoubleBlock.Builder builder = blockFactory().newDoubleBlockBuilder(10)) {
             builder.appendDouble(1.1);
             builder.appendDouble(2);
             builder.appendDouble(3.1415);
@@ -849,33 +1109,92 @@ public class EsqlQueryRequestTests extends ESTestCase {
     public void testTask() throws IOException {
         String query = randomAlphaOfLength(10);
         int id = randomInt();
+        TimeValue keepAlive = TimeValue.timeValueDays(2);
 
         String requestJson = """
             {
-                "query": "QUERY"
-            }""".replace("QUERY", query);
+                "query": "QUERY",
+                "keep_alive": "KEEP_ALIVE"
+            }""".replace("QUERY", query).replace("KEEP_ALIVE", keepAlive.getStringRep());
 
-        EsqlQueryRequest request = parseEsqlQueryRequestSync(requestJson);
+        EsqlQueryRequest request = parseEsqlQueryRequestAsync(requestJson);
         String localNode = randomAlphaOfLength(2);
         Task task = request.createTask(new TaskId(localNode, id), "transport", EsqlQueryAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
         assertThat(task.getDescription(), equalTo(query));
 
         TaskInfo taskInfo = task.taskInfo(localNode, true);
         String json = taskInfo.toString();
-        String expected = Streams.readFully(getClass().getClassLoader().getResourceAsStream("query_task.json")).utf8ToString();
-        expected = expected.replaceAll("\r\n", "\n")
-            .replaceAll("\s*<\\d+>", "")
-            .replaceAll("FROM test \\| STATS MAX\\(d\\) by a, b", query)
-            .replaceAll("5326", Integer.toString(id))
-            .replaceAll("2j8UKw1bRO283PMwDugNNg", localNode)
-            .replaceAll("Ks5ApyqMTtWj5LrKigmCjQ", ((EsqlQueryStatus) taskInfo.status()).id().getEncoded())
-            .replaceAll("2023-07-31T15:46:32\\.328Z", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(taskInfo.startTime()))
-            .replaceAll("2023-07-31T15:46:32\\.328Z", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(taskInfo.startTime()))
-            .replaceAll("1690818392328", Long.toString(taskInfo.startTime()))
-            .replaceAll("41.7ms", TimeValue.timeValueNanos(taskInfo.runningTimeNanos()).toString())
-            .replaceAll("41770830", Long.toString(taskInfo.runningTimeNanos()))
-            .trim();
+        String expected = Strings.format(
+            """
+                {
+                  "node" : "%s",
+                  "id" : %d,
+                  "type" : "transport",
+                  "action" : "indices:data/read/esql",
+                  "status" : {
+                    "request_id" : "%s",
+                    "keep_alive" : "%s"
+                  },
+                  "description" : "%s",
+                  "start_time" : "%s",
+                  "start_time_in_millis" : %d,
+                  "running_time" : "%s",
+                  "running_time_in_nanos" : %d,
+                  "cancellable" : true,
+                  "cancelled" : false,
+                  "headers" : { }
+                }
+                """.trim(),
+            localNode,
+            id,
+            ((EsqlQueryStatus) taskInfo.status()).id().getEncoded(),
+            keepAlive,
+            query,
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(taskInfo.startTime()),
+            taskInfo.startTime(),
+            TimeValue.timeValueNanos(taskInfo.runningTimeNanos()).toString(),
+            taskInfo.runningTimeNanos()
+        );
         assertThat(json, equalTo(expected));
+    }
+
+    public void testTaskStatusSerializationToPreviousTransportVersionOmitsKeepAlive() throws IOException {
+        EsqlQueryStatus status = new EsqlQueryStatus(
+            new AsyncExecutionId(randomAlphaOfLength(10), new TaskId(randomAlphaOfLength(4), randomNonNegativeLong())),
+            TimeValue.timeValueDays(2)
+        );
+        TransportVersion previousVersion = TransportVersionUtils.randomVersionNotSupporting(AsyncTask.ASYNC_TASK_KEEP_ALIVE_STATUS);
+        EsqlQueryStatus serialized = copyWriteable(
+            status,
+            namedWriteableRegistry,
+            in -> (EsqlQueryStatus) EsqlQueryStatus.ENTRY.reader.read(in),
+            previousVersion
+        );
+        assertThat(serialized.id(), equalTo(status.id()));
+        assertNull(serialized.keepAlive());
+    }
+
+    public void testTaskStatusWithNullKeepAliveCanBeSerializedBackToCurrentTransportVersion() throws IOException {
+        EsqlQueryStatus status = new EsqlQueryStatus(
+            new AsyncExecutionId(randomAlphaOfLength(10), new TaskId(randomAlphaOfLength(4), randomNonNegativeLong())),
+            TimeValue.timeValueDays(2)
+        );
+        TransportVersion previousVersion = TransportVersionUtils.randomVersionNotSupporting(AsyncTask.ASYNC_TASK_KEEP_ALIVE_STATUS);
+        EsqlQueryStatus withoutKeepAlive = copyWriteable(
+            status,
+            namedWriteableRegistry,
+            in -> (EsqlQueryStatus) EsqlQueryStatus.ENTRY.reader.read(in),
+            previousVersion
+        );
+
+        EsqlQueryStatus serializedBack = copyWriteable(
+            withoutKeepAlive,
+            namedWriteableRegistry,
+            in -> (EsqlQueryStatus) EsqlQueryStatus.ENTRY.reader.read(in),
+            TransportVersion.current()
+        );
+        assertThat(serializedBack.id(), equalTo(status.id()));
+        assertNull(serializedBack.keepAlive());
     }
 
     public void testProjectRouting() throws IOException {
@@ -885,7 +1204,121 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 "project_routing": "_alias:_origin"
             }""";
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
-        assertThat(request.projectRouting(), is("_alias:_origin"));
+        assertThat(request.get(QuerySettings.PROJECT_ROUTING), is("_alias:_origin"));
+    }
+
+    public void testApproximationNull() throws IOException {
+        String json = """
+            {
+                "query": "FROM test | STATS count()",
+                "approximation": null
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        assertThat(request.get(QuerySettings.APPROXIMATION), equalTo(ApproximationSettings.EXPLICIT_NULL));
+    }
+
+    public void testApproximationTrue() throws IOException {
+        String json = """
+            {
+                "query": "FROM test | STATS count()",
+                "approximation": true
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        assertThat(request.get(QuerySettings.APPROXIMATION), equalTo(ApproximationSettings.DEFAULT));
+        assertThat(request.get(QuerySettings.APPROXIMATION).confidenceLevel(), equalTo(0.90));
+    }
+
+    public void testApproximationFalse() throws IOException {
+        String json = """
+            {
+                "query": "FROM test | STATS count()",
+                "approximation": false
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        assertThat(request.get(QuerySettings.APPROXIMATION), equalTo(ApproximationSettings.EXPLICIT_NULL));
+    }
+
+    public void testApproximationObject() throws IOException {
+        String json = """
+            {
+                "query": "FROM test | STATS count()",
+                "approximation": {
+                    "rows": 50000,
+                    "confidence_level": 0.678
+                }
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        assertThat(request.get(QuerySettings.APPROXIMATION), equalTo(new ApproximationSettings(50000, 0.678)));
+    }
+
+    public void testApproximationObjectPartial() throws IOException {
+        String json = """
+            {
+                "query": "FROM test | STATS count()",
+                "approximation": {
+                    "rows": 20000
+                }
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        assertThat(request.get(QuerySettings.APPROXIMATION), equalTo(new ApproximationSettings(20000, 0.9)));
+    }
+
+    public void testApproximationObjectEmpty() throws IOException {
+        String json = """
+            {
+                "query": "FROM test | STATS count()",
+                "approximation": {}
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        assertThat(request.get(QuerySettings.APPROXIMATION), equalTo(ApproximationSettings.DEFAULT));
+    }
+
+    public void testApproximationNotSet() throws IOException {
+        String json = """
+            {
+                "query": "FROM test | STATS count()"
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        assertNull(request.get(QuerySettings.APPROXIMATION));
+    }
+
+    public void testApproximationInvalidRows() {
+        String json = """
+            {
+                "query": "FROM test | STATS count()",
+                "approximation": {
+                    "rows": 100
+                }
+            }""";
+        Exception e = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequest(json, randomBoolean()));
+        assertThat(e.getMessage(), containsString("approximation"));
+        assertThat(e.getCause().getCause().getMessage(), containsString("[rows] must be at least 10000"));
+    }
+
+    public void testApproximationNullConfidenceLevel() throws IOException {
+        String json = """
+            {
+                "query": "FROM test | STATS count()",
+                "approximation": {
+                    "confidence_level": null
+                }
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        assertThat(request.get(QuerySettings.APPROXIMATION), not(nullValue()));
+        assertThat(request.get(QuerySettings.APPROXIMATION).confidenceLevel(), nullValue());
+    }
+
+    public void testApproximationInvalidConfidenceLevel() {
+        String json = """
+            {
+                "query": "FROM test | STATS count()",
+                "approximation": {
+                    "confidence_level": 0.99
+                }
+            }""";
+        Exception e = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequest(json, randomBoolean()));
+        assertThat(e.getMessage(), containsString("approximation"));
+        assertThat(e.getCause().getCause().getMessage(), containsString("[confidence_level] must be between 0.5 and 0.95"));
     }
 
     private List<QueryParam> randomParameters() {
@@ -975,5 +1408,9 @@ public class EsqlQueryRequestTests extends ESTestCase {
             new TermQueryBuilder(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1, 10)),
             new RangeQueryBuilder(randomAlphaOfLength(5)).gt(randomIntBetween(0, 1000))
         );
+    }
+
+    private BlockFactory blockFactory() {
+        return BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker(CircuitBreaker.REQUEST)).build();
     }
 }

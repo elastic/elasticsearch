@@ -7,17 +7,24 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
@@ -26,15 +33,21 @@ import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.view.DeleteViewAction;
+import org.elasticsearch.xpack.esql.view.PutViewAction;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -42,7 +55,7 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), DataStreamsPlugin.class);
+        return CollectionUtils.concatLists(List.of(MapperExtrasPlugin.class, DataStreamsPlugin.class), super.nodePlugins());
     }
 
     public void testResolvesConcreteIndex() {
@@ -71,6 +84,10 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
                 new TransportPutComposableIndexTemplateAction.Request("data-stream-1-template").indexTemplate(
                     ComposableIndexTemplate.builder()
                         .indexPatterns(List.of("data-stream-1*"))
+                        .template(
+                            Template.builder()
+                                .dataStreamOptions(new DataStreamOptions.Template(new DataStreamFailureStore.Template(true, null)))
+                        )
                         .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                         .build()
                 )
@@ -83,8 +100,45 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
             )
         );
 
+        client().bulk(
+            new BulkRequest() // create a valid and invalid document to initialize failure store
+                .add(prepareIndex("data-stream-1").setOpType(OpType.CREATE).setSource("@timestamp", 1).request())
+                .add(prepareIndex("data-stream-1").setOpType(OpType.CREATE).setSource("@timestamp", "invalid").request())
+        ).actionGet();
+
         try (var response = run(syncEsqlQueryRequest("FROM data-stream-1"))) {
             assertOk(response);
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM data-stream-1::data"))) {
+            assertOk(response);
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM data-stream-1::failures"))) {
+            assertOk(response);
+        }
+        expectThrows(
+            org.elasticsearch.xpack.esql.parser.ParsingException.class,
+            containsString("Invalid index name [data-stream-1::fake]"),
+            () -> run(syncEsqlQueryRequest("FROM data-stream-1::fake"))
+        );
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown index [no-such-data-stream::data]"),
+            () -> run(syncEsqlQueryRequest("FROM no-such-data-stream::data"))
+        );
+    }
+
+    public void testResolvesDateMath() {
+        var date = LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC);
+        var index = DateTimeFormatter.ofPattern("'index-'yyyy.MM", Locale.ROOT).format(date);
+        assertAcked(client().admin().indices().prepareCreate(index));
+        indexRandom(true, index, 1);
+
+        try (var response = run(syncEsqlQueryRequest("FROM <index-{now/M{yyyy.MM}}> METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, index);
+        } catch (AssertionError e) {
+            assumeTrue("Date must stay the same during the test", Objects.equals(date, LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC)));
+            throw e;
         }
     }
 
@@ -113,23 +167,20 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
             assertOk(response);
             assertResultConcreteIndices(response, "index-1");// excludes pattern from pattern
         }
-        expectThrows(
-            VerificationException.class,
-            containsString("Unknown index [index-*,-*]"),
-            () -> run(syncEsqlQueryRequest("FROM index-*,-* METADATA _index")) // exclude all resolves to empty
-        );
+        try (var response = run(syncEsqlQueryRequest("FROM index-*,-* METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response);// exclude all resolves to empty
+        }
     }
 
-    public void testDoesNotResolveEmptyPattern() {
+    public void testResolveEmptyPattern() {
         assertAcked(client().admin().indices().prepareCreate("data"));
         indexRandom(true, "data", 1);
 
-        expectThrows(
-            VerificationException.class,
-            containsString("Unknown index [index-*]"),
-            () -> run(syncEsqlQueryRequest("FROM index-* METADATA _index"))
-        );
-
+        try (var response = run(syncEsqlQueryRequest("FROM index-* METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response);
+        }
         try (var response = run(syncEsqlQueryRequest("FROM data,index-* METADATA _index"))) {
             assertOk(response);
             assertResultConcreteIndices(response, "data");
@@ -141,6 +192,16 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
             VerificationException.class,
             containsString("Unknown index [no-such-index]"),
             () -> run(syncEsqlQueryRequest("FROM no-such-index"))
+        );
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown index"),
+            () -> run(syncEsqlQueryRequest("FROM no-such-index-1,no-such-index-2"))
+        );
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown index"),
+            () -> run(syncEsqlQueryRequest("FROM no-such-index,no-such-*"))
         );
     }
 
@@ -289,21 +350,44 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    private static void assertOk(EsqlQueryResponse response) {
-        assertThat(response.isPartial(), equalTo(false));
+    /**
+     * Tests the behaviour of index component selectors ({@code ::data} and {@code ::failures}) when applied to ES|QL views.
+     * <p>
+     * {@code view::data} is equivalent to {@code view}: the view resolver expands the view to its body and the {@code ::data}
+     * selector is dropped, so the query runs against the view's underlying sources.
+     * <p>
+     * {@code view::failures} is not supported: views do not have a failure component. The view resolver does not expand the
+     * name, and subsequent index resolution cannot find a data stream named after the view, so the query fails with
+     * "Unknown index".
+     */
+    public void testViewWithIndexComponentSelectors() {
+        assumeTrue("Requires index component selectors", EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled());
+        assumeTrue("Requires views", EsqlCapabilities.Cap.VIEWS_CRUD_AS_INDEX_ACTIONS.isEnabled());
+
+        assertAcked(client().admin().indices().prepareCreate("view-backing-index").setMapping("value", "type=long"));
+        indexRandom(true, "view-backing-index", 1);
+        var view = new View("test-view", "FROM view-backing-index");
+        assertAcked(client().execute(PutViewAction.INSTANCE, new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, view)));
+        try {
+            // view::data is equivalent to the plain view name
+            try (var response = run(syncEsqlQueryRequest("FROM test-view::data"))) {
+                assertOk(response);
+            }
+            // view::failures is not supported; the view has no failure component
+            expectThrows(
+                VerificationException.class,
+                containsString("Unknown index [test-view::failures]"),
+                () -> run(syncEsqlQueryRequest("FROM test-view::failures"))
+            );
+        } finally {
+            client().execute(
+                DeleteViewAction.INSTANCE,
+                new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { "test-view" })
+            ).actionGet();
+        }
     }
 
     private static void assertResultConcreteIndices(EsqlQueryResponse response, Object... indices) {
-        var indexColumn = findIndexColumn(response);
-        assertThat(() -> response.column(indexColumn), containsInAnyOrder(indices));
-    }
-
-    private static int findIndexColumn(EsqlQueryResponse response) {
-        for (int c = 0; c < response.columns().size(); c++) {
-            if (Objects.equals(response.columns().get(c).name(), MetadataAttribute.INDEX)) {
-                return c;
-            }
-        }
-        throw new AssertionError("no _index column found");
+        assertColumnContainsInAnyOrder(response, MetadataAttribute.INDEX, indices);
     }
 }

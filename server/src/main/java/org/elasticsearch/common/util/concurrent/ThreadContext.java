@@ -712,6 +712,84 @@ public final class ThreadContext implements Writeable, TraceContext {
     }
 
     /**
+     * Atomically removes all values for the specified response-header {@code key} from the current
+     * context and returns them. After this call, {@link #getResponseHeaders()} will not contain
+     * {@code key}. You can still add new values via {@link #addResponseHeader}.
+     *
+     * <p>
+     *     We use this in the transport protocol backwards compatibility branches to "take" warnings
+     *     out of the thread context and move them into non-spooky-action-at-a-distance variables.
+     *     Without this it's possible that the warnings would still be forwarded over the http response.
+     * </p>
+     *
+     * <h4>Stash / stored-context interactions — overwriting restores</h4>
+     * <p>
+     *     {@link #stashContext()} and friends store a <strong>copy</strong> the context then,
+     *     run some code, and then restore the copy. If you run {@code take} inside
+     * </p>
+     * <ol>
+     *     <li>Store a <strong>copy</strong> of the context</li>
+     *     <li>Run some code</li>
+     *     <li>Restore the copy</li>
+     * </ol>
+     * <p>
+     *     If you {@code take} in step 2, nothing changes in the copy. So:
+     * </p>
+     * {@snippet lang=java :
+     *      try (StoredContext snap = threadContext.stashContext()) {
+     *          threadContext.takeResponseHeaders("Warnings");
+     *          logger.warn("warnings are gone {}", threadContext.getResponseHeaders().get("Warnings"));
+     *      }
+     *      logger.warn("warnings are back! {}", threadContext.getResponseHeaders().get("Warnings"));
+     * }
+     *
+     * <h4>Stash / stored-context interactions — merging restores</h4>
+     * <p>
+     *     {@link #newStoredContextPreservingResponseHeaders()} and friends store a copy
+     *     as above but they also <strong>merge</strong> changes from the called code. So:
+     * </p>
+     * {@snippet lang=java :
+     *      try (StoredContext snap = threadContext.newStoredContextPreservingResponseHeaders()) {
+     *          threadContext.takeResponseHeaders("Warnings");
+     *          logger.warn("warnings are gone {}", threadContext.getResponseHeaders().get("Warnings"));
+     *          threadContext.addResponseHeader("Warnings", "some new ones");
+     *          logger.warn("just the new ones {}", threadContext.getResponseHeaders().get("Warnings"));
+     *      }
+     *      logger.warn("warnings contain both! {}", threadContext.getResponseHeaders().get("Warnings"));
+     * }
+     *
+     * <h4>{@code warningHeadersSize} accounting</h4>
+     * <p>
+     *     When {@code key} is {@code "Warning"}, the {@code warningHeadersSize} counter
+     *     is reset to zero, so the count/size throttle restarts.
+     * </p>
+     *
+     * @param key the response header name whose values should be removed and returned
+     * @return the values that were associated with {@code key}, preserving insertion order,
+     *         or an empty list if none were present
+     */
+    public List<String> takeResponseHeaders(String key) {
+        ThreadContextStruct current = threadLocal.get();
+        Set<String> existing = current.responseHeaders.get(key);
+        if (existing == null || existing.isEmpty()) {
+            return List.of();
+        }
+        Map<String, Set<String>> newResponseHeaders = new HashMap<>(current.responseHeaders);
+        newResponseHeaders.remove(key);
+        long newWarningHeadersSize = key.equals("Warning") ? 0L : current.warningHeadersSize;
+        threadLocal.set(
+            new ThreadContextStruct(
+                current.requestHeaders,
+                newResponseHeaders,
+                current.transientHeaders,
+                current.isSystemContext,
+                newWarningHeadersSize
+            )
+        );
+        return List.copyOf(existing);
+    }
+
+    /**
      * Saves the current thread context and wraps command in a Runnable that restores that context before running command. If
      * <code>command</code> has already been passed through this method then it is returned unaltered rather than wrapped twice.
      */
@@ -783,6 +861,7 @@ public final class ThreadContext implements Writeable, TraceContext {
             .removeIf(
                 entry -> entry.getKey().equalsIgnoreCase("authorization")
                     || entry.getKey().equalsIgnoreCase("es-secondary-authorization")
+                    || entry.getKey().equalsIgnoreCase("es-secondary-x-client-authentication")
                     || entry.getKey().equalsIgnoreCase("ES-Client-Authentication")
                     || entry.getKey().equalsIgnoreCase("X-Client-Authentication")
             );

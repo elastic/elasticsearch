@@ -16,10 +16,12 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ExtensiblePlugin;
+import org.elasticsearch.plugins.PluginTestUtil;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
@@ -209,10 +211,14 @@ public class MachineLearningTests extends ESTestCase {
     }
 
     public void testAnomalyDetectionOnly() throws IOException {
-        Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false, false, true, false, false));
+        Settings settings = Settings.builder()
+            .put("path.home", createTempDir())
+            .put(MachineLearning.DATA_FRAME_ANALYTICS_ENABLED.getKey(), false)
+            .put(XPackSettings.NLP_ENABLED.getKey(), false)
+            .build();
+        MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false));
         try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings, loader)) {
-            List<RestHandler> restHandlers = machineLearning.getRestHandlers(settings, null, null, null, null, null, null, null, null);
+            List<RestHandler> restHandlers = machineLearning.getRestHandlers(PluginTestUtil.emptyRestHandlersServices(), null, null);
             assertThat(restHandlers, hasItem(instanceOf(RestMlInfoAction.class)));
             assertThat(restHandlers, hasItem(instanceOf(RestGetJobsAction.class)));
             assertThat(restHandlers, not(hasItem(instanceOf(RestGetTrainedModelsAction.class))));
@@ -229,10 +235,14 @@ public class MachineLearningTests extends ESTestCase {
     }
 
     public void testDataFrameAnalyticsOnly() throws IOException {
-        Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false, false, false, true, false));
+        Settings settings = Settings.builder()
+            .put("path.home", createTempDir())
+            .put(MachineLearning.ANOMALY_DETECTION_ENABLED.getKey(), false)
+            .put(XPackSettings.NLP_ENABLED.getKey(), false)
+            .build();
+        MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false));
         try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings, loader)) {
-            List<RestHandler> restHandlers = machineLearning.getRestHandlers(settings, null, null, null, null, null, null, null, null);
+            List<RestHandler> restHandlers = machineLearning.getRestHandlers(PluginTestUtil.emptyRestHandlersServices(), null, null);
             assertThat(restHandlers, hasItem(instanceOf(RestMlInfoAction.class)));
             assertThat(restHandlers, not(hasItem(instanceOf(RestGetJobsAction.class))));
             assertThat(restHandlers, hasItem(instanceOf(RestGetTrainedModelsAction.class)));
@@ -249,10 +259,14 @@ public class MachineLearningTests extends ESTestCase {
     }
 
     public void testNlpOnly() throws IOException {
-        Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false, false, false, false, true));
+        Settings settings = Settings.builder()
+            .put("path.home", createTempDir())
+            .put(MachineLearning.ANOMALY_DETECTION_ENABLED.getKey(), false)
+            .put(MachineLearning.DATA_FRAME_ANALYTICS_ENABLED.getKey(), false)
+            .build();
+        MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false));
         try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings, loader)) {
-            List<RestHandler> restHandlers = machineLearning.getRestHandlers(settings, null, null, null, null, null, null, null, null);
+            List<RestHandler> restHandlers = machineLearning.getRestHandlers(PluginTestUtil.emptyRestHandlersServices(), null, null);
             assertThat(restHandlers, hasItem(instanceOf(RestMlInfoAction.class)));
             assertThat(restHandlers, not(hasItem(instanceOf(RestGetJobsAction.class))));
             assertThat(restHandlers, hasItem(instanceOf(RestGetTrainedModelsAction.class)));
@@ -272,49 +286,15 @@ public class MachineLearningTests extends ESTestCase {
 
         public static final String[] ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS = {};
 
-        private final boolean useIlm;
         private final boolean includeNodeInfo;
-        private final boolean isAnomalyDetectionEnabled;
-        private final boolean isDataFrameAnalyticsEnabled;
-        private final boolean isNlpEnabled;
 
-        MlTestExtension(
-            boolean useIlm,
-            boolean includeNodeInfo,
-            boolean isAnomalyDetectionEnabled,
-            boolean isDataFrameAnalyticsEnabled,
-            boolean isNlpEnabled
-        ) {
-            this.useIlm = useIlm;
+        MlTestExtension(boolean includeNodeInfo) {
             this.includeNodeInfo = includeNodeInfo;
-            this.isAnomalyDetectionEnabled = isAnomalyDetectionEnabled;
-            this.isDataFrameAnalyticsEnabled = isDataFrameAnalyticsEnabled;
-            this.isNlpEnabled = isNlpEnabled;
-        }
-
-        @Override
-        public boolean useIlm() {
-            return useIlm;
         }
 
         @Override
         public boolean includeNodeInfo() {
             return includeNodeInfo;
-        }
-
-        @Override
-        public boolean isAnomalyDetectionEnabled() {
-            return isAnomalyDetectionEnabled;
-        }
-
-        @Override
-        public boolean isDataFrameAnalyticsEnabled() {
-            return isDataFrameAnalyticsEnabled;
-        }
-
-        @Override
-        public boolean isNlpEnabled() {
-            return isNlpEnabled;
         }
 
         @Override

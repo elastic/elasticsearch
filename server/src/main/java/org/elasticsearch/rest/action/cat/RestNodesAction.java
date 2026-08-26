@@ -419,21 +419,21 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(processStats == null ? null : processStats.getMaxFileDescriptors());
 
             table.addCell(osStats == null ? null : Short.toString(osStats.getCpu().getPercent()));
-            boolean hasLoadAverage = osStats != null && osStats.getCpu().getLoadAverage() != null;
+            double[] loadAvg = osStats == null ? null : osStats.getCpu().getLoadAverage();
             table.addCell(
-                hasLoadAverage == false || osStats.getCpu().getLoadAverage()[0] == -1
+                loadAvg == null || loadAvg.length < 1 || loadAvg[0] == -1
                     ? null
-                    : RestTable.FormattedDouble.format2DecimalPlaces(osStats.getCpu().getLoadAverage()[0])
+                    : RestTable.FormattedDouble.format2DecimalPlaces(loadAvg[0])
             );
             table.addCell(
-                hasLoadAverage == false || osStats.getCpu().getLoadAverage()[1] == -1
+                loadAvg == null || loadAvg.length < 2 || loadAvg[1] == -1
                     ? null
-                    : RestTable.FormattedDouble.format2DecimalPlaces(osStats.getCpu().getLoadAverage()[1])
+                    : RestTable.FormattedDouble.format2DecimalPlaces(loadAvg[1])
             );
             table.addCell(
-                hasLoadAverage == false || osStats.getCpu().getLoadAverage()[2] == -1
+                loadAvg == null || loadAvg.length < 3 || loadAvg[2] == -1
                     ? null
-                    : RestTable.FormattedDouble.format2DecimalPlaces(osStats.getCpu().getLoadAverage()[2])
+                    : RestTable.FormattedDouble.format2DecimalPlaces(loadAvg[2])
             );
             table.addCell(osStats == null ? null : osStats.getCpu().getAvailableProcessors());
 

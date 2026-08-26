@@ -1,0 +1,3 @@
+SET unmapped_fields="nullify"; FROM
+    (FROM languages
+     | WHERE does_not_exist::LONG > 1)

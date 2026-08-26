@@ -63,6 +63,8 @@ template:
             - resource.attributes.*
             - scope.attributes.*
             - attributes.*
+          path_unmatch:
+            - '*.geo.location'
           match_mapping_type: object
           mapping:
             type: flattened

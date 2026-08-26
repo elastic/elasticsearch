@@ -161,6 +161,7 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
+                    boolean registryInstalledTemplate,
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
@@ -218,7 +219,7 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
     @SuppressWarnings("unchecked")
     private void runNoOpMappingUpdateTest(String updatedMapping) throws IOException {
         // Create index with initial mapping
-        final var indexService = createIndex("test", Settings.EMPTY, "_doc", "field", "type=keyword");
+        final var indexService = createIndex("test", Settings.EMPTY, "field", "type=keyword");
 
         // Set up MetadataMappingService with a mocked ClusterService that prevents and monitors task submission
         final ClusterService clusterService = Mockito.spy(getInstanceFromNode(ClusterService.class));

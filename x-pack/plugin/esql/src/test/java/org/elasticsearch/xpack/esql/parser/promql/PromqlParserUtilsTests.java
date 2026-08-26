@@ -9,10 +9,8 @@ package org.elasticsearch.xpack.esql.parser.promql;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
-import org.junit.BeforeClass;
 
 import java.time.Duration;
 import java.util.List;
@@ -25,14 +23,8 @@ import static java.time.Duration.ofMinutes;
 import static java.time.Duration.ofSeconds;
 import static java.util.Arrays.asList;
 import static org.hamcrest.Matchers.containsString;
-import static org.junit.Assume.assumeTrue;
 
 public class PromqlParserUtilsTests extends ESTestCase {
-
-    @BeforeClass
-    public static void checkPromqlEnabled() {
-        assumeTrue("requires snapshot build with promql feature enabled", PromqlFeatures.isEnabled());
-    }
 
     private Duration parseTimeValue(String value) {
         return PromqlParserUtils.parseDuration(new Source(0, 0, value), value);

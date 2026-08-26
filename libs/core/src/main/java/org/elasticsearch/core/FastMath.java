@@ -15,8 +15,7 @@
  * limitations under the License.
  *
  * =============================================================================
- * Notice of fdlibm package this program is partially derived from:
- *
+ * @notice
  * Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
  *
  * Developed at SunSoft, a Sun Microsystems, Inc. business.
@@ -27,6 +26,7 @@
  *
  * This code sourced from:
  * https://github.com/yannrichet/jmathplot/blob/f25426e0ab0e68647ad2b75f577c7be050ecac86/src/main/java/org/math/plot/utils/FastMath.java
+ * https://github.com/freebsd/freebsd-src/blob/6a0ab05eb5eeb701ce71630154f903668d750786/lib/msun/src/e_acosh.c
  */
 
 package org.elasticsearch.core;
@@ -91,6 +91,15 @@ final class FastMath {
     private static final double ATAN_AT8 = Double.longBitsToDouble(0x3fa97b4b24760debL); // 4.97687799461593236017e-02
     private static final double ATAN_AT9 = Double.longBitsToDouble(0xbfa2b4442c6a6c2fL); // -3.65315727442169155270e-02
     private static final double ATAN_AT10 = Double.longBitsToDouble(0x3f90ad3ae322da11L); // 1.62858201153657823623e-02
+
+    // --------------------------------------------------------------------------
+    // CONSTANTS AND TABLES FOR ACOSH
+    // --------------------------------------------------------------------------
+
+    // Shared thresholds for inverse hyperbolic functions, derived from the FreeBSD & Go implementations.
+    // https://github.com/golang/go/blob/master/src/math/*
+    private static final double HYPERBOLIC_LARGE = (double) (1L << 28);
+    private static final double HYPERBOLIC_NEAR_ZERO = 1.0 / (1L << 28);
 
     // --------------------------------------------------------------------------
     // CONSTANTS AND TABLES FOR LOG AND LOG1P
@@ -280,5 +289,119 @@ final class FastMath {
         } else { // value < 0.0, or value is NaN
             return Double.NaN;
         }
+    }
+
+    /**
+     * @param value A double value.
+     * @return Inverse hyperbolic cosine of value.
+     */
+    public static double acosh(double value) {
+        // This algorithm is a java version of golang math package implementation:
+        // https://github.com/golang/go/blob/master/src/math/acosh.go
+
+        // For values NOT CLOSE to the acosh domain boundaries, use:
+        // acosh(x):
+        // (1) := log(2x-1/(sqrt(x*x-1)+x)) if 2 < x < HYPERBOLIC_LARGE (stable formula that does not suffer from precision loss)
+        // (2) := log(x)+ln2 if x >= HYPERBOLIC_LARGE (in this range acosh reduces to a faster simplified function)
+        //
+        // For values CLOSE to 1.0, use:
+        // acosh(x)
+        // (3) := log1p(t+sqrt(2.0*t+t*t)); where t=x-1 & 1.0 <= x <= 2.0 (same as (1) but for values close to 1.0).
+
+        if (Double.isNaN(value) || value < 1.0) {
+            return Double.NaN;
+        }
+        if (value == 1.0) {
+            return 0.0;
+        }
+        if (value >= HYPERBOLIC_LARGE) {
+            return StrictMath.log(value) + LOG_2;
+        }
+        if (value > 2.0) {
+            final double xx = value * value;
+            final double s = StrictMath.sqrt(xx - 1.0);
+            return StrictMath.log(2.0 * value - 1.0 / (value + s));
+        }
+
+        final double t = value - 1.0;
+        return StrictMath.log1p(t + StrictMath.sqrt(2.0 * t + t * t));
+    }
+
+    /**
+     * @param value A double value.
+     * @return Inverse hyperbolic sine of value.
+     */
+    public static double asinh(double value) {
+        // This algorithm is a java version of golang math package implementation:
+        // https://github.com/golang/go/blob/master/src/math/asinh.go
+
+        // For values NOT CLOSE to the asinh domain boundaries, use:
+        // asinh(x):
+        // (1) := sign(x)*log(2abs(x)+1/(abs(x)+sqrt(x*x+1))) if 2 < abs(x) < HYPERBOLIC_LARGE (stable formula that does not suffer from
+        // precision loss)
+        // (2) := sign(x)*(log(abs(x))+ln2) if abs(x) >= HYPERBOLIC_LARGE (in this range asinh reduces to a faster simplified function)
+        //
+        // For values CLOSE to 0.0, use:
+        // asinh(x):
+        // (3) := sign(x)*log1p(abs(x) + x^2/(1+sqrt(1+x^2))) if HYPERBOLIC_NEAR_ZERO <= abs(x) <= 2 (same as (1) but for values close to
+        // 0.0)
+        // (4) := x if abs(x) < HYPERBOLIC_NEAR_ZERO (Taylor approximation: https://en.wikipedia.org/wiki/Taylor_series).
+
+        if (Double.isNaN(value) || Double.isInfinite(value)) {
+            return value;
+        }
+
+        final double abs = StrictMath.abs(value);
+        final double temp;
+        if (abs >= HYPERBOLIC_LARGE) {
+            temp = StrictMath.log(abs) + LOG_2;
+        } else if (abs > 2.0) {
+            temp = StrictMath.log(2.0 * abs + 1.0 / (StrictMath.sqrt(abs * abs + 1.0) + abs));
+        } else if (abs < HYPERBOLIC_NEAR_ZERO) {
+            temp = abs;
+        } else {
+            temp = StrictMath.log1p(abs + abs * abs / (1.0 + StrictMath.sqrt(1.0 + abs * abs)));
+        }
+        return StrictMath.copySign(temp, value);
+    }
+
+    /**
+     * @param value A double value.
+     * @return Inverse hyperbolic tangent of value.
+     */
+    public static double atanh(double value) {
+        // This algorithm is a java version of golang math package implementation:
+        // https://github.com/golang/go/blob/master/src/math/atanh.go
+
+        // For values NOT CLOSE to the atanh domain boundaries, use:
+        // atanh(x):
+        // (1) := sign(x)*0.5*log1p(2x/(1-x)) if 0.5 <= abs(x) < 1 (stable formula)
+        //
+        // For values CLOSE to 0.0, use:
+        // atanh(x):
+        // (2) := sign(x)*0.5*log1p(2x+2x*x/(1-x)) if abs(x) < 0.5 (avoids precision loss near zero)
+        // (3) := x if abs(x) < HYPERBOLIC_NEAR_ZERO (Taylor approximation)
+
+        if (value < -1 || value > 1 || Double.isNaN(value)) {
+            return Double.NaN;
+        }
+        if (value == 1.0) {
+            return Double.POSITIVE_INFINITY;
+        }
+        if (value == -1.0) {
+            return Double.NEGATIVE_INFINITY;
+        }
+
+        final double abs = StrictMath.abs(value);
+        final double temp;
+        if (abs < HYPERBOLIC_NEAR_ZERO) {
+            temp = abs;
+        } else if (abs < 0.5) {
+            final double t = abs + abs;
+            temp = 0.5 * StrictMath.log1p(t + t * abs / (1.0 - abs));
+        } else {
+            temp = 0.5 * StrictMath.log1p((abs + abs) / (1.0 - abs));
+        }
+        return StrictMath.copySign(temp, value);
     }
 }

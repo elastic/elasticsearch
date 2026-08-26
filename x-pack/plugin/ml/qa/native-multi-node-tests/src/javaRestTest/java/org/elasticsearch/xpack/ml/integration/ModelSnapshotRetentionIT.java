@@ -180,7 +180,7 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
 
     private List<String> getAvailableModelStateDocIds() throws Exception {
         SearchRequest searchRequest = new SearchRequest();
-        searchRequest.indices(AnomalyDetectorsIndex.jobStateIndexPattern());
+        searchRequest.indices(AnomalyDetectorsIndex.jobStateIndexPatterns());
         searchRequest.source(new SearchSourceBuilder().size(10000));
 
         return getDocIdsFromSearch(searchRequest);

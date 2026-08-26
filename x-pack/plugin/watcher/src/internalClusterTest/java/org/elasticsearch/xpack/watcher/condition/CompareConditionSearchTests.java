@@ -100,13 +100,13 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
 
     public void testExecuteAccessHits() throws Exception {
         CompareCondition condition = new CompareCondition("ctx.payload.hits.hits.0._score", CompareCondition.Op.EQ, 1, Clock.systemUTC());
-        SearchHit hit = SearchHit.unpooled(0, "1");
+        SearchHit hit = new SearchHit(0, "1");
         hit.score(1f);
         hit.shard(new SearchShardTarget("a", new ShardId("a", "indexUUID", 0), null));
 
-        SearchResponse response = SearchResponseUtils.response(
-            SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1f)
-        ).shards(3, 3, 0).build();
+        SearchHits searchHits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1f);
+        SearchResponse response = SearchResponseUtils.response(searchHits).shards(3, 3, 0).build();
+        searchHits.decRef(); // transfer ownership to response
         try {
             WatchExecutionContext ctx = mockExecutionContext("_watch_name", new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
             assertThat(condition.execute(ctx).met(), is(true));

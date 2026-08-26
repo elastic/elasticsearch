@@ -13,7 +13,7 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
@@ -42,13 +42,13 @@ public class StringExtractOperator extends AbstractPageMappingOperator {
     }
 
     private final String[] fieldNames;
-    private final EvalOperator.ExpressionEvaluator inputEvaluator;
+    private final ExpressionEvaluator inputEvaluator;
     private final Function<String, Map<String, String>> parser;  // TODO parser should consume ByteRef instead of String
     private final DriverContext driverContext;
 
     public StringExtractOperator(
         String[] fieldNames,
-        EvalOperator.ExpressionEvaluator inputEvaluator,
+        ExpressionEvaluator inputEvaluator,
         Function<String, Map<String, String>> parser,
         DriverContext driverContext
     ) {

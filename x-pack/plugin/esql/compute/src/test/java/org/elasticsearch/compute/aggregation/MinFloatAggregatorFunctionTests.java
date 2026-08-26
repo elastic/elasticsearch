@@ -11,8 +11,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.SequenceFloatBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceFloatBlockSourceOperator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;

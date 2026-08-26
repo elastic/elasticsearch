@@ -42,3 +42,4 @@ RUN mkdir /app && \\
 COPY --from=builder --chown=0:0 /opt /opt
 USER 1000:0
 ENV ES_PLUGIN_ARCHIVE_DIR /opt/plugins/archive
+ENV GLIBC_TUNABLES=glibc.malloc.hugetlb=0

@@ -264,7 +264,7 @@
                     "title": "Valid options when type is an enum"
                 },
                 "default": {
-                    "type": ["string", "number", "boolean"],
+                    "type": ["string", "number", "boolean", "array"],
                     "title": "Default value"
                 },
                 "deprecated": {

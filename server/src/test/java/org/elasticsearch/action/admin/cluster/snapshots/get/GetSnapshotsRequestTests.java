@@ -32,6 +32,11 @@ public class GetSnapshotsRequestTests extends ESTestCase {
             assertNull(request.validate());
         }
         {
+            final GetSnapshotsRequest request = new GetSnapshotsRequest(TEST_REQUEST_TIMEOUT, "repo", "snapshot").offset(-1);
+            final ActionRequestValidationException e = request.validate();
+            assertThat(e.getMessage(), containsString("offset must be non-negative"));
+        }
+        {
             final GetSnapshotsRequest request = new GetSnapshotsRequest(TEST_REQUEST_TIMEOUT, "repo", "snapshot").verbose(false)
                 .size(randomIntBetween(1, 500));
             final ActionRequestValidationException e = request.validate();
@@ -57,7 +62,7 @@ public class GetSnapshotsRequestTests extends ESTestCase {
         }
         {
             final GetSnapshotsRequest request = new GetSnapshotsRequest(TEST_REQUEST_TIMEOUT, "repo", "snapshot").verbose(false)
-                .after(new SnapshotSortKey.After("foo", "repo", "bar"));
+                .after(new After("foo", "repo", "bar"));
             final ActionRequestValidationException e = request.validate();
             assertThat(e.getMessage(), containsString("can't use after with verbose=false"));
         }
@@ -69,14 +74,14 @@ public class GetSnapshotsRequestTests extends ESTestCase {
         }
         {
             final GetSnapshotsRequest request = new GetSnapshotsRequest(TEST_REQUEST_TIMEOUT, "repo", "snapshot").after(
-                new SnapshotSortKey.After("foo", "repo", "bar")
+                new After("foo", "repo", "bar")
             ).offset(randomIntBetween(1, 500));
             final ActionRequestValidationException e = request.validate();
             assertThat(e.getMessage(), containsString("can't use after and offset simultaneously"));
         }
         {
             final GetSnapshotsRequest request = new GetSnapshotsRequest(TEST_REQUEST_TIMEOUT, "repo", "snapshot").fromSortValue("foo")
-                .after(new SnapshotSortKey.After("foo", "repo", "bar"));
+                .after(new After("foo", "repo", "bar"));
             final ActionRequestValidationException e = request.validate();
             assertThat(e.getMessage(), containsString("can't use after and from_sort_value simultaneously"));
         }

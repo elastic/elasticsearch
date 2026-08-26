@@ -81,6 +81,22 @@ public class OpenShiftAiRerankServiceSettings extends OpenShiftAiServiceSettings
     }
 
     @Override
+    public OpenShiftAiRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new OpenShiftAiRerankServiceSettings(this.modelId, this.uri, extractedRateLimitSettings);
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }

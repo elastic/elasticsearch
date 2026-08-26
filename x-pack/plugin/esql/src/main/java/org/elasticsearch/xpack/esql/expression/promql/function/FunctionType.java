@@ -7,123 +7,138 @@
 
 package org.elasticsearch.xpack.esql.expression.promql.function;
 
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
+
 /**
  * Classifies PromQL functions by their input vector type and aggregation behavior.
+ * <p>
  * This classification is independent of how the function is transformed to ESQL.
  */
 public enum FunctionType {
     /**
-     * Aggregates data within each time series over a time window.
-     *
-     * Input: Range vector (multiple samples per series over time range)
-     * Output: Instant vector (one aggregated value per series)
-     * Grouping: Implicit by time series (_tsid)
-     *
+     * Aggregates samples within each time series over a time window.
+     * <p>
+     * Input: Range vector, with multiple samples per series over the requested window.
+     * <br>
+     * Output: Instant vector, with one aggregated value per series.
+     * <br>
+     * Grouping: Implicit by time series.
+     * <p>
      * Examples:
-     * - Rate functions: rate(), irate(), increase(), delta(), idelta()
-     * - Aggregations: avg_over_time(), sum_over_time(), max_over_time(), min_over_time(), count_over_time()
-     * - Selection: first_over_time(), last_over_time()
-     * - Presence: present_over_time(), absent_over_time()
+     * <ul>
+     * <li>Rate functions: rate(), irate(), increase(), delta(), idelta()</li>
+     * <li>Aggregations: avg_over_time(), sum_over_time(), max_over_time(), min_over_time(), count_over_time()</li>
+     * <li>Selection: first_over_time(), last_over_time()</li>
+     * <li>Presence: present_over_time(), absent_over_time()</li>
+     * </ul>
      */
-    WITHIN_SERIES_AGGREGATION,
+    WITHIN_SERIES_AGGREGATION(PromqlDataType.RANGE_VECTOR, PromqlDataType.INSTANT_VECTOR),
 
     /**
-     * Aggregates data across multiple time series at a single point in time.
-     *
-     * Input: Instant vector (one sample per series at evaluation time)
-     * Output: Instant vector (aggregated across series)
-     * Grouping: Explicit by labels (by/without)
-     *
+     * Aggregates multiple time series for each evaluation interval.
+     * <p>
+     * Input: Instant vector, with one sample per series for the interval.
+     * <br>
+     * Output: Instant vector, aggregated across series.
+     * <br>
+     * Grouping: Explicit by labels ({@code by}/{@code without}) or ungrouped.
+     * <p>
      * Examples:
-     * - Basic: sum(), avg(), max(), min(), count()
-     * - Statistical: stddev(), stdvar(), quantile()
-     * - Top-k: topk(), bottomk()
-     * - Grouping: group(), count_values()
+     * <ul>
+     * <li>Basic: sum(), avg(), max(), min(), count()</li>
+     * <li>Statistical: stddev(), stdvar(), quantile()</li>
+     * <li>Grouping: group(), count_values()</li>
+     * </ul>
      */
-    ACROSS_SERIES_AGGREGATION,
+    ACROSS_SERIES_AGGREGATION(PromqlDataType.INSTANT_VECTOR, PromqlDataType.INSTANT_VECTOR),
 
     /**
-     * Transforms each sample in a vector independently (element-wise operations).
-     *
-     * Input: Instant vector
-     * Output: Instant vector (same cardinality, transformed values)
-     *
+     * Ranks multiple time series for each evaluation interval and keeps a subset of them.
+     * <p>
+     * Input: Instant vector, with one sample per series for the interval.
+     * <br>
+     * Output: Instant vector, with the selected input series.
+     * <br>
+     * Grouping: Explicit {@code by} partitions the ranking; selected series keep their full label identity.
+     * <p>
+     * Unlike aggregations, ranking functions preserve the full label identity of selected series.
+     * <p>
      * Examples:
-     * - Math: abs(), ceil(), floor(), round(), sqrt(), exp(), ln(), log2(), log10()
-     * - Trigonometric: sin(), cos(), tan(), asin(), acos(), atan(), sinh(), cosh(), tanh()
-     * - Clamping: clamp(), clamp_max(), clamp_min()
-     * - Sign: sgn()
+     * <ul>
+     * <li>Top-k: topk()</li>
+     * <li>Bottom-k: bottomk()</li>
+     * <li>Limit-k: limitk()</li>
+     * </ul>
      */
-    VALUE_TRANSFORMATION,
+    ACROSS_SERIES_REDUCTION(PromqlDataType.INSTANT_VECTOR, PromqlDataType.INSTANT_VECTOR),
 
     /**
-     * Manipulates or queries the label set of time series.
-     *
-     * Input: Instant vector
-     * Output: Instant vector (modified labels or label-based filtering)
-     *
+     * Transforms each sample independently without changing vector cardinality.
+     * <p>
+     * Input: Instant vector.
+     * <br>
+     * Output: Instant vector with the same label sets.
+     * <br>
+     * Grouping: none; each sample is transformed independently.
+     * <p>
      * Examples:
-     * - Manipulation: label_replace(), label_join()
-     * - Querying: absent()
+     * <ul>
+     * <li>Math: abs(), ceil(), floor(), round(), sqrt(), exp(), ln(), log2(), log10()</li>
+     * <li>Trigonometry: sin(), cos()</li>
+     * <li>Clamping/sign: clamp(), clamp_max(), clamp_min(), sgn()</li>
+     * </ul>
      */
-    METADATA_MANIPULATION,
+    VALUE_TRANSFORMATION(PromqlDataType.INSTANT_VECTOR, PromqlDataType.INSTANT_VECTOR),
+
+    /**
+     * Manipulates, queries, or filters series based on their labels.
+     * <p>
+     * Examples: label_replace(), label_join(), absent()
+     */
+    METADATA_MANIPULATION(PromqlDataType.INSTANT_VECTOR, PromqlDataType.INSTANT_VECTOR),
 
     /**
      * Extracts or computes time-based values from timestamps.
-     *
-     * Input: Instant vector
-     * Output: Instant vector (timestamp replaced with time component)
-     *
-     * Examples: day_of_month(), day_of_week(), hour(), minute(), month(), year(), timestamp()
+     * <p>
+     * Examples: day_of_month(), day_of_week(), days_in_month(), hour(), minute(),
+     * month(), year(), timestamp()
      */
-    TIME_EXTRACTION,
+    TIME_EXTRACTION(PromqlDataType.INSTANT_VECTOR, PromqlDataType.INSTANT_VECTOR),
 
     /**
-     * Operates on histogram data types.
-     *
-     * Input: Instant vector (histogram samples)
-     * Output: Instant vector or scalar
-     *
+     * Operates on native histogram samples.
+     * <p>
      * Examples: histogram_quantile(), histogram_avg(), histogram_count(), histogram_sum()
      */
-    HISTOGRAM,
+    HISTOGRAM(PromqlDataType.INSTANT_VECTOR, PromqlDataType.INSTANT_VECTOR),
 
     /**
-     * Special functions that don't fit standard patterns.
-     *
-     * Examples:
-     * - vector() - converts scalar to vector
-     * - scalar() - converts single-element vector to scalar
-     * - time() - current timestamp as scalar
-     * - pi() - mathematical constant
+     * Converts a scalar to an instant vector.
+     * <p>
+     * Example: {@code vector(42)}
      */
-    SPECIAL;
+    VECTOR_CONVERSION(PromqlDataType.SCALAR, PromqlDataType.INSTANT_VECTOR),
 
     /**
-     * Returns whether this function operates on range vectors.
+     * Converts a single-element instant vector to a scalar.
+     * <p>
+     * If the vector does not contain exactly one element, {@code NaN} is returned.
+     * Example: {@code scalar(vector(42))}
      */
-    public boolean isRangeVector() {
-        return this == WITHIN_SERIES_AGGREGATION;
-    }
+    SCALAR_CONVERSION(PromqlDataType.INSTANT_VECTOR, PromqlDataType.SCALAR),
 
     /**
-     * Returns whether this function operates on instant vectors.
+     * Produces a scalar without consuming an input argument.
+     * <p>
+     * Examples: {@code pi()}, {@code time()}
      */
-    public boolean isInstantVector() {
-        return this != WITHIN_SERIES_AGGREGATION;
-    }
+    SCALAR(null, PromqlDataType.SCALAR);
 
-    /**
-     * Returns whether this function performs aggregation.
-     */
-    public boolean isAggregation() {
-        return this == WITHIN_SERIES_AGGREGATION || this == ACROSS_SERIES_AGGREGATION;
-    }
+    public final PromqlDataType inputType;
+    public final PromqlDataType outputType;
 
-    /**
-     * Returns whether this function transforms values element-wise.
-     */
-    public boolean isElementWise() {
-        return this == VALUE_TRANSFORMATION || this == TIME_EXTRACTION || this == METADATA_MANIPULATION;
+    FunctionType(PromqlDataType inputType, PromqlDataType outputType) {
+        this.inputType = inputType;
+        this.outputType = outputType;
     }
 }

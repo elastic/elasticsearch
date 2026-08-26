@@ -5,6 +5,7 @@ esplugin {
   description = 'Elasticsearch Expanded Pack Plugin - Voting-only node'
   classname ='org.elasticsearch.cluster.coordination.votingonly.VotingOnlyNodePlugin'
   extendedPlugins = ['x-pack-core']
+  deploymentTarget = 'STATEFUL_ONLY'
 }
 
 dependencies {

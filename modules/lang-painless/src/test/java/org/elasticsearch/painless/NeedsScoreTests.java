@@ -32,13 +32,13 @@ import static org.elasticsearch.painless.ScriptTestCase.PAINLESS_BASE_WHITELIST;
 public class NeedsScoreTests extends ESSingleNodeTestCase {
 
     public void testNeedsScores() {
-        IndexService index = createIndex("test", Settings.EMPTY, "type", "d", "type=double");
+        IndexService index = createIndex("test", Settings.EMPTY, "d", "type=double");
 
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
         contexts.put(NumberSortScript.CONTEXT, PAINLESS_BASE_WHITELIST);
         PainlessScriptEngine service = new PainlessScriptEngine(Settings.EMPTY, contexts);
 
-        SearchExecutionContext searchExecutionContext = index.newSearchExecutionContext(0, 0, null, () -> 0, null, emptyMap());
+        SearchExecutionContext searchExecutionContext = index.newSearchExecutionContext(0, 0, null, () -> 0, null, emptyMap(), null, null);
 
         NumberSortScript.Factory factory = service.compile(null, "1.2", NumberSortScript.CONTEXT, Collections.emptyMap());
         NumberSortScript.LeafFactory ss = factory.newFactory(Collections.emptyMap(), searchExecutionContext.lookup());

@@ -25,9 +25,9 @@ import org.elasticsearch.health.Diagnosis.Resource.Type;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.node.FileSettingsHealthInfo;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.health.node.RepositoriesHealthInfo;
-import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -63,9 +63,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
     private FeatureService featureService;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
-
+    public void initNodes() throws Exception {
         node1 = DiscoveryNodeUtils.create(randomAlphaOfLength(10), randomUUID());
         node2 = DiscoveryNodeUtils.create(randomAlphaOfLength(10), randomUUID());
         healthInfo = new HealthInfo(

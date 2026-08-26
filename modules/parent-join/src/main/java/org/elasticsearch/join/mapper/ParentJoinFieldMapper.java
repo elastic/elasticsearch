@@ -117,6 +117,11 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public ParentJoinFieldMapper build(MapperBuilderContext context) {
             if (multiFieldsBuilder.hasMultiFields()) {
                 DEPRECATION_LOGGER.warn(
@@ -250,7 +255,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void parse(DocumentParserContext context) throws IOException {
+    public ParseResult parse(DocumentParserContext context) throws IOException {
         context.path().add(leafName());
         XContentParser.Token token = context.parser().currentToken();
         String name = null;
@@ -316,6 +321,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         context.doc().add(field);
         context.doc().add(new SortedDocValuesField(fieldType().name(), binaryValue));
         context.path().remove();
+        return new ParseResult.Indexed();
     }
 
     @Override

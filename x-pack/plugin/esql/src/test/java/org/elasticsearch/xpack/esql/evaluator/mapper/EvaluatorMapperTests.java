@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.evaluator.mapper;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -20,23 +21,25 @@ public class EvaluatorMapperTests extends ESTestCase {
         Add add = new Add(
             Source.synthetic("shouldn't break"),
             new Literal(Source.EMPTY, 1, DataType.INTEGER),
-            new Literal(Source.EMPTY, 3, DataType.INTEGER)
+            new Literal(Source.EMPTY, 3, DataType.INTEGER),
+            EsqlTestUtils.TEST_CFG
         );
-        assertEquals(add.fold(new FoldContext(100)), 4);
+        assertEquals(add.fold(new FoldContext(200)), 4);
     }
 
     public void testFoldBreaksWithLittleMemory() {
         Add add = new Add(
             Source.synthetic("should break"),
             new Literal(Source.EMPTY, 1, DataType.INTEGER),
-            new Literal(Source.EMPTY, 3, DataType.INTEGER)
+            new Literal(Source.EMPTY, 3, DataType.INTEGER),
+            EsqlTestUtils.TEST_CFG
         );
         Exception e = expectThrows(FoldContext.FoldTooMuchMemoryException.class, () -> add.fold(new FoldContext(10)));
         assertThat(
             e.getMessage(),
             Matchers.equalTo(
                 "line -1:-1: Folding query used more than 10b. "
-                    + "The expression that pushed past the limit is [should break] which needed 32b."
+                    + "The expression that pushed past the limit is [should break] which needed 40b."
             )
         );
     }

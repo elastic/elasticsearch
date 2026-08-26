@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.support;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -32,9 +31,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -62,18 +58,28 @@ public class MetadataFlattenedMigrationIntegTests extends SecurityIntegTestCase 
         internalCluster().startNode();
         ensureGreen();
 
-        waitForMigrationCompletion();
-        var roles = createRoles();
-        final var nativeRoleStore = internalCluster().getInstance(NativeRolesStore.class);
-        PlainActionFuture<Void> roleUpdatesCompleteListener = new PlainActionFuture<>();
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        try (RefCountingListener refs = new RefCountingListener(roleUpdatesCompleteListener)) {
-            final AtomicBoolean runUpdateRolesBackground = new AtomicBoolean(true);
-            executor.submit(() -> {
-                while (runUpdateRolesBackground.get()) {
-                    // Only update half the list so the other half can be verified as migrated
-                    RoleDescriptor roleToUpdate = randomFrom(roles.subList(0, roles.size() / 2));
+        createSecurityIndexWithWaitForActiveShards();
 
+        final var roles = createRoles();
+        final var nativeRoleStore = internalCluster().getInstance(NativeRolesStore.class);
+
+        final int concurrentWriters = scaledRandomIntBetween(6, 10);
+        final int updatesPerWriter = scaledRandomIntBetween(20, 50);
+        // Only update half the list so the other half can be verified as migrated
+        final List<RoleDescriptor> concurrentlyUpdatedRoles = roles.subList(0, roles.size() / 2);
+
+        startInParallel(concurrentWriters + 1, taskIndex -> {
+            if (taskIndex == 0) {
+                try {
+                    // reset migration version in parallel to updates, to ensure migration and updates run concurrently
+                    resetMigration();
+                    waitForMigrationCompletion();
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            } else {
+                for (int u = 0; u < updatesPerWriter; u++) {
+                    RoleDescriptor roleToUpdate = randomFrom(concurrentlyUpdatedRoles);
                     RoleDescriptor updatedRole = new RoleDescriptor(
                         roleToUpdate.getName(),
                         new String[] { "monitor" },
@@ -84,28 +90,14 @@ public class MetadataFlattenedMigrationIntegTests extends SecurityIntegTestCase 
                         Map.of("test", "value", "timestamp", System.currentTimeMillis(), "random", randomAlphaOfLength(10)),
                         null
                     );
-                    nativeRoleStore.putRole(
-                        WriteRequest.RefreshPolicy.IMMEDIATE,
-                        updatedRole,
-                        refs.acquire(resp -> logger.trace("Updated role [{}]", updatedRole))
-                    );
-                    try {
-                        Thread.sleep(10);
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
+                    PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+                    nativeRoleStore.putRole(WriteRequest.RefreshPolicy.IMMEDIATE, updatedRole, future);
+                    future.actionGet();
                 }
-            });
+            }
+        });
 
-            resetMigration();
-            waitForMigrationCompletion();
-            runUpdateRolesBackground.set(false);
-            assertAllRolesHaveMetadataFlattened();
-        } finally {
-            // Await all role updates before shutting down
-            roleUpdatesCompleteListener.get();
-            terminate(executor);
-        }
+        assertAllRolesHaveMetadataFlattened();
     }
 
     private void resetMigration() {
@@ -177,6 +169,7 @@ public class MetadataFlattenedMigrationIntegTests extends SecurityIntegTestCase 
         for (SearchHit hit : response.getHits().getHits()) {
             @SuppressWarnings("unchecked")
             Map<String, Object> metadata = (Map<String, Object>) hit.getSourceAsMap().get("metadata_flattened");
+            assertNotNull("role [" + hit.getId() + "] is missing metadata_flattened", metadata);
             // Only check non-reserved roles
             if (metadata.get("_reserved") == null) {
                 assertEquals("value", metadata.get("test"));

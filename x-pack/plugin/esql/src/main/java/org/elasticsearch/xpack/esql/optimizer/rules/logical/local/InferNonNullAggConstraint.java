@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AllFirst;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.First;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
@@ -23,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
+import java.util.Collection;
 import java.util.Set;
 
 /**
@@ -44,40 +47,49 @@ public class InferNonNullAggConstraint extends OptimizerRules.ParameterizedOptim
     @Override
     protected LogicalPlan rule(Aggregate aggregate, LocalLogicalOptimizerContext context) {
         // only look at aggregates with default grouping
-        if (aggregate.groupings().size() > 0 || aggregate instanceof TimeSeriesAggregate) {
+        if (aggregate.aggregates().isEmpty() || aggregate.groupings().isEmpty() == false || aggregate instanceof TimeSeriesAggregate) {
             return aggregate;
         }
 
         SearchStats stats = context.searchStats();
-        LogicalPlan plan = aggregate;
+
+        AttributeMap.Builder<Expression> aliasesBuilder = AttributeMap.builder();
+        aggregate.forEachUp(p -> p.forEachExpression(Alias.class, a -> aliasesBuilder.put(a.toAttribute(), a.child())));
+        AttributeMap<Expression> aliases = aliasesBuilder.build();
+
         var aggs = aggregate.aggregates();
-        Set<Expression> nonNullAggFields = Sets.newLinkedHashSetWithExpectedSize(aggs.size());
+        Set<Expression> predicates = Sets.newLinkedHashSetWithExpectedSize(aggs.size());
         for (var agg : aggs) {
             if (Alias.unwrap(agg) instanceof AggregateFunction af) {
+                if (af instanceof First || af instanceof Last) {
+                    // First (Last) may return null if that's first (last) value, so needs nulls.
+                    // TODO: this blocklist is a picking timebomb. Create marker interface on agg.fns
+                    // `IgnoresNulls` and take it from there.
+                    return aggregate;
+                }
                 Expression field = af.field();
-                // ignore literals (e.g. COUNT(1))
+                if (field.foldable()) {
+                    // Ignore literals (e.g. COUNT(1))
+                    return aggregate;
+                }
+                Collection<Expression> attributes = InferIsNotNull.resolveExpressionAsRootAttributes(field, aliases, aggregate.inputSet());
                 // make sure the field exists at the source and is indexed (not runtime)
-
-                if (af instanceof AllFirst) {
-                    // Exceptionally allow this agg function to be passed down null values
-                    return plan;
+                attributes = attributes.stream().filter(a -> a instanceof FieldAttribute fa && stats.isIndexed(fa.fieldName())).toList();
+                if (attributes.isEmpty()) {
+                    // bail out, because all rows are needed for this aggregation and no filter can be added
+                    return aggregate;
                 }
 
-                if (field.foldable() == false && field instanceof FieldAttribute fa && stats.isIndexed(fa.fieldName())) {
-                    nonNullAggFields.add(field);
-                } else {
-                    // otherwise bail out since unless disjunction needs to cover _all_ fields, things get filtered out
-                    return plan;
-                }
+                // All attributes returned by `InferIsNotNull.resolveExpressionAsRootAttributes`
+                // must be non-null, otherwise the aggregation function receives null from this
+                // row, which is ignored.
+                // This is needed for surrogates like: AVG(x) = SUM(TO_DOUBLE(x)) / COUNT(x).
+                predicates.add(Predicates.combineAnd(attributes.stream().map(a -> new IsNotNull(aggregate.source(), a)).toList()));
             }
         }
 
-        if (nonNullAggFields.size() > 0) {
-            Expression condition = Predicates.combineOr(
-                nonNullAggFields.stream().map(f -> (Expression) new IsNotNull(aggregate.source(), f)).toList()
-            );
-            plan = aggregate.replaceChild(new Filter(aggregate.source(), aggregate.child(), condition));
-        }
-        return plan;
+        // If all predicates are false, a document contributes to no aggregation at all.
+        // Hence, we can add a filter by an "or" of all predicates.
+        return aggregate.replaceChild(new Filter(aggregate.source(), aggregate.child(), Predicates.combineOr(predicates)));
     }
 }

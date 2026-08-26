@@ -95,7 +95,7 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
     }
 
     @Override
-    protected NodeInfo<AggregateExec> info() {
+    protected NodeInfo<? extends AggregateExec> info() {
         return NodeInfo.create(this, AggregateExec::new, child(), groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
     }
 
@@ -142,29 +142,6 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
 
     public AggregatorMode getMode() {
         return mode;
-    }
-
-    /**
-     * Used only for bwc when de-/serializing.
-     */
-    @Deprecated
-    private enum Mode {
-        SINGLE,
-        PARTIAL, // maps raw inputs to intermediate outputs
-        FINAL; // maps intermediate inputs to final outputs
-
-        static Mode fromAggregatorMode(AggregatorMode aggregatorMode) {
-            return switch (aggregatorMode) {
-                case SINGLE -> SINGLE;
-                case INITIAL -> PARTIAL;
-                case FINAL -> FINAL;
-                // If needed, we could have this return an PARTIAL instead; that's how intermediate aggs were encoded in the past for
-                // data node level reduction.
-                case INTERMEDIATE -> throw new UnsupportedOperationException(
-                    "cannot turn intermediate aggregation into single, partial or final."
-                );
-            };
-        }
     }
 
     /**

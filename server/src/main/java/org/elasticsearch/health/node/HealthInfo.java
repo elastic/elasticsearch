@@ -14,14 +14,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthInfo;
 
 import java.io.IOException;
 import java.util.Map;
 
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.health.node.DataStreamLifecycleHealthInfo.NO_DSL_ERRORS;
-import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthInfo.INDETERMINATE;
+import static org.elasticsearch.health.node.FileSettingsHealthInfo.INDETERMINATE;
 
 /**
  * This class wraps all the data returned by the health node.

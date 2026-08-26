@@ -127,6 +127,18 @@ public class ClusterChangedEvent {
         return state.metadata() != previousState.metadata();
     }
 
+    /// Returns `true` if the master node changed in this cluster state update.
+    public boolean masterChanged() {
+        return Objects.equals(state.nodes().getMasterNodeId(), previousState.nodes().getMasterNodeId()) == false
+            || state.term() != previousState.term();
+    }
+
+    /// Returns `true` if the cluster just finished recovering (the [GatewayService.STATE_NOT_RECOVERED_BLOCK]
+    /// was just removed).
+    public boolean clusterJustRecovered() {
+        return state.clusterRecovered() && previousState.clusterRecovered() == false;
+    }
+
     /**
      * Returns a set of custom meta data types when any custom metadata for the cluster has changed
      * between the previous cluster state and the new cluster state. custom meta data types are

@@ -10,7 +10,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.shard.ShardId;
 
 public interface MappingUpdatePerformer {
@@ -18,6 +18,6 @@ public interface MappingUpdatePerformer {
     /**
      * Update the mappings on the master.
      */
-    void updateMappings(Mapping update, ShardId shardId, ActionListener<Void> listener);
+    void updateMappings(CompressedXContent update, ShardId shardId, ActionListener<Void> listener);
 
 }

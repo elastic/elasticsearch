@@ -1,0 +1,7 @@
+FROM airports
+| WHERE country IS NOT NULL
+| STATS count=COUNT() BY country
+| WHERE count > 10
+| SORT count DESC
+| LIMIT 1000
+// Note that subqueries no longer add implicit limits, so we need to explicitly limit the result set (due to SORT)

@@ -1,5 +1,7 @@
 ---
 setup:
+  - requires:
+      test_runner_features: [allowed_warnings]
   - do:
       cluster.health:
         wait_for_events: languid
@@ -191,9 +193,37 @@ IP dimensions:
       search:
         index: metrics-generic.otel-default
   - length: { hits.hits: 1 }
+
+---
+"http.response.status_code should be mapped as long":
+  - do:
+      bulk:
+        index: metrics-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - "@timestamp": 2024-10-05T00:00:00Z
+            attributes:
+              http.response.status_code: "200"
+          - create: {}
+          - "@timestamp": 2024-10-05T01:00:00Z
+            attributes:
+              http.response.status_code: 201
+  - is_false: errors
+  - do:
+      search:
+        index: metrics-generic.otel-default
+        body:
+          fields: ["attributes.http.response.status_code"]
+          sort: ["@timestamp"]
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0.fields.attributes\.http\.response\.status_code: [200] }
+  - match: { hits.hits.1.fields.attributes\.http\.response\.status_code: [201] }
 ---
 "Dynamic templates":
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       bulk:
         index: metrics-generic.otel-default
         refresh: true

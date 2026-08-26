@@ -31,8 +31,14 @@ public class DisabledSearchStats implements SearchStats {
 
     @Override
     public boolean hasDocValues(FieldName field) {
-        // Some geo tests assume doc values and the loader emulates it. Nothing else does.
-        return field.string().endsWith("location") || field.string().endsWith("centroid") || field.string().equals("subset");
+        // Some spatial tests assume doc values and the loader emulates it. Nothing else does.
+        // Point fields: location, city_location, centroid
+        // Shape fields: shape, geo_shape, city_boundary, event_shape, event_city_boundary
+        return field.string().endsWith("location")
+            || field.string().endsWith("centroid")
+            || field.string().endsWith("shape")
+            || field.string().endsWith("boundary")
+            || field.string().equals("subset");
     }
 
     @Override

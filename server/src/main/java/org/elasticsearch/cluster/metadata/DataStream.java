@@ -63,6 +63,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -83,6 +84,13 @@ import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 
 public final class DataStream implements SimpleDiffable<DataStream>, ToXContentObject, IndexAbstraction {
 
+    /**
+     * Cluster feature that gates {@code BulkOperation}'s use of this action. Guards against calling this action on an old master that
+     * does not have it registered, which would happen during a rolling upgrade.
+     */
+    public static final NodeFeature TIME_SERIES_PAST_INDEX_CREATION_FEATURE = new NodeFeature(
+        "data_stream.time_series.past_index_creation"
+    );
     private static final Logger LOGGER = LogManager.getLogger(DataStream.class);
 
     private static final TransportVersion SETTINGS_IN_DATA_STREAMS = TransportVersion.fromName("settings_in_data_streams");
@@ -94,6 +102,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final String FAILURE_STORE_PREFIX = ".fs-";
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
     public static final String TIMESTAMP_FIELD_NAME = "@timestamp";
+    public static final String TYPE = "type";
+    public static final String DATASET = "dataset";
+    public static final String NAMESPACE = "namespace";
 
     private static final int MAX_LENGTH = 100;
     private static final String REPLACEMENT = "_";
@@ -109,8 +120,50 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return sanitizeDataStreamField(dataset, DISALLOWED_IN_DATASET);
     }
 
+    /**
+     * Validates that the provided dataset value is already in its canonical form.
+     * <p>
+     * This method validates and does not sanitize.
+     *
+     * @param dataset the dataset value to validate
+     * @throws IllegalArgumentException if the value contains disallowed characters
+     */
+    public static void validateDataset(String dataset) {
+        validateDataStreamField(DATASET, dataset, DataStream::sanitizeDataset, DISALLOWED_IN_DATASET);
+    }
+
     public static String sanitizeNamespace(String namespace) {
         return sanitizeDataStreamField(namespace, DISALLOWED_IN_NAMESPACE);
+    }
+
+    /**
+     * Validates that the provided namespace value is already in its canonical form.
+     * <p>
+     * This method validates and does not sanitize.
+     *
+     * @param namespace the namespace value to validate
+     * @throws IllegalArgumentException if the value contains disallowed characters
+     */
+    public static void validateNamespace(String namespace) {
+        validateDataStreamField(NAMESPACE, namespace, DataStream::sanitizeNamespace, DISALLOWED_IN_NAMESPACE);
+    }
+
+    private static void validateDataStreamField(
+        String fieldName,
+        String value,
+        Function<String, String> sanitizer,
+        Pattern disallowedCharactersPattern
+    ) {
+        if (Objects.equals(sanitizer.apply(value), value) == false) {
+            throw new IllegalArgumentException(
+                "data stream "
+                    + fieldName
+                    + " '"
+                    + value
+                    + "' contains disallowed characters, must conform to regex "
+                    + disallowedCharactersPattern.pattern()
+            );
+        }
     }
 
     private static String sanitizeDataStreamField(String s, Pattern disallowedInDataset) {
@@ -556,9 +609,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             Index index = backingIndices.indices.get(i);
             IndexMetadata im = project.index(index);
 
-            // TODO: make index_mode, start and end time fields in IndexMetadata class.
-            // (this to avoid the overhead that occurs when reading a setting)
-            if (im.getIndexMode() != IndexMode.TIME_SERIES) {
+            if (IndexMode.isTsdb(im.getIndexMode()) == false) {
                 // Not a tsdb backing index, so skip.
                 // (This can happen if this is a migrated tsdb data stream)
                 continue;
@@ -566,6 +617,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
             Instant start = im.getTimeSeriesStart();
             Instant end = im.getTimeSeriesEnd();
+            assert start != null && end != null : "start and end markers cannot be null";
             // Check should be in sync with DataStreamTimestampFieldMapper#validateTimestamp(...) method
             if (timestamp.compareTo(start) >= 0 && timestamp.compareTo(end) < 0) {
                 return index;
@@ -581,7 +633,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * @param imSupplier Function that supplies {@link IndexMetadata} instances based on the provided index name
      */
     public void validate(Function<String, IndexMetadata> imSupplier) {
-        if (indexMode == IndexMode.TIME_SERIES) {
+        if (IndexMode.isTsdb(indexMode)) {
             // Get a sorted overview of each backing index with there start and end time range:
             var startAndEndTimes = backingIndices.indices.stream().map(index -> {
                 IndexMetadata im = imSupplier.apply(index.getName());
@@ -825,26 +877,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         DataStreamAutoShardingEvent autoShardingEvent
     ) {
         IndexMode dsIndexMode = this.indexMode;
-        if ((dsIndexMode == null || dsIndexMode == IndexMode.STANDARD) && indexModeFromTemplate == IndexMode.TIME_SERIES) {
-            // This allows for migrating a data stream to be a tsdb data stream:
-            // (only if index_mode=null|standard then allow it to be set to time_series)
-            dsIndexMode = IndexMode.TIME_SERIES;
-        } else if (dsIndexMode == IndexMode.TIME_SERIES && (indexModeFromTemplate == null || indexModeFromTemplate == IndexMode.STANDARD)) {
-            // Allow downgrading a time series data stream to a regular data stream
-            dsIndexMode = null;
-        } else if ((dsIndexMode == null || dsIndexMode == IndexMode.STANDARD) && indexModeFromTemplate == IndexMode.LOGSDB) {
-            dsIndexMode = IndexMode.LOGSDB;
-        } else if (dsIndexMode == IndexMode.LOGSDB && (indexModeFromTemplate == null || indexModeFromTemplate == IndexMode.STANDARD)) {
-            // Allow downgrading a time series data stream to a regular data stream
-            dsIndexMode = null;
-        } else if (dsIndexMode == IndexMode.TIME_SERIES && indexModeFromTemplate == IndexMode.LOGSDB) {
-            dsIndexMode = IndexMode.LOGSDB;
-            LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
-        } else if (dsIndexMode == IndexMode.LOGSDB && indexModeFromTemplate == IndexMode.TIME_SERIES) {
-            dsIndexMode = IndexMode.TIME_SERIES;
-            LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
+        if (dsIndexMode != indexModeFromTemplate) {
+            if (IndexMode.isTsdb(indexModeFromTemplate) && (dsIndexMode == IndexMode.LOGSDB || dsIndexMode == IndexMode.LOGSDB_COLUMNAR)) {
+                LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
+            }
+            dsIndexMode = indexModeFromTemplate;
         }
-
         List<Index> backingIndices = new ArrayList<>(this.backingIndices.indices);
         backingIndices.add(writeIndex);
         return copy().setBackingIndices(
@@ -1057,6 +1095,24 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         // ensure that no aliases reference index
         ensureNoAliasesOnIndex(project, index);
 
+        return unsafeAddBackingIndex(index);
+    }
+
+    /**
+     * Adds the specified index as a backing index and returns a new {@code DataStream} instance with the new combination
+     * of backing indices. This should be used only for just created indices because it does not check if the backing
+     * index belongs to another data stream. For any other case, use {@link #addBackingIndex(ProjectMetadata, Index)} instead.
+     *
+     * @param index index to add to the data stream
+     * @return new {@code DataStream} instance with the added backing index
+     */
+    public DataStream unsafeAddBackingIndex(Index index) {
+        // We do not use the contain method of DataStreamIndices because it will create a set,
+        // but we only need to check a single index and then we create a new DataStream.
+        if (backingIndices.indices.contains(index)) {
+            return this;
+        }
+
         List<Index> backingIndices = new ArrayList<>(this.backingIndices.indices.size() + 1);
         backingIndices.add(index);
         backingIndices.addAll(this.backingIndices.indices);
@@ -1214,29 +1270,37 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Iterate over the backing or failure indices depending on <code>failureStore</code> and return the ones that are managed by the
-     * data stream lifecycle and past the configured retention in their lifecycle.
+     * Iterate over either the backing indices, failure indices or both depending on the types param
+     * and return the ones that are managed by the data stream lifecycle and older than the supplied
+     * {@link TimeValue}.
      * NOTE that this specifically does not return the write index of the data stream as usually retention
      * is treated differently for the write index (i.e. they first need to be rolled over)
      */
-    public List<Index> getIndicesPastRetention(
+    public Set<Index> getIndicesOlderThan(
         Function<String, IndexMetadata> indexMetadataSupplier,
         LongSupplier nowSupplier,
         TimeValue effectiveRetention,
-        boolean failureStore
+        DatastreamIndexTypes types
     ) {
         if (effectiveRetention == null) {
-            return List.of();
+            return Set.of();
         }
 
-        List<Index> indicesPastRetention = getNonWriteIndicesOlderThan(
-            getDataStreamIndices(failureStore).getIndices(),
+        Set<Index> indices = new HashSet<>();
+        if (types == DatastreamIndexTypes.ALL || types == DatastreamIndexTypes.BACKING_INDICES) {
+            indices.addAll(getDataStreamIndices(false).getIndices());
+        }
+        if (types == DatastreamIndexTypes.ALL || types == DatastreamIndexTypes.FAILURE_INDICES) {
+            indices.addAll(getDataStreamIndices(true).getIndices());
+        }
+
+        return getNonWriteIndicesOlderThan(
+            indices,
             effectiveRetention,
             indexMetadataSupplier,
             this::isIndexManagedByDataStreamLifecycle,
             nowSupplier
         );
-        return indicesPastRetention;
     }
 
     /**
@@ -1257,7 +1321,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
 
         IndexMetadata indexMetadata = indexMetadataSupplier.apply(index.getName());
-        if (indexMetadata == null || IndexSettings.MODE.get(indexMetadata.getSettings()) != IndexMode.TIME_SERIES) {
+        if (indexMetadata == null || IndexSettings.MODE.get(indexMetadata.getSettings()).isTsdb() == false) {
             return List.of();
         }
         TimeValue indexGenerationTime = getGenerationLifecycleDate(indexMetadata);
@@ -1283,23 +1347,23 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * be filtered according to the predicate definition. This is useful for things like "return only
      * the indices that are managed by the data stream lifecycle".
      */
-    private List<Index> getNonWriteIndicesOlderThan(
-        List<Index> indices,
+    private Set<Index> getNonWriteIndicesOlderThan(
+        Set<Index> indices,
         TimeValue retentionPeriod,
         Function<String, IndexMetadata> indexMetadataSupplier,
         @Nullable Predicate<IndexMetadata> indicesPredicate,
         LongSupplier nowSupplier
     ) {
         if (indices.isEmpty()) {
-            return List.of();
+            return Set.of();
         }
-        List<Index> olderIndices = new ArrayList<>();
+        Set<Index> olderIndices = new HashSet<>();
         for (Index index : indices) {
             if (isIndexOlderThan(index, retentionPeriod.getMillis(), nowSupplier.getAsLong(), indicesPredicate, indexMetadataSupplier)) {
                 olderIndices.add(index);
             }
         }
-        return olderIndices;
+        return Set.copyOf(olderIndices);
     }
 
     private boolean isIndexOlderThan(
@@ -1346,6 +1410,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * access method.
      */
     private boolean isIndexManagedByDataStreamLifecycle(IndexMetadata indexMetadata) {
+        if (IndexSettings.MODE.get(indexMetadata.getSettings()) == IndexMode.LOOKUP) {
+            return false;
+        }
         var lifecycle = getDataLifecycleForIndex(indexMetadata.getIndex());
         if (indexMetadata.getLifecyclePolicyName() != null && lifecycle != null && lifecycle.enabled()) {
             // when both ILM and data stream lifecycle are configured, choose depending on the configured preference for this backing index
@@ -1712,18 +1779,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             return getWriteIndex();
         }
 
-        if (getIndexMode() != IndexMode.TIME_SERIES) {
+        if (IndexMode.isTsdb(getIndexMode()) == false) {
             return getWriteIndex();
         }
 
-        Instant timestamp;
-        Object rawTimestamp = request.getRawTimestamp();
-        if (rawTimestamp != null) {
-            timestamp = getTimeStampFromRaw(rawTimestamp);
-        } else {
-            timestamp = getTimestampFromParser(request.source(), request.getContentType());
-        }
-        timestamp = getCanonicalTimestampBound(timestamp);
+        Instant timestamp = getTimeSeriesTimestamp(request);
         Index result = selectTimeSeriesWriteIndex(timestamp, project);
         if (result == null) {
             String timestampAsString = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(timestamp);
@@ -1747,6 +1807,23 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             );
         }
         return result;
+    }
+
+    /**
+     * Parses and caches on the index request the timestamp when possible. Throws {@link TimestampError}
+     * if there is any issue retrieving the timestamp.
+     */
+    public static Instant getTimeSeriesTimestamp(IndexRequest request) {
+        if (request.getTimeSeriesTimestamp() != null) {
+            return request.getTimeSeriesTimestamp();
+        }
+        Object rawTimestamp = request.getRawTimestamp();
+        Instant timestamp = rawTimestamp != null
+            ? getTimeStampFromRaw(rawTimestamp)
+            : getTimestampFromParser(request.source(), request.getContentType());
+        timestamp = getCanonicalTimestampBound(timestamp);
+        request.setTimeSeriesTimestamp(timestamp);
+        return timestamp;
     }
 
     @Override
@@ -2169,4 +2246,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             super(message);
         }
     }
+
+    public enum DatastreamIndexTypes {
+        BACKING_INDICES,
+        FAILURE_INDICES,
+        ALL
+    }
+
 }

@@ -53,6 +53,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         private final AsyncExecutionId executionId;
         private final Map<ActionListener<TestAsyncResponse>, TimeValue> listeners = new HashMap<>();
         private long expirationTimeMillis;
+        private TimeValue keepAlive = TimeValue.ZERO;
 
         public TestTask(
             AsyncExecutionId executionId,
@@ -83,8 +84,14 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public void setExpirationTime(long expirationTime) {
+        public void setExpirationTime(long expirationTime, TimeValue keepAlive) {
             this.expirationTimeMillis = expirationTime;
+            this.keepAlive = keepAlive;
+        }
+
+        @Override
+        public TimeValue getKeepAlive() {
+            return keepAlive;
         }
 
         @Override
@@ -96,7 +103,11 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
             return this.expirationTimeMillis;
         }
 
-        public synchronized boolean addListener(ActionListener<TestAsyncResponse> listener, TimeValue timeout) {
+        public synchronized boolean addListener(
+            ActionListener<TestAsyncResponse> listener,
+            TimeValue timeout,
+            boolean returnIntermediateResultsInResponse
+        ) {
             if (timeout.getMillis() < 0) {
                 listener.onResponse(new TestAsyncResponse(null, expirationTimeMillis));
             } else {
@@ -188,7 +199,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         try {
             boolean shouldExpire = randomBoolean();
             long expirationTime = System.currentTimeMillis() + randomLongBetween(100000, 1000000) * (shouldExpire ? -1 : 1);
-            task.setExpirationTime(expirationTime);
+            task.setExpirationTime(expirationTime, TimeValue.timeValueMillis(Math.max(expirationTime - System.currentTimeMillis(), 0)));
 
             if (updateInitialResultsInStore) {
                 // we need to store initial result
@@ -236,7 +247,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         TestTask task = (TestTask) taskManager.register("test", "test", request);
         try {
             long startTime = System.currentTimeMillis();
-            task.setExpirationTime(startTime + TimeValue.timeValueMinutes(1).getMillis());
+            task.setExpirationTime(startTime + TimeValue.timeValueMinutes(1).getMillis(), TimeValue.timeValueMinutes(1));
             boolean taskCompleted = randomBoolean();
             if (taskCompleted) {
                 taskManager.unregister(task);
@@ -282,7 +293,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         TestTask task = (TestTask) taskManager.register("test", "test", request);
         try {
             long startTime = System.currentTimeMillis();
-            task.setExpirationTime(startTime + TimeValue.timeValueMinutes(1).getMillis());
+            task.setExpirationTime(startTime + TimeValue.timeValueMinutes(1).getMillis(), TimeValue.timeValueMinutes(1));
 
             if (updateInitialResultsInStore) {
                 // we need to store initial result
@@ -340,7 +351,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
             return ClusterState.builder(state)
                 .putCompatibilityVersions(
                     node().getNodeEnvironment().nodeId(),
-                    TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible()),
+                    TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible(), true),
                     Map.of()
                 )
                 .build();
@@ -351,7 +362,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         TestTask task = (TestTask) taskManager.register("test", "test", request);
         try {
             long startTime = System.currentTimeMillis();
-            task.setExpirationTime(startTime + TimeValue.timeValueMinutes(1).getMillis());
+            task.setExpirationTime(startTime + TimeValue.timeValueMinutes(1).getMillis(), TimeValue.timeValueMinutes(1));
 
             // we need to store initial result
             PlainActionFuture<DocWriteResponse> futureCreate = new PlainActionFuture<>();

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.contextualai.response;
 
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -17,58 +16,47 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.services.contextualai.request.ContextualAiRerankRequest;
 
 import java.io.IOException;
-import java.util.Comparator;
 import java.util.List;
 
-import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
-
 /**
- * Parses the Contextual AI rerank response.
- *
- * Based on the API documentation, the response should look like:
- *
- * <pre>
+ * Parses the Contextual AI rerank response. Contextual AI rerank response looks like:
+ * <pre><code>
  * {
  *   "results": [
  *     {
  *       "index": 0,
  *       "relevance_score": 0.95,
- *       "document": "original document text if return_documents=true"
  *     },
  *     {
  *       "index": 1,
  *       "relevance_score": 0.85,
- *       "document": "original document text if return_documents=true"
  *     }
  *   ]
  * }
- * </pre>
+ * </code></pre>
  */
 public class ContextualAiRerankResponseEntity {
 
-    public static RankedDocsResults fromResponse(ContextualAiRerankRequest request, HttpResult response) throws IOException {
+    /**
+     * Parses the HTTP response from Contextual AI's reranking endpoint and converts it into {@link RankedDocsResults}.
+     * @param response the HTTP response from Contextual AI's reranking endpoint
+     * @return the parsed {@link RankedDocsResults}
+     * @throws IOException if there is an error parsing the response
+     */
+    public static RankedDocsResults fromResponse(HttpResult response) throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
-            moveToFirstToken(jsonParser);
-            var rankedDocs = doParse(jsonParser);
-            var rankedDocsByRelevanceStream = rankedDocs.stream()
-                .sorted(Comparator.comparingDouble(RankedDocsResults.RankedDoc::relevanceScore).reversed());
-            var rankedDocStreamTopN = request.getTopN() == null
-                ? rankedDocsByRelevanceStream
-                : rankedDocsByRelevanceStream.limit(request.getTopN());
-            return new RankedDocsResults(rankedDocStreamTopN.toList());
+            return new RankedDocsResults(doParse(jsonParser));
         }
     }
 
-    private static List<RankedDocsResults.RankedDoc> doParse(XContentParser parser) throws IOException {
-        var responseParser = ResponseParser.PARSER;
-        var responseObject = responseParser.apply(parser, null);
+    private static List<RankedDocsResults.RankedDoc> doParse(XContentParser parser) {
+        var responseObject = ResponseObject.PARSER.apply(parser, null);
         return responseObject.results.stream()
-            .map(result -> new RankedDocsResults.RankedDoc(result.index, result.relevanceScore, result.document))
+            .map(result -> new RankedDocsResults.RankedDoc(result.index, result.relevanceScore, null))
             .toList();
     }
 
@@ -89,26 +77,20 @@ public class ContextualAiRerankResponseEntity {
         }
     }
 
-    private record RankedDocEntry(Integer index, Float relevanceScore, @Nullable String document) {
+    private record RankedDocEntry(Integer index, Float relevanceScore) {
 
         private static final ParseField INDEX = new ParseField("index");
         private static final ParseField RELEVANCE_SCORE = new ParseField("relevance_score");
-        private static final ParseField DOCUMENT = new ParseField("document");
 
         private static final ConstructingObjectParser<RankedDocEntry, Void> PARSER = new ConstructingObjectParser<>(
             "contextualai_ranked_doc",
             true,
-            args -> new RankedDocEntry((Integer) args[0], (Float) args[1], (String) args[2])
+            args -> new RankedDocEntry((Integer) args[0], (Float) args[1])
         );
 
         static {
             PARSER.declareInt(ConstructingObjectParser.constructorArg(), INDEX);
             PARSER.declareFloat(ConstructingObjectParser.constructorArg(), RELEVANCE_SCORE);
-            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), DOCUMENT);
         }
-    }
-
-    private static class ResponseParser {
-        private static final ConstructingObjectParser<ResponseObject, Void> PARSER = ResponseObject.PARSER;
     }
 }

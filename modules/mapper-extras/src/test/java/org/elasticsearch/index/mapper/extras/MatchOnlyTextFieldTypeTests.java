@@ -17,15 +17,20 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiPhraseQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -38,19 +43,32 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockSourceReader;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.blockloader.DelegatingBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.mapper.extras.MatchOnlyTextFieldMapper.MatchOnlyTextFieldType;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesWildcardQuery;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
+import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -64,6 +82,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
+
+    // Doc values disabled, the match_only_text default; HIGH cardinality and multiValue are irrelevant when enabled is false.
+    private static final FieldMapper.DocValuesParameter.Values DOC_VALUES_DISABLED = new FieldMapper.DocValuesParameter.Values(
+        false,
+        FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+        true,
+        true,
+        FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
+    );
 
     public void testTermQuery() {
         MappedFieldType ft = new MatchOnlyTextFieldType("field");
@@ -231,22 +258,51 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
     public void testBlockLoaderUsesStoredFieldsForLoadingWhenSyntheticSourceDelegateIsAbsent() {
         // given
         MatchOnlyTextFieldMapper.MatchOnlyTextFieldType ft = new MatchOnlyTextFieldMapper.MatchOnlyTextFieldType(
-            "parent",
+            "field",
             new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
             mock(NamedAnalyzer.class),
             true,
             Collections.emptyMap(),
             false,
             false,
-            null
+            null,
+            false,
+            IndexVersion.current(),
+            true,
+            false,
+            DOC_VALUES_DISABLED
         );
 
         // when
-        BlockLoader blockLoader = ft.blockLoader(mock(MappedFieldType.BlockLoaderContext.class));
+        BlockLoader blockLoader = ft.blockLoader(mockContext());
 
-        // then
-        // verify that we delegate block loading to the synthetic source delegate
+        // then - should load from a fallback stored field
         assertThat(blockLoader, Matchers.instanceOf(MatchOnlyTextFieldType.BytesFromMixedStringsBytesRefBlockLoader.class));
+    }
+
+    public void testBlockLoaderUsesBinaryDocValuesForLoadingWhenSyntheticSourceDelegateIsAbsent() {
+        // given
+        MatchOnlyTextFieldMapper.MatchOnlyTextFieldType ft = new MatchOnlyTextFieldMapper.MatchOnlyTextFieldType(
+            "field",
+            new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+            mock(NamedAnalyzer.class),
+            true,
+            Collections.emptyMap(),
+            false,
+            false,
+            null,
+            true,
+            IndexVersion.current(),
+            true,
+            false,
+            DOC_VALUES_DISABLED
+        );
+
+        // when
+        BlockLoader blockLoader = ft.blockLoader(mockContext());
+
+        // then - should load from binary doc values using separate count format
+        assertThat(blockLoader, Matchers.instanceOf(BytesRefsFromBinaryMultiSeparateCountBlockLoader.class));
     }
 
     public void testBlockLoaderUsesSyntheticSourceDelegateWhenIgnoreAboveIsNotSet() {
@@ -266,15 +322,20 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             false,
             false,
-            syntheticSourceDelegate
+            syntheticSourceDelegate,
+            true,
+            IndexVersion.current(),
+            true,
+            false,
+            DOC_VALUES_DISABLED
         );
 
         // when
-        BlockLoader blockLoader = ft.blockLoader(mock(MappedFieldType.BlockLoaderContext.class));
+        BlockLoader blockLoader = ft.blockLoader(mockContext());
 
         // then
         // verify that we delegate block loading to the synthetic source delegate
-        assertThat(blockLoader, Matchers.instanceOf(BlockLoader.Delegating.class));
+        assertThat(blockLoader, Matchers.instanceOf(DelegatingBlockLoader.class));
     }
 
     public void testBlockLoaderDoesNotUseSyntheticSourceDelegateWhenIgnoreAboveIsSet() {
@@ -311,7 +372,12 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             false,
             false,
-            syntheticSourceDelegate
+            syntheticSourceDelegate,
+            false,
+            IndexVersion.current(),
+            true,
+            false,
+            DOC_VALUES_DISABLED
         );
 
         // when
@@ -322,7 +388,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
 
         // then
         // verify that we don't delegate anything
-        assertThat(blockLoader, Matchers.not(Matchers.instanceOf(BlockLoader.Delegating.class)));
+        assertThat(blockLoader, Matchers.not(Matchers.instanceOf(DelegatingBlockLoader.class)));
     }
 
     public void testBlockLoaderDoesNotUseSyntheticSourceDelegateWhenIgnoreAboveIsSetAtIndexLevel() {
@@ -359,7 +425,12 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             false,
             false,
-            syntheticSourceDelegate
+            syntheticSourceDelegate,
+            false,
+            IndexVersion.current(),
+            true,
+            false,
+            DOC_VALUES_DISABLED
         );
 
         // when
@@ -370,7 +441,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
 
         // then
         // verify that we don't delegate anything
-        assertThat(blockLoader, Matchers.not(Matchers.instanceOf(BlockLoader.Delegating.class)));
+        assertThat(blockLoader, Matchers.not(Matchers.instanceOf(DelegatingBlockLoader.class)));
     }
 
     public void testBlockLoaderDelegateToKeywordFieldWhenSyntheticSourceIsDisabled() {
@@ -392,16 +463,278 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             true,
             false,
-            keywordFieldType
+            keywordFieldType,
+            false,
+            IndexVersion.current(),
+            true,
+            false,
+            DOC_VALUES_DISABLED
         );
 
         var mockedSearchLookup = mock(SearchLookup.class);
         when(mockedSearchLookup.fieldType(parentFieldName)).thenReturn(keywordFieldType);
 
-        var mockedBlockLoaderContext = mock(MappedFieldType.BlockLoaderContext.class);
+        var mockedBlockLoaderContext = mockContext();
         when(mockedBlockLoaderContext.parentField(childFieldName)).thenReturn(parentFieldName);
         when(mockedBlockLoaderContext.lookup()).thenReturn(mockedSearchLookup);
         BlockLoader blockLoader = ft.blockLoader(mockedBlockLoaderContext);
-        assertThat(blockLoader, Matchers.instanceOf(BlockLoader.Delegating.class));
+        assertThat(blockLoader, Matchers.instanceOf(DelegatingBlockLoader.class));
+    }
+
+    public void testBlockLoaderLoadsFromSourceByDefault() {
+        // given
+        MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType("field");
+
+        // we must mock IndexSettings as the block loader will check them for the index version
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings);
+
+        // when
+        var context = mock(MappedFieldType.BlockLoaderContext.class);
+        when(context.indexSettings()).thenReturn(indexSettings);
+        when(context.parentField("field")).thenReturn(null);
+        when(context.fieldNames()).thenReturn(FieldNamesFieldMapper.FieldNamesFieldType.get(false));
+        BlockLoader blockLoader = ft.blockLoader(context);
+
+        // then
+        assertThat(blockLoader, Matchers.instanceOf(BlockSourceReader.BytesRefsBlockLoader.class));
+    }
+
+    public void testBlockLoaderLoadsFromFallbackStoredFieldWhenSyntheticSourceIsEnabled() {
+        // given
+        MatchOnlyTextFieldType ft = new MatchOnlyTextFieldMapper.MatchOnlyTextFieldType(
+            "field",
+            new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+            mock(NamedAnalyzer.class),
+            true,
+            Collections.emptyMap(),
+            false,
+            false,
+            null,
+            false,
+            IndexVersion.current(),
+            true,
+            false,
+            DOC_VALUES_DISABLED
+        );
+
+        // when
+        var context = mock(MappedFieldType.BlockLoaderContext.class);
+        doReturn(MappingLookup.EMPTY).when(context).mappingLookup();
+        BlockLoader blockLoader = ft.blockLoader(context);
+
+        // then - should load from a fallback binary doc values field
+        assertThat(blockLoader, Matchers.instanceOf(MatchOnlyTextFieldType.BytesFromMixedStringsBytesRefBlockLoader.class));
+    }
+
+    public void testBlockLoaderLoadsFromFallbackBinaryDocValuesWhenSyntheticSourceIsEnabled() {
+        // given
+        MatchOnlyTextFieldType ft = new MatchOnlyTextFieldMapper.MatchOnlyTextFieldType(
+            "field",
+            new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+            mock(NamedAnalyzer.class),
+            true,
+            Collections.emptyMap(),
+            false,
+            false,
+            null,
+            true,
+            IndexVersion.current(),
+            true,
+            false,
+            DOC_VALUES_DISABLED
+        );
+
+        // when
+        var context = mock(MappedFieldType.BlockLoaderContext.class);
+        doReturn(MappingLookup.EMPTY).when(context).mappingLookup();
+        BlockLoader blockLoader = ft.blockLoader(context);
+
+        // then - should load from a fallback binary doc values field using separate count format
+        assertThat(blockLoader, Matchers.instanceOf(BytesRefsFromBinaryMultiSeparateCountBlockLoader.class));
+    }
+
+    public void testBlockLoaderLoadsFromFallbackBinaryDocValuesWhenSyntheticSourceIsEnabledWithPreviousIndexVersion() {
+        // given
+        MatchOnlyTextFieldType ft = new MatchOnlyTextFieldMapper.MatchOnlyTextFieldType(
+            "field",
+            new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+            mock(NamedAnalyzer.class),
+            true,
+            Collections.emptyMap(),
+            false,
+            false,
+            null,
+            true,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES),
+            true,
+            false,
+            DOC_VALUES_DISABLED
+        );
+
+        // when
+        var context = mock(MappedFieldType.BlockLoaderContext.class);
+        doReturn(MappingLookup.EMPTY).when(context).mappingLookup();
+        BlockLoader blockLoader = ft.blockLoader(context);
+
+        // then - should load from a fallback binary doc values field using integrated count format
+        assertThat(blockLoader, Matchers.instanceOf(BytesRefsFromCustomBinaryBlockLoader.class));
+    }
+
+    public void testTermQueryWithBinaryDocValues() throws IOException {
+        assertTermQueryWithBinaryDocValues(binaryDocValuesOnly());
+    }
+
+    public void testPrefixQueryDocValuesOnly() {
+        MatchOnlyTextFieldType sortedSet = sortedSetDocValuesOnly();
+        MatchOnlyTextFieldType binary = binaryDocValuesOnly();
+
+        // SortedSet DV, case-sensitive: native PrefixQuery with DOC_VALUES_REWRITE
+        assertThat(
+            sortedSet.prefixQuery("foo", null, false, MOCK_CONTEXT),
+            Matchers.equalTo(new PrefixQuery(new Term("field", "foo"), MultiTermQuery.DOC_VALUES_REWRITE))
+        );
+
+        // SortedSet DV, case-insensitive: script-backed query
+        assertThat(sortedSet.prefixQuery("foo", null, true, MOCK_CONTEXT), Matchers.instanceOf(StringScriptFieldPrefixQuery.class));
+
+        // Binary DV: ScanningBinaryDocValuesPrefixQuery
+        assertThat(binary.prefixQuery("foo", null, false, MOCK_CONTEXT), Matchers.instanceOf(ScanningBinaryDocValuesPrefixQuery.class));
+
+        // Doc-values only, expensive queries disabled
+        ElasticsearchException ee = expectThrows(
+            ElasticsearchException.class,
+            () -> sortedSetDocValuesOnly().prefixQuery("foo", null, false, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+        );
+        assertThat(ee.getMessage(), Matchers.containsString("not indexed and 'search.allow_expensive_queries' is set to false"));
+    }
+
+    public void testWildcardQueryDocValuesOnly() {
+        MatchOnlyTextFieldType sortedSet = sortedSetDocValuesOnly();
+        MatchOnlyTextFieldType binary = binaryDocValuesOnly();
+
+        // SortedSet DV, case-sensitive: WildcardQuery with DOC_VALUES_REWRITE
+        assertThat(
+            sortedSet.wildcardQuery("foo*", null, false, MOCK_CONTEXT),
+            Matchers.equalTo(
+                new WildcardQuery(new Term("field", "foo*"), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE)
+            )
+        );
+
+        // SortedSet DV, case-insensitive: script-backed query
+        assertThat(sortedSet.wildcardQuery("foo*", null, true, MOCK_CONTEXT), Matchers.instanceOf(StringScriptFieldWildcardQuery.class));
+
+        // Binary DV: ScanningBinaryDocValuesWildcardQuery
+        assertThat(
+            binary.wildcardQuery("foo*", null, false, MOCK_CONTEXT),
+            Matchers.instanceOf(ScanningBinaryDocValuesWildcardQuery.class)
+        );
+
+        // Doc-values only, expensive queries disabled
+        ElasticsearchException ee = expectThrows(
+            ElasticsearchException.class,
+            () -> sortedSetDocValuesOnly().wildcardQuery("foo*", null, false, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+        );
+        assertThat(ee.getMessage(), Matchers.containsString("not indexed and 'search.allow_expensive_queries' is set to false"));
+    }
+
+    public void testRegexpQueryDocValuesOnly() {
+        MatchOnlyTextFieldType sortedSet = sortedSetDocValuesOnly();
+        MatchOnlyTextFieldType binary = binaryDocValuesOnly();
+
+        // SortedSet DV: RegexpQuery with DOC_VALUES_REWRITE
+        assertThat(
+            sortedSet.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT),
+            Matchers.equalTo(
+                new RegexpQuery(new Term("field", "foo.*"), 0, 0, RegexpQuery.DEFAULT_PROVIDER, 10, MultiTermQuery.DOC_VALUES_REWRITE)
+            )
+        );
+
+        // Binary DV: ScanningBinaryDocValuesRegexpQuery
+        assertThat(
+            binary.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT),
+            Matchers.instanceOf(ScanningBinaryDocValuesRegexpQuery.class)
+        );
+
+        // Doc-values only, expensive queries disabled
+        ElasticsearchException ee = expectThrows(
+            ElasticsearchException.class,
+            () -> sortedSetDocValuesOnly().regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+        );
+        assertThat(ee.getMessage(), Matchers.containsString("not indexed and 'search.allow_expensive_queries' is set to false"));
+    }
+
+    public void testRegexpQueryDocValuesOnlyCaseInsensitive() {
+        // SortedSet DV → RegexpQuery with DOC_VALUES_REWRITE and ASCII_CASE_INSENSITIVE matchFlag
+        Query q = sortedSetDocValuesOnly().regexpQuery("foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, null, MOCK_CONTEXT);
+        assertThat(q, Matchers.instanceOf(RegexpQuery.class));
+        assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, ((RegexpQuery) q).getRewriteMethod());
+
+        // Binary DV → ScanningBinaryDocValuesRegexpQuery with ASCII_CASE_INSENSITIVE matchFlag
+        assertThat(
+            binaryDocValuesOnly().regexpQuery("foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, null, MOCK_CONTEXT),
+            Matchers.instanceOf(ScanningBinaryDocValuesRegexpQuery.class)
+        );
+    }
+
+    private static MatchOnlyTextFieldType sortedSetDocValuesOnly() {
+        return new MatchOnlyTextFieldType(
+            "field",
+            TextSearchInfo.NONE,
+            Lucene.STANDARD_ANALYZER,
+            false,
+            Collections.emptyMap(),
+            false,
+            false,
+            null,
+            false,
+            IndexVersion.current(),
+            false,
+            false,
+            new FieldMapper.DocValuesParameter.Values(
+                true,
+                FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+                true,
+                true,
+                FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
+            ),
+            false
+        );
+    }
+
+    private static MatchOnlyTextFieldType binaryDocValuesOnly() {
+        return new MatchOnlyTextFieldType(
+            "field",
+            TextSearchInfo.NONE,
+            Lucene.STANDARD_ANALYZER,
+            false,
+            Collections.emptyMap(),
+            false,
+            false,
+            null,
+            false,
+            IndexVersion.current(),
+            false,
+            true,
+            new FieldMapper.DocValuesParameter.Values(
+                true,
+                FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+                true,
+                true,
+                FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
+            ),
+            false
+        );
+    }
+
+    private static MappedFieldType.BlockLoaderContext mockContext() {
+        MappedFieldType.BlockLoaderContext context = mock(MappedFieldType.BlockLoaderContext.class);
+        when(context.ordinalsByteSize()).thenReturn(MappedFieldType.BlockLoaderContext.DEFAULT_ORDINALS_BYTE_SIZE);
+        doReturn(MappingLookup.EMPTY).when(context).mappingLookup();
+        return context;
     }
 }

@@ -51,12 +51,19 @@ public class ConfigurationTests extends PackagingTestCase {
             Platforms.onWindows(() -> sh.chown(confPath, installation.getOwner()));
             assertWhileRunning(() -> {
                 assertBusy(() -> {
-                    final String nameResponse = ServerUtils.makeRequest(
-                        Request.Get("https://localhost:9200/_cat/nodes?h=name"),
-                        "test_superuser",
-                        "test_superuser_password",
-                        ServerUtils.getCaCert(confPath)
-                    ).strip();
+                    final String nameResponse;
+                    try {
+                        nameResponse = ServerUtils.makeRequest(
+                            Request.Get("https://localhost:9200/_cat/nodes?h=name"),
+                            "test_superuser",
+                            "test_superuser_password",
+                            ServerUtils.getCaCert(confPath)
+                        ).strip();
+                    } catch (RuntimeException e) {
+                        // makeRequest throws RuntimeException on non-200 status codes (e.g. 503 during
+                        // cluster initialization). Convert to AssertionError so assertBusy will retry.
+                        throw new AssertionError("cluster not ready yet", e);
+                    }
                     assertEquals("mytesthost", nameResponse);
                 });
             });

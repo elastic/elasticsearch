@@ -19,7 +19,7 @@ import java.util.function.Supplier;
 public abstract class ResultDiversificationContext {
     private final String field;
     private final int size;
-    private final Supplier<VectorData> queryVector;
+    private Supplier<VectorData> queryVector;
     private Map<Integer, VectorData> fieldVectors = null;
 
     protected ResultDiversificationContext(String field, int size, @Nullable Supplier<VectorData> queryVector) {
@@ -47,6 +47,10 @@ public abstract class ResultDiversificationContext {
 
     public VectorData getQueryVector() {
         return queryVector == null ? null : queryVector.get();
+    }
+
+    public void setQueryVector(Supplier<VectorData> queryVector) {
+        this.queryVector = queryVector;
     }
 
     public VectorData getFieldVector(int rank) {

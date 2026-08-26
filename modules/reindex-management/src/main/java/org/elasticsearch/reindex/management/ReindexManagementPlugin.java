@@ -9,6 +9,39 @@
 
 package org.elasticsearch.reindex.management;
 
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestHandler;
 
-public class ReindexManagementPlugin extends Plugin {}
+import java.util.List;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
+
+public class ReindexManagementPlugin extends Plugin implements ActionPlugin {
+
+    public static final String CAPABILITY_REINDEX_MANAGEMENT_API = "reindex_management_api";
+
+    @Override
+    public List<ActionHandler> getActions() {
+        return List.of(
+            new ActionHandler(TransportGetReindexAction.TYPE, TransportGetReindexAction.class),
+            new ActionHandler(TransportListReindexAction.TYPE, TransportListReindexAction.class),
+            new ActionHandler(TransportCancelReindexAction.TYPE, TransportCancelReindexAction.class)
+        );
+    }
+
+    @Override
+    public List<RestHandler> getRestHandlers(
+        RestHandlersServices restHandlersServices,
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
+        return List.of(
+            new RestGetReindexAction(clusterSupportsFeature),
+            new RestListReindexAction(clusterSupportsFeature),
+            new RestCancelReindexAction(clusterSupportsFeature)
+        );
+    }
+}

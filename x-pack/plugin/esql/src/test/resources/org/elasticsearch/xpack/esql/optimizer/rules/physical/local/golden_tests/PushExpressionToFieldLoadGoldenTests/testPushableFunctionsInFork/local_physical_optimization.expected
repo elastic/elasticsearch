@@ -1,0 +1,17 @@
+EvalExec[[LENGTH(keyword{r}#0) AS x#1]]
+\_LimitExec[1000[INTEGER],null]
+  \_MergeExec[[s{r}#2, u{r}#3, keyword{r}#0, _fork{r}#4, t{r}#5]]
+    |_ProjectExec[[s{r}#6, u{r}#7, keyword{f}#8, _fork{r}#9, t{r}#10]]
+    | \_EvalExec[[COSINESIMILARITY(dense_vector{f}#11,[4.0, 5.0, 6.0][DENSE_VECTOR]) AS u#7, LENGTH(text{f}#12) AS s#6, fork1[KEYWORD] AS _fork#9, null[DOUBLE] AS t#10]]
+    |   \_LimitExec[1000[INTEGER],null]
+    |     \_ExchangeExec[[dense_vector{f}#11, keyword{f}#8, text{f}#12],false]
+    |       \_ProjectExec[[dense_vector{f}#11, keyword{f}#8, text{f}#12]]
+    |         \_FieldExtractExec[dense_vector{f}#11, keyword{f}#8, text{f}#12]<[],[],[]>
+    |           \_EsQueryExec[all_types], indexMode[standard], [_doc{f}#13], limit[1000], sort[] estimatedRowSize[5174] queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]
+    \_ProjectExec[[s{r}#14, u{r}#7, keyword{f}#15, _fork{r}#16, t{r}#17]]
+      \_EvalExec[[COSINESIMILARITY(dense_vector{f}#18,[4.0, 5.0, 6.0][DENSE_VECTOR]) AS u#7, DOTPRODUCT(dense_vector{f}#18,[1.0, 2.0, 3.0][DENSE_VECTOR]) AS t#17, fork2[KEYWORD] AS _fork#16, null[INTEGER] AS s#14]]
+        \_LimitExec[1000[INTEGER],null]
+          \_ExchangeExec[[dense_vector{f}#18, keyword{f}#15],false]
+            \_ProjectExec[[dense_vector{f}#18, keyword{f}#15]]
+              \_FieldExtractExec[dense_vector{f}#18, keyword{f}#15]<[],[],[]>
+                \_EsQueryExec[all_types], indexMode[standard], [_doc{f}#19], limit[1000], sort[] estimatedRowSize[4150] queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]

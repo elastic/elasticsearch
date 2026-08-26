@@ -24,6 +24,7 @@
     "params": {
       "acknowledge": {
         "type": "boolean",
+        "default": false,
         "description": "whether the user has acknowledged acknowledge messages (default: false)"
       },
       "master_timeout": {

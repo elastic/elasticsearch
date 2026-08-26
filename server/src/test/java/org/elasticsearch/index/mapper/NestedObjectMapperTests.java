@@ -1041,7 +1041,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
     public void testReorderParent() throws IOException {
 
-        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
+        IndexVersion version = IndexVersionUtils.randomCompatibleVersion();
 
         DocumentMapper docMapper = createDocumentMapper(
             version,
@@ -1212,8 +1212,8 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.startObject("object").endObject()));
 
-        merge(mapperService, Strings.toString(doc.dynamicMappingsUpdate()));
-        merge(mapperService, Strings.toString(doc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
+        mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
 
         assertThat(Strings.toString(mapperService.documentMapper().mapping()), containsString("""
             "properties":{"object":{"type":"nested","include_in_parent":true}}"""));
@@ -1503,14 +1503,59 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         }
     }
 
-    public void testNestedDoesNotSupportSubobjectsParameter() {
-        MapperParsingException exception = expectThrows(
-            MapperParsingException.class,
-            () -> createDocumentMapper(
-                mapping(b -> b.startObject("nested1").field("type", "nested").field("subobjects", randomBoolean()).endObject())
-            )
+    public void testNestedSubobjectsDefaultsToRootAndCanBeOverridden() throws IOException {
+        // Default: a nested field inherits the root's subobjects (true here), so a sub-object stays hierarchical.
+        MapperService inherited = createMapperService(mapping(b -> {
+            b.startObject("nested1");
+            {
+                b.field("type", "nested");
+                b.startObject("properties");
+                {
+                    b.startObject("foo");
+                    {
+                        b.startObject("properties");
+                        b.startObject("bar").field("type", "keyword").endObject();
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        assertThat(inherited.mappingLookup().objectMappers().get("nested1.foo"), instanceOf(ObjectMapper.class));
+        assertEquals(ObjectMapper.Subobjects.ENABLED, inherited.mappingLookup().objectMappers().get("nested1").subobjects());
+        assertNotNull(inherited.fieldType("nested1.foo.bar"));
+
+        // Override: subobjects:false on the nested field keeps the dotted child flat (no intermediate object), and a
+        // declared sub-object is auto-flattened to dotted leaves there just like at the root.
+        MapperService overridden = createMapperService(mapping(b -> {
+            b.startObject("nested1");
+            {
+                b.field("type", "nested");
+                b.field("subobjects", false);
+                b.startObject("properties");
+                b.startObject("foo.bar").field("type", "keyword").endObject();
+                b.startObject("meta");
+                {
+                    b.startObject("properties");
+                    b.startObject("host").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        assertNull(overridden.mappingLookup().objectMappers().get("nested1.foo"));
+        assertNull(
+            "a sub-object inside a subobjects:false nested is flattened away",
+            overridden.mappingLookup().objectMappers().get("nested1.meta")
         );
-        assertEquals("Failed to parse mapping: Nested type [nested1] does not support [subobjects] parameter", exception.getMessage());
+        assertNotNull(overridden.fieldType("nested1.foo.bar"));
+        assertNotNull(overridden.fieldType("nested1.meta.host"));
+        ObjectMapper nested1 = overridden.mappingLookup().objectMappers().get("nested1");
+        assertEquals(ObjectMapper.Subobjects.DISABLED, nested1.subobjects());
     }
 
     public void testIndexTemplatesMergeIncludes() throws IOException {
@@ -1569,23 +1614,33 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testMergeNested() {
-        NestedObjectMapper firstMapper = new NestedObjectMapper.Builder("nested1", IndexVersion.current(), query -> {
+        NestedObjectMapper.Builder firstBuilder = new NestedObjectMapper.Builder("nested1", IndexVersion.current(), query -> {
             throw new UnsupportedOperationException();
-        }, null).includeInParent(true).includeInRoot(true).build(MapperBuilderContext.root(false, false));
-        NestedObjectMapper secondMapper = new NestedObjectMapper.Builder("nested1", IndexVersion.current(), query -> {
+        }, null).includeInParent(true).includeInRoot(true);
+        NestedObjectMapper.Builder secondBuilder = new NestedObjectMapper.Builder("nested1", IndexVersion.current(), query -> {
             throw new UnsupportedOperationException();
-        }, null).includeInParent(false).includeInRoot(true).build(MapperBuilderContext.root(false, false));
+        }, null).includeInParent(false).includeInRoot(true);
 
         MapperException e = expectThrows(
             MapperException.class,
-            () -> firstMapper.merge(secondMapper, MapperMergeContext.root(false, false, MergeReason.MAPPING_UPDATE, Long.MAX_VALUE))
+            () -> firstBuilder.mergeWith(secondBuilder, MapperMergeContext.root(false, false, MergeReason.MAPPING_UPDATE, Long.MAX_VALUE))
         );
         assertThat(e.getMessage(), containsString("[include_in_parent] parameter can't be updated on a nested object mapping"));
 
-        NestedObjectMapper result = (NestedObjectMapper) firstMapper.merge(
-            secondMapper,
-            MapperMergeContext.root(false, false, MapperService.MergeReason.INDEX_TEMPLATE, Long.MAX_VALUE)
+        NestedObjectMapper.Builder firstBuilder2 = new NestedObjectMapper.Builder("nested1", IndexVersion.current(), query -> {
+            throw new UnsupportedOperationException();
+        }, null).includeInParent(true).includeInRoot(true);
+        NestedObjectMapper.Builder secondBuilder2 = new NestedObjectMapper.Builder("nested1", IndexVersion.current(), query -> {
+            throw new UnsupportedOperationException();
+        }, null).includeInParent(false).includeInRoot(true);
+        MapperMergeContext templateContext = MapperMergeContext.root(
+            false,
+            false,
+            MapperService.MergeReason.INDEX_TEMPLATE,
+            Long.MAX_VALUE
         );
+        NestedObjectMapper result = (NestedObjectMapper) firstBuilder2.mergeWith(secondBuilder2, templateContext)
+            .build(templateContext.getMapperBuilderContext());
         assertFalse(result.isIncludeInParent());
         assertTrue(result.isIncludeInRoot());
     }
@@ -1930,58 +1985,14 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
                 assertEquals(parentContainsDimensions, context.parentObjectContainsDimensions());
                 return new MockFieldMapper("name");
             }
+
+            @Override
+            public Mapper.Builder mergeWith(Mapper.Builder incoming, MapperMergeContext mergeContext) {
+                return incoming;
+            }
         });
         NestedObjectMapper nestedObjectMapper = builder.build(mapperBuilderContext);
         assertNotNull(nestedObjectMapper.getMapper("name"));
-    }
-
-    public void testNestedMapperMergeContextRootConstructor() {
-        boolean isSourceSynthetic = randomBoolean();
-        boolean isDataStream = randomBoolean();
-        boolean parentContainsDimensions = randomBoolean();
-        MergeReason mergeReason = randomFrom(MergeReason.values());
-        {
-            MapperBuilderContext mapperBuilderContext = MapperBuilderContext.root(false, false, mergeReason);
-            NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder("name", IndexVersion.current(), query -> null, null);
-            NestedObjectMapper nestedObjectMapper = builder.build(mapperBuilderContext);
-            MapperMergeContext mapperMergeContext = MapperMergeContext.root(isSourceSynthetic, isDataStream, mergeReason, randomLong());
-            MapperMergeContext childMergeContext = nestedObjectMapper.createChildContext(mapperMergeContext, "name");
-            MapperBuilderContext nestedBuilderContext = childMergeContext.getMapperBuilderContext();
-            assertEquals(isSourceSynthetic, nestedBuilderContext.isSourceSynthetic());
-            assertEquals(isDataStream, nestedBuilderContext.isDataStream());
-        }
-        {
-            MapperBuilderContext mapperBuilderContext = MapperBuilderContext.root(isSourceSynthetic, isDataStream, mergeReason);
-            MapperMergeContext mapperMergeContext = MapperMergeContext.root(isSourceSynthetic, isDataStream, mergeReason, randomLong());
-            MapperBuilderContext childMapperBuilderContext = mapperBuilderContext.createChildContext(
-                "name",
-                parentContainsDimensions,
-                randomFrom(Dynamic.values())
-            );
-            MapperMergeContext childMergeContext = mapperMergeContext.createChildContext(childMapperBuilderContext);
-            MapperBuilderContext nestedBuilderContext = childMergeContext.getMapperBuilderContext();
-            assertEquals(isSourceSynthetic, nestedBuilderContext.isSourceSynthetic());
-            assertEquals(isDataStream, nestedBuilderContext.isDataStream());
-            assertEquals(parentContainsDimensions, nestedBuilderContext.parentObjectContainsDimensions());
-        }
-    }
-
-    public void testNestedMapperMergeContextFromConstructor() {
-        boolean isSourceSynthetic = randomBoolean();
-        boolean isDataStream = randomBoolean();
-        boolean parentContainsDimensions = randomBoolean();
-        MergeReason mergeReason = randomFrom(MergeReason.values());
-        MapperBuilderContext mapperBuilderContext = MapperBuilderContext.root(isSourceSynthetic, isDataStream, mergeReason);
-        mapperBuilderContext = mapperBuilderContext.createChildContext("name", parentContainsDimensions, randomFrom(Dynamic.values()));
-        NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder("name", IndexVersion.current(), query -> null, null);
-        NestedObjectMapper nestedObjectMapper = builder.build(mapperBuilderContext);
-
-        MapperMergeContext mapperMergeContext = MapperMergeContext.from(mapperBuilderContext, randomLong());
-        MapperMergeContext childMergeContext = nestedObjectMapper.createChildContext(mapperMergeContext, "name");
-        MapperBuilderContext nestedBuilderContext = childMergeContext.getMapperBuilderContext();
-        assertEquals(isSourceSynthetic, nestedBuilderContext.isSourceSynthetic());
-        assertEquals(isDataStream, nestedBuilderContext.isDataStream());
-        assertEquals(parentContainsDimensions, nestedBuilderContext.parentObjectContainsDimensions());
     }
 
     public void testIsInNestedContext() {
@@ -2004,7 +2015,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     public void testNestedLimitDefaults() throws IOException {
         // current defaults
         {
-            var version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.NESTED_PATH_LIMIT, IndexVersion.current());
+            var version = IndexVersionUtils.randomVersionBetween(IndexVersions.NESTED_PATH_LIMIT, IndexVersion.current());
             var mapperService = createMapperService(version, Settings.builder().build(), mapping(b -> {}));
             assertThat(
                 MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.get(mapperService.getIndexSettings().getSettings()),
@@ -2018,7 +2029,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         // defaults previous to IndexVersions.NESTED_PATH_LIMIT
         {
-            var version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.NESTED_PATH_LIMIT);
+            var version = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.NESTED_PATH_LIMIT);
             var mapperService = createMapperService(version, Settings.builder().build(), mapping(b -> {}));
             assertThat(
                 MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.get(mapperService.getIndexSettings().getSettings()),

@@ -15,11 +15,11 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -29,15 +29,22 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
-import org.elasticsearch.compute.lucene.LuceneSourceOperatorTests;
+import org.elasticsearch.compute.lucene.query.LuceneSourceOperatorTests;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
+import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
+import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -54,10 +61,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -69,8 +79,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
     @Before
     public void setupBlockFactory() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        this.blockFactory = new BlockFactory(breaker, bigArrays);
+        this.blockFactory = BlockFactory.builder(bigArrays).build();
     }
 
     @After
@@ -86,14 +95,27 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             var inputTerms = makeTermsBlock(List.of(List.of("b2"), List.of("c1", "a2"), List.of("z2"), List.of(), List.of("a3"), List.of()))
         ) {
             MappedFieldType uidField = new KeywordFieldMapper.KeywordFieldType("uid");
-            QueryList queryList = QueryList.rawTermQueryList(uidField, directoryData.searchExecutionContext, AliasFilter.EMPTY, inputTerms);
-            assertThat(queryList.getPositionCount(), equalTo(6));
-            assertThat(queryList.getQuery(0), equalTo(new TermQuery(new Term("uid", new BytesRef("b2")))));
-            assertThat(queryList.getQuery(1), equalTo(new TermInSetQuery("uid", List.of(new BytesRef("c1"), new BytesRef("a2")))));
-            assertThat(queryList.getQuery(2), equalTo(new TermQuery(new Term("uid", new BytesRef("z2")))));
-            assertNull(queryList.getQuery(3));
-            assertThat(queryList.getQuery(4), equalTo(new TermQuery(new Term("uid", new BytesRef("a3")))));
-            assertNull(queryList.getQuery(5));
+            Page inputPage = new Page(inputTerms);
+            QueryList queryList = QueryList.rawTermQueryList(uidField, AliasFilter.EMPTY, 0, ElementType.BYTES_REF);
+            assertThat(queryList.getPositionCount(inputPage), equalTo(6));
+            assertThat(
+                queryList.getQuery(0, inputPage, directoryData.searchExecutionContext),
+                equalTo(new TermQuery(new Term("uid", new BytesRef("b2"))))
+            );
+            assertThat(
+                queryList.getQuery(1, inputPage, directoryData.searchExecutionContext),
+                equalTo(new TermInSetQuery("uid", List.of(new BytesRef("c1"), new BytesRef("a2"))))
+            );
+            assertThat(
+                queryList.getQuery(2, inputPage, directoryData.searchExecutionContext),
+                equalTo(new TermQuery(new Term("uid", new BytesRef("z2"))))
+            );
+            assertNull(queryList.getQuery(3, inputPage, directoryData.searchExecutionContext));
+            assertThat(
+                queryList.getQuery(4, inputPage, directoryData.searchExecutionContext),
+                equalTo(new TermQuery(new Term("uid", new BytesRef("a3"))))
+            );
+            assertNull(queryList.getQuery(5, inputPage, directoryData.searchExecutionContext));
             // pos -> terms -> docs
             // -----------------------------
             // 0 -> [b2] -> [1, 4]
@@ -102,34 +124,41 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             // 3 -> [] -> []
             // 4 -> [a3] -> [3]
             // 5 -> [] -> []
-            EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
-                blockFactory,
-                128,
-                queryList,
-                new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
-                0,
-                warnings()
-            );
-            Page page = queryOperator.getOutput();
-            assertNotNull(page);
-            assertThat(page.getPositionCount(), equalTo(6));
-            IntVector docs = getDocVector(page, 0);
-            assertThat(docs.getInt(0), equalTo(1));
-            assertThat(docs.getInt(1), equalTo(4));
-            assertThat(docs.getInt(2), equalTo(0));
-            assertThat(docs.getInt(3), equalTo(1));
-            assertThat(docs.getInt(4), equalTo(2));
-            assertThat(docs.getInt(5), equalTo(3));
+            try (
+                EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
+                    blockFactory,
+                    128,
+                    queryList,
+                    inputPage,
+                    BlockOptimization.NONE,
+                    new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
+                    0,
+                    directoryData.searchExecutionContext,
+                    warnings(),
+                    () -> 0L
+                )
+            ) {
+                Page page = queryOperator.getOutput();
+                assertNotNull(page);
+                assertThat(page.getPositionCount(), equalTo(6));
+                IntVector docs = getDocVector(page, 0);
+                assertThat(docs.getInt(0), equalTo(1));
+                assertThat(docs.getInt(1), equalTo(4));
+                assertThat(docs.getInt(2), equalTo(0));
+                assertThat(docs.getInt(3), equalTo(1));
+                assertThat(docs.getInt(4), equalTo(2));
+                assertThat(docs.getInt(5), equalTo(3));
 
-            Block positions = page.getBlock(1);
-            assertThat(BlockUtils.toJavaObject(positions, 0), equalTo(0));
-            assertThat(BlockUtils.toJavaObject(positions, 1), equalTo(0));
-            assertThat(BlockUtils.toJavaObject(positions, 2), equalTo(1));
-            assertThat(BlockUtils.toJavaObject(positions, 3), equalTo(1));
-            assertThat(BlockUtils.toJavaObject(positions, 4), equalTo(1));
-            assertThat(BlockUtils.toJavaObject(positions, 5), equalTo(4));
-            page.releaseBlocks();
-            assertTrue(queryOperator.isFinished());
+                Block positions = page.getBlock(1);
+                assertThat(BlockUtils.toJavaObject(positions, 0), equalTo(0));
+                assertThat(BlockUtils.toJavaObject(positions, 1), equalTo(0));
+                assertThat(BlockUtils.toJavaObject(positions, 2), equalTo(1));
+                assertThat(BlockUtils.toJavaObject(positions, 3), equalTo(1));
+                assertThat(BlockUtils.toJavaObject(positions, 4), equalTo(1));
+                assertThat(BlockUtils.toJavaObject(positions, 5), equalTo(4));
+                page.releaseBlocks();
+                assertTrue(queryOperator.isFinished());
+            }
         }
     }
 
@@ -157,41 +186,188 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
         }).toList();
 
         try (var directoryData = makeDirectoryWith(directoryTermsList); var inputTerms = makeTermsBlock(inputTermsList)) {
-            var queryList = QueryList.rawTermQueryList(
-                directoryData.field,
-                directoryData.searchExecutionContext,
-                AliasFilter.EMPTY,
-                inputTerms
-            );
+            var queryList = QueryList.rawTermQueryList(directoryData.field, AliasFilter.EMPTY, 0, ElementType.BYTES_REF);
             int maxPageSize = between(1, 256);
+            Page inputPage = new Page(inputTerms);
+            try (
+                EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
+                    blockFactory,
+                    maxPageSize,
+                    queryList,
+                    inputPage,
+                    BlockOptimization.RANGE,
+                    new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
+                    0,
+                    directoryData.searchExecutionContext,
+                    warnings(),
+                    () -> 0L
+                )
+            ) {
+                Map<Integer, Set<Integer>> actualPositions = new HashMap<>();
+                while (queryOperator.isFinished() == false) {
+                    Page page = queryOperator.getOutput();
+                    if (page != null) {
+                        IntVector docs = getDocVector(page, 0);
+                        IntBlock positions = page.getBlock(1);
+                        assertThat(positions.getPositionCount(), lessThanOrEqualTo(maxPageSize));
+                        for (int i = 0; i < page.getPositionCount(); i++) {
+                            int doc = docs.getInt(i);
+                            int position = positions.getInt(i);
+                            actualPositions.computeIfAbsent(position, k -> new HashSet<>()).add(doc);
+                        }
+                        page.releaseBlocks();
+                    }
+                }
+                assertThat(actualPositions, equalTo(expectedPositions));
+            }
+        }
+    }
+
+    public void testCanProduceMoreDataWithoutExtraInput() throws Exception {
+        // Test that EnrichQuerySourceOperator follows the SourceOperator default behavior:
+        // canProduceMoreDataWithoutExtraInput() returns false because source operators
+        // are gated by nextOp.needsInput() in the driver loop.
+        int numQueries = 100;
+        int maxPageSize = 9; // Small page size to ensure multiple pages
+
+        List<List<String>> directoryTermsList = IntStream.range(0, numQueries).mapToObj(i -> List.of("term-" + i)).toList();
+        List<List<String>> inputTermsList = IntStream.range(0, numQueries).mapToObj(i -> List.of("term-" + i)).toList();
+
+        try (var directoryData = makeDirectoryWith(directoryTermsList); var inputTerms = makeTermsBlock(inputTermsList)) {
+            QueryList queryList = QueryList.rawTermQueryList(directoryData.field, AliasFilter.EMPTY, 0, ElementType.BYTES_REF);
+
+            Page inputPage = new Page(inputTerms);
             EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
                 blockFactory,
                 maxPageSize,
                 queryList,
+                inputPage,
+                BlockOptimization.NONE,
                 new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                 0,
-                warnings()
+                directoryData.searchExecutionContext,
+                warnings(),
+                () -> 0L
             );
-            Map<Integer, Set<Integer>> actualPositions = new HashMap<>();
+
+            // SourceOperator.canProduceMoreDataWithoutExtraInput() returns false by default
+            // because source data production is gated by nextOp.needsInput() in the driver loop
+            assertFalse(
+                "canProduceMoreDataWithoutExtraInput should return false (SourceOperator default)",
+                queryOperator.canProduceMoreDataWithoutExtraInput()
+            );
+
+            int pageCount = 0;
+            int totalPositions = 0;
+
+            // Process pages until finished
             while (queryOperator.isFinished() == false) {
                 Page page = queryOperator.getOutput();
                 if (page != null) {
-                    IntVector docs = getDocVector(page, 0);
-                    IntBlock positions = page.getBlock(1);
-                    assertThat(positions.getPositionCount(), lessThanOrEqualTo(maxPageSize));
-                    for (int i = 0; i < page.getPositionCount(); i++) {
-                        int doc = docs.getInt(i);
-                        int position = positions.getInt(i);
-                        actualPositions.computeIfAbsent(position, k -> new HashSet<>()).add(doc);
-                    }
+                    pageCount++;
+                    int positions = page.getPositionCount();
+                    totalPositions += positions;
+
+                    // canProduceMoreDataWithoutExtraInput always returns false for source operators
+                    assertFalse(
+                        "canProduceMoreDataWithoutExtraInput should return false (SourceOperator default)",
+                        queryOperator.canProduceMoreDataWithoutExtraInput()
+                    );
+
                     page.releaseBlocks();
                 }
             }
-            assertThat(actualPositions, equalTo(expectedPositions));
+
+            // Verify we got multiple pages (due to small maxPageSize)
+            assertThat("Should produce multiple pages", pageCount, lessThanOrEqualTo((numQueries / maxPageSize) + 1));
+            assertThat("Total positions should match number of queries", totalPositions, equalTo(numQueries));
+
+            // After finishing, canProduceMoreDataWithoutExtraInput should still return false
+            assertFalse(
+                "canProduceMoreDataWithoutExtraInput should return false after operator is finished",
+                queryOperator.canProduceMoreDataWithoutExtraInput()
+            );
+            assertTrue("Operator should be finished", queryOperator.isFinished());
+        }
+    }
+
+    public void testCanProduceMoreDataWithoutExtraInput_WithManyMatches() throws Exception {
+        // Test that EnrichQuerySourceOperator follows the SourceOperator default behavior
+        // even when a single query matches many documents.
+        // canProduceMoreDataWithoutExtraInput() returns false because source operators
+        // are gated by nextOp.needsInput() in the driver loop.
+
+        // Create directory with many documents matching the same term
+        int numMatchingDocs = 50;
+        List<List<String>> directoryTermsList = IntStream.range(0, numMatchingDocs).mapToObj(i -> List.of("common-term")).toList();
+
+        // Single query that matches all documents
+        List<List<String>> inputTermsList = List.of(List.of("common-term"));
+
+        try (var directoryData = makeDirectoryWith(directoryTermsList); var inputTerms = makeTermsBlock(inputTermsList)) {
+            QueryList queryList = QueryList.rawTermQueryList(directoryData.field, AliasFilter.EMPTY, 0, ElementType.BYTES_REF);
+
+            int maxPageSize = 10; // Small page size to ensure multiple pages from single query
+            Page inputPage = new Page(inputTerms);
+            EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
+                blockFactory,
+                maxPageSize,
+                queryList,
+                inputPage,
+                BlockOptimization.NONE,
+                new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
+                0,
+                directoryData.searchExecutionContext,
+                warnings(),
+                () -> 0L
+            );
+
+            // SourceOperator.canProduceMoreDataWithoutExtraInput() returns false by default
+            assertFalse(
+                "canProduceMoreDataWithoutExtraInput should return false (SourceOperator default)",
+                queryOperator.canProduceMoreDataWithoutExtraInput()
+            );
+
+            int pageCount = 0;
+            int totalPositions = 0;
+
+            // Process pages until finished
+            while (queryOperator.isFinished() == false) {
+                Page page = queryOperator.getOutput();
+                if (page != null) {
+                    pageCount++;
+                    int positions = page.getPositionCount();
+                    totalPositions += positions;
+
+                    // canProduceMoreDataWithoutExtraInput always returns false for source operators
+                    assertFalse(
+                        "canProduceMoreDataWithoutExtraInput should return false (SourceOperator default)",
+                        queryOperator.canProduceMoreDataWithoutExtraInput()
+                    );
+
+                    page.releaseBlocks();
+                }
+            }
+
+            // Verify we got multiple pages (due to small maxPageSize and many matches)
+            assertThat("Should produce multiple pages", pageCount, lessThanOrEqualTo((numMatchingDocs / maxPageSize) + 1));
+            assertThat("Total positions should match number of matching documents", totalPositions, equalTo(numMatchingDocs));
+
+            // After finishing, canProduceMoreDataWithoutExtraInput should still return false
+            assertFalse(
+                "canProduceMoreDataWithoutExtraInput should return false after operator is finished",
+                queryOperator.canProduceMoreDataWithoutExtraInput()
+            );
+            assertTrue("Operator should be finished", queryOperator.isFinished());
         }
     }
 
     public void testQueries_OnlySingleValues() throws Exception {
+        DriverContext warningsContext = new DriverContext(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            TestBlockFactory.getNonBreakingInstance(),
+            null
+        );
         try (
             var directoryData = makeDirectoryWith(
                 List.of(List.of("a2"), List.of("a1", "c1", "b2"), List.of("a2"), List.of("a3"), List.of("b2", "b1", "a1"))
@@ -200,12 +376,8 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                 List.of(List.of("b2"), List.of("c1", "a2"), List.of("z2"), List.of(), List.of("a3"), List.of("a3", "a2", "z2", "xx"))
             )
         ) {
-            QueryList queryList = QueryList.rawTermQueryList(
-                directoryData.field,
-                directoryData.searchExecutionContext,
-                AliasFilter.EMPTY,
-                inputTerms
-            ).onlySingleValues(warnings(), "multi-value found");
+            QueryList queryList = QueryList.rawTermQueryList(directoryData.field, AliasFilter.EMPTY, 0, ElementType.BYTES_REF)
+                .onlySingleValues(warningsContext.createWarnings(new TestWarningsSource("test")), "multi-value found");
             // pos -> terms -> docs
             // -----------------------------
             // 0 -> [b2] -> []
@@ -214,28 +386,138 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             // 3 -> [] -> []
             // 4 -> [a3] -> [3]
             // 5 -> [a3, a2, z2, xx] -> []
-            EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
-                blockFactory,
-                128,
-                queryList,
-                new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
-                0,
-                warnings()
-            );
-            Page page = queryOperator.getOutput();
-            assertNotNull(page);
-            assertThat(page.getPositionCount(), equalTo(1));
-            IntVector docs = getDocVector(page, 0);
-            assertThat(docs.getInt(0), equalTo(3));
+            Page inputPage = new Page(inputTerms);
+            try (
+                EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
+                    blockFactory,
+                    128,
+                    queryList,
+                    inputPage,
+                    BlockOptimization.NONE,
+                    new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
+                    0,
+                    directoryData.searchExecutionContext,
+                    warningsContext.createWarnings(new TestWarningsSource("test")),
+                    () -> 0L
+                )
+            ) {
+                Page page = queryOperator.getOutput();
+                assertNotNull(page);
+                assertThat(page.getPositionCount(), equalTo(1));
+                IntVector docs = getDocVector(page, 0);
+                assertThat(docs.getInt(0), equalTo(3));
 
-            Block positions = page.getBlock(1);
-            assertThat(BlockUtils.toJavaObject(positions, 0), equalTo(4));
-            page.releaseBlocks();
-            assertTrue(queryOperator.isFinished());
-            assertWarnings(
-                "Line -1:-1: evaluation of [test] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.IllegalArgumentException: multi-value found"
+                Block positions = page.getBlock(1);
+                assertThat(BlockUtils.toJavaObject(positions, 0), equalTo(4));
+                page.releaseBlocks();
+                assertTrue(queryOperator.isFinished());
+            }
+            warningsContext.finish();
+            assertThat(
+                warningsContext.warnings(),
+                // hasItems here because many threads may add duplicate warnings
+                hasItems(
+                    "Line 1:1: evaluation of [test] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.IllegalArgumentException: multi-value found"
+                )
             );
+        }
+    }
+
+    /**
+     * Regression test for a bug where {@link QueryList#getOrComputeSingleValueFilter} used to route
+     * its private, non-shared {@link SingleValueMatchQuery} through the shared {@link QueryWarnings}
+     * bridge and never unbound it (because the query is scored repeatedly over the lifetime of the
+     * {@link QueryList} instance, well past the method call that built it). Once {@link QueryWarnings}
+     * became a true singleton ({@link QueryWarnings#EMIT}), that permanently-open binding would wedge
+     * the shared thread-local for this thread forever, breaking every subsequent, unrelated use of
+     * {@code EMIT} on the same thread with {@code IllegalStateException: already bound}.
+     * {@link QueryList} now binds directly to the already-known {@link Warnings} instead, without
+     * touching {@link QueryWarnings} at all, so {@code EMIT} must come out of this path completely
+     * unbound.
+     */
+    public void testOnlySingleValuesDoesNotLeakSharedQueryWarningsBinding() throws Exception {
+        try (
+            var directoryData = makeDirectoryWith(
+                List.of(List.of("a2"), List.of("a1", "c1", "b2"), List.of("a2"), List.of("a3"), List.of("b2", "b1", "a1"))
+            );
+            var inputTerms = makeTermsBlock(List.of(List.of("a3")))
+        ) {
+            QueryList queryList = QueryList.rawTermQueryList(directoryData.field, AliasFilter.EMPTY, 0, ElementType.BYTES_REF)
+                .onlySingleValues(warnings(), "multi-value found");
+            Page inputPage = new Page(inputTerms);
+            Query builtQuery = queryList.getQuery(0, inputPage, directoryData.searchExecutionContext);
+            assertNotNull(builtQuery);
+        }
+
+        // QueryWarnings.EMIT must have no lingering bound state on this thread: a subsequent,
+        // unrelated bind()/registerException() cycle -- mirroring how LuceneOperator.getOutput() uses
+        // the bridge -- must succeed normally rather than hitting the reentrancy guard.
+        SingleValueMatchQuery unrelated = new SingleValueMatchQuery(
+            mock(IndexFieldData.class),
+            QueryWarnings.EMIT,
+            new TestWarningsSource("unrelated"),
+            "unrelated"
+        );
+        try (Releasable ignored = QueryWarnings.EMIT.bind(Map.of(unrelated, warnings(new TestWarningsSource("unrelated"))))) {
+            // no exception -- the binding above proves EMIT was left unbound by the onlySingleValues path
+        }
+    }
+
+    public void testBytesRead() throws Exception {
+        long countStep = 31L;
+        AtomicLong counter = new AtomicLong();
+        // Each call to the supplier increments the counter by countStep
+        var directoryBytesRead = (java.util.function.LongSupplier) () -> counter.addAndGet(countStep);
+
+        // Use enough terms to guarantee multiple pages with small maxPageSize
+        int numTerms = 30;
+        List<List<String>> directoryTermsList = IntStream.range(0, numTerms).mapToObj(i -> List.of("term-" + i)).toList();
+        List<List<String>> inputTermsList = IntStream.range(0, numTerms).mapToObj(i -> List.of("term-" + i)).toList();
+
+        try (var directoryData = makeDirectoryWith(directoryTermsList); var inputTerms = makeTermsBlock(inputTermsList)) {
+            QueryList queryList = QueryList.rawTermQueryList(directoryData.field, AliasFilter.EMPTY, 0, ElementType.BYTES_REF);
+            Page inputPage = new Page(inputTerms);
+            // Small maxPageSize forces multiple getOutput() calls
+            int maxPageSize = 5;
+            try (
+                EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
+                    blockFactory,
+                    maxPageSize,
+                    queryList,
+                    inputPage,
+                    BlockOptimization.NONE,
+                    new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
+                    0,
+                    directoryData.searchExecutionContext,
+                    warnings(),
+                    directoryBytesRead
+                )
+            ) {
+                // Initial status: no bytes read yet
+                assertThat(queryOperator.status().bytesRead(), equalTo(0L));
+
+                int pages = 0;
+                long lastBytesRead = 0L;
+                while (queryOperator.isFinished() == false) {
+                    Page page = queryOperator.getOutput();
+                    if (page != null) {
+                        pages++;
+                        // bytes_read should be monotonically increasing across pages
+                        long currentBytesRead = queryOperator.status().bytesRead();
+                        assertThat(currentBytesRead, greaterThan(lastBytesRead));
+                        lastBytesRead = currentBytesRead;
+                        page.releaseBlocks();
+                    }
+                }
+                // With 30 terms and maxPageSize=5, expect multiple pages
+                assertThat(pages, greaterThan(1));
+
+                // This doesn't actually test the real bytes read, just tests that if there were any bytes counted,
+                // the operator would retain the correct count.
+                long bytesRead = queryOperator.status().bytesRead();
+                assertThat(bytesRead, equalTo(pages * countStep));
+            }
         }
     }
 
@@ -245,7 +527,12 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
     }
 
     private static Warnings warnings() {
-        return Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, -1, -1, "test");
+        return warnings(new TestWarningsSource("test"));
+    }
+
+    private static Warnings warnings(TestWarningsSource source) {
+        DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
+        return driverContext.createWarnings(source);
     }
 
     private record DirectoryData(

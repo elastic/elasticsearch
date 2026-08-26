@@ -76,14 +76,7 @@ public final class AggregateMapper {
     }
 
     private static List<NamedExpression> entryForAgg(String aggAlias, AggregateFunction aggregateFunction, boolean grouping) {
-        List<IntermediateStateDesc> intermediateState;
-        if (aggregateFunction instanceof ToAggregator toAggregator) {
-            var supplier = toAggregator.supplier();
-            intermediateState = grouping ? supplier.groupingIntermediateStateDesc() : supplier.nonGroupingIntermediateStateDesc();
-        } else {
-            throw new EsqlIllegalArgumentException("Aggregate has no defined intermediate state: " + aggregateFunction);
-        }
-        return intermediateStateToNamedExpressions(intermediateState, aggAlias).toList();
+        return intermediateStateToNamedExpressions(intermediateStateDesc(aggregateFunction, grouping), aggAlias).toList();
     }
 
     /** Maps intermediate state description to named expressions.  */
@@ -114,7 +107,11 @@ public final class AggregateMapper {
             case DOC -> DataType.DOC_DATA_TYPE;
             case EXPONENTIAL_HISTOGRAM -> DataType.EXPONENTIAL_HISTOGRAM;
             case TDIGEST -> DataType.TDIGEST;
-            case FLOAT, NULL, COMPOSITE, AGGREGATE_METRIC_DOUBLE, UNKNOWN -> throw new EsqlIllegalArgumentException(
+            case LONG_RANGE -> DataType.DATE_RANGE;
+            case DOUBLE_RANGE -> DataType.DOUBLE_RANGE;
+            // Dense vectors are internally represented as float blocks
+            case FLOAT -> DataType.DENSE_VECTOR;
+            case NULL, COMPOSITE, AGGREGATE_METRIC_DOUBLE, UNKNOWN -> throw new EsqlIllegalArgumentException(
                 "unsupported agg type: " + elementType
             );
         };

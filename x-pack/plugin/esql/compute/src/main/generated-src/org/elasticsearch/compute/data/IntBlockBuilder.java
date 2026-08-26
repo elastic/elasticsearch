@@ -115,9 +115,15 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
     }
 
     private void copyFromVector(IntVector vector, int beginInclusive, int endExclusive) {
-        for (int p = beginInclusive; p < endExclusive; p++) {
-            appendInt(vector.getInt(p));
+        int count = endExclusive - beginInclusive;
+        if (count == 0) {
+            return;
         }
+        ensureCapacity(count);
+        vector.copyTo(beginInclusive, values, valueCount, count);
+        hasNonNullValue = true;
+        valueCount += count;
+        updatePositions(count);
     }
 
     /**
@@ -158,26 +164,36 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
     }
 
     private IntBlock buildBigArraysBlock() {
-        final IntBlock theBlock;
-        final IntArray array = blockFactory.bigArrays().newIntArray(valueCount, false);
-        for (int i = 0; i < valueCount; i++) {
-            array.set(i, values[i]);
-        }
-        if (isDense() && singleValued()) {
-            theBlock = new IntBigArrayVector(array, positionCount, blockFactory).asBlock();
-        } else {
-            theBlock = new IntBigArrayBlock(array, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
-        }
         /*
-        * Update the breaker with the actual bytes used.
-        * We pass false below even though we've used the bytes. That's weird,
-        * but if we break here we will throw away the used memory, letting
-        * it be deallocated. The exception will bubble up and the builder will
-        * still technically be open, meaning the calling code should close it
-        * which will return all used memory to the breaker.
-        */
-        blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - array.ramBytesUsed());
-        return theBlock;
+         * Keep ownership of the BigArray until adjustBreaker succeeds. If it throws after
+         * wrapping, release the array here; the incomplete block is abandoned without close
+         * so we do not need BigArrayBlock.closeInternal's overhead debit on the failure path.
+         */
+        IntArray array = blockFactory.bigArrays().newIntArray(valueCount, false);
+        try {
+            for (int i = 0; i < valueCount; i++) {
+                array.set(i, values[i]);
+            }
+            final IntBlock theBlock;
+            if (isDense() && singleValued()) {
+                theBlock = new IntBigArrayVector(array, positionCount, blockFactory).asBlock();
+            } else {
+                theBlock = new IntBigArrayBlock(array, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
+            }
+            /*
+             * Update the breaker with the actual bytes used.
+             * We pass false below even though we've used the bytes. That's weird,
+             * but if we break here we will throw away the used memory, letting
+             * it be deallocated. The exception will bubble up and the builder will
+             * still technically be open, meaning the calling code should close it
+             * which will return all used memory to the breaker.
+             */
+            blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - array.ramBytesUsed());
+            array = null; // ownership transferred to theBlock
+            return theBlock;
+        } finally {
+            Releasables.close(array);
+        }
     }
 
     @Override

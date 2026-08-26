@@ -15,6 +15,7 @@ import com.google.cloud.storage.StorageException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.RetryingInputStream;
 import org.elasticsearch.core.Nullable;
@@ -25,6 +26,7 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
+import java.util.Map;
 
 /**
  * Wrapper around reads from GCS that will retry blob downloads that fail part-way through, resuming from where the failure occurred.
@@ -48,7 +50,7 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
         long start,
         long end
     ) throws IOException {
-        super(new GoogleCloudStorageBlobStoreServices(blobStore, purpose, blobId), purpose, start, end);
+        super(blobStore.getRepositoriesMetrics(), new GoogleCloudStorageBlobStoreServices(blobStore, purpose, blobId), purpose, start, end);
     }
 
     private static class GoogleCloudStorageBlobStoreServices implements BlobStoreServices<Long> {
@@ -123,16 +125,6 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
         }
 
         @Override
-        public void onRetryStarted(StreamAction action) {
-            // No retry metrics for GCS
-        }
-
-        @Override
-        public void onRetrySucceeded(StreamAction action, long numberOfRetries) {
-            // No retry metrics for GCS
-        }
-
-        @Override
         public long getMeaningfulProgressSize() {
             return Math.max(1L, GoogleCloudStorageBlobStore.SDK_DEFAULT_CHUNK_SIZE / 100L);
         }
@@ -149,10 +141,29 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
 
         @Override
         public boolean isRetryableException(StreamAction action, Exception e) {
+            if (e instanceof AlreadyClosedException) {
+                return false;
+            }
             return switch (action) {
                 case OPEN -> BaseService.EXCEPTION_HANDLER.shouldRetry(e, null);
                 case READ -> e instanceof StorageException;
             };
+        }
+
+        @Override
+        public Map<String, Object> getMetricsAttributes(StreamAction action) {
+            return Map.of(
+                "repo_type",
+                GoogleCloudStorageRepository.TYPE,
+                "repo_name",
+                blobStore.getRepositoryName(),
+                "operation",
+                StorageOperation.GET.key(),
+                "purpose",
+                purpose.getKey(),
+                "es_retry_action",
+                action.getPastTense()
+            );
         }
     }
 

@@ -22,9 +22,11 @@ import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.SetProperty;
+import org.gradle.api.services.ServiceReference;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.Optional;
+import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
@@ -37,9 +39,14 @@ import org.gradle.workers.WorkerExecutor;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;
@@ -68,10 +75,20 @@ public abstract class DockerBuildTask extends DefaultTask {
         this.dockerContext = objectFactory.directoryProperty();
         this.buildArgs = objectFactory.mapProperty(String.class, String.class);
         this.markerFile.set(projectLayout.getBuildDirectory().file("markers/" + this.getName() + ".marker"));
+        onlyIf("Docker supports all requested platforms", task -> {
+            var platforms = getPlatforms().getOrElse(Collections.emptySet());
+            if (platforms.isEmpty()) {
+                return false;
+            }
+            DockerSupportService support = getDockerSupport().get();
+            return platforms.stream()
+                .allMatch(platform -> Architecture.fromDockerPlatform(platform).map(support::isArchitectureSupported).orElse(false));
+        });
     }
 
     @TaskAction
     public void build() {
+        String dockerExecutable = getDockerSupport().get().getResolvedDockerExecutable();
         workerExecutor.noIsolation().submit(DockerBuildAction.class, params -> {
             params.getDockerContext().set(dockerContext);
             params.getMarkerFile().set(markerFile);
@@ -82,6 +99,9 @@ public abstract class DockerBuildTask extends DefaultTask {
             params.getBaseImages().set(Arrays.asList(baseImages));
             params.getBuildArgs().set(buildArgs);
             params.getPlatforms().set(getPlatforms());
+            params.getDockerExecutable().set(dockerExecutable);
+            params.getOciImageLayout().set(getOciImageLayout());
+            params.getBuildContexts().set(getBuildContexts());
         });
     }
 
@@ -143,10 +163,38 @@ public abstract class DockerBuildTask extends DefaultTask {
     @Optional
     public abstract Property<Boolean> getPush();
 
+    /**
+     * Optional directory into which the built image is additionally exported as an OCI image
+     * layout. This makes the image consumable by other {@link DockerBuildTask}s via a named
+     * build context (see {@link #getBuildContexts()}), independently of the docker daemon's
+     * image store. This matters for buildx builders using the isolated docker-container
+     * driver, which cannot resolve locally-tagged daemon images in FROM instructions.
+     * Only used on the buildx (cross-platform) code path.
+     */
+    @OutputDirectory
+    @Optional
+    public abstract DirectoryProperty getOciImageLayout();
+
+    /**
+     * Named build contexts, passed to buildx as {@code --build-context name=value}. A context
+     * whose name matches an image reference in a FROM instruction overrides that reference,
+     * allowing a Dockerfile to build FROM a locally-built image that only exists as an OCI
+     * image layout on disk (value {@code oci-layout:///path/to/layout}) rather than in a
+     * registry or the docker daemon. Values using the {@code oci-layout://} scheme without an
+     * explicit digest are resolved to the layout's manifest digest at execution time.
+     * Only used on the buildx (cross-platform) code path.
+     */
+    @Input
+    @Optional
+    public abstract MapProperty<String, String> getBuildContexts();
+
     @OutputFile
     public RegularFileProperty getMarkerFile() {
         return markerFile;
     }
+
+    @ServiceReference(DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME)
+    public abstract Property<DockerSupportService> getDockerSupport();
 
     public abstract static class DockerBuildAction implements WorkAction<Parameters> {
         private final ExecOperations execOperations;
@@ -163,12 +211,13 @@ public abstract class DockerBuildTask extends DefaultTask {
          */
         private void pullBaseImage(String baseImage) {
             final int maxAttempts = 10;
+            String docker = getParameters().getDockerExecutable().get();
 
             for (int attempt = 1; attempt <= maxAttempts; attempt++) {
                 try {
                     LoggedExec.exec(execOperations, spec -> {
                         maybeConfigureDockerConfig(spec);
-                        spec.executable("docker");
+                        spec.executable(docker);
                         spec.args("pull");
                         spec.environment("DOCKER_BUILDKIT", "1");
                         spec.args(baseImage);
@@ -205,7 +254,7 @@ public abstract class DockerBuildTask extends DefaultTask {
             LoggedExec.exec(execOperations, spec -> {
                 maybeConfigureDockerConfig(spec);
 
-                spec.executable("docker");
+                spec.executable(parameters.getDockerExecutable().get());
                 spec.environment("DOCKER_BUILDKIT", "1");
                 if (isCrossPlatform) {
                     spec.args("buildx");
@@ -215,6 +264,11 @@ public abstract class DockerBuildTask extends DefaultTask {
 
                 if (isCrossPlatform) {
                     spec.args("--platform", parameters.getPlatforms().get().stream().collect(Collectors.joining(",")));
+                    // Named build contexts are only supported by buildx; the non-buildx path resolves
+                    // locally-tagged base images against the daemon's image store, so it doesn't need them.
+                    parameters.getBuildContexts()
+                        .get()
+                        .forEach((name, value) -> spec.args("--build-context", name + "=" + resolveBuildContext(value)));
                 }
 
                 if (parameters.getNoCache().get()) {
@@ -227,6 +281,31 @@ public abstract class DockerBuildTask extends DefaultTask {
 
                 if (parameters.getPush().getOrElse(false)) {
                     spec.args("--push");
+                } else if (parameters.getPlatforms().get().size() == 1) {
+                    if (isCrossPlatform && parameters.getOciImageLayout().isPresent()) {
+                        // Load the image into the daemon (see the --load comment below) and additionally
+                        // export an OCI image layout to disk, so that derived images (e.g. cloud-ess,
+                        // which builds FROM the locally-tagged wolfi image) can resolve this image via a
+                        // named build context. This is required with the docker-container buildx driver,
+                        // whose isolated image store cannot see daemon images in FROM instructions.
+                        // Multiple --output flags require buildx >= 0.13.
+                        spec.args("--output", "type=docker");
+                        spec.args(
+                            "--output",
+                            "type=oci,tar=false,dest=" + parameters.getOciImageLayout().get().getAsFile().getAbsolutePath()
+                        );
+                    } else {
+                        // Add --load to ensure the image ends up in the local Docker daemon as a
+                        // regular image, not a manifest list. This is required for any
+                        // single-platform build (including cross-platform builds for a single
+                        // foreign architecture, e.g. aarch64 on x86): with the docker-container
+                        // buildx driver the result otherwise remains only in the build cache and
+                        // the subsequent `docker inspect` for the image checksum fails with
+                        // "no such object". It also prevents issues with newer Docker versions
+                        // (23.0+) that may create manifest lists even for single-platform builds
+                        // when BuildKit is enabled.
+                        spec.args("--load");
+                    }
                 }
             });
 
@@ -245,6 +324,32 @@ public abstract class DockerBuildTask extends DefaultTask {
             }
         }
 
+        /**
+         * Resolves an {@code oci-layout://} build context value to a digest-qualified reference.
+         * Buildx resolves OCI layout contexts by tag or digest within the layout; the tag recorded
+         * in the layout's index is not always what buildx looks up by default, so pinning the
+         * manifest digest from {@code index.json} is the most robust way to reference the
+         * (single-image) layouts we export.
+         */
+        private static String resolveBuildContext(String value) {
+            String prefix = "oci-layout://";
+            if (value.startsWith(prefix) == false || value.contains("@")) {
+                return value;
+            }
+            Path indexJson = Path.of(value.substring(prefix.length()), "index.json");
+            try {
+                // The exported layouts contain a single manifest, so plucking the first digest is
+                // sufficient and avoids a JSON parser dependency in this worker action.
+                Matcher matcher = Pattern.compile("sha256:[a-f0-9]{64}").matcher(Files.readString(indexJson));
+                if (matcher.find() == false) {
+                    throw new GradleException("No manifest digest found in OCI image layout index [" + indexJson + "]");
+                }
+                return value + "@" + matcher.group();
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to read OCI image layout index [" + indexJson + "]", e);
+            }
+        }
+
         private boolean isCrossPlatform() {
             return getParameters().getPlatforms()
                 .get()
@@ -254,9 +359,10 @@ public abstract class DockerBuildTask extends DefaultTask {
 
         private String getImageChecksum(String imageTag) {
             final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+            String docker = getParameters().getDockerExecutable().get();
 
             execOperations.exec(spec -> {
-                spec.setCommandLine("docker", "inspect", "--format", "{{ .Id }}", imageTag);
+                spec.setCommandLine(docker, "inspect", "--format", "{{ .Id }}", imageTag);
                 spec.setStandardOutput(stdout);
                 spec.setIgnoreExitValue(false);
             });
@@ -283,5 +389,11 @@ public abstract class DockerBuildTask extends DefaultTask {
         SetProperty<String> getPlatforms();
 
         Property<Boolean> getPush();
+
+        Property<String> getDockerExecutable();
+
+        DirectoryProperty getOciImageLayout();
+
+        MapProperty<String, String> getBuildContexts();
     }
 }

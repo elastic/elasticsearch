@@ -124,12 +124,13 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         // We should see that the migration is in progress even though we just started the migration.
         assertThat(statusResponse.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.IN_PROGRESS));
 
-        // Now wait for the migration to finish (otherwise the test infra explodes)
+        // Now wait for the migration to finish (otherwise the test infra explodes). The feature upgrade may take longer than ten
+        // seconds when tests are running in parallel, so we give assertBusy a thirty-second timeout.
         assertBusy(() -> {
             GetFeatureUpgradeStatusResponse statusResp = client().execute(GetFeatureUpgradeStatusAction.INSTANCE, getStatusRequest).get();
             logger.info(Strings.toString(statusResp));
             assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testMigrateSystemIndex() throws Exception {

@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.tsdb.es819;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatVariableSkipIntervalTests;
+import org.elasticsearch.index.codec.tsdb.TSDBDocValuesTestUtil;
 
 /** Tests ES819TSDBDocValuesFormat with custom skipper interval size. */
 public class ES819TSDBDocValuesFormatVariableSkipIntervalTests extends ES87TSDBDocValuesFormatVariableSkipIntervalTests {
@@ -19,13 +20,14 @@ public class ES819TSDBDocValuesFormatVariableSkipIntervalTests extends ES87TSDBD
     protected Codec getCodec() {
         // small interval size to test with many intervals
         return TestUtil.alwaysDocValuesFormat(
-            new ES819TSDBDocValuesFormat(
+            new ES819Version3TSDBDocValuesFormat(
                 random().nextInt(4, 16),
                 random().nextInt(1, 32),
                 random().nextBoolean(),
-                ES819TSDBDocValuesFormatTests.randomBinaryCompressionMode(),
+                TSDBDocValuesTestUtil.randomBinaryCompressionMode(),
                 random().nextBoolean(),
-                ES819TSDBDocValuesFormatTests.randomNumericBlockSize()
+                TSDBDocValuesTestUtil.randomNumericBlockSize(),
+                random().nextBoolean()
             )
         );
     }
@@ -33,13 +35,14 @@ public class ES819TSDBDocValuesFormatVariableSkipIntervalTests extends ES87TSDBD
     public void testSkipIndexIntervalSize() {
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> new ES819TSDBDocValuesFormat(
+            () -> new ES819Version3TSDBDocValuesFormat(
                 random().nextInt(Integer.MIN_VALUE, 2),
                 random().nextInt(1, 32),
                 random().nextBoolean(),
-                ES819TSDBDocValuesFormatTests.randomBinaryCompressionMode(),
+                TSDBDocValuesTestUtil.randomBinaryCompressionMode(),
                 random().nextBoolean(),
-                ES819TSDBDocValuesFormatTests.randomNumericBlockSize()
+                TSDBDocValuesTestUtil.randomNumericBlockSize(),
+                random().nextBoolean()
             )
         );
         assertTrue(ex.getMessage().contains("skipIndexIntervalSize must be > 1"));

@@ -37,13 +37,13 @@ public final class TopBytesRefAggregatorFunctionSupplier implements AggregatorFu
   @Override
   public TopBytesRefAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return TopBytesRefAggregatorFunction.create(driverContext, channels, limit, ascending);
+    return new TopBytesRefAggregatorFunction(driverContext, channels, limit, ascending);
   }
 
   @Override
   public TopBytesRefGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return TopBytesRefGroupingAggregatorFunction.create(channels, driverContext, limit, ascending);
+    return new TopBytesRefGroupingAggregatorFunction(channels, driverContext, limit, ascending);
   }
 
   @Override

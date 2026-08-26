@@ -14,6 +14,6 @@ import org.elasticsearch.xpack.esql.expression.AbstractUnaryScalarSerializationT
 public class ToDatetimeSerializationTests extends AbstractUnaryScalarSerializationTests<ToDatetime> {
     @Override
     protected ToDatetime create(Source source, Expression child) {
-        return new ToDatetime(source, child);
+        return new ToDatetime(source, child, configuration());
     }
 }

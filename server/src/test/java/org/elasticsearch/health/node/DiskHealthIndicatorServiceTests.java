@@ -36,7 +36,6 @@ import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -108,9 +107,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
     private FeatureService featureService;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
-
+    public void initFeatureService() throws Exception {
         featureService = Mockito.mock(FeatureService.class);
         Mockito.when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
     }
@@ -279,7 +276,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
             diskInfoByNode,
             DataStreamLifecycleHealthInfo.NO_DSL_ERRORS,
             Map.of(),
-            FileSettingsService.FileSettingsHealthInfo.INDETERMINATE
+            FileSettingsHealthInfo.INDETERMINATE
         );
 
         HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, healthInfo);
@@ -1056,12 +1053,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
                 diskInfoByNode.put(node.getId(), diskHealthInfo);
             }
         }
-        return new HealthInfo(
-            diskInfoByNode,
-            DataStreamLifecycleHealthInfo.NO_DSL_ERRORS,
-            Map.of(),
-            FileSettingsService.FileSettingsHealthInfo.INDETERMINATE
-        );
+        return new HealthInfo(diskInfoByNode, DataStreamLifecycleHealthInfo.NO_DSL_ERRORS, Map.of(), FileSettingsHealthInfo.INDETERMINATE);
     }
 
     private static ClusterService createClusterService(Collection<DiscoveryNode> nodes, boolean withBlockedIndex) {

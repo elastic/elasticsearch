@@ -58,7 +58,7 @@ public class ParallelDetector {
                             // Number of cores not including hyper-threading
                             if (name.equals("cpu cores")) {
                                 assert currentID.isEmpty() == false;
-                                socketToCore.put("currentID", Integer.valueOf(value));
+                                socketToCore.put(currentID, Integer.valueOf(value));
                                 currentID = "";
                             }
                         }

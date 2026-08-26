@@ -24,11 +24,14 @@ import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.AutoExpandReplicas;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -150,6 +153,18 @@ public class SystemIndices {
             .filter(SystemIndexDescriptor::isAutomaticallyManaged)
             .collect(Collectors.toMap(SystemIndexDescriptor::getIndexPattern, SystemIndexDescriptor::getMappingsVersion));
 
+    public static final String NUMBER_OF_REPLICAS_SETTING_NAME = "cluster.system_indices.number_of_replicas";
+    public static final Setting<Integer> NUMBER_OF_REPLICAS_SETTING = Setting.intSetting(
+        NUMBER_OF_REPLICAS_SETTING_NAME,
+        IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING,
+        0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final String AUTO_EXPAND_REPLICAS_SETTING_NAME = "cluster.system_indices.auto_expand_replicas";
+    public static final Setting<AutoExpandReplicas> AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SYSTEM_INDICES_SETTING;
+
     /**
      * The node's full list of system features is stored here. The map is keyed
      * on the value of {@link Feature#getName()}, and is used for fast lookup of
@@ -161,6 +176,7 @@ public class SystemIndices {
     private final CharacterRunAutomaton netNewSystemIndexAutomaton;
     private final CharacterRunAutomaton systemNameRunAutomaton;
     private final CharacterRunAutomaton systemIndexRunAutomaton;
+    private final CharacterRunAutomaton systemAssociatedIndicesAutomaton;
     private final CharacterRunAutomaton systemDataStreamIndicesRunAutomaton;
     private final Predicate<String> systemDataStreamPredicate;
     private final SystemIndexDescriptor[] indexDescriptors;
@@ -190,6 +206,7 @@ public class SystemIndices {
         checkForDuplicateAliases(this.getSystemIndexDescriptors());
         Automaton systemIndexAutomata = buildIndexAutomaton(featureDescriptors);
         this.systemIndexRunAutomaton = new CharacterRunAutomaton(systemIndexAutomata);
+        this.systemAssociatedIndicesAutomaton = buildAssociatedIndicesAutomaton(featureDescriptors);
         Automaton systemDataStreamIndicesAutomata = buildDataStreamBackingIndicesAutomaton(featureDescriptors);
         this.systemDataStreamIndicesRunAutomaton = new CharacterRunAutomaton(systemDataStreamIndicesAutomata);
         this.systemDataStreamPredicate = buildDataStreamNamePredicate(featureDescriptors);
@@ -444,6 +461,25 @@ public class SystemIndices {
             .map(SystemIndices::featureToIndexAutomaton)
             .reduce(Operations::union);
         return Operations.determinize(automaton.orElse(EMPTY), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+    }
+
+    /**
+     * Builds a single automaton that matches any index name that fits the patterns of the features' associated index descriptors.
+     * @return determinized automaton matching any of the descriptors' patterns, or an empty automaton if the collection is empty
+     */
+    private static CharacterRunAutomaton buildAssociatedIndicesAutomaton(Map<String, Feature> featureDescriptors) {
+        List<Automaton> automata = featureDescriptors.values()
+            .stream()
+            .map(SystemIndices.Feature::getAssociatedIndexDescriptors)
+            .flatMap(Collection::stream)
+            .map(AssociatedIndexDescriptor::getIndexPatternAutomaton)
+            .toList();
+
+        if (automata.isEmpty()) {
+            return new CharacterRunAutomaton(EMPTY);
+        }
+
+        return new CharacterRunAutomaton(Operations.determinize(Operations.union(automata), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
     }
 
     private static CharacterRunAutomaton buildNetNewIndexCharacterRunAutomaton(Map<String, Feature> featureDescriptors) {
@@ -743,6 +779,10 @@ public class SystemIndices {
                 )
             );
         }
+    }
+
+    public boolean isFeatureAssociatedIndex(String name) {
+        return this.systemAssociatedIndicesAutomaton.run(name);
     }
 
     /**

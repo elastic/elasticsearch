@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.inference.services.ai21.completion;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
@@ -66,7 +68,7 @@ public class Ai21ChatCompletionModelTests extends ESTestCase {
     public void testOverrideWith_UnifiedCompletionRequest_OverridesExistingModelId() {
         var model = createCompletionModel("api_key", "model_name");
         var request = new UnifiedCompletionRequest(
-            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null)),
+            List.of(new Message(new ContentString("hello"), "role", null, null)),
             "different_model",
             null,
             null,
@@ -84,7 +86,7 @@ public class Ai21ChatCompletionModelTests extends ESTestCase {
     public void testOverrideWith_UnifiedCompletionRequest_OverridesNullModelId() {
         var model = createCompletionModel("api_key", null);
         var request = new UnifiedCompletionRequest(
-            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null)),
+            List.of(new Message(new ContentString("hello"), "role", null, null)),
             "different_model",
             null,
             null,
@@ -102,7 +104,7 @@ public class Ai21ChatCompletionModelTests extends ESTestCase {
     public void testOverrideWith_UnifiedCompletionRequest_KeepsNullIfNoModelIdProvided() {
         var model = createCompletionModel("api_key", null);
         var request = new UnifiedCompletionRequest(
-            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null)),
+            List.of(new Message(new ContentString("hello"), "role", null, null)),
             null,
             null,
             null,
@@ -120,7 +122,7 @@ public class Ai21ChatCompletionModelTests extends ESTestCase {
     public void testOverrideWith_UnifiedCompletionRequest_UsesModelFields_WhenRequestDoesNotOverride() {
         var model = createCompletionModel("api_key", "model_name");
         var request = new UnifiedCompletionRequest(
-            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null)),
+            List.of(new Message(new ContentString("hello"), "role", null, null)),
             null, // not overriding model
             null,
             null,

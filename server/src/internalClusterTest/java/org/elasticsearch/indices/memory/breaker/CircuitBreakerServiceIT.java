@@ -28,6 +28,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
@@ -45,6 +47,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.cardinality;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
@@ -110,10 +113,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
     }
 
     public void testMemoryBreaker() throws Exception {
-        if (noopBreakerUsed()) {
-            logger.info("--> noop breakers used, skipping test");
-            return;
-        }
+        assumeFalse("--> noop breakers used, skipping test", noopBreakerUsed());
         assertAcked(
             prepareCreate("cb-test", 1, Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))).setMapping(
                 "test",
@@ -159,10 +159,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
     }
 
     public void testRamAccountingTermsEnum() throws Exception {
-        if (noopBreakerUsed()) {
-            logger.info("--> noop breakers used, skipping test");
-            return;
-        }
+        assumeFalse("--> noop breakers used, skipping test", noopBreakerUsed());
         final Client client = client();
 
         // Create an index where the mappings have a field data filter
@@ -225,10 +222,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
     }
 
     public void testRequestBreaker() throws Exception {
-        if (noopBreakerUsed()) {
-            logger.info("--> noop breakers used, skipping test");
-            return;
-        }
+        assumeFalse("--> noop breakers used, skipping test", noopBreakerUsed());
         assertAcked(prepareCreate("cb-test", 1, Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))));
         Client client = client();
 
@@ -256,17 +250,14 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
     }
 
     public void testAggTookTooMuch() throws Exception {
-        if (noopBreakerUsed()) {
-            logger.info("--> noop breakers used, skipping test");
-            return;
-        }
-        assertAcked(prepareCreate("cb-test", 1, Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))));
+        assumeFalse("--> noop breakers used, skipping test", noopBreakerUsed());
+        assertAcked(
+            prepareCreate("cb-test", 1, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, between(0, 1)))
+                .setMapping("test", "type=long")
+        );
         Client client = client();
 
-        // Make request breaker limited to a small amount
-        updateClusterSettings(
-            Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100b")
-        );
+        updateClusterSettings(Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "2kb"));
 
         // index some different terms so we have some field data for loading
         int docCount = scaledRandomIntBetween(100, 1000);
@@ -286,8 +277,8 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         } catch (Exception e) {
             Throwable cause = e.getCause();
             assertThat(cause, instanceOf(CircuitBreakingException.class));
-            assertThat(cause.toString(), containsString("[request] Data too large, data for [preallocate[aggregations]] would be"));
-            assertThat(cause.toString(), containsString("which is larger than the limit of [100/100b]"));
+            assertThat(cause.toString(), containsString("[request] Data too large"));
+            assertThat(cause.toString(), containsString("which is larger than the limit of [2048/2kb]"));
         }
     }
 
@@ -307,10 +298,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
     }
 
     public void testCanResetUnreasonableSettings() {
-        if (noopBreakerUsed()) {
-            logger.info("--> noop breakers used, skipping test");
-            return;
-        }
+        assumeFalse("--> noop breakers used, skipping test", noopBreakerUsed());
         updateClusterSettings(
             Settings.builder().put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "5b")
         );
@@ -333,10 +321,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
 
     public void testLimitsRequestSize() {
         ByteSizeValue inFlightRequestsLimit = ByteSizeValue.of(8, ByteSizeUnit.KB);
-        if (noopBreakerUsed()) {
-            logger.info("--> noop breakers used, skipping test");
-            return;
-        }
+        assumeFalse("--> noop breakers used, skipping test", noopBreakerUsed());
 
         internalCluster().ensureAtLeastNumDataNodes(2);
 
@@ -416,6 +401,56 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         checkLimitSize(client, 0.8);
 
         updateClusterSettings(Settings.builder().putNull(totalCircuitBreakerLimitSettingKey).putNull(useRealMemoryUsageSetting));
+    }
+
+    public void testCircuitBreakerDuringQueryConstruction() {
+        assumeFalse("--> noop breakers used, skipping test", noopBreakerUsed());
+
+        assertAcked(
+            prepareCreate("cb-query-test", 1, Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))).setMapping(
+                "test_field",
+                "type=text"
+            )
+        );
+
+        int docCount = scaledRandomIntBetween(100, 500);
+        List<IndexRequestBuilder> reqs = new ArrayList<>();
+        for (long id = 0; id < docCount; id++) {
+            reqs.add(client().prepareIndex("cb-query-test").setId(Long.toString(id)).setSource("test_field", "value" + id));
+        }
+        indexRandom(true, false, true, reqs);
+
+        updateClusterSettings(
+            Settings.builder()
+                .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "10b")
+                .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey(), 1.0)
+        );
+
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder();
+        for (int i = 0; i < 100; i++) {
+            boolQuery.should(new WildcardQueryBuilder("test_field", "*pattern*" + i + "*"));
+        }
+
+        SearchRequestBuilder searchRequest = client().prepareSearch("cb-query-test").setQuery(boolQuery);
+        // This is one of the cases where a CB-trip does not translate into a 429, but instead a 400, because the query is rejected
+        // at construction time, before it is executed
+        assertFailures(searchRequest, RestStatus.TOO_MANY_REQUESTS, containsString("Data too large"));
+
+        NodesStatsResponse stats = client().admin().cluster().prepareNodesStats().setBreaker(true).get();
+        long queryConstructionBreaks = 0;
+        for (NodeStats stat : stats.getNodes()) {
+            CircuitBreakerStats breakerStats = stat.getBreaker().getStats(CircuitBreaker.REQUEST);
+            if (breakerStats != null) {
+                queryConstructionBreaks += breakerStats.getTrippedCount();
+            }
+        }
+        assertThat("Query construction breaker should have tripped", queryConstructionBreaks, greaterThanOrEqualTo(1L));
+
+        updateClusterSettings(
+            Settings.builder()
+                .putNull(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey())
+                .putNull(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey())
+        );
     }
 
     private void checkLimitSize(Client client, double limitRatio) {

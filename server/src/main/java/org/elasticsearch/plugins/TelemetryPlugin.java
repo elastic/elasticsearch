@@ -9,9 +9,12 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.telemetry.TelemetryLoggingFilterProvider;
 import org.elasticsearch.telemetry.TelemetryProvider;
 
+import java.util.List;
+
 public interface TelemetryPlugin {
-    TelemetryProvider getTelemetryProvider(Settings settings);
+    TelemetryProvider getTelemetryProvider(Environment environment, List<TelemetryLoggingFilterProvider> filterProviders);
 }

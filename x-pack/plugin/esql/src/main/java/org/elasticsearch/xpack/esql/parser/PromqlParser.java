@@ -43,15 +43,19 @@ public class PromqlParser {
      * Parses an PromQL expression into execution plan
      */
     public LogicalPlan createStatement(String query) {
-        return createStatement(query, null, null, 0, 0);
+        return createStatement(query, null, null, 0, 0, new QueryParams());
     }
 
     public LogicalPlan createStatement(String query, Literal start, Literal end, int startLine, int startColumn) {
+        return createStatement(query, start, end, startLine, startColumn, new QueryParams());
+    }
+
+    public LogicalPlan createStatement(String query, Literal start, Literal end, int startLine, int startColumn, QueryParams params) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as expression: {}", query);
         }
 
-        return invokeParser(query, start, end, startLine, startColumn, PromqlBaseParser::singleStatement, PromqlAstBuilder::plan);
+        return invokeParser(query, start, end, startLine, startColumn, params, PromqlBaseParser::singleStatement, PromqlAstBuilder::plan);
     }
 
     private <T> T invokeParser(
@@ -60,6 +64,7 @@ public class PromqlParser {
         Literal end,
         int startLine,
         int startColumn,
+        QueryParams params,
         Function<PromqlBaseParser, ParserRuleContext> parseFunction,
         BiFunction<PromqlAstBuilder, ParserRuleContext, T> visitor
     ) {
@@ -93,7 +98,7 @@ public class PromqlParser {
             if (log.isTraceEnabled()) {
                 log.trace("Parse tree: {}", tree.toStringTree());
             }
-            return visitor.apply(new PromqlAstBuilder(start, end, startLine, startColumn), tree);
+            return visitor.apply(new PromqlAstBuilder(start, end, startLine, startColumn, params), tree);
         } catch (StackOverflowError e) {
             throw new ParsingException(
                 "PromQL statement is too large, causing stack overflow when generating the parsing tree: [{}]",

@@ -30,18 +30,22 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.highlight.DefaultHighlighter;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -53,6 +57,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -179,6 +185,13 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * Returns true if the field is aggregatable.
+     */
+    public boolean isAggregatable(BooleanSupplier idFieldDataEnabled) {
+        return isAggregatable();
+    }
+
+    /**
      * @return true if field has been marked as a dimension field
      */
     public boolean isDimension() {
@@ -192,6 +205,19 @@ public abstract class MappedFieldType {
      */
     public boolean isVectorEmbedding() {
         return false;
+    }
+
+    /**
+     * Returns the {@link FieldAndFormat} that retrieves this field's embeddings via the {@code fields} API, or {@code null} if the field
+     * cannot produce embeddings of the requested type. Fields that expose no embeddings at all always return {@code null}, whatever type
+     * is requested.
+     *
+     * @param vectorType the type of vector the caller requires, or {@code null} if the caller accepts any vector type.
+     * @return the embeddings field-and-format, or {@code null} if this field cannot produce embeddings of the requested type.
+     */
+    @Nullable
+    public FieldAndFormat embeddingsFieldAndFormat(@Nullable VectorType vectorType) {
+        return null;
     }
 
     /**
@@ -247,10 +273,21 @@ public abstract class MappedFieldType {
      * {@link ConstantScoreQuery} around a {@link BooleanQuery} whose {@link Occur#SHOULD} clauses
      * are generated with {@link #termQuery}. */
     public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
+        return defaultTermsQuery(values, this::termQuery, context);
+    }
+
+    /**
+     * The default way of building a terms query.
+     */
+    protected static Query defaultTermsQuery(
+        Collection<?> values,
+        BiFunction<Object, SearchExecutionContext, Query> termQuery,
+        SearchExecutionContext context
+    ) {
         Set<?> dedupe = new HashSet<>(values);
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (Object value : dedupe) {
-            builder.add(termQuery(value, context), Occur.SHOULD);
+            builder.add(termQuery.apply(value, context), Occur.SHOULD);
         }
         return new ConstantScoreQuery(builder.build());
     }
@@ -649,29 +686,70 @@ public abstract class MappedFieldType {
 
     public enum FieldExtractPreference {
         /**
+         * Loads the field by extracting both the spatial bounds (extent) and the centroid from the binary encoded representation
+         */
+        EXTRACT_SPATIAL_BOUNDS_AND_CENTROID,
+        /**
+         * Loads the field by extracting the extent from the binary encoded representation
+         */
+        EXTRACT_SPATIAL_BOUNDS(null, null, EXTRACT_SPATIAL_BOUNDS_AND_CENTROID),
+        /**
+         * Loads the field by extracting the centroid (location and weight) from the binary encoded representation
+         */
+        EXTRACT_SPATIAL_CENTROID(null, EXTRACT_SPATIAL_BOUNDS_AND_CENTROID, null),
+        /**
          * Load the field from doc-values into a BlockLoader supporting doc-values.
          */
-        DOC_VALUES,
-        /**
-         *  Loads the field by extracting the extent from the binary encoded representation
-         */
-        EXTRACT_SPATIAL_BOUNDS,
+        DOC_VALUES(null, EXTRACT_SPATIAL_BOUNDS, EXTRACT_SPATIAL_CENTROID),
         /**
          * No preference. Leave the choice of where to load the field from up to the FieldType.
          */
-        NONE,
+        NONE(DOC_VALUES, EXTRACT_SPATIAL_BOUNDS, EXTRACT_SPATIAL_CENTROID),
         /**
          * Prefer loading from stored fields like {@code _source} because we're
          * loading many fields. The {@link MappedFieldType} can chose a different
          * method to load the field if it needs to.
          */
-        STORED
+        STORED;
+
+        private final FieldExtractPreference withDocValues;
+        private final FieldExtractPreference withSpatialBounds;
+        private final FieldExtractPreference withSpatialCentroid;
+
+        FieldExtractPreference() {
+            this(null, null, null);
+        }
+
+        FieldExtractPreference(
+            FieldExtractPreference withDocValues,
+            FieldExtractPreference withSpatialBounds,
+            FieldExtractPreference withSpatialCentroid
+        ) {
+            this.withDocValues = withDocValues;
+            this.withSpatialBounds = withSpatialBounds;
+            this.withSpatialCentroid = withSpatialCentroid;
+        }
+
+        public FieldExtractPreference withDocValues() {
+            return withDocValues == null ? this : withDocValues;
+        }
+
+        public FieldExtractPreference getWithSpatialBounds() {
+            return withSpatialBounds == null ? this : withSpatialBounds;
+        }
+
+        public FieldExtractPreference getWithSpatialCentroid() {
+            return withSpatialCentroid == null ? this : withSpatialCentroid;
+        }
     }
 
     /**
      * Arguments for {@link #blockLoader}.
      */
     public interface BlockLoaderContext {
+        ByteSizeValue DEFAULT_ORDINALS_BYTE_SIZE = ByteSizeValue.ofKb(100);
+        ByteSizeValue DEFAULT_SCRIPT_BYTE_SIZE = ByteSizeValue.ofKb(300);
+
         /**
          * The name of the index.
          */
@@ -712,15 +790,26 @@ public abstract class MappedFieldType {
         /**
          * MappingLookup for the queried index.
          */
-        @Nullable
-        default MappingLookup mappingLookup() {
-            return null;
-        }
+        MappingLookup mappingLookup();
 
         @Nullable
-        default BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
-            return null;
-        }
+        BlockLoaderFunctionConfig blockLoaderFunctionConfig();
+
+        /**
+         * Warnings collector for the block loader. May be {@code null} if warnings are not supported.
+         */
+        @Nullable
+        Warnings warnings();
+
+        /**
+         * Number of bytes reserved for each ordinals {@link BlockLoader.Reader}.
+         */
+        ByteSizeValue ordinalsByteSize();
+
+        /**
+         * Number of bytes reserved for each script {@link BlockLoader.Reader}.
+         */
+        ByteSizeValue scriptByteSize();
     }
 
 }

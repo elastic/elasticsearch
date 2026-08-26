@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper.annotatedtext;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
@@ -25,6 +24,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.ElasticsearchAnalyzerWrapper;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
@@ -149,8 +149,13 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public AnnotatedTextFieldMapper build(MapperBuilderContext context) {
-            FieldType fieldType = TextParams.buildFieldType(() -> true, store, indexOptions, norms, termVectors);
+            FieldType fieldType = TextParams.buildFieldType(() -> true, store, () -> false, indexOptions, norms, termVectors);
             if (fieldType.indexOptions() == IndexOptions.NONE) {
                 throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields must be indexed");
             }
@@ -279,7 +284,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
      * keep state about the annotations being processed and pass them into token streams
      * being highlighted.
      */
-    public static final class AnnotatedHighlighterAnalyzer extends AnalyzerWrapper {
+    public static final class AnnotatedHighlighterAnalyzer extends ElasticsearchAnalyzerWrapper {
         private final Analyzer delegate;
         private AnnotatedText[] annotations;
         // If the field has arrays of values this counter is used to keep track of
@@ -287,7 +292,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         int readerNum;
 
         public AnnotatedHighlighterAnalyzer(Analyzer delegate) {
-            super(delegate.getReuseStrategy());
+            super(delegate);
             this.delegate = delegate;
         }
 
@@ -315,12 +320,12 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         }
     }
 
-    public static final class AnnotationAnalyzerWrapper extends AnalyzerWrapper {
+    public static final class AnnotationAnalyzerWrapper extends ElasticsearchAnalyzerWrapper {
 
         private final Analyzer delegate;
 
         public AnnotationAnalyzerWrapper(Analyzer delegate) {
-            super(delegate.getReuseStrategy());
+            super(delegate);
             this.delegate = delegate;
         }
 

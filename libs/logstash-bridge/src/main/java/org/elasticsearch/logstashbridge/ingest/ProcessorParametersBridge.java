@@ -13,12 +13,14 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
 import org.elasticsearch.logstashbridge.env.EnvironmentBridge;
 import org.elasticsearch.logstashbridge.script.ScriptServiceBridge;
 import org.elasticsearch.logstashbridge.threadpool.ThreadPoolBridge;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.useragent.UserAgentPlugin;
 
 public interface ProcessorParametersBridge extends StableBridgeAPI<Processor.Parameters> {
 
@@ -41,7 +43,9 @@ public interface ProcessorParametersBridge extends StableBridgeAPI<Processor.Par
             null,
             null,
             threadPool.generic()::execute,
-            IngestService.createGrokThreadWatchdog(environment, threadPool)
+            IngestService.createGrokThreadWatchdog(environment, threadPool),
+            UserAgentPlugin.createRegistry(environment, environment.settings()),
+            IpLocationService.NOOP
         );
         return new ProxyInternal(processorParameters);
     }

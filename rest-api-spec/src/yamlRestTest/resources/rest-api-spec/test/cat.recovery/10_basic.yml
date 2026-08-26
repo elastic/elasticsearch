@@ -30,8 +30,8 @@
                 (?:\d+ms|\d+(?:\.\d+)?s)    \s+                 # time in ms or seconds
                 (empty_store|existing_store|peer|snapshot|local_shards) \s+ # source type
                 (init|index|verify_index|translog|finalize|done) \s+ # stage
-                [-\w./]+    \s+                                 # source_host
-                [-\w./]+    \s+                                 # target_host
+                [-\w.%:/]+  \s+                                 # source_host
+                [-\w.%:/]+  \s+                                 # target_host
                 [-\w./]+    \s+                                 # repository
                 [-\w./]+    \s+                                 # snapshot
                 \d+         \s+                                 # files
@@ -118,8 +118,8 @@
           (?:\d+ms|\d+(?:\.\d+)?s)    \s+                 # time in ms or seconds
           existing_store \s+                              # source type (always existing_store for closed indices)
           done        \s+                                 # stage
-          [-\w./]+    \s+                                 # source_host
-          [-\w./]+    \s+                                 # target_host
+          [-\w.%:/]+  \s+                                 # source_host
+          [-\w.%:/]+  \s+                                 # target_host
           [-\w./]+    \s+                                 # repository
           [-\w./]+    \s+                                 # snapshot
           \d+         \s+                                 # files
@@ -133,6 +133,39 @@
           0          \s+                                  # translog_ops (always 0 for closed indices)
           0           \s+                                 # translog_ops_recovered (always 0 for closed indices)
           100\.0%                                         # translog_ops_percent (always 100.0% for closed indices)
+          \n
+        )+
+        $/
+
+---
+"Test cat recovery includes priority":
+  - requires:
+      cluster_features: ["indices.recovery.recovery_priority"]
+      reason: asserts that response includes recovery priority
+
+  - do:
+      indices.create:
+        index:  index3
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+  - do:
+      index:
+        index:  index3
+        id:     "1"
+        body:   { foo: bar }
+        refresh: true
+  - do:
+      cat.recovery:
+        h: i,pr
+
+  - match:
+      $body: |
+        /^
+        (
+          index3 \s+
+          unassigned_new_primary
           \n
         )+
         $/

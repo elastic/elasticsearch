@@ -1,12 +1,14 @@
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.foreign-api'
 
 esplugin {
   name = 'searchable-snapshots'
   description = 'A plugin for the searchable snapshots functionality'
   classname = 'org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots'
   extendedPlugins = ['x-pack-core', 'blob-cache']
+  deploymentTarget = 'STATEFUL_ONLY'
 }
 base {
   archivesName = 'x-pack-searchable-snapshots'
@@ -21,6 +23,7 @@ dependencies {
   internalClusterTestImplementation(project(path: xpackModule('shutdown')))
   internalClusterTestImplementation(project(path: xpackModule('snapshot-based-recoveries')))
   internalClusterTestImplementation(project(path: ':modules:reindex'))
+  internalClusterTestImplementation(project(path: ':modules:reindex-management'))
 }
 
 addQaCheckDependencies(project)

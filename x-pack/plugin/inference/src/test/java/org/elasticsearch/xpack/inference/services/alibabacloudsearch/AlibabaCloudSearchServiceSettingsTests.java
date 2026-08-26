@@ -7,97 +7,82 @@
 
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
-import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.hamcrest.Matchers.is;
 
-public class AlibabaCloudSearchServiceSettingsTests extends AbstractWireSerializingTestCase<AlibabaCloudSearchServiceSettings> {
+public class AlibabaCloudSearchServiceSettingsTests extends AbstractBWCWireSerializationTestCase<AlibabaCloudSearchServiceSettings> {
+    private static final String TEST_SERVICE_ID = "test-service-id";
+    private static final String TEST_HOST = "test-host";
+    private static final String TEST_WORKSPACE_NAME = "test-workspace-name";
+    private static final String TEST_HTTP_SCHEMA = "https";
+    private static final int TEST_RATE_LIMIT = 20;
+
     /**
      * The created settings can have a url set to null.
      */
     public static AlibabaCloudSearchServiceSettings createRandom() {
         var model = randomAlphaOfLength(15);
-        String host = randomAlphaOfLength(15);
-        String workspaceName = randomAlphaOfLength(10);
-        String httpSchema = "https";
+        var host = randomAlphaOfLength(15);
+        var workspaceName = randomAlphaOfLength(10);
+        var httpSchema = randomBoolean() ? "https" : "http";
         return new AlibabaCloudSearchServiceSettings(model, host, workspaceName, httpSchema, RateLimitSettingsTests.createRandom());
     }
 
-    public void testFromMap() throws URISyntaxException {
-        var model = "model";
-        var host = "host";
-        var workspaceName = "default";
-        var httpSchema = "https";
-        var serviceSettings = AlibabaCloudSearchServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    AlibabaCloudSearchServiceSettings.SERVICE_ID,
-                    model,
-                    AlibabaCloudSearchServiceSettings.HOST,
-                    host,
-                    AlibabaCloudSearchServiceSettings.WORKSPACE_NAME,
-                    workspaceName,
-                    AlibabaCloudSearchServiceSettings.HTTP_SCHEMA_NAME,
-                    httpSchema
-                )
-            ),
-            null
-        );
-
-        MatcherAssert.assertThat(serviceSettings, is(new AlibabaCloudSearchServiceSettings(model, host, workspaceName, httpSchema, null)));
-    }
-
-    public void testFromMap_WithRateLimit() {
-        var model = "model";
-        var host = "host";
-        var workspaceName = "default";
-        var httpSchema = "https";
-        var serviceSettings = AlibabaCloudSearchServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    AlibabaCloudSearchServiceSettings.SERVICE_ID,
-                    model,
-                    AlibabaCloudSearchServiceSettings.HOST,
-                    host,
-                    AlibabaCloudSearchServiceSettings.WORKSPACE_NAME,
-                    workspaceName,
-                    AlibabaCloudSearchServiceSettings.HTTP_SCHEMA_NAME,
-                    httpSchema,
-                    RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 3))
-                )
-            ),
-            null
-        );
-
-        MatcherAssert.assertThat(
-            serviceSettings,
-            is(new AlibabaCloudSearchServiceSettings(model, host, workspaceName, httpSchema, new RateLimitSettings(3)))
-        );
-    }
-
     public void testXContent() throws IOException {
-        var entity = new AlibabaCloudSearchServiceSettings("model_id_name", "host_name", "workspace_name", null, null);
+        var entity = new AlibabaCloudSearchServiceSettings(
+            TEST_SERVICE_ID,
+            TEST_HOST,
+            TEST_WORKSPACE_NAME,
+            TEST_HTTP_SCHEMA,
+            new RateLimitSettings(TEST_RATE_LIMIT)
+        );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is("""
-            {"service_id":"model_id_name","host":"host_name","workspace":"workspace_name","rate_limit":{"requests_per_minute":1000}}"""));
+        assertThat(
+            xContentResult,
+            is(
+                Strings.format(
+                    """
+                        {"service_id":"%s","host":"%s","workspace":"%s","http_schema":"%s","rate_limit":{"requests_per_minute":%d}}""",
+                    TEST_SERVICE_ID,
+                    TEST_HOST,
+                    TEST_WORKSPACE_NAME,
+                    TEST_HTTP_SCHEMA,
+                    TEST_RATE_LIMIT
+                )
+            )
+        );
+    }
+
+    public void testValidateHttpSchema_InvalidSchema_ThrowsException() {
+        var thrownException = expectThrows(
+            IllegalArgumentException.class,
+            () -> AlibabaCloudSearchServiceSettings.validateHttpSchema("invalid-http-schema")
+        );
+        assertThat(thrownException.getMessage(), is("Invalid value for [http_schema]. Must be one of [https, http]"));
+    }
+
+    public void testValidateHttpSchema_ValidOrAbsentSchema_Success() {
+        AlibabaCloudSearchServiceSettings.validateHttpSchema("https");
+        AlibabaCloudSearchServiceSettings.validateHttpSchema("http");
+        AlibabaCloudSearchServiceSettings.validateHttpSchema(null);
     }
 
     @Override
@@ -112,7 +97,21 @@ public class AlibabaCloudSearchServiceSettingsTests extends AbstractWireSerializ
 
     @Override
     protected AlibabaCloudSearchServiceSettings mutateInstance(AlibabaCloudSearchServiceSettings instance) throws IOException {
-        return null;
+        var serviceId = instance.modelId();
+        var host = instance.getHost();
+        var workspaceName = instance.getWorkspaceName();
+        var httpSchema = instance.getHttpSchema();
+        var rateLimitSettings = instance.rateLimitSettings();
+
+        switch (between(0, 4)) {
+            case 0 -> serviceId = randomValueOtherThan(serviceId, () -> randomAlphaOfLength(8));
+            case 1 -> host = randomValueOtherThan(host, () -> randomAlphaOfLength(8));
+            case 2 -> workspaceName = randomValueOtherThan(workspaceName, () -> randomAlphaOfLength(8));
+            case 3 -> httpSchema = Objects.equals(httpSchema, "http") ? "https" : "http";
+            case 4 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new AlibabaCloudSearchServiceSettings(serviceId, host, workspaceName, httpSchema, rateLimitSettings);
     }
 
     public static Map<String, Object> getServiceSettingsMap(String serviceId, String host, String workspaceName) {
@@ -121,5 +120,13 @@ public class AlibabaCloudSearchServiceSettingsTests extends AbstractWireSerializ
         map.put(AlibabaCloudSearchServiceSettings.HOST, host);
         map.put(AlibabaCloudSearchServiceSettings.WORKSPACE_NAME, workspaceName);
         return map;
+    }
+
+    @Override
+    protected AlibabaCloudSearchServiceSettings mutateInstanceForVersion(
+        AlibabaCloudSearchServiceSettings instance,
+        TransportVersion version
+    ) {
+        return instance;
     }
 }

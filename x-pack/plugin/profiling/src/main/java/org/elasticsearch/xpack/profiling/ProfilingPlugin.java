@@ -11,20 +11,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
@@ -62,6 +56,11 @@ import java.util.function.Supplier;
 
 public class ProfilingPlugin extends Plugin implements ActionPlugin {
     private static final Logger logger = LogManager.getLogger(ProfilingPlugin.class);
+    // Controls whether the legacy ECS index templates, ILM policies, and k/v indices are installed and managed.
+    // Defaults to false; OTel templates are managed unconditionally by the otel-data plugin.
+    // Set to true via PUT /_cluster/settings on clusters that use the ECS-based profiling schema,
+    // e.g. when migrating an existing ECS deployment or when Kibana's profiling setup guide
+    // configures the cluster for ECS mode.
     public static final Setting<Boolean> PROFILING_TEMPLATES_ENABLED = Setting.boolSetting(
         "xpack.profiling.templates.enabled",
         false,
@@ -76,6 +75,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+
     public static final String PROFILING_THREAD_POOL_NAME = "profiling";
     private final Settings settings;
     private final boolean enabled;
@@ -97,12 +97,21 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         ThreadPool threadPool = services.threadPool();
 
         logger.info("Profiling is {}", enabled ? "enabled" : "disabled");
-        registry.set(new ProfilingIndexTemplateRegistry(settings, clusterService, threadPool, client, services.xContentRegistry()));
+        registry.set(
+            new ProfilingIndexTemplateRegistry(
+                settings,
+                clusterService,
+                threadPool,
+                client,
+                services.xContentRegistry(),
+                services.featureService()
+            )
+        );
         indexStateResolver.set(new IndexStateResolver(PROFILING_CHECK_OUTDATED_INDICES.get(settings)));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(PROFILING_CHECK_OUTDATED_INDICES, this::updateCheckOutdatedIndices);
 
-        indexManager.set(new ProfilingIndexManager(threadPool, client, clusterService, indexStateResolver.get()));
-        dataStreamManager.set(new ProfilingDataStreamManager(threadPool, client, clusterService, indexStateResolver.get()));
+        indexManager.set(new ProfilingIndexManager(threadPool, client, clusterService, indexStateResolver.get(), registry.get()));
+        dataStreamManager.set(new ProfilingDataStreamManager(threadPool, client, clusterService, indexStateResolver.get(), registry.get()));
         // set initial value
         updateTemplatesEnabled(PROFILING_TEMPLATES_ENABLED.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(PROFILING_TEMPLATES_ENABLED, this::updateTemplatesEnabled);
@@ -111,7 +120,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
             indexManager.get().initialize();
             dataStreamManager.get().initialize();
         }
-        return List.of(createLicenseChecker());
+        return List.of(createLicenseChecker(), registry.get());
     }
 
     protected ProfilingLicenseChecker createLicenseChecker() {
@@ -127,7 +136,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
 
     public void updateTemplatesEnabled(boolean newValue) {
         if (newValue == false) {
-            logger.info("profiling index templates will not be installed or reinstalled");
+            logger.info("ECS profiling index templates will not be installed or reinstalled");
         }
         registry.get().setTemplatesEnabled(newValue);
         indexManager.get().setTemplatesEnabled(newValue);
@@ -136,13 +145,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<RestHandler> getRestHandlers(
-        final Settings settings,
-        NamedWriteableRegistry namedWriteableRegistry,
-        final RestController restController,
-        final ClusterSettings clusterSettings,
-        final IndexScopedSettings indexScopedSettings,
-        final SettingsFilter settingsFilter,
-        final IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         final Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
@@ -199,4 +202,5 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         indexManager.get().close();
         dataStreamManager.get().close();
     }
+
 }

@@ -390,3 +390,71 @@
   - match: { values.0.1: null }
   - match: { values.1.0: null }
   - match: { values.1.1: null }
+
+---
+"Limit truncation with zero columns #142473":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [fix_limit_truncation_with_zero_columns]
+      reason: "fixed LimitOperator truncation with zero columns"
+  - do:
+      indices.create:
+        index: test_limit_zero_cols
+        body:
+          mappings:
+            properties:
+              value:
+                type: integer
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test_limit_zero_cols" } }
+          - { "value": 1 }
+          - { "index": { "_index": "test_limit_zero_cols" } }
+          - { "value": 2 }
+          - { "index": { "_index": "test_limit_zero_cols" } }
+          - { "value": 3 }
+          - { "index": { "_index": "test_limit_zero_cols" } }
+          - { "value": 4 }
+          - { "index": { "_index": "test_limit_zero_cols" } }
+          - { "value": 5 }
+          - { "index": { "_index": "test_limit_zero_cols" } }
+          - { "value": 6 }
+          - { "index": { "_index": "test_limit_zero_cols" } }
+          - { "value": 7 }
+          - { "index": { "_index": "test_limit_zero_cols" } }
+          - { "value": 8 }
+          - { "index": { "_index": "test_limit_zero_cols" } }
+          - { "value": 9 }
+          - { "index": { "_index": "test_limit_zero_cols" } }
+          - { "value": 10 }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test_limit_zero_cols | EVAL x = "test" | KEEP x | DROP x | LIMIT 5'
+  - length: { columns: 0 }
+  - length: { values: 5 }
+
+---
+"SET reports correct line/column in validation errors #145873":
+  - requires:
+      test_runner_features: [capabilities, contains]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [fix_set_wrong_line_column]
+      reason: "fixed SET reporting -1:-1 instead of actual line/column in validation errors"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields = "INVALID"; ROW x = 1'
+  - match: { status: 400 }
+  - match: { error.type: parsing_exception }
+  - contains: { error.reason: 'line 1:1: Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [INVALID]' }

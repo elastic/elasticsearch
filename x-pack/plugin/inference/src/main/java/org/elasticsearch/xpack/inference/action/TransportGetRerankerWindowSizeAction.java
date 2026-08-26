@@ -80,8 +80,7 @@ public class TransportGetRerankerWindowSizeAction extends HandledTransportAction
                 }
 
                 if (service.get() instanceof RerankingInferenceService rerankingInferenceService) {
-                    var model = service.get()
-                        .parsePersistedConfig(unparsedModel.inferenceEntityId(), unparsedModel.taskType(), unparsedModel.settings());
+                    var model = service.get().parsePersistedConfig(unparsedModel);
 
                     l.onResponse(
                         new GetRerankerWindowSizeAction.Response(

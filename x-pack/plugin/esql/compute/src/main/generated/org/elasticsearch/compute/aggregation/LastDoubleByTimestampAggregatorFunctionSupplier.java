@@ -31,13 +31,13 @@ public final class LastDoubleByTimestampAggregatorFunctionSupplier implements Ag
   @Override
   public LastDoubleByTimestampAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return LastDoubleByTimestampAggregatorFunction.create(driverContext, channels);
+    return new LastDoubleByTimestampAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public LastDoubleByTimestampGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return LastDoubleByTimestampGroupingAggregatorFunction.create(channels, driverContext);
+    return new LastDoubleByTimestampGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

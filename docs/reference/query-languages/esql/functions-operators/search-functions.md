@@ -16,7 +16,7 @@ our [hands-on tutorial](/reference/query-languages/esql/esql-search-tutorial.md)
 For a high-level overview of search functionalities in {{esql}}, and to learn about relevance scoring, refer to [{{esql}} for search](docs-content://solutions/search/esql-for-search.md#esql-for-search-scoring).
 
 For information regarding dense vector search functions,
-including [KNN](dense-vector-functions.md#esql-knn), please refer to
+including [KNN](dense-vector-functions/knn.md), please refer to
 the [Dense vector functions](dense-vector-functions.md) documentation.
 :::
 
@@ -32,6 +32,15 @@ Full text functions are significantly more performant for text search use cases
 on large data sets than using pattern matching or regular expressions with
 `LIKE` or `RLIKE`.
 
+{applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
+[`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md) can also search expressions that are not backed by an index,
+such as computed columns produced by `EVAL` or `STATS`.
+When an expression is not indexed, the search evaluates by scanning values,
+which may be slower than searching an indexed field.
+
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+[`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md) supports searching `text` and `keyword` expressions in the same way.
+
 See [full text search limitations](/reference/query-languages/esql/limitations.md#esql-limitations-full-text-search)
 for information on the limitations of full text search.
 
@@ -39,30 +48,3 @@ for information on the limitations of full text search.
 
 :::{include} ../_snippets/lists/search-functions.md
 :::
-
-:::{include} ../_snippets/functions/layout/decay.md
-:::
-
-:::{include} ../_snippets/functions/layout/kql.md
-:::
-
-:::{include} ../_snippets/functions/layout/match.md
-:::
-
-:::{include} ../_snippets/functions/layout/match_phrase.md
-:::
-
-:::{include} ../_snippets/functions/layout/qstr.md
-:::
-
-:::{include} ../_snippets/functions/layout/score.md
-:::
-
-:::{include} ../_snippets/functions/layout/top_snippets.md
-:::
-
-% TERM is currently a hidden feature
-% To make it visible again, uncomment this and the line in
-lists/search-functions.md
-% :::{include} ../_snippets/functions/layout/term.md
-% :::

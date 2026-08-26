@@ -9,16 +9,12 @@
 
 package org.elasticsearch.index.codec.vectors.es93;
 
-import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.KnnVectorsWriter;
-import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
+import org.apache.lucene.backward_codecs.lucene99.Lucene99ScalarQuantizedVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
+import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.codecs.hnsw.ScalarQuantizedVectorScorer;
-import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsReader;
-import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsWriter;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
@@ -28,27 +24,32 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.QuantizedVectorsReader;
+import org.apache.lucene.util.quantization.ScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.Lucene99ScalarQuantizedVectorsWriter;
+import org.elasticsearch.index.codec.vectors.QuantizedAndRawFloatVectorValues;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.simdvec.ESVectorizationProvider;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsFormat.DYNAMIC_CONFIDENCE_INTERVAL;
+import static org.apache.lucene.backward_codecs.lucene99.Lucene99ScalarQuantizedVectorsFormat.DYNAMIC_CONFIDENCE_INTERVAL;
 import static org.elasticsearch.index.codec.vectors.VectorScoringUtils.scoreAndCollectAll;
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 
-public class ES93ScalarQuantizedVectorsFormat extends KnnVectorsFormat {
+public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
     static final String NAME = "ES93ScalarQuantizedVectorsFormat";
     private static final int ALLOWED_BITS = (1 << 7) | (1 << 4);
 
     static final FlatVectorsScorer flatVectorScorer = new ESQuantizedFlatVectorsScorer(
-        new ScalarQuantizedVectorScorer(FlatVectorScorerUtil.getLucene99FlatVectorsScorer())
+        new ScalarQuantizedVectorScorer(ES93GenericFlatVectorScorer.INSTANCE)
     );
 
     /** The minimum confidence interval */
@@ -69,18 +70,19 @@ public class ES93ScalarQuantizedVectorsFormat extends KnnVectorsFormat {
     private final boolean compress;
 
     public ES93ScalarQuantizedVectorsFormat() {
-        this(DenseVectorFieldMapper.ElementType.FLOAT, null, 7, false);
+        this(DenseVectorFieldMapper.ElementType.FLOAT, null, 7, false, false);
     }
 
     public ES93ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType elementType) {
-        this(elementType, null, 7, false);
+        this(elementType, null, 7, false, false);
     }
 
     public ES93ScalarQuantizedVectorsFormat(
         DenseVectorFieldMapper.ElementType elementType,
         Float confidenceInterval,
         int bits,
-        boolean compress
+        boolean compress,
+        boolean useDirectIO
     ) {
         super(NAME);
         if (confidenceInterval != null
@@ -100,14 +102,14 @@ public class ES93ScalarQuantizedVectorsFormat extends KnnVectorsFormat {
         }
         assert elementType != DenseVectorFieldMapper.ElementType.BIT : "BIT should not be used with scalar quantization";
 
-        this.rawVectorFormat = new ES93GenericFlatVectorsFormat(elementType, false);
+        this.rawVectorFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO);
         this.confidenceInterval = confidenceInterval;
         this.bits = (byte) bits;
         this.compress = compress;
     }
 
     @Override
-    public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
+    public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
         return new Lucene99ScalarQuantizedVectorsWriter(
             state,
             confidenceInterval,
@@ -119,15 +121,9 @@ public class ES93ScalarQuantizedVectorsFormat extends KnnVectorsFormat {
     }
 
     @Override
-    public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ES93FlatVectorReader(
-            new Lucene99ScalarQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state), flatVectorScorer)
-        );
-    }
-
-    @Override
-    public int getMaxDimensions(String fieldName) {
-        return MAX_DIMS_COUNT;
+    public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
+        FlatVectorsReader delegate = rawVectorFormat.fieldsReader(state);
+        return new ES93FlatVectorReader(delegate, new Lucene99ScalarQuantizedVectorsReader(state, delegate, flatVectorScorer));
     }
 
     @Override
@@ -148,12 +144,14 @@ public class ES93ScalarQuantizedVectorsFormat extends KnnVectorsFormat {
             + ")";
     }
 
-    static class ES93FlatVectorReader extends KnnVectorsReader {
+    private static class ES93FlatVectorReader extends FlatVectorsReader implements QuantizedVectorsReader {
 
-        private final FlatVectorsReader reader;
+        private final Lucene99ScalarQuantizedVectorsReader reader;
+        private final FlatVectorsReader delegate;
 
-        ES93FlatVectorReader(FlatVectorsReader reader) {
+        private ES93FlatVectorReader(FlatVectorsReader delegate, Lucene99ScalarQuantizedVectorsReader reader) {
             this.reader = reader;
+            this.delegate = delegate;
         }
 
         @Override
@@ -163,7 +161,13 @@ public class ES93ScalarQuantizedVectorsFormat extends KnnVectorsFormat {
 
         @Override
         public FloatVectorValues getFloatVectorValues(String field) throws IOException {
-            return reader.getFloatVectorValues(field);
+            FloatVectorValues floatVectorValues = reader.getFloatVectorValues(field);
+            if (floatVectorValues == null) {
+                return null;
+            }
+            // Its critical that we use this for later rescoring to ensure that the HasSlice, and byte size information relates to the
+            // raw vectors
+            return new QuantizedAndRawFloatVectorValues(floatVectorValues, delegate.getFloatVectorValues(field));
         }
 
         @Override
@@ -172,13 +176,46 @@ public class ES93ScalarQuantizedVectorsFormat extends KnnVectorsFormat {
         }
 
         @Override
+        public FlatVectorsScorer getFlatVectorScorer(String field) throws IOException {
+            return reader.getFlatVectorScorer(field);
+        }
+
+        @Override
         public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
-            scoreAndCollectAll(knnCollector, acceptDocs, reader.getRandomVectorScorer(field, target));
+            scoreAndCollectAll(knnCollector, acceptDocs, reader.getFloatVectorValues(field).scorer(target));
         }
 
         @Override
         public void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
-            scoreAndCollectAll(knnCollector, acceptDocs, reader.getRandomVectorScorer(field, target));
+            scoreAndCollectAll(knnCollector, acceptDocs, reader.getByteVectorValues(field).scorer(target));
+        }
+
+        @Override
+        public void finishMerge() throws IOException {
+            reader.finishMerge();
+        }
+
+        @Override
+        public RandomVectorScorer getRandomVectorScorer(String field, float[] target) throws IOException {
+            return reader.getRandomVectorScorer(field, target);
+        }
+
+        @Override
+        public RandomVectorScorer getRandomVectorScorer(String field, byte[] target) throws IOException {
+            return reader.getRandomVectorScorer(field, target);
+        }
+
+        @Override
+        public CloseableRandomVectorScorerSupplier getRandomVectorScorerSupplierForMerge(
+            FieldInfo fieldInfo,
+            SegmentWriteState segmentWriteState
+        ) throws IOException {
+            return reader.getRandomVectorScorerSupplierForMerge(fieldInfo, segmentWriteState);
+        }
+
+        @Override
+        public FlatVectorsReader getMergeInstance() throws IOException {
+            return reader.getMergeInstance();
         }
 
         @Override
@@ -187,19 +224,34 @@ public class ES93ScalarQuantizedVectorsFormat extends KnnVectorsFormat {
         }
 
         @Override
+        public long ramBytesUsed() {
+            return reader.ramBytesUsed();
+        }
+
+        @Override
         public void close() throws IOException {
             reader.close();
         }
+
+        @Override
+        public LegacyQuantizedByteVectorValues getQuantizedVectorValues(String fieldName) throws IOException {
+            return reader.getQuantizedVectorValues(fieldName);
+        }
+
+        @Override
+        public ScalarQuantizer getQuantizationState(String fieldName) {
+            return reader.getQuantizationState(fieldName);
+        }
     }
 
-    static final class ESQuantizedFlatVectorsScorer implements FlatVectorsScorer {
+    private static final class ESQuantizedFlatVectorsScorer implements FlatVectorsScorer {
 
         final FlatVectorsScorer delegate;
         final VectorScorerFactory factory;
 
-        ESQuantizedFlatVectorsScorer(FlatVectorsScorer delegate) {
+        private ESQuantizedFlatVectorsScorer(FlatVectorsScorer delegate) {
             this.delegate = delegate;
-            factory = VectorScorerFactory.instance().orElse(null);
+            factory = ESVectorizationProvider.getInstance().getVectorScorerFactory();
         }
 
         @Override
@@ -210,21 +262,19 @@ public class ES93ScalarQuantizedVectorsFormat extends KnnVectorsFormat {
         @Override
         public RandomVectorScorerSupplier getRandomVectorScorerSupplier(VectorSimilarityFunction sim, KnnVectorValues values)
             throws IOException {
-            if (values instanceof QuantizedByteVectorValues qValues && qValues.getSlice() != null) {
+            if (values instanceof LegacyQuantizedByteVectorValues qValues && qValues.getSlice() != null) {
                 // TODO: optimize int4 quantization
                 if (qValues.getScalarQuantizer().getBits() != 7) {
                     return delegate.getRandomVectorScorerSupplier(sim, values);
                 }
-                if (factory != null) {
-                    var scorer = factory.getInt7SQVectorScorerSupplier(
-                        VectorSimilarityType.of(sim),
-                        qValues.getSlice(),
-                        qValues,
-                        qValues.getScalarQuantizer().getConstantMultiplier()
-                    );
-                    if (scorer.isPresent()) {
-                        return scorer.get();
-                    }
+                var scorer = factory.getInt7SQVectorScorerSupplier(
+                    VectorSimilarityType.of(sim),
+                    qValues.getSlice(),
+                    qValues,
+                    qValues.getScalarQuantizer().getConstantMultiplier()
+                );
+                if (scorer.isPresent()) {
+                    return scorer.get();
                 }
             }
             return delegate.getRandomVectorScorerSupplier(sim, values);
@@ -233,16 +283,14 @@ public class ES93ScalarQuantizedVectorsFormat extends KnnVectorsFormat {
         @Override
         public RandomVectorScorer getRandomVectorScorer(VectorSimilarityFunction sim, KnnVectorValues values, float[] query)
             throws IOException {
-            if (values instanceof QuantizedByteVectorValues qValues && qValues.getSlice() != null) {
+            if (values instanceof LegacyQuantizedByteVectorValues qValues && qValues.getSlice() != null) {
                 // TODO: optimize int4 quantization
                 if (qValues.getScalarQuantizer().getBits() != 7) {
                     return delegate.getRandomVectorScorer(sim, values, query);
                 }
-                if (factory != null) {
-                    var scorer = factory.getInt7SQVectorScorer(sim, qValues, query);
-                    if (scorer.isPresent()) {
-                        return scorer.get();
-                    }
+                var scorer = factory.getInt7SQVectorScorer(sim, qValues, query);
+                if (scorer.isPresent()) {
+                    return scorer.get();
                 }
             }
             return delegate.getRandomVectorScorer(sim, values, query);

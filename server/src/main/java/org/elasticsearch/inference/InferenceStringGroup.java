@@ -9,10 +9,12 @@
 
 package org.elasticsearch.inference;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.inference.InferenceString.DataType;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -22,6 +24,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -37,18 +40,42 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  *   ]
  * }
  * </pre>
- * @param inferenceStrings the list of {@link InferenceString} which should result in generating a single embedding vector
  */
-public record InferenceStringGroup(List<InferenceString> inferenceStrings) implements Writeable, ToXContentObject {
-    private static final String CONTENT_FIELD = "content";
+public final class InferenceStringGroup implements Accountable, Writeable, ToXContentObject {
+    public static final String CONTENT_FIELD = "content";
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<InferenceStringGroup, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<InferenceStringGroup, Void> PARSER = new ConstructingObjectParser<>(
         InferenceStringGroup.class.getSimpleName(),
-        args -> new InferenceStringGroup((List<InferenceString>) args[0])
+        args -> {
+            List<InferenceString> inferenceStrings = (List<InferenceString>) args[0];
+            if (inferenceStrings.isEmpty()) {
+                throw new XContentParseException(Strings.format("[%s] field cannot be an empty array", CONTENT_FIELD));
+            }
+            return new InferenceStringGroup(inferenceStrings);
+        }
     );
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(InferenceStringGroup.class);
+
     static {
         PARSER.declareObjectArray(constructorArg(), InferenceString.PARSER::apply, new ParseField(CONTENT_FIELD));
+    }
+
+    private final List<InferenceString> inferenceStrings;
+    private final boolean containsNonTextEntry;
+    private final boolean containsPdfEntry;
+
+    /**
+     * @param inferenceStrings the list of {@link InferenceString} which should result in generating a single embedding vector
+     */
+    public InferenceStringGroup(List<InferenceString> inferenceStrings) {
+        this.inferenceStrings = Objects.requireNonNull(inferenceStrings);
+        if (this.inferenceStrings.isEmpty()) {
+            throw new IllegalArgumentException("InferenceStringGroup constructor argument cannot be an empty list");
+        }
+        containsNonTextEntry = inferenceStrings.stream().anyMatch(InferenceString::isNonText);
+        containsPdfEntry = inferenceStrings.stream().anyMatch(InferenceString::isPdf);
     }
 
     public InferenceStringGroup(StreamInput in) throws IOException {
@@ -61,7 +88,27 @@ public record InferenceStringGroup(List<InferenceString> inferenceStrings) imple
 
     // Convenience constructor for the common use case of a single text input
     public InferenceStringGroup(String input) {
-        this(singletonList(new InferenceString(DataType.TEXT, input)));
+        this(singletonList(InferenceString.ofText(input)));
+    }
+
+    public List<InferenceString> inferenceStrings() {
+        return inferenceStrings;
+    }
+
+    public boolean containsNonTextEntry() {
+        return containsNonTextEntry;
+    }
+
+    public boolean containsPdfEntry() {
+        return containsPdfEntry;
+    }
+
+    public int size() {
+        return inferenceStrings.size();
+    }
+
+    public boolean containsMultipleInferenceStrings() {
+        return size() > 1;
     }
 
     @Override
@@ -78,15 +125,7 @@ public record InferenceStringGroup(List<InferenceString> inferenceStrings) imple
     }
 
     public static InferenceStringGroup parse(XContentParser parser) throws IOException {
-        var token = parser.currentToken();
-        if (token == XContentParser.Token.VALUE_STRING) {
-            // Create content object from String
-            return new InferenceStringGroup(singletonList(new InferenceString(DataType.TEXT, parser.text())));
-        } else if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
-            // Create content object from InferenceString(s)
-            return InferenceStringGroup.PARSER.apply(parser, null);
-        }
-        throw new XContentParseException("Unsupported token [" + token + "]");
+        return InferenceStringGroup.PARSER.apply(parser, null);
     }
 
     public InferenceString value() {
@@ -100,7 +139,7 @@ public record InferenceStringGroup(List<InferenceString> inferenceStrings) imple
     }
 
     private void assertSingleElement() {
-        assert inferenceStrings.size() == 1 : "Multiple-input InferenceStringGroup used in code path expecting a single input.";
+        assert size() == 1 : "Multiple-input InferenceStringGroup used in code path expecting a single input.";
     }
 
     /**
@@ -114,10 +153,7 @@ public record InferenceStringGroup(List<InferenceString> inferenceStrings) imple
      * @return a list of {@link InferenceString}
      */
     public static List<InferenceString> toInferenceStringList(List<InferenceStringGroup> inferenceStringGroups) {
-        return inferenceStringGroups.stream().map(group -> {
-            assert group.inferenceStrings.size() == 1 : "Multiple-input InferenceStringGroup passed to InferenceStringGroup.toStringList";
-            return group.inferenceStrings.getFirst();
-        }).toList();
+        return inferenceStringGroups.stream().map(InferenceStringGroup::value).toList();
     }
 
     /**
@@ -132,6 +168,58 @@ public record InferenceStringGroup(List<InferenceString> inferenceStrings) imple
      * @return a list of {@link InferenceString}
      */
     public static List<String> toStringList(List<InferenceStringGroup> inferenceStringGroups) {
-        return InferenceString.toStringList(toInferenceStringList(inferenceStringGroups));
+        return inferenceStringGroups.stream().map(InferenceStringGroup::textValue).toList();
     }
+
+    /**
+     * Method used to determine if a list of {@link InferenceStringGroup} contains any {@link InferenceString} that represent a non-text
+     * value
+     *
+     * @param inferenceStringGroups the list of {@link InferenceStringGroup} to check
+     * @return true if the input list contains any non-text values, false otherwise
+     */
+    public static boolean containsNonTextEntry(List<InferenceStringGroup> inferenceStringGroups) {
+        return inferenceStringGroups.stream().anyMatch(InferenceStringGroup::containsNonTextEntry);
+    }
+
+    /**
+     * Method used to determine if a list of {@link InferenceStringGroup} contains any with more than one {@link InferenceString} in them
+     *
+     * @param inferenceStringGroups the list of {@link InferenceStringGroup} to check
+     * @return the index of the first {@link InferenceStringGroup} found to contain more than one {@link InferenceString}, or null if no
+     * elements in the list contain more than one {@link InferenceString}
+     */
+    public static Integer indexContainingMultipleInferenceStrings(List<InferenceStringGroup> inferenceStringGroups) {
+        for (int i = 0; i < inferenceStringGroups.size(); i++) {
+            InferenceStringGroup inferenceStringGroup = inferenceStringGroups.get(i);
+            if (inferenceStringGroup.containsMultipleInferenceStrings()) {
+                return i;
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOfCollection(inferenceStrings());
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == this) return true;
+        if (obj == null || obj.getClass() != this.getClass()) return false;
+        var that = (InferenceStringGroup) obj;
+        return Objects.equals(this.inferenceStrings, that.inferenceStrings);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(inferenceStrings);
+    }
+
+    @Override
+    public String toString() {
+        return "InferenceStringGroup[" + "inferenceStrings=" + inferenceStrings + ']';
+    }
+
 }

@@ -61,16 +61,7 @@ public class KeywordSyntheticSourceNativeArrayIntegrationTests extends NativeArr
             new Object[] { "123", "1234", "12345" },
             new Object[] { null, null, null, "blabla" },
             new Object[] { "1", "2", "3", "blabla" } };
-
-        // values in the original array should be deduplicated
-        var expectedArrayValues = new Object[] {
-            new Object[] { null, "a", "ab", "abc", "abcd", null, "abcde" },
-            "12345",
-            new Object[] { "123", "1234", "12345" },
-            new Object[] { null, null, null, "blabla" },
-            new Object[] { "1", "2", "3", "blabla" } };
-
-        verifySyntheticArray(arrayValues, expectedArrayValues, mapping, "_id");
+        verifySyntheticArray(arrayValues, mapping);
     }
 
     public void testSynthesizeObjectArray() throws Exception {

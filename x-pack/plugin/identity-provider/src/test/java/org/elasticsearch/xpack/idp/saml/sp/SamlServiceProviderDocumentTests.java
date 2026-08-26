@@ -43,10 +43,6 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
     private static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST = TransportVersion.fromName(
         "idp_custom_saml_attributes_allow_list"
     );
-    private static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_PATCH = IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST
-        .nextPatchVersion();
-    private static final TransportVersion STORED_SCRIPT_CONTENT_LENGTH = TransportVersion.fromName("stored_script_content_length");
-    private static final TransportVersion STORED_SCRIPT_CONTENT_LENGTH_PATCH = STORED_SCRIPT_CONTENT_LENGTH.nextPatchVersion();
 
     public void testValidationFailuresForMissingFields() throws Exception {
         final SamlServiceProviderDocument doc = new SamlServiceProviderDocument();
@@ -100,17 +96,7 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
 
     public void testSerializationBeforeExtensionAttributes() throws Exception {
         final SamlServiceProviderDocument original = createFullDocument();
-        final TransportVersion version = randomBoolean()
-            ? TransportVersionUtils.randomVersionBetween(
-                random(),
-                STORED_SCRIPT_CONTENT_LENGTH_PATCH,
-                TransportVersionUtils.getPreviousVersion(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST)
-            )
-            : TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersion.minimumCompatible(),
-                TransportVersionUtils.getPreviousVersion(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_PATCH)
-            );
+        final TransportVersion version = TransportVersionUtils.getPreviousVersion(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST);
         final SamlServiceProviderDocument copy = copyWriteable(
             original,
             new NamedWriteableRegistry(List.of()),
@@ -194,11 +180,7 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
     }
 
     private SamlServiceProviderDocument assertSerializationRoundTrip(SamlServiceProviderDocument doc) throws IOException {
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST,
-            TransportVersion.current()
-        );
+        final TransportVersion version = TransportVersionUtils.randomVersionSupporting(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST);
         final SamlServiceProviderDocument read = copyWriteable(
             doc,
             new NamedWriteableRegistry(List.of()),

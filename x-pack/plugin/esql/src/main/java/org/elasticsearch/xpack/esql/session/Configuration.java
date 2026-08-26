@@ -14,17 +14,19 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.data.BlockStreamInput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -39,10 +41,31 @@ public class Configuration implements Writeable {
 
     private static final TransportVersion ESQL_SUPPORT_PARTIAL_RESULTS = TransportVersion.fromName("esql_support_partial_results");
 
+    private static final TransportVersion QUERY_APPROXIMATION = TransportVersion.fromName("esql_query_approximation");
+
+    /**
+     * Transport version for view queries support. This is needed to correctly serialize/deserialize
+     * Source objects that originated from views (which have positions relative to the view query,
+     * not the main query).
+     */
+    public static final TransportVersion ESQL_VIEW_QUERIES = TransportVersion.fromName("esql_view_queries");
+
+    private static final TransportVersion ESQL_EXPLAIN_ONLY = TransportVersion.fromName("esql_explain_only");
+
+    private static final TransportVersion ESQL_RESOLVED_SETTINGS = TransportVersion.fromName("esql_resolved_settings");
+
+    /**
+     * Reserved transport version id from the GROK watchdog work (#152170), which was reverted before release.
+     * Intentionally unused: the id is boxed in between released version markers, so it cannot be removed without
+     * breaking transport-version id density. This reference keeps the definition from becoming orphaned. Do not
+     * serialize anything against it — the feature was reverted and mixed clusters must not exchange a grok field.
+     */
+    @SuppressWarnings("unused")
+    private static final TransportVersion ESQL_GROK_WATCHDOG = TransportVersion.fromName("esql_grok_watchdog");
+
     private final String clusterName;
     private final String username;
-    private final ZonedDateTime now;
-    private final ZoneId zoneId;
+    private final Instant now;
 
     private final QueryPragmas pragmas;
 
@@ -57,30 +80,89 @@ public class Configuration implements Writeable {
 
     private final boolean profile;
     private final boolean allowPartialResults;
+    private final boolean explainOnly;
 
     private final Map<String, Map<String, Column>> tables;
     private final long queryStartTimeNanos;
-    private final String projectRouting;
+
+    /**
+     * The resolved view of every {@link org.elasticsearch.xpack.esql.plan.QuerySettingDef} for this
+     * query — registry default {@code <} request body {@code <} in-query {@code SET}. Travels across
+     * the wire to data nodes, so every node and driver that holds a Configuration also holds the
+     * full resolved settings view.
+     */
+    private final ResolvedSettings resolvedSettings;
+
+    /**
+     * Map of view names to their query strings. Used during deserialization to reconstruct
+     * Source objects that originated from views.
+     */
+    private final Map<String, String> viewQueries;
 
     public Configuration(
-        ZoneId zi,
+        Instant now,
         Locale locale,
         String username,
         String clusterName,
         QueryPragmas pragmas,
         int resultTruncationMaxSizeRegular,
         int resultTruncationDefaultSizeRegular,
-        String query,
+        @Nullable String query,
         boolean profile,
         Map<String, Map<String, Column>> tables,
         long queryStartTimeNanos,
         boolean allowPartialResults,
         int resultTruncationMaxSizeTimeseries,
         int resultTruncationDefaultSizeTimeseries,
-        String projectRouting
+        ResolvedSettings resolvedSettings,
+        Map<String, String> viewQueries
     ) {
-        this.zoneId = zi.normalized();
-        this.now = ZonedDateTime.now(Clock.tick(Clock.system(zoneId), Duration.ofNanos(1)));
+        this(
+            now,
+            locale,
+            username,
+            clusterName,
+            pragmas,
+            resultTruncationMaxSizeRegular,
+            resultTruncationDefaultSizeRegular,
+            query,
+            profile,
+            tables,
+            queryStartTimeNanos,
+            allowPartialResults,
+            resultTruncationMaxSizeTimeseries,
+            resultTruncationDefaultSizeTimeseries,
+            resolvedSettings,
+            viewQueries,
+            false
+        );
+    }
+
+    /**
+     * Canonical constructor — every field is a parameter (the {@code explainOnly} flag is the only difference
+     * from the 16-arg constructor above). {@link ConfigurationBuilder#build()} calls this directly, so any new
+     * field added here must also be added to {@link ConfigurationBuilder}.
+     */
+    public Configuration(
+        Instant now,
+        Locale locale,
+        String username,
+        String clusterName,
+        QueryPragmas pragmas,
+        int resultTruncationMaxSizeRegular,
+        int resultTruncationDefaultSizeRegular,
+        @Nullable String query,
+        boolean profile,
+        Map<String, Map<String, Column>> tables,
+        long queryStartTimeNanos,
+        boolean allowPartialResults,
+        int resultTruncationMaxSizeTimeseries,
+        int resultTruncationDefaultSizeTimeseries,
+        ResolvedSettings resolvedSettings,
+        Map<String, String> viewQueries,
+        boolean explainOnly
+    ) {
+        this.now = now;
         this.username = username;
         this.clusterName = clusterName;
         this.locale = locale;
@@ -89,18 +171,28 @@ public class Configuration implements Writeable {
         this.resultTruncationDefaultSizeRegular = resultTruncationDefaultSizeRegular;
         this.resultTruncationMaxSizeTimeseries = resultTruncationMaxSizeTimeseries;
         this.resultTruncationDefaultSizeTimeseries = resultTruncationDefaultSizeTimeseries;
-        this.query = query;
+        this.query = query != null ? query : "";
         this.profile = profile;
         this.tables = tables;
         assert tables != null;
         this.queryStartTimeNanos = queryStartTimeNanos;
         this.allowPartialResults = allowPartialResults;
-        this.projectRouting = projectRouting;
+        this.resolvedSettings = resolvedSettings != null ? resolvedSettings : ResolvedSettings.EMPTY;
+        this.viewQueries = viewQueries;
+        assert viewQueries != null;
+        this.explainOnly = explainOnly;
     }
 
     public Configuration(BlockStreamInput in) throws IOException {
-        this.zoneId = in.readZoneId();
-        this.now = Instant.ofEpochSecond(in.readVLong(), in.readVInt()).atZone(zoneId);
+        // Settings cross the wire generically in the resolvedSettings block (read near the end). A peer that
+        // predates that block instead sends time_zone and approximation in their original positional slots — the
+        // zone first, the approximation later — which we read here and fold back into a ResolvedSettings. These two
+        // legacy reads (and their writeTo counterparts) are the only setting-specific wire handling left; they are
+        // touched only when an older peer is on the other end, and go away entirely once the minimum transport
+        // version reaches esql_resolved_settings.
+        boolean readLegacySettings = in.getTransportVersion().supports(ESQL_RESOLVED_SETTINGS) == false;
+        ZoneId zi = readLegacySettings ? in.readZoneId() : null;
+        this.now = Instant.ofEpochSecond(in.readVLong(), in.readVInt());
         this.username = in.readOptionalString();
         this.clusterName = in.readOptionalString();
         locale = Locale.forLanguageTag(in.readString());
@@ -123,17 +215,52 @@ public class Configuration implements Writeable {
             this.resultTruncationMaxSizeTimeseries = this.resultTruncationMaxSizeRegular;
             this.resultTruncationDefaultSizeTimeseries = this.resultTruncationDefaultSizeRegular;
         }
+        ApproximationSettings legacyApproximation = null;
+        if (readLegacySettings && in.getTransportVersion().supports(QUERY_APPROXIMATION)) {
+            legacyApproximation = in.readOptionalWriteable(ApproximationSettings::new);
+        }
+        if (in.getTransportVersion().supports(ESQL_VIEW_QUERIES)) {
+            this.viewQueries = in.readImmutableMap(StreamInput::readString);
+        } else {
+            this.viewQueries = Map.of();
+        }
+        if (in.getTransportVersion().supports(ESQL_EXPLAIN_ONLY)) {
+            this.explainOnly = in.readBoolean();
+        } else {
+            this.explainOnly = false;
+        }
+        if (readLegacySettings) {
+            // project_routing is intentionally not synthesized here — data nodes never had it on the wire.
+            this.resolvedSettings = synthesizeResolvedFromLegacy(zi, legacyApproximation);
+        } else {
+            this.resolvedSettings = new ResolvedSettings(in);
+        }
+    }
 
-        // not needed on the data nodes for now
-        this.projectRouting = null;
+    private static ResolvedSettings synthesizeResolvedFromLegacy(ZoneId zoneId, @Nullable ApproximationSettings approximation) {
+        ResolvedSettings result = ResolvedSettings.EMPTY;
+        if (zoneId != null) {
+            // withOverride canonicalizes (TIME_ZONE normalizes), so no explicit .normalized() is needed here.
+            result = result.withOverride(QuerySettings.TIME_ZONE, zoneId);
+        }
+        if (approximation != null) {
+            result = result.withOverride(QuerySettings.APPROXIMATION, approximation);
+        }
+        return result;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeZoneId(zoneId);
-        var instant = now.toInstant();
-        out.writeVLong(instant.getEpochSecond());
-        out.writeVInt(instant.getNano());
+        // Peers that understand the generic resolvedSettings block (written near the end) receive settings only
+        // through it. Older peers instead expect time_zone and approximation in their original positional slots, so
+        // for them — and only them — we derive those two values from resolvedSettings and write the legacy slots.
+        // Exactly one of {legacy slots, resolvedSettings block} is written, so there is no redundant double-write.
+        boolean writeLegacySettings = out.getTransportVersion().supports(ESQL_RESOLVED_SETTINGS) == false;
+        if (writeLegacySettings) {
+            out.writeZoneId(QuerySettings.TIME_ZONE.get(resolvedSettings));
+        }
+        out.writeVLong(now.getEpochSecond());
+        out.writeVInt(now.getNano());
         out.writeOptionalString(username);    // TODO this one is always null
         out.writeOptionalString(clusterName); // TODO this one is never null so maybe not optional
         out.writeString(locale.toLanguageTag());
@@ -151,13 +278,30 @@ public class Configuration implements Writeable {
             out.writeVInt(resultTruncationMaxSizeTimeseries);
             out.writeVInt(resultTruncationDefaultSizeTimeseries);
         }
+        if (writeLegacySettings && out.getTransportVersion().supports(QUERY_APPROXIMATION)) {
+            out.writeOptionalWriteable(QuerySettings.APPROXIMATION.get(resolvedSettings));
+        }
+        if (out.getTransportVersion().supports(ESQL_VIEW_QUERIES)) {
+            out.writeMap(viewQueries, StreamOutput::writeString);
+        }
+        if (out.getTransportVersion().supports(ESQL_EXPLAIN_ONLY)) {
+            out.writeBoolean(explainOnly);
+        }
+        if (writeLegacySettings == false) {
+            resolvedSettings.writeTo(out);
+        }
     }
 
-    public ZoneId zoneId() {
-        return zoneId;
+    /**
+     * The resolved view of every {@link org.elasticsearch.xpack.esql.plan.QuerySettingDef} for this
+     * query. Reads of any SET-mirror knob (time_zone, project_routing, approximation, unmapped_fields,
+     * any future setting) go through this — e.g. {@code QuerySettings.TIME_ZONE.get(configuration.resolvedSettings())}.
+     */
+    public ResolvedSettings resolvedSettings() {
+        return resolvedSettings;
     }
 
-    public ZonedDateTime now() {
+    public Instant now() {
         return now;
     }
 
@@ -200,7 +344,7 @@ public class Configuration implements Writeable {
      * It ensures consistency by using the same value on all nodes involved in the search request.
      */
     public long absoluteStartedTimeInMillis() {
-        return now.toInstant().toEpochMilli();
+        return now.toEpochMilli();
     }
 
     /**
@@ -225,23 +369,7 @@ public class Configuration implements Writeable {
     }
 
     public Configuration withoutTables() {
-        return new Configuration(
-            zoneId,
-            locale,
-            username,
-            clusterName,
-            pragmas,
-            resultTruncationMaxSizeRegular,
-            resultTruncationDefaultSizeRegular,
-            query,
-            profile,
-            Map.of(),
-            queryStartTimeNanos,
-            allowPartialResults,
-            resultTruncationMaxSizeTimeseries,
-            resultTruncationDefaultSizeTimeseries,
-            projectRouting
-        );
+        return new ConfigurationBuilder(this).tables(Map.of()).build();
     }
 
     /**
@@ -259,8 +387,43 @@ public class Configuration implements Writeable {
         return allowPartialResults;
     }
 
-    public String projectRouting() {
-        return projectRouting;
+    /**
+     * Whether this is an explain-only request. This flag is propagated to data nodes
+     * and could be used for future optimization to skip actual computation.
+     * Currently, the EXPLAIN command executes the query normally with profile=true.
+     */
+    public boolean explainOnly() {
+        return explainOnly;
+    }
+
+    /**
+     * Returns a new Configuration with profile and explainOnly enabled.
+     * Used for EXPLAIN queries that need to capture plan information.
+     */
+    public Configuration withExplainOnly() {
+        return new ConfigurationBuilder(this).profile(true).explainOnly(true).build();
+    }
+
+    /**
+     * Returns the map of view names to their query strings.
+     */
+    public Map<String, String> viewQueries() {
+        return viewQueries;
+    }
+
+    /**
+     * Returns a new Configuration with one {@link QuerySettingDef} value overridden. Generic — caller
+     * names the setting via the {@link QuerySettingDef} constant.
+     */
+    public <T> Configuration withSetting(QuerySettingDef<T> def, T value) {
+        return new ConfigurationBuilder(this).setting(def, value).build();
+    }
+
+    /**
+     * Returns a new Configuration with the given view queries added.
+     */
+    public Configuration withViewQueries(Map<String, String> viewQueries) {
+        return new ConfigurationBuilder(this).viewQueries(viewQueries).build();
     }
 
     private static void writeQuery(StreamOutput out, String query) throws IOException {
@@ -291,24 +454,27 @@ public class Configuration implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Configuration that = (Configuration) o;
-        return Objects.equals(zoneId, that.zoneId)
-            && Objects.equals(now, that.now)
+        return Objects.equals(now, that.now)
             && Objects.equals(username, that.username)
             && Objects.equals(clusterName, that.clusterName)
             && resultTruncationMaxSizeRegular == that.resultTruncationMaxSizeRegular
             && resultTruncationDefaultSizeRegular == that.resultTruncationDefaultSizeRegular
+            && resultTruncationMaxSizeTimeseries == that.resultTruncationMaxSizeTimeseries
+            && resultTruncationDefaultSizeTimeseries == that.resultTruncationDefaultSizeTimeseries
             && Objects.equals(pragmas, that.pragmas)
             && Objects.equals(locale, that.locale)
             && Objects.equals(that.query, query)
             && profile == that.profile
             && tables.equals(that.tables)
-            && allowPartialResults == that.allowPartialResults;
+            && allowPartialResults == that.allowPartialResults
+            && Objects.equals(resolvedSettings, that.resolvedSettings)
+            && viewQueries.equals(that.viewQueries)
+            && explainOnly == that.explainOnly;
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(
-            zoneId,
             now,
             username,
             clusterName,
@@ -321,7 +487,10 @@ public class Configuration implements Writeable {
             tables,
             allowPartialResults,
             resultTruncationMaxSizeTimeseries,
-            resultTruncationDefaultSizeTimeseries
+            resultTruncationDefaultSizeTimeseries,
+            resolvedSettings,
+            viewQueries,
+            explainOnly
         );
     }
 
@@ -342,8 +511,8 @@ public class Configuration implements Writeable {
             + ",timeseries="
             + resultTruncationDefaultSize(true)
             + "]"
-            + ", zoneId="
-            + zoneId
+            + ", resolvedSettings="
+            + resolvedSettings
             + ", locale="
             + locale
             + ", query='"
@@ -353,8 +522,10 @@ public class Configuration implements Writeable {
             + profile
             + ", tables="
             + tables
-            + "allow_partial_result="
+            + ", allowPartialResults="
             + allowPartialResults
+            + ", explainOnly="
+            + explainOnly
             + '}';
     }
 

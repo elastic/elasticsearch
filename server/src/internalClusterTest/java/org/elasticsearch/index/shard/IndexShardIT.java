@@ -21,10 +21,13 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.EstimatedHeapUsage;
 import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.cluster.InternalClusterInfoService;
+import org.elasticsearch.cluster.NodeHeapEstimates;
+import org.elasticsearch.cluster.NodeHeapMetrics;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
+import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
+import org.elasticsearch.cluster.ShardHeapUsageEstimates;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -105,6 +108,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLength;
 import static java.util.Collections.emptySet;
@@ -274,10 +278,10 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     public void testHeapUsageEstimateIsPresent() {
         InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
         ClusterInfoServiceUtils.refresh(clusterInfoService);
-        Map<String, EstimatedHeapUsage> estimatedHeapUsages = clusterInfoService.getClusterInfo().getEstimatedHeapUsages();
-        assertNotNull(estimatedHeapUsages);
+        Map<String, NodeHeapMetrics> nodeHeapMetrics = clusterInfoService.getClusterInfo().getNodeHeapMetrics();
+        assertNotNull(nodeHeapMetrics);
         // Not collecting yet because it is disabled
-        assertTrue(estimatedHeapUsages.isEmpty());
+        assertTrue(nodeHeapMetrics.isEmpty());
 
         // Enable collection for estimated heap usages
         updateClusterSettings(
@@ -288,12 +292,55 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         try {
             ClusterInfoServiceUtils.refresh(clusterInfoService);
             ClusterState state = getInstanceFromNode(ClusterService.class).state();
-            estimatedHeapUsages = clusterInfoService.getClusterInfo().getEstimatedHeapUsages();
-            assertEquals(state.nodes().size(), estimatedHeapUsages.size());
+            nodeHeapMetrics = clusterInfoService.getClusterInfo().getNodeHeapMetrics();
+            assertEquals(state.nodes().size(), nodeHeapMetrics.size());
             for (DiscoveryNode node : state.nodes()) {
-                assertTrue(estimatedHeapUsages.containsKey(node.getId()));
-                EstimatedHeapUsage estimatedHeapUsage = estimatedHeapUsages.get(node.getId());
-                assertThat(estimatedHeapUsage.estimatedFreeBytes(), lessThanOrEqualTo(estimatedHeapUsage.totalBytes()));
+                assertTrue(nodeHeapMetrics.containsKey(node.getId()));
+                NodeHeapMetrics currentNodeMetrics = nodeHeapMetrics.get(node.getId());
+                assertThat(currentNodeMetrics.estimatedFreeBytes(), lessThanOrEqualTo(currentNodeMetrics.totalBytes()));
+            }
+        } finally {
+            updateClusterSettings(
+                Settings.builder()
+                    .putNull(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey())
+                    .build()
+            );
+        }
+    }
+
+    public void testShardHeapUsagesArePresent() {
+        // Create some indices so we can later expect a precise number of (random) shard-level heap usage reports.
+        final int numIndices = randomIntBetween(1, 5);
+        final int numShards = randomIntBetween(1, 3);
+        final String indexPrefix = randomIdentifier();
+        IntStream.range(0, numIndices).forEach(i -> {
+            final String indexName = indexPrefix + "_" + i;
+            createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build());
+        });
+
+        InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
+        ClusterInfoServiceUtils.refresh(clusterInfoService);
+
+        Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages = clusterInfoService.getClusterInfo().getEstimatedShardHeapUsages();
+        assertNotNull(estimatedShardHeapUsages);
+        // No shard heap usage is reported because it is not yet enabled.
+        assertTrue(estimatedShardHeapUsages.isEmpty());
+
+        // Enable collection of heap usages for ClusterInfo.
+        updateClusterSettings(
+            Settings.builder()
+                .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true)
+                .build()
+        );
+
+        try {
+            ClusterInfoServiceUtils.refresh(clusterInfoService);
+            estimatedShardHeapUsages = clusterInfoService.getClusterInfo().getEstimatedShardHeapUsages();
+            assertNotNull(estimatedShardHeapUsages);
+            assertEquals(estimatedShardHeapUsages.size(), numIndices * numShards);
+            for (var entry : estimatedShardHeapUsages.entrySet()) {
+                assertThat(entry.getValue().shardHeapUsageBytes(), greaterThanOrEqualTo(0L));
+                assertThat(entry.getValue().indexHeapUsageBytes(), greaterThanOrEqualTo(0L));
             }
         } finally {
             updateClusterSettings(
@@ -554,7 +601,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             .put("index.number_of_shards", 1)
             .put("index.translog.generation_threshold_size", generationThreshold + "b")
             .build();
-        createIndex("test", settings, "test");
+        createIndex("test", settings);
         ensureGreen("test");
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService test = indicesService.indexService(resolveIndex("test"));
@@ -790,6 +837,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
             System::nanoTime,
             null,
+            null,
             MapperMetrics.NOOP,
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
@@ -861,7 +909,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         Settings settings = indexSettings(1, 0).put("index.translog.flush_threshold_size", "512mb") // do not flush
             .put("index.soft_deletes.enabled", true)
             .build();
-        IndexService indexService = createIndex("index", settings, "user_doc", "title", "type=keyword");
+        IndexService indexService = createIndex("index", settings, "title", "type=keyword");
         int numOps = between(1, 10);
         for (int i = 0; i < numOps; i++) {
             if (randomBoolean()) {
@@ -960,16 +1008,55 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
 
         @Override
-        public void collectClusterHeapUsage(ActionListener<Map<String, Long>> listener) {
+        public void collectClusterHeapUsage(ActionListener<Map<String, NodeHeapEstimates>> listener) {
+            final long totalHeapUsageBytes = randomNonNegativeLong();
             ActionListener.completeWith(
                 listener,
                 () -> plugin.getClusterService()
                     .state()
                     .nodes()
                     .stream()
-                    .collect(Collectors.toUnmodifiableMap(DiscoveryNode::getId, node -> randomNonNegativeLong()))
+                    .collect(
+                        Collectors.toUnmodifiableMap(
+                            DiscoveryNode::getId,
+                            node -> new NodeHeapEstimates(totalHeapUsageBytes, randomLongBetween(0, totalHeapUsageBytes))
+                        )
+                    )
             );
         }
+
+        @Override
+        public void collectShardHeapUsage(ActionListener<ShardHeapUsageEstimates> listener) {
+            ActionListener.completeWith(listener, () -> {
+                var perShard = plugin.getClusterService()
+                    .state()
+                    .getRoutingNodes()
+                    .stream()
+                    .map(node -> node.started())
+                    .flatMap(nodeIt -> StreamSupport.stream(nodeIt.spliterator(), false))
+                    .collect(
+                        Collectors.toUnmodifiableMap(
+                            ShardRouting::shardId,
+                            shardRouting -> new ShardAndIndexHeapUsage(randomShardHeapUsage(), randomIndexHeapUsage())
+                        )
+                    );
+                return new ShardHeapUsageEstimates(perShard, new ShardAndIndexHeapUsage(randomShardHeapUsage(), randomIndexHeapUsage()));
+            });
+        }
+    }
+
+    /**
+     * Reasonable shard heap usage estimate (to prevent overflow)
+     */
+    private static long randomShardHeapUsage() {
+        return randomLong(1_000_000);
+    }
+
+    /**
+     * Reasonable index heap usage estimate (to prevent overflow)
+     */
+    private static long randomIndexHeapUsage() {
+        return randomLong(400_000);
     }
 
     public static class BogusEstimatedHeapUsagePlugin extends Plugin implements ClusterPlugin {

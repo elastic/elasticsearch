@@ -15,9 +15,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -27,6 +28,9 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -37,11 +41,14 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 /**
  * Reduce a multivalued string field to a single valued field by concatenating all values.
  */
-public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
+public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvConcat", MvConcat::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvConcat.class).binary(MvConcat::new).name("mv_concat");
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "keyword",
+        briefSummary = "Concatenates multi-value strings with a delimiter.",
         description = "Converts a multivalued string expression into a single valued column "
             + "containing the concatenation of all values separated by a delimiter.",
         examples = {
@@ -54,7 +61,11 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
     )
     public MvConcat(
         Source source,
-        @Param(name = "string", type = { "text", "keyword" }, description = "Multivalue expression.") Expression field,
+        @Param(
+            name = "string",
+            type = { "text", "keyword" },
+            description = "Expression that can be null, a single value, or multiple values."
+        ) Expression field,
         @Param(name = "delim", type = { "text", "keyword" }, description = "Delimiter.") Expression delim
     ) {
         super(source, field, delim);
@@ -153,8 +164,7 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
                     BytesRef fieldScratch = new BytesRef();
                     BytesRef delimScratch = new BytesRef();
                     for (int p = 0; p < positionCount; p++) {
-                        int fieldValueCount = fieldVal.getValueCount(p);
-                        if (fieldValueCount == 0) {
+                        if (fieldVal.isNull(p)) {
                             builder.appendNull();
                             continue;
                         }
@@ -162,6 +172,7 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
                             builder.appendNull();
                             continue;
                         }
+                        int fieldValueCount = fieldVal.getValueCount(p);
                         int first = fieldVal.getFirstValueIndex(p);
                         if (fieldValueCount == 1) {
                             builder.appendBytesRef(fieldVal.getBytesRef(first, fieldScratch));

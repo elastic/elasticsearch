@@ -162,7 +162,7 @@ public class ShardSearchFailureTests extends ESTestCase {
                 testItem,
                 writableRegistry(),
                 ShardSearchFailure::new,
-                TransportVersionUtils.randomVersion(random())
+                TransportVersionUtils.randomVersion()
             );
             assertEquals(testItem.index(), deserializedInstance.index());
             assertEquals(testItem.shard(), deserializedInstance.shard());

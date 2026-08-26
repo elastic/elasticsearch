@@ -84,8 +84,9 @@ public class DesiredBalanceReconciler {
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
     private final NodeAllocationOrdering moveOrdering = new NodeAllocationOrdering();
     private final UndesiredAllocationsTracker undesiredAllocationsTracker;
+    private final ShardRelocationOrder shardRelocationOrder;
 
-    public DesiredBalanceReconciler(ClusterSettings clusterSettings, TimeProvider timeProvider) {
+    public DesiredBalanceReconciler(ClusterSettings clusterSettings, TimeProvider timeProvider, ShardRelocationOrder shardRelocationOrder) {
         this.undesiredAllocationLogInterval = new FrequencyCappedAction(timeProvider::relativeTimeInMillis, TimeValue.timeValueMinutes(5));
         clusterSettings.initializeAndWatch(UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING, this.undesiredAllocationLogInterval::setMinInterval);
         clusterSettings.initializeAndWatch(
@@ -93,6 +94,7 @@ public class DesiredBalanceReconciler {
             value -> this.undesiredAllocationsLogThreshold = value
         );
         this.undesiredAllocationsTracker = new UndesiredAllocationsTracker(clusterSettings, timeProvider);
+        this.shardRelocationOrder = shardRelocationOrder;
     }
 
     /**
@@ -114,6 +116,11 @@ public class DesiredBalanceReconciler {
         allocationOrdering.clear();
         moveOrdering.clear();
         undesiredAllocationsTracker.clear();
+    }
+
+    // visible for testing
+    public ShardRelocationOrder getShardRelocationOrder() {
+        return shardRelocationOrder;
     }
 
     /**
@@ -255,7 +262,7 @@ public class DesiredBalanceReconciler {
              * TODO: We could be smarter here and group the shards by index and then
              * use the sorter to save some iterations.
              */
-            final PriorityComparator indexPriorityComparator = PriorityComparator.getAllocationComparator(allocation);
+            final Comparator<ShardRouting> indexPriorityComparator = PriorityComparator.getAllocationComparator(allocation);
             final Comparator<ShardRouting> shardAllocationPriorityComparator = (o1, o2) -> {
                 // Prioritize assigning a primary shard copy, if one is a primary and the other is not.
                 if (o1.primary() ^ o2.primary()) {
@@ -321,7 +328,9 @@ public class DesiredBalanceReconciler {
                             }
                             final var decision = allocation.deciders().canAllocate(shard, routingNode, allocation);
                             switch (decision.type()) {
-                                case YES -> {
+                                // if balancer decided to allocate shard on a not-preferred node, then it's OK,
+                                // there is no better place, and we treat NO_PREFERRED as YES
+                                case YES, NOT_PREFERRED -> {
                                     logger.debug("Assigning shard [{}] to {} [{}]", shard, nodeIdsIterator.source, nodeId);
                                     long shardSize = getExpectedShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation);
                                     routingNodes.initializeShard(shard, nodeId, null, shardSize, allocation.changes());
@@ -478,7 +487,11 @@ public class DesiredBalanceReconciler {
         private void moveShards() {
             // Iterate over all started shards and check if they can remain. In the presence of throttling shard movements,
             // the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are offloading the shards.
-            for (final var iterator = OrderedShardsIterator.createForNecessaryMoves(allocation, moveOrdering); iterator.hasNext();) {
+            for (final var iterator = OrderedShardsIterator.createForNecessaryMoves(
+                allocation,
+                moveOrdering,
+                shardRelocationOrder
+            ); iterator.hasNext();) {
                 final var shardRouting = iterator.next();
 
                 if (shardRouting.started() == false) {
@@ -507,7 +520,12 @@ public class DesiredBalanceReconciler {
 
                     final var routingNode = routingNodes.node(shardRouting.currentNodeId());
                     final var canRemainDecision = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
-                    if (canRemainDecision.type() != Decision.Type.NO && canRemainDecision.type() != Decision.Type.NOT_PREFERRED) {
+                    final BalancedShardsAllocator.MoveType moveType;
+                    if (canRemainDecision.type() == Decision.Type.NO) {
+                        moveType = BalancedShardsAllocator.MoveType.CANNOT_REMAIN;
+                    } else if (canRemainDecision.type() == Decision.Type.NOT_PREFERRED) {
+                        moveType = BalancedShardsAllocator.MoveType.NOT_PREFERRED;
+                    } else {
                         // If movement is throttled, a future reconciliation round will see a resolution. For now, leave it alone.
                         continue;
                     }
@@ -524,12 +542,21 @@ public class DesiredBalanceReconciler {
                             shardRouting,
                             moveTarget.getId(),
                             allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
-                            "move",
-                            allocation.changes()
+                            moveType.reason(),
+                            allocation.changes(),
+                            moveType.recoveryPriority()
                         );
                         iterator.dePrioritizeNode(shardRouting.currentNodeId());
                         moveOrdering.recordAllocation(shardRouting.currentNodeId());
                         movedUndesiredShard = true;
+                    } else {
+                        logger.trace(
+                            "Cannot move shard [{}][{}] away from {}, and cannot remain because of [{}]",
+                            shardRouting.index(),
+                            shardRouting.shardId(),
+                            shardRouting.currentNodeId(),
+                            canRemainDecision
+                        );
                     }
                 } finally {
                     if (movedUndesiredShard) {
@@ -551,7 +578,8 @@ public class DesiredBalanceReconciler {
             // Iterate over all started shards and try to move any which are on undesired nodes. In the presence of throttling shard
             // movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are offloading the
             // shards.
-            for (final var iterator = OrderedShardsIterator.createForBalancing(allocation, moveOrdering); iterator.hasNext();) {
+            for (final var iterator = OrderedShardsIterator.createForBalancing(allocation, moveOrdering, shardRelocationOrder); iterator
+                .hasNext();) {
                 final var shardRouting = iterator.next();
 
                 totalAllocations++;
@@ -610,8 +638,9 @@ public class DesiredBalanceReconciler {
                             shardRouting,
                             rebalanceTarget.getId(),
                             allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
-                            "rebalance",
-                            allocation.changes()
+                            BalancedShardsAllocator.MoveType.REBALANCE.reason(),
+                            allocation.changes(),
+                            BalancedShardsAllocator.MoveType.REBALANCE.recoveryPriority()
                         );
                         iterator.dePrioritizeNode(shardRouting.currentNodeId());
                         moveOrdering.recordAllocation(shardRouting.currentNodeId());

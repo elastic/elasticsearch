@@ -15,8 +15,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -33,7 +33,7 @@ import java.util.Objects;
  * when executing a kNN search during the search query phase, to include the documents
  * that matched the initial kNN query during the DFS phase.
  */
-public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQueryBuilder> {
+public class KnnScoreDocQueryBuilder extends LeafQueryBuilder<KnnScoreDocQueryBuilder> {
     public static final String NAME = "knn_score_doc";
 
     private static final TransportVersion TO_CHILD_BLOCK_JOIN_QUERY = TransportVersion.fromName("to_child_block_join_query");
@@ -43,6 +43,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
     private final VectorData queryVector;
     private final Float vectorSimilarity;
     private final List<QueryBuilder> filterQueries;
+    private final Float oversample;
 
     /**
      * Creates a query builder.
@@ -57,11 +58,31 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         Float vectorSimilarity,
         List<QueryBuilder> filterQueries
     ) {
+        this(scoreDocs, fieldName, queryVector, vectorSimilarity, filterQueries, null);
+    }
+
+    /**
+     * Creates a query builder.
+     *
+     * @param scoreDocs  the docs and scores this query should match. The array must be
+     *                   sorted in order of ascending doc IDs.
+     * @param oversample the {@code rescore_vector.oversample} the originating kNN search specified, or {@code null} if it
+     *                   did not specify one. Only needed to score inner hits with the same fidelity the kNN search used.
+     */
+    public KnnScoreDocQueryBuilder(
+        ScoreDoc[] scoreDocs,
+        String fieldName,
+        VectorData queryVector,
+        Float vectorSimilarity,
+        List<QueryBuilder> filterQueries,
+        Float oversample
+    ) {
         this.scoreDocs = scoreDocs;
         this.fieldName = fieldName;
         this.queryVector = queryVector;
         this.vectorSimilarity = vectorSimilarity;
         this.filterQueries = filterQueries;
+        this.oversample = oversample;
     }
 
     public KnnScoreDocQueryBuilder(StreamInput in) throws IOException {
@@ -79,6 +100,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         } else {
             this.filterQueries = List.of();
         }
+        this.oversample = in.getTransportVersion().supports(ExactKnnQueryBuilder.EXACT_KNN_OVERSAMPLE) ? in.readOptionalFloat() : null;
     }
 
     @Override
@@ -115,6 +137,9 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         out.writeOptionalFloat(vectorSimilarity);
         if (out.getTransportVersion().supports(TO_CHILD_BLOCK_JOIN_QUERY)) {
             writeQueries(out, filterQueries);
+        }
+        if (out.getTransportVersion().supports(ExactKnnQueryBuilder.EXACT_KNN_OVERSAMPLE)) {
+            out.writeOptionalFloat(oversample);
         }
     }
 
@@ -157,7 +182,8 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
             return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
         }
         if (queryRewriteContext.convertToInnerHitsRewriteContext() != null && queryVector != null && fieldName != null) {
-            QueryBuilder exactKnnQuery = new ExactKnnQueryBuilder(queryVector, fieldName, vectorSimilarity);
+            // Carry the oversample so the exact query scores inner hits with the same fidelity the kNN search used.
+            QueryBuilder exactKnnQuery = new ExactKnnQueryBuilder(queryVector, fieldName, vectorSimilarity, oversample);
             if (filterQueries.isEmpty()) {
                 return exactKnnQuery;
             } else {
@@ -194,7 +220,8 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(queryVector, other.queryVector)
             && Objects.equals(vectorSimilarity, other.vectorSimilarity)
-            && Objects.equals(filterQueries, other.filterQueries);
+            && Objects.equals(filterQueries, other.filterQueries)
+            && Objects.equals(oversample, other.oversample);
     }
 
     @Override
@@ -204,7 +231,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
             int hashCode = Objects.hash(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex);
             result = 31 * result + hashCode;
         }
-        return Objects.hash(result, fieldName, vectorSimilarity, Objects.hashCode(queryVector), filterQueries);
+        return Objects.hash(result, fieldName, vectorSimilarity, Objects.hashCode(queryVector), filterQueries, oversample);
     }
 
     @Override

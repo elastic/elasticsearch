@@ -71,7 +71,7 @@ public class InferenceEndpointRegistryTests extends ESSingleNodeTestCase {
             TaskType.SPARSE_EMBEDDING,
             "test_service",
             new TestSparseInferenceServiceExtension.TestServiceSettings("model", null, false),
-            new AbstractTestInferenceService.TestTaskSettings(randomInt(3)),
+            new AbstractTestInferenceService.TestTaskSettings(randomInt(3), false),
             new AbstractTestInferenceService.TestSecretSettings("secret")
         );
         assertStoreModel(registry, expectedEndpoint);
@@ -91,7 +91,7 @@ public class InferenceEndpointRegistryTests extends ESSingleNodeTestCase {
             TaskType.SPARSE_EMBEDDING,
             "hello",
             new TestSparseInferenceServiceExtension.TestServiceSettings("model", null, false),
-            new AbstractTestInferenceService.TestTaskSettings(randomInt(3)),
+            new AbstractTestInferenceService.TestTaskSettings(randomInt(3), false),
             new AbstractTestInferenceService.TestSecretSettings("secret")
         );
         assertStoreModel(registry, expectedEndpoint);

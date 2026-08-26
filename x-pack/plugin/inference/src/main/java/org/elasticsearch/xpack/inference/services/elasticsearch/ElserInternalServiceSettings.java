@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.EndpointClusterState;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V2_MODEL;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V2_MODEL_LINUX_X86;
@@ -21,8 +23,8 @@ public class ElserInternalServiceSettings extends ElasticsearchInternalServiceSe
 
     public static final String NAME = "elser_mlnode_service_settings";
 
-    public static MinimalServiceSettings minimalServiceSettings() {
-        return MinimalServiceSettings.sparseEmbedding(ElasticsearchInternalService.NAME);
+    public static EndpointClusterState endpointClusterState() {
+        return EndpointClusterState.sparseEmbedding(ElasticsearchInternalService.NAME);
     }
 
     public static ElserInternalServiceSettings defaultEndpointSettings(boolean useLinuxOptimizedModel) {
@@ -59,5 +61,15 @@ public class ElserInternalServiceSettings extends ElasticsearchInternalServiceSe
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.minimumCompatible();
+    }
+
+    @Override
+    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        ServiceSettings updated = super.updateServiceSettings(serviceSettings);
+        if (updated instanceof ElasticsearchInternalServiceSettings esSettings) {
+            return new ElserInternalServiceSettings(esSettings);
+        } else {
+            throw new IllegalStateException("Unexpected service settings type [" + updated.getClass().getName() + "]");
+        }
     }
 }

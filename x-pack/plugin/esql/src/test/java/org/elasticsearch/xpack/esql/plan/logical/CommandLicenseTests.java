@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParserVisitor;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests;
@@ -49,6 +50,7 @@ public class CommandLicenseTests extends ESTestCase {
                 checkLicense(commandName, createInstance(commandClass, arg));
             } catch (Exception e) {
                 Throwable c = e.getCause();
+                log.error("Failed to create instance of command class: " + commandClass.getName() + " - " + e.getMessage() + " - " + c, e);
                 fail("Failed to create instance of command class: " + commandClass.getName() + " - " + e.getMessage() + " - " + c);
             }
         }
@@ -124,7 +126,9 @@ public class CommandLicenseTests extends ESTestCase {
             "Stats",
             "Aggregate",
             "Join",
-            "LookupJoin"
+            "LookupJoin",
+            "Mmr",
+            "MMR"
         );
         Map<String, String> commandNameMapper = Map.of(
             "ChangePoint",
@@ -134,7 +138,19 @@ public class CommandLicenseTests extends ESTestCase {
             "MvExpand",
             "MV_EXPAND",
             "InlineStats",
-            "INLINE_STATS"
+            "INLINE_STATS",
+            "RegisteredDomain",
+            "REGISTERED_DOMAIN",
+            "UriParts",
+            "URI_PARTS",
+            "MetricsInfo",
+            "METRICS_INFO",
+            "TsInfo",
+            "TS_INFO",
+            "UserAgent",
+            "USER_AGENT",
+            "IpLocation",
+            "IP_LOCATION"
         );
         Map<String, String> commandPackageMapper = Map.of("Rerank", planPackage + ".inference", "LookupJoin", planPackage + ".join");
         Set<String> ignoredClasses = Set.of("Processing", "TimeSeries", "Completion", "Source", "From", "Row");
@@ -187,7 +203,7 @@ public class CommandLicenseTests extends ESTestCase {
                 return new Sample(source, null, child);
             }
             case "LookupJoin" -> {
-                return new LookupJoin(source, child, child, List.of(), false, null);
+                return new LookupJoin(source, child, child, List.of(), null, ExecuteLocation.ANY);
             }
             case "Limit" -> {
                 return new Limit(source, null, child);

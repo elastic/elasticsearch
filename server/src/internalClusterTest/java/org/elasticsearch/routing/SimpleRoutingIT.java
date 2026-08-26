@@ -34,7 +34,11 @@ import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.junit.Before;
+
+import java.io.IOException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
@@ -47,6 +51,29 @@ public class SimpleRoutingIT extends ESIntegTestCase {
     @Override
     protected int minimumNumberOfShards() {
         return 2;
+    }
+
+    private boolean routingDocValues;
+
+    @Before
+    public void randomizeRoutingStorage() {
+        routingDocValues = randomBoolean();
+        logger.info("--> using routing doc_values [{}]", routingDocValues);
+    }
+
+    /**
+     * Builds a {@code _routing} mapping that always sets {@code required} as given and randomly
+     * enables {@code doc_values} based on {@link #routingDocValues}.
+     */
+    private XContentBuilder routingMapping(boolean required) throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("_routing");
+        if (required) {
+            mapping.field("required", true);
+        }
+        if (routingDocValues) {
+            mapping.field("doc_values", true);
+        }
+        return mapping.endObject().endObject().endObject();
     }
 
     public String findNonMatchingRoutingValue(String index, String id) {
@@ -66,7 +93,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
     }
 
     public void testSimpleCrudRouting() throws Exception {
-        createIndex("test");
+        prepareCreate("test").setMapping(routingMapping(false)).get();
         ensureGreen();
         String routingValue = findNonMatchingRoutingValue("test", "1");
         logger.info("--> indexing with id [1], and routing [{}]", routingValue);
@@ -114,8 +141,8 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         }
     }
 
-    public void testSimpleSearchRouting() {
-        createIndex("test");
+    public void testSimpleSearchRouting() throws Exception {
+        prepareCreate("test").setMapping(routingMapping(false)).get();
         ensureGreen();
         String routingValue = findNonMatchingRoutingValue("test", "1");
 
@@ -208,19 +235,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
     }
 
     public void testRequiredRoutingCrudApis() throws Exception {
-        indicesAdmin().prepareCreate("test")
-            .addAlias(new Alias("alias"))
-            .setMapping(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .startObject("_doc")
-                    .startObject("_routing")
-                    .field("required", true)
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            )
-            .get();
+        prepareCreate("test").addAlias(new Alias("alias")).setMapping(routingMapping(true)).get();
         ensureGreen();
         String routingValue = findNonMatchingRoutingValue("test", "1");
 
@@ -302,19 +317,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
     }
 
     public void testRequiredRoutingBulk() throws Exception {
-        indicesAdmin().prepareCreate("test")
-            .addAlias(new Alias("alias"))
-            .setMapping(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .startObject("_doc")
-                    .startObject("_routing")
-                    .field("required", true)
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            )
-            .get();
+        prepareCreate("test").addAlias(new Alias("alias")).setMapping(routingMapping(true)).get();
         ensureGreen();
         {
             String index = indexOrAlias();
@@ -388,20 +391,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
     }
 
     public void testRequiredRoutingMappingVariousAPIs() throws Exception {
-
-        indicesAdmin().prepareCreate("test")
-            .addAlias(new Alias("alias"))
-            .setMapping(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .startObject("_doc")
-                    .startObject("_routing")
-                    .field("required", true)
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            )
-            .get();
+        prepareCreate("test").addAlias(new Alias("alias")).setMapping(routingMapping(true)).get();
         ensureGreen();
         String routingValue = findNonMatchingRoutingValue("test", "1");
         logger.info("--> indexing with id [1], and routing [{}]", routingValue);

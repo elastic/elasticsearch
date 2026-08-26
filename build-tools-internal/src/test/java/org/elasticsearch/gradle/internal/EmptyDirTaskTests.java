@@ -15,6 +15,10 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.attribute.PosixFilePermission;
+import java.util.Collections;
+import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -61,9 +65,8 @@ public class EmptyDirTaskTests {
 
         assertTrue(newEmptyFolder.exists());
         assertTrue(newEmptyFolder.isDirectory());
-        assertFalse(newEmptyFolder.canExecute());
-        assertFalse(newEmptyFolder.canRead());
-        assertFalse(newEmptyFolder.canWrite());
+        Set<PosixFilePermission> permissions = Files.getPosixFilePermissions(newEmptyFolder.toPath());
+        assertEquals(Collections.emptySet(), permissions);
 
         // cleanup
         newEmptyFolder.delete();

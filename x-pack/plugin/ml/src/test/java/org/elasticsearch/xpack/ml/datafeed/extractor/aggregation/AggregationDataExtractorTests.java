@@ -159,6 +159,32 @@ public class AggregationDataExtractorTests extends ESTestCase {
         );
     }
 
+    public void testExtractionSetsProjectRouting() throws IOException {
+        List<InternalHistogram.Bucket> histogramBuckets = Collections.singletonList(
+            createHistogramBucket(
+                1000L,
+                1,
+                Arrays.asList(createMax("time", 1999), createTerms("airline", new Term("a", 1, "responsetime", 11.0)))
+            )
+        );
+
+        String projectRouting = "_alias:prod-*";
+        AggregationDataExtractor extractor = new AggregationDataExtractor(
+            client,
+            createContext(1000L, 2000L, projectRouting),
+            timingStatsReporter
+        );
+
+        ArgumentCaptor<SearchRequest> searchRequestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
+        ActionFuture<SearchResponse> searchResponse = toActionFuture(createSearchResponse("time", histogramBuckets));
+        when(client.execute(eq(TransportSearchAction.TYPE), searchRequestCaptor.capture())).thenReturn(searchResponse);
+
+        assertThat(extractor.hasNext(), is(true));
+        extractor.next();
+
+        assertThat(searchRequestCaptor.getValue().getProjectRouting(), equalTo(projectRouting));
+    }
+
     public void testExtractionGivenResponseHasNullAggs() throws IOException {
         AggregationDataExtractor extractor = new AggregationDataExtractor(client, createContext(1000L, 2000L), timingStatsReporter);
 
@@ -317,6 +343,10 @@ public class AggregationDataExtractorTests extends ESTestCase {
     }
 
     private AggregationDataExtractorContext createContext(long start, long end) {
+        return createContext(start, end, null);
+    }
+
+    private AggregationDataExtractorContext createContext(long start, long end, String projectRouting) {
         return new AggregationDataExtractorContext(
             jobId,
             timeField,
@@ -329,7 +359,8 @@ public class AggregationDataExtractorTests extends ESTestCase {
             true,
             Collections.emptyMap(),
             SearchRequest.DEFAULT_INDICES_OPTIONS,
-            runtimeMappings
+            runtimeMappings,
+            projectRouting
         );
     }
 

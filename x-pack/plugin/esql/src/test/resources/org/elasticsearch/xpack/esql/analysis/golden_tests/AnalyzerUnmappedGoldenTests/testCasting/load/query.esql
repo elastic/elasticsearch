@@ -1,0 +1,2 @@
+SET unmapped_fields="load"; FROM employees
+| EVAL x = does_not_exist_field::LONG

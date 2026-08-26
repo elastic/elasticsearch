@@ -29,7 +29,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
@@ -49,7 +48,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.Inferenc
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
-import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
+import org.elasticsearch.xpack.ml.inference.ingest.IngestPipelineModelReferences;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
@@ -59,7 +58,6 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Queue;
@@ -221,6 +219,33 @@ public class ModelLoadingService implements ClusterStateListener {
         CircuitBreaker trainedModelCircuitBreaker,
         XPackLicenseState licenseState
     ) {
+        this(
+            trainedModelProvider,
+            auditor,
+            threadPool,
+            clusterService,
+            modelStatsService,
+            settings,
+            localNode,
+            trainedModelCircuitBreaker,
+            licenseState,
+            INFERENCE_MODEL_CACHE_TTL.get(settings)
+        );
+    }
+
+    // For testing
+    ModelLoadingService(
+        TrainedModelProvider trainedModelProvider,
+        InferenceAuditor auditor,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TrainedModelStatsService modelStatsService,
+        Settings settings,
+        String localNode,
+        CircuitBreaker trainedModelCircuitBreaker,
+        XPackLicenseState licenseState,
+        TimeValue cacheExpireTime
+    ) {
         this.provider = trainedModelProvider;
         this.threadPool = threadPool;
         this.maxCacheSize = INFERENCE_MODEL_CACHE_SIZE.get(settings);
@@ -231,7 +256,7 @@ public class ModelLoadingService implements ClusterStateListener {
             .setMaximumWeight(this.maxCacheSize.getBytes())
             .weigher((id, modelAndConsumer) -> modelAndConsumer.model.ramBytesUsed())
             .removalListener(this::cacheEvictionListener)
-            .setExpireAfterAccess(INFERENCE_MODEL_CACHE_TTL.get(settings))
+            .setExpireAfterAccess(cacheExpireTime)
             .build();
         clusterService.addListener(this);
         this.localNode = localNode;
@@ -450,6 +475,10 @@ public class ModelLoadingService implements ClusterStateListener {
     }
 
     private void loadModel(String modelId, Consumer consumer) {
+        // Refresh will evict any models that have aged out.
+        // Evicted models update the circuit breaker accounting for the freed memory
+        localModelCache.refresh();
+
         // We cannot use parentTaskId here as multiple listeners may be wanting this model to be loaded
         // We don't want to cancel the loading if only ONE of them stops listening or closes connection
         // TODO Is there a way to only signal a cancel if all the listener tasks cancel???
@@ -471,7 +500,12 @@ public class ModelLoadingService implements ClusterStateListener {
                 return;
             }
             auditNewReferencedModel(modelId);
-            trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(trainedModelConfig.getModelSize(), modelId);
+            try {
+                trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(trainedModelConfig.getModelSize(), modelId);
+            } catch (CircuitBreakingException ex) {
+                handleLoadFailure(modelId, ex);
+                return;
+            }
             provider.getTrainedModelForInference(modelId, consumer == Consumer.INTERNAL, ActionListener.wrap(inferenceDefinition -> {
                 try {
                     // Since we have used the previously stored estimate to help guard against OOM we need
@@ -507,6 +541,10 @@ public class ModelLoadingService implements ClusterStateListener {
         TaskId parentTaskId,
         ActionListener<LocalModel> modelActionListener
     ) {
+        // Refresh will evict any models that have aged out.
+        // Evicted models update the circuit breaker accounting for the freed memory
+        localModelCache.refresh();
+
         // If we the model is not loaded and we did not kick off a new loading attempt, this means that we may be getting called
         // by a simulated pipeline
         provider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.empty(), parentTaskId, ActionListener.wrap(trainedModelConfig -> {
@@ -688,6 +726,14 @@ public class ModelLoadingService implements ClusterStateListener {
     }
 
     private void handleLoadFailure(String modelId, Exception failure) {
+        if (failure instanceof CircuitBreakingException) {
+            logger.warn(
+                () -> "Model ["
+                    + modelId
+                    + "] could not be loaded because the inference circuit breaker limit was exceeded. "
+                    + "The ingest node will retry when memory becomes available. If this persists, the node may need to be resized."
+            );
+        }
         Queue<ActionListener<LocalModel>> listeners;
         synchronized (loadingListeners) {
             listeners = loadingListeners.remove(modelId);
@@ -767,7 +813,7 @@ public class ModelLoadingService implements ClusterStateListener {
         ClusterState state = event.state();
         IngestMetadata currentIngestMetadata = state.metadata().getProject().custom(IngestMetadata.TYPE);
         Set<String> allReferencedModelKeys = event.changedCustomProjectMetadataSet().contains(IngestMetadata.TYPE)
-            ? countInferenceProcessors(currentIngestMetadata)
+            ? IngestPipelineModelReferences.collectReferencedModelKeys(currentIngestMetadata)
             : new HashSet<>(referencedModels);
         Set<String> referencedModelsBeforeClusterState;
         Set<String> loadingModelBeforeClusterState = null;
@@ -972,31 +1018,6 @@ public class ModelLoadingService implements ClusterStateListener {
     private static <T> Queue<T> addFluently(Queue<T> queue, T object) {
         queue.add(object);
         return queue;
-    }
-
-    private static Set<String> countInferenceProcessors(IngestMetadata ingestMetadata) {
-        Set<String> allReferencedModelKeys = new HashSet<>();
-        if (ingestMetadata == null) {
-            return allReferencedModelKeys;
-        }
-        ingestMetadata.getPipelines().forEach((pipelineId, pipelineConfiguration) -> {
-            Object processors = pipelineConfiguration.getConfig().get("processors");
-            if (processors instanceof List<?>) {
-                for (Object processor : (List<?>) processors) {
-                    if (processor instanceof Map<?, ?>) {
-                        Object processorConfig = ((Map<?, ?>) processor).get(InferenceProcessor.TYPE);
-                        if (processorConfig instanceof Map<?, ?>) {
-                            Object modelId = ((Map<?, ?>) processorConfig).get(InferenceResults.MODEL_ID_RESULTS_FIELD);
-                            if (modelId != null) {
-                                assert modelId instanceof String;
-                                allReferencedModelKeys.add(modelId.toString());
-                            }
-                        }
-                    }
-                }
-            }
-        });
-        return allReferencedModelKeys;
     }
 
     private static InferenceConfig inferenceConfigFromTargetType(TargetType targetType) {

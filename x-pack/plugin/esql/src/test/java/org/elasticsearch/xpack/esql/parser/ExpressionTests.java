@@ -9,9 +9,12 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Lambda;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
@@ -43,6 +46,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.assertEqualsIgnoringIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
@@ -54,7 +58,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
-import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -351,16 +354,20 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testFunctionExpressions() {
-        assertEquals(new UnresolvedFunction(EMPTY, "fn", DEFAULT, new ArrayList<>()), whereExpression("fn()"));
+        assertEquals(new UnresolvedFunction(EMPTY, "fn", new ArrayList<>()), whereExpression("fn()"));
         assertEqualsIgnoringIds(
             new UnresolvedFunction(
                 EMPTY,
                 "invoke",
-                DEFAULT,
                 new ArrayList<>(
                     List.of(
                         new UnresolvedAttribute(EMPTY, "a"),
-                        new Add(EMPTY, new UnresolvedAttribute(EMPTY, "b"), new UnresolvedAttribute(EMPTY, "c"))
+                        new Add(
+                            EMPTY,
+                            new UnresolvedAttribute(EMPTY, "b"),
+                            new UnresolvedAttribute(EMPTY, "c"),
+                            ConfigurationAware.CONFIGURATION_MARKER
+                        )
                     )
                 )
             ),
@@ -368,6 +375,66 @@ public class ExpressionTests extends ESTestCase {
         );
         assertEqualsIgnoringIds(whereExpression("(invoke((a + b)))"), whereExpression("invoke(a+b)"));
         assertEqualsIgnoringIds(whereExpression("((fn()) + fn(fn()))"), whereExpression("fn() + fn(fn())"));
+    }
+
+    public void testLambdaExpressions() {
+        assumeTrue("Requires lambda syntax", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        assertEqualsIgnoringIds(
+            new UnresolvedFunction(
+                EMPTY,
+                "invoke",
+                new ArrayList<>(
+                    List.of(
+                        new UnresolvedAttribute(EMPTY, "a"),
+                        new Lambda(EMPTY, List.of(new UnresolvedAttribute(EMPTY, "x"), new UnresolvedAttribute(EMPTY, "x")))
+                    )
+                )
+            ),
+            whereExpression("invoke(a, x -> x)")
+        );
+        assertEqualsIgnoringIds(
+            new UnresolvedFunction(
+                EMPTY,
+                "invoke",
+                new ArrayList<>(
+                    List.of(
+                        new UnresolvedAttribute(EMPTY, "a"),
+                        new Lambda(
+                            EMPTY,
+                            List.of(
+                                new UnresolvedAttribute(EMPTY, "x"),
+                                new UnresolvedAttribute(EMPTY, "y"),
+                                new Add(
+                                    EMPTY,
+                                    new UnresolvedAttribute(EMPTY, "x"),
+                                    new UnresolvedAttribute(EMPTY, "y"),
+                                    ConfigurationAware.CONFIGURATION_MARKER
+                                )
+                            )
+                        )
+                    )
+                )
+            ),
+            whereExpression("invoke(a, (x, y) -> x + y)")
+        );
+        assertEqualsIgnoringIds(
+            new UnresolvedFunction(EMPTY, "invoke", new ArrayList<>(List.of(new Lambda(EMPTY, List.of(Literal.TRUE))))),
+            whereExpression("invoke(() -> true)")
+        );
+        // (x) -> body: single parenthesized param is ambiguous with a parenthesized expression; resolved by the -> lookahead
+        assertEqualsIgnoringIds(
+            new UnresolvedFunction(
+                EMPTY,
+                "invoke",
+                new ArrayList<>(
+                    List.of(
+                        new UnresolvedAttribute(EMPTY, "a"),
+                        new Lambda(EMPTY, List.of(new UnresolvedAttribute(EMPTY, "x"), new UnresolvedAttribute(EMPTY, "x")))
+                    )
+                )
+            ),
+            whereExpression("invoke(a, (x) -> x)")
+        );
     }
 
     public void testUnquotedIdentifiers() {
@@ -661,7 +728,7 @@ public class ExpressionTests extends ESTestCase {
     }
 
     private LogicalPlan parse(String s) {
-        return EsqlParser.INSTANCE.parseQuery(s);
+        return TEST_PARSER.parseQuery(s);
     }
 
     private Literal l(Object value, DataType type) {

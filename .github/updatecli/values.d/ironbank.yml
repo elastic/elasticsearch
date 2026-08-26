@@ -1,3 +1,14 @@
+ubi_version_path: https://repo1.dso.mil/dsop/redhat/ubi/9.x/ubi9
+
 config:
   - path: distribution/docker/src/docker/iron_bank
-    dockerfile: ../Dockerfile
+    dockerfile: ../dockerfiles/ironbank/Dockerfile
+
+pull_request:
+  labels:
+    - ":Delivery/Tooling"
+    - ":Delivery/Packaging"
+    - "auto-merge-without-approval"
+    - "dependencies"
+    - ">non-issue"
+

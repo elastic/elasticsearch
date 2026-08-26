@@ -23,7 +23,6 @@ import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
@@ -133,6 +132,11 @@ public class RankVectorsFieldMapper extends FieldMapper {
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { elementType, dims, meta };
+        }
+
+        @Override
+        public String contentType() {
+            return CONTENT_TYPE;
         }
 
         @Override
@@ -287,7 +291,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void parse(DocumentParserContext context) throws IOException {
+    public ParseResult parse(DocumentParserContext context) throws IOException {
         if (RANK_VECTORS_FEATURE.check(licenseState) == false) {
             throw LicenseUtils.newComplianceException("Rank Vectors");
         }
@@ -301,7 +305,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
             );
         }
         if (XContentParser.Token.VALUE_NULL == context.parser().currentToken()) {
-            return;
+            return ParseResult.INDEXED;
         }
         if (XContentParser.Token.START_ARRAY != context.parser().currentToken()) {
             throw new IllegalArgumentException(
@@ -322,9 +326,8 @@ public class RankVectorsFieldMapper extends FieldMapper {
             }
             var builder = (Builder) getMergeBuilder();
             builder.dimensions(currentDims);
-            Mapper update = builder.build(context.createDynamicMapperBuilderContext());
-            context.addDynamicMapper(update);
-            return;
+            context.addDynamicMapper(builder, fullPath());
+            return ParseResult.INDEXED;
         }
         int dims = fieldType().dims;
         Element element = fieldType().element;
@@ -354,6 +357,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
                 vectorMagnitudeFieldName,
                 new BinaryDocValuesField(vectorMagnitudeFieldName, new BytesRef(magnitudeBuffer.array()))
             );
+        return ParseResult.INDEXED;
     }
 
     private void checkDimensionExceeded(int index, DocumentParserContext context) {

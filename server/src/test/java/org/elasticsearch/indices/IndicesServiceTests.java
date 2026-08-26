@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.indices;
 
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -15,6 +16,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
@@ -41,26 +44,37 @@ import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.LocalAllocateDangledIndices;
 import org.elasticsearch.gateway.MetaStateWriterUtils;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
+import org.elasticsearch.index.ActionLoggingFields;
+import org.elasticsearch.index.ActionLoggingFieldsContext;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
+import org.elasticsearch.index.CompositeIndexEventListener;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.SlowLogFieldProvider;
-import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
+import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
@@ -68,12 +82,16 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.NonNegativeScoresSimilarity;
 import org.elasticsearch.indices.IndicesService.ShardDeletionCheckResult;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
+import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
+import org.elasticsearch.indices.recovery.TestRecoverySchedulingListener;
+import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -84,7 +102,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -95,6 +116,7 @@ import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolverTest
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -123,8 +145,10 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Stream.concat(super.getPlugins().stream(), Stream.of(TestPlugin.class, FooEnginePlugin.class, BarEnginePlugin.class))
-            .toList();
+        return Stream.concat(
+            super.getPlugins().stream(),
+            Stream.of(TestPlugin.class, FooEnginePlugin.class, BarEnginePlugin.class, InternalSettingsPlugin.class)
+        ).toList();
     }
 
     public static class FooEnginePlugin extends Plugin implements EnginePlugin {
@@ -193,78 +217,162 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
     }
 
+    static class DeprecatedParameterMapper extends FieldMapper {
+
+        static final String CONTENT_TYPE = "deprecated-param-mapper";
+
+        private DeprecatedParameterMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams) {
+            super(simpleName, mappedFieldType, builderParams);
+        }
+
+        @Override
+        protected void parseCreateField(DocumentParserContext context) {}
+
+        @Override
+        public Builder getMergeBuilder() {
+            return new DeprecatedParameterMapper.TypeBuilder(leafName()).init(this);
+        }
+
+        @Override
+        protected String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        static class TypeBuilder extends FieldMapper.Builder {
+
+            private final Parameter<String> deprecatedParam = Parameter.stringParam(
+                "deprecated_field",
+                true,
+                m -> ((DeprecatedParameterFieldType) m.fieldType()).deprecatedField,
+                null
+            ).acceptsNull().deprecated();
+
+            TypeBuilder(String name) {
+                super(name);
+            }
+
+            @Override
+            protected Parameter<?>[] getParameters() {
+                return new Parameter<?>[] { deprecatedParam };
+            }
+
+            @Override
+            public String contentType() {
+                return CONTENT_TYPE;
+            }
+
+            @Override
+            public FieldMapper build(MapperBuilderContext context) {
+                return new DeprecatedParameterMapper(
+                    leafName(),
+                    new DeprecatedParameterFieldType(context.buildFullName(leafName()), deprecatedParam.getValue()),
+                    builderParams(this, context)
+                );
+            }
+        }
+
+        static class DeprecatedParameterFieldType extends MappedFieldType {
+
+            private final String deprecatedField;
+
+            DeprecatedParameterFieldType(String name, String deprecatedField) {
+                super(name, IndexType.NONE, false, Map.of());
+                this.deprecatedField = deprecatedField;
+            }
+
+            @Override
+            public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+                return ValueFetcher.EMPTY;
+            }
+
+            @Override
+            public String typeName() {
+                return CONTENT_TYPE;
+            }
+
+            @Override
+            public Query termQuery(Object value, SearchExecutionContext context) {
+                throw new UnsupportedOperationException();
+            }
+        }
+    }
+
     public static class TestPlugin extends Plugin implements MapperPlugin {
+
+        private static final List<IndexEventListener> indexEventListeners = new CopyOnWriteArrayList<>();
 
         public TestPlugin() {}
 
+        static void addIndexEventListener(IndexEventListener listener) {
+            indexEventListeners.add(listener);
+        }
+
+        static void removeIndexEventListener(IndexEventListener listener) {
+            indexEventListeners.remove(listener);
+        }
+
         @Override
         public Map<String, Mapper.TypeParser> getMappers() {
-            return Collections.singletonMap("fake-mapper", KeywordFieldMapper.PARSER);
+            return Map.of(
+                "fake-mapper",
+                KeywordFieldMapper.PARSER,
+                DeprecatedParameterMapper.CONTENT_TYPE,
+                new FieldMapper.TypeParser((name, parserContext) -> new DeprecatedParameterMapper.TypeBuilder(name))
+            );
         }
 
         @Override
         public void onIndexModule(IndexModule indexModule) {
             super.onIndexModule(indexModule);
             indexModule.addSimilarity("fake-similarity", (settings, indexCreatedVersion, scriptService) -> new BM25Similarity());
+            indexModule.addIndexEventListener(new IndexEventListener() {
+                @Override
+                public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+                    // CompositeIndexEventListener already does `List.copyOf(listeners)` in its constructor
+                    new CompositeIndexEventListener(indexSettings, indexEventListeners).beforeIndexShardRecovery(
+                        indexShard,
+                        indexSettings,
+                        listener
+                    );
+                }
+            });
         }
     }
 
-    public static class TestSlowLogFieldProvider implements SlowLogFieldProvider {
-
+    public static class TestActionActionLoggingFieldsProvider implements ActionLoggingFieldsProvider {
         private static Map<String, String> fields = Map.of();
 
         static void setFields(Map<String, String> fields) {
-            TestSlowLogFieldProvider.fields = fields;
+            TestActionActionLoggingFieldsProvider.fields = fields;
         }
 
         @Override
-        public SlowLogFields create() {
-            return new SlowLogFields() {
+        public ActionLoggingFields create(ActionLoggingFieldsContext context) {
+            return new ActionLoggingFields(context) {
                 @Override
-                public Map<String, String> indexFields() {
-                    return fields;
-                }
-
-                @Override
-                public Map<String, String> searchFields() {
+                public Map<String, String> logFields() {
                     return fields;
                 }
             };
         }
-
-        @Override
-        public SlowLogFields create(IndexSettings indexSettings) {
-            return create();
-        }
-
     }
 
-    public static class TestAnotherSlowLogFieldProvider implements SlowLogFieldProvider {
+    public static class TestAnotherActionActionLoggingFieldsProvider implements ActionLoggingFieldsProvider {
 
         private static Map<String, String> fields = Map.of();
 
         static void setFields(Map<String, String> fields) {
-            TestAnotherSlowLogFieldProvider.fields = fields;
+            TestAnotherActionActionLoggingFieldsProvider.fields = fields;
         }
 
         @Override
-        public SlowLogFields create() {
-            return new SlowLogFields() {
+        public ActionLoggingFields create(ActionLoggingFieldsContext context) {
+            return new ActionLoggingFields(context) {
                 @Override
-                public Map<String, String> indexFields() {
-                    return fields;
-                }
-
-                @Override
-                public Map<String, String> searchFields() {
+                public Map<String, String> logFields() {
                     return fields;
                 }
             };
-        }
-
-        @Override
-        public SlowLogFields create(IndexSettings indexSettings) {
-            return create();
         }
     }
 
@@ -313,6 +421,25 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             indicesService.canDeleteShardContent(notAllocated, test.getIndexSettings()),
             ShardDeletionCheckResult.NO_FOLDER_FOUND
         );
+    }
+
+    public void testHasShardPredicate() {
+        IndicesService indicesService = getIndicesService();
+        var hasShardPredicate = indicesService.hasShardPredicate();
+        ShardId unknownIndexShard = new ShardId("nonexistent", UUIDs.randomBase64UUID(), 0);
+        assertFalse(hasShardPredicate.test(unknownIndexShard));
+
+        IndexService test = createIndex("test");
+        ShardId openShard = new ShardId(test.index(), 0);
+        assertTrue(hasShardPredicate.test(openShard));
+
+        ShardId missingShard = new ShardId(test.index(), 100);
+        assertFalse(hasShardPredicate.test(missingShard));
+
+        final PlainActionFuture<Void> shardRemoved = new PlainActionFuture<>();
+        test.removeShard(0, "boom", EsExecutors.DIRECT_EXECUTOR_SERVICE, shardRemoved);
+        shardRemoved.actionGet();
+        assertFalse(hasShardPredicate.test(openShard));
     }
 
     public void testDeleteIndexStore() throws Exception {
@@ -453,7 +580,11 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             .build();
 
         MetaStateWriterUtils.writeIndex(nodeEnv, "test index being created", indexMetadata);
-        final Metadata metadata = Metadata.builder(clusterService.state().metadata()).put(indexMetadata, true).build();
+        final Metadata current = clusterService.state().metadata();
+        final ProjectMetadata updatedProject = ProjectMetadata.builder(current.getProject(ProjectId.DEFAULT))
+            .put(indexMetadata, true)
+            .build();
+        final Metadata metadata = Metadata.builder(current).put(updatedProject).build();
         final ClusterState csWithIndex = new ClusterState.Builder(clusterService.state()).metadata(metadata).build();
         try {
             indicesService.verifyIndexIsDeleted(index, csWithIndex);
@@ -841,39 +972,35 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testLoadSlowLogFieldProvider() {
-        TestSlowLogFieldProvider.setFields(Map.of("key1", "value1"));
-        TestAnotherSlowLogFieldProvider.setFields(Map.of("key2", "value2"));
+    public void testLoadLoggingFieldsProvider() {
+        TestActionActionLoggingFieldsProvider.setFields(Map.of("key1", "value1"));
+        TestAnotherActionActionLoggingFieldsProvider.setFields(Map.of("key2", "value2"));
 
         var indicesService = getIndicesService();
-        SlowLogFieldProvider fieldProvider = indicesService.slowLogFieldProvider;
-        SlowLogFields fields = fieldProvider.create(null);
+        ActionLoggingFieldsProvider fieldProvider = indicesService.loggingFieldsProvider;
+        ActionLoggingFields fields = fieldProvider.create(new ActionLoggingFieldsContext());
 
         // The map of fields from the two providers are merged to a single map of fields
-        assertEquals(Map.of("key1", "value1", "key2", "value2"), fields.searchFields());
-        assertEquals(Map.of("key1", "value1", "key2", "value2"), fields.indexFields());
+        assertEquals(Map.of("key1", "value1", "key2", "value2"), fields.logFields());
 
-        TestSlowLogFieldProvider.setFields(Map.of("key1", "value1"));
-        TestAnotherSlowLogFieldProvider.setFields(Map.of("key1", "value2"));
+        TestActionActionLoggingFieldsProvider.setFields(Map.of("key1", "value1"));
+        TestAnotherActionActionLoggingFieldsProvider.setFields(Map.of("key1", "value2"));
 
         // There is an overlap of field names, since this isn't deterministic and probably a
         // programming error (two providers provide the same field) throw an exception
-        assertThrows(IllegalStateException.class, fields::searchFields);
-        assertThrows(IllegalStateException.class, fields::indexFields);
+        assertThrows(IllegalStateException.class, fields::logFields);
 
-        TestSlowLogFieldProvider.setFields(Map.of("key1", "value1"));
-        TestAnotherSlowLogFieldProvider.setFields(Map.of());
+        TestActionActionLoggingFieldsProvider.setFields(Map.of("key1", "value1"));
+        TestAnotherActionActionLoggingFieldsProvider.setFields(Map.of());
 
         // One provider has no fields
-        assertEquals(Map.of("key1", "value1"), fields.searchFields());
-        assertEquals(Map.of("key1", "value1"), fields.indexFields());
+        assertEquals(Map.of("key1", "value1"), fields.logFields());
 
-        TestSlowLogFieldProvider.setFields(Map.of());
-        TestAnotherSlowLogFieldProvider.setFields(Map.of());
+        TestActionActionLoggingFieldsProvider.setFields(Map.of());
+        TestAnotherActionActionLoggingFieldsProvider.setFields(Map.of());
 
         // Both providers have no fields
-        assertEquals(Map.of(), fields.searchFields());
-        assertEquals(Map.of(), fields.indexFields());
+        assertEquals(Map.of(), fields.logFields());
     }
 
     public void testWithTempIndexServiceHandlesExistingIndex() throws Exception {
@@ -959,6 +1086,176 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         DocumentMapper temporaryDocumentMapper = indicesService.createIndexMapperServiceForValidation(initialIndexMetadata)
             .documentMapper();
         assertNull(temporaryDocumentMapper);
+    }
+
+    /**
+     * Tests that deprecations warnings do not leak when the mapping is updated
+     */
+    public void testDeprecationsWarningsDoNotEscape() throws IOException {
+        IndicesService indicesService = getIndicesService();
+        IndexMetadata initialIndexMetadata = IndexMetadata.builder("test")
+            .settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 0))
+            .build();
+        IndexService indexService = indicesService.createIndex(initialIndexMetadata, List.of(), randomBoolean());
+
+        IndexMetadata newIndexMetadata = IndexMetadata.builder(initialIndexMetadata)
+            .mappingVersion(initialIndexMetadata.getMappingVersion() + 1)
+            .putMapping("""
+                {
+                  "_doc":{
+                    "properties": {
+                      "my-field": {
+                        "type": "deprecated-param-mapper",
+                        "deprecated_field": "someValue"
+                      }
+                    }
+                  }
+                }""")
+            .build();
+        indexService.updateMapping(initialIndexMetadata, newIndexMetadata);
+        // This test sets two thread contexts to the HeaderWarning class, the thread context of the ESTestCase and the
+        // thread pool one, consequently the deprecation warning is added to both. The production code will only have
+        // the thread pool context, so we test the isolation of this context only.
+        final List<String> warnings = indexService.getThreadPool().getThreadContext().getResponseHeaders().get("Warning");
+        if (warnings != null) {
+            assertThat(
+                warnings,
+                not(contains(containsString("Parameter [deprecated_field] is deprecated and will be removed in a future version")))
+            );
+        }
+        // For the test's thread context we just handle the expected warning.
+        assertWarnings("Parameter [deprecated_field] is deprecated and will be removed in a future version");
+    }
+
+    /**
+     * Verifies that {@link IndicesService#createShard} grabs a store reference, kept until the recovery
+     * listener completes.
+     */
+    public void testStartRecoveryGrabsRefOnStore() throws Exception {
+        final var recovering = new CountDownLatch(1);
+        final var proceedRecovering = new CountDownLatch(1);
+        final IndexEventListener indexListener = new IndexEventListener() {
+            @Override
+            public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+                recovering.countDown();
+                safeAwait(proceedRecovering);
+                listener.onResponse(null);
+            }
+        };
+        TestPlugin.addIndexEventListener(indexListener);
+        try {
+            final String indexName = randomIndexName();
+            assertAcked(
+                indicesAdmin().prepareCreate(indexName).setSettings(indexSettings(1, 0)).setWaitForActiveShards(ActiveShardCount.NONE)
+            );
+            safeAwait(recovering);
+
+            final IndexShard shard = getIndicesService().indexServiceSafe(resolveIndex(indexName)).getShard(0);
+            assertThat(shard.state(), equalTo(IndexShardState.RECOVERING));
+
+            // Delete cannot finish while recovery holds the store ref, so do not wait on the delete
+            // until after we unblock recovery.
+            final var deleteFuture = indicesAdmin().prepareDelete(indexName).execute();
+            assertBusy(() -> {
+                assertTrue(shard.store().isClosing());
+                assertTrue("recovery must retain a store ref until the recovery listener completes", shard.store().hasReferences());
+            });
+            proceedRecovering.countDown();
+            assertAcked(deleteFuture.actionGet());
+        } finally {
+            proceedRecovering.countDown();
+            TestPlugin.removeIndexEventListener(indexListener);
+        }
+    }
+
+    /**
+     * Verifies the {@link IndicesService#createShard} fast path when the store is already closed before the
+     * recovery task runs: {@code tryIncRef} fails, recovery aborts, and the listener must not {@code decRef}
+     * a store reference that was never taken.
+     */
+    public void testTryIncRecoveryFastPath() throws Exception {
+        updateClusterSettings(
+            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build()
+        );
+        final String blockingIndex = randomIndexName();
+        final String closedIndex = randomIndexName();
+
+        final var blocked = new CountDownLatch(1);
+        final var proceedBlocked = new CountDownLatch(1);
+        final var blockingListener = new IndexEventListener() {
+            @Override
+            public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+                if (indexShard.shardId().getIndexName().equals(blockingIndex)) {
+                    blocked.countDown();
+                    safeAwait(proceedBlocked);
+                }
+                listener.onResponse(null);
+            }
+        };
+        TestPlugin.addIndexEventListener(blockingListener);
+        try {
+            assertAcked(
+                indicesAdmin().prepareCreate(blockingIndex).setSettings(indexSettings(1, 0)).setWaitForActiveShards(ActiveShardCount.NONE)
+            );
+            safeAwait(blocked);
+
+            assertAcked(
+                indicesAdmin().prepareCreate(closedIndex).setSettings(indexSettings(1, 0)).setWaitForActiveShards(ActiveShardCount.NONE)
+            );
+            final IndexService closedIndexService = getIndicesService().indexServiceSafe(resolveIndex(closedIndex));
+            final IndexShard closedShard = closedIndexService.getShard(0);
+            awaitRecoveryStats(closedShard, stats -> stats.currentFromStoreQueued() == 1);
+            assertThat(closedShard.state(), equalTo(IndexShardState.CREATED));
+
+            final var store = closedShard.store();
+            final PlainActionFuture<Void> shardRemoved = new PlainActionFuture<>();
+            closedIndexService.removeShard(0, "close before recovery starts", EsExecutors.DIRECT_EXECUTOR_SERVICE, shardRemoved);
+            shardRemoved.actionGet();
+            assertThat(closedShard.state(), equalTo(IndexShardState.CLOSED));
+            assertFalse(store.hasReferences());
+
+            // Free the blocked recovery's slot so the queued task runs against the closed store.
+            proceedBlocked.countDown();
+
+            // releaseStoreRefIfHeld must not decRef (would assert invalid decRef).
+            awaitRecoveryStats(closedShard, RecoveryStats::noCurrentRecoveries);
+        } finally {
+            proceedBlocked.countDown();
+            TestPlugin.removeIndexEventListener(blockingListener);
+            assertAcked(indicesAdmin().prepareDelete(blockingIndex, closedIndex));
+            updateClusterSettings(
+                Settings.builder().putNull(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey()).build()
+            );
+        }
+    }
+
+    /**
+     * Waits until {@code predicate} is satisfied for {@code shard}'s recovery stats, re-checking on every
+     * recovery scheduling event (same idea as {@code awaitRecoveryCountStats} in integ tests).
+     */
+    private void awaitRecoveryStats(IndexShard shard, Predicate<RecoveryStats> predicate) {
+        final var conditionLatch = new CountDownLatch(1);
+        final var success = new AtomicBoolean();
+        final var schedulingListeners = getInstanceFromNode(CompositeRecoverySchedulingListener.class);
+        final var listener = new TestRecoverySchedulingListener() {
+            @Override
+            public void onRecoverySchedulingChange() {
+                if (success.get()) {
+                    return;
+                }
+                if (predicate.test(shard.recoveryStats())) {
+                    conditionLatch.countDown();
+                    success.set(true);
+                }
+            }
+        };
+        schedulingListeners.addListener(listener);
+        try {
+            listener.onRecoverySchedulingChange();
+            safeAwait(conditionLatch);
+        } finally {
+            schedulingListeners.removeListener(listener);
+        }
     }
 
     private Set<ResolvedExpression> resolvedExpressions(String... expressions) {

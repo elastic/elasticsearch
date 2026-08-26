@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
@@ -17,12 +18,15 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -81,6 +85,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     // Only relevant for indexes configured with synthetic source mode. Otherwise, it has no effect.
     // Controls the default behavior for storing the source of leaf fields and objects, in singleton or array form.
     // Setting to SourceKeepMode.ALL is equivalent to disabling synthetic source, so this is not allowed.
+    public static final String SYNTHETIC_SOURCE_KEEP_INDEX_SETTING_KEY = "index.mapping.synthetic_source_keep";
     public static final Setting<SourceKeepMode> SYNTHETIC_SOURCE_KEEP_INDEX_SETTING = Setting.enumSetting(
         SourceKeepMode.class,
         settings -> {
@@ -91,10 +96,30 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 return SourceKeepMode.NONE.toString();
             }
         },
-        "index.mapping.synthetic_source_keep",
-        value -> {
-            if (value == SourceKeepMode.ALL) {
-                throw new IllegalArgumentException("index.mapping.synthetic_source_keep can't be set to [" + value + "]");
+        SYNTHETIC_SOURCE_KEEP_INDEX_SETTING_KEY,
+        new Setting.Validator<SourceKeepMode>() {
+            @Override
+            public void validate(SourceKeepMode value) {
+                if (value == SourceKeepMode.ALL) {
+                    throw new IllegalArgumentException(SYNTHETIC_SOURCE_KEEP_INDEX_SETTING_KEY + " can't be set to [" + value + "]");
+                }
+            }
+
+            @Override
+            public void validate(SourceKeepMode value, Map<Setting<?>, Object> settings) {
+                // Strict-columnar index modes preserve array ordering via the .offsets sidecar; the legacy synthetic_source_keep mechanism
+                // is redundant and writes the same data to _ignored_source as well. Forbid any non-default value in strict-columnar modes.
+                IndexMode mode = (IndexMode) settings.get(IndexSettings.MODE);
+                if (mode != null && mode.isStrictColumnar() && value != SourceKeepMode.NONE) {
+                    throw new IllegalArgumentException(
+                        "[" + SYNTHETIC_SOURCE_KEEP_INDEX_SETTING_KEY + "] is not allowed in index using [" + mode + "] index mode"
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(IndexSettings.MODE).iterator();
             }
         },
         Setting.Property.IndexScope,
@@ -115,6 +140,20 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
         /** Returns a newly built mapper. */
         public abstract Mapper build(MapperBuilderContext context);
+
+        /**
+         * Returns the total number of fields that this builder will create.
+         * Used for field budget accounting during merges.
+         */
+        int getTotalFieldsCount() {
+            return 1;
+        }
+
+        /**
+         * Merges an incoming builder into this builder. Returns the merged builder, which may be
+         * a different instance if a type conversion is needed (e.g., ObjectMapper -> PassThroughObjectMapper).
+         */
+        public abstract Mapper.Builder mergeWith(Mapper.Builder incoming, MapperMergeContext mergeContext);
 
         void setLeafName(String leafName) {
             this.leafName = leafName;
@@ -190,8 +229,30 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         }
 
         public boolean isIgnored(final XContentString s) {
-            if (s == null) return false;
-            return lengthExceedsIgnoreAbove(s.stringLength());
+            if (s == null) {
+                return false;
+            } else if (s instanceof Text text) {
+                // Treat byte length as code-point count (assuming all ASCII, 1 byte per char): if even
+                // that lower bound doesn't exceed the limit, the true code-point count won't either.
+                if (text.hasBytes() && lengthExceedsIgnoreAbove(text.bytes().length()) == false) {
+                    return false;
+                }
+                return lengthExceedsIgnoreAbove(text.stringLength());
+            } else {
+                return lengthExceedsIgnoreAbove(s.stringLength());
+            }
+        }
+
+        public boolean isIgnored(final BytesRef utf8Ref) {
+            if (utf8Ref == null) return false;
+            // Treat byte length as code-point count (assuming all ASCII, 1 byte per char): if even
+            // that lower bound doesn't exceed the limit, the true code-point count won't either.
+            if (lengthExceedsIgnoreAbove(utf8Ref.length) == false) {
+                return false;
+            }
+            return lengthExceedsIgnoreAbove(
+                new Text(new XContentString.UTF8Bytes(utf8Ref.bytes, utf8Ref.offset, utf8Ref.length)).stringLength()
+            );
         }
 
         private boolean lengthExceedsIgnoreAbove(int strLength) {
@@ -207,7 +268,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         }
 
         private static boolean diffIgnoreAboveDefaultForLogs(final IndexMode indexMode, final IndexVersion indexCreatedVersion) {
-            return indexMode == IndexMode.LOGSDB
+            return (indexMode == IndexMode.LOGSDB || indexMode == IndexMode.LOGSDB_COLUMNAR)
                 && (indexCreatedVersion != null && indexCreatedVersion.onOrAfter(IndexVersions.ENABLE_IGNORE_ABOVE_LOGSDB));
         }
 
@@ -237,12 +298,6 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      * Returns a name representing the type of this mapper.
      */
     public abstract String typeName();
-
-    /**
-     * Return the merge of {@code mergeWith} into this.
-     * Both {@code this} and {@code mergeWith} will be left unmodified.
-     */
-    public abstract Mapper merge(Mapper mergeWith, MapperMergeContext mapperMergeContext);
 
     /**
      * Validate any cross-field references made by this mapper
@@ -308,5 +363,15 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      */
     public String getOffsetFieldName() {
         return null;
+    }
+
+    /**
+     * @return whether this mapper stores its multi-valued leaf array elements in document order directly in its own binary doc-values
+     * field (the {@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull} format), with no sidecar offsets field.
+     * Like {@link #supportStoringArrayOffsets()}, this signals to the document parser that the field handles array storage natively and
+     * must not be diverted to {@code _ignored_source}.
+     */
+    public boolean storesArrayValuesInOrder() {
+        return false;
     }
 }

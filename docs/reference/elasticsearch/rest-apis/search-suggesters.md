@@ -7,7 +7,7 @@ applies_to:
 ---
 # Suggester examples [search-suggesters]
 
-The suggest feature suggests similar looking terms based on a provided text by using a suggester. The suggest request part is defined alongside the query part in a `_search` request. If the query part is left out, only suggestions are returned.
+The [suggest parameter of the search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#operation-search-body-application-json-suggest) suggests similar looking terms based on a provided text by using a suggester. The suggest request part is defined alongside the query part in a `_search` request. If the query part is left out, only suggestions are returned.
 
 ::::{note}
 For the most up-to-date details, refer to [Search APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-search).
@@ -72,6 +72,10 @@ The following suggest response example includes the suggestion response for `my-
 % TESTRESPONSE[s/"my-suggest-2": \.\.\./"my-suggest-2": "$body.suggest.my-suggest-2"/]
 
 Each options array contains an option object that includes the suggested text, its document frequency and score compared to the suggest entry text. The meaning of the score depends on the used suggester. The term suggester's score is based on the edit distance.
+
+::::{note}
+Using suggest across multiple indices with different analysis chains is not supported. The fields chosen need to have the same analysis. 
+::::
 
 
 ## Global suggest text [global-suggest] 

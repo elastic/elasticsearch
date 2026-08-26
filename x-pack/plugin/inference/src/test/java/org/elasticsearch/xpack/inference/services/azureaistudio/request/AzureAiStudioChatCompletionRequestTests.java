@@ -13,6 +13,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioEndpointType;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProvider;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModelTests;
@@ -38,7 +39,7 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
             "apikey",
             "abcd"
         );
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         var httpPost = validateRequestUrlAndContentType(httpRequest, "http://openaitarget.local");
         validateRequestApiKey(httpPost, AzureAiStudioProvider.OPENAI, AzureAiStudioEndpointType.TOKEN, "apikey");
@@ -60,7 +61,7 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
             null,
             "abcd"
         );
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         var httpPost = validateRequestUrlAndContentType(httpRequest, "http://openaitarget.local");
         validateRequestApiKey(httpPost, AzureAiStudioProvider.OPENAI, AzureAiStudioEndpointType.TOKEN, "apikey");
@@ -83,7 +84,7 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
             null,
             "abcd"
         );
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         var httpPost = validateRequestUrlAndContentType(httpRequest, "http://openaitarget.local");
         validateRequestApiKey(httpPost, AzureAiStudioProvider.OPENAI, AzureAiStudioEndpointType.TOKEN, "apikey");
@@ -106,7 +107,7 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
             null,
             "abcd"
         );
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         var httpPost = validateRequestUrlAndContentType(httpRequest, "http://openaitarget.local");
         validateRequestApiKey(httpPost, AzureAiStudioProvider.OPENAI, AzureAiStudioEndpointType.TOKEN, "apikey");
@@ -129,7 +130,7 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
             512,
             "abcd"
         );
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         var httpPost = validateRequestUrlAndContentType(httpRequest, "http://openaitarget.local");
         validateRequestApiKey(httpPost, AzureAiStudioProvider.OPENAI, AzureAiStudioEndpointType.TOKEN, "apikey");
@@ -148,7 +149,7 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
             "apikey",
             "abcd"
         );
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         var httpPost = validateRequestUrlAndContentType(httpRequest, "http://coheretarget.local/v1/chat/completions");
         validateRequestApiKey(httpPost, AzureAiStudioProvider.COHERE, AzureAiStudioEndpointType.TOKEN, "apikey");
@@ -170,7 +171,7 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
             null,
             "abcd"
         );
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         var httpPost = validateRequestUrlAndContentType(httpRequest, "http://coheretarget.local/v1/chat/completions");
         validateRequestApiKey(httpPost, AzureAiStudioProvider.COHERE, AzureAiStudioEndpointType.TOKEN, "apikey");
@@ -193,7 +194,7 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
             null,
             "abcd"
         );
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         var httpPost = validateRequestUrlAndContentType(httpRequest, "http://coheretarget.local/v1/chat/completions");
         validateRequestApiKey(httpPost, AzureAiStudioProvider.COHERE, AzureAiStudioEndpointType.TOKEN, "apikey");
@@ -216,7 +217,7 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
             null,
             "abcd"
         );
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         var httpPost = validateRequestUrlAndContentType(httpRequest, "http://coheretarget.local/v1/chat/completions");
         validateRequestApiKey(httpPost, AzureAiStudioProvider.COHERE, AzureAiStudioEndpointType.TOKEN, "apikey");
@@ -239,7 +240,7 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
             512,
             "abcd"
         );
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         var httpPost = validateRequestUrlAndContentType(httpRequest, "http://coheretarget.local/v1/chat/completions");
         validateRequestApiKey(httpPost, AzureAiStudioProvider.COHERE, AzureAiStudioEndpointType.TOKEN, "apikey");
@@ -258,7 +259,7 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
             "apikey",
             "abcd"
         );
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         var httpPost = validateRequestUrlAndContentType(httpRequest, "http://mistral.local/score");
         validateRequestApiKey(httpPost, AzureAiStudioProvider.MISTRAL, AzureAiStudioEndpointType.REALTIME, "apikey");
@@ -284,7 +285,7 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
             null,
             "abcd"
         );
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         var httpPost = validateRequestUrlAndContentType(httpRequest, "http://mistral.local/score");
         validateRequestApiKey(httpPost, AzureAiStudioProvider.MISTRAL, AzureAiStudioEndpointType.REALTIME, "apikey");
@@ -311,7 +312,7 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
             null,
             "abcd"
         );
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         var httpPost = validateRequestUrlAndContentType(httpRequest, "http://mistral.local/score");
         validateRequestApiKey(httpPost, AzureAiStudioProvider.MISTRAL, AzureAiStudioEndpointType.REALTIME, "apikey");
@@ -338,7 +339,7 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
             null,
             "abcd"
         );
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         var httpPost = validateRequestUrlAndContentType(httpRequest, "http://mistral.local/score");
         validateRequestApiKey(httpPost, AzureAiStudioProvider.MISTRAL, AzureAiStudioEndpointType.REALTIME, "apikey");
@@ -365,7 +366,7 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
             512,
             "abcd"
         );
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         var httpPost = validateRequestUrlAndContentType(httpRequest, "http://mistral.local/score");
         validateRequestApiKey(httpPost, AzureAiStudioProvider.MISTRAL, AzureAiStudioEndpointType.REALTIME, "apikey");

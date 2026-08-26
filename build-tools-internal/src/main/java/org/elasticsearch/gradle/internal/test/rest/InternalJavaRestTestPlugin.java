@@ -18,6 +18,8 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 
+import java.util.Map;
+
 import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.registerTestTask;
 import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupJavaRestTestDependenciesDefaults;
 
@@ -37,7 +39,11 @@ public class InternalJavaRestTestPlugin implements Plugin<Project> {
         SourceSet javaTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
 
         if (project.findProject(":test:test-clusters") != null) {
-            project.getDependencies().add(javaTestSourceSet.getImplementationConfigurationName(), project.project(":test:test-clusters"));
+            project.getDependencies()
+                .add(
+                    javaTestSourceSet.getImplementationConfigurationName(),
+                    project.getDependencies().project(Map.of("path", ":test:test-clusters"))
+                );
         }
 
         // setup the javaRestTest task

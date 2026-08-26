@@ -9,12 +9,12 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.node.SClass;
 import org.elasticsearch.painless.phase.DefaultConstantFoldingOptimizationPhase;
+import org.elasticsearch.painless.phase.DefaultConstantListOptimizationPhase;
 import org.elasticsearch.painless.phase.DefaultEqualityMethodOptimizationPhase;
 import org.elasticsearch.painless.phase.DefaultIRTreeToASMBytesPhase;
 import org.elasticsearch.painless.phase.DefaultStaticConstantExtractionPhase;
@@ -31,11 +31,6 @@ import org.elasticsearch.painless.symbol.WriteScope;
 import org.objectweb.asm.util.Printer;
 
 import java.lang.reflect.Method;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.security.CodeSource;
-import java.security.SecureClassLoader;
-import java.security.cert.Certificate;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -51,26 +46,9 @@ import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
 final class Compiler {
 
     /**
-     * Define the class with lowest privileges.
+     * A class loader used to define Painless scripts.
      */
-    private static final CodeSource CODESOURCE;
-
-    /**
-     * Setup the code privileges.
-     */
-    static {
-        try {
-            // Setup the code privileges.
-            CODESOURCE = new CodeSource(new URL("file:" + BootstrapInfo.UNTRUSTED_CODEBASE), (Certificate[]) null);
-        } catch (MalformedURLException impossible) {
-            throw new RuntimeException(impossible);
-        }
-    }
-
-    /**
-     * A secure class loader used to define Painless scripts.
-     */
-    final class Loader extends SecureClassLoader {
+    final class Loader extends ClassLoader {
         private final AtomicInteger lambdaCounter = new AtomicInteger(0);
 
         /**
@@ -104,7 +82,7 @@ final class Compiler {
          * @return A Class object defining a factory.
          */
         Class<?> defineFactory(String name, byte[] bytes) {
-            return defineClass(name, bytes, 0, bytes.length, CODESOURCE);
+            return defineClass(name, bytes, 0, bytes.length);
         }
 
         /**
@@ -114,7 +92,7 @@ final class Compiler {
          * @return A Class object extending {@link PainlessScript}.
          */
         Class<? extends PainlessScript> defineScript(String name, byte[] bytes) {
-            return defineClass(name, bytes, 0, bytes.length, CODESOURCE).asSubclass(PainlessScript.class);
+            return defineClass(name, bytes, 0, bytes.length).asSubclass(PainlessScript.class);
         }
 
         /**
@@ -124,7 +102,7 @@ final class Compiler {
          * @return A Class object.
          */
         Class<?> defineLambda(String name, byte[] bytes) {
-            return defineClass(name, bytes, 0, bytes.length, CODESOURCE);
+            return defineClass(name, bytes, 0, bytes.length);
         }
 
         /**
@@ -219,6 +197,7 @@ final class Compiler {
         ClassNode classNode = (ClassNode) scriptScope.getDecoration(root, IRNodeDecoration.class).irNode();
         new DefaultStringConcatenationOptimizationPhase().visitClass(classNode, null);
         new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
+        new DefaultConstantListOptimizationPhase(scriptScope).visitClass(classNode, null);
         new DefaultEqualityMethodOptimizationPhase(scriptScope).visitClass(classNode, null);
         new DefaultStaticConstantExtractionPhase().visitClass(classNode, scriptScope);
         new DefaultIRTreeToASMBytesPhase().visitScript(classNode);
@@ -255,6 +234,7 @@ final class Compiler {
         ClassNode classNode = (ClassNode) scriptScope.getDecoration(root, IRNodeDecoration.class).irNode();
         new DefaultStringConcatenationOptimizationPhase().visitClass(classNode, null);
         new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
+        new DefaultConstantListOptimizationPhase(scriptScope).visitClass(classNode, null);
         new DefaultEqualityMethodOptimizationPhase(scriptScope).visitClass(classNode, null);
         new DefaultStaticConstantExtractionPhase().visitClass(classNode, scriptScope);
         classNode.setDebugStream(debugStream);
@@ -294,6 +274,7 @@ final class Compiler {
         ClassNode classNode = (ClassNode) scriptScope.getDecoration(root, IRNodeDecoration.class).irNode();
         new DefaultStringConcatenationOptimizationPhase().visitClass(classNode, null);
         new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
+        new DefaultConstantListOptimizationPhase(scriptScope).visitClass(classNode, null);
         new DefaultEqualityMethodOptimizationPhase(scriptScope).visitClass(classNode, null);
         new DefaultStaticConstantExtractionPhase().visitClass(classNode, scriptScope);
         classNode.setDebugStream(debugStream);

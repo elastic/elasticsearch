@@ -10,12 +10,13 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ByteUtils;
-import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -26,6 +27,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.sourcebatch.MappedColumns;
 
 import java.time.ZoneId;
 import java.util.Arrays;
@@ -120,18 +122,57 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void postParse(DocumentParserContext context) {
-        if (context.indexSettings().getMode() == IndexMode.TIME_SERIES
+        if (context.indexSettings().getMode().isTsdb()
             && context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)) {
             String routingHash = context.sourceToParse().routing();
             if (routingHash == null) {
                 assert context.sourceToParse().id() != null;
-                routingHash = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(
-                    Arrays.copyOf(Base64.getUrlDecoder().decode(context.sourceToParse().id()), 4)
-                );
+                if (context.indexSettings().useTimeSeriesSyntheticId()) {
+                    // The extractRoutingHashFromSyntheticId method works from the binary data representation stored in Lucene,
+                    // so we have to reencode the id with Uid#encodeId here.
+                    int hash = TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(Uid.encodeId(context.sourceToParse().id()));
+                    routingHash = encode(hash);
+                } else {
+                    routingHash = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(
+                        Arrays.copyOf(Base64.getUrlDecoder().decode(context.sourceToParse().id()), 4)
+                    );
+                }
             }
             var field = new SortedDocValuesField(NAME, Uid.encodeId(routingHash));
             context.rootDoc().add(field);
         }
+    }
+
+    /**
+     * The {@link IndexableFieldType} for the {@code _ts_routing_hash} sorted doc-values field.
+     * Mirrors the {@code new SortedDocValuesField(NAME, ...)} written in {@link #postParse}.
+     */
+    private static final IndexableFieldType TS_ROUTING_HASH_DV_TYPE = new SortedDocValuesField("", new BytesRef()).fieldType();
+
+    @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        // Support only the modern path where the routing hash is coordinator-computed and stored
+        // in IndexRequest#routing() (i.e. on or after TIME_SERIES_ROUTING_HASH_IN_ID). Older
+        // indices reconstruct the hash from the id, which is not yet derived on the columnar path.
+        return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID);
+    }
+
+    @Override
+    public void preColumnarParse(BatchMappingContext context) {
+        // The routing hash is already encoded in context.routings() as the Base64 routing string
+        // set by IndexRouting.ExtractFromSource on the coordinating node. Encode each entry with
+        // Uid.encodeId to match the SortedDocValuesField byte representation written on the row path.
+        final BytesRef[] routings = context.routings();
+        assert routings != null : "_ts_routing_hash requires all docs to have routing (set on coordinating node)";
+        final int docCount = context.docCount();
+        final BytesRef[] hashes = new BytesRef[docCount];
+        for (int d = 0; d < docCount; d++) {
+            final BytesRef routing = routings[d];
+            assert routing != null : "_ts_routing_hash must not be null for doc [" + d + "]";
+            // TODO: look to avoid converting to string as performance improvement
+            hashes[d] = Uid.encodeId(routing.utf8ToString());
+        }
+        context.addColumn(MappedColumns.binaryColumn(hashes, NAME, TS_ROUTING_HASH_DV_TYPE));
     }
 
     @Override

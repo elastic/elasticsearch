@@ -9,75 +9,40 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractBooleansBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractNumericBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BooleansBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedNumericDocValues;
 
 import java.io.IOException;
 
 /**
  * Loads the MIN {@code boolean} in each doc. Think of it like {@code ALL}.
  */
-public class MvMinBooleansBlockLoader extends AbstractBooleansBlockLoader {
+public class MvMinBooleansBlockLoader extends BooleansBlockLoader {
     public MvMinBooleansBlockLoader(String fieldName) {
         super(fieldName);
     }
 
     @Override
-    protected AllReader singletonReader(NumericDocValues docValues) {
-        return new Singleton(docValues);
-    }
-
-    @Override
-    protected AllReader sortedReader(SortedNumericDocValues docValues) {
-        return new MvMinSorted(docValues);
-    }
-
-    @Override
-    public String toString() {
-        return "BooleansFromDocValues[" + fieldName + "]";
-    }
-
-    private static class MvMinSorted extends BlockDocValuesReader {
-        private final SortedNumericDocValues numericDocValues;
-
-        MvMinSorted(SortedNumericDocValues numericDocValues) {
-            this.numericDocValues = numericDocValues;
-        }
-
-        @Override
-        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-            try (BooleanBuilder builder = factory.booleansFromDocValues(docs.count() - offset)) {
-                for (int i = offset; i < docs.count(); i++) {
-                    int doc = docs.get(i);
-                    read(doc, builder);
+    protected ColumnAtATimeReader sortedReader(TrackingSortedNumericDocValues docValues) {
+        // Own read loop so the per-document append compiles monomorphically rather than going megamorphic through a shared reader.
+        return new AbstractNumericBlockLoader.Sorted("MvMinBooleansFromDocValues", docValues) {
+            @Override
+            public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+                SortedNumericDocValues docValues = values.docValues();
+                try (BooleanBuilder builder = factory.booleansFromDocValues(docs.count() - offset)) {
+                    for (int i = offset; i < docs.count(); i++) {
+                        if (docValues.advanceExact(docs.get(i)) == false) {
+                            builder.appendNull();
+                            continue;
+                        }
+                        // doc values are sorted ascending, so the first is the minimum
+                        builder.appendBoolean(docValues.nextValue() != 0);
+                    }
+                    return builder.build();
                 }
-                return builder.build();
             }
-        }
-
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            read(docId, (BooleanBuilder) builder);
-        }
-
-        private void read(int doc, BooleanBuilder builder) throws IOException {
-            if (false == numericDocValues.advanceExact(doc)) {
-                builder.appendNull();
-                return;
-            }
-            builder.appendBoolean(numericDocValues.nextValue() != 0);
-        }
-
-        @Override
-        public int docId() {
-            return numericDocValues.docID();
-        }
-
-        @Override
-        public String toString() {
-            return "MvMinBooleansFromDocValues.Sorted";
-        }
+        };
     }
 }

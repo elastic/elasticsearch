@@ -3,7 +3,7 @@ navigation_title: "Change point"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-change-point-aggregation.html
 applies_to:
-  stack: preview 9.0, ga 9.2
+  stack: preview 9.0-9.1, ga 9.2+
   serverless: ga 
 ---
 
@@ -19,6 +19,24 @@ It is recommended to use the change point aggregation to detect changes in time-
 
 `buckets_path`
 :   (Required, string) Path to the buckets that contain one set of values in which to detect a change point. There must be at least 22 bucketed values. Fewer than 1,000 is preferred. For syntax, see [`buckets_path` Syntax](/reference/aggregations/pipeline.md#buckets-path-syntax).
+
+`gap_policy` {applies_to}`stack: ga 9.6`
+:   (Optional, string) Determines what to do with buckets that contain no documents. Defaults to `skip`. For the full description of each policy, see [Dealing with gaps in the data](/reference/aggregations/pipeline.md#gap-policy). Earlier versions accept this parameter but always behave as `skip`.
+
+    `skip`
+    :   Empty buckets are dropped before the change point is detected. Because a sparse series can fall below the 22-value minimum this way, a change point that is visible in the data may be reported as `indeterminable`.
+
+    `keep_values`
+    :   Empty buckets are kept whenever the metric still reports a finite value. A `sum` over an empty bucket reports `0`, so those buckets are analyzed. A `min`, `max` or `avg` over an empty bucket has no value to keep, so those buckets are still dropped.
+
+    `insert_zeros`
+    :   Empty buckets are analyzed as `0`, whatever the metric reports.
+
+    A `buckets_path` ending in `_count` is unaffected by this setting, because a document count is never treated as missing.
+
+    ::::{warning}
+    A `date_histogram` uses `min_doc_count: 0` by default, so a sparse series can produce a long run of empty buckets. With `insert_zeros` every one of them is analyzed as `0`, which can both dominate the result and push the series past the 1,000 buckets this aggregation is designed for.
+    ::::
 
 ## Syntax [_syntax_11]
 

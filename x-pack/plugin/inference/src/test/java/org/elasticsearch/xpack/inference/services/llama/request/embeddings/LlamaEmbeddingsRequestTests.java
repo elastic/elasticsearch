@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsModelTests;
 
 import java.io.IOException;
@@ -28,7 +29,7 @@ public class LlamaEmbeddingsRequestTests extends ESTestCase {
 
     public void testCreateRequest_WithAuth_Success() throws IOException {
         var request = createRequest();
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         var httpPost = validateRequestUrlAndContentType(httpRequest);
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
@@ -40,7 +41,7 @@ public class LlamaEmbeddingsRequestTests extends ESTestCase {
 
     public void testCreateRequest_NoAuth_Success() throws IOException {
         var request = createRequestNoAuth();
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         var httpPost = validateRequestUrlAndContentType(httpRequest);
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
@@ -54,7 +55,7 @@ public class LlamaEmbeddingsRequestTests extends ESTestCase {
         var request = createRequest();
         var truncatedRequest = request.truncate();
 
-        var httpRequest = truncatedRequest.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();

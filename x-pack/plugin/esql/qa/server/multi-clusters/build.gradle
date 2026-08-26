@@ -9,6 +9,7 @@ import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.esql-csv-spec-tests'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
@@ -22,31 +23,100 @@ dependencies {
   javaRestTestImplementation project(xpackModule('esql:qa:server'))
   javaRestTestImplementation project(xpackModule('esql'))
 
+  javaRestTestImplementation(testArtifact(project(":modules:ip-location")))
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
+  clusterPlugins project(xpackModule('esql-datasource-csv'))
+  clusterPlugins project(xpackModule('esql-datasource-ndjson'))
+  clusterPlugins project(xpackModule('esql-datasource-http'))
+}
+
+esqlCsvSpecTests {
+    specFilesDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources')
+    packageName = 'org.elasticsearch.xpack.esql.ccq'
+    variant 'MultiClusterSpec', 'AbstractMultiClusterSpecIT'
+}
+
+def currentVersion = buildParams.bwcVersions.currentVersion
+
+def currentToCurrent = tasks.register("csvSpecTestsCurrentToCurrent", StandaloneRestIntegTestTask) {
+  systemProperty("tests.version.remote_cluster", currentVersion)
+  systemProperty("tests.version.local_cluster", currentVersion)
+  maxParallelForks = 1
+  testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+  classpath = sourceSets.csvSpecTest.runtimeClasspath
+  dependsOn generateEsqlSpecTests
+}
+
+// The federation remote-dataset gates drive the federation setting on one of the two clusters: one registers a dataset
+// on the remote while federation is enabled there and then bounces the remote with federation off, the other keeps the
+// remote enabled and runs against a local cluster that has federation off. Both skip on a cluster whose version does
+// not report the federation setting capability, so the BWC tasks below cover the directions that can run. The base
+// javaRestTest task is disabled by the bwc-test plugin, so they get their own current-to-current runner wired into
+// `check` for the configuration that always applies.
+def federationGateTestPattern = "org.elasticsearch.xpack.esql.ccq.Federation*GateRestIT"
+def federationRemoteDatasetGateTest = tasks.register("federationRemoteDatasetGateTest", StandaloneRestIntegTestTask) {
+  systemProperty("tests.version.remote_cluster", currentVersion)
+  systemProperty("tests.version.local_cluster", currentVersion)
+  maxParallelForks = 1
+  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+  classpath = sourceSets.javaRestTest.runtimeClasspath
+  filter {
+    includeTestsMatching federationGateTestPattern
+  }
+}
+tasks.named("check").configure {
+  dependsOn federationRemoteDatasetGateTest
+  dependsOn currentToCurrent
 }
 
 def supportedVersion = bwcVersion -> {
   // CCS in ES|QL available in 8.13
-  return bwcVersion.onOrAfter(Version.fromString("8.13.0"));
+  return bwcVersion.onOrAfter(Version.fromString("8.13.0")) && bwcVersion != currentVersion
 }
 
 buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
-  tasks.register("${baseName}#newToOld", StandaloneRestIntegTestTask) {
+  def newToOld = tasks.register("${baseName}#newToOld", StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.version.remote_cluster", bwcVersion)
+    systemProperty("tests.version.local_cluster", currentVersion)
     maxParallelForks = 1
   }
 
-  tasks.register("${baseName}#oldToNew", StandaloneRestIntegTestTask) {
+  def oldToNew = tasks.register("${baseName}#oldToNew", StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.version.local_cluster", bwcVersion)
+    systemProperty("tests.version.remote_cluster", currentVersion)
     maxParallelForks = 1
   }
 
-  // TODO: avoid running tests twice with the current version
-  tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
+  def csvSpecTestsNewToOld = tasks.register("v${bwcVersion}#csvSpecTests#newToOld", StandaloneRestIntegTestTask) {
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.version.remote_cluster", bwcVersion)
+    systemProperty("tests.version.local_cluster", currentVersion)
+    maxParallelForks = 1
+    testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+    classpath = sourceSets.csvSpecTest.runtimeClasspath
+    dependsOn generateEsqlSpecTests
+  }
+
+  def csvSpecTestsOldToNew = tasks.register("v${bwcVersion}#csvSpecTests#oldToNew", StandaloneRestIntegTestTask) {
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.version.local_cluster", bwcVersion)
+    systemProperty("tests.version.remote_cluster", currentVersion)
+    maxParallelForks = 1
+    testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+    classpath = sourceSets.csvSpecTest.runtimeClasspath
+    dependsOn generateEsqlSpecTests
+  }
+
+  // One csvSpecTests per version; both cross-cluster directions run under it.
+  def csvSpecTests = tasks.register("v${bwcVersion}#csvSpecTests") {
+    dependsOn csvSpecTestsNewToOld, csvSpecTestsOldToNew
+  }
+
+  tasks.register(bwcTaskName(bwcVersion)) {
     dependsOn tasks.named("${baseName}#oldToNew")
     dependsOn tasks.named("${baseName}#newToOld")
-    maxParallelForks = 1
+    dependsOn csvSpecTests
   }
 }

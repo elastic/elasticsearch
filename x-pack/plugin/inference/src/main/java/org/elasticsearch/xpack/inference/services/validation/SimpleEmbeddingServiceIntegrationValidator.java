@@ -7,26 +7,25 @@
 
 package org.elasticsearch.xpack.inference.services.validation;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
-import org.elasticsearch.inference.InferenceString.DataFormat;
-import org.elasticsearch.inference.InferenceString.DataType;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
-import org.elasticsearch.rest.RestStatus;
 
 import java.util.List;
+import java.util.Map;
 
 public class SimpleEmbeddingServiceIntegrationValidator implements ServiceIntegrationValidator {
     // The below data URI represents the base64 encoding of 28x28 pixel black square .jpg image
-    private static final String BASE64_IMAGE_DATA = "data:image/jpg;base64,/9j/4QDKRXhpZgAATU0AKgAAAAgABgESAAMAAAABAAEAAAEaAAUAAAABAAAAV"
+    private static final String BASE64_IMAGE_DATA = "data:image/jpeg;base64,/9j/4QDKRXhpZgAATU0AKgAAAAgABgESAAMAAAABAAEAAAEaAAUAAAABAAAAV"
         + "gEbAAUAAAABAAAAXgEoAAMAAAABAAIAAAITAAMAAAABAAEAAIdpAAQAAAABAAAAZgAAAAAAAABIAAAAAQAAAEgAAAABAAeQAAAHAAAABDAyMjGRAQAHAAAABAECAw"
         + "CgAAAHAAAABDAxMDCgAQADAAAAAQABAACgAgAEAAAAAQAAABygAwAEAAAAAQAAABykBgADAAAAAQAAAAAAAAAAAAD/2wCEABwcHBwcHDAcHDBEMDAwRFxEREREXHR"
         + "cXFxcXHSMdHR0dHR0jIyMjIyMjIyoqKioqKjExMTExNzc3Nzc3Nzc3NwBIiQkODQ4YDQ0YOacgJzm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm"
@@ -44,26 +43,13 @@ public class SimpleEmbeddingServiceIntegrationValidator implements ServiceIntegr
 
     @Override
     public void validate(InferenceService service, Model model, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
-        EmbeddingRequest request = new EmbeddingRequest(List.of(TEST_TEXT_INPUT, TEST_IMAGE_BASE64_INPUT), InputType.INTERNAL_INGEST);
-        service.embeddingInfer(model, request, timeout, ActionListener.wrap(r -> {
-            if (r != null) {
-                listener.onResponse(r);
-            } else {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        "Could not complete inference endpoint creation as validation call to service returned null response.",
-                        RestStatus.BAD_REQUEST
-                    )
-                );
-            }
-        }, e -> {
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    "Could not complete inference endpoint creation as validation call to service threw an exception.",
-                    RestStatus.BAD_REQUEST,
-                    e
-                )
-            );
-        }));
+        List<InferenceStringGroup> inputList;
+        if (model.getServiceSettings().isMultimodal()) {
+            inputList = List.of(TEST_TEXT_INPUT, TEST_IMAGE_BASE64_INPUT);
+        } else {
+            inputList = List.of(TEST_TEXT_INPUT);
+        }
+        EmbeddingRequest request = new EmbeddingRequest(inputList, InputType.INTERNAL_INGEST, Map.of());
+        service.embeddingInfer(model, request, timeout, ServiceIntegrationValidator.wrapListenerForValidation(listener));
     }
 }

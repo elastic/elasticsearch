@@ -11,6 +11,8 @@ package org.elasticsearch.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -37,10 +39,12 @@ public final class IndexWarmer {
 
     private final List<Listener> listeners;
 
-    IndexWarmer(ThreadPool threadPool, IndexFieldDataService indexFieldDataService, Listener... listeners) {
+    IndexWarmer(ThreadPool threadPool, IndexFieldDataService indexFieldDataService, IndexSettings indexSettings, Listener... listeners) {
         ArrayList<Listener> list = new ArrayList<>();
         final Executor executor = threadPool.executor(ThreadPool.Names.WARMER);
-        list.add(new FieldDataWarmer(executor, indexFieldDataService));
+        if (shouldWarmGlobalOrdinals(indexSettings)) {
+            list.add(new FieldDataWarmer(executor, indexFieldDataService));
+        }
 
         Collections.addAll(list, listeners);
         this.listeners = Collections.unmodifiableList(list);
@@ -93,6 +97,14 @@ public final class IndexWarmer {
         /** Queue tasks to warm-up the given segments and return handles that allow to wait for termination of the
          *  execution of those tasks. */
         TerminationHandle warmReader(IndexShard indexShard, ElasticsearchDirectoryReader reader);
+    }
+
+    static boolean shouldWarmGlobalOrdinals(IndexSettings settings) {
+        boolean isStateless = DiscoveryNode.isStateless(settings.getNodeSettings());
+        if (isStateless) {
+            return DiscoveryNode.hasRole(settings.getNodeSettings(), DiscoveryNodeRole.SEARCH_ROLE);
+        }
+        return true;
     }
 
     private static class FieldDataWarmer implements IndexWarmer.Listener {

@@ -25,7 +25,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class EnrichExec extends UnaryExec implements EstimatesRowSize, ExecutesOn {
+public class EnrichExec extends UnaryExec implements EstimatesRowSize, ExecutesOn, RowCountPreserving {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
         "EnrichExec",
@@ -169,7 +169,7 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize, ExecutesO
 
     @Override
     public PhysicalPlan estimateRowSize(State state) {
-        state.add(false, enrichFields);
+        state.add(false, enrichFields, true);
         return this;
     }
 

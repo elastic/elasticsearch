@@ -73,9 +73,11 @@ public enum ReferenceDocs {
     ALLOCATION_EXPLAIN_API,
     NETWORK_BINDING_AND_PUBLISHING,
     SNAPSHOT_REPOSITORY_ANALYSIS,
+    TROUBLESHOOT_REPOSITORY,
     S3_COMPATIBLE_REPOSITORIES,
     LUCENE_MAX_DOCS_LIMIT,
     MAX_SHARDS_PER_NODE,
+    MAX_INDICES_PER_PROJECT,
     FLOOD_STAGE_WATERMARK,
     X_OPAQUE_ID,
     FORMING_SINGLE_NODE_CLUSTERS,
@@ -87,6 +89,8 @@ public enum ReferenceDocs {
     DEPLOY_CLOUD_DIFF_FROM_STATEFUL,
     DELETE_INDEX_BLOCK,
     ARCHIVED_SETTINGS,
+    MACHINE_LEARNING_SETTINGS,
+    SEARCH_TASK_WATCHDOG
     // this comment keeps the ';' on the next line so every entry above has a trailing ',' which makes the diff for adding new links cleaner
     ;
 

@@ -19,7 +19,7 @@ $$$total-shards-per-node$$$
 `index.routing.allocation.total_shards_per_node`
 :   The maximum number of shards (replicas and primaries) that will be allocated to a single node. Defaults to unbounded.
 
-You can also limit the amount of shards a node can have regardless of the index:
+With the following cluster level setting, you can also limit the amount of shards a node can have regardless of the index. This setting applies across all indices on a node and can be set at runtime using the [update cluster settings](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings) API:
 
 $$$cluster-total-shards-per-node$$$
 

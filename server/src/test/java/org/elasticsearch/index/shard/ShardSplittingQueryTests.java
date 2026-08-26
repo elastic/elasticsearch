@@ -9,6 +9,7 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
@@ -59,9 +60,10 @@ public class ShardSplittingQueryTests extends ESTestCase {
         IndexRouting indexRouting = IndexRouting.fromIndexMetadata(metadata);
         int targetShardId = randomIntBetween(0, numShards - 1);
         boolean hasNested = randomBoolean();
+        boolean storeRoutingAsDocValues = randomBoolean();
 
         for (int j = 0; j < numDocs; j++) {
-            writer.addDocuments(luceneDocs(indexRouting, hasNested, j, null));
+            writer.addDocuments(luceneDocs(indexRouting, hasNested, j, null, storeRoutingAsDocValues));
         }
         writer.commit();
         writer.close();
@@ -84,9 +86,12 @@ public class ShardSplittingQueryTests extends ESTestCase {
         IndexRouting indexRouting = IndexRouting.fromIndexMetadata(metadata);
         boolean hasNested = randomBoolean();
         int targetShardId = randomIntBetween(0, numShards - 1);
+        boolean storeRoutingAsDocValues = randomBoolean();
 
         for (int j = 0; j < numDocs; j++) {
-            writer.addDocuments(luceneDocs(indexRouting, hasNested, j, randomRealisticUnicodeOfCodepointLengthBetween(1, 5)));
+            writer.addDocuments(
+                luceneDocs(indexRouting, hasNested, j, randomRealisticUnicodeOfCodepointLengthBetween(1, 5), storeRoutingAsDocValues)
+            );
         }
         writer.commit();
         writer.close();
@@ -108,10 +113,17 @@ public class ShardSplittingQueryTests extends ESTestCase {
         IndexRouting indexRouting = IndexRouting.fromIndexMetadata(metadata);
         boolean hasNested = randomBoolean();
         int targetShardId = randomIntBetween(0, numShards - 1);
+        boolean storeRoutingAsDocValues = randomBoolean();
 
         for (int j = 0; j < numDocs; j++) {
             writer.addDocuments(
-                luceneDocs(indexRouting, hasNested, j, randomBoolean() ? null : randomRealisticUnicodeOfCodepointLengthBetween(1, 5))
+                luceneDocs(
+                    indexRouting,
+                    hasNested,
+                    j,
+                    randomBoolean() ? null : randomRealisticUnicodeOfCodepointLengthBetween(1, 5),
+                    storeRoutingAsDocValues
+                )
             );
         }
         writer.commit();
@@ -135,9 +147,12 @@ public class ShardSplittingQueryTests extends ESTestCase {
         IndexRouting indexRouting = IndexRouting.fromIndexMetadata(metadata);
         boolean hasNested = randomBoolean();
         int targetShardId = randomIntBetween(0, numShards - 1);
+        boolean storeRoutingAsDocValues = randomBoolean();
 
         for (int j = 0; j < numDocs; j++) {
-            writer.addDocuments(luceneDocs(indexRouting, hasNested, j, randomRealisticUnicodeOfCodepointLengthBetween(1, 5)));
+            writer.addDocuments(
+                luceneDocs(indexRouting, hasNested, j, randomRealisticUnicodeOfCodepointLengthBetween(1, 5), storeRoutingAsDocValues)
+            );
         }
         writer.commit();
         writer.close();
@@ -202,9 +217,15 @@ public class ShardSplittingQueryTests extends ESTestCase {
         }
     }
 
-    private Iterable<Iterable<IndexableField>> luceneDocs(IndexRouting indexRouting, boolean nested, int id, @Nullable String routing) {
+    private Iterable<Iterable<IndexableField>> luceneDocs(
+        IndexRouting indexRouting,
+        boolean nested,
+        int id,
+        @Nullable String routing,
+        boolean storeRoutingAsDocValues
+    ) {
         if (nested == false) {
-            return List.of(topLevel(indexRouting, id, routing));
+            return List.of(topLevel(indexRouting, id, routing, storeRoutingAsDocValues));
         }
         int shardId = shardId(indexRouting, id, routing);
         List<Iterable<IndexableField>> docs = new ArrayList<>();
@@ -218,16 +239,25 @@ public class ShardSplittingQueryTests extends ESTestCase {
                 )
             );
         }
-        docs.add(topLevel(indexRouting, id, routing));
+        docs.add(topLevel(indexRouting, id, routing, storeRoutingAsDocValues));
         return docs;
     }
 
-    private Iterable<IndexableField> topLevel(IndexRouting indexRouting, int id, @Nullable String routing) {
+    private Iterable<IndexableField> topLevel(
+        IndexRouting indexRouting,
+        int id,
+        @Nullable String routing,
+        boolean storeRoutingAsDocValues
+    ) {
         LuceneDocument topLevel = new LuceneDocument();
         topLevel.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(id)), Field.Store.YES));
         topLevel.add(new SortedNumericDocValuesField("shard_id", shardId(indexRouting, id, routing)));
         if (routing != null) {
-            topLevel.add(new StringField(RoutingFieldMapper.NAME, routing, Field.Store.YES));
+            if (storeRoutingAsDocValues) {
+                topLevel.add(SortedDocValuesField.indexedField(RoutingFieldMapper.NAME, new BytesRef(routing)));
+            } else {
+                topLevel.add(new StringField(RoutingFieldMapper.NAME, routing, Field.Store.YES));
+            }
         }
         SeqNoFieldMapper.SequenceIDFields.emptySeqID(SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES).addFields(topLevel);
         return topLevel;

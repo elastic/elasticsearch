@@ -8,10 +8,16 @@
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.column.LongColumn;
+import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.Automaton;
@@ -19,20 +25,32 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.EscfColumnBuilder;
+import org.elasticsearch.escf.EscfColumnBuilder.CollisionPolicy;
+import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.escf.EscfColumnTransforms;
+import org.elasticsearch.escf.LuceneLongColumn;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
+import org.elasticsearch.index.mapper.BatchMappingContext;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -41,9 +59,11 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoader;
+import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.ConstantBytes;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -95,9 +115,19 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             value.setMergeValidator((previous, current, c) -> previous == null || Objects.equals(previous, current));
         }
 
+        public Builder setValue(String v) {
+            this.value.setValue(v);
+            return this;
+        }
+
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { value, meta };
+        }
+
+        @Override
+        public String contentType() {
+            return CONTENT_TYPE;
         }
 
         @Override
@@ -150,9 +180,9 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (value == null) {
-                return BlockLoader.CONSTANT_NULLS;
+                return ConstantNull.INSTANCE;
             }
-            return BlockLoader.constantBytes(new BytesRef(value));
+            return new ConstantBytes(new BytesRef(value));
         }
 
         @Override
@@ -209,6 +239,31 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 return false;
             }
             return Regex.simpleMatch(pattern, value, caseInsensitive);
+        }
+
+        @Override
+        public Query wildcardQuery(String pattern, boolean caseInsensitive, QueryRewriteContext context) {
+            // Lucene wildcard semantics support both * and ?; Regex.simpleMatch (used by matches()) only handles *.
+            // See gh-141785. constant_keyword has no Lucene index (IndexType.NONE), so we compile the pattern
+            // to an automaton and run it in-memory against the single constant value, mirroring the
+            // ConstantFieldType#automatonQuery pattern. AutomatonQueries.toWildcardAutomaton tracks
+            // determinization heap with the SearchExecutionContext circuit breaker when one is available.
+            if (value == null) {
+                return Queries.NO_DOCS_INSTANCE;
+            }
+            String matchTarget = caseInsensitive ? value.toLowerCase(Locale.ROOT) : value;
+            String matchPattern = caseInsensitive ? pattern.toLowerCase(Locale.ROOT) : pattern;
+            Term term = new Term(name(), matchPattern);
+            CircuitBreaker circuitBreaker = (context instanceof SearchExecutionContext sec) ? sec.getCircuitBreaker() : null;
+            Automaton automaton;
+            try {
+                automaton = circuitBreaker != null
+                    ? AutomatonQueries.toWildcardAutomaton(term, circuitBreaker)
+                    : WildcardQuery.toAutomaton(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            } catch (TooComplexToDeterminizeException e) {
+                throw new IllegalArgumentException("Pattern was too complex to determinize", e);
+            }
+            return new CharacterRunAutomaton(automaton).run(matchTarget) ? Queries.ALL_DOCS_INSTANCE : Queries.NO_DOCS_INSTANCE;
         }
 
         @Override
@@ -319,6 +374,67 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         return (ConstantKeywordFieldType) super.fieldType();
     }
 
+    private static final IndexableFieldType MARKER_FIELD_TYPE = SortedNumericDocValuesField.TYPE;
+
+    @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        return fieldType().value() != null && copyTo().copyToFields().isEmpty() && multiFields().iterator().hasNext() == false;
+    }
+
+    /**
+     * Bail-out contract: throws {@link UnsupportedOperationException} when the source contains a
+     * JSON {@code null} or a value that does not match the constant. The batch mapper catches this and
+     * falls back to the row path, which then raises the real per-document error.
+     *
+     * <p>Known divergence: ESCF stringifies non-canonical numeric literals canonically (e.g.
+     * {@code "1.50"} → {@code "1.5"}, {@code "1e3"} → {@code "1000.0"}), whereas the row path
+     * compares {@code parser.getText()} verbatim. A value that matches the constant only after
+     * canonicalization is accepted here but rejected by the row path; mismatches always fall back.
+     */
+    @Override
+    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+        final BytesRef expected = new BytesRef(fieldType().value()); // non-null: gated by supportsColumnarParse
+        final EscfColumnBuilder markers;
+        if (ctx.isSourceSynthetic()) {
+            markers = new EscfColumnBuilder(CollisionPolicy.MERGE, ctx.recycler());
+            markers.lockScalar(EscfColumnKind.LONG);
+        } else {
+            markers = null;
+        }
+        boolean success = false;
+        try {
+            final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
+            // TODO: This is a mapper which could be optimized with bulk-oriented operations.
+            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                final BytesRef value = cursor.value();
+                if (value == null || expected.bytesEquals(value) == false) {
+                    // Both cases are per-document rejections on the row path. Bail out so the batch
+                    // mapper falls back and the row path raises the real error.
+                    throw new UnsupportedOperationException(
+                        "mapColumnBatch: constant_keyword field ["
+                            + fullPath()
+                            + "] received a value that would be rejected by the row path; falling back"
+                    );
+                }
+                if (markers != null) {
+                    // Repeated setLong on the same doc is promoted to an ARRAY-of-LONG under
+                    // CollisionPolicy.MERGE, so multi-valued sources produce N markers as the row path does.
+                    markers.setLong(doc, 1L);
+                }
+            }
+            if (markers != null) {
+                ctx.addColumn(
+                    LuceneLongColumn.of(markers.finish(ctx.docCount()), fieldType().name(), MARKER_FIELD_TYPE, LongColumn.NumericKind.LONG)
+                );
+            }
+            success = true;
+        } finally {
+            if (success == false && markers != null) {
+                markers.discard();
+            }
+        }
+    }
+
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         XContentParser parser = context.parser();
@@ -329,11 +445,10 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         if (fieldType().value == null) {
-            ConstantKeywordFieldType newFieldType = new ConstantKeywordFieldType(fieldType().name(), value, fieldType().meta());
-            Mapper update = new ConstantKeywordFieldMapper(leafName(), newFieldType, builderParams);
-            boolean dynamicMapperAdded = context.addDynamicMapper(update);
+            Builder builder = new Builder(leafName()).setValue(value);
+            Mapper result = context.getDynamicMapper(builder);
             // the mapper is already part of the mapping, we're just updating it with the new value
-            assert dynamicMapperAdded;
+            assert result != null;
         } else if (Objects.equals(fieldType().value, value) == false) {
             throw new IllegalArgumentException(
                 "[constant_keyword] field ["
@@ -366,11 +481,12 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             return new SyntheticSourceSupport.Native(() -> SourceLoader.SyntheticFieldLoader.NOTHING);
         }
 
-        return new SyntheticSourceSupport.Native(() -> new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), false) {
-            @Override
-            protected void writeValue(XContentBuilder b, long ignored) throws IOException {
-                b.value(const_value);
-            }
-        });
+        return new SyntheticSourceSupport.Native(
+            () -> new CompositeSyntheticFieldLoader(
+                leafName(),
+                fullPath(),
+                new SortedNumericDocValuesSyntheticFieldLoaderLayer(fullPath(), (b, ignored) -> b.value(const_value))
+            )
+        );
     }
 }

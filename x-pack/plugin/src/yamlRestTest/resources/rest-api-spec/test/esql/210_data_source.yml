@@ -1,0 +1,117 @@
+---
+setup:
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_query/data_source
+          capabilities: [data_sources]
+      test_runner_features: capabilities
+      reason: "ES|QL data source CRUD API"
+
+---
+"get-empty":
+  - do:
+      esql.get_data_source: { }
+
+  - match: { data_sources: [] }
+
+---
+"invalid-data-source-names":
+  # Name must be lowercase.
+  - do:
+      catch: /invalid data source name/
+      esql.put_data_source:
+        name: "MyDataSource"
+        body:
+          type: s3
+          settings: { }
+
+  # Name must not contain invalid characters.
+  - do:
+      catch: /invalid data source name/
+      esql.put_data_source:
+        name: "bad#name"
+        body:
+          type: s3
+          settings: { }
+
+  # Whitespace-only name — validate() short-circuits with "name is missing" before the
+  # invalid-char / lowercase checks, so the assertion differs.
+  - do:
+      catch: /data source name is missing/
+      esql.put_data_source:
+        name: " "
+        body:
+          type: s3
+          settings: { }
+
+  # Leading underscore is reserved for dot-indices / hidden names.
+  - do:
+      catch: /invalid data source name/
+      esql.put_data_source:
+        name: "_leading"
+        body:
+          type: s3
+          settings: { }
+
+---
+"missing-type":
+  # ConstructingObjectParser rejects missing required fields with "Required [type]" at parse time.
+  - do:
+      catch: /Required \[type\]/
+      esql.put_data_source:
+        name: my_ds
+        body:
+          settings: { }
+
+---
+"malformed-body":
+  # Non-string type -> ObjectParser rejects with 400 at the REST layer.
+  - do:
+      catch: bad_request
+      esql.put_data_source:
+        name: my_ds
+        body:
+          type: 42
+          settings: { }
+
+---
+"unknown-type":
+  - do:
+      catch: /unknown data source type/
+      esql.put_data_source:
+        name: my_ds
+        body:
+          type: definitely_not_a_real_type
+          settings: { }
+
+---
+"delete-missing":
+  - do:
+      catch: missing
+      esql.delete_data_source:
+        name: ghost
+
+---
+"get-missing":
+  # Concrete-name miss -> 404. Wildcard miss -> 200 [] (list-all + wildcard semantics).
+  - do:
+      catch: missing
+      esql.get_data_source:
+        name: ghost
+
+  - do:
+      esql.get_data_source:
+        name: "no_match_*"
+
+  - match: { data_sources: [] }
+
+---
+"cluster-state-visibility":
+  # DataSourceMetadata.context() excludes the API XContent context, so even if a data source existed
+  # (can't create one here without a loaded validator plugin), the custom should never surface via
+  # GET _cluster/state.
+  - do:
+      cluster.state: { }
+
+  - is_false: metadata.esql_datasource

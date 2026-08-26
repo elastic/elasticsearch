@@ -4,6 +4,7 @@ esplugin {
   description = 'Elasticsearch Expanded Pack Plugin - Rollup'
   classname ='org.elasticsearch.xpack.rollup.Rollup'
   extendedPlugins = ['x-pack-core']
+  deploymentTarget = 'STATEFUL_ONLY'
 }
 
 base {

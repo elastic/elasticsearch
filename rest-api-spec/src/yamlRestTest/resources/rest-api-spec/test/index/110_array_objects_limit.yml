@@ -1,0 +1,199 @@
+setup:
+  - requires:
+      cluster_features: ["mapper.array_objects_limit"]
+      reason: "setting must be present to be tested"
+
+---
+
+"Test array objects limit accepts documents at or below the limit":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              auto_expand_replicas: '0-1'
+              mapping:
+                array_objects:
+                  limit: 3
+  - do:
+      cluster.health:
+        index: test_index
+        wait_for_status: green
+
+  - do:
+      index:
+        index: test_index
+        id: 1
+        refresh: true
+        body:
+          array:
+            - { value: 1 }
+            - { value: 2 }
+            - { value: 3 }
+
+  - match: { result: created }
+
+---
+
+"Test array objects limit rejects documents above the limit":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              auto_expand_replicas: '0-1'
+              mapping:
+                array_objects:
+                  limit: 2
+
+  - do:
+      cluster.health:
+        index: test_index
+        wait_for_status: green
+
+  - do:
+      catch: /document_parsing_exception/
+      index:
+        index: test_index
+        id: 1
+        body:
+          array:
+            - { value: 1 }
+            - { value: 2 }
+            - { value: 3 }
+
+  - match: { error.reason: "/.*total\\ number\\ of\\ objects\\ across\\ all\\ arrays.*allowed\\ limit\\ of\\ \\[2\\].*/" }
+
+---
+
+"Test array objects limit counts cumulatively across sibling arrays":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              auto_expand_replicas: '0-1'
+              mapping:
+                array_objects:
+                  limit: 2
+
+  - do:
+      cluster.health:
+        index: test_index
+        wait_for_status: green
+
+  - do:
+      catch: /document_parsing_exception/
+      index:
+        index: test_index
+        id: 1
+        body:
+          arrayA:
+            - { x: 1 }
+            - { y: 2 }
+          arrayB:
+            - { v: 0 }
+
+  - match: { error.reason: "/.*total\\ number\\ of\\ objects\\ across\\ all\\ arrays.*allowed\\ limit\\ of\\ \\[2\\].*/" }
+
+---
+
+"Test array objects limit can be updated dynamically":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              auto_expand_replicas: '0-1'
+              mapping:
+                array_objects:
+                  limit: 1
+
+  - do:
+      cluster.health:
+        index: test_index
+        wait_for_status: green
+
+  - do:
+      catch: /document_parsing_exception/
+      index:
+        index: test_index
+        id: 1
+        body:
+          array:
+            - { value: 1 }
+            - { value: 2 }
+
+  - do:
+      indices.put_settings:
+        index: test_index
+        body:
+          index.mapping.array_objects.limit: 5
+
+  - do:
+      index:
+        index: test_index
+        id: 1
+        refresh: true
+        body:
+          array:
+            - { value: 1 }
+            - { value: 2 }
+
+  - match: { result: created }
+
+---
+
+"Test array objects limit rejects non-positive values":
+  - do:
+      catch: /illegal_argument_exception/
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              mapping:
+                array_objects:
+                  limit: 0
+
+  - match: { error.reason: "/.*index\\.mapping\\.array_objects\\.limit.*/" }
+
+---
+
+"Test array objects limit applies in bulk and only fails offending docs":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              auto_expand_replicas: '0-1'
+              mapping:
+                array_objects:
+                  limit: 2
+
+  - do:
+      cluster.health:
+        index: test_index
+        wait_for_status: green
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { index: { _index: test_index, _id: ok-1 } }
+          - { array: [ { value: 1 }, { value: 2 } ] }
+          - { index: { _index: test_index, _id: rejected } }
+          - { array: [ { value: 1 }, { value: 2 }, { value: 3 } ] }
+          - { index: { _index: test_index, _id: ok-2 } }
+          - { array: [ { value: 4 }, { value: 5 } ] }
+
+  - match: { errors: true }
+  - match: { items.0.index.result: created }
+  - match: { items.1.index.error.type: "document_parsing_exception" }
+  - match: { items.1.index.error.reason: "/.*total\\ number\\ of\\ objects\\ across\\ all\\ arrays.*allowed\\ limit\\ of\\ \\[2\\].*/" }
+  - match: { items.2.index.result: created }

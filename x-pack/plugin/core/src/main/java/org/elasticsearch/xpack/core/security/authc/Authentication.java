@@ -8,9 +8,10 @@ package org.elasticsearch.xpack.core.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.BufferedStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Base64;
@@ -541,6 +543,15 @@ public final class Authentication implements ToXContentObject {
     }
 
     /**
+     * Whether the effective user is a service account created through the service account management APIs, as opposed
+     * to one of the built-in {@code elastic/*} accounts. The two differ in how their privileges are resolved, so
+     * anything that reads a service account's authorization has to distinguish them.
+     */
+    public boolean isUserManagedServiceAccount() {
+        return effectiveSubject.isUserManagedServiceAccount();
+    }
+
+    /**
      * Whether the effective user is an API key, this including a simple API key authentication
      * or a token created by the API key.
      */
@@ -627,13 +638,23 @@ public final class Authentication implements ToXContentObject {
         return doEncode(effectiveSubject, authenticatingSubject, type);
     }
 
+    // something of a hack, it would be better to use a properly-recycled buffer here, but there's no easy way to access the recycler
+    private static final ThreadLocal<BytesRef> threadLocalEncodingBuffer = ThreadLocal.withInitial(
+        () -> new BytesRef(new byte[1024], 0, 1024)
+    );
+
     // Package private for testing
     static String doEncode(Subject effectiveSubject, Subject authenticatingSubject, AuthenticationType type) throws IOException {
-        BytesStreamOutput output = new BytesStreamOutput();
-        output.setTransportVersion(effectiveSubject.getTransportVersion());
-        TransportVersion.writeVersion(effectiveSubject.getTransportVersion(), output);
-        doWriteTo(effectiveSubject, authenticatingSubject, type, output);
-        return Base64.getEncoder().encodeToString(BytesReference.toBytes(output.bytes()));
+        try (
+            var byteArrayOutputStream = new ByteArrayOutputStream();
+            var output = new BufferedStreamOutput(byteArrayOutputStream, threadLocalEncodingBuffer.get())
+        ) {
+            output.setTransportVersion(effectiveSubject.getTransportVersion());
+            TransportVersion.writeVersion(effectiveSubject.getTransportVersion(), output);
+            doWriteTo(effectiveSubject, authenticatingSubject, type, output);
+            output.flush();
+            return Base64.getEncoder().encodeToString(byteArrayOutputStream.toByteArray());
+        }
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -772,8 +793,25 @@ public final class Authentication implements ToXContentObject {
             assert tokenSource != null : "token source cannot be null";
             builder.field(
                 User.Fields.TOKEN.getPreferredName(),
-                Map.of("name", tokenName, "type", ServiceAccountSettings.REALM_TYPE + "_" + tokenSource)
+                Map.of(
+                    "name",
+                    tokenName,
+                    "type",
+                    ServiceAccountSettings.REALM_TYPE + "_" + tokenSource,
+                    "managed_by",
+                    CredentialManagedBy.ELASTICSEARCH.getDisplayName()
+                )
             );
+        } else if (getAuthenticationType() == AuthenticationType.TOKEN) {
+            String managedBy = (String) metadata.get("managed_by");
+            if (managedBy != null) {
+                builder.field(User.Fields.TOKEN.getPreferredName(), Map.of("managed_by", managedBy));
+            } else {
+                builder.field(
+                    User.Fields.TOKEN.getPreferredName(),
+                    Map.of("managed_by", CredentialManagedBy.ELASTICSEARCH.getDisplayName())
+                );
+            }
         }
         builder.field(User.Fields.METADATA.getPreferredName(), user.metadata());
         builder.field(User.Fields.ENABLED.getPreferredName(), user.enabled());
@@ -1008,7 +1046,13 @@ public final class Authentication implements ToXContentObject {
         checkNoInternalUser(authenticatingSubject, "Token");
         if (Subject.Type.SERVICE_ACCOUNT == authenticatingSubject.getType()) {
             checkNoDomain(authenticatingRealm, "Service account");
-            checkNoRole(authenticatingSubject, "Service account");
+            checkBuiltInNamespaceNotUserManaged(authenticatingSubject);
+            // A built-in account is authorized from a role descriptor fixed by the account definition, so role names on
+            // its user would never be read and their presence means the authentication is malformed. A user-managed
+            // account is authorized from exactly those names, so it is the sole case where they must be carried.
+            if (false == authenticatingSubject.isUserManagedServiceAccount()) {
+                checkNoRole(authenticatingSubject, "Service account");
+            }
             checkNoRunAs(this, "Service account");
         } else {
             if (Subject.Type.API_KEY == authenticatingSubject.getType()) {
@@ -1073,6 +1117,20 @@ public final class Authentication implements ToXContentObject {
     private static void checkNoDomain(RealmRef realm, String prefixMessage) {
         if (realm.getDomain() != null) {
             throw new IllegalArgumentException(prefixMessage + " authentication cannot have domain");
+        }
+    }
+
+    /**
+     * The reserved {@code elastic} namespace is closed to user-managed accounts, so a principal can only ever name one
+     * kind of service account. Rejecting the contradiction here means the role exemption above does not have to rest on
+     * the account management APIs upholding that from a distance.
+     */
+    private static void checkBuiltInNamespaceNotUserManaged(Subject subject) {
+        final String principal = subject.getUser().principal();
+        if (principal.startsWith(ServiceAccountSettings.BUILTIN_NAMESPACE + "/") && subject.isUserManagedServiceAccount()) {
+            throw new IllegalArgumentException(
+                Strings.format("Service account authentication for built-in account [%s] cannot be user-managed", principal)
+            );
         }
     }
 

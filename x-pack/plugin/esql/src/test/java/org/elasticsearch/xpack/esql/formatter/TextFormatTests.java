@@ -37,6 +37,7 @@ import static org.elasticsearch.rest.RestResponseUtils.getTextBodyContent;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.CSV;
+import static org.elasticsearch.xpack.esql.formatter.TextFormat.MARKDOWN;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.PLAIN_TEXT;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.TSV;
 
@@ -54,6 +55,10 @@ public class TextFormatTests extends ESTestCase {
 
     public void testTsvContentType() {
         assertEquals("text/tab-separated-values; charset=utf-8", TSV.contentType(req()));
+    }
+
+    public void testMarkdownContentType() {
+        assertEquals("text/markdown; charset=utf-8", MARKDOWN.contentType(req()));
     }
 
     public void testCsvEscaping() {
@@ -96,6 +101,15 @@ public class TextFormatTests extends ESTestCase {
         assertEscapedCorrectly(inputString, TSV, null, expectedResult.toString());
     }
 
+    public void testMarkdownEscaping() {
+        assertEscapedCorrectly("string", MARKDOWN, null, "string");
+        assertEscapedCorrectly("", MARKDOWN, null, "");
+        assertEscapedCorrectly("pipe|here", MARKDOWN, null, "pipe\\|here");
+        assertEscapedCorrectly("back\\slash", MARKDOWN, null, "back\\\\slash");
+        assertEscapedCorrectly("line\nbreak", MARKDOWN, null, "line break");
+        assertEscapedCorrectly("carriage\rreturn", MARKDOWN, null, "carriage return");
+    }
+
     private static String randomStringForEscaping() {
         return String.join("", randomList(20, () -> randomFrom("a", "b", ",", ";", "\n", "\r", "\t", "\"")));
     }
@@ -118,6 +132,11 @@ public class TextFormatTests extends ESTestCase {
     public void testTsvFormatWithEmptyData() {
         String text = format(TSV, req(), emptyData());
         assertEquals("name\n", text);
+    }
+
+    public void testMarkdownFormatWithEmptyData() {
+        String text = format(MARKDOWN, req(), emptyData());
+        assertEquals("| name |\n| --- |\n", text);
     }
 
     public void testCsvFormatWithRegularData() {
@@ -186,6 +205,21 @@ public class TextFormatTests extends ESTestCase {
             """, text);
     }
 
+    public void testMarkdownFormatWithRegularData() {
+        String text = format(MARKDOWN, req(), regularData());
+        assertEquals("""
+            | string | number | location | location2 | null_field |
+            | --- | --- | --- | --- | --- |
+            | Along The River Bank | 708 | POINT (12.0 56.0) | POINT (1234.0 5678.0) |  |
+            | Mind Train | 280 | POINT (-97.0 26.0) | POINT (-9753.0 2611.0) |  |
+            """, text);
+    }
+
+    public void testMarkdownHeaderAbsentIsError() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> format(MARKDOWN, reqWithParam("header", "absent"), regularData()));
+        assertEquals("[header=absent] is not supported for the [md] format; markdown tables require a header row", e.getMessage());
+    }
+
     public void testCsvFormatWithEscapedData() {
         String text = format(CSV, req(), escapedData());
         assertEquals("""
@@ -247,7 +281,10 @@ public class TextFormatTests extends ESTestCase {
         assertEquals(
             StringUtils.EMPTY,
             getTextBodyContent(
-                PLAIN_TEXT.format(req(), new EsqlQueryResponse(emptyList(), emptyList(), 0, 0, null, false, false, 0L, 0L, null))
+                PLAIN_TEXT.format(
+                    req(),
+                    new EsqlQueryResponse(emptyList(), emptyList(), 0, 0, null, false, false, randomZone(), 0L, 0L, null)
+                )
             )
         );
     }
@@ -270,6 +307,16 @@ public class TextFormatTests extends ESTestCase {
             """, text);
     }
 
+    public void testMarkdownFormatWithDropNullColumns() {
+        String text = format(MARKDOWN, reqWithParam("drop_null_columns", "true"), regularData());
+        assertEquals("""
+            | string | number | location | location2 |
+            | --- | --- | --- | --- |
+            | Along The River Bank | 708 | POINT (12.0 56.0) | POINT (1234.0 5678.0) |
+            | Mind Train | 280 | POINT (-97.0 26.0) | POINT (-9753.0 2611.0) |
+            """, text);
+    }
+
     private static EsqlQueryResponse emptyData() {
         return new EsqlQueryResponse(
             singletonList(new ColumnInfoImpl("name", "keyword", null)),
@@ -279,6 +326,7 @@ public class TextFormatTests extends ESTestCase {
             null,
             false,
             false,
+            randomZone(),
             0L,
             0L,
             null
@@ -316,7 +364,7 @@ public class TextFormatTests extends ESTestCase {
             )
         );
 
-        return new EsqlQueryResponse(headers, values, 0, 0, null, false, false, 0L, 0L, null);
+        return new EsqlQueryResponse(headers, values, 0, 0, null, false, false, randomZone(), 0L, 0L, null);
     }
 
     private static EsqlQueryResponse escapedData() {
@@ -340,7 +388,7 @@ public class TextFormatTests extends ESTestCase {
             )
         );
 
-        return new EsqlQueryResponse(headers, values, 0, 0, null, false, false, 0L, 0L, null);
+        return new EsqlQueryResponse(headers, values, 0, 0, null, false, false, randomZone(), 0L, 0L, null);
     }
 
     private static RestRequest req() {

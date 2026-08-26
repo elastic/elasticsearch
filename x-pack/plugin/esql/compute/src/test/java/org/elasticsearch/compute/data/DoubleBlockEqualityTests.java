@@ -24,9 +24,9 @@ public class DoubleBlockEqualityTests extends ComputeTestCase {
             blockFactory.newDoubleArrayVector(new double[] {}, 0),
             blockFactory.newDoubleArrayVector(new double[] { 0 }, 0),
             blockFactory.newConstantDoubleVector(0, 0),
-            blockFactory.newConstantDoubleBlockWith(0, 0).filter().asVector(),
+            blockFactory.newConstantDoubleBlockWith(0, 0).filter(false).asVector(),
             blockFactory.newDoubleBlockBuilder(0).build().asVector(),
-            blockFactory.newDoubleBlockBuilder(0).appendDouble(1).build().asVector().filter()
+            blockFactory.newDoubleBlockBuilder(0).appendDouble(1).build().asVector().filter(false)
         );
         assertAllEquals(vectors);
     }
@@ -50,8 +50,8 @@ public class DoubleBlockEqualityTests extends ComputeTestCase {
             ),
             blockFactory.newConstantDoubleBlockWith(0, 0),
             blockFactory.newDoubleBlockBuilder(0).build(),
-            blockFactory.newDoubleBlockBuilder(0).appendDouble(1).build().filter(),
-            blockFactory.newDoubleBlockBuilder(0).appendNull().build().filter(),
+            blockFactory.newDoubleBlockBuilder(0).appendDouble(1).build().filter(false),
+            blockFactory.newDoubleBlockBuilder(0).appendNull().build().filter(false),
             (ConstantNullBlock) blockFactory.newConstantNullBlock(0)
         );
         assertAllEquals(blocks);
@@ -64,19 +64,19 @@ public class DoubleBlockEqualityTests extends ComputeTestCase {
             blockFactory.newDoubleArrayVector(new double[] { 1, 2, 3 }, 3),
             blockFactory.newDoubleArrayVector(new double[] { 1, 2, 3 }, 3).asBlock().asVector(),
             blockFactory.newDoubleArrayVector(new double[] { 1, 2, 3, 4 }, 3),
-            blockFactory.newDoubleArrayVector(new double[] { 1, 2, 3 }, 3).filter(0, 1, 2),
-            blockFactory.newDoubleArrayVector(new double[] { 1, 2, 3, 4 }, 4).filter(0, 1, 2),
-            blockFactory.newDoubleArrayVector(new double[] { 0, 1, 2, 3 }, 4).filter(1, 2, 3),
-            blockFactory.newDoubleArrayVector(new double[] { 1, 4, 2, 3 }, 4).filter(0, 2, 3),
+            blockFactory.newDoubleArrayVector(new double[] { 1, 2, 3 }, 3).filter(false, 0, 1, 2),
+            blockFactory.newDoubleArrayVector(new double[] { 1, 2, 3, 4 }, 4).filter(false, 0, 1, 2),
+            blockFactory.newDoubleArrayVector(new double[] { 0, 1, 2, 3 }, 4).filter(false, 1, 2, 3),
+            blockFactory.newDoubleArrayVector(new double[] { 1, 4, 2, 3 }, 4).filter(false, 0, 2, 3),
             blockFactory.newDoubleBlockBuilder(3).appendDouble(1).appendDouble(2).appendDouble(3).build().asVector(),
-            blockFactory.newDoubleBlockBuilder(3).appendDouble(1).appendDouble(2).appendDouble(3).build().asVector().filter(0, 1, 2),
+            blockFactory.newDoubleBlockBuilder(3).appendDouble(1).appendDouble(2).appendDouble(3).build().asVector().filter(false, 0, 1, 2),
             blockFactory.newDoubleBlockBuilder(3)
                 .appendDouble(1)
                 .appendDouble(4)
                 .appendDouble(2)
                 .appendDouble(3)
                 .build()
-                .filter(0, 2, 3)
+                .filter(false, 0, 2, 3)
                 .asVector(),
             blockFactory.newDoubleBlockBuilder(3)
                 .appendDouble(1)
@@ -85,7 +85,7 @@ public class DoubleBlockEqualityTests extends ComputeTestCase {
                 .appendDouble(3)
                 .build()
                 .asVector()
-                .filter(0, 2, 3)
+                .filter(false, 0, 2, 3)
         );
         assertAllEquals(vectors);
 
@@ -94,20 +94,20 @@ public class DoubleBlockEqualityTests extends ComputeTestCase {
             blockFactory.newDoubleArrayVector(new double[] { 1, 1, 1 }, 3),
             blockFactory.newDoubleArrayVector(new double[] { 1, 1, 1 }, 3).asBlock().asVector(),
             blockFactory.newDoubleArrayVector(new double[] { 1, 1, 1, 1 }, 3),
-            blockFactory.newDoubleArrayVector(new double[] { 1, 1, 1 }, 3).filter(0, 1, 2),
-            blockFactory.newDoubleArrayVector(new double[] { 1, 1, 1, 4 }, 4).filter(0, 1, 2),
-            blockFactory.newDoubleArrayVector(new double[] { 3, 1, 1, 1 }, 4).filter(1, 2, 3),
-            blockFactory.newDoubleArrayVector(new double[] { 1, 4, 1, 1 }, 4).filter(0, 2, 3),
+            blockFactory.newDoubleArrayVector(new double[] { 1, 1, 1 }, 3).filter(false, 0, 1, 2),
+            blockFactory.newDoubleArrayVector(new double[] { 1, 1, 1, 4 }, 4).filter(false, 0, 1, 2),
+            blockFactory.newDoubleArrayVector(new double[] { 3, 1, 1, 1 }, 4).filter(false, 1, 2, 3),
+            blockFactory.newDoubleArrayVector(new double[] { 1, 4, 1, 1 }, 4).filter(false, 0, 2, 3),
             blockFactory.newConstantDoubleBlockWith(1, 3).asVector(),
             blockFactory.newDoubleBlockBuilder(3).appendDouble(1).appendDouble(1).appendDouble(1).build().asVector(),
-            blockFactory.newDoubleBlockBuilder(3).appendDouble(1).appendDouble(1).appendDouble(1).build().asVector().filter(0, 1, 2),
+            blockFactory.newDoubleBlockBuilder(3).appendDouble(1).appendDouble(1).appendDouble(1).build().asVector().filter(false, 0, 1, 2),
             blockFactory.newDoubleBlockBuilder(3)
                 .appendDouble(1)
                 .appendDouble(4)
                 .appendDouble(1)
                 .appendDouble(1)
                 .build()
-                .filter(0, 2, 3)
+                .filter(false, 0, 2, 3)
                 .asVector(),
             blockFactory.newDoubleBlockBuilder(3)
                 .appendDouble(1)
@@ -116,7 +116,7 @@ public class DoubleBlockEqualityTests extends ComputeTestCase {
                 .appendDouble(1)
                 .build()
                 .asVector()
-                .filter(0, 2, 3)
+                .filter(false, 0, 2, 3)
         );
         assertAllEquals(moreVectors);
     }
@@ -141,14 +141,26 @@ public class DoubleBlockEqualityTests extends ComputeTestCase {
                 randomFrom(Block.MvOrdering.values()),
                 blockFactory
             ),
-            blockFactory.newDoubleArrayVector(new double[] { 1, 2, 3 }, 3).filter(0, 1, 2).asBlock(),
-            blockFactory.newDoubleArrayVector(new double[] { 1, 2, 3, 4 }, 3).filter(0, 1, 2).asBlock(),
-            blockFactory.newDoubleArrayVector(new double[] { 1, 2, 3, 4 }, 4).filter(0, 1, 2).asBlock(),
-            blockFactory.newDoubleArrayVector(new double[] { 1, 2, 4, 3 }, 4).filter(0, 1, 3).asBlock(),
+            blockFactory.newDoubleArrayVector(new double[] { 1, 2, 3 }, 3).filter(false, 0, 1, 2).asBlock(),
+            blockFactory.newDoubleArrayVector(new double[] { 1, 2, 3, 4 }, 3).filter(false, 0, 1, 2).asBlock(),
+            blockFactory.newDoubleArrayVector(new double[] { 1, 2, 3, 4 }, 4).filter(false, 0, 1, 2).asBlock(),
+            blockFactory.newDoubleArrayVector(new double[] { 1, 2, 4, 3 }, 4).filter(false, 0, 1, 3).asBlock(),
             blockFactory.newDoubleBlockBuilder(3).appendDouble(1).appendDouble(2).appendDouble(3).build(),
-            blockFactory.newDoubleBlockBuilder(3).appendDouble(1).appendDouble(2).appendDouble(3).build().filter(0, 1, 2),
-            blockFactory.newDoubleBlockBuilder(3).appendDouble(1).appendDouble(4).appendDouble(2).appendDouble(3).build().filter(0, 2, 3),
-            blockFactory.newDoubleBlockBuilder(3).appendDouble(1).appendNull().appendDouble(2).appendDouble(3).build().filter(0, 2, 3)
+            blockFactory.newDoubleBlockBuilder(3).appendDouble(1).appendDouble(2).appendDouble(3).build().filter(false, 0, 1, 2),
+            blockFactory.newDoubleBlockBuilder(3)
+                .appendDouble(1)
+                .appendDouble(4)
+                .appendDouble(2)
+                .appendDouble(3)
+                .build()
+                .filter(false, 0, 2, 3),
+            blockFactory.newDoubleBlockBuilder(3)
+                .appendDouble(1)
+                .appendNull()
+                .appendDouble(2)
+                .appendDouble(3)
+                .build()
+                .filter(false, 0, 2, 3)
         );
         assertAllEquals(blocks);
 
@@ -171,15 +183,15 @@ public class DoubleBlockEqualityTests extends ComputeTestCase {
                 randomFrom(Block.MvOrdering.values()),
                 blockFactory
             ),
-            blockFactory.newDoubleArrayVector(new double[] { 9, 9 }, 2).filter(0, 1).asBlock(),
-            blockFactory.newDoubleArrayVector(new double[] { 9, 9, 4 }, 2).filter(0, 1).asBlock(),
-            blockFactory.newDoubleArrayVector(new double[] { 9, 9, 4 }, 3).filter(0, 1).asBlock(),
-            blockFactory.newDoubleArrayVector(new double[] { 9, 4, 9 }, 3).filter(0, 2).asBlock(),
+            blockFactory.newDoubleArrayVector(new double[] { 9, 9 }, 2).filter(false, 0, 1).asBlock(),
+            blockFactory.newDoubleArrayVector(new double[] { 9, 9, 4 }, 2).filter(false, 0, 1).asBlock(),
+            blockFactory.newDoubleArrayVector(new double[] { 9, 9, 4 }, 3).filter(false, 0, 1).asBlock(),
+            blockFactory.newDoubleArrayVector(new double[] { 9, 4, 9 }, 3).filter(false, 0, 2).asBlock(),
             blockFactory.newConstantDoubleBlockWith(9, 2),
             blockFactory.newDoubleBlockBuilder(2).appendDouble(9).appendDouble(9).build(),
-            blockFactory.newDoubleBlockBuilder(2).appendDouble(9).appendDouble(9).build().filter(0, 1),
-            blockFactory.newDoubleBlockBuilder(2).appendDouble(9).appendDouble(4).appendDouble(9).build().filter(0, 2),
-            blockFactory.newDoubleBlockBuilder(2).appendDouble(9).appendNull().appendDouble(9).build().filter(0, 2)
+            blockFactory.newDoubleBlockBuilder(2).appendDouble(9).appendDouble(9).build().filter(false, 0, 1),
+            blockFactory.newDoubleBlockBuilder(2).appendDouble(9).appendDouble(4).appendDouble(9).build().filter(false, 0, 2),
+            blockFactory.newDoubleBlockBuilder(2).appendDouble(9).appendNull().appendDouble(9).build().filter(false, 0, 2)
         );
         assertAllEquals(moreBlocks);
     }
@@ -193,7 +205,7 @@ public class DoubleBlockEqualityTests extends ComputeTestCase {
             blockFactory.newDoubleArrayVector(new double[] { 1, 2, 3 }, 3),
             blockFactory.newDoubleArrayVector(new double[] { 1, 2, 4 }, 3),
             blockFactory.newConstantDoubleBlockWith(9, 2).asVector(),
-            blockFactory.newDoubleBlockBuilder(2).appendDouble(1).appendDouble(2).build().asVector().filter(1),
+            blockFactory.newDoubleBlockBuilder(2).appendDouble(1).appendDouble(2).build().asVector().filter(false, 1),
             blockFactory.newDoubleBlockBuilder(3).appendDouble(1).appendDouble(2).appendDouble(5).build().asVector(),
             blockFactory.newDoubleBlockBuilder(1).appendDouble(1).appendDouble(2).appendDouble(3).appendDouble(4).build().asVector()
         );
@@ -209,7 +221,7 @@ public class DoubleBlockEqualityTests extends ComputeTestCase {
             blockFactory.newDoubleArrayVector(new double[] { 1, 2, 3 }, 3).asBlock(),
             blockFactory.newDoubleArrayVector(new double[] { 1, 2, 4 }, 3).asBlock(),
             blockFactory.newConstantDoubleBlockWith(9, 2),
-            blockFactory.newDoubleBlockBuilder(2).appendDouble(1).appendDouble(2).build().filter(1),
+            blockFactory.newDoubleBlockBuilder(2).appendDouble(1).appendDouble(2).build().filter(false, 1),
             blockFactory.newDoubleBlockBuilder(3).appendDouble(1).appendDouble(2).appendDouble(5).build(),
             blockFactory.newDoubleBlockBuilder(1).appendDouble(1).appendDouble(2).appendDouble(3).appendDouble(4).build(),
             blockFactory.newDoubleBlockBuilder(1).appendDouble(1).appendNull().build(),

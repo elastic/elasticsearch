@@ -189,6 +189,22 @@ public class AzureAiStudioChatCompletionModelTests extends ESTestCase {
         assertThat(model.getEndpointUri().toString(), is("http://testtarget.local/v1/chat/completions"));
     }
 
+    public void testSetsProperUrlForNonOpenAiTokenModel_WithTrailingSlash() throws URISyntaxException {
+        var model = createModel("id", "http://testtarget.local/", AzureAiStudioProvider.COHERE, AzureAiStudioEndpointType.TOKEN, "apikey");
+        assertThat(model.getEndpointUri().toString(), is("http://testtarget.local/v1/chat/completions"));
+    }
+
+    public void testSetsProperUrlForCohereModel_WithExistingPath() throws URISyntaxException {
+        var model = createModel(
+            "id",
+            "http://testtarget.local/models",
+            AzureAiStudioProvider.COHERE,
+            AzureAiStudioEndpointType.TOKEN,
+            "apikey"
+        );
+        assertThat(model.getEndpointUri().toString(), is("http://testtarget.local/models/v1/chat/completions"));
+    }
+
     public void testSetsProperUrlForRealtimeEndpointModel() throws URISyntaxException {
         var model = createModel(
             "id",

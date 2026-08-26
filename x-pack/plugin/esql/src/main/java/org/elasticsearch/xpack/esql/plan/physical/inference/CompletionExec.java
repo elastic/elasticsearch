@@ -10,12 +10,15 @@ package org.elasticsearch.xpack.esql.plan.physical.inference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 
@@ -35,12 +38,35 @@ public class CompletionExec extends InferenceExec {
 
     private final Expression prompt;
     private final Attribute targetField;
+    private final MapExpression taskSettings;
+    private final TimeValue timeout;
     private List<Attribute> lazyOutput;
 
-    public CompletionExec(Source source, PhysicalPlan child, Expression inferenceId, Expression prompt, Attribute targetField) {
+    public CompletionExec(
+        Source source,
+        PhysicalPlan child,
+        Expression inferenceId,
+        Expression prompt,
+        Attribute targetField,
+        MapExpression taskSettings
+    ) {
+        this(source, child, inferenceId, prompt, targetField, taskSettings, null);
+    }
+
+    public CompletionExec(
+        Source source,
+        PhysicalPlan child,
+        Expression inferenceId,
+        Expression prompt,
+        Attribute targetField,
+        MapExpression taskSettings,
+        TimeValue timeout
+    ) {
         super(source, child, inferenceId);
         this.prompt = prompt;
         this.targetField = targetField;
+        this.taskSettings = taskSettings;
+        this.timeout = timeout;
     }
 
     public CompletionExec(StreamInput in) throws IOException {
@@ -49,7 +75,9 @@ public class CompletionExec extends InferenceExec {
             in.readNamedWriteable(PhysicalPlan.class),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Attribute.class)
+            in.readNamedWriteable(Attribute.class),
+            (MapExpression) in.readNamedWriteable(Expression.class),
+            in.getTransportVersion().supports(InferencePlan.ESQL_INFERENCE_ACCEPT_TIMEOUT) ? in.readOptionalTimeValue() : null
         );
     }
 
@@ -63,6 +91,10 @@ public class CompletionExec extends InferenceExec {
         super.writeTo(out);
         out.writeNamedWriteable(prompt);
         out.writeNamedWriteable(targetField);
+        out.writeNamedWriteable(taskSettings);
+        if (out.getTransportVersion().supports(InferencePlan.ESQL_INFERENCE_ACCEPT_TIMEOUT)) {
+            out.writeOptionalTimeValue(timeout);
+        }
     }
 
     public Expression prompt() {
@@ -73,14 +105,22 @@ public class CompletionExec extends InferenceExec {
         return targetField;
     }
 
+    public MapExpression taskSettings() {
+        return taskSettings;
+    }
+
+    public TimeValue timeout() {
+        return timeout;
+    }
+
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, CompletionExec::new, child(), inferenceId(), prompt, targetField);
+        return NodeInfo.create(this, CompletionExec::new, child(), inferenceId(), prompt, targetField, taskSettings, timeout);
     }
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new CompletionExec(source(), newChild, inferenceId(), prompt, targetField);
+        return new CompletionExec(source(), newChild, inferenceId(), prompt, targetField, taskSettings, timeout);
     }
 
     @Override
@@ -104,11 +144,14 @@ public class CompletionExec extends InferenceExec {
         if (super.equals(o) == false) return false;
         CompletionExec completion = (CompletionExec) o;
 
-        return Objects.equals(prompt, completion.prompt) && Objects.equals(targetField, completion.targetField);
+        return Objects.equals(prompt, completion.prompt)
+            && Objects.equals(targetField, completion.targetField)
+            && Objects.equals(taskSettings, completion.taskSettings)
+            && Objects.equals(timeout, completion.timeout);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), prompt, targetField);
+        return Objects.hash(super.hashCode(), prompt, targetField, taskSettings, timeout);
     }
 }

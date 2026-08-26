@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.get;
 
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -35,7 +36,12 @@ public class MultiGetShardRequestTests extends AbstractWireSerializingTestCase<M
             .setForceSyntheticSource(instance.isForceSyntheticSource());
         switch (mutationBranch) {
             case 0 -> {
-                var multiGetShardRequest = new MultiGetShardRequest(multiGetRequest, instance.index(), instance.shardId());
+                var multiGetShardRequest = new MultiGetShardRequest(
+                    multiGetRequest,
+                    instance.index(),
+                    instance.shardId(),
+                    SplitShardCountSummary.UNSET
+                );
                 multiGetShardRequest.locations = instance.locations;
                 multiGetShardRequest.items = instance.items;
                 multiGetShardRequest.preference(
@@ -44,21 +50,36 @@ public class MultiGetShardRequestTests extends AbstractWireSerializingTestCase<M
                 return multiGetShardRequest;
             }
             case 1 -> {
-                var multiGetShardRequest = new MultiGetShardRequest(multiGetRequest, instance.index(), instance.shardId());
+                var multiGetShardRequest = new MultiGetShardRequest(
+                    multiGetRequest,
+                    instance.index(),
+                    instance.shardId(),
+                    SplitShardCountSummary.UNSET
+                );
                 multiGetShardRequest.locations = instance.locations;
                 multiGetShardRequest.items = instance.items;
                 multiGetShardRequest.realtime(instance.realtime() ? false : true);
                 return multiGetShardRequest;
             }
             case 2 -> {
-                var multiGetShardRequest = new MultiGetShardRequest(multiGetRequest, instance.index(), instance.shardId());
+                var multiGetShardRequest = new MultiGetShardRequest(
+                    multiGetRequest,
+                    instance.index(),
+                    instance.shardId(),
+                    SplitShardCountSummary.UNSET
+                );
                 multiGetShardRequest.locations = instance.locations;
                 multiGetShardRequest.items = instance.items;
                 multiGetShardRequest.refresh(instance.refresh() ? false : true);
                 return multiGetShardRequest;
             }
             case 3 -> {
-                var multiGetShardRequest = new MultiGetShardRequest(multiGetRequest, instance.index(), instance.shardId());
+                var multiGetShardRequest = new MultiGetShardRequest(
+                    multiGetRequest,
+                    instance.index(),
+                    instance.shardId(),
+                    SplitShardCountSummary.UNSET
+                );
                 multiGetShardRequest.locations = instance.locations;
                 multiGetShardRequest.items = instance.items;
                 multiGetShardRequest.setForceSyntheticSource(instance.isForceSyntheticSource() ? false : true);
@@ -68,7 +89,8 @@ public class MultiGetShardRequestTests extends AbstractWireSerializingTestCase<M
                 var multiGetShardRequest = new MultiGetShardRequest(
                     multiGetRequest,
                     instance.index(),
-                    randomValueOtherThan(instance.shardId(), () -> randomInt(10))
+                    randomValueOtherThan(instance.shardId(), () -> randomInt(10)),
+                    SplitShardCountSummary.UNSET
                 );
                 multiGetShardRequest.locations = instance.locations;
                 multiGetShardRequest.items = instance.items;
@@ -78,14 +100,20 @@ public class MultiGetShardRequestTests extends AbstractWireSerializingTestCase<M
                 var multiGetShardRequest = new MultiGetShardRequest(
                     multiGetRequest,
                     randomValueOtherThan(instance.index(), ESTestCase::randomIdentifier),
-                    instance.shardId()
+                    instance.shardId(),
+                    SplitShardCountSummary.UNSET
                 );
                 multiGetShardRequest.locations = instance.locations;
                 multiGetShardRequest.items = instance.items;
                 return multiGetShardRequest;
             }
             case 6 -> {
-                var multiGetShardRequest = new MultiGetShardRequest(multiGetRequest, instance.index(), instance.shardId());
+                var multiGetShardRequest = new MultiGetShardRequest(
+                    multiGetRequest,
+                    instance.index(),
+                    instance.shardId(),
+                    SplitShardCountSummary.UNSET
+                );
                 int numItems = iterations(10, 30);
                 var items = randomValueOtherThan(instance.items, () -> createRandomItems(numItems));
                 for (int i = 0; i < numItems; i++) {
@@ -111,7 +139,7 @@ public class MultiGetShardRequestTests extends AbstractWireSerializingTestCase<M
         if (forceSyntheticSource) {
             multiGetRequest.setForceSyntheticSource(true);
         }
-        MultiGetShardRequest multiGetShardRequest = new MultiGetShardRequest(multiGetRequest, "index", 0);
+        MultiGetShardRequest multiGetShardRequest = new MultiGetShardRequest(multiGetRequest, "index", 0, SplitShardCountSummary.UNSET);
         int numItems = iterations(10, 30);
         var items = createRandomItems(numItems);
         for (int i = 0; i < numItems; i++) {

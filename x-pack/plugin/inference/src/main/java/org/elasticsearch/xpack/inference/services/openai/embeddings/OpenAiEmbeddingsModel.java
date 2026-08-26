@@ -12,14 +12,18 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.common.oauth2.OAuth2ClusterSettings;
+import org.elasticsearch.xpack.inference.common.oauth2.TokenCache;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiModel;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUtils;
 import org.elasticsearch.xpack.inference.services.openai.action.OpenAiActionVisitor;
-import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
+import org.elasticsearch.xpack.inference.services.openai.secrets.OpenAiSecretSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -45,6 +49,9 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secrets,
+        ThreadPool threadPool,
+        TokenCache tokenCache,
+        OAuth2ClusterSettings oauth2ClusterSettings,
         ConfigurationParseContext context
     ) {
         this(
@@ -54,11 +61,13 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
             OpenAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             new OpenAiEmbeddingsTaskSettings(taskSettings),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            OpenAiSecretSettings.fromMap(secrets),
+            threadPool,
+            tokenCache,
+            oauth2ClusterSettings
         );
     }
 
-    // Should only be used directly for testing
     public OpenAiEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
@@ -66,14 +75,41 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
         OpenAiEmbeddingsServiceSettings serviceSettings,
         OpenAiEmbeddingsTaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
-        @Nullable DefaultSecretSettings secrets
+        @Nullable SecretSettings secrets,
+        ThreadPool threadPool,
+        TokenCache tokenCache,
+        OAuth2ClusterSettings oauth2ClusterSettings
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secrets),
-            serviceSettings,
-            secrets,
-            buildUri(serviceSettings.uri(), OpenAiService.NAME, OpenAiEmbeddingsModel::buildDefaultUri)
+            threadPool,
+            tokenCache,
+            oauth2ClusterSettings
+        );
+    }
+
+    public OpenAiEmbeddingsModel(
+        ModelConfigurations modelConfigurations,
+        ModelSecrets modelSecrets,
+        ThreadPool threadPool,
+        TokenCache tokenCache,
+        OAuth2ClusterSettings oauth2ClusterSettings
+    ) {
+        super(
+            modelConfigurations,
+            modelSecrets,
+            (OpenAiEmbeddingsServiceSettings) modelConfigurations.getServiceSettings(),
+            modelSecrets.getSecretSettings(),
+            (OpenAiEmbeddingsServiceSettings) modelConfigurations.getServiceSettings(),
+            threadPool,
+            tokenCache,
+            oauth2ClusterSettings,
+            buildUri(
+                ((OpenAiEmbeddingsServiceSettings) modelConfigurations.getServiceSettings()).uri(),
+                OpenAiService.NAME,
+                OpenAiEmbeddingsModel::buildDefaultUri
+            )
         );
     }
 
@@ -103,8 +139,8 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
     }
 
     @Override
-    public DefaultSecretSettings getSecretSettings() {
-        return (DefaultSecretSettings) super.getSecretSettings();
+    public SecretSettings getSecretSettings() {
+        return super.getSecretSettings();
     }
 
     @Override

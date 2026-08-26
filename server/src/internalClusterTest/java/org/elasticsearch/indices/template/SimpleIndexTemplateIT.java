@@ -652,7 +652,9 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         indicesAdmin().preparePutTemplate("template_1").setPatterns(Collections.singletonList("te*")).addAlias(new Alias("index")).get();
 
         InvalidAliasNameException e = expectThrows(InvalidAliasNameException.class, () -> createIndex("test"));
-        assertThat(e.getMessage(), equalTo("Invalid alias name [index]: an index or data stream exists with the same name as the alias"));
+        String expected = "Invalid alias name [index]: an index, data stream, ESQL view, or ESQL dataset exists "
+            + "with the same name as the alias";
+        assertThat(e.getMessage(), equalTo(expected));
     }
 
     public void testAliasEmptyName() throws Exception {

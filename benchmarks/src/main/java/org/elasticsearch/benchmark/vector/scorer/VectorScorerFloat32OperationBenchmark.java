@@ -9,10 +9,8 @@
 package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.common.logging.NodeNamePatternConverter;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.simdvec.SimdVecLibrary;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -35,8 +33,6 @@ import java.nio.ByteOrder;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.rethrow;
-
 @Fork(value = 3, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
@@ -46,9 +42,7 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.rethrow;
 public class VectorScorerFloat32OperationBenchmark {
 
     static {
-        NodeNamePatternConverter.setGlobalNodeName("foo");
-        LogConfigurator.loadLog4jPlugins();
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+        Utils.configureBenchmarkLogging();
     }
 
     static final ValueLayout.OfFloat LAYOUT_LE_FLOAT = ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
@@ -64,21 +58,10 @@ public class VectorScorerFloat32OperationBenchmark {
     @Param({ "1", "128", "207", "256", "300", "512", "702", "1024", "1536", "2048" })
     public int size;
 
-    @Param({ "COSINE", "DOT_PRODUCT", "EUCLIDEAN" })
+    @Param({ "DOT_PRODUCT", "EUCLIDEAN" })
     public VectorSimilarityType function;
 
-    @FunctionalInterface
-    private interface LuceneFunction {
-        float run(float[] vec1, float[] vec2);
-    }
-
-    @FunctionalInterface
-    private interface NativeFunction {
-        float run(MemorySegment vec1, MemorySegment vec2, int length);
-    }
-
-    private LuceneFunction luceneImpl;
-    private NativeFunction nativeImpl;
+    private LuceneFunction<float[]> luceneImpl;
 
     @Setup(Level.Iteration)
     public void init() {
@@ -96,20 +79,13 @@ public class VectorScorerFloat32OperationBenchmark {
 
         arena = Arena.ofConfined();
         nativeSegA = arena.allocate((long) floatsA.length * Float.BYTES);
-        MemorySegment.copy(MemorySegment.ofArray(floatsA), LAYOUT_LE_FLOAT, 0L, nativeSegA, LAYOUT_LE_FLOAT, 0L, floatsA.length);
+        MemorySegment.copy(floatsA, 0, nativeSegA, LAYOUT_LE_FLOAT, 0L, floatsA.length);
         nativeSegB = arena.allocate((long) floatsB.length * Float.BYTES);
-        MemorySegment.copy(MemorySegment.ofArray(floatsB), LAYOUT_LE_FLOAT, 0L, nativeSegB, LAYOUT_LE_FLOAT, 0L, floatsB.length);
+        MemorySegment.copy(floatsB, 0, nativeSegB, LAYOUT_LE_FLOAT, 0L, floatsB.length);
 
         luceneImpl = switch (function) {
-            case COSINE -> VectorUtil::cosine;
             case DOT_PRODUCT -> VectorUtil::dotProduct;
             case EUCLIDEAN -> VectorUtil::squareDistance;
-            default -> throw new UnsupportedOperationException("Not used");
-        };
-        nativeImpl = switch (function) {
-            case COSINE -> VectorScorerFloat32OperationBenchmark::cosineFloat32;
-            case DOT_PRODUCT -> VectorScorerFloat32OperationBenchmark::dotProductFloat32;
-            case EUCLIDEAN -> VectorScorerFloat32OperationBenchmark::squareDistanceFloat32;
             default -> throw new UnsupportedOperationException("Not used");
         };
     }
@@ -133,41 +109,21 @@ public class VectorScorerFloat32OperationBenchmark {
 
     @Benchmark
     public float nativeWithNativeSeg() {
-        return nativeImpl.run(nativeSegA, nativeSegB, size);
+        return switch (function) {
+            case DOT_PRODUCT -> VEC_LIBRARY.dotProductF32(nativeSegA, nativeSegB, size);
+            case EUCLIDEAN -> VEC_LIBRARY.squareDistanceF32(nativeSegA, nativeSegB, size);
+            default -> throw new IllegalArgumentException(function.toString());
+        };
     }
 
     @Benchmark
     public float nativeWithHeapSeg() {
-        return nativeImpl.run(heapSegA, heapSegB, size);
+        return switch (function) {
+            case DOT_PRODUCT -> VEC_LIBRARY.dotProductF32(heapSegA, heapSegB, size);
+            case EUCLIDEAN -> VEC_LIBRARY.squareDistanceF32(heapSegA, heapSegB, size);
+            default -> throw new IllegalArgumentException(function.toString());
+        };
     }
 
-    static final VectorSimilarityFunctions vectorSimilarityFunctions = vectorSimilarityFunctions();
-
-    static VectorSimilarityFunctions vectorSimilarityFunctions() {
-        return NativeAccess.instance().getVectorSimilarityFunctions().get();
-    }
-
-    static float cosineFloat32(MemorySegment a, MemorySegment b, int length) {
-        try {
-            return (float) vectorSimilarityFunctions.cosineHandleFloat32().invokeExact(a, b, length);
-        } catch (Throwable e) {
-            throw rethrow(e);
-        }
-    }
-
-    static float dotProductFloat32(MemorySegment a, MemorySegment b, int length) {
-        try {
-            return (float) vectorSimilarityFunctions.dotProductHandleFloat32().invokeExact(a, b, length);
-        } catch (Throwable e) {
-            throw rethrow(e);
-        }
-    }
-
-    static float squareDistanceFloat32(MemorySegment a, MemorySegment b, int length) {
-        try {
-            return (float) vectorSimilarityFunctions.squareDistanceHandleFloat32().invokeExact(a, b, length);
-        } catch (Throwable e) {
-            throw rethrow(e);
-        }
-    }
+    static final SimdVecLibrary VEC_LIBRARY = SimdVecLibrary.instance().orElseThrow();
 }

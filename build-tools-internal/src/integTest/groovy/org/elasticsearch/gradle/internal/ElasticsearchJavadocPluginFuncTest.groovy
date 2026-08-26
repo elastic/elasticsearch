@@ -9,11 +9,13 @@
 
 package org.elasticsearch.gradle.internal
 
-import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
+import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 import spock.lang.Unroll
 
-class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
+class ElasticsearchJavadocPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
+
+    Class<? extends org.gradle.api.Plugin> pluginClassUnderTest = org.elasticsearch.gradle.internal.ElasticsearchJavadocPlugin
 
     @Unroll
     def "#versionType created javadoc with inter project linking"() {
@@ -57,7 +59,7 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
         def options = normalized(file('some-depending-lib/build/tmp/javadoc/javadoc.options').text)
         options.contains('-notimestamp')
         options.contains('-quiet')
-        options.contains("-linkoffline '$expectedLink' './some-lib/build/docs/javadoc/'")
+        options.contains("-linkoffline '$expectedLink' '../some-lib/build/docs/javadoc/'")
 
         where:
         version        | versionType | expectedLink
@@ -131,7 +133,7 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
 
         // normal dependencies handles as usual
         result.task(":some-lib:javadoc").outcome == TaskOutcome.SUCCESS
-        options.contains("-linkoffline 'https://artifacts.elastic.co/javadoc/org/acme/some-lib/1.0' './some-lib/build/docs/javadoc/'")
+        options.contains("-linkoffline 'https://artifacts.elastic.co/javadoc/org/acme/some-lib/1.0' '../some-lib/build/docs/javadoc/'")
         file('some-depending-lib/build/docs/javadoc/org/acme/Something.html').exists() == false
 
         // source of shadowed dependencies are inlined
@@ -179,7 +181,7 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
         def options = normalized(file('some-depending-lib/build/tmp/javadoc/javadoc.options').text)
         options.contains('-notimestamp')
         options.contains('-quiet')
-        options.contains("-linkoffline 'https://artifacts.elastic.co/javadoc/org/acme/some-lib/1.0' './some-lib/build/docs/javadoc'") == false
+        options.contains("-linkoffline 'https://artifacts.elastic.co/javadoc/org/acme/some-lib/1.0' '../some-lib/build/docs/javadoc'") == false
     }
 
     def "ensures module dependency in javadoc of projects"() {

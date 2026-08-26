@@ -54,9 +54,7 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
     }
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void startServices() throws Exception {
         clusterService = createClusterService(threadPool);
         CapturingTransport transport = new CapturingTransport();
         transportService = transport.createTransportService(
@@ -76,8 +74,7 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void stopServices() throws Exception {
         clusterService.close();
         transportService.close();
     }
@@ -100,7 +97,7 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
                 transportService,
                 clusterService,
                 threadPool,
-                new ActionFilters(Set.of()),
+                ActionFilters.EMPTY,
                 healthInfoCache
             ),
             null,
@@ -127,17 +124,22 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
         DiskHealthInfo diskHealthInfo = request.getDiskHealthInfo();
         var dslHealthInfo = request.getDslHealthInfo();
         var repoHealthInfo = request.getRepositoriesHealthInfo();
-        switch (randomInt(3)) {
+        var fileSettingsHealthInfo = request.getFileSettingsHealthInfo();
+        switch (randomInt(4)) {
             case 0 -> nodeId = randomAlphaOfLength(10);
             case 1 -> diskHealthInfo = randomValueOtherThan(diskHealthInfo, HealthInfoTests::randomDiskHealthInfo);
             case 2 -> dslHealthInfo = randomValueOtherThan(dslHealthInfo, HealthInfoTests::randomDslHealthInfo);
             case 3 -> repoHealthInfo = randomValueOtherThan(repoHealthInfo, HealthInfoTests::randomRepoHealthInfo);
+            case 4 -> fileSettingsHealthInfo = HealthInfoTests.mutateFileSettingsHealthInfo(
+                (fileSettingsHealthInfo == null) ? FileSettingsHealthInfo.INDETERMINATE : fileSettingsHealthInfo
+            );
             default -> throw new IllegalStateException();
         }
         return new Request.Builder().nodeId(nodeId)
             .diskHealthInfo(diskHealthInfo)
             .dslHealthInfo(dslHealthInfo)
             .repositoriesHealthInfo(repoHealthInfo)
+            .fileSettingsHealthInfo(fileSettingsHealthInfo)
             .build();
     }
 }

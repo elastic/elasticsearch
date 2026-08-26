@@ -622,7 +622,7 @@ public enum MultiValueMode implements Writeable {
      * Allowed Modes: SUM, AVG, MEDIAN, MIN, MAX
      */
     public DoubleValues select(final SortedNumericDoubleValues values) {
-        final DoubleValues singleton = FieldData.unwrapSingleton(values);
+        final DoubleValues singleton = SortedNumericDoubleValues.unwrapSingleton(values);
         if (singleton != null) {
             return singleton;
         } else {

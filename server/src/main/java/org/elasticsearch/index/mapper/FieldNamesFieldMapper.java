@@ -12,12 +12,16 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.escf.LuceneBinaryColumn;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.util.Collections;
 
@@ -80,6 +84,11 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public FieldNamesFieldMapper build() {
             if (enabled.getValue().explicit()) {
                 if (createdOnOrAfterV8) {
@@ -102,10 +111,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
     private static final FieldNamesFieldMapper DEFAULT_OLD = new FieldNamesFieldMapper(Defaults.ENABLED, false);
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> c.indexVersionCreated().onOrAfter(IndexVersions.V_8_0_0) ? DEFAULT : DEFAULT_OLD,
-        c -> new Builder(c.indexVersionCreated())
-    );
+    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> new Builder(c.indexVersionCreated()));
 
     public static final class FieldNamesFieldType extends TermBasedFieldType {
 
@@ -187,5 +193,31 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    /**
+     * Records that {@code field} should appear in {@code _field_names} for document {@code doc}
+     * within this batch. The entry is accumulated in {@link BatchMappingContext} and the column is
+     * assembled and attached in {@link #postColumnarParse}.
+     */
+    void addFieldNamesColumnar(BatchMappingContext ctx, int doc, String field) {
+        if (enabled.value() == false) {
+            return;
+        }
+        ctx.recordFieldName(doc, new BytesRef(field));
+    }
+
+    @Override
+    public void postColumnarParse(BatchMappingContext ctx) {
+        final DeduplicatingStringColumnAccumulator acc = ctx.fieldNamesAccumulator();
+        if (acc == null || acc.isEmpty()) {
+            return;
+        }
+        ctx.addColumn(LuceneBinaryColumn.of(acc.finish(BytesRefRecycler.NON_RECYCLING_INSTANCE), NAME, StringField.TYPE_NOT_STORED));
+    }
+
+    @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        return true;
     }
 }

@@ -42,7 +42,7 @@ public class SkipperSettingsTests extends ESTestCase {
             assertTrue(indexSettings.useDocValuesSkipper());
         }
         {
-            IndexSettings indexSettings = settings(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT, b -> {
+            IndexSettings indexSettings = settings(IndexVersions.STATELESS_SKIPPERS_ENABLED_FOR_TSDB, b -> {
                 b.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName());
                 b.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "path");
             });
@@ -50,8 +50,7 @@ public class SkipperSettingsTests extends ESTestCase {
         }
         {
             IndexVersion nonSkipperVersion = IndexVersionUtils.randomPreviousCompatibleVersion(
-                random(),
-                IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT
+                IndexVersions.STATELESS_SKIPPERS_ENABLED_FOR_TSDB
             );
             IndexSettings indexSettings = settings(nonSkipperVersion, b -> {
                 b.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName());
@@ -64,16 +63,37 @@ public class SkipperSettingsTests extends ESTestCase {
     public void testLogsDBSkipperSettingDefaults() {
         {
             IndexSettings indexSettings = settings(
-                IndexVersion.current(),
-                b -> { b.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName()); }
+                IndexVersionUtils.randomVersionBetween(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB, IndexVersion.current()),
+                b -> b.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName())
+            );
+            assertTrue(indexSettings.useDocValuesSkipper());
+        }
+        {
+            IndexSettings indexSettings = settings(
+                IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB),
+                b -> b.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName())
             );
             assertFalse(indexSettings.useDocValuesSkipper());
         }
+    }
+
+    public void testColumnarSkipperSettingDefaults() {
         {
-            IndexSettings indexSettings = settings(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB, b -> {
-                b.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName());
-            });
-            assertFalse(indexSettings.useDocValuesSkipper());
+            IndexSettings indexSettings = settings(
+                IndexVersionUtils.randomVersionBetween(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB, IndexVersion.current()),
+                b -> b.put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            );
+            assertTrue(indexSettings.useDocValuesSkipper());
+        }
+    }
+
+    public void testColumnarLogsdbSkipperSettingDefaults() {
+        {
+            IndexSettings indexSettings = settings(
+                IndexVersionUtils.randomVersionBetween(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB, IndexVersion.current()),
+                b -> b.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
+            );
+            assertTrue(indexSettings.useDocValuesSkipper());
         }
     }
 

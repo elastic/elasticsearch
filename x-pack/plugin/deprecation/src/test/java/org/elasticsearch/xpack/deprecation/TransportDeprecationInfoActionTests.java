@@ -39,6 +39,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
@@ -75,6 +76,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -104,6 +106,7 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         boolean indexTemplateIssueFound = randomBoolean();
         boolean componentTemplateIssueFound = randomBoolean();
         boolean ilmPolicyIssueFound = randomBoolean();
+        boolean repositoryIssueFound = randomBoolean();
         DeprecationIssue foundIssue = createTestDeprecationIssue();
         ClusterDeprecationChecker clusterDeprecationChecker = mock(ClusterDeprecationChecker.class);
         when(clusterDeprecationChecker.check(any())).thenReturn(clusterIssueFound ? List.of(foundIssue) : List.of());
@@ -129,6 +132,11 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         }), createResourceChecker("ilm_policies", (cs, req) -> {
             if (ilmPolicyIssueFound) {
                 return Map.of("my-policy", List.of(foundIssue));
+            }
+            return Map.of();
+        }), createResourceChecker("repositories", (cs, req) -> {
+            if (repositoryIssueFound) {
+                return Map.of("my-repository", List.of(foundIssue));
             }
             return Map.of();
         }));
@@ -176,6 +184,11 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
             assertThat(response.getIlmPolicyDeprecationIssues(), IsEqual.equalTo(Map.of("my-policy", List.of(foundIssue))));
         } else {
             assertTrue(response.getIlmPolicyDeprecationIssues().isEmpty());
+        }
+        if (repositoryIssueFound) {
+            assertThat(response.getRepositoryDeprecationIssues(), IsEqual.equalTo(Map.of("my-repository", List.of(foundIssue))));
+        } else {
+            assertTrue(response.getRepositoryDeprecationIssues().isEmpty());
         }
         if (componentTemplateIssueFound == false && indexTemplateIssueFound == false) {
             assertTrue(response.getTemplateDeprecationIssues().isEmpty());
@@ -368,15 +381,18 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         DiscoveryNode node1 = mock(DiscoveryNode.class);
         when(node1.getId()).thenReturn(nodeId1);
         when(node1.getName()).thenReturn("node1");
+        when(node1.canContainData()).thenReturn(true);
         DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
         when(discoveryNodes.get(nodeId1)).thenReturn(node1);
         DiscoveryNode node2 = mock(DiscoveryNode.class);
         when(node2.getId()).thenReturn(nodeId2);
         when(node2.getName()).thenReturn("node2");
+        when(node2.canContainData()).thenReturn(true);
         when(discoveryNodes.get(nodeId2)).thenReturn(node2);
         DiscoveryNode node3 = mock(DiscoveryNode.class);
         when(node3.getId()).thenReturn(nodeId3);
         when(node3.getName()).thenReturn("node3");
+        when(node3.canContainData()).thenReturn(true);
         when(discoveryNodes.get(nodeId3)).thenReturn(node3);
 
         clusterSettings.applySettings(settingsWithLowWatermark);
@@ -397,6 +413,72 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         assertThat(issue.getDetails(), containsString("(nodes impacted: [node1, node2])"));
     }
 
+    public void testCheckDiskLowWatermarkSkipsFrozenNodes() {
+        Settings settingsWithLowWatermark = Settings.builder().put("cluster.routing.allocation.disk.watermark.low", "10%").build();
+        ClusterSettings clusterSettings = new ClusterSettings(settingsWithLowWatermark, BUILT_IN_CLUSTER_SETTINGS);
+
+        String regularNodeId = "123";
+        String frozenNodeId = "456";
+        String noDataNodeId = "789";
+        long totalBytesOnMachine = 100;
+        long lowFreeBytes = 5;
+
+        ClusterInfo clusterInfo = ClusterInfo.builder()
+            .mostAvailableSpaceUsage(
+                Map.of(
+                    regularNodeId,
+                    new DiskUsage(regularNodeId, "", "", totalBytesOnMachine, totalBytesOnMachine),
+                    frozenNodeId,
+                    new DiskUsage(frozenNodeId, "", "", totalBytesOnMachine, lowFreeBytes),
+                    noDataNodeId,
+                    new DiskUsage(noDataNodeId, "", "", totalBytesOnMachine, lowFreeBytes)
+                )
+            )
+            .build();
+
+        DiscoveryNode regularNode = mock(DiscoveryNode.class);
+        when(regularNode.getId()).thenReturn(regularNodeId);
+        when(regularNode.getName()).thenReturn("regular-node");
+        when(regularNode.canContainData()).thenReturn(true);
+        when(regularNode.isDedicatedFrozenNode()).thenReturn(false);
+        DiscoveryNode frozenNode = mock(DiscoveryNode.class);
+        when(frozenNode.getId()).thenReturn(frozenNodeId);
+        when(frozenNode.getName()).thenReturn("frozen-node");
+        when(frozenNode.canContainData()).thenReturn(true);
+        when(frozenNode.isDedicatedFrozenNode()).thenReturn(true);
+        DiscoveryNode noDataNode = mock(DiscoveryNode.class);
+        when(noDataNode.getId()).thenReturn(noDataNodeId);
+        when(noDataNode.getName()).thenReturn("nodata-node");
+        when(noDataNode.canContainData()).thenReturn(false);
+        when(noDataNode.isDedicatedFrozenNode()).thenReturn(false);
+        DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
+        when(discoveryNodes.get(regularNodeId)).thenReturn(regularNode);
+        when(discoveryNodes.get(frozenNodeId)).thenReturn(frozenNode);
+        when(discoveryNodes.get(noDataNodeId)).thenReturn(noDataNode);
+
+        DeprecationIssue issue = TransportDeprecationInfoAction.checkDiskLowWatermark(clusterSettings, clusterInfo, discoveryNodes);
+        assertNull(issue);
+
+        ClusterInfo clusterInfoWithAllExceeding = ClusterInfo.builder()
+            .mostAvailableSpaceUsage(
+                Map.of(
+                    regularNodeId,
+                    new DiskUsage(regularNodeId, "", "", totalBytesOnMachine, lowFreeBytes),
+                    frozenNodeId,
+                    new DiskUsage(frozenNodeId, "", "", totalBytesOnMachine, lowFreeBytes),
+                    noDataNodeId,
+                    new DiskUsage(noDataNodeId, "", "", totalBytesOnMachine, lowFreeBytes)
+                )
+            )
+            .build();
+
+        issue = TransportDeprecationInfoAction.checkDiskLowWatermark(clusterSettings, clusterInfoWithAllExceeding, discoveryNodes);
+        assertNotNull(issue);
+        assertThat(issue.getDetails(), containsString("regular-node"));
+        assertThat(issue.getDetails(), not(containsString("frozen-node")));
+        assertThat(issue.getDetails(), not(containsString("nodata-node")));
+    }
+
     public void testMasterOperation() throws InterruptedException {
         try (TestThreadPool threadPool = new TestThreadPool("TransportDeprecationInfoActionTests")) {
             ClusterService clusterService = mock(ClusterService.class);
@@ -405,6 +487,7 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
             DiscoveryNode node1 = mock(DiscoveryNode.class);
             when(node1.getId()).thenReturn(nodeId);
             when(node1.getName()).thenReturn(nodeId);
+            when(node1.canContainData()).thenReturn(true);
             DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
             when(discoveryNodes.get(nodeId)).thenReturn(node1);
 
@@ -458,6 +541,8 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
 
             IndexNameExpressionResolver indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
             when(indexNameExpressionResolver.concreteIndexNames(any(ProjectMetadata.class), any())).thenReturn(new String[0]);
+            RepositoriesService repositoriesService = mock(RepositoriesService.class);
+            when(repositoriesService.getProjectRepositories(projectResolver.getProjectId())).thenReturn(Map.of());
             TransportDeprecationInfoAction action = new TransportDeprecationInfoAction(
                 settings,
                 mock(TransportService.class),
@@ -468,7 +553,8 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
                 client,
                 NamedXContentRegistry.EMPTY,
                 clusterInfoService,
-                projectResolver
+                projectResolver,
+                repositoriesService
             );
 
             DiskUsage diskUsage = new DiskUsage(nodeId, "node1", "/data", 100L, 0L);

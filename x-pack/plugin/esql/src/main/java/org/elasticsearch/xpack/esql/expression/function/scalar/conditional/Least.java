@@ -12,8 +12,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -21,6 +22,9 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -30,6 +34,8 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
@@ -37,13 +43,40 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 /**
  * Returns the minimum value of multiple columns.
  */
-public class Least extends EsqlScalarFunction implements OptionalArgument {
+public class Least extends EsqlScalarFunction implements OptionalArgument, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Least", Least::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Least.class).unaryVariadic(Least::new).name("least");
 
     private DataType dataType;
 
+    private static final Map<DataType, BiFunction<Source, ExpressionEvaluator.Factory[], ExpressionEvaluator.Factory>> EVALUATOR_MAP = Map
+        .of(
+            DataType.BOOLEAN,
+            LeastBooleanEvaluator.Factory::new,
+            DataType.DOUBLE,
+            LeastDoubleEvaluator.Factory::new,
+            DataType.INTEGER,
+            LeastIntEvaluator.Factory::new,
+            DataType.LONG,
+            LeastLongEvaluator.Factory::new,
+            DataType.DATETIME,
+            LeastLongEvaluator.Factory::new,
+            DataType.DATE_NANOS,
+            LeastLongEvaluator.Factory::new,
+            DataType.IP,
+            LeastBytesRefEvaluator.Factory::new,
+            DataType.VERSION,
+            LeastBytesRefEvaluator.Factory::new,
+            DataType.KEYWORD,
+            LeastBytesRefEvaluator.Factory::new,
+            DataType.TEXT,
+            LeastBytesRefEvaluator.Factory::new
+        );
+
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "version" },
+        briefSummary = "Returns the minimum value from multiple columns.",
         description = "Returns the minimum value from multiple columns. "
             + "This is similar to <<esql-mv_min>> except it is intended to run on multiple columns at once.",
         examples = @Example(file = "math", tag = "least")
@@ -116,6 +149,11 @@ public class Least extends EsqlScalarFunction implements OptionalArgument {
                 return resolution;
             }
         }
+
+        if (dataType != NULL && EVALUATOR_MAP.containsKey(dataType) == false && DataType.isString(dataType) == false) {
+            return new TypeResolution("Cannot use [" + dataType.typeName() + "] with function [" + getWriteableName() + "]");
+        }
+
         return TypeResolution.TYPE_RESOLVED;
     }
 
@@ -138,27 +176,20 @@ public class Least extends EsqlScalarFunction implements OptionalArgument {
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         // force datatype initialization
         var dataType = dataType();
+        if (dataType == DataType.NULL) {
+            throw EsqlIllegalArgumentException.illegalDataType(dataType);
+        }
 
         ExpressionEvaluator.Factory[] factories = children().stream()
             .map(e -> toEvaluator.apply(new MvMin(e.source(), e)))
             .toArray(ExpressionEvaluator.Factory[]::new);
-        if (dataType == DataType.BOOLEAN) {
-            return new LeastBooleanEvaluator.Factory(source(), factories);
-        }
-        if (dataType == DataType.DOUBLE) {
-            return new LeastDoubleEvaluator.Factory(source(), factories);
-        }
-        if (dataType == DataType.INTEGER) {
-            return new LeastIntEvaluator.Factory(source(), factories);
-        }
-        if (dataType == DataType.LONG || dataType == DataType.DATETIME || dataType == DataType.DATE_NANOS) {
-            return new LeastLongEvaluator.Factory(source(), factories);
-        }
-        if (DataType.isString(dataType) || dataType == DataType.IP || dataType == DataType.VERSION || dataType == DataType.UNSUPPORTED) {
 
-            return new LeastBytesRefEvaluator.Factory(source(), factories);
+        var evaluatorFactory = EVALUATOR_MAP.get(dataType);
+        if (evaluatorFactory == null) {
+            throw EsqlIllegalArgumentException.illegalDataType(dataType);
         }
-        throw EsqlIllegalArgumentException.illegalDataType(dataType);
+
+        return evaluatorFactory.apply(source(), factories);
     }
 
     @Evaluator(extraName = "Boolean")

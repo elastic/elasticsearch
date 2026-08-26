@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -23,12 +21,15 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.CCMEnabledActionResponse;
 import org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationAction;
+import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModel;
@@ -59,6 +60,7 @@ public class TransportPutCCMConfigurationAction extends TransportMasterNodeActio
     private final Sender eisSender;
     private final ElasticInferenceServiceSettings eisSettings;
     private final FeatureService featureService;
+    private final InferencePreferencesCache inferencePreferencesCache;
 
     @Inject
     public TransportPutCCMConfigurationAction(
@@ -71,7 +73,8 @@ public class TransportPutCCMConfigurationAction extends TransportMasterNodeActio
         CCMFeature ccmFeature,
         Sender eisSender,
         ElasticInferenceServiceSettings eisSettings,
-        FeatureService featureService
+        FeatureService featureService,
+        InferencePreferencesCache inferencePreferencesCache
     ) {
         super(
             PutCCMConfigurationAction.NAME,
@@ -89,6 +92,7 @@ public class TransportPutCCMConfigurationAction extends TransportMasterNodeActio
         this.eisSender = Objects.requireNonNull(eisSender);
         this.eisSettings = Objects.requireNonNull(eisSettings);
         this.featureService = Objects.requireNonNull(featureService);
+        this.inferencePreferencesCache = Objects.requireNonNull(inferencePreferencesCache);
     }
 
     @Override
@@ -112,14 +116,19 @@ public class TransportPutCCMConfigurationAction extends TransportMasterNodeActio
             var authRequestHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
                 eisSettings.getElasticInferenceServiceUrl(),
                 threadPool,
-                new ValidationAuthenticationFactory(request.getApiKey())
+                new ValidationAuthenticationFactory(request.getApiKey()),
+                ccmFeature,
+                ccmService,
+                clusterService,
+                featureService,
+                inferencePreferencesCache
             );
 
             var errorListener = authValidationListener.delegateResponse((delegate, exception) -> {
                 // The exception will likely be a RetryException, so unwrap it to get to the real cause
                 var unwrappedException = ExceptionsHelper.unwrapCause(exception);
 
-                logger.atWarn().withThrowable(unwrappedException).log(FAILED_VALIDATION_LOG_MESSAGE);
+                logger.warn(FAILED_VALIDATION_LOG_MESSAGE, unwrappedException);
 
                 var restStatus = unwrappedException instanceof ElasticsearchStatusException statusException
                     ? statusException.status()

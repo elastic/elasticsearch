@@ -15,6 +15,7 @@ import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.get.TransportMultiGetActionTests;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.ReshardingActionHelper;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -192,9 +193,10 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
             transportService,
             clusterService,
             client,
-            new ActionFilters(emptySet()),
+            ActionFilters.EMPTY,
             projectResolver,
-            new Resolver()
+            new Resolver(),
+            new ReshardingActionHelper(clusterService, projectResolver, threadPool)
         ) {
             @Override
             protected void executeShardAction(
@@ -225,9 +227,10 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
             transportService,
             clusterService,
             client,
-            new ActionFilters(emptySet()),
+            ActionFilters.EMPTY,
             projectResolver,
-            new Resolver()
+            new Resolver(),
+            new ReshardingActionHelper(clusterService, projectResolver, threadPool)
         ) {
             @Override
             protected void executeShardAction(

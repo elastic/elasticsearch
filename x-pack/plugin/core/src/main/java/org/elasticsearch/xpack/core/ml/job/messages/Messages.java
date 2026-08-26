@@ -153,6 +153,13 @@ public final class Messages {
     public static final String JOB_AUDIT_DATAFEED_CONTINUED_REALTIME = "Datafeed continued in real-time";
     public static final String JOB_AUDIT_DATAFEED_DATA_ANALYSIS_ERROR = "Datafeed is encountering errors submitting data for analysis: {0}";
     public static final String JOB_AUDIT_DATAFEED_DATA_EXTRACTION_ERROR = "Datafeed is encountering errors extracting data: {0}";
+    public static final String JOB_AUDIT_DATAFEED_PARENT_CIRCUIT_BREAKER =
+        "A node ran low on memory and rejected this search. This is usually transient (for example during catch-up) and needs no action. "
+            + "The failed interval was not advanced: a continuously running datafeed retries it automatically; "
+            + "a one-off lookback must be restarted. "
+            + "If this keeps recurring, narrow the datafeed''s indices or query, reduce chunking_config.time_span, "
+            + "use aggregations, or scale up the node. "
+            + "Details: {0}";
     public static final String JOB_AUDIT_DATAFEED_LOOKBACK_COMPLETED = "Datafeed lookback completed";
     public static final String JOB_AUDIT_DATAFEED_LOOKBACK_NO_DATA = "Datafeed lookback retrieved no data";
     public static final String JOB_AUDIT_DATAFEED_NO_DATA = "Datafeed has been retrieving no data for a while";
@@ -165,6 +172,67 @@ public final class Messages {
     public static final String JOB_AUDIT_DATAFEED_STOPPED = "Datafeed stopped";
     public static final String JOB_AUDIT_DATAFEED_STOPPED_WITH_REASON = "Datafeed stopped with reason [{0}]";
     public static final String JOB_AUDIT_DATAFEED_ISOLATED = "Datafeed isolated";
+    public static final String JOB_AUDIT_DATAFEED_CPS_KEY_MINTED = "Internal cloud API key minted for cross-project datafeed";
+    public static final String JOB_AUDIT_DATAFEED_CPS_KEY_REKEYED = "Internal cloud API key re-keyed for cross-project datafeed update";
+    public static final String JOB_AUDIT_DATAFEED_CPS_KEY_REVOCATION_SKIPPED =
+        "Skipping revocation of cloud API key [{0}] — revoke primitive not yet available";
+    public static final String JOB_AUDIT_DATAFEED_CPS_KEY_REVOKED = "Internal cloud API key revoked for cross-project datafeed";
+    public static final String JOB_AUDIT_DATAFEED_CPS_KEY_REVOCATION_FAILED = "Failed to revoke internal cloud API key [{0}]";
+    public static final String JOB_AUDIT_DATAFEED_CPS_KEY_RUNTIME_FAILURE =
+        "Internal cloud API key [{0}] failed authentication during datafeed search; it may have been revoked or expired."
+            + " Re-key by issuing a cloud-authenticated POST _ml/datafeeds/_update on this datafeed";
+    public static final String JOB_AUDIT_DATAFEED_CPS_KEY_RUNTIME_AUTHZ_FAILURE =
+        "Datafeed search was denied (forbidden) while using internal cloud API key [{0}];"
+            + " the key's privileges or the requesting user's cross-project access may be insufficient."
+            + " Verify the key and the datafeed owner's project privileges,"
+            + " then re-key with a cloud-authenticated update if the key is the cause";
+    public static final String JOB_AUDIT_DATAFEED_CPS_KEY_CLEARED =
+        "Internal cloud API key cleared on datafeed update with non-cloud credentials";
+    public static final String JOB_AUDIT_DATAFEED_CPS_MIGRATION_PROJECT_ROUTING_DEFAULTED =
+        "CPS migration: project_routing defaulted to [{0}] to preserve local search scope. Use the update API to change the scope.";
+    public static final String DATAFEED_SCOPE_CHANGE_REQUIRES_CLOSED_JOB =
+        "Cannot update project_routing for datafeed [{0}] while job [{1}] is {2}."
+            + " Close the job so a rollback model snapshot can be retained.";
+    public static final String DATAFEED_SCOPE_CHANGE_REQUIRES_SNAPSHOT =
+        "Cannot update project_routing for datafeed [{0}] because job [{1}] has no model snapshot to use as a rollback point."
+            + " Open the job, ingest data, then close it before changing scope.";
+    public static final String DATAFEED_SCOPE_CHANGE_ROLLBACK_SNAPSHOT_DESCRIPTION =
+        "Automatic rollback snapshot retained before project_routing scope change [{0}] -> [{1}]";
+    public static final String JOB_AUDIT_DATAFEED_SCOPE_CHANGE_ROLLBACK_SNAPSHOT_RETAINED =
+        "Rollback model snapshot [{0}] retained before project_routing scope change: {1}";
+    public static final String JOB_AUDIT_IDLE_JOB_CLOSED = "Job closed automatically during maintenance: datafeed was stopped"
+        + " and no data was received for [{0}]. To change the idle timeout,"
+        + " adjust the [xpack.ml.idle_job_auto_close_timeout] setting"
+        + " or set it to [-1] to disable automatic closing.";
+    public static final String JOB_AUDIT_DATAFEED_SCOPE_CHANGED_LINKED = "Datafeed search scope changed: [{0}] linked."
+        + " Data distribution may have changed due to new data sources,"
+        + " which can cause temporary anomalies while the model adapts."
+        + " If detection quality degrades, consider specifying the source clusters explicitly"
+        + " and reviewing recent model snapshots for potential rollback.";
+    public static final String JOB_AUDIT_DATAFEED_SCOPE_CHANGED_UNLINKED = "Datafeed search scope changed: [{0}] unlinked."
+        + " Data distribution may have changed due to removed data sources,"
+        + " which can cause temporary anomalies as patterns the model learned are no longer present."
+        + " If detection quality degrades, consider specifying the source clusters explicitly"
+        + " and reviewing recent model snapshots for potential rollback.";
+    public static final String JOB_AUDIT_DATAFEED_SCOPE_CHANGED_BOTH = "Datafeed search scope changed: [{0}] linked, [{1}] unlinked."
+        + " Data distribution may have changed, which can cause temporary anomalies while the model adapts."
+        + " If detection quality degrades, consider specifying the source clusters explicitly"
+        + " and reviewing recent model snapshots for potential rollback.";
+    public static final String JOB_AUDIT_DATAFEED_SCOPE_CHANGE_ANOMALIES =
+        "Elevated anomaly scores detected after search scope change at [{0}]"
+            + " ({1}). [{2}] buckets with anomaly score >= 75 observed since the scope change."
+            + " This is likely caused by the data distribution shift."
+            + " Consider reviewing model snapshots if the anomalies are not meaningful.";
+    public static final String JOB_AUDIT_DATAFEED_FIELD_TYPE_CONFLICT =
+        "Cross-project field conflict for datafeed [{0}]: field [{1}] has incompatible types across linked projects"
+            + ": {2}. Align index mappings across projects or narrow project_routing to projects with a consistent schema.";
+    public static final String DATAFEED_TIME_FIELD_TYPE_CONFLICT =
+        "Cannot run datafeed [{0}]: required time field [{1}] has conflicting types across projects in scope: {2}."
+            + " Fix mappings so [{1}] uses the same type in every project in scope, or exclude the conflicting project(s) via"
+            + " project_routing.";
+    public static final String JOB_AUDIT_DATAFEED_PROJECT_EXCLUDED_FIELD_CONFLICT =
+        "Datafeed [{0}] excluded project [{1}] from this run: required time field [{2}] has conflicting types: {3}."
+            + " Fix mappings in [{1}] to resume searching it, or remove it from project_routing.";
     public static final String JOB_AUDIT_DELETING = "Deleting job by task with id ''{0}''";
     public static final String JOB_AUDIT_DELETING_FAILED = "Error deleting job: {0}";
     public static final String JOB_AUDIT_DELETED = "Job deleted";

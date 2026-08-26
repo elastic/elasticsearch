@@ -13,6 +13,7 @@ import com.sun.net.httpserver.HttpServer;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.network.InetAddresses;
 import org.junit.rules.ExternalResource;
 
 import java.io.InputStream;
@@ -44,7 +45,8 @@ public class EnterpriseGeoIpHttpFixture extends ExternalResource {
     }
 
     public String getAddress() {
-        return "http://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort() + "/";
+        String host = InetAddresses.toUriString(server.getAddress().getAddress());
+        return "http://" + host + ":" + server.getAddress().getPort() + "/";
     }
 
     @Override

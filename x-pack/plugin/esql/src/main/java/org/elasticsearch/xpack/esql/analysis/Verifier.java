@@ -7,36 +7,62 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
+import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
-import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
-import org.elasticsearch.xpack.esql.plan.logical.Insist;
+import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
+import org.elasticsearch.xpack.esql.session.FieldNameUtils;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 
@@ -53,12 +79,16 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.areTypesCompatible;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.formatIncompatibleTypesMessage;
 
 /**
  * This class is part of the planner. Responsible for failing impossible queries with a human-readable error message.  In particular, this
  * step does type resolution and fails queries based on invalid type expressions.
  */
 public class Verifier {
+
+    static final String UNMAPPED_TIMESTAMP_SUFFIX = "; the [unmapped_fields] setting does not apply to the implicit @timestamp reference";
 
     /**
      * Extra plan verification checks defined in plugins.
@@ -81,23 +111,42 @@ public class Verifier {
      * Verify that a {@link LogicalPlan} can be executed.
      *
      * @param plan The logical plan to be verified
-     * @param partialMetrics a bitset indicating a certain command (or "telemetry feature") is present in the query
-     * @return a collection of verification failures; empty if and only if the plan is valid
+     * @param partialMetrics A bitset indicating a certain command (or "telemetry feature") is present in the query
+     * @param context The analyzer context.
+     * @return A collection of verification failures; empty if and only if the plan is valid
      */
-    Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics) {
+    Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics, AnalyzerContext context) {
         assert partialMetrics != null;
+        UnmappedResolution unmappedResolution = context.unmappedResolution();
+
         Failures failures = new Failures();
+        boolean unmappedTimestampHandled = unmappedResolution != UnmappedResolution.DEFAULT
+            && isTimestampUnmappedInAllIndices(plan, failures);
 
         // quick verification for unresolved attributes
-        checkUnresolvedAttributes(plan, failures);
+        checkUnresolvedAttributes(plan, failures, unmappedTimestampHandled);
+
+        ConfigurationAware.verifyNoMarkerConfiguration(plan, failures);
 
         // in case of failures bail-out as all other checks will be redundant
         if (failures.hasFailures()) {
             return failures.failures();
         }
 
+        if (unmappedResolution.loadsUnmappedFields()) {
+            checkLoadModeDisallowedCommands(plan, failures, unmappedResolution);
+            checkFlattenedSubFieldLoad(plan, failures, unmappedResolution);
+        }
+
+        if (unmappedResolution.loadsAllUnmappedFields()) {
+            checkLoadAllModeSupportedCommands(plan, failures);
+        }
+
+        checkTStepIncompatibleWithTRange(plan, failures);
+        checkTimeSeriesCollapseSupported(plan, failures, context.minimumVersion());
+
         // collect plan checkers
-        var planCheckers = planCheckers(plan);
+        var planCheckers = planCheckers(plan, context.analysisRegistry());
         planCheckers.addAll(extraCheckers);
 
         // Concrete verifications
@@ -108,11 +157,19 @@ public class Verifier {
             }
 
             planCheckers.forEach(c -> c.accept(p, failures));
+            p.forEachExpression(e -> {
+                if (e instanceof PostAnalysisVerificationAware va) {
+                    va.postAnalysisVerification(context.analysisRegistry(), failures);
+                }
+            });
 
             checkOperationsOnUnsignedLong(p, failures);
             checkBinaryComparison(p, failures);
-            checkInsist(p, failures);
+            checkUnsupportedAttributeRenaming(p, failures);
             checkLimitBeforeInlineStats(p, failures);
+            checkTimeSeriesWithoutOnlyInTimeSeriesAggregate(p, failures);
+            checkBucketIncludeEmptyBucketsIsGrouping(p, failures);
+            checkBucketIncludeEmptyBucketsNotInInlineStats(p, failures);
         });
 
         if (failures.hasFailures() == false) {
@@ -127,7 +184,45 @@ public class Verifier {
         return failures.failures();
     }
 
-    private static void checkUnresolvedAttributes(LogicalPlan plan, Failures failures) {
+    /** Fails fast with a 4xx so older recipients never see the node and 5xx on deserialization. */
+    private static void checkTimeSeriesCollapseSupported(LogicalPlan plan, Failures failures, TransportVersion minimumVersion) {
+        if (minimumVersion.supports(TimeSeriesCollapse.TS_COLLAPSE)) {
+            return;
+        }
+        plan.forEachDown(
+            TimeSeriesCollapse.class,
+            tsc -> failures.add(
+                fail(
+                    tsc,
+                    "TS_COLLAPSE is not supported on every participating node; "
+                        + "rolling upgrade in progress, or a remote cluster is on an older version"
+                )
+            )
+        );
+    }
+
+    private static void checkTStepIncompatibleWithTRange(LogicalPlan plan, Failures failures) {
+        var hasTRange = new Holder<>(false);
+        plan.forEachUp(p -> p.forEachExpression(TRange.class, tr -> hasTRange.set(true)));
+        if (hasTRange.get() == false) {
+            return;
+        }
+        var reported = new Holder<>(false);
+        plan.forEachUp(p -> p.forEachExpression(TStep.class, tstep -> {
+            if (reported.get() == false) {
+                failures.add(
+                    fail(
+                        tstep,
+                        "[{}] cannot be used together with TRANGE; use a `@timestamp` range in the request query filter instead",
+                        tstep.sourceText()
+                    )
+                );
+                reported.set(true);
+            }
+        }));
+    }
+
+    private static void checkUnresolvedAttributes(LogicalPlan plan, Failures failures, boolean skipUnresolvedTimestamp) {
         plan.forEachUp(p -> {
             // if the children are unresolved, so will this node; counting it will only add noise
             if (p.childrenResolved() == false) {
@@ -149,14 +244,10 @@ public class Verifier {
                 }
 
                 e.forEachUp(ae -> {
-                    // Special handling for Project and unsupported/union types: disallow renaming them but pass them through otherwise.
-                    if (p instanceof Project || p instanceof Insist) {
-                        if (ae instanceof Alias as && as.child() instanceof UnsupportedAttribute ua) {
-                            failures.add(fail(ae, ua.unresolvedMessage()));
-                        }
-                        if (ae instanceof UnsupportedAttribute) {
-                            return;
-                        }
+                    // UnsupportedAttribute can pass through a Project unchanged.
+                    // Renaming is checked separately in #checkUnsupportedAttributeRenaming.
+                    if (p instanceof Project && ae instanceof UnsupportedAttribute) {
+                        return;
                     }
 
                     // Do not fail multiple times in case the children are already unresolved.
@@ -164,6 +255,9 @@ public class Verifier {
                         return;
                     }
 
+                    if (skipUnresolvedTimestamp && ae instanceof UnresolvedTimestamp) {
+                        return;
+                    }
                     if (ae instanceof Unresolvable u) {
                         failures.add(fail(ae, u.unresolvedMessage()));
                     }
@@ -205,9 +299,7 @@ public class Verifier {
                 else {
                     lookup.matchFields().forEach(unresolvedExpressions);
                 }
-            }
-
-            else {
+            } else {
                 p.forEachExpression(unresolvedExpressions);
             }
         });
@@ -216,11 +308,11 @@ public class Verifier {
     /**
      * Build a list of checkers based on the components in the plan.
      */
-    private static List<BiConsumer<LogicalPlan, Failures>> planCheckers(LogicalPlan plan) {
+    private static List<BiConsumer<LogicalPlan, Failures>> planCheckers(LogicalPlan plan, AnalysisRegistry analysisRegistry) {
         List<BiConsumer<LogicalPlan, Failures>> planCheckers = new ArrayList<>();
         Consumer<? super Node<?>> collectPlanCheckers = p -> {
             if (p instanceof PostAnalysisPlanVerificationAware pva) {
-                planCheckers.add(pva.postAnalysisPlanVerification());
+                planCheckers.add(pva.postAnalysisPlanVerification(analysisRegistry));
             }
         };
         plan.forEachDown(p -> {
@@ -230,7 +322,7 @@ public class Verifier {
             if (p instanceof PostAnalysisVerificationAware va) {
                 planCheckers.add((lp, failures) -> {
                     if (lp.getClass().equals(va.getClass())) {
-                        va.postAnalysisVerification(failures);
+                        va.postAnalysisVerification(analysisRegistry, failures);
                     }
                 });
             }
@@ -238,20 +330,80 @@ public class Verifier {
         return planCheckers;
     }
 
+    /**
+     * This validates only the negation operator, the rest of the validation is performed in
+     * {@link Verifier#validateBinaryComparison(BinaryComparison)}
+     * and
+     * {@link EsqlBinaryComparison#areTypesCompatible(DataType, DataType)}
+     */
     private static void checkOperationsOnUnsignedLong(LogicalPlan p, Failures failures) {
-        p.forEachExpression(e -> {
-            Failure f = null;
-
-            if (e instanceof BinaryOperator<?, ?, ?, ?> bo) {
-                f = validateUnsignedLongOperator(bo);
-            } else if (e instanceof Neg neg) {
-                f = validateUnsignedLongNegation(neg);
-            }
-
+        p.forEachExpression(Neg.class, neg -> {
+            Failure f = validateUnsignedLongNegation(neg);
             if (f != null) {
                 failures.add(f);
             }
         });
+    }
+
+    /**
+     * {@code include_empty_buckets} can only be honored when the bucketing grouping function is a top-level grouping key: the operator
+     * fills gaps by enumerating the bucket boundaries and reading the raw bucket column off the grouping. Nested inside another
+     * expression (e.g. {@code STATS ... BY SIN(BUCKET(..., {"include_empty_buckets": true}))}) that column is not available as a
+     * grouping, and non-injective wrappers make "one row per empty bucket" ambiguous. So it's rejected here.
+     * <p>
+     * This covers both {@code BUCKET} and the not-yet-rewritten {@code TBUCKET} (surrogated to {@code BUCKET} later, in the optimizer):
+     * the Verifier runs at analysis time, so both forms can still carry the option here and must be checked.
+     */
+    private static void checkBucketIncludeEmptyBucketsIsGrouping(LogicalPlan p, Failures failures) {
+        if (p instanceof Aggregate aggregate) {
+            Set<GroupingFunction> topLevelGroupingFunctions = new HashSet<>();
+            for (Expression grouping : aggregate.groupings()) {
+                if (Alias.unwrap(grouping) instanceof GroupingFunction groupingFunction) {
+                    topLevelGroupingFunctions.add(groupingFunction);
+                }
+            }
+            aggregate.forEachExpression(GroupingFunction.class, groupingFunction -> {
+                if (topLevelGroupingFunctions.contains(groupingFunction)) {
+                    return;
+                }
+                if (groupingFunction instanceof Bucket bucket && bucket.includeEmptyBuckets()) {
+                    failures.add(
+                        fail(
+                            groupingFunction,
+                            "[{}] is only supported when [BUCKET] is used directly as a grouping key",
+                            Bucket.INCLUDE_EMPTY_BUCKETS
+                        )
+                    );
+                }
+                if (groupingFunction instanceof TBucket tBucket && tBucket.includeEmptyBuckets()) {
+                    failures.add(
+                        fail(
+                            groupingFunction,
+                            "[{}] is only supported when [TBUCKET] is used directly as a grouping key",
+                            Bucket.INCLUDE_EMPTY_BUCKETS
+                        )
+                    );
+                }
+            });
+        }
+    }
+
+    /**
+     * {@code include_empty_buckets} fills missing histogram rows after aggregation. That does not fit {@link InlineStats},
+     * which left-joins aggregate results back onto the input rows: synthesizing empty buckets would invent join keys that
+     * have no matching input rows (or change join cardinality in surprising ways). Reject the option on INLINE STATS.
+     */
+    private static void checkBucketIncludeEmptyBucketsNotInInlineStats(LogicalPlan p, Failures failures) {
+        if (p instanceof InlineStats inlineStats) {
+            inlineStats.aggregate().forEachExpression(e -> {
+                if (e instanceof Bucket bucket && bucket.includeEmptyBuckets()) {
+                    failures.add(fail(bucket, "[{}] is not supported with [INLINE STATS]", Bucket.INCLUDE_EMPTY_BUCKETS));
+                }
+                if (e instanceof TBucket tBucket && tBucket.includeEmptyBuckets()) {
+                    failures.add(fail(tBucket, "[{}] is not supported with [INLINE STATS]", Bucket.INCLUDE_EMPTY_BUCKETS));
+                }
+            });
+        }
     }
 
     private static void checkBinaryComparison(LogicalPlan p, Failures failures) {
@@ -263,12 +415,19 @@ public class Verifier {
         });
     }
 
-    private static void checkInsist(LogicalPlan p, Failures failures) {
-        if (p instanceof Insist i) {
-            LogicalPlan child = i.child();
-            if ((child instanceof EsRelation || child instanceof Insist) == false) {
-                failures.add(fail(i, "[insist] can only be used after [from] or [insist] commands, but was [{}]", child.sourceText()));
-            }
+    /**
+     * Check that UnsupportedAttribute is not renamed via Alias in a Project.
+     * UnsupportedAttribute can pass through a Project unchanged, but renaming is not allowed.
+     * This check runs unconditionally (not gated by {@link LogicalPlan#resolved()}) because
+     * {@link Project#expressionsResolved()} treats UnsupportedAttribute as resolved to allow pass-through.
+     */
+    private static void checkUnsupportedAttributeRenaming(LogicalPlan p, Failures failures) {
+        if (p instanceof Project) {
+            p.forEachExpression(Alias.class, alias -> {
+                if (alias.child() instanceof UnsupportedAttribute ua) {
+                    failures.add(fail(alias, ua.unresolvedMessage()));
+                }
+            });
         }
     }
 
@@ -280,12 +439,11 @@ public class Verifier {
      */
     private static void checkLimitBeforeInlineStats(LogicalPlan plan, Failures failures) {
         if (plan instanceof InlineStats is) {
-            Holder<Limit> inlineStatsDescendantLimit = new Holder<>();
+            Holder<LogicalPlan> inlineStatsDescendantLimit = new Holder<>();
             is.forEachDownMayReturnEarly((p, breakEarly) -> {
-                if (p instanceof Limit l) {
-                    inlineStatsDescendantLimit.set(l);
+                if (p instanceof Limit || p instanceof LimitBy) {
+                    inlineStatsDescendantLimit.set(p);
                     breakEarly.set(true);
-                    return;
                 }
             });
 
@@ -308,6 +466,154 @@ public class Verifier {
                 );
             }
         }
+    }
+
+    /**
+     * {@code WITHOUT(...)} is only supported on the time-series {@link TimeSeriesAggregate} path for now; relax when non-TS support lands.
+     */
+    private static void checkTimeSeriesWithoutOnlyInTimeSeriesAggregate(LogicalPlan p, Failures failures) {
+        if (p instanceof Aggregate agg && (p instanceof TimeSeriesAggregate) == false) {
+            for (Expression g : agg.groupings()) {
+                if (Alias.unwrap(g) instanceof TimeSeriesWithout) {
+                    failures.add(fail(g, "WITHOUT is only supported in time-series queries (i.e. TS | ...) at the moment"));
+                }
+            }
+        }
+    }
+
+    /**
+     * The {@code unmapped_fields} setting does not apply to the implicit {@code @timestamp} reference ({@link TimestampAware} functions).
+     * Only emits the specific message when {@code @timestamp} is truly absent from all source index mappings;
+     * if the field was present but dropped/renamed by the query, the generic unresolved-attribute message is more appropriate.
+     * See https://github.com/elastic/elasticsearch/issues/142127
+     */
+    private static boolean isTimestampUnmappedInAllIndices(LogicalPlan plan, Failures failures) {
+        if (plan.anyMatch(p -> p instanceof EsRelation r && r.indexMode() != IndexMode.LOOKUP && hasTimestamp(r))) {
+            return false;
+        }
+        plan.forEachDown(p -> {
+            if (p instanceof TimestampAware ta && ta.timestamp() instanceof UnresolvedTimestamp) {
+                failures.add(fail(p, "[{}] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX + UNMAPPED_TIMESTAMP_SUFFIX, p.sourceText()));
+            }
+            p.forEachExpression(Expression.class, e -> {
+                if (e instanceof TimestampAware ta && ta.timestamp() instanceof UnresolvedTimestamp) {
+                    failures.add(fail(e, "[{}] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX + UNMAPPED_TIMESTAMP_SUFFIX, e.sourceText()));
+                }
+            });
+        });
+        return true;
+    }
+
+    private static boolean hasTimestamp(EsRelation relation) {
+        for (Attribute attr : relation.output()) {
+            if (MetadataAttribute.TIMESTAMP_FIELD.equals(attr.name())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Neither loading mode yet supports PROMQL. This is checked separately from
+     * {@link #checkLoadAllModeSupportedCommands}, which the PROMQL command escapes: it is rewritten into a {@code TS} before
+     * verification runs, so only its {@link TimeSeriesAggregate.Origin} still tells the two apart.
+     */
+    private static void checkLoadModeDisallowedCommands(LogicalPlan plan, Failures failures, UnmappedResolution unmappedResolution) {
+        plan.forEachDown(p -> {
+            if (p instanceof TimeSeriesAggregate ts && ts.origin() == TimeSeriesAggregate.Origin.PROMQL_COMMAND) {
+                failures.add(fail(p, "PROMQL is not supported with unmapped_fields=\"{}\"", unmappedResolution.settingValue()));
+            }
+        });
+    }
+
+    /**
+     * Temporary MVP guardrail for {@code unmapped_fields="LOAD_ALL"} until the interaction of all commands with
+     * {@code _unmapped_fields} is designed and implemented.
+     */
+    private static void checkLoadAllModeSupportedCommands(LogicalPlan plan, Failures failures) {
+        plan.forEachDown(p -> {
+            if (supportedInLoadAllMode(p) == false) {
+                failures.add(
+                    fail(
+                        p,
+                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT "
+                            + "and STATS commands; [{}] is not supported yet",
+                        p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
+                            : p instanceof TelemetryAware ta ? ta.telemetryLabel()
+                            : p.nodeName()
+                    )
+                );
+            }
+        });
+    }
+
+    private static boolean supportedInLoadAllMode(LogicalPlan plan) {
+        // Keep/Drop/Rename may still be present, or already resolved to Project, by the time verification runs.
+        return (plan instanceof EsRelation esr && esr.indexMode().isTsdb() == false)
+            || plan instanceof Project
+            || plan instanceof Keep
+            || plan instanceof Drop
+            || plan instanceof Rename
+            || plan instanceof Eval
+            || plan instanceof Filter
+            || plan instanceof OrderBy
+            || plan instanceof Limit
+            || plan instanceof Aggregate;
+    }
+
+    /**
+     * Reject loading sub-fields of flattened fields in either loading mode, by checking if any
+     * {@link PotentiallyUnmappedKeywordEsField} is a sub-field of a parent field whose original type is flattened. The reason is that
+     * flattened subfields resolution may eventually differ from what happens when unmapped fields are loaded from {@code _source}.
+     */
+    private static void checkFlattenedSubFieldLoad(LogicalPlan plan, Failures failures, UnmappedResolution unmappedResolution) {
+        plan.forEachDown(EsRelation.class, esRelation -> {
+            Set<String> flattenedFieldNames = flattenedFieldNames(esRelation.output());
+
+            if (flattenedFieldNames.isEmpty()) {
+                return;
+            }
+
+            for (Attribute attr : esRelation.output()) {
+                if (!(attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField)) {
+                    continue;
+                }
+
+                String name = fa.name();
+                List<String> prefixes = FieldNameUtils.parentPrefixes(name);
+                for (String parent : prefixes) {
+                    if (flattenedFieldNames.contains(parent)) {
+                        // It is sufficient to find "a" flattened field with a name matching the parent's.
+                        Failure failure = fail(
+                            fa,
+                            "Loading subfield [{}] when parent [{}] is of flattened field type is not supported with "
+                                + "unmapped_fields=\"{}\"",
+                            name,
+                            parent,
+                            unmappedResolution.settingValue()
+                        );
+                        failures.add(failure);
+                        break;
+                    }
+                }
+            }
+        });
+    }
+
+    private static Set<String> flattenedFieldNames(List<Attribute> attributes) {
+        Set<String> names = new HashSet<>();
+
+        for (Attribute attribute : attributes) {
+            if (attribute instanceof FieldAttribute fa) {
+                if (fa.field() instanceof UnsupportedEsField uef && uef.getOriginalTypes().contains(FlattenedFieldMapper.CONTENT_TYPE)) {
+                    names.add(fa.name());
+                } else if (fa.dataType() == DataType.FLATTENED) {
+                    names.add(fa.name());
+                }
+            }
+        }
+
+        return names;
     }
 
     private void licenseCheck(LogicalPlan plan, Failures failures) {
@@ -344,18 +650,25 @@ public class Verifier {
      *         otherwise a failure message suitable to return to the user.
      */
     public static Failure validateBinaryComparison(BinaryComparison bc) {
-        if (bc.left().dataType().isNumeric()) {
-            if (false == bc.right().dataType().isNumeric()) {
-                return fail(
-                    bc,
-                    "first argument of [{}] is [numeric] so second argument must also be [numeric] but was [{}]",
-                    bc.sourceText(),
-                    bc.right().dataType().typeName()
-                );
-            }
+        if (areTypesCompatible(bc.left().dataType(), bc.right().dataType())) {
             return null;
         }
 
+        Failure typeCheckFailure = checkBinaryComparisonLeftOperandType(bc);
+        if (typeCheckFailure != null) {
+            return typeCheckFailure;
+        }
+
+        return fail(bc, formatIncompatibleTypesMessage(bc.left().dataType(), bc.right().dataType(), bc.sourceText()));
+    }
+
+    /**
+     * Check that the left operand of a binary comparison is of an allowed type.
+     * This validates that the comparison operation is supported for the given data types.
+     *
+     * @return a Failure if the left operand type is not allowed, null otherwise
+     */
+    private static Failure checkBinaryComparisonLeftOperandType(BinaryComparison bc) {
         List<DataType> allowed = new ArrayList<>();
         allowed.add(DataType.KEYWORD);
         allowed.add(DataType.TEXT);
@@ -382,50 +695,6 @@ public class Verifier {
         );
         if (false == r.resolved()) {
             return fail(bc, r.message());
-        }
-        if (DataType.isString(bc.left().dataType()) && DataType.isString(bc.right().dataType())) {
-            return null;
-        }
-
-        // Allow mixed millisecond and nanosecond binary comparisons
-        if (bc.left().dataType().isDate() && bc.right().dataType().isDate()) {
-            return null;
-        }
-
-        if (bc.left().dataType() != bc.right().dataType()) {
-            return fail(
-                bc,
-                "first argument of [{}] is [{}] so second argument must also be [{}] but was [{}]",
-                bc.sourceText(),
-                bc.left().dataType().typeName(),
-                bc.left().dataType().typeName(),
-                bc.right().dataType().typeName()
-            );
-        }
-        return null;
-    }
-
-    /** Ensure that UNSIGNED_LONG types are not implicitly converted when used in arithmetic binary operator, as this cannot be done since:
-     *  - unsigned longs are passed through the engine as longs, so/and
-     *  - negative values cannot be represented (i.e. range [Long.MIN_VALUE, "abs"(Long.MIN_VALUE) + Long.MAX_VALUE] won't fit on 64 bits);
-     *  - a conversion to double isn't possible, since upper range UL values can no longer be distinguished
-     *  ex: (double) 18446744073709551615 == (double) 18446744073709551614
-     *  - the implicit ESQL's Cast doesn't currently catch Exception and nullify the result.
-     *  Let the user handle the operation explicitly.
-     */
-    public static Failure validateUnsignedLongOperator(BinaryOperator<?, ?, ?, ?> bo) {
-        DataType leftType = bo.left().dataType();
-        DataType rightType = bo.right().dataType();
-        if ((leftType == DataType.UNSIGNED_LONG || rightType == DataType.UNSIGNED_LONG) && leftType != rightType) {
-            return fail(
-                bo,
-                "first argument of [{}] is [{}] and second is [{}]. [{}] can only be operated on together with another [{}]",
-                bo.sourceText(),
-                leftType.typeName(),
-                rightType.typeName(),
-                DataType.UNSIGNED_LONG.typeName(),
-                DataType.UNSIGNED_LONG.typeName()
-            );
         }
         return null;
     }

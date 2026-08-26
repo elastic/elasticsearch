@@ -43,8 +43,7 @@ public class ElasticsearchUncaughtExceptionHandlerTests extends ESTestCase {
             new StackOverflowError(),
             new UnknownError(),
             new IOError(new IOException("fatal")),
-            new Error() {
-            }
+            new Error() {}
         );
         final Thread thread = new Thread(() -> { throw error; });
         final String name = randomAlphaOfLength(10);

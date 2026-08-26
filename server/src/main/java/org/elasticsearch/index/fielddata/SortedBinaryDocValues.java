@@ -9,7 +9,9 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
@@ -20,6 +22,16 @@ import java.io.IOException;
  */
 // TODO: Should it expose a count (current approach) or return null when there are no more values?
 public abstract class SortedBinaryDocValues {
+
+    @Nullable
+    private final DocIdSetIterator docIdIterator;
+
+    /**
+     * @param docIdSetIterator, the {@link DocIdSetIterator} that backs this instance.
+     */
+    public SortedBinaryDocValues(@Nullable DocIdSetIterator docIdSetIterator) {
+        this.docIdIterator = docIdSetIterator;
+    }
 
     /**
      * Advance this instance to the given document id
@@ -36,10 +48,69 @@ public abstract class SortedBinaryDocValues {
     public abstract int docValueCount();
 
     /**
+     * @return the doc id set iterator or null when not available.
+     */
+    @Nullable
+    public DocIdSetIterator docIdIterator() {
+        return docIdIterator;
+    }
+
+    /**
      * Iterates to the next value in the current document. Do not call this more than
      * {@link #docValueCount} times for the document.
      * Note that the returned {@link BytesRef} might be reused across invocations.
      */
     public abstract BytesRef nextValue() throws IOException;
 
+    /**
+     * Indicates the sparsity of the values for this field.
+     */
+    public Sparsity getSparsity() {
+        return Sparsity.UNKNOWN;
+    }
+
+    /**
+     * Indicates the per-document value mode for this field.
+     */
+    public ValueMode getValueMode() {
+        return ValueMode.UNKNOWN;
+    }
+
+    /**
+     * Describes the sparsity of the values for a field.
+     */
+    public enum Sparsity {
+        /**
+         * Not all documents have a value for a field.
+         */
+        SPARSE,
+        /**
+         * All documents have at least one value for a field.
+         */
+        DENSE,
+        /**
+         * The sparsity is unknown.
+         */
+        UNKNOWN
+    }
+
+    /**
+     * The per-document value mode for a field.
+     */
+    public enum ValueMode {
+
+        /**
+         * All documents have at most one value per field.
+         */
+        SINGLE_VALUED,
+        /**
+         * At least one document has multiple values per field.
+         */
+        MULTI_VALUED,
+        /**
+         * The per-document value mode is unknown.
+         */
+        UNKNOWN
+
+    }
 }

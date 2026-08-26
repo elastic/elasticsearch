@@ -32,6 +32,7 @@ import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.Before;
 
 import java.util.Collections;
 import java.util.List;
@@ -50,9 +51,8 @@ public class RestCatCircuitBreakerActionTests extends RestActionTestCase {
     private NodeClient nodeClient;
     private NodesStatsResponse nodeStatsResponse;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initAction() throws Exception {
         action = new RestCatCircuitBreakerAction();
         nodeStatsResponse = mock(NodesStatsResponse.class);
         List<NodeStats> allNodeStats = createNodeStatsList();
@@ -80,7 +80,7 @@ public class RestCatCircuitBreakerActionTests extends RestActionTestCase {
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(GET)
             .withPath("/_cat/circuit_breaker")
             .build();
-        FakeRestChannel channel = new FakeRestChannel(restRequest, true, 0);
+        FakeRestChannel channel = new FakeRestChannel(restRequest, true);
 
         action.handleRequest(restRequest, channel, nodeClient);
 
@@ -104,7 +104,7 @@ public class RestCatCircuitBreakerActionTests extends RestActionTestCase {
             .withPath("/_cat/circuit_breaker/request")
             .withParams(Map.of("circuit_breaker_patterns", "request"))
             .build();
-        FakeRestChannel channel = new FakeRestChannel(restRequest, true, 0);
+        FakeRestChannel channel = new FakeRestChannel(restRequest, true);
 
         action.handleRequest(restRequest, channel, nodeClient);
 
@@ -121,7 +121,7 @@ public class RestCatCircuitBreakerActionTests extends RestActionTestCase {
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(GET)
             .withPath("/_cat/circuit_breaker")
             .build();
-        FakeRestChannel channel = new FakeRestChannel(restRequest, true, 0);
+        FakeRestChannel channel = new FakeRestChannel(restRequest, true);
 
         when(nodeStatsResponse.failures()).thenReturn(List.of(new FailedNodeException("failed-node", "error message", new Throwable())));
 

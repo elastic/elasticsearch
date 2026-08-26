@@ -8,37 +8,33 @@ package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.remote.RemoteInfoResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.local.TransportLocalProjectMetadataAction;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.metadata.View;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 
 public class TransportGetViewAction extends TransportLocalProjectMetadataAction<GetViewAction.Request, GetViewAction.Response> {
-    public static final ActionType<RemoteInfoResponse> TYPE = new ActionType<>(GetViewAction.NAME);
-    private final ViewService viewService;
+
+    private final ViewResolutionService viewResolutionService;
 
     @Inject
     public TransportGetViewAction(
         TransportService transportService,
         ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
-        ProjectResolver projectResolver,
-        ViewService viewService
+        ProjectResolver projectResolver
     ) {
         super(
             GetViewAction.NAME,
@@ -48,7 +44,7 @@ public class TransportGetViewAction extends TransportLocalProjectMetadataAction<
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             projectResolver
         );
-        this.viewService = viewService;
+        this.viewResolutionService = new ViewResolutionService(indexNameExpressionResolver);
     }
 
     @Override
@@ -58,31 +54,28 @@ public class TransportGetViewAction extends TransportLocalProjectMetadataAction<
         ProjectState project,
         ActionListener<GetViewAction.Response> listener
     ) {
-        ProjectId projectId = project.projectId();
-        Collection<View> views = new ArrayList<>();
-        List<String> missing = new ArrayList<>();
-        List<String> names = request.names();
-        if (names.isEmpty()) {
-            views = viewService.getMetadata(projectId).views().values();
-        } else {
-            for (String name : names) {
-                View view = viewService.get(projectId, name);
-                if (view == null) {
-                    missing.add(name);
-                } else {
-                    views.add(view);
-                }
-            }
+        // An explicit name that doesn't resolve to a view throws IndexNotFoundException before the Type.VIEW filter
+        // runs. (A co-resident data stream resolves to empty, not a throw — views don't share the dataset
+        // data-stream leak.) Translate the throw to a view-shaped not-found instead of leaking a raw
+        // index_not_found_exception, mirroring the dataset get/delete and view delete transports.
+        final ViewResolutionService.ViewResolutionResult result;
+        try {
+            result = viewResolutionService.resolveViews(
+                project,
+                request.indices(),
+                request.indicesOptions(),
+                request.getResolvedIndexExpressions()
+            );
+        } catch (IndexNotFoundException e) {
+            final String missing = e.getIndex() != null ? e.getIndex().getName() : String.join(",", request.indices());
+            listener.onFailure(new ResourceNotFoundException("view [{}] not found", missing));
+            return;
         }
-        if (missing.isEmpty() == false) {
-            listener.onFailure(new ResourceNotFoundException("Views do not exist: " + String.join(", ", missing)));
-        } else {
-            listener.onResponse(new GetViewAction.Response(views));
-        }
+        listener.onResponse(new GetViewAction.Response(List.of(result.views())));
     }
 
     @Override
     protected ClusterBlockException checkBlock(GetViewAction.Request request, ProjectState state) {
-        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.METADATA_READ);
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 }

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.authc.saml;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -35,7 +36,7 @@ public interface SamlAuthenticateResponseHandler {
      * The factory is used to make handler pluggable.
      */
     interface Factory {
-        SamlAuthenticateResponseHandler create(Settings settings, TokenService tokenService, Clock clock);
+        SamlAuthenticateResponseHandler create(Settings settings, TokenService tokenService, ClusterService clusterService, Clock clock);
     }
 
     /**
@@ -44,7 +45,12 @@ public interface SamlAuthenticateResponseHandler {
     class DefaultFactory implements Factory {
 
         @Override
-        public SamlAuthenticateResponseHandler create(Settings settings, TokenService tokenService, Clock clock) {
+        public SamlAuthenticateResponseHandler create(
+            Settings settings,
+            TokenService tokenService,
+            ClusterService clusterService,
+            Clock clock
+        ) {
             return new DefaultSamlAuthenticateResponseHandler(tokenService);
         }
     }

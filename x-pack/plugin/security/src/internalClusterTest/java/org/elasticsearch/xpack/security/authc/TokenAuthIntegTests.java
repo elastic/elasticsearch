@@ -18,6 +18,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
@@ -43,7 +44,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -407,13 +407,16 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
     public void testInvalidateNotValidRefreshTokens() throws Exception {
         final TokenService tokenService = internalCluster().getInstance(TokenService.class);
+        final var bytesRefRecycler = internalCluster().getInstance(BigArrays.class).bytesRefRecycler();
+
         // Perform a request to invalidate a refresh token, before the tokens index is created
         ResponseException e = expectThrows(
             ResponseException.class,
             () -> invalidateRefreshToken(
                 TokenService.prependVersionAndEncodeRefreshToken(
                     TransportVersion.current(),
-                    tokenService.getRandomTokenBytes(TransportVersion.current(), true).v2()
+                    tokenService.getRandomTokenBytes(TransportVersion.current(), true).v2(),
+                    bytesRefRecycler
                 )
             )
         );
@@ -423,7 +426,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             () -> invalidateRefreshToken(
                 TokenService.prependVersionAndEncodeRefreshToken(
                     MINIMUM_TRANSPORT_VERSION,
-                    tokenService.getRandomTokenBytes(MINIMUM_TRANSPORT_VERSION, true).v2()
+                    tokenService.getRandomTokenBytes(MINIMUM_TRANSPORT_VERSION, true).v2(),
+                    bytesRefRecycler
                 )
             )
         );
@@ -443,7 +447,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         byte[] longerRefreshToken = new byte[randomIntBetween(17, 24)];
         random().nextBytes(longerRefreshToken);
         invalidateResponse = invalidateRefreshToken(
-            TokenService.prependVersionAndEncodeRefreshToken(MINIMUM_TRANSPORT_VERSION, longerRefreshToken)
+            TokenService.prependVersionAndEncodeRefreshToken(MINIMUM_TRANSPORT_VERSION, longerRefreshToken, bytesRefRecycler)
         );
         assertThat(invalidateResponse.invalidated(), equalTo(0));
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
@@ -452,7 +456,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         longerRefreshToken = new byte[randomIntBetween(25, 32)];
         random().nextBytes(longerRefreshToken);
         invalidateResponse = invalidateRefreshToken(
-            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.current(), longerRefreshToken)
+            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.current(), longerRefreshToken, bytesRefRecycler)
         );
         assertThat(invalidateResponse.invalidated(), equalTo(0));
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
@@ -461,7 +465,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         byte[] shorterRefreshToken = new byte[randomIntBetween(12, 15)];
         random().nextBytes(shorterRefreshToken);
         invalidateResponse = invalidateRefreshToken(
-            TokenService.prependVersionAndEncodeRefreshToken(MINIMUM_TRANSPORT_VERSION, shorterRefreshToken)
+            TokenService.prependVersionAndEncodeRefreshToken(MINIMUM_TRANSPORT_VERSION, shorterRefreshToken, bytesRefRecycler)
         );
         assertThat(invalidateResponse.invalidated(), equalTo(0));
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
@@ -470,7 +474,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         shorterRefreshToken = new byte[randomIntBetween(16, 23)];
         random().nextBytes(shorterRefreshToken);
         invalidateResponse = invalidateRefreshToken(
-            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.current(), shorterRefreshToken)
+            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.current(), shorterRefreshToken, bytesRefRecycler)
         );
         assertThat(invalidateResponse.invalidated(), equalTo(0));
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
@@ -481,7 +485,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         invalidateResponse = invalidateRefreshToken(
             TokenService.prependVersionAndEncodeRefreshToken(
                 TransportVersion.current(),
-                tokenService.getRandomTokenBytes(TransportVersion.current(), true).v2()
+                tokenService.getRandomTokenBytes(TransportVersion.current(), true).v2(),
+                bytesRefRecycler
             )
         );
         assertThat(invalidateResponse.invalidated(), equalTo(0));
@@ -491,7 +496,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         invalidateResponse = invalidateRefreshToken(
             TokenService.prependVersionAndEncodeRefreshToken(
                 MINIMUM_TRANSPORT_VERSION,
-                tokenService.getRandomTokenBytes(MINIMUM_TRANSPORT_VERSION, true).v2()
+                tokenService.getRandomTokenBytes(MINIMUM_TRANSPORT_VERSION, true).v2(),
+                bytesRefRecycler
             )
         );
         assertThat(invalidateResponse.invalidated(), equalTo(0));
@@ -595,10 +601,9 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(e, throwableWithMessage(containsString("token has already been refreshed more than 30 seconds in the past")));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/85697")
     public void testRefreshingMultipleTimesWithinWindowSucceeds() throws Exception {
         final Clock clock = Clock.systemUTC();
-        final List<String> tokens = Collections.synchronizedList(new ArrayList<>());
+        final List<OAuth2Token> refreshedTokens = Collections.synchronizedList(new ArrayList<>());
         OAuth2Token createTokenResponse = createToken(TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
         assertNotNull(createTokenResponse.getRefreshToken());
         final int numberOfProcessors = Runtime.getRuntime().availableProcessors();
@@ -630,14 +635,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                             result.getRefreshToken()
                         );
                     } else {
-                        tokens.add(result.accessToken() + result.getRefreshToken());
-                        // Assert that all requests from all threads could authenticate at the time they received the access token
-                        // see: https://github.com/elastic/elasticsearch/issues/54289
-                        try {
-                            getSecurityClient(result.accessToken()).authenticate();
-                        } catch (ResponseException esse) {
-                            fail(esse);
-                        }
+                        refreshedTokens.add(result);
                     }
                     logger.info("received access token [{}] and refresh token [{}]", result.accessToken(), result.getRefreshToken());
                 } catch (IOException e) {
@@ -658,12 +656,17 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         }
         completedLatch.await();
         assertThat(failed.get(), equalTo(false));
-        // Assert that we only ever got one token/refresh_token pair
-        synchronized (tokens) {
-            Set<String> uniqueTokens = new HashSet<>(tokens);
-            logger.info("Unique tokens received from refreshToken call [{}]", uniqueTokens);
-            assertThat(uniqueTokens.size(), equalTo(1));
+        final Set<String> uniqueTokens;
+        synchronized (refreshedTokens) {
+            uniqueTokens = refreshedTokens.stream()
+                .map(t -> t.accessToken() + t.getRefreshToken())
+                .collect(java.util.stream.Collectors.toSet());
         }
+        logger.info("Unique tokens received from refreshToken call [{}]", uniqueTokens);
+        assertThat(uniqueTokens.size(), equalTo(1));
+        // The token document may not be replicated to all shards yet (RefreshPolicy.NONE), so retry authentication
+        final String accessToken = refreshedTokens.get(0).accessToken();
+        assertBusy(() -> getSecurityClient(accessToken).authenticate());
     }
 
     public void testRefreshAsDifferentUser() throws IOException {

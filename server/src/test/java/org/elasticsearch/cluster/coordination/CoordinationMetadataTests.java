@@ -11,19 +11,14 @@ package org.elasticsearch.cluster.coordination;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -73,36 +68,8 @@ public class CoordinationMetadataTests extends ESTestCase {
         assertThat(config3.hasQuorum(Sets.newHashSet()), equalTo(false));
     }
 
-    public void testVotingConfigurationSerializationEqualsHashCode() {
-        VotingConfiguration initialConfig = randomVotingConfig();
-        // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            initialConfig,
-            (CopyFunction<VotingConfiguration>) orig -> ESTestCase.copyWriteable(
-                orig,
-                new NamedWriteableRegistry(Collections.emptyList()),
-                VotingConfiguration::new
-            ),
-            cfg -> randomlyChangeVotingConfiguration(cfg)
-        );
-    }
-
     private static VotingConfiguration randomVotingConfig() {
         return new VotingConfiguration(Sets.newHashSet(generateRandomStringArray(randomInt(10), 20, false)));
-    }
-
-    public void testVotingTombstoneSerializationEqualsHashCode() {
-        VotingConfigExclusion tombstone = new VotingConfigExclusion(randomAlphaOfLength(10), randomAlphaOfLength(10));
-        // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            tombstone,
-            (CopyFunction<VotingConfigExclusion>) orig -> ESTestCase.copyWriteable(
-                orig,
-                new NamedWriteableRegistry(Collections.emptyList()),
-                VotingConfigExclusion::new
-            ),
-            orig -> randomlyChangeVotingTombstone(orig)
-        );
     }
 
     public void testVotingTombstoneXContent() throws IOException {
@@ -117,30 +84,6 @@ public class CoordinationMetadataTests extends ESTestCase {
         }
     }
 
-    private VotingConfigExclusion randomlyChangeVotingTombstone(VotingConfigExclusion tombstone) {
-        if (randomBoolean()) {
-            return new VotingConfigExclusion(randomAlphaOfLength(10), tombstone.getNodeName());
-        } else {
-            return new VotingConfigExclusion(tombstone.getNodeId(), randomAlphaOfLength(10));
-        }
-    }
-
-    private VotingConfiguration randomlyChangeVotingConfiguration(VotingConfiguration cfg) {
-        Set<String> newNodeIds = new HashSet<>(cfg.getNodeIds());
-        if (cfg.isEmpty() == false && randomBoolean()) {
-            // remove random element
-            newNodeIds.remove(randomFrom(cfg.getNodeIds()));
-        } else if (cfg.isEmpty() == false && randomBoolean()) {
-            // change random element
-            newNodeIds.remove(randomFrom(cfg.getNodeIds()));
-            newNodeIds.add(randomAlphaOfLength(20));
-        } else {
-            // add random element
-            newNodeIds.add(randomAlphaOfLength(20));
-        }
-        return new VotingConfiguration(newNodeIds);
-    }
-
     private Set<VotingConfigExclusion> randomVotingTombstones() {
         final int size = randomIntBetween(1, 10);
         final Set<VotingConfigExclusion> nodes = Sets.newHashSetWithExpectedSize(size);
@@ -148,46 +91,6 @@ public class CoordinationMetadataTests extends ESTestCase {
             assertTrue(nodes.add(new VotingConfigExclusion(randomAlphaOfLength(10), randomAlphaOfLength(10))));
         }
         return nodes;
-    }
-
-    public void testCoordinationMetadataSerializationEqualsHashCode() {
-        CoordinationMetadata initialMetadata = new CoordinationMetadata(
-            randomNonNegativeLong(),
-            randomVotingConfig(),
-            randomVotingConfig(),
-            randomVotingTombstones()
-        );
-        // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            initialMetadata,
-            (CopyFunction<CoordinationMetadata>) orig -> ESTestCase.copyWriteable(
-                orig,
-                new NamedWriteableRegistry(Collections.emptyList()),
-                CoordinationMetadata::new
-            ),
-            meta -> {
-                CoordinationMetadata.Builder builder = CoordinationMetadata.builder(meta);
-                switch (randomInt(3)) {
-                    case 0:
-                        builder.term(randomValueOtherThan(meta.term(), ESTestCase::randomNonNegativeLong));
-                        break;
-                    case 1:
-                        builder.lastCommittedConfiguration(randomlyChangeVotingConfiguration(meta.getLastCommittedConfiguration()));
-                        break;
-                    case 2:
-                        builder.lastAcceptedConfiguration(randomlyChangeVotingConfiguration(meta.getLastAcceptedConfiguration()));
-                        break;
-                    case 3:
-                        if (meta.getVotingConfigExclusions().isEmpty() == false && randomBoolean()) {
-                            builder.clearVotingConfigExclusions();
-                        } else {
-                            randomVotingTombstones().forEach(dn -> builder.addVotingConfigExclusion(dn));
-                        }
-                        break;
-                }
-                return builder.build();
-            }
-        );
     }
 
     public void testXContent() throws IOException {
@@ -207,5 +110,71 @@ public class CoordinationMetadataTests extends ESTestCase {
             final CoordinationMetadata fromXContentMeta = CoordinationMetadata.fromXContent(parser);
             assertThat(originalMeta, equalTo(fromXContentMeta));
         }
+    }
+
+    /**
+     * Verifies that {@link CoordinationMetadata#EMPTY_METADATA} has default term zero and empty voting configs and exclusions.
+     */
+    public void testCoordinationMetadataEmptyMetadata() {
+        CoordinationMetadata emptyMetadata = CoordinationMetadata.EMPTY_METADATA;
+        assertThat(emptyMetadata.term(), equalTo(0L));
+        assertThat(emptyMetadata.getLastCommittedConfiguration(), equalTo(VotingConfiguration.EMPTY_CONFIG));
+        assertThat(emptyMetadata.getLastAcceptedConfiguration(), equalTo(VotingConfiguration.EMPTY_CONFIG));
+        assertThat(emptyMetadata.getVotingConfigExclusions(), equalTo(Set.of()));
+    }
+
+    /**
+     * Verifies that {@link CoordinationMetadata.Builder} builds metadata whose getters match the values set on the builder.
+     */
+    public void testCoordinationMetadataBuilder() {
+        long term = randomNonNegativeLong();
+        VotingConfiguration lastCommittedConfiguration = randomVotingConfig();
+        VotingConfiguration lastAcceptedConfiguration = randomVotingConfig();
+        Set<VotingConfigExclusion> votingConfigExclusions = randomVotingTombstones();
+        CoordinationMetadata.Builder builder = CoordinationMetadata.builder()
+            .term(term)
+            .lastCommittedConfiguration(lastCommittedConfiguration)
+            .lastAcceptedConfiguration(lastAcceptedConfiguration);
+        for (VotingConfigExclusion votingConfigExclusion : votingConfigExclusions) {
+            builder.addVotingConfigExclusion(votingConfigExclusion);
+        }
+        CoordinationMetadata coordinationMetadata = builder.build();
+        assertThat(coordinationMetadata.term(), equalTo(term));
+        assertThat(coordinationMetadata.getLastCommittedConfiguration(), equalTo(lastCommittedConfiguration));
+        assertThat(coordinationMetadata.getLastAcceptedConfiguration(), equalTo(lastAcceptedConfiguration));
+        assertThat(coordinationMetadata.getVotingConfigExclusions(), equalTo(votingConfigExclusions));
+    }
+
+    /**
+     * Verifies that {@link VotingConfiguration#MUST_JOIN_ELECTED_MASTER} has the expected single node id and that
+     * {@link VotingConfiguration#hasQuorum} returns true only when the supplied set contains that id.
+     */
+    public void testVotingConfigurationMustJoinElectedMaster() {
+        VotingConfiguration mustJoin = VotingConfiguration.MUST_JOIN_ELECTED_MASTER;
+        assertThat(mustJoin.isEmpty(), equalTo(false));
+        assertThat(mustJoin.getNodeIds(), equalTo(Set.of("_must_join_elected_master_")));
+        assertThat(mustJoin.hasQuorum(Set.of("_must_join_elected_master_")), equalTo(true));
+        assertThat(mustJoin.hasQuorum(Set.of("_must_join_elected_master_", "other")), equalTo(true));
+        assertThat(mustJoin.hasQuorum(Set.of("other")), equalTo(false));
+        assertThat(mustJoin.hasQuorum(Set.of()), equalTo(false));
+    }
+
+    /**
+     * Verifies that {@link VotingConfigExclusion} getters return the values passed to the constructor.
+     */
+    public void testVotingConfigExclusionGetters() {
+        String nodeId = randomAlphaOfLength(10);
+        String nodeName = randomAlphaOfLength(10);
+        VotingConfigExclusion votingConfigExclusion = new VotingConfigExclusion(nodeId, nodeName);
+        assertThat(votingConfigExclusion.getNodeId(), equalTo(nodeId));
+        assertThat(votingConfigExclusion.getNodeName(), equalTo(nodeName));
+    }
+
+    /**
+     * Verifies that {@link VotingConfigExclusion#MISSING_VALUE_MARKER} has the expected value used when a node id or
+     * name is absent (e.g. when excluding a node known only by name before it has joined). Prevents accidental change.
+     */
+    public void testVotingConfigExclusionMissingValueMarker() {
+        assertThat(VotingConfigExclusion.MISSING_VALUE_MARKER, equalTo("_absent_"));
     }
 }

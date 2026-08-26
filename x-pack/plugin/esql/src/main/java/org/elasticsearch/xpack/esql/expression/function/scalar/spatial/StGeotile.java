@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
+import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -16,14 +17,17 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileBoundedPredicate;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -34,10 +38,13 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.checkPrecisionRange;
@@ -45,14 +52,16 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
 /**
- * Calculates the geotile of geo_point geometries.
+ * Calculates the geotile of geo_point or geo_shape geometries.
+ * For geo_shape, all intersecting tiles are returned as multi-values.
  */
-public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
+public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "StGeotile",
         StGeotile::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StGeotile.class).ternary(StGeotile::new).name("st_geotile");
 
     /**
      * When checking tiles with bounds, we need to check if the tile is valid (intersects with the bounds).
@@ -112,30 +121,39 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
     @FunctionInfo(
         returnType = "geotile",
         preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
+        briefSummary = "Calculates the geotile of the supplied geo_point or geo_shape at the specified precision.",
         description = """
-            Calculates the `geotile` of the supplied geo_point at the specified precision.
-            The result is long encoded. Use [TO_STRING](#esql-to_string) to convert the result to a string,
-            [TO_LONG](#esql-to_long) to convert it to a `long`, or [TO_GEOSHAPE](#esql-to_geoshape) to calculate
-            the `geo_shape` bounding geometry.
+            Calculates the `geotile` of the supplied `geo_point` or `geo_shape` at the specified precision.
+            For `geo_shape` inputs, all intersecting geotile cells are returned as multi-values.
+            The result is long encoded.
+            Use [`TO_STRING`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_string.md)
+            to convert the result to a string,
+            [`TO_LONG`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_long.md)
+            to convert it to a `long`, or
+            [`TO_GEOSHAPE`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_geoshape.md)
+            to calculate the `geo_shape` bounding geometry.
 
             These functions are related to the [`geo_grid` query](/reference/query-languages/query-dsl/query-dsl-geo-grid-query.md)
             and the [`geotile_grid` aggregation](/reference/aggregations/search-aggregations-bucket-geotilegrid-aggregation.md).""",
-        examples = @Example(file = "spatial-grid", tag = "st_geotile-grid")
+        examples = @Example(file = "spatial-grid", tag = "st_geotile-grid"),
+        depthOffset = 1  // So this appears as a subsection of spatial grid functions
     )
     public StGeotile(
         Source source,
         @Param(
             name = "geometry",
-            type = { "geo_point" },
-            description = "Expression of type `geo_point`. If `null`, the function returns `null`."
+            type = { "geo_point", "geo_shape" },
+            description = "Expression of type `geo_point` or `geo_shape`. If `null`, the function returns `null`."
+                + " For `geo_shape` inputs all intersecting geotile cells are returned as multi-values."
         ) Expression field,
-        @Param(name = "precision", type = { "integer" }, description = """
+        @Param(name = "precision", type = { "integer" }, hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT), description = """
             Expression of type `integer`. If `null`, the function returns `null`.
             Valid values are between [0 and 29](https://wiki.openstreetmap.org/wiki/Zoom_levels).""") Expression precision,
-        @Param(name = "bounds", type = { "geo_shape" }, description = """
-            Optional bounds to filter the grid tiles, a `geo_shape` of type `BBOX`.
-            Use [`ST_ENVELOPE`](#esql-st_envelope) if the `geo_shape` is of any other type.""", optional = true) Expression bounds
+        @Param(name = "bounds", type = { "geo_shape" }, hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT), description = """
+            Optional bounds to filter the grid tiles, a `geo_shape` of type `BBOX`. Use
+            [`ST_ENVELOPE`](/reference/query-languages/esql/functions-operators/spatial-functions/st_envelope.md)
+            if the `geo_shape` is of any other type.""", optional = true) Expression bounds
     ) {
         this(source, field, precision, bounds, false);
     }
@@ -176,7 +194,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (parameter().foldable() == false) {
             throw new IllegalArgumentException("precision must be foldable");
         }
@@ -184,41 +202,77 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
             if (bounds.foldable() == false) {
                 throw new IllegalArgumentException("bounds must be foldable");
             }
-            GeoBoundingBox bbox = asGeoBoundingBox(bounds.fold(toEvaluator.foldCtx()));
+            Object boundsValue = bounds.fold(toEvaluator.foldCtx());
+            if (boundsValue == null) {
+                return ConstantEvaluators.CONSTANT_NULL_FACTORY;
+            }
+            GeoBoundingBox bbox = asGeoBoundingBox(boundsValue);
             int precision = (int) parameter.fold(toEvaluator.foldCtx());
             GeoTileBoundedGrid.Factory bounds = new GeoTileBoundedGrid.Factory(precision, bbox);
+            GeoShapeCellsComputer shapeTiler = wkb -> computeGeotileCells(wkb, precision, bbox);
             return spatialDocValues
                 ? new StGeotileFromFieldDocValuesAndLiteralAndLiteralEvaluator.Factory(
                     source(),
                     toEvaluator.apply(spatialField()),
                     bounds::get
                 )
-                : new StGeotileFromFieldAndLiteralAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), bounds::get);
+                : new StGeotileFromFieldAndLiteralAndLiteralEvaluator.Factory(
+                    source(),
+                    toEvaluator.apply(spatialField),
+                    bounds::get,
+                    shapeTiler
+                );
         } else {
             int precision = checkPrecisionRange((int) parameter.fold(toEvaluator.foldCtx()));
+            GeoShapeCellsComputer shapeTiler = wkb -> computeGeotileCells(wkb, precision, null);
             return spatialDocValues
                 ? new StGeotileFromFieldDocValuesAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField()), precision)
-                : new StGeotileFromFieldAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), precision);
+                : new StGeotileFromFieldAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), precision, shapeTiler);
         }
     }
 
     @Override
     public Object fold(FoldContext ctx) {
-        var point = (BytesRef) spatialField().fold(ctx);
+        var wkb = (BytesRef) spatialField().fold(ctx);
+        if (wkb == null) {
+            return null;
+        }
         int precision = checkPrecisionRange((int) parameter().fold(ctx));
-        if (bounds() == null) {
-            return unboundedGrid.calculateGridId(GEO.wkbAsPoint(point), precision);
-        } else {
-            GeoBoundingBox bbox = asGeoBoundingBox(bounds().fold(ctx));
-            GeoTileBoundedGrid bounds = new GeoTileBoundedGrid(precision, bbox);
-            long gridId = bounds.calculateGridId(GEO.wkbAsPoint(point));
-            return gridId < 0 ? null : gridId;
+        try {
+            if (bounds() == null) {
+                Geometry geometry = GEO.wkbToGeometry(wkb);
+                if (geometry instanceof Point point) {
+                    return unboundedGrid.calculateGridId(point, precision);
+                }
+                return foldMultiValue(computeGeotileCells(wkb, precision, null));
+            } else {
+                Object boundsValue = bounds().fold(ctx);
+                if (boundsValue == null) {
+                    return null;
+                }
+                GeoBoundingBox bbox = asGeoBoundingBox(boundsValue);
+                Geometry geometry = GEO.wkbToGeometry(wkb);
+                if (geometry instanceof Point point) {
+                    GeoTileBoundedGrid bounds = new GeoTileBoundedGrid(precision, bbox);
+                    long gridId = bounds.calculateGridId(point);
+                    return gridId < 0 ? null : gridId;
+                }
+                return foldMultiValue(computeGeotileCells(wkb, precision, bbox));
+            }
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to compute geotile for geo_shape", e);
         }
     }
 
     @Evaluator(extraName = "FromFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
-    static void fromFieldAndLiteral(LongBlock.Builder results, @Position int p, BytesRefBlock wkbBlock, @Fixed int precision) {
-        fromWKB(results, p, wkbBlock, precision, unboundedGrid);
+    static void fromFieldAndLiteral(
+        LongBlock.Builder results,
+        @Position int p,
+        BytesRefBlock wkbBlock,
+        @Fixed int precision,
+        @Fixed(includeInToString = false) GeoShapeCellsComputer shapeTiler
+    ) {
+        fromWKB(results, p, wkbBlock, precision, unboundedGrid, shapeTiler);
     }
 
     @Evaluator(extraName = "FromFieldDocValuesAndLiteral", warnExceptions = { IllegalArgumentException.class })
@@ -231,9 +285,10 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
         LongBlock.Builder results,
         @Position int p,
         BytesRefBlock in,
-        @Fixed(includeInToString = false, scope = THREAD_LOCAL) GeoTileBoundedGrid bounds
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) GeoTileBoundedGrid bounds,
+        @Fixed(includeInToString = false) GeoShapeCellsComputer shapeTiler
     ) {
-        fromWKB(results, p, in, bounds);
+        fromWKB(results, p, in, bounds, shapeTiler);
     }
 
     @Evaluator(extraName = "FromFieldDocValuesAndLiteralAndLiteral", warnExceptions = { IllegalArgumentException.class })
@@ -256,5 +311,136 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
         LinearRing ring = new LinearRing(x, y);
         Polygon polygon = new Polygon(ring);
         return SpatialCoordinateTypes.GEO.asWkb(polygon);
+    }
+
+    // ---- Geotile cell computation for geo_shape ----
+
+    /**
+     * Computes all geotile cells at the given precision that intersect the WKB-encoded geometry.
+     * Optionally filtered by a bounding box.
+     * <p>
+     * The algorithm and the brute-force vs. rasterization heuristic ({@code count <= 8 * precision})
+     * are adapted from {@code GeoTileGridTiler.setValues} in the spatial module.
+     * Both thresholds should be reviewed together if either is changed.
+     */
+    static List<Long> computeGeotileCells(BytesRef wkb, int precision, GeoBoundingBox bbox) throws IOException {
+        GeoShapeDocValues shape = GeoShapeDocValues.from(wkb, GEO_SHAPE_INDEXER);
+        GeoTileBoundedPredicate predicate = (bbox == null || bbox.isUnbounded()) ? null : new GeoTileBoundedPredicate(precision, bbox);
+        List<Long> cells = new ArrayList<>();
+        // geo tiles are not defined at the extreme latitudes
+        if (shape.minLat > GeoTileUtils.NORMALIZED_LATITUDE_MASK || shape.maxLat < GeoTileUtils.NORMALIZED_NEGATIVE_LATITUDE_MASK) {
+            return cells;
+        }
+        if (precision == 0) {
+            // Single tile at z=0 covers the whole world
+            if (predicate == null || predicate.validTile(0, 0, 0)) {
+                org.elasticsearch.geometry.Rectangle esRect = GeoTileUtils.toBoundingBox(0, 0, 0);
+                org.apache.lucene.geo.Rectangle luceneRect = new org.apache.lucene.geo.Rectangle(
+                    esRect.getMinLat(),
+                    esRect.getMaxLat(),
+                    esRect.getMinLon(),
+                    esRect.getMaxLon()
+                );
+                if (shape.intersects(LatLonGeometry.create(luceneRect))) {
+                    cells.add(GeoTileUtils.longEncodeTiles(0, 0, 0));
+                }
+            }
+            return cells;
+        }
+        final int tiles = 1 << precision;
+        final int minXTile = GeoTileUtils.getXTile(shape.minLon, tiles);
+        final int minYTile = GeoTileUtils.getYTile(shape.maxLat, tiles);
+        final int maxXTile = GeoTileUtils.getXTile(shape.maxLon, tiles);
+        final int maxYTile = GeoTileUtils.getYTile(shape.minLat, tiles);
+        final long count = (long) (maxXTile - minXTile + 1) * (maxYTile - minYTile + 1);
+        if (count <= 8L * precision) {
+            geotileBruteForceScan(shape, precision, minXTile, minYTile, maxXTile, maxYTile, predicate, cells);
+        } else {
+            rasterizeGeotile(shape, 0, 0, 0, precision, predicate, cells);
+        }
+        return cells;
+    }
+
+    /**
+     * Iterates all geotile cells in [minXTile,maxXTile] x [minYTile,maxYTile],
+     * adding those that intersect the shape.
+     * Adapted from {@code GeoTileGridTiler.setValuesByBruteForceScan} in the spatial module.
+     */
+    private static void geotileBruteForceScan(
+        GeoShapeDocValues shape,
+        int precision,
+        int minXTile,
+        int minYTile,
+        int maxXTile,
+        int maxYTile,
+        GeoTileBoundedPredicate predicate,
+        List<Long> cells
+    ) throws IOException {
+        for (int x = minXTile; x <= maxXTile; x++) {
+            for (int y = minYTile; y <= maxYTile; y++) {
+                if (geotileCellIntersectsShape(shape, x, y, precision, predicate)) {
+                    if (cells.size() >= SpatialGridFunction.MAX_GRID_CELLS) {
+                        throw new IllegalArgumentException(
+                            "ST_GEOTILE generated more than " + SpatialGridFunction.MAX_GRID_CELLS + " grid cells"
+                        );
+                    }
+                    cells.add(GeoTileUtils.longEncodeTiles(precision, x, y));
+                }
+            }
+        }
+    }
+
+    /**
+     * Recursively descends the geotile quadtree, adding cells that intersect the shape.
+     * Adapted from {@code GeoTileGridTiler.setValuesByRasterization} in the spatial module.
+     */
+    private static void rasterizeGeotile(
+        GeoShapeDocValues shape,
+        int xTile,
+        int yTile,
+        int zTile,
+        int precision,
+        GeoTileBoundedPredicate predicate,
+        List<Long> cells
+    ) throws IOException {
+        zTile++;
+        for (int i = 0; i < 2; i++) {
+            for (int j = 0; j < 2; j++) {
+                final int nextX = 2 * xTile + i;
+                final int nextY = 2 * yTile + j;
+                if (geotileCellIntersectsShape(shape, nextX, nextY, zTile, predicate)) {
+                    if (zTile == precision) {
+                        if (cells.size() >= SpatialGridFunction.MAX_GRID_CELLS) {
+                            throw new IllegalArgumentException(
+                                "ST_GEOTILE generated more than " + SpatialGridFunction.MAX_GRID_CELLS + " grid cells"
+                            );
+                        }
+                        cells.add(GeoTileUtils.longEncodeTiles(zTile, nextX, nextY));
+                    } else {
+                        rasterizeGeotile(shape, nextX, nextY, zTile, precision, predicate, cells);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Tests whether the given geotile cell intersects the shape (and passes the optional bounds filter).
+     * Replaces {@code GeoTileGridTiler.relateTile} using {@link GeoShapeDocValues#intersects} with a
+     * Lucene {@link LatLonGeometry} rectangle instead of encoded-integer coordinates.
+     */
+    private static boolean geotileCellIntersectsShape(GeoShapeDocValues shape, int x, int y, int z, GeoTileBoundedPredicate predicate)
+        throws IOException {
+        if (predicate != null && predicate.validTile(x, y, z) == false) {
+            return false;
+        }
+        org.elasticsearch.geometry.Rectangle esRect = GeoTileUtils.toBoundingBox(x, y, z);
+        org.apache.lucene.geo.Rectangle luceneRect = new org.apache.lucene.geo.Rectangle(
+            esRect.getMinLat(),
+            esRect.getMaxLat(),
+            esRect.getMinLon(),
+            esRect.getMaxLon()
+        );
+        return shape.intersects(LatLonGeometry.create(luceneRect));
     }
 }

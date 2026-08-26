@@ -29,6 +29,7 @@ import org.junit.AssumptionViolatedException;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.hamcrest.Matchers.containsString;
@@ -43,6 +44,12 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
     @Override
     protected String getFieldName() {
         return "shape";
+    }
+
+    @Override
+    protected Object getSampleObjectForDocument() {
+        // shape parses GeoJSON objects, so the sample object must be a valid GeoJSON geometry.
+        return Map.of("type", "Point", "coordinates", List.of(14.0, 15.0));
     }
 
     @Override
@@ -73,15 +80,15 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("index", b -> b.field("index", false));
-        checker.registerUpdateCheck(b -> b.field("orientation", "right"), m -> {
+        checker.registerUpdateCheck("orientation", b -> b.field("orientation", "right"), m -> {
             AbstractShapeGeometryFieldMapper<?> gsfm = (AbstractShapeGeometryFieldMapper<?>) m;
             assertEquals(Orientation.RIGHT, gsfm.orientation());
         });
-        checker.registerUpdateCheck(b -> b.field("ignore_z_value", false), m -> {
+        checker.registerUpdateCheck("ignore_z_value", b -> b.field("ignore_z_value", false), m -> {
             AbstractShapeGeometryFieldMapper<?> gpfm = (AbstractShapeGeometryFieldMapper<?>) m;
             assertFalse(gpfm.ignoreZValue());
         });
-        checker.registerUpdateCheck(b -> b.field("coerce", true), m -> {
+        checker.registerUpdateCheck("coerce", b -> b.field("coerce", true), m -> {
             AbstractShapeGeometryFieldMapper<?> gpfm = (AbstractShapeGeometryFieldMapper<?>) m;
             assertTrue(gpfm.coerce());
         });
@@ -107,11 +114,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
     }
 
     public void testDefaultDocValueConfigurationOnPre8_4() throws IOException {
-        IndexVersion oldVersion = IndexVersionUtils.randomVersionBetween(
-            random(),
-            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
-            IndexVersions.V_8_3_0
-        );
+        IndexVersion oldVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersions.V_8_3_0);
         DocumentMapper defaultMapper = createDocumentMapper(oldVersion, fieldMapping(this::minimalMapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
         assertThat(fieldMapper, instanceOf(fieldMapperClass()));

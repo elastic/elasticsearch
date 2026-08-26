@@ -34,9 +34,14 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.DenseLiveDocs;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.LiveDocs;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SetOnce;
+import org.apache.lucene.util.SparseLiveDocs;
+import org.apache.lucene.util.bkd.BKDConfig;
+import org.apache.lucene.util.bkd.BKDReader;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -44,10 +49,11 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.UnsafePlainActionFuture;
+import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterApplierService;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -59,6 +65,7 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
@@ -72,9 +79,9 @@ import org.elasticsearch.index.codec.TrackingPostingsInMemoryBytesCodec;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
@@ -121,6 +128,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -139,8 +147,11 @@ public abstract class Engine implements Closeable {
     public static final String CAN_MATCH_SEARCH_SOURCE = "can_match";
     protected static final String DOC_STATS_SOURCE = "doc_stats";
     protected static final String SEGMENTS_STATS_SOURCE = "segments_stats";
+    protected static final String FIELD_HAS_VALUE_SOURCE = "field_has_value";
     public static final long UNKNOWN_PRIMARY_TERM = -1L;
     public static final String ROOT_DOC_FIELD_NAME = "__root_doc_for_nested";
+    private static final long BKD_READER_BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BKDReader.class);
+    private static final long BKD_CONFIG_BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BKDConfig.class);
 
     protected final ShardId shardId;
     protected final Logger logger;
@@ -279,7 +290,7 @@ public abstract class Engine implements Closeable {
      * @throws AlreadyClosedException if the shard is closed
      */
     public FieldInfos shardFieldInfos() {
-        try (var searcher = acquireSearcher("field_has_value")) {
+        try (var searcher = acquireSearcher(FIELD_HAS_VALUE_SOURCE)) {
             return FieldInfos.getMergedFieldInfos(searcher.getIndexReader());
         }
     }
@@ -290,6 +301,8 @@ public abstract class Engine implements Closeable {
         long usages = 0;
         long totalPostingBytes = 0;
         long totalLiveDocsBytes = 0;
+        long totalPointsBytes = 0;
+
         for (LeafReaderContext leaf : leaves) {
             numSegments++;
             var fieldInfos = leaf.reader().getFieldInfos();
@@ -316,26 +329,59 @@ public abstract class Engine implements Closeable {
                         long liveDocsBytes = getLiveDocsBytes(liveDocs);
                         totalLiveDocsBytes += liveDocsBytes;
                     }
+                    totalPointsBytes += getPointsBytes(fieldInfos);
                 }
             }
         }
-        return new ShardFieldStats(numSegments, totalFields, usages, totalPostingBytes, totalLiveDocsBytes);
+        return new ShardFieldStats(numSegments, totalFields, usages, totalPostingBytes, totalLiveDocsBytes, totalPointsBytes);
+    }
+
+    private static long getPointsBytes(FieldInfos fieldInfos) {
+        long totalPointsBytes = 0;
+        for (FieldInfo fieldInfo : fieldInfos) {
+            if (fieldInfo.getPointDimensionCount() > 0) {
+                totalPointsBytes += getBKDReaderBytes(fieldInfo);
+            }
+        }
+        return totalPointsBytes;
+    }
+
+    private static long getBKDReaderBytes(FieldInfo fieldInfo) {
+        // On construction, the BKDReader constructs two byte arrays each of size packedIndexBytesLength. We add that to
+        // the base shallow size of the BKDReader and BKDConfig to get an estimate of the total memory used by the BKDReader.
+        // The IndexInputs in the BKDReader are an abstract class so we don't estimate their size due to differing concrete implementations.
+        int packedIndexBytesLength = fieldInfo.getPointIndexDimensionCount() * fieldInfo.getPointNumBytes();
+        return BKD_READER_BASE_RAM_BYTES_USED + BKD_CONFIG_BASE_RAM_BYTES_USED + 2 * byteArrayRamBytesUsed(packedIndexBytesLength);
+    }
+
+    private static long byteArrayRamBytesUsed(int length) {
+        return RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Byte.BYTES * length);
     }
 
     // Would prefer to use FixedBitSet#ramBytesUsed() however FixedBits / Bits interface don't expose that.
     // This simulates FixedBitSet#ramBytesUsed() does:
     private static long getLiveDocsBytes(Bits liveDocs) {
+        if (liveDocs instanceof DenseLiveDocs dld) {
+            return dld.ramBytesUsed();
+        }
+        if (liveDocs instanceof SparseLiveDocs sld) {
+            return sld.ramBytesUsed();
+        }
         int words = FixedBitSet.bits2words(liveDocs.length());
         return ShardFieldStats.FIXED_BITSET_BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(
-            RamUsageEstimator.sizeOf(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Long.BYTES * words)
+            RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Long.BYTES * words
         );
     }
 
     private static boolean validateLiveDocsClass(Bits liveDocs) {
+        if (liveDocs instanceof LiveDocs) {
+            return true;
+        }
         // These classes are package protected in Lucene and therefor we compare fully qualified classnames as strings here:
         String fullClassName = liveDocs.getClass().getName();
         assert fullClassName.equals("org.apache.lucene.util.FixedBits")
-            || fullClassName.equals("org.apache.lucene.tests.codecs.asserting.AssertingLiveDocsFormat$AssertingBits")
+            || fullClassName.contains("org.apache.lucene.tests.codecs.asserting.AssertingLiveDocsFormat$Asserting")
+            || fullClassName.contains("org.apache.lucene.tests.codecs.asserting.AssertLeafReader$Asserting")
             : "unexpected class [" + fullClassName + "]";
         return true;
     }
@@ -464,7 +510,7 @@ public abstract class Engine implements Closeable {
      */
     public void verifyEngineBeforeIndexClosing() throws IllegalStateException {
         final long globalCheckpoint = engineConfig.getGlobalCheckpointSupplier().getAsLong();
-        final long maxSeqNo = getSeqNoStats(globalCheckpoint).getMaxSeqNo();
+        final long maxSeqNo = getMaxSeqNo();
         if (globalCheckpoint != maxSeqNo) {
             throw new IllegalStateException(
                 "Global checkpoint ["
@@ -697,6 +743,10 @@ public abstract class Engine implements Closeable {
      */
     public abstract IndexResult index(Index index) throws IOException;
 
+    public List<IndexResult> indexBatch(EngineBatch batch) throws IOException {
+        throw new UnsupportedOperationException("batch indexing is not supported by this engine");
+    }
+
     /**
      * Perform document delete operation on the engine
      * @param delete operation to perform
@@ -722,7 +772,7 @@ public abstract class Engine implements Closeable {
         private final long seqNo;
         private final Exception failure;
         private final SetOnce<Boolean> freeze = new SetOnce<>();
-        private final Mapping requiredMappingUpdate;
+        private final CompressedXContent requiredMappingUpdate;
         private final String id;
         private Translog.Location translogLocation;
         private long took;
@@ -749,7 +799,7 @@ public abstract class Engine implements Closeable {
             this.id = id;
         }
 
-        protected Result(Operation.TYPE operationType, Mapping requiredMappingUpdate, String id) {
+        protected Result(Operation.TYPE operationType, CompressedXContent requiredMappingUpdate, String id) {
             this.operationType = operationType;
             this.version = Versions.NOT_FOUND;
             this.seqNo = UNASSIGNED_SEQ_NO;
@@ -785,9 +835,9 @@ public abstract class Engine implements Closeable {
 
         /**
          * If the operation was aborted due to missing mappings, this method will return the mappings
-         * that are required to complete the operation.
+         * that are required to complete the operation as serialized {@link CompressedXContent}.
          */
-        public Mapping getRequiredMappingUpdate() {
+        public CompressedXContent getRequiredMappingUpdate() {
             return requiredMappingUpdate;
         }
 
@@ -862,7 +912,7 @@ public abstract class Engine implements Closeable {
             this.created = false;
         }
 
-        public IndexResult(Mapping requiredMappingUpdate, String id) {
+        public IndexResult(CompressedXContent requiredMappingUpdate, String id) {
             super(Operation.TYPE.INDEX, requiredMappingUpdate, id);
             this.created = false;
         }
@@ -905,19 +955,21 @@ public abstract class Engine implements Closeable {
             super(Operation.TYPE.NO_OP, 0, term, seqNo, null);
         }
 
-        NoOpResult(long term, long seqNo, Exception failure) {
+        // visible for testing
+        protected NoOpResult(long term, long seqNo, Exception failure) {
             super(Operation.TYPE.NO_OP, failure, 0, term, seqNo, null);
         }
 
     }
 
     protected final GetResult getFromSearcher(Get get, Engine.Searcher searcher, boolean uncachedLookup) throws EngineException {
+        final boolean loadSeqNo = engineConfig.getIndexSettings().sequenceNumbersDisabled() == false;
         final DocIdAndVersion docIdAndVersion;
         try {
             if (uncachedLookup) {
-                docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersionUncached(searcher.getIndexReader(), get.uid(), true);
+                docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersionUncached(searcher.getIndexReader(), get.uid(), loadSeqNo);
             } else {
-                docIdAndVersion = VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(searcher.getIndexReader(), get.uid(), true);
+                docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), get.uid(), loadSeqNo);
             }
         } catch (Exception e) {
             Releasables.closeWhileHandlingException(searcher);
@@ -951,7 +1003,8 @@ public abstract class Engine implements Closeable {
         if (docIdAndVersion != null) {
             // don't release the searcher on this path, it is the
             // responsibility of the caller to call GetResult.release
-            return new GetResult(searcher, docIdAndVersion);
+            // an uncached lookup is requested exactly when the searcher reads an ephemeral translog reader
+            return new GetResult(searcher, docIdAndVersion, uncachedLookup);
         } else {
             Releasables.close(searcher);
             return GetResult.NOT_EXISTS;
@@ -973,6 +1026,7 @@ public abstract class Engine implements Closeable {
         Get get,
         MappingLookup mappingLookup,
         DocumentParser documentParser,
+        SplitShardCountSummary splitShardCountSummary,
         Function<Engine.Searcher, Engine.Searcher> searcherWrapper
     );
 
@@ -989,13 +1043,6 @@ public abstract class Engine implements Closeable {
         throw new UnsupportedOperationException();
     }
 
-    /**
-     * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
-     */
-    public final SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper) throws EngineException {
-        return acquireSearcherSupplier(wrapper, SearcherScope.EXTERNAL);
-    }
-
     // Called before a {@link Searcher} is created, to allow subclasses to perform any stats or logging operations.
     protected void onSearcherCreation(String source, SearcherScope scope) {}
 
@@ -1004,17 +1051,24 @@ public abstract class Engine implements Closeable {
         return reader;
     }
 
-    /**
-     * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
-     */
-    public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
-        return acquireSearcherSupplier(wrapper, scope, SplitShardCountSummary.UNSET);
-    }
-
-    public SearcherSupplier acquireSearcherSupplier(
+    public final SearcherSupplier acquireSearcherSupplier(
         Function<Searcher, Searcher> wrapper,
         SearcherScope scope,
         SplitShardCountSummary splitShardCountSummary
+    ) throws EngineException {
+        return acquireSearcherSupplier(
+            wrapper,
+            scope,
+            r -> wrapExternalDirectoryReader(r, splitShardCountSummary),
+            getReferenceManager(scope)
+        );
+    }
+
+    protected SearcherSupplier acquireSearcherSupplier(
+        Function<Searcher, Searcher> wrapper,
+        SearcherScope scope,
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> externalDirectoryReaderWrapper,
+        ReferenceManager<ElasticsearchDirectoryReader> referenceManager
     ) throws EngineException {
         /* Acquire order here is store -> manager since we need
          * to make sure that the store is not closed before
@@ -1024,13 +1078,12 @@ public abstract class Engine implements Closeable {
         }
         Releasable releasable = store::decRef;
         try {
-            ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
-            ElasticsearchDirectoryReader acquire = referenceManager.acquire();
+            ElasticsearchDirectoryReader acquiredReader = referenceManager.acquire();
             final DirectoryReader maybeWrappedDirectoryReader;
             if (scope == SearcherScope.EXTERNAL) {
-                maybeWrappedDirectoryReader = wrapExternalDirectoryReader(acquire, splitShardCountSummary);
+                maybeWrappedDirectoryReader = externalDirectoryReaderWrapper.apply(acquiredReader);
             } else {
-                maybeWrappedDirectoryReader = acquire;
+                maybeWrappedDirectoryReader = acquiredReader;
             }
             SearcherSupplier reader = new SearcherSupplier(wrapper) {
                 @Override
@@ -1050,7 +1103,7 @@ public abstract class Engine implements Closeable {
                 @Override
                 protected void doClose() {
                     try {
-                        referenceManager.release(acquire);
+                        referenceManager.release(acquiredReader);
                     } catch (IOException e) {
                         throw new UncheckedIOException("failed to close", e);
                     } catch (AlreadyClosedException e) {
@@ -1064,6 +1117,13 @@ public abstract class Engine implements Closeable {
             releasable = null; // success - hand over the reference to the engine reader
             return reader;
         } catch (AlreadyClosedException ex) {
+            throw ex;
+        } catch (StaleRequestException ex) {
+            // This is a special situation that can happen during resharding.
+            // It indicates that the request is not valid rather than the operation
+            // so we need to rethrow it without failing the engine.
+            // It is not ideal to do this check at such a low level
+            // but this is the most convenient place to do it.
             throw ex;
         } catch (Exception ex) {
             maybeFailEngine("acquire_reader", ex);
@@ -1113,6 +1173,16 @@ public abstract class Engine implements Closeable {
     }
 
     protected abstract ReferenceManager<ElasticsearchDirectoryReader> getReferenceManager(SearcherScope scope);
+
+    /**
+     * Returns whether this engine has performed a document-id lookup (resolving a document via its {@code _id} to its sequence number /
+     * version, as part of an update, delete, or versioned index operation) within the last {@code recencyThreshold}.
+     * <p>
+     * The default implementation returns {@code false}; engines that track id lookups should override this.
+     */
+    public boolean hasRecentIdLookup(TimeValue recencyThreshold) {
+        return false;
+    }
 
     boolean assertSearcherIsWarmedUp(String source, SearcherScope scope) {
         return true;
@@ -1519,18 +1589,26 @@ public abstract class Engine implements Closeable {
      *                      indicating no flush and unknown generation.
      */
     public final void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
+        flush(force, waitIfOngoing, FlushResultListener.wrap(listener));
+    }
+
+    /**
+     * Flushes the state of the engine, same as {@link #flush(boolean, boolean, ActionListener)}, but accepts a
+     * {@link FlushResultListener} whose {@link FlushResultListener#afterFlushWithLock(long)} method is called after the flush
+     * request is processed and before the flush lock is released. This callback is only invoked when the flush lock
+     * was actually acquired; it is not called when the request is skipped or when the engine does not use a flush lock.
+     */
+    public final void flush(boolean force, boolean waitIfOngoing, FlushResultListener listener) throws EngineException {
         try (var ignored = acquireEnsureOpenRef()) {
             flushHoldingLock(force, waitIfOngoing, listener);
         }
     }
 
     /**
-     * The actual implementation of {@link #flush(boolean, boolean, ActionListener)}, to be called either when holding a ref that ensures
-     * the engine remains open, or holding {@code IndexShard#engineMutex} while closing the engine.
-     *
+     * The actual implementation of {@link #flush(boolean, boolean, FlushResultListener)}, to be called either when holding a ref that
+     * ensures the engine remains open, or holding {@code IndexShard#engineMutex} while closing the engine.
      */
-    protected abstract void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener)
-        throws EngineException;
+    protected abstract void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) throws EngineException;
 
     /**
      * Flushes the state of the engine including the transaction log, clearing memory and persisting
@@ -1947,13 +2025,13 @@ public abstract class Engine implements Closeable {
             return this.doc.docs();
         }
 
-        public BytesReference source() {
+        public SourceToParse.Source source() {
             return this.doc.source();
         }
 
         @Override
         public int estimatedSizeInBytes() {
-            return (id().length() * 2) + source().length() + 12;
+            return (id().length() * 2) + source().estimatedSizeInBytes() + 12;
         }
 
         /**
@@ -2097,18 +2175,21 @@ public abstract class Engine implements Closeable {
 
     public static class Get {
         private final boolean realtime;
-        private final BytesRef uid;
-        private final String id;
+        private final Uid uid;
         private final boolean readFromTranslog;
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
         private long ifSeqNo = UNASSIGNED_SEQ_NO;
         private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
+        /** Convenience for a plain (non-sliced) document; the uid is {@link Uid#of(String)}. */
         public Get(boolean realtime, boolean readFromTranslog, String id) {
+            this(realtime, readFromTranslog, Uid.of(id));
+        }
+
+        public Get(boolean realtime, boolean readFromTranslog, Uid uid) {
             this.realtime = realtime;
-            this.id = id;
-            this.uid = Uid.encodeId(id);
+            this.uid = uid;
             this.readFromTranslog = readFromTranslog;
         }
 
@@ -2117,11 +2198,11 @@ public abstract class Engine implements Closeable {
         }
 
         public String id() {
-            return id;
+            return uid.id();
         }
 
         public BytesRef uid() {
-            return uid;
+            return uid.term();
         }
 
         public long version() {
@@ -2171,18 +2252,30 @@ public abstract class Engine implements Closeable {
         private final long version;
         private final DocIdAndVersion docIdAndVersion;
         private final Engine.Searcher searcher;
+        private final boolean fromTranslog;
 
-        public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null, null);
+        public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null, null, false);
 
-        private GetResult(boolean exists, long version, DocIdAndVersion docIdAndVersion, Engine.Searcher searcher) {
+        private GetResult(boolean exists, long version, DocIdAndVersion docIdAndVersion, Engine.Searcher searcher, boolean fromTranslog) {
             this.exists = exists;
             this.version = version;
             this.docIdAndVersion = docIdAndVersion;
             this.searcher = searcher;
+            this.fromTranslog = fromTranslog;
         }
 
-        public GetResult(Engine.Searcher searcher, DocIdAndVersion docIdAndVersion) {
-            this(true, docIdAndVersion.version, docIdAndVersion, searcher);
+        public GetResult(Engine.Searcher searcher, DocIdAndVersion docIdAndVersion, boolean fromTranslog) {
+            this(true, docIdAndVersion.version, docIdAndVersion, searcher, fromTranslog);
+        }
+
+        /**
+         * Whether the document was served from an ephemeral, single-use in-memory translog reader rather than an
+         * index reader, in which case holding onto this result pins that reader and the document source it wraps.
+         * Note that a get consulting the translog may still be served from the index (reporting {@code false}) when
+         * the operation's translog location is unknown.
+         */
+        public boolean isFromTranslog() {
+            return fromTranslog;
         }
 
         public boolean exists() {
@@ -2278,7 +2371,7 @@ public abstract class Engine implements Closeable {
                 logger.debug("flushing shard on close - this might take some time to sync files to disk");
                 try {
                     // TODO: We are not waiting for full durability here atm because we are on the cluster state update thread
-                    flushHoldingLock(false, false, ActionListener.noop());
+                    flushHoldingLock(false, false, FlushResultListener.NOOP);
                 } catch (AlreadyClosedException ex) {
                     logger.debug("engine already closed - skipping flushAndClose");
                 }
@@ -2588,6 +2681,64 @@ public abstract class Engine implements Closeable {
         public static final long UNKNOWN_GENERATION = -1L;
         public static final FlushResult FLUSH_REQUEST_SKIPPED_DUE_TO_COLLISION = new FlushResult(true, UNKNOWN_GENERATION);
         public static final FlushResult FLUSH_REQUEST_PROCESSED_AND_NOT_PERFORMED = new FlushResult(false, UNKNOWN_GENERATION);
+    }
+
+    /**
+     * An {@link ActionListener} for flush operations that provides a callback to execute while the flush lock is still held.
+     * This allows callers to perform operations such as acquiring an index commit that is guaranteed to be the one created
+     * by the flush.
+     */
+    public interface FlushResultListener extends ActionListener<FlushResult> {
+
+        FlushResultListener NOOP = new FlushResultListener() {
+            @Override
+            public void onResponse(FlushResult result) {}
+
+            @Override
+            public void onFailure(Exception e) {}
+
+            @Override
+            public String toString() {
+                return "NoopFlushResultListener";
+            }
+        };
+
+        /**
+         * Called while the flush lock is still held, after the flush request has been processed. It is invoked regardless
+         * of whether a new commit was actually created, with the generation of the last committed segment infos. It is
+         * <b>NOT</b> called when the flush lock was never acquired, e.g. the request was skipped due to not waiting
+         * for the lock (i.e. {@code waitIfOngoing==false}) or if the engine does not use a flush lock at all.
+         *
+         * @param generation the segment generation of the latest committed segment infos
+         */
+        default void afterFlushWithLock(long generation) {}
+
+        static FlushResultListener wrap(ActionListener<FlushResult> delegate) {
+            return wrap(delegate, NOOP::afterFlushWithLock);
+        }
+
+        /**
+         * Wraps a plain {@link ActionListener} into a {@link FlushResultListener} with the given callback
+         * for {@link #afterFlushWithLock(long)}.
+         */
+        static FlushResultListener wrap(ActionListener<FlushResult> delegate, LongConsumer afterFlushWithLock) {
+            return new FlushResultListener() {
+                @Override
+                public void afterFlushWithLock(long generation) {
+                    afterFlushWithLock.accept(generation);
+                }
+
+                @Override
+                public void onResponse(FlushResult result) {
+                    delegate.onResponse(result);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    delegate.onFailure(e);
+                }
+            };
+        }
     }
 
     /**

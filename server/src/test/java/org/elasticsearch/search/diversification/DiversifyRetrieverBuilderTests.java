@@ -10,19 +10,28 @@
 package org.elasticsearch.search.diversification;
 
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.MockResolvedIndices;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndices;
+import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -32,16 +41,22 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
+import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.search.retriever.TestRetrieverBuilder;
 import org.elasticsearch.search.vectors.TestQueryVectorBuilderPlugin;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.junit.Assert;
 
@@ -255,6 +270,55 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         });
     }
 
+    public void testCreatesMinimalSubSearchSource() {
+        var retriever = new DiversifyRetrieverBuilder(
+            new CompoundRetrieverBuilder.RetrieverSource(new StandardRetrieverBuilder(new MatchAllQueryBuilder()), null),
+            ResultDiversificationType.MMR,
+            "dense_vector_field",
+            10,
+            3,
+            new VectorData(getRandomFloatQueryVector(256)),
+            null,
+            0.3f
+        );
+
+        SetOnce<MultiSearchRequest> subSearchRequest = new SetOnce<>();
+        RuntimeException expectedFailure = new RuntimeException("sub-searches are not executed by this test");
+        try (var threadPool = createThreadPool()) {
+            // capture the sub-searches instead of running them, as we are only interested in what they ask for
+            var client = new NoOpClient(threadPool) {
+                @Override
+                protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                    ActionType<Response> action,
+                    Request request,
+                    ActionListener<Response> listener
+                ) {
+                    assertEquals(TransportMultiSearchAction.TYPE, action);
+                    subSearchRequest.set((MultiSearchRequest) request);
+                    listener.onFailure(expectedFailure);
+                }
+            };
+
+            // rewrite the same way the search action does, so that we assert on the requests that would actually be sent
+            PlainActionFuture<RetrieverBuilder> future = new PlainActionFuture<>();
+            Rewriteable.rewriteAndFetch(retriever, getQueryRewriteContext(client), future);
+            assertTrue(future.isDone());
+            assertSame(expectedFailure, expectThrows(RuntimeException.class, future::actionGet));
+        }
+
+        assertNotNull("the rewrite did not reach the sub-search", subSearchRequest.get());
+        assertEquals(1, subSearchRequest.get().requests().size());
+        SearchSourceBuilder source = subSearchRequest.get().requests().getFirst().source();
+
+        // stored fields are disabled, which also suppresses _source on the data node
+        assertNotNull(source.storedFields());
+        assertFalse(source.storedFields().fetchFields());
+        assertNull(source.fetchSource());
+
+        assertEquals(Map.of("dense_vector_field", VectorType.DENSE_VECTOR), source.fetchEmbeddingsFields());
+        assertTrue(source.trackScores());
+    }
+
     public void testMmrResultDiversification() {
         var queryRewriteContext = getQueryRewriteContext();
         var retriever = new DiversifyRetrieverBuilder(
@@ -329,32 +393,74 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         ScoreDoc[] hits = getTestNonVectorSearchHits();
         docs.add(hits);
 
-        ElasticsearchStatusException badDocFieldEx = assertThrows(
-            ElasticsearchStatusException.class,
-            () -> retriever.combineInnerRetrieverResults(docs, false)
-        );
-        assertEquals(
-            "Failed to retrieve vectors for field [dense_vector_field]. Is it a [dense_vector] field?",
-            badDocFieldEx.getMessage()
-        );
-        assertEquals(400, badDocFieldEx.status().getStatus());
+        RankDoc[] results = retriever.combineInnerRetrieverResults(docs, false);
+        assertEquals(0, results.length);
 
         cleanDocsAndHits(docs, hits);
 
         ScoreDoc[] hitsWithNoValues = getTestSearchHitsWithNoValues();
         docs.add(hitsWithNoValues);
 
-        ElasticsearchStatusException docsWithNoValuesEx = assertThrows(
-            ElasticsearchStatusException.class,
-            () -> retriever.combineInnerRetrieverResults(docs, false)
-        );
-        assertEquals(
-            "Failed to retrieve vectors for field [dense_vector_field]. Is it a [dense_vector] field?",
-            docsWithNoValuesEx.getMessage()
-        );
-        assertEquals(400, docsWithNoValuesEx.status().getStatus());
+        RankDoc[] resultsWithNoValues = retriever.combineInnerRetrieverResults(docs, false);
+        assertEquals(0, resultsWithNoValues.length);
 
         cleanDocsAndHits(docs, hitsWithNoValues);
+    }
+
+    public void testCombineInnerRetrieverResultsWithAllMissingVectors() {
+        var queryRewriteContext = getQueryRewriteContext();
+        var retriever = new DiversifyRetrieverBuilder(
+            getInnerRetriever(),
+            ResultDiversificationType.MMR,
+            "rgb_vector",
+            10,
+            3,
+            new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f }),
+            null,
+            0.5f
+        );
+
+        retriever.doRewrite(queryRewriteContext);
+
+        List<ScoreDoc[]> docs = new ArrayList<>();
+        ScoreDoc[] hits = new DiversifyRetrieverBuilder.RankDocWithSearchHit[] { getTestSearchHitWithNoValue(1, 90002, 1.0f) };
+        docs.add(hits);
+
+        try {
+            RankDoc[] results = retriever.combineInnerRetrieverResults(docs, false);
+            assertEquals(0, results.length);
+        } finally {
+            cleanDocsAndHits(docs, hits);
+        }
+    }
+
+    public void testCombineInnerRetrieverResultsDropsMissingVectorDocs() {
+        var queryRewriteContext = getQueryRewriteContext();
+        var retriever = new DiversifyRetrieverBuilder(
+            getInnerRetriever(),
+            ResultDiversificationType.MMR,
+            "dense_vector_field",
+            10,
+            10,
+            new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f }),
+            null,
+            0.5f
+        );
+
+        retriever.doRewrite(queryRewriteContext);
+
+        List<ScoreDoc[]> docs = new ArrayList<>();
+        ScoreDoc[] hits = new DiversifyRetrieverBuilder.RankDocWithSearchHit[] {
+            getTestSearchHitWithNoValue(1, 90002, 1.0f),
+            getTestSearchHit(2, 4, 4.0f, new float[] { 0.5f, 0.2f, 0.4f, 0.4f }) };
+        docs.add(hits);
+
+        try {
+            RankDoc[] results = retriever.combineInnerRetrieverResults(docs, false);
+            assertEquals(1, results.length);
+        } finally {
+            cleanDocsAndHits(docs, hits);
+        }
     }
 
     private void cleanDocsAndHits(List<ScoreDoc[]> docs, ScoreDoc[] hits) {
@@ -500,12 +606,16 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
     }
 
     private QueryRewriteContext getQueryRewriteContext() {
+        return getQueryRewriteContext(null);
+    }
+
+    private QueryRewriteContext getQueryRewriteContext(Client client) {
         final String indexName = "test-index";
         final List<String> testDenseVectorFields = List.of("dense_vector_field");
         final ResolvedIndices resolvedIndices = createMockResolvedIndices(Map.of(indexName, testDenseVectorFields));
         final Index localIndex = resolvedIndices.getConcreteLocalIndices()[0];
         final Predicate<String> nameMatcher = testDenseVectorFields::contains;
-        final MappingLookup mappingLookup = MappingLookup.fromMapping(getTestMapping());
+        final MappingLookup mappingLookup = MappingLookup.fromMapping(getTestMapping(), randomFrom(IndexMode.availableModes()));
 
         var indexMetadata = IndexMetadata.builder("index")
             .settings(
@@ -517,7 +627,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
 
         return new QueryRewriteContext(
             parserConfig(),
-            null,
+            client,
             null,
             null,
             mappingLookup,
@@ -543,7 +653,15 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
     private Mapping getTestMapping() {
         SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null, Settings.EMPTY, false, false, false).setSynthetic().build();
         RootObjectMapper root = new RootObjectMapper.Builder("_doc").add(
-            new DenseVectorFieldMapper.Builder("dense_vector_field", IndexVersion.current(), false, List.of())
+            new DenseVectorFieldMapper.Builder(
+                "dense_vector_field",
+                IndexVersion.current(),
+                IndexMode.STANDARD,
+                false,
+                false,
+                List.of(),
+                false
+            )
         ).build(MapperBuilderContext.root(true, false));
 
         return new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());

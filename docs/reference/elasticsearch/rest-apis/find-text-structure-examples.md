@@ -5,7 +5,7 @@ navigation_title: Find text structure API examples
 ---
 # Find text structure API examples
 
-The [find text structure API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-text-structure-find-structure) provides a starting point for ingesting data into {{es}} in a format that is suitable for subsequent use with other Elastic Stack functionality. This page shows you examples of using the API.  
+The [find text structure API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-text-structure-find-structure) provides a starting point for ingesting data into {{es}} in a format that is suitable for subsequent use with other {{stack}} functionality. This page shows you examples of using the API.  
 
 ## Finding the structure of NYC yellow cab example data [find-structure-example-nyc]
 

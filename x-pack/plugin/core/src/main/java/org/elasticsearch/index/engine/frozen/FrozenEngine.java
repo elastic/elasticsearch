@@ -15,9 +15,9 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.engine.Engine;
@@ -41,6 +41,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 
 /**
@@ -114,12 +115,27 @@ public final class FrozenEngine extends ReadOnlyEngine {
             }
 
             @Override
+            protected DirectoryReader doOpenIfChanged(ExecutorService executorService) {
+                return null;
+            }
+
+            @Override
             protected DirectoryReader doOpenIfChanged(IndexCommit commit) {
                 return null;
             }
 
             @Override
+            protected DirectoryReader doOpenIfChanged(IndexCommit commit, ExecutorService executorService) {
+                return null;
+            }
+
+            @Override
             protected DirectoryReader doOpenIfChanged(IndexWriter writer, boolean applyAllDeletes) {
+                return null;
+            }
+
+            @Override
+            protected DirectoryReader doOpenIfChanged(IndexWriter writer, boolean applyAllDeletes, ExecutorService executorService) {
                 return null;
             }
 
@@ -215,8 +231,13 @@ public final class FrozenEngine extends ReadOnlyEngine {
     public SearcherSupplier acquireSearcherSupplier(
         Function<Searcher, Searcher> wrapper,
         SearcherScope scope,
-        SplitShardCountSummary splitShardCountSummary
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> externalDirectoryReaderWrapper,
+        ReferenceManager<ElasticsearchDirectoryReader> referenceManager
     ) throws EngineException {
+        // Note that `externalDirectoryReaderWrapper` is unused.
+        // This is intentional, `externalDirectoryReaderWrapper` is used for features like resharding that are not relevant
+        // to the frozen engine.
+
         final Store store = this.store;
         store.incRef();
         return new SearcherSupplier(wrapper) {

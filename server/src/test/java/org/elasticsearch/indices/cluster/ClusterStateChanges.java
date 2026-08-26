@@ -42,10 +42,10 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
-import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardUpdateTask;
-import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
-import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardUpdateTask;
+import org.elasticsearch.cluster.action.shard.FailedShardEntry;
+import org.elasticsearch.cluster.action.shard.ShardFailedTaskExecutor;
+import org.elasticsearch.cluster.action.shard.ShardStartedTaskExecutor;
+import org.elasticsearch.cluster.action.shard.StartedShardEntry;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.coordination.JoinReason;
 import org.elasticsearch.cluster.coordination.JoinTask;
@@ -103,6 +103,7 @@ import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -139,8 +140,8 @@ public class ClusterStateChanges {
     private final AllocationService allocationService;
     private final ClusterService clusterService;
     private final FeatureService featureService;
-    private final ShardStateAction.ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor;
-    private final ShardStateAction.ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor;
+    private final ShardFailedTaskExecutor shardFailedTaskExecutor;
+    private final ShardStartedTaskExecutor shardStartedTaskExecutor;
 
     // transport actions
     private final TransportOpenIndexAction transportOpenIndexAction;
@@ -170,9 +171,9 @@ public class ClusterStateChanges {
             EmptySnapshotsInfoService.INSTANCE,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
-        shardFailedClusterStateTaskExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null);
-        shardStartedClusterStateTaskExecutor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService, null);
-        ActionFilters actionFilters = new ActionFilters(Collections.emptySet());
+        shardFailedTaskExecutor = new ShardFailedTaskExecutor(allocationService, null);
+        shardStartedTaskExecutor = new ShardStartedTaskExecutor(clusterSettings, allocationService, null);
+        ActionFilters actionFilters = ActionFilters.EMPTY;
         IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
         DestructiveOperations destructiveOperations = new DestructiveOperations(SETTINGS, clusterSettings);
         Environment environment = TestEnvironment.newEnvironment(SETTINGS);
@@ -182,7 +183,8 @@ public class ClusterStateChanges {
             SETTINGS,
             clusterSettings,
             threadPool,
-            new TaskManager(SETTINGS, threadPool, Collections.emptySet())
+            new TaskManager(SETTINGS, threadPool, Collections.emptySet()),
+            MeterRegistry.NOOP
         ) {
             @Override
             protected ExecutorService createThreadPoolExecutor() {
@@ -205,8 +207,7 @@ public class ClusterStateChanges {
                 MapperService mapperService = mock(MapperService.class);
                 when(indexService.mapperService()).thenReturn(mapperService);
                 when(mapperService.documentMapper()).thenReturn(null);
-                when(indexService.getIndexEventListener()).thenReturn(new IndexEventListener() {
-                });
+                when(indexService.getIndexEventListener()).thenReturn(IndexEventListener.NOOP);
                 when(indexService.getIndexSortSupplier()).thenReturn(() -> null);
                 return ((CheckedFunction<IndexService, ?, ?>) invocationOnMock.getArguments()[1]).apply(indexService);
             });
@@ -461,10 +462,10 @@ public class ClusterStateChanges {
     }
 
     public ClusterState applyFailedShards(ClusterState clusterState, List<FailedShard> failedShards) {
-        List<FailedShardUpdateTask> entries = failedShards.stream()
+        List<ShardFailedTaskExecutor.Task> entries = failedShards.stream()
             .map(
-                failedShard -> new FailedShardUpdateTask(
-                    new ShardStateAction.FailedShardEntry(
+                failedShard -> new ShardFailedTaskExecutor.Task(
+                    new FailedShardEntry(
                         failedShard.routingEntry().shardId(),
                         failedShard.routingEntry().allocationId().getId(),
                         0L,
@@ -476,7 +477,7 @@ public class ClusterStateChanges {
                 )
             )
             .toList();
-        return runTasks(shardFailedClusterStateTaskExecutor, clusterState, entries);
+        return runTasks(shardFailedTaskExecutor, clusterState, entries);
     }
 
     public ClusterState applyStartedShards(ClusterState clusterState, List<ShardRouting> startedShards) {
@@ -489,12 +490,12 @@ public class ClusterStateChanges {
 
     public ClusterState applyStartedShards(ClusterState clusterState, Map<ShardRouting, Long> startedShards) {
         return runTasks(
-            shardStartedClusterStateTaskExecutor,
+            shardStartedTaskExecutor,
             clusterState,
             startedShards.entrySet()
                 .stream()
                 .map(
-                    e -> new StartedShardUpdateTask(
+                    e -> new ShardStartedTaskExecutor.Task(
                         new StartedShardEntry(
                             e.getKey().shardId(),
                             e.getKey().allocationId().getId(),

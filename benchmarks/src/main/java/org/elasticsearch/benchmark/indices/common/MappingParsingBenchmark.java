@@ -10,10 +10,10 @@
 package org.elasticsearch.benchmark.indices.common;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -25,7 +25,6 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.script.Script;
@@ -62,11 +61,9 @@ import java.util.concurrent.TimeUnit;
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @State(Scope.Benchmark)
 public class MappingParsingBenchmark {
+
     static {
-        // For Elasticsearch900Lucene101Codec:
-        LogConfigurator.loadLog4jPlugins();
-        LogConfigurator.configureESLogging();
-        LogConfigurator.setNodeName("test");
+        Utils.configureBenchmarkLogging();
     }
 
     private static final String MAPPING = """
@@ -145,7 +142,7 @@ public class MappingParsingBenchmark {
                 () -> {
                     throw new UnsupportedOperationException();
                 },
-                new ProvidedIdFieldMapper(() -> true),
+                () -> true,
                 new ScriptCompiler() {
                     @Override
                     public <T> T compile(Script script, ScriptContext<T> scriptContext) {

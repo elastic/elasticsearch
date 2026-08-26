@@ -11,6 +11,7 @@ package org.elasticsearch.cli;
 
 import joptsimple.OptionSet;
 
+import org.elasticsearch.cli.terminal.Terminal;
 import org.junit.Before;
 
 import static org.hamcrest.Matchers.containsString;

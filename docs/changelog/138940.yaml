@@ -1,5 +1,0 @@
-pr: 138940
-summary: Add TOP_SNIPPETS function to return the best snippets for a field
-area: ES|QL
-type: enhancement
-issues: []

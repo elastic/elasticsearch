@@ -9,22 +9,25 @@
 
 package org.elasticsearch.inference;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.EnumSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -32,71 +35,46 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * This class represents a String which may be raw text, or the String representation of some other data such as an image in base64
  */
-public record InferenceString(DataType dataType, DataFormat dataFormat, String value) implements Writeable, ToXContentObject {
-    private static final String TYPE_FIELD = "type";
-    private static final String FORMAT_FIELD = "format";
-    private static final String VALUE_FIELD = "value";
+public record InferenceString(DataType dataType, DataFormat dataFormat, String value) implements Accountable, Writeable, ToXContentObject {
+    public static final TransportVersion EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED = TransportVersion.fromName(
+        "inference_api_audio_video_pdf_support"
+    );
 
-    /**
-     * Describes the type of data represented by an {@link InferenceString}
-     */
-    public enum DataType {
-        TEXT(DataFormat.TEXT),
-        IMAGE(DataFormat.BASE64);
+    // Caps regex cost regardless of total input size; real MIME types are well under this.
+    static final int MAX_DATA_URI_PREFIX_LENGTH = 256;
 
-        private final DataFormat defaultFormat;
+    // Character classes stop at literal delimiters so matching is linear. RFC 2397 ";param=value" pairs get absorbed into the {subtype}
+    // class.
+    private static final Pattern DATA_URI_PATTERN = Pattern.compile("^data:[^/]+/[^,]+;base64,");
+    private static final String DATA_URI_PREFIX = "data:";
+    private static final String BASE64_MARKER = ";base64";
 
-        DataType(DataFormat defaultFormat) {
-            this.defaultFormat = defaultFormat;
-        }
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(InferenceString.class);
+    private static final long STRING_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(String.class);
+    // Conservative overhead for the DataType and DataFormat enum instances
+    private static final long ENUM_OVERHEAD = RamUsageEstimator.shallowSizeOf(DataType.TEXT) + RamUsageEstimator.shallowSizeOf(
+        DataFormat.TEXT
+    );
 
-        @Override
-        public String toString() {
-            return name().toLowerCase(Locale.ROOT);
-        }
+    public static final String TYPE_FIELD = "type";
+    public static final String FORMAT_FIELD = "format";
+    public static final String VALUE_FIELD = "value";
 
-        public static DataType fromString(String name) {
-            try {
-                return valueOf(name.trim().toUpperCase(Locale.ROOT));
-            } catch (IllegalArgumentException ex) {
-                throw new IllegalArgumentException(
-                    Strings.format("Unrecognized type [%s], must be one of %s", name, Arrays.toString(DataType.values()))
-                );
-            }
-        }
-    }
-
-    /**
-     * Describes the format of data represented by an {@link InferenceString}
-     */
-    public enum DataFormat {
-        TEXT,
-        BASE64;
-
-        @Override
-        public String toString() {
-            return name().toLowerCase(Locale.ROOT);
-        }
-
-        public static DataFormat fromString(String name) {
-            try {
-                return valueOf(name.trim().toUpperCase(Locale.ROOT));
-            } catch (IllegalArgumentException ex) {
-                throw new IllegalArgumentException(
-                    Strings.format("Unrecognized format [%s], must be one of %s", name, Arrays.toString(DataFormat.values()))
-                );
-            }
-        }
-    }
-
-    static final ConstructingObjectParser<InferenceString, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<InferenceString, Void> PARSER = new ConstructingObjectParser<>(
         InferenceString.class.getSimpleName(),
-        args -> new InferenceString((InferenceString.DataType) args[0], (InferenceString.DataFormat) args[1], (String) args[2])
+        args -> new InferenceString((DataType) args[0], (DataFormat) args[1], (String) args[2])
     );
     static {
         PARSER.declareString(constructorArg(), DataType::fromString, new ParseField(TYPE_FIELD));
         PARSER.declareString(optionalConstructorArg(), DataFormat::fromString, new ParseField(FORMAT_FIELD));
         PARSER.declareString(constructorArg(), new ParseField(VALUE_FIELD));
+    }
+
+    /**
+     * Convenience constructor for creating {@link InferenceString} with {@link DataType#TEXT} and {@link DataFormat#TEXT}
+     */
+    public static InferenceString ofText(String textValue) {
+        return new InferenceString(DataType.TEXT, DataFormat.TEXT, textValue);
     }
 
     /**
@@ -119,41 +97,101 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
      */
     public InferenceString(DataType dataType, @Nullable DataFormat dataFormat, String value) {
         this.dataType = Objects.requireNonNull(dataType);
-        this.dataFormat = Objects.requireNonNullElse(dataFormat, this.dataType.defaultFormat);
+        this.dataFormat = Objects.requireNonNullElse(dataFormat, this.dataType.getDefaultFormat());
         validateTypeAndFormat();
         this.value = Objects.requireNonNull(value);
+        validateDataURIFormat();
     }
 
     private void validateTypeAndFormat() {
-        if (supportedFormatsForType(dataType).contains(dataFormat) == false) {
+        if (dataType.getSupportedFormats().contains(dataFormat) == false) {
             throw new IllegalArgumentException(
                 Strings.format(
                     "Data type [%s] does not support data format [%s], supported formats are %s",
                     dataType,
                     dataFormat,
-                    supportedFormatsForType(dataType)
+                    dataType.getSupportedFormats()
                 )
             );
         }
     }
 
-    public InferenceString(StreamInput in) throws IOException {
-        this(in.readEnum(DataType.class), in.readEnum(DataFormat.class), in.readString());
+    private void validateDataURIFormat() {
+        if (dataFormat == DataFormat.BASE64 && tryParseDataUri(value) == null) {
+            throw new IllegalArgumentException(
+                "base64 inputs must be specified as data URIs with the format [data:{MIME-type};base64,...]"
+            );
+        }
     }
 
-    public boolean isImage() {
-        return DataType.IMAGE.equals(dataType);
+    /**
+     * Parses {@code value} as a base64 data URI ({@code data:<media-type>;base64,<data>}) — the format every
+     * {@link DataFormat#BASE64} input is required to use, since consumers need the declared media type. Returns the media type
+     * exactly as declared (including any RFC 2397 parameters, e.g. {@code text/plain;charset=utf-8}) together with the base64
+     * payload, or {@code null} when the value is not a valid base64 data URI, leaving it to callers to decide whether that is
+     * an error.
+     */
+    @Nullable
+    public static DataUri tryParseDataUri(String value) {
+        var endOfURIPart = value.indexOf(',');
+        // Fast-fail on missing or oversized URI part before the regex.
+        if (endOfURIPart < 0
+            || endOfURIPart >= MAX_DATA_URI_PREFIX_LENGTH
+            || DATA_URI_PATTERN.matcher(value).region(0, endOfURIPart + 1).matches() == false) {
+            return null;
+        }
+        return new DataUri(
+            value.substring(DATA_URI_PREFIX.length(), endOfURIPart - BASE64_MARKER.length()),
+            value.substring(endOfURIPart + 1)
+        );
+    }
+
+    /**
+     * The declared media type and base64 payload of a base64 data URI, as returned by {@link #tryParseDataUri(String)}.
+     */
+    public record DataUri(String mediaType, String base64Data) {}
+
+    public InferenceString(StreamInput in) throws IOException {
+        this(in.readEnum(DataType.class), in.readEnum(DataFormat.class), in.readString());
     }
 
     public boolean isText() {
         return DataType.TEXT.equals(dataType);
     }
 
-    public static EnumSet<DataFormat> supportedFormatsForType(DataType type) {
-        return switch (type) {
-            case TEXT -> EnumSet.of(DataFormat.TEXT);
-            case IMAGE -> EnumSet.of(DataFormat.BASE64);
-        };
+    public boolean isImage() {
+        return DataType.IMAGE.equals(dataType);
+    }
+
+    public boolean isAudio() {
+        return DataType.AUDIO.equals(dataType);
+    }
+
+    public boolean isVideo() {
+        return DataType.VIDEO.equals(dataType);
+    }
+
+    public boolean isPdf() {
+        return DataType.PDF.equals(dataType);
+    }
+
+    public boolean isNonText() {
+        return isText() == false;
+    }
+
+    /**
+     * Converts a list of {@link String} to a list of {@link InferenceString} where all of the {@link InferenceString} are
+     * {@link DataType#TEXT}.
+     * <p>
+     * <b>
+     * This method should only be called in code paths that do not deal with multimodal inputs, i.e. code paths where all inputs are
+     * guaranteed to be raw text, since it assumes that the {@link DataType} for every string is {@link DataType#TEXT}.
+     *</b>
+     * @param strings the strings to convert to {@link InferenceString}
+     * @return a list of {@link InferenceString}
+     */
+    public static List<InferenceString> fromStringList(List<String> strings) {
+        return strings.stream().map(InferenceString::ofText).toList();
     }
 
     /**
@@ -161,8 +199,7 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
      * <p>
      * <b>
      * This method should only be called in code paths that do not deal with multimodal inputs, i.e. code paths where all inputs are
-     * guaranteed to be raw text, since it discards the {@link org.elasticsearch.inference.InferenceString.DataType} associated with
-     * each input.
+     * guaranteed to be raw text, since it discards the {@link DataType} associated with each input.
      *</b>
      * @param inferenceStrings The list of {@link InferenceString} to convert to a list of {@link String}
      * @return a list of String inference inputs that do not contain any non-text inputs
@@ -176,7 +213,7 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
      * <p>
      * <b>
      * This method should only be called in code paths that do not deal with multimodal inputs, i.e. code paths where all inputs are
-     * guaranteed to be raw text, since it discards the {@link org.elasticsearch.inference.InferenceString.DataType} associated with
+     * guaranteed to be raw text, since it discards the {@link DataType} associated with
      * each input.
      *</b>
      * @param inferenceString The {@link InferenceString} to convert to a {@link String}
@@ -187,8 +224,27 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
         return inferenceString.value();
     }
 
+    public static long estimateRamBytesUsed(int valueLength) {
+        return SHALLOW_SIZE + ENUM_OVERHEAD + RamUsageEstimator.alignObjectSize(
+            STRING_SHALLOW_SIZE + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Character.BYTES * valueLength
+        );
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return estimateRamBytesUsed(value().length());
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().supports(EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED) == false
+            && (dataType.equals(DataType.AUDIO) || dataType.equals(DataType.VIDEO) || dataType.equals(DataType.PDF))) {
+            throw new ElasticsearchStatusException(
+                "Cannot send an inference request with audio, video or pdf inputs to an older node. "
+                    + "Please wait until all nodes are upgraded before using audio, video or pdf inputs",
+                RestStatus.BAD_REQUEST
+            );
+        }
         out.writeEnum(dataType);
         out.writeEnum(dataFormat);
         out.writeString(value);

@@ -1217,7 +1217,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                     case FAILURE_STORE_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS,
                         FAILURE_INDEX_FAILURE_ACCESS:
                         expectSearch(user, request);
-                        expectEsqlThrows(user, request, 400);
+                        expectEsql(user, request);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1235,7 +1235,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                     case FAILURE_STORE_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS,
                         FAILURE_INDEX_FAILURE_ACCESS:
                         expectSearch(user, request);
-                        expectEsqlThrows(user, request, 400);
+                        expectEsql(user, request);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1256,7 +1256,9 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                     case FAILURE_STORE_ACCESS, BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS,
                         BACKING_INDEX_DATA_ACCESS:
                         expectSearch(user, request);
-                        expectEsqlThrows(user, request, 400);
+                        if (request.searchTarget.equals("*")) {
+                            expectEsql(user, request);
+                        }
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1273,7 +1275,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                         break;
                     case FAILURE_STORE_ACCESS, BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS:
                         expectSearch(user, request);
-                        expectEsqlThrows(user, request, 400);
+                        expectEsql(user, request);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1436,7 +1438,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                     case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS,
                         FAILURE_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS:
                         expectSearch(user, request);
-                        expectEsqlThrows(user, request, 400);
+                        expectEsql(user, request);
                         break;
                     case ADMIN_USER, FAILURE_STORE_ACCESS, BOTH_ACCESS:
                         expectSearch(user, request, failuresDocId);
@@ -1454,7 +1456,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                     case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS,
                         FAILURE_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS:
                         expectSearch(user, request);
-                        expectEsqlThrows(user, request, 400);
+                        expectEsql(user, request);
                         break;
                     case ADMIN_USER, FAILURE_STORE_ACCESS, BOTH_ACCESS:
                         expectSearch(user, request, failuresDocId);
@@ -1472,7 +1474,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                     case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS,
                         FAILURE_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS:
                         expectSearch(user, request);
-                        expectEsqlThrows(user, request, 400);
+                        expectEsql(user, request);
                         break;
                     case ADMIN_USER, FAILURE_STORE_ACCESS, BOTH_ACCESS:
                         expectSearch(user, request, failuresDocId);
@@ -1489,7 +1491,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 switch (user) {
                     case DATA_ACCESS, BACKING_INDEX_DATA_ACCESS, BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_FAILURE_ACCESS:
                         expectSearch(user, request);
-                        expectEsqlThrows(user, request, 400);
+                        expectEsql(user, request);
                         break;
                     case ADMIN_USER, FAILURE_STORE_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS, FAILURE_INDEX_DATA_ACCESS:
                         expectSearch(user, request, failuresDocId);
@@ -1605,7 +1607,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                     case DATA_ACCESS, FAILURE_STORE_ACCESS, ADMIN_USER, STAR_READ_ONLY_ACCESS, BOTH_ACCESS, BACKING_INDEX_DATA_ACCESS,
                         BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS, FAILURE_INDEX_FAILURE_ACCESS:
                         expectSearch(user, request);
-                        expectEsqlThrows(user, request, 400);
+                        expectEsql(user, request);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1619,7 +1621,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                     case DATA_ACCESS, FAILURE_STORE_ACCESS, ADMIN_USER, STAR_READ_ONLY_ACCESS, BOTH_ACCESS, BACKING_INDEX_DATA_ACCESS,
                         BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_DATA_ACCESS, FAILURE_INDEX_FAILURE_ACCESS:
                         expectSearch(user, request);
-                        expectEsqlThrows(user, request, 400);
+                        expectEsql(user, request);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1915,7 +1917,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                         break;
                     case BACKING_INDEX_FAILURE_ACCESS, FAILURE_INDEX_FAILURE_ACCESS, BACKING_INDEX_DATA_ACCESS, FAILURE_INDEX_DATA_ACCESS:
                         expectSearch(user, request);
-                        expectEsqlThrows(user, request, 400);
+                        expectEsql(user, request);
                         break;
                     default:
                         fail("must cover user: " + user);
@@ -1978,6 +1980,115 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         expectThrows(() -> addFailureStoreBackingIndex(MANAGE_FAILURE_STORE_ACCESS, "test1", failureIndexName), 403);
     }
 
+    public void testAddFailureStoreBackingIndexWithManageAndManageFailureStore() throws Exception {
+        setupDataStream();
+        Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
+        String dataIndexName = backingIndices.v1();
+        String failureIndexName = backingIndices.v2();
+
+        // detach the failure index as admin so it becomes a standalone concrete index
+        Request detachRequest = new Request("POST", "/_data_stream/_modify");
+        detachRequest.setJsonEntity(Strings.format("""
+            {
+              "actions": [
+                {
+                  "remove_backing_index": {
+                    "data_stream": "test1",
+                    "index": "%s",
+                    "failure_store": true
+                  }
+                }
+              ]
+            }
+            """, failureIndexName));
+        assertOK(adminClient().performRequest(detachRequest));
+        assertDataStreamHasNoFailureIndices("test1", dataIndexName);
+
+        // user has manage on the failure index (covers first pass) and manage_failure_store on the
+        // data stream (covers second pass with FAILURES selector)
+        String user = "manage_idx_with_manage_failure_store";
+        createUser(user, PASSWORD, user);
+        createOrUpdateRoleAndApiKey(user, user, """
+            {
+              "cluster": ["all"],
+              "indices": [
+                {"names": [".fs*"], "privileges": ["manage"]},
+                {"names": ["test*"], "privileges": ["manage_failure_store"]}
+              ]
+            }""");
+
+        assertOK(addFailureStoreBackingIndex(user, "test1", failureIndexName));
+        assertDataStreamHasDataAndFailureIndices("test1", dataIndexName, failureIndexName);
+    }
+
+    public void testAddFailureStoreBackingIndexWithOnlyManageFailureStore() throws Exception {
+        setupDataStream();
+        Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
+        String dataIndexName = backingIndices.v1();
+        String failureIndexName = backingIndices.v2();
+
+        // detach the failure index as admin so it becomes a standalone concrete index
+        Request detachRequest = new Request("POST", "/_data_stream/_modify");
+        detachRequest.setJsonEntity(Strings.format("""
+            {
+              "actions": [
+                {
+                  "remove_backing_index": {
+                    "data_stream": "test1",
+                    "index": "%s",
+                    "failure_store": true
+                  }
+                }
+              ]
+            }
+            """, failureIndexName));
+        assertOK(adminClient().performRequest(detachRequest));
+        assertDataStreamHasNoFailureIndices("test1", dataIndexName);
+
+        String user = "only_manage_failure_store";
+        createUser(user, PASSWORD, user);
+        createOrUpdateRoleAndApiKey(user, user, """
+            {
+              "cluster": ["all"],
+              "indices": [{"names": ["test*"], "privileges": ["manage_failure_store"]}]
+            }""");
+
+        expectThrows(() -> addBackingIndex(user, "test1", failureIndexName), 403);
+    }
+
+    public void testModifyDataStreamRejectsSelectorInDataStreamName() throws Exception {
+        setupDataStream();
+        Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
+        String failureIndexName = backingIndices.v2();
+
+        createUser(MANAGE_ACCESS, PASSWORD, MANAGE_ACCESS);
+        createOrUpdateRoleAndApiKey(MANAGE_ACCESS, MANAGE_ACCESS, """
+            {
+              "cluster": ["all"],
+              "indices": [{"names": ["test*", ".fs*"], "privileges": ["manage"]}]
+            }""");
+
+        for (String selector : List.of("::failures", "::data")) {
+            Request request = new Request("POST", "/_data_stream/_modify");
+            request.setJsonEntity(Strings.format("""
+                {
+                  "actions": [
+                    {
+                      "add_backing_index": {
+                        "data_stream": "%s",
+                        "index": "%s"
+                      }
+                    }
+                  ]
+                }
+                """, "test1" + selector, failureIndexName));
+            expectThrowsBadRequest(
+                () -> performRequest(MANAGE_ACCESS, request),
+                containsString("selectors [::] are not supported in data stream modification actions")
+            );
+        }
+    }
+
     private void assertDataStreamHasDataAndFailureIndices(String dataStreamName, String dataIndexName, String failureIndexName)
         throws IOException {
         Tuple<List<String>, List<String>> indices = getDataAndFailureIndices(dataStreamName);
@@ -1992,14 +2103,18 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
     }
 
     private Response addFailureStoreBackingIndex(String user, String dataStreamName, String failureIndexName) throws IOException {
-        return modifyFailureStoreBackingIndex(user, "add_backing_index", dataStreamName, failureIndexName);
+        return modifyBackingIndex(user, "add_backing_index", dataStreamName, failureIndexName, true);
     }
 
     private Response removeFailureStoreBackingIndex(String user, String dataStreamName, String failureIndexName) throws IOException {
-        return modifyFailureStoreBackingIndex(user, "remove_backing_index", dataStreamName, failureIndexName);
+        return modifyBackingIndex(user, "remove_backing_index", dataStreamName, failureIndexName, true);
     }
 
-    private Response modifyFailureStoreBackingIndex(String user, String action, String dataStreamName, String failureIndexName)
+    private Response addBackingIndex(String user, String dataStreamName, String indexName) throws IOException {
+        return modifyBackingIndex(user, "add_backing_index", dataStreamName, indexName, false);
+    }
+
+    private Response modifyBackingIndex(String user, String action, String dataStreamName, String indexName, boolean failureStore)
         throws IOException {
         Request request = new Request("POST", "/_data_stream/_modify");
         request.setJsonEntity(Strings.format("""
@@ -2009,12 +2124,12 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                   "%s": {
                     "data_stream": "%s",
                     "index": "%s",
-                    "failure_store" : true
+                    "failure_store" : %s
                   }
                 }
               ]
             }
-            """, action, dataStreamName, failureIndexName));
+            """, action, dataStreamName, indexName, failureStore));
         return performRequest(user, request);
     }
 
@@ -2227,8 +2342,8 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         Request request = new Request("POST", "_watcher/watch/" + watchId + "/_execute");
         Response response = performRequest(user, request);
         ObjectPath path = assertOKAndCreateObjectPath(response);
+        assertThat("watch_record: " + path.evaluate("watch_record"), path.evaluate("watch_record.state"), equalTo("executed"));
         assertThat(path.evaluate("watch_record.user"), equalTo(user));
-        assertThat(path.evaluate("watch_record.state"), equalTo("executed"));
         assertThat(path.evaluate("watch_record.result.input.status"), equalTo("success"));
         assertThat(path.evaluate("watch_record.result.input.payload.hits.total"), equalTo(expectedIndices.length));
         List<Map<String, ?>> hits = path.evaluate("watch_record.result.input.payload.hits.hits");
@@ -2239,8 +2354,8 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         Request request = new Request("POST", "_watcher/watch/" + watchId + "/_execute");
         Response response = performRequest(user, request);
         ObjectPath path = assertOKAndCreateObjectPath(response);
+        assertThat("watch_record: " + path.evaluate("watch_record"), path.evaluate("watch_record.state"), equalTo("executed"));
         assertThat(path.evaluate("watch_record.user"), equalTo(user));
-        assertThat(path.evaluate("watch_record.state"), equalTo("executed"));
         assertThat(path.evaluate("watch_record.result.input.status"), equalTo("success"));
         assertThat(path.evaluate("watch_record.result.input.payload.hits.total"), equalTo(0));
         List<Map<String, ?>> hits = path.evaluate("watch_record.result.input.payload.hits.hits");

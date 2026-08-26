@@ -1,0 +1,6 @@
+ALL-UNNAMED:
+  - outbound_network
+  - files:
+      - relative_path: .
+        relative_to: shared_repo
+        mode: read

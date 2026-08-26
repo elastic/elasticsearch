@@ -91,7 +91,7 @@ public final class GrokCaptureConfig {
     /**
      * Build an extract that has access to the "native" type of the extracter
      * match. This means that patterns like {@code %{NUMBER:bytes:float}} has
-     * access to an actual {@link float}. Extracters returned from this method
+     * access to an actual {@code float}. Extracters returned from this method
      * should be stateless and can be reused. Pathological implementations
      * of the {@code map} parameter could violate this, but the caller should
      * take care to stay sane.
@@ -121,27 +121,27 @@ public final class GrokCaptureConfig {
         T forString(Function<Consumer<String>, GrokCaptureExtracter> buildExtracter);
 
         /**
-         * Called when the native type is an {@link int}.
+         * Called when the native type is an {@code int}.
          */
         T forInt(Function<IntConsumer, GrokCaptureExtracter> buildExtracter);
 
         /**
-         * Called when the native type is an {@link long}.
+         * Called when the native type is an {@code long}.
          */
         T forLong(Function<LongConsumer, GrokCaptureExtracter> buildExtracter);
 
         /**
-         * Called when the native type is an {@link float}.
+         * Called when the native type is an {@code float}.
          */
         T forFloat(Function<FloatConsumer, GrokCaptureExtracter> buildExtracter);
 
         /**
-         * Called when the native type is an {@link double}.
+         * Called when the native type is an {@code double}.
          */
         T forDouble(Function<DoubleConsumer, GrokCaptureExtracter> buildExtracter);
 
         /**
-         * Called when the native type is an {@link boolean}.
+         * Called when the native type is an {@code boolean}.
          */
         T forBoolean(Function<Consumer<Boolean>, GrokCaptureExtracter> buildExtracter);
     }
@@ -153,9 +153,10 @@ public final class GrokCaptureConfig {
     public GrokCaptureExtracter rangeExtracter(Consumer<Object> emit) {
         return (utf8Bytes, offset, region) -> {
             for (int number : backRefs) {
-                if (region.getBeg(number) >= 0) {
-                    int matchOffset = offset + region.getBeg(number);
-                    int matchLength = region.getEnd(number) - region.getBeg(number);
+                final int beginning = region.getBeg(number);
+                if (beginning >= 0) {
+                    int matchOffset = offset + beginning;
+                    int matchLength = region.getEnd(number) - beginning;
                     String match = new String(utf8Bytes, matchOffset, matchLength, StandardCharsets.UTF_8);
                     emit.accept(new GrokCaptureExtracter.Range(match, matchOffset, matchLength));
                 }

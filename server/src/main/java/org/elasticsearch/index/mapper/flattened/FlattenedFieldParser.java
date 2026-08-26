@@ -14,17 +14,19 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.FallbackPostMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Map;
 
 /**
  * A helper class for {@link FlattenedFieldMapper} parses a JSON object
@@ -32,7 +34,7 @@ import java.util.List;
  */
 class FlattenedFieldParser {
     static final String SEPARATOR = "\0";
-    private static final byte SEPARATOR_BYTE = '\0';
+    static final byte SEPARATOR_BYTE = '\0';
 
     private final String rootFieldFullPath;
     private final String keyedFieldFullPath;
@@ -43,6 +45,18 @@ class FlattenedFieldParser {
     private final int ignoreAbove;
     private final String nullValue;
 
+    private final boolean usesBinaryDocValues;
+    private final boolean usesArrayOrderBinaryDocValues;
+    private final boolean hasRootDocValues;
+    private final boolean storeIgnoredFieldsInBinaryDocValues;
+    private final IndexVersion indexVersion;
+
+    private final Map<String, FieldMapper> mappedSubFields;
+
+    private final FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays;
+
+    private final boolean writeDimensionRouting;
+
     FlattenedFieldParser(
         String rootFieldFullPath,
         String keyedFieldFullPath,
@@ -50,7 +64,15 @@ class FlattenedFieldParser {
         MappedFieldType fieldType,
         int depthLimit,
         int ignoreAbove,
-        String nullValue
+        String nullValue,
+        boolean usesBinaryDocValues,
+        boolean hasRootDocValues,
+        Map<String, FieldMapper> mappedSubFields,
+        boolean storeIgnoredFieldsInBinaryDocValues,
+        FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays,
+        IndexVersion indexVersion,
+        boolean writeDimensionRouting,
+        boolean usesArrayOrderBinaryDocValues
     ) {
         this.rootFieldFullPath = rootFieldFullPath;
         this.keyedFieldFullPath = keyedFieldFullPath;
@@ -59,22 +81,27 @@ class FlattenedFieldParser {
         this.depthLimit = depthLimit;
         this.ignoreAbove = ignoreAbove;
         this.nullValue = nullValue;
+        this.usesBinaryDocValues = usesBinaryDocValues;
+        this.usesArrayOrderBinaryDocValues = usesArrayOrderBinaryDocValues;
+        this.hasRootDocValues = hasRootDocValues;
+        this.mappedSubFields = mappedSubFields;
+        this.storeIgnoredFieldsInBinaryDocValues = storeIgnoredFieldsInBinaryDocValues;
+        this.preserveLeafArrays = preserveLeafArrays;
+        this.indexVersion = indexVersion;
+        this.writeDimensionRouting = writeDimensionRouting;
     }
 
-    public List<IndexableField> parse(final DocumentParserContext documentParserContext) throws IOException {
+    public void parse(final DocumentParserContext documentParserContext, FlattenedFieldArrayContext arrayContext) throws IOException {
         XContentParser parser = documentParserContext.parser();
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
 
         ContentPath path = new ContentPath();
-        List<IndexableField> fields = new ArrayList<>();
 
-        var context = new Context(parser, documentParserContext);
-        parseObject(context, path, fields);
-
-        return fields;
+        var context = new Context(parser, documentParserContext, arrayContext);
+        parseObject(context, path);
     }
 
-    private void parseObject(Context context, ContentPath path, List<IndexableField> fields) throws IOException {
+    private void parseObject(Context context, ContentPath path) throws IOException {
         String currentName = null;
         XContentParser parser = context.parser();
         while (true) {
@@ -87,44 +114,36 @@ class FlattenedFieldParser {
                 currentName = parser.currentName();
             } else {
                 assert currentName != null;
-                parseFieldValue(context, token, path, currentName, fields);
+                parseFieldValue(context, token, path, currentName);
             }
         }
     }
 
-    private void parseArray(Context context, ContentPath path, String currentName, List<IndexableField> fields) throws IOException {
+    private void parseArray(Context context, ContentPath path, String currentName) throws IOException {
         XContentParser parser = context.parser();
         while (true) {
             XContentParser.Token token = parser.nextToken();
             if (token == XContentParser.Token.END_ARRAY) {
                 return;
             }
-            parseFieldValue(context, token, path, currentName, fields);
+            parseFieldValue(context, token, path, currentName);
         }
     }
 
-    private void parseFieldValue(
-        Context context,
-        XContentParser.Token token,
-        ContentPath path,
-        String currentName,
-        List<IndexableField> fields
-    ) throws IOException {
+    private void parseFieldValue(Context context, XContentParser.Token token, ContentPath path, String currentName) throws IOException {
         XContentParser parser = context.parser();
         if (token == XContentParser.Token.START_OBJECT) {
             path.add(currentName);
             validateDepthLimit(path);
-            parseObject(context, path, fields);
+            parseObject(context, path);
             path.remove();
         } else if (token == XContentParser.Token.START_ARRAY) {
-            parseArray(context, path, currentName, fields);
+            parseArray(context, path, currentName);
         } else if (token.isValue()) {
             String value = parser.text();
-            addField(context, path, currentName, value, fields);
+            addField(context, path, currentName, value);
         } else if (token == XContentParser.Token.VALUE_NULL) {
-            if (nullValue != null) {
-                addField(context, path, currentName, nullValue, fields);
-            }
+            addNull(context, path, currentName);
         } else {
             // Note that we throw an exception here just to be safe. We don't actually expect to reach
             // this case, since XContentParser verifies that the input is well-formed as it parses.
@@ -132,7 +151,7 @@ class FlattenedFieldParser {
         }
     }
 
-    private void addField(Context context, ContentPath path, String currentName, String value, List<IndexableField> fields) {
+    private void addField(Context context, ContentPath path, String currentName, String value) throws IOException {
         String key = path.pathAsText(currentName);
         if (key.contains(SEPARATOR)) {
             throw new IllegalArgumentException(
@@ -140,12 +159,41 @@ class FlattenedFieldParser {
             );
         }
 
+        // Mapped sub-fields are indexed exclusively in the sub-field mapper
+        // and are not part of the flattened field's root/keyed representation.
+        FieldMapper mappedSubField = mappedSubFields.get(key);
+        if (mappedSubField != null) {
+            FallbackPostMapper.parseField(context.documentParserContext(), mappedSubField);
+            return;
+        }
+
         String keyedValue = createKeyedValue(key, value);
         BytesRef bytesKeyedValue = new BytesRef(keyedValue);
 
         if (value.length() > ignoreAbove) {
-            if (context.documentParserContext().mappingLookup().isSourceSynthetic()) {
-                fields.add(new StoredField(keyedIgnoredValuesFieldFullPath, bytesKeyedValue));
+            var lookup = context.documentParserContext().mappingLookup();
+            if (lookup.isSourceSynthetic() || lookup.isSourceColumnarStored()) {
+                // In document-order mode there is no _offsets sidecar; ignored values are tail-appended during read.
+                if (preserveLeafArrays == FlattenedFieldMapper.PreserveLeafArrays.EXACT && usesArrayOrderBinaryDocValues == false) {
+                    context.arrayContext.recordOffset(key, new BytesRef(value));
+                }
+                if (storeIgnoredFieldsInBinaryDocValues) {
+                    // Array-order mode must preserve duplicates; SORTED_UNIQUE would lose them via TreeSet deduplication.
+                    // SORTED (not UNSORTED) because ignored values lose their document position by definition —
+                    // they are tail-appended per key — so we sort them for deterministic reconstruction.
+                    var ordering = usesArrayOrderBinaryDocValues
+                        ? MultiValuedBinaryDocValuesField.ValueOrdering.SORTED
+                        : MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE;
+                    MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+                        context.documentParserContext.doc(),
+                        keyedIgnoredValuesFieldFullPath,
+                        BytesRef.deepCopyOf(bytesKeyedValue),
+                        ordering,
+                        indexVersion
+                    );
+                } else {
+                    context.documentParserContext.doc().add(new StoredField(keyedIgnoredValuesFieldFullPath, bytesKeyedValue));
+                }
             }
             return;
         }
@@ -169,23 +217,94 @@ class FlattenedFieldParser {
         }
         BytesRef bytesValue = new BytesRef(value);
         if (fieldType.indexType().hasTerms()) {
-            fields.add(new StringField(rootFieldFullPath, bytesValue, Field.Store.NO));
-            fields.add(new StringField(keyedFieldFullPath, bytesKeyedValue, Field.Store.NO));
+            context.documentParserContext.doc().add(new StringField(rootFieldFullPath, bytesValue, Field.Store.NO));
+            context.documentParserContext.doc().add(new StringField(keyedFieldFullPath, bytesKeyedValue, Field.Store.NO));
         }
 
         if (fieldType.hasDocValues()) {
-            fields.add(new SortedSetDocValuesField(rootFieldFullPath, bytesValue));
-            fields.add(new SortedSetDocValuesField(keyedFieldFullPath, bytesKeyedValue));
+            if (usesBinaryDocValues) {
+                if (hasRootDocValues) {
+                    MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+                        context.documentParserContext.doc(),
+                        rootFieldFullPath,
+                        bytesValue,
+                        MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                    );
+                }
+                if (usesArrayOrderBinaryDocValues) {
+                    // Document-order mode: store key\0value inline, preserving document order and duplicates.
+                    MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.recordValue(
+                        context.documentParserContext.doc(),
+                        keyedFieldFullPath,
+                        bytesKeyedValue
+                    );
+                } else {
+                    MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+                        context.documentParserContext.doc(),
+                        keyedFieldFullPath,
+                        bytesKeyedValue,
+                        MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                    );
+                }
+            } else {
+                if (hasRootDocValues) {
+                    context.documentParserContext.doc().add(new SortedSetDocValuesField(rootFieldFullPath, bytesValue));
+                }
+                context.documentParserContext.doc().add(new SortedSetDocValuesField(keyedFieldFullPath, bytesKeyedValue));
+            }
 
-            if (fieldType.isDimension() == false || context.documentParserContext().getRoutingFields().isNoop()) {
+            // In document-order mode there is no _offsets sidecar.
+            if (preserveLeafArrays == FlattenedFieldMapper.PreserveLeafArrays.EXACT && usesArrayOrderBinaryDocValues == false) {
+                context.arrayContext.recordOffset(key, bytesValue);
+            }
+
+            if (writeDimensionRouting == false) {
                 return;
             }
 
             final String keyedFieldName = FlattenedFieldParser.extractKey(bytesKeyedValue).utf8ToString();
-            if (fieldType.isDimension() && fieldType.dimensions().contains(keyedFieldName)) {
+            if (fieldType.dimensions().contains(keyedFieldName)) {
                 final BytesRef keyedFieldValue = FlattenedFieldParser.extractValue(bytesKeyedValue);
                 context.documentParserContext().getRoutingFields().addString(rootFieldFullPath + "." + keyedFieldName, keyedFieldValue);
             }
+        }
+    }
+
+    private void addNull(Context context, ContentPath path, String currentName) throws IOException {
+        String key = path.pathAsText(currentName);
+        if (key.contains(SEPARATOR)) {
+            throw new IllegalArgumentException(
+                "Keys in [flattened] fields cannot contain the reserved character \\0. Offending key: [" + key + "]."
+            );
+        }
+        FieldMapper mappedSubField = mappedSubFields.get(key);
+        if (mappedSubField != null) {
+            FallbackPostMapper.parseField(context.documentParserContext(), mappedSubField);
+        } else if (nullValue != null) {
+            addField(context, path, currentName, nullValue);
+        } else if (usesArrayOrderBinaryDocValues) {
+            // Document-order mode: record a null slot with the key inline so synthetic source can reconstruct it.
+            MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.recordNull(
+                context.documentParserContext.doc(),
+                keyedFieldFullPath,
+                new BytesRef(key + SEPARATOR)
+            );
+        } else if (preserveLeafArrays == FlattenedFieldMapper.PreserveLeafArrays.EXACT) {
+            context.arrayContext.recordNull(key);
+        }
+    }
+
+    /**
+     * Indexes the current parser value at {@code path} (already a full dotted key from the document root). A null token records a null
+     * slot via {@link #addNull} to preserve columnar array order; any other token is indexed via {@link #addField}.
+     */
+    void indexValueAtPath(DocumentParserContext documentParserContext, FlattenedFieldArrayContext arrayContext, String path)
+        throws IOException {
+        Context context = new Context(documentParserContext.parser(), documentParserContext, arrayContext);
+        if (documentParserContext.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
+            addNull(context, new ContentPath(), path);
+        } else {
+            addField(context, new ContentPath(), path, documentParserContext.parser().text());
         }
     }
 
@@ -219,8 +338,8 @@ class FlattenedFieldParser {
             }
         }
         int valueStart = keyedValue.offset + length + 1;
-        return new BytesRef(keyedValue.bytes, valueStart, keyedValue.length - valueStart);
+        return new BytesRef(keyedValue.bytes, valueStart, keyedValue.length - (length + 1));
     }
 
-    private record Context(XContentParser parser, DocumentParserContext documentParserContext) {}
+    private record Context(XContentParser parser, DocumentParserContext documentParserContext, FlattenedFieldArrayContext arrayContext) {}
 }

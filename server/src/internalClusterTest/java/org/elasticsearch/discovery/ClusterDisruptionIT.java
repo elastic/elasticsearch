@@ -36,7 +36,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -520,7 +519,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
             String nodeName = clusterState.nodes().get(shardRouting.currentNodeId()).getName();
             IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
             IndexShard shard = indicesService.getShardOrNull(shardRouting.shardId());
-            Set<String> docs = IndexShardTestCase.getShardDocUIDs(shard);
+            Set<String> docs = getShardDocIDs(shard);
             assertThat(
                 "shard [" + shard.routingEntry() + "] docIds [" + docs + "] vs  acked docIds [" + ackedDocs + "]",
                 ackedDocs,

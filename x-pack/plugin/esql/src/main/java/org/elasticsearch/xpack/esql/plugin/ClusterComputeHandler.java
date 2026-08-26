@@ -11,6 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
@@ -50,22 +52,22 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
     private final ComputeService computeService;
     private final ExchangeService exchangeService;
     private final TransportService transportService;
-    private final Executor esqlExecutor;
+    private final Executor searchExecutor;
     private final DataNodeComputeHandler dataNodeComputeHandler;
 
     ClusterComputeHandler(
         ComputeService computeService,
         ExchangeService exchangeService,
         TransportService transportService,
-        Executor esqlExecutor,
+        Executor searchExecutor,
         DataNodeComputeHandler dataNodeComputeHandler
     ) {
         this.computeService = computeService;
         this.exchangeService = exchangeService;
-        this.esqlExecutor = esqlExecutor;
+        this.searchExecutor = searchExecutor;
         this.transportService = transportService;
         this.dataNodeComputeHandler = dataNodeComputeHandler;
-        transportService.registerRequestHandler(ComputeService.CLUSTER_ACTION_NAME, esqlExecutor, ClusterComputeRequest::new, this);
+        transportService.registerRequestHandler(ComputeService.CLUSTER_ACTION_NAME, searchExecutor, ClusterComputeRequest::new, this);
     }
 
     void startComputeOnRemoteCluster(
@@ -105,7 +107,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             cluster.connection,
             childSessionId,
             queryPragmas.exchangeBufferSize(),
-            esqlExecutor,
+            searchExecutor,
             listener.delegateFailure((l, unused) -> {
                 final CancellableTask groupTask;
                 final Runnable onGroupFailure;
@@ -123,7 +125,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     onGroupFailure = computeService.cancelQueryOnFailure(groupTask);
                     l = ActionListener.runAfter(l, () -> transportService.getTaskManager().unregister(groupTask));
                 }
-                try (var computeListener = new ComputeListener(transportService.getThreadPool(), onGroupFailure, l.map(completionInfo -> {
+                try (var computeListener = new ComputeListener(onGroupFailure, l.map(completionInfo -> {
                     updateExecutionInfo(executionInfo, clusterAlias, finalResponse.get());
                     return completionInfo;
                 }))) {
@@ -133,13 +135,14 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         finalResponse.set(r);
                         return r.getCompletionInfo();
                     });
+                    ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
                     transportService.sendChildRequest(
                         cluster.connection,
                         ComputeService.CLUSTER_ACTION_NAME,
                         clusterRequest,
                         groupTask,
                         TransportRequestOptions.EMPTY,
-                        new ActionListenerResponseHandler<>(clusterListener, ComputeResponse::new, esqlExecutor)
+                        new ActionListenerResponseHandler<>(clusterListener, in -> new ComputeResponse(in, threadContext), searchExecutor)
                     );
                     var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, cluster.connection);
                     exchangeSource.addRemoteSink(
@@ -157,7 +160,9 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
     private void updateExecutionInfo(EsqlExecutionInfo executionInfo, String clusterAlias, ComputeResponse resp) {
         executionInfo.swapCluster(clusterAlias, (k, v) -> {
             var builder = new EsqlExecutionInfo.Cluster.Builder(v);
-            if (executionInfo.isMainPlan()) {
+            // Update shard counts from the main plan, or from an IN-subquery subplan for remote-only clusters.
+            // For INLINE STATS subplans, skip shard count updates here — the main plan will set the definitive values.
+            if (executionInfo.isMainPlan() || executionInfo.isSubqueryJoinSubPlan()) {
                 builder.setTotalShards(resp.getTotalShards())
                     .setSuccessfulShards(resp.getSuccessfulShards())
                     .setSkippedShards(resp.getSkippedShards())
@@ -169,12 +174,12 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             } else {
                 if (resp.getTook() != null) {
                     builder.setTook(
-                        TimeValue.timeValueNanos(executionInfo.planningProfile().planning().timeTook().nanos() + resp.getTook().nanos())
+                        TimeValue.timeValueNanos(executionInfo.queryProfile().planning().timeTook().nanos() + resp.getTook().nanos())
                     );
                 } else {
                     // if the cluster is an older version and does not send back took time, then calculate it here on the coordinator
                     // and leave shard info unset, so it is not shown in the CCS metadata section of the JSON response
-                    builder.setTook(executionInfo.tookSoFar());
+                    builder.setTook(executionInfo.queryProfile().total().timeSinceStarted());
                 }
             }
             if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
@@ -220,7 +225,16 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
 
     @Override
     public void messageReceived(ClusterComputeRequest request, TransportChannel channel, Task task) {
-        ChannelActionListener<ComputeResponse> listener = new ChannelActionListener<>(channel);
+        ChannelActionListener<ComputeResponse> channelListener = new ChannelActionListener<>(channel);
+        // An old querying cluster receives warnings as transport response headers rather than the ESQL_DRIVER_WARNINGS
+        // wire field. Replay the merged warnings here — before the channel serialises its ThreadContext — so they ride
+        // the legacy channel back to the old cluster.
+        final ActionListener<ComputeResponse> listener = channel.getVersion().supports(DriverCompletionInfo.ESQL_DRIVER_WARNINGS)
+            ? channelListener
+            : channelListener.map(resp -> {
+                resp.getCompletionInfo().warnings().forEach(HeaderWarning::addWarning);
+                return resp;
+            });
         RemoteClusterPlan remoteClusterPlan = request.remoteClusterPlan();
         var plan = remoteClusterPlan.plan();
         if (plan instanceof ExchangeSinkExec == false) {
@@ -262,9 +276,10 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         parentTask.addListener(
             () -> exchangeService.finishSinkHandler(globalSessionId, new TaskCancelledException(parentTask.getReasonCancelled()))
         );
+        exchangeSink.addCompletionListener(ActionListener.running(() -> exchangeService.finishSinkHandler(globalSessionId, null)));
         final String localSessionId = clusterAlias + ":" + globalSessionId;
         ReductionPlan reductionPlan = ComputeService.reductionPlan(
-            computeService.plannerSettings(),
+            computeService.plannerSettings().get(),
             computeService.createFlags(),
             configuration,
             configuration.newFoldContext(),
@@ -278,7 +293,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         final EsqlFlags flags = computeService.createFlags();
         final long startTimeInNanos = System.nanoTime();
         final Runnable cancelQueryOnFailure = computeService.cancelQueryOnFailure(parentTask);
-        try (var computeListener = new ComputeListener(transportService.getThreadPool(), cancelQueryOnFailure, listener.map(profiles -> {
+        try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.map(profiles -> {
             final TimeValue took = TimeValue.timeValueNanos(System.nanoTime() - startTimeInNanos);
             final ComputeResponse r = finalResponse.get();
             return new ComputeResponse(profiles, took, r.totalShards, r.successfulShards, r.skippedShards, r.failedShards, r.failures);
@@ -300,9 +315,14 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         configuration,
                         configuration.newFoldContext(),
                         exchangeSource::createExchangeSource,
-                        () -> exchangeSink.createExchangeSink(() -> {})
+                        () -> exchangeSink.createExchangeSink(() -> {}),
+                        false
                     ),
                     coordinatorPlan,
+                    computeService.plannerSettings().get(),
+                    // Local physical optimization is aimed at data nodes, e.g., inserting field extractions, which don't apply here.
+                    // Cluster-level reduction uses simple query plans that just perform a single reduction step between exchanges.
+                    LocalPhysicalOptimization.DISABLED,
                     configuration.profile() ? new PlanTimeProfile() : null,
                     computeListener.acquireCompute()
                 );

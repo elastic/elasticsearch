@@ -21,6 +21,7 @@ import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestEsExecutors;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -56,9 +57,8 @@ public class ESIndexInputTestCase extends ESTestCase {
         executor.shutdown();
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initializeIdGenerator() throws Exception {
         uniqueIdGenerator = new AtomicLong();
     }
 
@@ -72,7 +72,7 @@ public class ESIndexInputTestCase extends ESTestCase {
         int readPos = (int) indexInput.getFilePointer();
         byte[] output = new byte[length];
         while (readPos < length) {
-            final var readStrategy = between(0, 8);
+            final var readStrategy = between(0, 9);
             switch (readStrategy) {
                 case 0, 1, 2, 3:
                     if (length - readPos >= Long.BYTES && readStrategy <= 0) {
@@ -113,8 +113,10 @@ public class ESIndexInputTestCase extends ESTestCase {
                             readPos = between(readPos, randomAccessReadEnd);
                             indexInput.seek(readPos);
                         }
-
                         indexInput.seek(readPos); // BUG these random-access reads shouldn't affect the current position
+                        if (readPos < length) {
+                            indexInput.prefetch(readPos, randomIntBetween(1, Math.max(length - readPos - 1, 1)));
+                        }
                     }
                     break;
                 case 4:
@@ -159,6 +161,14 @@ public class ESIndexInputTestCase extends ESTestCase {
                     assertEquals(readPos, indexInput.getFilePointer());
                     break;
                 case 8:
+                    // Prefetch at random positions
+                    int loop = randomIntBetween(2, 5);
+                    for (int i = 0; i < loop; i++) {
+                        int offset = randomIntBetween(0, length - 1);
+                        indexInput.prefetch(offset, randomIntBetween(1, Math.max(length - offset - 1, 1)));
+                    }
+                    break;
+                case 9:
                     // Read clone or slice concurrently
                     final int cloneCount = between(1, 3);
                     final CountDownLatch startLatch = new CountDownLatch(1 + cloneCount);

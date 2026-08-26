@@ -106,26 +106,84 @@ public class DiscoveryNodesTests extends ESTestCase {
     public void testCoordinatorOnlyNodes() {
         final DiscoveryNodes discoveryNodes = buildDiscoveryNodes();
 
+        // a coordinating-only node is one configured with no roles at all
         final String[] coordinatorOnlyNodes = discoveryNodes.getNodes()
             .values()
             .stream()
-            .filter(n -> n.canContainData() == false && n.isIngestNode() == false && n.isMasterNode() == false)
+            .filter(n -> n.getRoles().isEmpty())
             .map(DiscoveryNode::getId)
             .toArray(String[]::new);
 
         final String[] nonCoordinatorOnlyNodes = discoveryNodes.getNodes()
             .values()
             .stream()
-            .filter(n -> n.isMasterNode() || n.canContainData() || n.isIngestNode())
+            .filter(n -> n.getRoles().isEmpty() == false)
             .map(DiscoveryNode::getId)
             .toArray(String[]::new);
 
         assertThat(discoveryNodes.resolveNodes("coordinating_only:true"), arrayContainingInAnyOrder(coordinatorOnlyNodes));
+        assertThat(discoveryNodes.resolveNodes("_all", "coordinating_only:false"), arrayContainingInAnyOrder(nonCoordinatorOnlyNodes));
+
+        // "coordinating_only:true" is NOT equivalent to excluding the data, ingest and master roles: that combination goes through the
+        // role-name branch of resolveNodes and still matches nodes holding only non-data roles such as ml or transform
+        final String[] nonDataIngestOrMasterNodes = discoveryNodes.getNodes()
+            .values()
+            .stream()
+            .filter(n -> n.canContainData() == false && n.isIngestNode() == false && n.isMasterNode() == false)
+            .map(DiscoveryNode::getId)
+            .toArray(String[]::new);
+
         assertThat(
             discoveryNodes.resolveNodes("_all", "data:false", "ingest:false", "master:false"),
-            arrayContainingInAnyOrder(coordinatorOnlyNodes)
+            arrayContainingInAnyOrder(nonDataIngestOrMasterNodes)
         );
-        assertThat(discoveryNodes.resolveNodes("_all", "coordinating_only:false"), arrayContainingInAnyOrder(nonCoordinatorOnlyNodes));
+    }
+
+    /**
+     * Nodes holding only roles that cannot contain data, such as a dedicated ml or transform node, are not coordinating-only nodes even
+     * though they are neither data, master nor ingest nodes. Verifies both the getter and the {@code coordinating_only} node selector
+     * against explicit role sets, since {@link #buildDiscoveryNodes()} only produces these combinations by chance.
+     */
+    public void testCoordinatingOnlyNodesAreOnlyThoseWithNoRoles() {
+        final String coordinatingOnlyNodeId = randomAlphaOfLength(10);
+        final Map<String, Set<DiscoveryNodeRole>> rolesByNodeId = Map.of(
+            coordinatingOnlyNodeId,
+            Set.of(),
+            "ml_only",
+            Set.of(DiscoveryNodeRole.ML_ROLE),
+            "transform_only",
+            Set.of(DiscoveryNodeRole.TRANSFORM_ROLE),
+            "ml_and_remote_cluster_client",
+            Set.of(DiscoveryNodeRole.ML_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE),
+            "transform_and_remote_cluster_client",
+            Set.of(DiscoveryNodeRole.TRANSFORM_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE),
+            "remote_cluster_client_only",
+            Set.of(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE),
+            "data_only",
+            Set.of(DiscoveryNodeRole.DATA_ROLE),
+            "master_only",
+            Set.of(DiscoveryNodeRole.MASTER_ROLE),
+            "ingest_only",
+            Set.of(DiscoveryNodeRole.INGEST_ROLE),
+            "custom_role_only",
+            Set.of(new DiscoveryNodeRole("custom_role", "cr"))
+        );
+
+        final DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
+        for (Map.Entry<String, Set<DiscoveryNodeRole>> entry : rolesByNodeId.entrySet()) {
+            builder.add(DiscoveryNodeUtils.builder(entry.getKey()).name(entry.getKey()).roles(entry.getValue()).build());
+        }
+        builder.localNodeId("data_only").masterNodeId("master_only");
+        final DiscoveryNodes discoveryNodes = builder.build();
+
+        assertThat(discoveryNodes.getCoordinatingOnlyNodes().keySet(), containsInAnyOrder(coordinatingOnlyNodeId));
+        assertThat(discoveryNodes.resolveNodes("coordinating_only:true"), arrayContainingInAnyOrder(coordinatingOnlyNodeId));
+
+        final String[] everythingElse = rolesByNodeId.keySet()
+            .stream()
+            .filter(nodeId -> nodeId.equals(coordinatingOnlyNodeId) == false)
+            .toArray(String[]::new);
+        assertThat(discoveryNodes.resolveNodes("_all", "coordinating_only:false"), arrayContainingInAnyOrder(everythingElse));
     }
 
     public void testResolveNodesIds() {
@@ -366,7 +424,14 @@ public class DiscoveryNodesTests extends ESTestCase {
         COORDINATING_ONLY(DiscoveryNode.COORDINATING_ONLY + ":true") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
-                return nodes.getCoordinatingOnlyNodes().keySet();
+                // deliberately does not delegate to DiscoveryNodes#getCoordinatingOnlyNodes, so that this expresses the specification
+                // independently of the implementation under test
+                return nodes.getNodes()
+                    .values()
+                    .stream()
+                    .filter(node -> node.getRoles().isEmpty())
+                    .map(DiscoveryNode::getId)
+                    .collect(Collectors.toSet());
             }
         },
         CUSTOM_ATTRIBUTE("attr:value") {
@@ -482,7 +547,7 @@ public class DiscoveryNodesTests extends ESTestCase {
 
         final var node0 = nodeVersionFactory.apply(
             0,
-            new VersionInformation(VersionUtils.randomVersion(random()), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+            new VersionInformation(VersionUtils.randomVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
         );
         testHarness.accept(builder -> builder.add(node0), 0L);
 

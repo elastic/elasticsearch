@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -33,9 +34,10 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryRewriteContextTestUtils;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
@@ -54,10 +56,12 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -69,12 +73,13 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction.GET_INFERENCE_FIELDS_ACTION_TV;
+import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction.GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.elasticsearch.xpack.inference.queries.InterceptedInferenceQueryBuilder.INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.SEMANTIC_SEARCH_CCS_SUPPORT;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
@@ -84,7 +89,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
     private static ModelRegistry modelRegistry;
 
     protected static final String SPARSE_INFERENCE_ID = "sparse-inference-id";
-    protected static final MinimalServiceSettings SPARSE_INFERENCE_ID_SETTINGS = new MinimalServiceSettings(
+    protected static final EndpointClusterState SPARSE_INFERENCE_ID_SETTINGS = new EndpointClusterState(
         null,
         TaskType.SPARSE_EMBEDDING,
         null,
@@ -93,7 +98,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
     );
 
     protected static final String DENSE_INFERENCE_ID = "dense-inference-id";
-    protected static final MinimalServiceSettings DENSE_INFERENCE_ID_SETTINGS = new MinimalServiceSettings(
+    protected static final EndpointClusterState DENSE_INFERENCE_ID_SETTINGS = new EndpointClusterState(
         null,
         TaskType.TEXT_EMBEDDING,
         256,
@@ -101,11 +106,22 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         DenseVectorFieldMapper.ElementType.FLOAT
     );
 
-    private static final Map<String, MinimalServiceSettings> INFERENCE_ENDPOINT_MAP = Map.of(
+    protected static final String EMBEDDING_INFERENCE_ID = "embedding-inference-id";
+    protected static final EndpointClusterState EMBEDDING_INFERENCE_ID_SETTINGS = new EndpointClusterState(
+        null,
+        TaskType.EMBEDDING,
+        256,
+        SimilarityMeasure.COSINE,
+        DenseVectorFieldMapper.ElementType.FLOAT
+    );
+
+    private static final Map<String, EndpointClusterState> INFERENCE_ENDPOINT_MAP = Map.of(
         SPARSE_INFERENCE_ID,
         SPARSE_INFERENCE_ID_SETTINGS,
         DENSE_INFERENCE_ID,
-        DENSE_INFERENCE_ID_SETTINGS
+        DENSE_INFERENCE_ID_SETTINGS,
+        EMBEDDING_INFERENCE_ID,
+        EMBEDDING_INFERENCE_ID_SETTINGS
     );
 
     private static final TransportVersion NEW_SEMANTIC_QUERY_INTERCEPTORS = TransportVersion.fromName("new_semantic_query_interceptors");
@@ -163,13 +179,8 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
     }
 
     public void testBwCSerialization() throws Exception {
-        TransportVersion minTransportVersion = TransportVersion.max(getMinimalSupportedVersion(), TransportVersion.minimumCompatible());
         for (int i = 0; i < 100; i++) {
-            TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
-                random(),
-                minTransportVersion,
-                TransportVersionUtils.getPreviousVersion(TransportVersion.current())
-            );
+            TransportVersion transportVersion = TransportVersionUtils.randomVersionNotSupporting(TransportVersion.current());
             serializationTestCase(transportVersion);
         }
     }
@@ -195,7 +206,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
 
     protected void ccsSerializationWithMinimizeRoundTripsFalseTestCase(TaskType taskType, String queryName) throws Exception {
         final String inferenceId;
-        final MinimalServiceSettings serviceSettings;
+        final EndpointClusterState serviceSettings;
         switch (taskType) {
             case SPARSE_EMBEDDING:
                 inferenceId = SPARSE_INFERENCE_ID;
@@ -204,6 +215,10 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             case TEXT_EMBEDDING:
                 inferenceId = DENSE_INFERENCE_ID;
                 serviceSettings = DENSE_INFERENCE_ID_SETTINGS;
+                break;
+            case EMBEDDING:
+                inferenceId = EMBEDDING_INFERENCE_ID;
+                serviceSettings = EMBEDDING_INFERENCE_ID_SETTINGS;
                 break;
             default:
                 throw new AssertionError("Unsupported task type");
@@ -242,11 +257,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             new MockInferenceRemoteClusterClient.RemoteClusterConfig(
                 remoteInferenceEndpoints,
                 remoteIndexConfigs,
-                TransportVersionUtils.randomVersionBetween(
-                    random(),
-                    SEMANTIC_SEARCH_CCS_SUPPORT,
-                    TransportVersionUtils.getPreviousVersion(GET_INFERENCE_FIELDS_ACTION_TV)
-                )
+                TransportVersionUtils.getPreviousVersion(GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV)
             );
 
         QueryRewriteContext preCcsRemoteClusterContext = createQueryRewriteContext(
@@ -255,19 +266,34 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             false,
             Map.of(preCcsRemoteClusterAlias, preCcsRemoteClusterConfig)
         );
+        String unsupportedRemote = "One or more remote clusters do not support "
+            + queryName
+            + " against a [semantic_text] field in cross-cluster search. Please update all clusters to at least "
+            + GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV.toReleaseVersion()
+            + ".";
+
         assertRewriteAndSerializeOnInferenceField(
             inferenceFieldQuery,
             preCcsRemoteClusterContext,
-            new IllegalArgumentException(
-                "One or more remote clusters do not support "
-                    + queryName
-                    + " query cross-cluster search when"
-                    + " [ccs_minimize_roundtrips] is false. Please update all clusters to at least "
-                    + GET_INFERENCE_FIELDS_ACTION_TV.toReleaseVersion()
-            ),
+            // A search request can turn the setting back on, so it is offered the alternative.
+            new IllegalArgumentException(unsupportedRemote + " Alternatively, set [ccs_minimize_roundtrips] to true."),
             null
         );
         assertRewriteAndSerializeOnNonInferenceField(nonInferenceFieldQuery, preCcsRemoteClusterContext);
+
+        // A caller that leaves the setting unset - ES|QL - has no such alternative and is not offered one.
+        QueryRewriteContext esqlStyleContext = createQueryRewriteContext(
+            localIndexInferenceFields,
+            TransportVersion.current(),
+            null,
+            Map.of(preCcsRemoteClusterAlias, preCcsRemoteClusterConfig)
+        );
+        assertRewriteAndSerializeOnInferenceField(
+            inferenceFieldQuery,
+            esqlStyleContext,
+            new IllegalArgumentException(unsupportedRemote),
+            null
+        );
     }
 
     public void testCcsBwCSerialization() throws Exception {
@@ -276,11 +302,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         final T nonInferenceFieldQuery = createQueryBuilder("non_inference_field");
 
         for (int i = 0; i < 100; i++) {
-            TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersion.minimumCompatible(),
-                TransportVersionUtils.getPreviousVersion(TransportVersion.current())
-            );
+            TransportVersion transportVersion = TransportVersionUtils.randomVersionNotSupporting(TransportVersion.current());
 
             QueryRewriteContext queryRewriteContext = createQueryRewriteContext(
                 Map.of("local-index", Map.of(inferenceField, SPARSE_INFERENCE_ID)),
@@ -357,11 +379,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         assertThat(deserializedQuery, equalTo(interceptedQuery));
 
         // Test with a transport version prior to cluster alias support, which should fail
-        TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            NEW_SEMANTIC_QUERY_INTERCEPTORS,
-            TransportVersionUtils.getPreviousVersion(INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS)
-        );
+        TransportVersion transportVersion = TransportVersionUtils.getPreviousVersion(INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS);
         IllegalArgumentException e = assertThrows(
             IllegalArgumentException.class,
             () -> copyNamedWriteable(interceptedQuery, writableRegistry(), QueryBuilder.class, transportVersion)
@@ -435,6 +453,20 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         // Query a text field in both indices
         QueryBuilder originalText = createQueryBuilder(textField);
         assertRewriteAndSerializeOnNonInferenceField(originalText, queryRewriteContext);
+    }
+
+    protected QueryRewriteContext createQueryRewriteContext(
+        List<TestIndex> testIndices,
+        Map<String, String> remoteIndexNames,
+        TransportVersion minTransportVersion,
+        Boolean ccsMinimizeRoundTrips
+    ) {
+        Map<String, Map<String, String>> localIndexInferenceFields = new HashMap<>();
+        for (TestIndex testIndex : testIndices) {
+            localIndexInferenceFields.put(testIndex.name(), testIndex.semanticTextFields());
+        }
+
+        return createQueryRewriteContext(localIndexInferenceFields, remoteIndexNames, minTransportVersion, ccsMinimizeRoundTrips);
     }
 
     protected QueryRewriteContext createQueryRewriteContext(
@@ -529,6 +561,15 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         Map<String, String> semanticTextFields,
         Map<String, Map<String, Object>> nonInferenceFields
     ) throws IOException {
+        return createIndexMetadataContext(indexName, semanticTextFields, nonInferenceFields, SemanticTextFieldMapper.CONTENT_TYPE);
+    }
+
+    protected QueryRewriteContext createIndexMetadataContext(
+        String indexName,
+        Map<String, String> semanticFields,
+        Map<String, Map<String, Object>> nonInferenceFields,
+        String semanticFieldContentType
+    ) throws IOException {
         Client client = new NoOpClient(threadPool);
 
         Index index = new Index(indexName, randomAlphaOfLength(10));
@@ -544,16 +585,16 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         try (XContentBuilder mappings = XContentFactory.jsonBuilder()) {
             mappings.startObject().startObject("_doc").startObject("properties");
 
-            for (var entry : semanticTextFields.entrySet()) {
+            for (var entry : semanticFields.entrySet()) {
                 String fieldName = entry.getKey();
                 String inferenceId = entry.getValue();
-                MinimalServiceSettings modelSettings = INFERENCE_ENDPOINT_MAP.get(inferenceId);
+                EndpointClusterState modelSettings = INFERENCE_ENDPOINT_MAP.get(inferenceId);
                 if (modelSettings == null) {
                     throw new IllegalArgumentException("No model settings for inference ID [" + inferenceId + "]");
                 }
 
                 mappings.startObject(fieldName);
-                mappings.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
+                mappings.field("type", semanticFieldContentType);
                 mappings.field("inference_id", inferenceId);
                 mappings.field("model_settings", modelSettings);
                 mappings.endObject();
@@ -671,23 +712,58 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         assertCoordinatorNodeRewriteOnNonInferenceField(originalSerializedQuery, serializedQuery);
     }
 
-    protected static QueryBuilder rewriteAndFetch(QueryBuilder queryBuilder, QueryRewriteContext queryRewriteContext) {
-        PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
-        Rewriteable.rewriteAndFetch(queryBuilder, queryRewriteContext, future);
+    protected static <T extends Rewriteable<T>> T rewriteAndFetch(T rewritable, QueryRewriteContext queryRewriteContext) {
+        PlainActionFuture<T> future = new PlainActionFuture<>();
+        Rewriteable.rewriteAndFetch(rewritable, queryRewriteContext, future);
         return future.actionGet();
     }
 
     protected static void disableQueryInterception(QueryRewriteContext queryRewriteContext, CheckedRunnable<Exception> runnable)
         throws Exception {
+        disableQueryInterception(queryRewriteContext, () -> {
+            runnable.run();
+            return null;
+        });
+    }
+
+    protected static <T> T disableQueryInterception(QueryRewriteContext queryRewriteContext, CheckedSupplier<T, Exception> supplier)
+        throws Exception {
+
+        T result;
         QueryRewriteInterceptor interceptor = queryRewriteContext.getQueryRewriteInterceptor();
-        queryRewriteContext.setQueryRewriteInterceptor(null);
-        runnable.run();
-        queryRewriteContext.setQueryRewriteInterceptor(interceptor);
+        try {
+            queryRewriteContext.setQueryRewriteInterceptor(null);
+            result = supplier.get();
+        } finally {
+            queryRewriteContext.setQueryRewriteInterceptor(interceptor);
+        }
+
+        return result;
+    }
+
+    protected static QueryRewriteContext instrumentQueryRewriteContext(
+        QueryRewriteContext queryRewriteContext,
+        Answer<?> executeAsyncActionsAnswer
+    ) {
+        QueryRewriteContext instrumented = spy(queryRewriteContext);
+        doAnswer(executeAsyncActionsAnswer).when(instrumented).executeAsyncActions(any());
+        return instrumented;
+    }
+
+    protected static Answer<?> assertSingleUniqueAsyncAction(QueryRewriteContext queryRewriteContext) {
+        return invocation -> {
+            var uniqueAsyncActions = QueryRewriteContextTestUtils.getUniqueAsyncActions(queryRewriteContext);
+            assertThat(uniqueAsyncActions.size(), equalTo(1));
+            uniqueAsyncActions.forEach((k, v) -> assertThat(v.size(), equalTo(1)));
+            return invocation.callRealMethod();
+        };
     }
 
     private static ModelRegistry createModelRegistry(ThreadPool threadPool) {
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        ModelRegistry modelRegistry = spy(new ModelRegistry(clusterService, new NoOpClient(threadPool)));
+        ModelRegistry modelRegistry = spy(
+            new ModelRegistry(clusterService, new NoOpClient(threadPool), Utils.noopInferenceIndexMappingManager())
+        );
         modelRegistry.clusterChanged(new ClusterChangedEvent("init", clusterService.state(), clusterService.state()) {
             @Override
             public boolean localNodeMaster() {
@@ -697,12 +773,12 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
 
         doAnswer(i -> {
             String inferenceId = i.getArgument(0);
-            MinimalServiceSettings settings = INFERENCE_ENDPOINT_MAP.get(inferenceId);
+            EndpointClusterState settings = INFERENCE_ENDPOINT_MAP.get(inferenceId);
             if (settings == null) {
                 throw new ResourceNotFoundException(inferenceId + " does not exist");
             }
             return settings;
-        }).when(modelRegistry).getMinimalServiceSettings(anyString());
+        }).when(modelRegistry).getEndpointClusterState(anyString());
 
         return modelRegistry;
     }

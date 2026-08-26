@@ -107,6 +107,9 @@ public final class SearchContextId {
     public static SearchContextId decode(NamedWriteableRegistry namedWriteableRegistry, BytesReference id) {
         try (var in = new NamedWriteableAwareStreamInput(id.streamInput(), namedWriteableRegistry)) {
             final TransportVersion version = TransportVersion.readVersion(in);
+            if (version.isKnown() == false) {
+                throw new IllegalArgumentException("unknown transport version [" + version + "] reading search context id");
+            }
             in.setTransportVersion(version);
             final Map<ShardId, SearchContextIdForNode> shards = Collections.unmodifiableMap(
                 in.readCollection(Maps::newHashMapWithExpectedSize, SearchContextId::readShardsMapEntry)
@@ -117,7 +120,6 @@ public final class SearchContextId {
             }
             return new SearchContextId(shards, aliasFilters);
         } catch (IOException e) {
-            assert false : e;
             throw new IllegalArgumentException(e);
         }
     }

@@ -11,7 +11,6 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;

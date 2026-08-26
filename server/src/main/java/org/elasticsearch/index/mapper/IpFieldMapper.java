@@ -608,12 +608,13 @@ public class IpFieldMapper extends FieldMapper {
                         return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize(), readInArrayOrder);
                     }
                 }
+                ArrayOrderSource arrayOrderSource = useArrayOrderBinaryDocValues ? ArrayOrderSource.INLINE : ArrayOrderSource.NONE;
                 return switch (cfg.function()) {
                     case MV_MAX -> usesBinaryDocValues
-                        ? new MvMaxBytesRefsFromBinaryBlockLoader(name())
+                        ? new MvMaxBytesRefsFromBinaryBlockLoader(name(), arrayOrderSource)
                         : new MvMaxBytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                     case MV_MIN -> usesBinaryDocValues
-                        ? new MvMinBytesRefsFromBinaryBlockLoader(name())
+                        ? new MvMinBytesRefsFromBinaryBlockLoader(name(), arrayOrderSource)
                         : new MvMinBytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                     default -> throw new UnsupportedOperationException("unknown fusion config [" + cfg.function() + "]");
                 };

@@ -496,10 +496,8 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         }
 
         return switch (values.getFirst()) {
-            case Number ignored ->
-                parseNumberList(values);
-            case float[] ignored ->
-                parseFloatArrays(values);
+            case Number ignored -> parseNumberList(values);
+            case float[] ignored -> parseFloatArrays(values);
             case Object[] array when array.length > 0 && array[0] instanceof Byte ->
                 // Byte and bit dense_vector doc values are fetched as a boxed Byte[]. Byte[] has no dedicated StreamOutput writer, so
                 // writeGenericValue falls back to the generic Object[] writer and the value arrives here as an Object[] of Byte.
@@ -560,8 +558,8 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
                 throw new IllegalArgumentException(
                     "Field ["
                         + diversificationField
-                        + "] value is not a well-formed list of dense vectors. Is it a [dense_vector], [semantic], or [semantic_text]" +
-                        " field?"
+                        + "] value is not a well-formed list of dense vectors. Is it a [dense_vector], [semantic], or [semantic_text]"
+                        + " field?"
                 );
             }
         }

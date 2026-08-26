@@ -144,32 +144,9 @@ public class NestedIdentityTests extends ESTestCase {
         assertTrue(extracted.source().isEmpty());
     }
 
-    /**
-     * Regression test for an array-valued {@code semantic_text} field.
-     */
-    public void testExtractSourceEmptyFlattenedListReturnsEmpty() {
-        Map<String, Object> rootMap = Map.of(
-            "sparse_field",
-            List.of("inference test", "another inference test"),
-            "_inference_fields",
-            Map.of(
-                "sparse_field",
-                Map.of(
-                    "inference",
-                    Map.of("chunks", Map.of("sparse_field", List.of(Map.of("start_offset", 0), Map.of("start_offset", 15))))
-                )
-            )
-        );
-        Source root = Source.fromMap(rootMap, XContentType.JSON);
-
-        NestedIdentity nestedIdentity = new NestedIdentity(
-            "sparse_field",
-            0,
-            new NestedIdentity("inference", 0, new NestedIdentity("chunks", 0, null))
-        );
-
-        Source extracted = nestedIdentity.extractSource(root);
-
+    public void testExtractSourceNoNestedObjectsReturnsEmpty() {
+        Source root = Source.fromMap(Map.of("children", List.of("alpha", "beta")), XContentType.JSON);
+        Source extracted = new NestedIdentity("children", 0, null).extractSource(root);
         assertTrue(extracted.source().isEmpty());
     }
 

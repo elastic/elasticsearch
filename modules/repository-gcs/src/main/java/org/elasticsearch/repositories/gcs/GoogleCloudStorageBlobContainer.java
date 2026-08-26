@@ -121,6 +121,24 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public boolean supportsConcurrentMultipartUploads() {
+        return true;
+    }
+
+    @Override
+    public void writeBlobAtomic(
+        OperationPurpose purpose,
+        String blobName,
+        long blobSize,
+        BlobMultiPartInputStreamProvider provider,
+        boolean failIfAlreadyExists,
+        Executor executor
+    ) throws IOException {
+        assert BlobContainer.assertPurposeConsistency(purpose, blobName);
+        blobStore.writeMultipartBlob(purpose, buildKey(blobName), blobSize, provider, failIfAlreadyExists, executor);
+    }
+
+    @Override
     public void copyBlob(
         final OperationPurpose purpose,
         final BlobContainer sourceBlobContainer,

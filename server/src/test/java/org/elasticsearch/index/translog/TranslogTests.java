@@ -58,6 +58,7 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SliceIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.LocalCheckpointTrackerTests;
@@ -1654,8 +1655,10 @@ public class TranslogTests extends ESTestCase {
         final ArrayList<Long> seqNos = new ArrayList<>();
         final ArrayList<Location> locations = new ArrayList<>();
         final ArrayList<BytesReference> datas = new ArrayList<>();
-        OperationListener listener = (operation, seqNo, location) -> {
-            seqNos.add(seqNo);
+        OperationListener listener = (operation, recordSeqNos, location) -> {
+            for (long seqNo : recordSeqNos) {
+                seqNos.add(seqNo);
+            }
             locations.add(location);
             try (RecyclerBytesStreamOutput output = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
                 try {
@@ -3511,6 +3514,49 @@ public class TranslogTests extends ESTestCase {
         in.setTransportVersion(wireVersion);
         Translog.Delete serializedDelete = (Translog.Delete) Translog.Operation.readOperation(in);
         assertEquals(delete, serializedDelete);
+    }
+
+    /**
+     * For slice-enabled indices the {@code _id} identity term is the compound {@code encodeCompoundId(id, slice)}. The
+     * engine builds a delete against that term, so {@link Translog.Delete} carries the compound uid; it is self-describing
+     * (the plain id and slice are recoverable from it) and round-trips through serialization with no routing channel.
+     */
+    public void testTranslogDeleteCompoundUidSerialization() throws Exception {
+        final BytesRef compoundUid = SliceIdFieldMapper.encodeCompoundId("the-id", "slice-1");
+        final long seqNo = randomNonNegativeLong();
+        final long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
+        final long version = randomLongBetween(1, Long.MAX_VALUE);
+
+        Engine.Delete delete = new Engine.Delete(
+            "the-id",
+            compoundUid,
+            seqNo,
+            primaryTerm,
+            version,
+            VersionType.INTERNAL,
+            Origin.PRIMARY,
+            0,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            0
+        );
+        Translog.Delete translogDelete = new Translog.Delete(delete, new Engine.DeleteResult(version, primaryTerm, seqNo, true, "the-id"));
+        assertEquals("translog Delete carries the compound term", compoundUid, translogDelete.uid());
+
+        Translog.Delete roundTripped = copyDelete(translogDelete, TransportVersionUtils.randomCompatibleVersion());
+        assertEquals(translogDelete, roundTripped);
+        assertEquals(compoundUid, roundTripped.uid());
+        // The plain id and slice are recoverable from the compound term, so replay needs no separate routing.
+        assertEquals("the-id", SliceIdFieldMapper.decodeCompoundId(roundTripped.uid()));
+        assertEquals("slice-1", SliceIdFieldMapper.sliceFromCompoundId(roundTripped.uid()));
+    }
+
+    private static Translog.Delete copyDelete(Translog.Delete delete, TransportVersion version) throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(version);
+        delete.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(version);
+        return (Translog.Delete) Translog.Operation.readOperation(in);
     }
 
     public void testRollGeneration() throws Exception {

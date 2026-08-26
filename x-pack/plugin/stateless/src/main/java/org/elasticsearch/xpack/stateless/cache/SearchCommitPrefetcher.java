@@ -94,6 +94,7 @@ public class SearchCommitPrefetcher {
     private final StatelessSharedBlobCacheService cacheService;
     private final CacheBlobReaderSupplier cacheBlobReaderSupplier;
     private final FileTimestampResolver fileTimestampResolver;
+    private final RegionTimestampResolver regionTimestampResolver;
     private final Executor executor;
     private final ThreadPool threadPool;
     private final boolean prefetchInBackground;
@@ -110,6 +111,7 @@ public class SearchCommitPrefetcher {
         StatelessSharedBlobCacheService cacheService,
         CacheBlobReaderSupplier cacheBlobReaderSupplier,
         FileTimestampResolver fileTimestampResolver,
+        RegionTimestampResolver regionTimestampResolver,
         ThreadPool threadPool,
         Executor executor,
         ClusterSettings clusterSettings,
@@ -119,6 +121,7 @@ public class SearchCommitPrefetcher {
         this.cacheService = cacheService;
         this.cacheBlobReaderSupplier = cacheBlobReaderSupplier;
         this.fileTimestampResolver = fileTimestampResolver;
+        this.regionTimestampResolver = regionTimestampResolver;
         this.executor = executor;
         this.threadPool = threadPool;
         // we're using a component that manages the dynamic settings needed for the prefetch component because
@@ -247,7 +250,8 @@ public class SearchCommitPrefetcher {
             Map<BlobFile, Long> timestampPerBlob = computeTimestampPerBlob(
                 compoundCommit,
                 bccRangesToPrefetch.keySet(),
-                fileTimestampResolver
+                fileTimestampResolver,
+                regionTimestampResolver
             );
 
             for (Map.Entry<BlobFile, ByteRange> bccRangeToPrefetch : bccRangesToPrefetch.entrySet()) {
@@ -282,7 +286,17 @@ public class SearchCommitPrefetcher {
 
                 var cacheKey = new FileCacheKey(shardId, blobFile);
 
-                var cacheBlobReader = cacheBlobReaderSupplier.getCacheBlobReaderForPreFetching(blobFile);
+                // Determine whether this file's BCC generation is already uploaded based on the notification,
+                // rather than the tracker — updateLatestUploadedBcc is intentionally deferred until after
+                // prefetch completes so that searches don't see isUploaded=true before the cache is populated.
+                // Using the blob store for uploaded files avoids unnecessary load on the indexing node, which
+                // has limited bandwidth compared to the object store.
+                // TODO: the cache still only allows one filler for a region and if warming started filling a
+                // region, a searcher can still incur a partial blob store cache miss wait.
+                var latestUploadedTermAndGen = notification.latestUploadedBatchedCompoundCommitTermAndGen();
+                var fileIsUploaded = latestUploadedTermAndGen != null
+                    && blobFile.termAndGeneration().compareTo(latestUploadedTermAndGen) <= 0;
+                var cacheBlobReader = cacheBlobReaderSupplier.getCacheBlobReaderForPreFetching(blobFile, fileIsUploaded);
 
                 final long timestampMillis = timestampPerBlob.get(blobFile);
 
@@ -418,7 +432,8 @@ public class SearchCommitPrefetcher {
     static Map<BlobFile, Long> computeTimestampPerBlob(
         StatelessCompoundCommit compoundCommit,
         Set<BlobFile> blobFilesToPrefetch,
-        FileTimestampResolver fileTimestampResolver
+        FileTimestampResolver fileTimestampResolver,
+        RegionTimestampResolver regionTimestampResolver
     ) {
         final long notificationCommitTimestamp = BlobFileRanges.midpointMillisOrUnknownForCache(
             compoundCommit.getTimestampFieldValueRange()
@@ -438,8 +453,13 @@ public class SearchCommitPrefetcher {
                 : fileTimestampResolver.getTimestampMillis(fileName);
             timestampPerBlob.merge(blobFile, fileTimestamp, BlobFileRanges::mostRecentKnownTimestamp);
         }
-        // A blob can have an UNKNOWN timestamp if the directory doesn't know about any of the referenced files it contains.
-        // TODO: Avoid pinning such regions forever.
+        // When a blob has no known timestamp of its own, prefer this (triggering) commit's timestamp, then resolve the raw value to a
+        // stampable region timestamp.
+        timestampPerBlob.replaceAll(
+            (blobFile, rawMillis) -> regionTimestampResolver.resolveRegionTimestampMillis(
+                BlobFileRanges.firstKnownTimestamp(rawMillis, notificationCommitTimestamp)
+            )
+        );
         assert timestampPerBlob.keySet().containsAll(blobFilesToPrefetch);
         return timestampPerBlob;
     }
@@ -492,7 +512,12 @@ public class SearchCommitPrefetcher {
     }
 
     public interface CacheBlobReaderSupplier {
-        CacheBlobReader getCacheBlobReaderForPreFetching(BlobFile blobFile);
+        /**
+         * @param blobFile   the file to prefetch
+         * @param isUploaded {@code true} when the notification already confirms this file's BCC generation is uploaded; the caller should
+         *                   pass this from the notification rather than relying on the upload tracker, which may not yet be updated
+         */
+        CacheBlobReader getCacheBlobReaderForPreFetching(BlobFile blobFile, boolean isUploaded);
     }
 
     /**
@@ -502,6 +527,14 @@ public class SearchCommitPrefetcher {
     @FunctionalInterface
     public interface FileTimestampResolver {
         long getTimestampMillis(String fileName);
+    }
+
+    /**
+     * Resolves a raw cache-region timestamp (epoch millis or negative sentinel) into a stampable region timestamp.
+     */
+    @FunctionalInterface
+    public interface RegionTimestampResolver {
+        long resolveRegionTimestampMillis(long rawMillis);
     }
 
     public static class PrefetchExecutor implements Executor {

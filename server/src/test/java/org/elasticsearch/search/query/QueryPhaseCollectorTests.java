@@ -31,15 +31,23 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreCachingWrappingScorer;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.SimpleCollector;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopFieldCollectorManager;
+import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TopScoreDocCollectorManager;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.DummyTotalHitCountCollector;
+import org.apache.lucene.util.BitSetIterator;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -167,6 +175,71 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             assertFalse(result.terminatedAfter);
             assertEquals(numField2Docs, result.topDocs.totalHits.value());
             assertEquals(numField2Docs, result.aggs.intValue());
+        }
+    }
+
+    /**
+     * When the two collectors only disagree on whether they need scores, the overall score mode stays non-exhaustive, yet the collector
+     * that wants to skip documents must not do so while the other one is still collecting: no competitive iterator is exposed until one
+     * of the two has early terminated. Each block below gives one of the collectors a queue and a hits threshold of one, so that it wants
+     * to skip from its second document on, then asserts that the other collector still sees every matching document.
+     */
+    public void testNonExhaustiveScoreModesWithAggs() throws IOException {
+        // sorting by index order does not need scores, while adding _score as a secondary sort does
+        Sort noScores = Sort.INDEXORDER;
+        Sort withScores = new Sort(SortField.FIELD_DOC, SortField.FIELD_SCORE);
+        TermQuery query = new TermQuery(new Term("field2", "value"));
+        {
+            // the top docs collector is the one that wants to skip
+            CollectorManager<TopFieldCollector, TopFieldDocs> topDocsManager = new TopFieldCollectorManager(noScores, 1, null, 1);
+            CollectorManager<TopFieldCollector, TopFieldDocs> aggsManager = new TopFieldCollectorManager(
+                withScores,
+                numDocs,
+                null,
+                numDocs
+            );
+            assertEquals(ScoreMode.TOP_DOCS, topDocsManager.newCollector().scoreMode());
+            assertEquals(ScoreMode.TOP_DOCS_WITH_SCORES, aggsManager.newCollector().scoreMode());
+            CollectorManager<QueryPhaseCollector, Result<TopFieldDocs, TopFieldDocs>> manager = createCollectorManager(
+                topDocsManager,
+                null,
+                0,
+                aggsManager,
+                null
+            );
+            assertEquals(ScoreMode.TOP_DOCS_WITH_SCORES, manager.newCollector().scoreMode());
+            Result<TopFieldDocs, TopFieldDocs> result = searcher.search(query, manager);
+            assertFalse(result.terminatedAfter);
+            assertEquals(1, result.topDocs.scoreDocs.length);
+            // the aggs collector never reaches its own threshold, hence it counts every match exactly
+            assertEquals(numField2Docs, result.aggs.totalHits.value());
+            assertEquals(TotalHits.Relation.EQUAL_TO, result.aggs.totalHits.relation());
+        }
+        {
+            // the aggs collector is the one that wants to skip
+            CollectorManager<TopFieldCollector, TopFieldDocs> topDocsManager = new TopFieldCollectorManager(
+                withScores,
+                numDocs,
+                null,
+                numDocs
+            );
+            CollectorManager<TopFieldCollector, TopFieldDocs> aggsManager = new TopFieldCollectorManager(noScores, 1, null, 1);
+            assertEquals(ScoreMode.TOP_DOCS_WITH_SCORES, topDocsManager.newCollector().scoreMode());
+            assertEquals(ScoreMode.TOP_DOCS, aggsManager.newCollector().scoreMode());
+            CollectorManager<QueryPhaseCollector, Result<TopFieldDocs, TopFieldDocs>> manager = createCollectorManager(
+                topDocsManager,
+                null,
+                0,
+                aggsManager,
+                null
+            );
+            assertEquals(ScoreMode.TOP_DOCS_WITH_SCORES, manager.newCollector().scoreMode());
+            Result<TopFieldDocs, TopFieldDocs> result = searcher.search(query, manager);
+            assertFalse(result.terminatedAfter);
+            assertEquals(1, result.aggs.scoreDocs.length);
+            // the top docs collector never reaches its own threshold, hence it counts every match exactly
+            assertEquals(numField2Docs, result.topDocs.totalHits.value());
+            assertEquals(TotalHits.Relation.EQUAL_TO, result.topDocs.totalHits.relation());
         }
     }
 
@@ -355,6 +428,69 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             assertFalse(result.terminatedAfter);
             assertEquals(0, result.topDocs.totalHits.value());
             assertEquals(0, result.aggs.intValue());
+        }
+    }
+
+    /**
+     * min_score needs scores but must not make collection exhaustive: a top docs collector that reports TOP_DOCS gets upgraded to
+     * TOP_DOCS_WITH_SCORES. Checks results both when the top docs collector skips documents and when it does not.
+     */
+    public void testMinScoreDoesNotMakeCollectionExhaustive() throws IOException {
+        searcher.setSimilarity(new BM25Similarity());
+        float maxScore;
+        BooleanQuery booleanQuery = new BooleanQuery.Builder().add(new TermQuery(new Term("field1", "value")), BooleanClause.Occur.MUST)
+            .add(new BoostQuery(new TermQuery(new Term("field2", "value")), 200f), BooleanClause.Occur.SHOULD)
+            .build();
+        {
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(numField2Docs + 1, null, 1000);
+            TopDocs topDocs = searcher.search(booleanQuery, topDocsManager);
+            assertEquals(numDocs, topDocs.totalHits.value());
+            maxScore = topDocs.scoreDocs[0].score;
+        }
+        final TopFieldDocs allTopDocs;
+        {
+            // the queue holds all the matching documents, hence nothing is skipped
+            CollectorManager<TopFieldCollector, TopFieldDocs> topDocsManager = new TopFieldCollectorManager(
+                Sort.INDEXORDER,
+                numDocs,
+                null,
+                1000
+            );
+            assertEquals(ScoreMode.TOP_DOCS, topDocsManager.newCollector().scoreMode());
+            CollectorManager<QueryPhaseCollector, Result<TopFieldDocs, Void>> manager = createCollectorManager(
+                topDocsManager,
+                null,
+                0,
+                null,
+                maxScore
+            );
+            assertEquals(ScoreMode.TOP_DOCS_WITH_SCORES, manager.newCollector().scoreMode());
+            Result<TopFieldDocs, Void> result = searcher.search(booleanQuery, manager);
+            assertFalse(result.terminatedAfter);
+            assertEquals(numField2Docs, result.topDocs.totalHits.value());
+            assertEquals(TotalHits.Relation.EQUAL_TO, result.topDocs.totalHits.relation());
+            allTopDocs = result.topDocs;
+            assertEquals(numField2Docs, allTopDocs.scoreDocs.length);
+        }
+        {
+            // a smaller queue makes the top docs collector skip documents through its competitive iterator
+            CollectorManager<TopFieldCollector, TopFieldDocs> topDocsManager = new TopFieldCollectorManager(Sort.INDEXORDER, 10, null, 10);
+            CollectorManager<QueryPhaseCollector, Result<TopFieldDocs, Void>> manager = createCollectorManager(
+                topDocsManager,
+                null,
+                0,
+                null,
+                maxScore
+            );
+            Result<TopFieldDocs, Void> result = searcher.search(booleanQuery, manager);
+            assertFalse(result.terminatedAfter);
+            // documents were skipped, otherwise the hit count would be exact like in the block above. numField2Docs is far above the
+            // hits threshold of 10, so at least one slice exceeds it no matter how the index ends up segmented.
+            assertEquals(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO, result.topDocs.totalHits.relation());
+            assertEquals(10, result.topDocs.scoreDocs.length);
+            for (int i = 0; i < 10; i++) {
+                assertEquals(allTopDocs.scoreDocs[i].doc, result.topDocs.scoreDocs[i].doc);
+            }
         }
     }
 
@@ -796,7 +932,8 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             assertEquals(ScoreMode.TOP_SCORES, qpc.scoreMode());
         }
         {
-            ScoreMode scoreMode = randomScoreModeExceptTopScores();
+            // exhaustive score modes need to acquire scores to apply min_score, and stay exhaustive
+            ScoreMode scoreMode = randomFrom(ScoreMode.COMPLETE, ScoreMode.COMPLETE_NO_SCORES);
             QueryPhaseCollector qpc = new QueryPhaseCollector(
                 new MockCollector(scoreMode),
                 weight,
@@ -805,6 +942,18 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 100f
             );
             assertEquals(ScoreMode.COMPLETE, qpc.scoreMode());
+        }
+        {
+            // non-exhaustive score modes acquire scores to apply min_score without becoming exhaustive
+            ScoreMode scoreMode = randomFrom(ScoreMode.TOP_DOCS, ScoreMode.TOP_DOCS_WITH_SCORES);
+            QueryPhaseCollector qpc = new QueryPhaseCollector(
+                new MockCollector(scoreMode),
+                weight,
+                resolveTerminateAfterChecker(terminateAfter),
+                null,
+                100f
+            );
+            assertEquals(ScoreMode.TOP_DOCS_WITH_SCORES, qpc.scoreMode());
         }
     }
 
@@ -825,15 +974,30 @@ public class QueryPhaseCollectorTests extends ESTestCase {
     public void testScoreModeWithAggsSameScoreModeWithMinScore() throws IOException {
         Weight weight = randomBoolean() ? searcher.createWeight(Queries.ALL_DOCS_INSTANCE, ScoreMode.COMPLETE, 1.0f) : null;
         int terminateAfter = randomBoolean() ? 0 : randomIntBetween(1, Integer.MAX_VALUE);
-        ScoreMode scoreMode = randomScoreModeExceptTopScores();
-        QueryPhaseCollector qpc = new QueryPhaseCollector(
-            new MockCollector(scoreMode),
-            weight,
-            resolveTerminateAfterChecker(terminateAfter),
-            new MockCollector(scoreMode),
-            100f
-        );
-        assertEquals(ScoreMode.COMPLETE, qpc.scoreMode());
+        {
+            // exhaustive score modes need to acquire scores to apply min_score, and stay exhaustive
+            ScoreMode scoreMode = randomFrom(ScoreMode.COMPLETE, ScoreMode.COMPLETE_NO_SCORES);
+            QueryPhaseCollector qpc = new QueryPhaseCollector(
+                new MockCollector(scoreMode),
+                weight,
+                resolveTerminateAfterChecker(terminateAfter),
+                new MockCollector(scoreMode),
+                100f
+            );
+            assertEquals(ScoreMode.COMPLETE, qpc.scoreMode());
+        }
+        {
+            // non-exhaustive score modes acquire scores to apply min_score without becoming exhaustive
+            ScoreMode scoreMode = randomFrom(ScoreMode.TOP_DOCS, ScoreMode.TOP_DOCS_WITH_SCORES);
+            QueryPhaseCollector qpc = new QueryPhaseCollector(
+                new MockCollector(scoreMode),
+                weight,
+                resolveTerminateAfterChecker(terminateAfter),
+                new MockCollector(scoreMode),
+                100f
+            );
+            assertEquals(ScoreMode.TOP_DOCS_WITH_SCORES, qpc.scoreMode());
+        }
     }
 
     public void testScoreModeWithAggsExhaustive() throws IOException {
@@ -947,7 +1111,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 new MockCollector(ScoreMode.TOP_DOCS),
                 minScore
             );
-            assertEquals(ScoreMode.COMPLETE, qpc.scoreMode());
+            assertEquals(ScoreMode.TOP_DOCS_WITH_SCORES, qpc.scoreMode());
         }
         {
             QueryPhaseCollector qpc = new QueryPhaseCollector(
@@ -957,7 +1121,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 new MockCollector(ScoreMode.TOP_DOCS_WITH_SCORES),
                 minScore
             );
-            assertEquals(ScoreMode.COMPLETE, qpc.scoreMode());
+            assertEquals(ScoreMode.TOP_DOCS_WITH_SCORES, qpc.scoreMode());
         }
     }
 
@@ -977,6 +1141,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             assertEquals(ScoreMode.COMPLETE, qpc.scoreMode());
         }
         {
+            // both collectors support skipping, they only disagree on whether they need scores
             QueryPhaseCollector qpc = new QueryPhaseCollector(
                 topDocs,
                 weight,
@@ -984,7 +1149,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 new MockCollector(ScoreMode.TOP_DOCS_WITH_SCORES),
                 minScore
             );
-            assertEquals(ScoreMode.COMPLETE, qpc.scoreMode());
+            assertEquals(ScoreMode.TOP_DOCS_WITH_SCORES, qpc.scoreMode());
         }
         {
             QueryPhaseCollector qpc = new QueryPhaseCollector(
@@ -1034,6 +1199,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             assertEquals(ScoreMode.COMPLETE, qpc.scoreMode());
         }
         {
+            // both collectors support skipping, they only disagree on whether they need scores
             QueryPhaseCollector qpc = new QueryPhaseCollector(
                 topDocsWithScores,
                 weight,
@@ -1041,7 +1207,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 new MockCollector(ScoreMode.TOP_DOCS),
                 minScore
             );
-            assertEquals(ScoreMode.COMPLETE, qpc.scoreMode());
+            assertEquals(ScoreMode.TOP_DOCS_WITH_SCORES, qpc.scoreMode());
         }
     }
 
@@ -1371,9 +1537,11 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topDocs, null, resolveTerminateAfterChecker(0), aggs, null);
         LeafReaderContext context = searcher.getLeafContexts().get(0);
         LeafCollector leafCollector = queryPhaseCollector.getLeafCollector(context);
-        leafCollector.competitiveIterator();
-        assertFalse(topDocs.competitiveIteratorCalled);
-        assertFalse(aggs.competitiveIteratorCalled);
+        // both sub-collectors are consulted to build the union competitive iterator; since MockCollector returns null,
+        // the overall result is also null (no skipping possible for this segment)
+        assertNull(leafCollector.competitiveIterator());
+        assertTrue(topDocs.competitiveIteratorCalled);
+        assertTrue(aggs.competitiveIteratorCalled);
     }
 
     public void testCompetitiveIteratorWithAggsCollectionTerminated() throws IOException {
@@ -1389,13 +1557,19 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         }
         LeafReaderContext context = searcher.getLeafContexts().get(0);
         LeafCollector leafCollector = queryPhaseCollector.getLeafCollector(context);
+        // both active: both are consulted for the union competitive iterator
         leafCollector.competitiveIterator();
-        assertFalse(topDocsMockCollector.competitiveIteratorCalled);
-        assertFalse(aggsMockCollector.competitiveIteratorCalled);
+        assertTrue(topDocsMockCollector.competitiveIteratorCalled);
+        assertTrue(aggsMockCollector.competitiveIteratorCalled);
+        topDocsMockCollector.competitiveIteratorCalled = false;
+        aggsMockCollector.competitiveIteratorCalled = false;
         leafCollector.collect(0);
+        // both still active after first doc
         leafCollector.competitiveIterator();
-        assertFalse(topDocsMockCollector.competitiveIteratorCalled);
-        assertFalse(aggsMockCollector.competitiveIteratorCalled);
+        assertTrue(topDocsMockCollector.competitiveIteratorCalled);
+        assertTrue(aggsMockCollector.competitiveIteratorCalled);
+        topDocsMockCollector.competitiveIteratorCalled = false;
+        aggsMockCollector.competitiveIteratorCalled = false;
         leafCollector.collect(1);
         leafCollector.competitiveIterator();
         assertFalse(topDocsMockCollector.competitiveIteratorCalled);
@@ -1405,6 +1579,70 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         expectThrows(CollectionTerminatedException.class, () -> leafCollector.collect(2));
         assertFalse(topDocsMockCollector.competitiveIteratorCalled);
         assertFalse(aggsMockCollector.competitiveIteratorCalled);
+    }
+
+    public void testCompetitiveIteratorWithAggsOneNullOneNonNull() throws IOException {
+        // When one collector provides a non-null competitive iterator and the other returns null,
+        // the overall result must be null: we can't skip docs that the null-returning collector needs.
+        DocIdSetIterator nonNullCI = DocIdSetIterator.all(Integer.MAX_VALUE);
+        MockCollector returnsNonNull = new MockCollector(randomFrom(ScoreMode.values()), null, nonNullCI);
+        MockCollector returnsNull = new MockCollector(randomScoreModeExceptTopScores());
+        {
+            QueryPhaseCollector qpc = new QueryPhaseCollector(returnsNonNull, null, resolveTerminateAfterChecker(0), returnsNull, null);
+            LeafCollector leafCollector = qpc.getLeafCollector(searcher.getLeafContexts().get(0));
+            assertNull(leafCollector.competitiveIterator());
+            assertTrue(returnsNonNull.competitiveIteratorCalled);
+            assertTrue(returnsNull.competitiveIteratorCalled);
+        }
+        returnsNonNull.competitiveIteratorCalled = false;
+        returnsNull.competitiveIteratorCalled = false;
+        {
+            QueryPhaseCollector qpc = new QueryPhaseCollector(returnsNull, null, resolveTerminateAfterChecker(0), returnsNonNull, null);
+            LeafCollector leafCollector = qpc.getLeafCollector(searcher.getLeafContexts().get(0));
+            assertNull(leafCollector.competitiveIterator());
+            assertTrue(returnsNull.competitiveIteratorCalled);
+            assertTrue(returnsNonNull.competitiveIteratorCalled);
+        }
+    }
+
+    public void testCompetitiveIteratorWithAggsUnionAdvance() throws IOException {
+        // When both collectors provide non-null competitive iterators, the result is their union:
+        // only documents that neither collector considers competitive are skipped.
+        MockCollector topDocsMock = new MockCollector(randomFrom(ScoreMode.values()), null, iteratorOf(0, 2, 4));
+        MockCollector aggsMock = new MockCollector(randomScoreModeExceptTopScores(), null, iteratorOf(1, 3, 5));
+        QueryPhaseCollector qpc = new QueryPhaseCollector(topDocsMock, null, resolveTerminateAfterChecker(0), aggsMock, null);
+        LeafCollector leafCollector = qpc.getLeafCollector(searcher.getLeafContexts().get(0));
+        DocIdSetIterator union = leafCollector.competitiveIterator();
+        assertNotNull(union);
+        assertTrue(topDocsMock.competitiveIteratorCalled);
+        assertTrue(aggsMock.competitiveIteratorCalled);
+        assertEquals(1, union.advance(1));  // skips 0
+        assertEquals(4, union.advance(4));  // skips 2, 3
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, union.advance(6));  // skips 5
+    }
+
+    public void testCompetitiveIteratorWithAggsUnionNextDoc() throws IOException {
+        MockCollector topDocsMock = new MockCollector(randomFrom(ScoreMode.values()), null, iteratorOf(0, 2, 4));
+        MockCollector aggsMock = new MockCollector(randomScoreModeExceptTopScores(), null, iteratorOf(1, 3, 5));
+        QueryPhaseCollector qpc = new QueryPhaseCollector(topDocsMock, null, resolveTerminateAfterChecker(0), aggsMock, null);
+        LeafCollector leafCollector = qpc.getLeafCollector(searcher.getLeafContexts().get(0));
+        DocIdSetIterator union = leafCollector.competitiveIterator();
+        assertNotNull(union);
+        assertEquals(0, union.nextDoc());
+        assertEquals(1, union.nextDoc());
+        assertEquals(2, union.nextDoc());
+        assertEquals(3, union.nextDoc());
+        assertEquals(4, union.nextDoc());
+        assertEquals(5, union.nextDoc());
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, union.nextDoc());
+    }
+
+    private static DocIdSetIterator iteratorOf(int... docs) {
+        FixedBitSet bits = new FixedBitSet(docs[docs.length - 1] + 1);
+        for (int doc : docs) {
+            bits.set(doc);
+        }
+        return new BitSetIterator(bits, docs.length);
     }
 
     public void testLeafCollectorsAreNotPulledOnceTerminatedAfter() throws IOException {
@@ -1510,18 +1748,24 @@ public class QueryPhaseCollectorTests extends ESTestCase {
     private static class MockCollector extends SimpleCollector {
         private final ScoreMode scoreMode;
         private final Class<?> expectedScorable;
+        private final DocIdSetIterator competitiveIteratorResult;
         private boolean setScorerCalled = false;
         private boolean setWeightCalled = false;
         private boolean competitiveIteratorCalled = false;
         private int leafCollectorsPulled = 0;
 
         MockCollector(ScoreMode scoreMode) {
-            this(scoreMode, null);
+            this(scoreMode, null, null);
         }
 
         MockCollector(ScoreMode scoreMode, Class<?> expectedScorable) {
+            this(scoreMode, expectedScorable, null);
+        }
+
+        MockCollector(ScoreMode scoreMode, Class<?> expectedScorable, DocIdSetIterator competitiveIteratorResult) {
             this.scoreMode = scoreMode;
             this.expectedScorable = expectedScorable;
+            this.competitiveIteratorResult = competitiveIteratorResult;
         }
 
         @Override
@@ -1553,7 +1797,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         @Override
         public DocIdSetIterator competitiveIterator() {
             competitiveIteratorCalled = true;
-            return null;
+            return competitiveIteratorResult;
         }
 
         @Override

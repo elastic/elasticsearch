@@ -10,9 +10,8 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.benchmark.Utils;
-import org.elasticsearch.nativeaccess.BBQTestUtils;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.simdvec.BBQTestUtils;
+import org.elasticsearch.simdvec.SimdVecLibrary;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -89,7 +88,7 @@ public class VectorScorerD2Q4PackedOperationBenchmark {
         private final byte[] flatQuery;
 
         VectorData(int dims, int numVectors, int numVectorsToScore, Random random) {
-            super(numVectors, numVectorsToScore, random);
+            super(numVectors, numVectorsToScore, random, DataAccessPattern.RANDOM);
             packedDocs = new byte[numVectors][];
             byte[] unpackedDoc = new byte[dims];
             for (int v = 0; v < numVectors; v++) {
@@ -144,7 +143,7 @@ public class VectorScorerD2Q4PackedOperationBenchmark {
         while (v < numVectorsToScore) {
             for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
                 MemorySegment vec = dataset.asSlice((long) v * docBytes, docBytes);
-                scores[i] = vectorSimilarityFunctions.dotProductD2Q4Packed(vec, query, docBytes);
+                scores[i] = VEC_LIBRARY.dotProductD2Q4Packed(vec, query, docBytes);
             }
         }
         return scores;
@@ -156,7 +155,7 @@ public class VectorScorerD2Q4PackedOperationBenchmark {
         for (int i = 0; i < numVectorsToScore; i += bulkSize) {
             int count = Math.min(bulkSize, numVectorsToScore - i);
             MemorySegment slice = dataset.asSlice((long) i * docBytes, (long) count * docBytes);
-            vectorSimilarityFunctions.dotProductD2Q4PackedBulk(slice, query, docBytes, count, resultsSeg);
+            VEC_LIBRARY.dotProductD2Q4PackedBulk(slice, query, docBytes, count, resultsSeg);
         }
         MemorySegment.copy(resultsSeg, ValueLayout.JAVA_FLOAT, 0L, scores, 0, scores.length);
         return scores;
@@ -168,15 +167,7 @@ public class VectorScorerD2Q4PackedOperationBenchmark {
         for (int i = 0; i < numVectorsToScore; i += bulkSize) {
             int count = Math.min(bulkSize, numVectorsToScore - i);
             MemorySegment.copy(ordinals, i, ordinalsSeg, ValueLayout.JAVA_INT, 0L, count);
-            vectorSimilarityFunctions.dotProductD2Q4PackedBulkWithOffsets(
-                dataset,
-                query,
-                docBytes,
-                docBytes,
-                ordinalsSeg,
-                count,
-                resultsSeg
-            );
+            VEC_LIBRARY.dotProductD2Q4PackedBulkWithOffsets(dataset, query, docBytes, docBytes, ordinalsSeg, count, resultsSeg);
         }
         MemorySegment.copy(resultsSeg, ValueLayout.JAVA_FLOAT, 0L, scores, 0, scores.length);
         return scores;
@@ -191,7 +182,7 @@ public class VectorScorerD2Q4PackedOperationBenchmark {
         while (v < numVectorsToScore) {
             for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
                 MemorySegment vec = dataset.asSlice((long) ordinals[v] * docBytes, docBytes);
-                scores[i] = vectorSimilarityFunctions.dotProductD2Q4Packed(vec, query, docBytes);
+                scores[i] = VEC_LIBRARY.dotProductD2Q4Packed(vec, query, docBytes);
             }
         }
         return scores;
@@ -203,7 +194,5 @@ public class VectorScorerD2Q4PackedOperationBenchmark {
         }
     }
 
-    private static final VectorSimilarityFunctions vectorSimilarityFunctions = NativeAccess.instance()
-        .getVectorSimilarityFunctions()
-        .orElseThrow();
+    private static final SimdVecLibrary VEC_LIBRARY = SimdVecLibrary.instance().orElseThrow();
 }

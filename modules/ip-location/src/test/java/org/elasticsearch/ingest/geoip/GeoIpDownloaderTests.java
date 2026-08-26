@@ -143,8 +143,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void cleanup() throws Exception {
         threadPool.shutdownNow();
     }
 

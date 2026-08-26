@@ -10,7 +10,6 @@ import java.lang.String;
 import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.WarningSourceLocation;
-import org.elasticsearch.compute.operator.Warnings;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link SumLongAggregator}.
@@ -35,14 +34,14 @@ public final class SumLongAggregatorFunctionSupplier implements AggregatorFuncti
 
   @Override
   public SumLongAggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
-    var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
+    var warnings = driverContext.createWarnings(warningsSource);
     return new SumLongAggregatorFunction(warnings, driverContext, channels);
   }
 
   @Override
   public SumLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
+    var warnings = driverContext.createWarnings(warningsSource);
     return new SumLongGroupingAggregatorFunction(warnings, channels, driverContext);
   }
 

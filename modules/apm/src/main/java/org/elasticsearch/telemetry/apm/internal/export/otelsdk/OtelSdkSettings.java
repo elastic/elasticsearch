@@ -236,6 +236,30 @@ public final class OtelSdkSettings {
         NodeScope
     );
 
+    public static final Setting<Boolean> TELEMETRY_LOGS_QUERYLOG_ENABLED = Setting.boolSetting(
+        "telemetry.logs.querylog.enabled",
+        false,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Boolean value) {}
+
+            @Override
+            public void validate(Boolean value, Map<Setting<?>, Object> settings) {
+                if (value && ((String) settings.get(TELEMETRY_LOGS_ENDPOINT)).isEmpty()) {
+                    throw new IllegalArgumentException(
+                        TELEMETRY_LOGS_ENDPOINT.getKey() + " must be configured when telemetry.logs.querylog.enabled=true"
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(TELEMETRY_LOGS_ENDPOINT).iterator();
+            }
+        },
+        NodeScope
+    );
+
     /**
      * Maximum number of log records the {@code BatchLogRecordProcessor} buffers before dropping.
      * Sized for ~30 MB of in-flight records at ~3 KB/record average.

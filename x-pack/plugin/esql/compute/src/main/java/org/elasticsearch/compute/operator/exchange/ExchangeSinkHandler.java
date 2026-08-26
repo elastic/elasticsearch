@@ -8,9 +8,7 @@
 package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
@@ -119,14 +117,10 @@ public final class ExchangeSinkHandler {
 
     /**
      * Add a listener, which will be notified when this exchange sink handler is completed. An exchange sink
-     * handler is considered completed when all associated sinks are completed and the output pages are fetched.
-     * <p>
-     * The {@code threadContext} is captured at this call site. When the listener fires — potentially on a
-     * transport thread that has stashed its context — it is restored to the context captured here, ensuring
-     * that any response headers (e.g. warnings) written by the listener end up in the correct context.
+     * handler is consider completed when all associated sinks are completed and the output pages are fetched.
      */
-    public void addCompletionListener(ActionListener<Void> listener, ThreadContext threadContext) {
-        completionFuture.addListener(ContextPreservingActionListener.wrapPreservingContext(listener, threadContext));
+    public void addCompletionListener(ActionListener<Void> listener) {
+        completionFuture.addListener(listener);
     }
 
     /**

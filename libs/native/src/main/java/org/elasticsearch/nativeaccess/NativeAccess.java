@@ -9,8 +9,6 @@
 
 package org.elasticsearch.nativeaccess;
 
-import org.elasticsearch.foreign.CloseableByteBuffer;
-
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
@@ -174,31 +172,10 @@ public interface NativeAccess {
 
     void tryPreallocate(Path file, long size);
 
-    /*
-     * Returns the vector similarity functions, or an empty optional.
-     */
-    Optional<VectorSimilarityFunctions> getVectorSimilarityFunctions();
-
     /**
      * Returns Parquet-rs native functions, or an empty optional if unavailable on this platform.
      */
     Optional<ParquetRsFunctions> getParquetRsFunctions();
-
-    /**
-     * Creates a new {@link CloseableByteBuffer} using a shared arena. The buffer can be used
-     * across multiple threads.
-     * @param len the number of bytes the buffer should allocate
-     * @return the buffer
-     */
-    CloseableByteBuffer newSharedBuffer(int len);
-
-    /**
-     * Creates a new {@link CloseableByteBuffer} using a confined arena. The buffer must be
-     * used within the same thread that it is created.
-     * @param len the number of bytes the buffer should allocate
-     * @return the buffer
-     */
-    CloseableByteBuffer newConfinedBuffer(int len);
 
     /**
      * Creates a new {@link MappedSegment} using a shared arena. The segment can be used

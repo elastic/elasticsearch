@@ -44,12 +44,31 @@ public abstract class EscfColumn implements SliceableColumn {
                 "docCount " + docCount + " must be less than DocIdSetIterator.NO_MORE_DOCS (" + DocIdSetIterator.NO_MORE_DOCS + ")"
             );
         }
+        assert validity == null || validity.length() == docCount : "validity length " + validity.length() + " != docCount " + docCount;
         this.docCount = docCount;
         this.validity = validity;
     }
 
     /** The column kind (see {@link EscfColumnKind}). */
     public abstract byte kind();
+
+    /**
+     * The kind of this column's leaf (scalar) values: this column's own {@link #kind()} for scalar
+     * columns, or the element child's kind for an {@link EscfArrayColumn}.
+     */
+    public byte leafValueKind() {
+        return kind();
+    }
+
+    /**
+     * Returns this column's backing data as an {@link EscfColumnData}, reusing the existing byte
+     * storage (no per-value copy). Symmetric with {@link #from(EscfColumnData)}, this enables
+     * mapper code outside this package to re-wrap a source column under a different Lucene field
+     * type without going through the value-at-a-time {@link EscfColumnBuilder}.
+     */
+    public final EscfColumnData columnData() {
+        return toColumnData();
+    }
 
     /** Builds the typed column view for {@code col}, dispatching on its kind. The fields are already native. */
     public static EscfColumn from(EscfColumnData col) {
@@ -78,6 +97,16 @@ public abstract class EscfColumn implements SliceableColumn {
         };
     }
 
+    /** The number of documents in this column window (present and absent). */
+    public final int docCount() {
+        return docCount;
+    }
+
+    /** A forward-only iterator over this column's present (non-absent) doc ids. */
+    public final PresentDocIterator presentDocs() {
+        return new PresentDocIterator(validity, docCount);
+    }
+
     final boolean isAbsent(int row) {
         if (row < 0 || row >= docCount) {
             return true;
@@ -87,7 +116,21 @@ public abstract class EscfColumn implements SliceableColumn {
         return validity != null && validity.get(row) == false;
     }
 
-    final byte getTypeByte(int row) {
+    /** Returns {@code true} if the document at {@code row} is present (has a value). */
+    public final boolean isPresent(int row) {
+        return isAbsent(row) == false;
+    }
+
+    /** Returns {@code true} if every document in this column is present (no validity bitset). */
+    public final boolean isDense() {
+        return validity == null;
+    }
+
+    /**
+     * Returns the {@link SourceValueType} byte for document {@code row}. Returns
+     * {@link SourceValueType#ABSENT} when the row is out of bounds or absent.
+     */
+    public final byte getTypeByte(int row) {
         if (row < 0 || row >= docCount || isAbsent(row)) {
             return SourceValueType.ABSENT;
         }
@@ -97,51 +140,61 @@ public abstract class EscfColumn implements SliceableColumn {
     /** The {@link SourceValueType} byte for document {@code row}, which is known to be present. */
     abstract byte typeByteForPresent(int row);
 
-    final boolean isNull(int row) {
+    /** Returns {@code true} if document {@code row} holds an explicit JSON {@code null}. */
+    public final boolean isNull(int row) {
         return getTypeByte(row) == SourceValueType.NULL;
     }
 
     // Typed value getters — default to throwing; subtypes override what they support.
 
-    boolean getBooleanValue(int row) {
+    /** Returns the boolean value at {@code row}. The column kind must be {@link EscfColumnKind#BOOL}. */
+    public boolean getBooleanValue(int row) {
         throw notA("boolean");
     }
 
-    long getLongValue(int row) {
+    /** Returns the long value at {@code row}. The column kind must be {@link EscfColumnKind#LONG}. */
+    public long getLongValue(int row) {
         throw notA("long");
     }
 
-    double getDoubleValue(int row) {
+    /** Returns the double value at {@code row}. The column kind must be {@link EscfColumnKind#DOUBLE}. */
+    public double getDoubleValue(int row) {
         throw notA("double");
     }
 
-    /** Narrows {@link #getLongValue} to an {@code int}, throwing if out of range. */
-    int getIntValue(int row) {
-        long val = getLongValue(row);
-        if (val < Integer.MIN_VALUE || val > Integer.MAX_VALUE) {
-            throw new ArithmeticException("Long value " + val + " does not fit in int");
-        }
-        return (int) val;
+    /**
+     * Narrows {@link #getLongValue} to an {@code int}, throwing if out of range.
+     * Valid for {@link EscfColumnKind#UNION} columns whose row type is {@link org.elasticsearch.sourcebatch.SourceValueType#INT}.
+     */
+    public int getIntValue(int row) {
+        return Math.toIntExact(getLongValue(row));
     }
 
-    /** Narrows {@link #getDoubleValue} to a {@code float}. */
-    float getFloatValue(int row) {
+    /**
+     * Narrows {@link #getDoubleValue} to a {@code float}.
+     * Valid for {@link EscfColumnKind#UNION} columns whose row type is {@link org.elasticsearch.sourcebatch.SourceValueType#FLOAT}.
+     */
+    public float getFloatValue(int row) {
         return (float) getDoubleValue(row);
     }
 
-    Text getStringValue(int row) {
+    /** Returns the string value at {@code row}. The column kind must be {@link EscfColumnKind#STRING}. */
+    public Text getStringValue(int row) {
         throw notA("string");
     }
 
-    BytesRef getBinaryValue(int row) {
+    /** Returns the binary value at {@code row}. The column kind must be {@link EscfColumnKind#BINARY}. */
+    public BytesRef getBinaryValue(int row) {
         throw notA("binary");
     }
 
-    ArrayReader getArrayValue(int row) {
+    /** Returns the array value at {@code row}. The column kind must be {@link EscfColumnKind#ARRAY}. */
+    public ArrayReader getArrayValue(int row) {
         throw notA("array");
     }
 
-    KeyValueReader getKeyValue(int row) {
+    /** Returns the key-value reader at {@code row}. The column kind must be a key-value type. */
+    public KeyValueReader getKeyValue(int row) {
         throw notA("key-value");
     }
 
@@ -149,15 +202,20 @@ public abstract class EscfColumn implements SliceableColumn {
      * Returns a forward-only {@link LongTupleCursor} positioned before the first row. Subtypes that
      * hold long values override this; the default throws.
      */
-    LongTupleCursor longCursor() {
+    public LongTupleCursor longCursor() {
         throw notA("long");
     }
 
     /**
      * Returns a forward-only {@link ObjectTupleCursor}{@code <BytesRef>} positioned before the first
      * row. Subtypes that hold byte-string values override this; the default throws.
+     *
+     * @param retainValues {@code false} to reuse a single {@link BytesRef} across the whole scan (valid
+     *                     only until the next {@link ObjectTupleCursor#nextDoc()}, and allocation-free);
+     *                     {@code true} to hand back a fresh {@link BytesRef} per value, for callers that
+     *                     keep values past the cursor position
      */
-    public ObjectTupleCursor<BytesRef> bytesRefCursor() {
+    public ObjectTupleCursor<BytesRef> bytesRefCursor(boolean retainValues) {
         throw notA("binary");
     }
 
@@ -234,6 +292,9 @@ public abstract class EscfColumn implements SliceableColumn {
     static int[] rebasedOffsets(IntsRef ir, int count) {
         int base = ir.offset;
         int rebase = ir.ints[base];
+        if (rebase == 0 && base == 0 && ir.ints.length == count + 1) {
+            return ir.ints;
+        }
         int[] out = new int[count + 1];
         for (int i = 0; i <= count; i++) {
             out[i] = ir.ints[base + i] - rebase;
@@ -246,6 +307,9 @@ public abstract class EscfColumn implements SliceableColumn {
      * rows (i.e. {@code count + 1} offset entries — one fence post per row boundary).
      */
     static IntsRef sliceOffsets(IntsRef offsets, int from, int count) {
+        if (from == 0 && offsets.length == count + 1) {
+            return offsets;
+        }
         return new IntsRef(offsets.ints, offsets.offset + from, count + 1);
     }
 
@@ -255,7 +319,11 @@ public abstract class EscfColumn implements SliceableColumn {
      */
     static BytesReference sliceData(IntsRef offsets, BytesReference data, int count) {
         int byteFrom = intAt(offsets, 0);
-        return data.slice(byteFrom, intAt(offsets, count) - byteFrom);
+        int byteTo = intAt(offsets, count);
+        if (byteFrom == 0 && byteTo == data.length()) {
+            return data;
+        }
+        return data.slice(byteFrom, byteTo - byteFrom);
     }
 
     /** Returns the {@code i}-th logical entry of an {@link IntsRef}, accounting for its {@code offset}. */

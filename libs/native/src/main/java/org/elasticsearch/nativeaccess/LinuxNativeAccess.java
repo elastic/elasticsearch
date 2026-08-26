@@ -91,15 +91,14 @@ public class LinuxNativeAccess extends PosixNativeAccess {
     private final Systemd systemd;
 
     LinuxNativeAccess(NativeLibraryProvider libraryProvider) {
-        super("Linux", libraryProvider, new PosixConstants(-1L, 9, 1, 8, 64, 144, 48, 64));
+        super("Linux", libraryProvider, new PosixConstants(-1L, 9, 1, 8, 64));
         this.linuxLibc = libraryProvider.getLibrary(LinuxCLibrary.class);
         String socketPath = System.getenv("NOTIFY_SOCKET");
         if (socketPath == null) {
             this.systemd = null; // not running under systemd
         } else {
             logger.debug("Systemd socket path: {}", socketPath);
-            var buffer = newSharedBuffer(64);
-            this.systemd = new Systemd(libraryProvider.getLibrary(PosixCLibrary.class), socketPath, buffer);
+            this.systemd = new Systemd(libraryProvider.getLibrary(PosixCLibrary.class), socketPath);
         }
     }
 

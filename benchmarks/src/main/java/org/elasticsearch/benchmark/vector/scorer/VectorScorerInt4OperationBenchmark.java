@@ -10,8 +10,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.benchmark.Utils;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.simdvec.SimdVecLibrary;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -32,8 +31,8 @@ import java.lang.foreign.ValueLayout;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.nativeaccess.Int4TestUtils.dotProductI4SinglePacked;
-import static org.elasticsearch.nativeaccess.Int4TestUtils.packNibbles;
+import static org.elasticsearch.simdvec.Int4TestUtils.dotProductI4SinglePacked;
+import static org.elasticsearch.simdvec.Int4TestUtils.packNibbles;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.randomInt4Bytes;
 
 /**
@@ -100,13 +99,13 @@ public class VectorScorerInt4OperationBenchmark {
 
     @Benchmark
     public int nativeWithNativeSeg() {
-        return vectorSimilarityFunctions.dotProductI4(unpackedNativeSeg, packedNativeSeg, packedLen);
+        return VEC_LIBRARY.dotProductI4(unpackedNativeSeg, packedNativeSeg, packedLen);
     }
 
     @Benchmark
     public int nativeWithHeapSeg() {
-        return vectorSimilarityFunctions.dotProductI4(unpackedHeapSeg, packedHeapSeg, packedLen);
+        return VEC_LIBRARY.dotProductI4(unpackedHeapSeg, packedHeapSeg, packedLen);
     }
 
-    static final VectorSimilarityFunctions vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions().orElseThrow();
+    static final SimdVecLibrary VEC_LIBRARY = SimdVecLibrary.instance().orElseThrow();
 }

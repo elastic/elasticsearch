@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -154,23 +155,36 @@ public class QuerySettingsTests extends ESTestCase {
 
     public void testValidate_UnmappedFields() {
         var setting = QuerySettings.UNMAPPED_FIELDS;
-        String[] values = new String[] { "DEFAULT", "NULLIFY", "LOAD" };
+        String[] allValues = new String[] { "DEFAULT", "NULLIFY", "LOAD", "LOAD_ALL" };
+        String[] nonSnapshotValues = new String[] { "DEFAULT", "NULLIFY", "LOAD" };
 
         assertDefault(setting, equalTo(UnmappedResolution.DEFAULT));
 
-        for (String value : values) {
+        for (String value : nonSnapshotValues) {
             assertValid(setting, of(randomizeCase(value)), equalTo(UnmappedResolution.valueOf(value)));
         }
 
+        // LOAD_ALL is only valid on snapshot builds
+        assertValid(setting, of(randomizeCase("LOAD_ALL")), equalTo(UnmappedResolution.LOAD_ALL), SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertValid(setting, of(randomizeCase("LOAD_ALL")), equalTo(UnmappedResolution.LOAD_ALL), SNAPSHOT_CTX_WITH_CPS_DISABLED);
+        assertInvalid(
+            setting.name(),
+            NON_SNAPSHOT_CTX_WITH_CPS_ENABLED,
+            of("LOAD_ALL"),
+            "Error validating setting [unmapped_fields]: unmapped_fields value [LOAD_ALL] requires a snapshot build"
+        );
+
         assertInvalid(setting.name(), of(12), "Setting [" + setting.name() + "] must be of type KEYWORD");
 
+        // Parsing precedes the snapshot-only validator, so the values it lists come from the running build, not from the context.
+        String[] parseErrorValues = Build.current().isSnapshot() ? allValues : nonSnapshotValues;
         for (SettingsValidationContext ctx : allSettingsValidationContexts) {
             assertInvalid(
                 setting.name(),
                 ctx,
                 of("UNKNOWN"),
                 "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of "
-                    + Arrays.toString(values)
+                    + Arrays.toString(parseErrorValues)
             );
         }
 
@@ -180,7 +194,22 @@ public class QuerySettingsTests extends ESTestCase {
             settingSource,
             of("UNKNOWN"),
             "line 3:11: Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of "
-                + Arrays.toString(values)
+                + Arrays.toString(parseErrorValues)
+        );
+    }
+
+    /**
+     * Parsing happens before the snapshot-only validator runs, so the parse error is what a production build shows for a typo: it must
+     * list only the values that build accepts. Tests always run on a snapshot build, hence the direct call with both flags.
+     */
+    public void testUnmappedFieldsParseErrorHidesSnapshotOnlyValue() {
+        assertThat(
+            QuerySettings.invalidUnmappedResolutionMessage("UNKNOWN", false),
+            equalTo("Invalid unmapped_fields resolution [UNKNOWN], must be one of [DEFAULT, NULLIFY, LOAD]")
+        );
+        assertThat(
+            QuerySettings.invalidUnmappedResolutionMessage("UNKNOWN", true),
+            equalTo("Invalid unmapped_fields resolution [UNKNOWN], must be one of [DEFAULT, NULLIFY, LOAD, LOAD_ALL]")
         );
     }
 

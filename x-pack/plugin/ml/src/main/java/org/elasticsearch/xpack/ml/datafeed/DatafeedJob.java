@@ -73,6 +73,8 @@ class DatafeedJob {
     @Nullable
     private final String projectRouting;
     private final String jobId;
+    @Nullable
+    private final String cloudCredentialId;
     private final DataDescription dataDescription;
     private final long frequencyMs;
     private final long queryDelayMs;
@@ -101,6 +103,7 @@ class DatafeedJob {
         String datafeedId,
         @Nullable String projectRouting,
         String jobId,
+        @Nullable String cloudCredentialId,
         DataDescription dataDescription,
         long frequencyMs,
         long queryDelayMs,
@@ -121,6 +124,7 @@ class DatafeedJob {
         this.datafeedId = datafeedId;
         this.projectRouting = projectRouting;
         this.jobId = jobId;
+        this.cloudCredentialId = cloudCredentialId;
         this.dataDescription = Objects.requireNonNull(dataDescription);
         this.frequencyMs = frequencyMs;
         this.queryDelayMs = queryDelayMs;
@@ -425,9 +429,16 @@ class DatafeedJob {
                             )
                         );
                     }
+                    DataExtractorUtils.CloudCredentialFailureKind credentialFailureKind = DataExtractorUtils
+                        .classifyCloudCredentialSearchFailure(e, cloudCredentialId);
+                    Exception enrichedFailure = DatafeedCloudCredentialDiagnostics.enrichIfCloudCredentialFailure(
+                        cloudCredentialId,
+                        credentialFailureKind,
+                        e
+                    );
                     throw new ExtractionProblemException(
                         nextRealtimeTimestamp(),
-                        DatafeedProjectRoutingDiagnostics.enrichIfNoMatchingProject(datafeedId, projectRouting, e)
+                        DatafeedProjectRoutingDiagnostics.enrichIfNoMatchingProject(datafeedId, projectRouting, enrichedFailure)
                     );
                 }
                 if (isIsolated) {

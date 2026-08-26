@@ -19,7 +19,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -65,10 +68,12 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
@@ -100,7 +105,9 @@ public class PlannerUtils {
      * {@code HIGHLIGHT} ({@link org.elasticsearch.xpack.esql.plan.logical.Highlight}, {@link HighlightQueryBuilders}) and
      * {@code TOP_SNIPPETS} ({@link org.elasticsearch.xpack.esql.evaluator.EvalMapper}).
      *
-     * @return the resolved {@link Analyzer}, or {@code null} when {@code analyzerName} is {@code null} (no override requested)
+     * @return the resolved analyzer as a {@link NamedAnalyzer} carrying the position increment gap the analyzer would
+     *         have on a mapped text field, or {@code null} when {@code analyzerName} is {@code null} (no override
+     *         requested)
      * @throws InvalidArgumentException if the registry is unavailable, the analyzer fails to load, or no analyzer is
      *                                  registered under {@code analyzerName}
      */
@@ -122,6 +129,12 @@ public class PlannerUtils {
         }
         if (analyzer == null) {
             throw new InvalidArgumentException("[{}] is not a registered analyzer", analyzerName);
+        }
+        if (analyzer instanceof NamedAnalyzer == false) {
+            // Node-level plugin analyzers (AnalysisPlugin#getAnalyzers) resolve to bare Lucene analyzers: the registry
+            // bakes the text-field position increment gap only into prebuilt analyzers. Wrap them the way index
+            // mappings do, so multi-value analysis keeps the gap the same analyzer would have on a mapped field.
+            analyzer = new NamedAnalyzer(analyzerName, AnalyzerScope.GLOBAL, analyzer, TextFieldMapper.Defaults.POSITION_INCREMENT_GAP);
         }
         return analyzer;
     }
@@ -184,6 +197,12 @@ public class PlannerUtils {
     /** The plan here is used as a fallback if the reduce driver cannot be planned in a way that avoids field extraction after TopN. */
     public record TopNReduction(PhysicalPlan plan) implements PlanReduction {}
 
+    /** The plan here is used as a fallback if the reduce driver cannot be planned in a way that avoids field extraction after TopNBy. */
+    public record TopNByReduction(PhysicalPlan plan) implements PlanReduction {}
+
+    /** The plan here is used as a fallback if the reduce driver cannot be planned in a way that avoids field extraction after LimitBy. */
+    public record LimitByReduction(PhysicalPlan plan) implements PlanReduction {}
+
     public record ReducedPlan(PhysicalPlan plan) implements PlanReduction {}
 
     public static PlanReduction reductionPlan(PhysicalPlan plan) {
@@ -204,6 +223,8 @@ public class PlannerUtils {
         int estimatedRowSize = fragment.estimatedRowSize();
         return switch (LocalMapper.INSTANCE.map(pipelineBreaker)) {
             case TopNExec topN -> new TopNReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, topN));
+            case TopNByExec topNBy -> new TopNByReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, topNBy));
+            case LimitByExec limitBy -> new LimitByReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, limitBy));
             case AggregateExec aggExec -> getPhysicalPlanReduction(estimatedRowSize, aggExec.withMode(AggregatorMode.INTERMEDIATE));
             case MetricsInfoExec metricsInfoExec -> getPhysicalPlanReduction(
                 estimatedRowSize,
@@ -602,6 +623,7 @@ public class PlannerUtils {
             case TDIGEST -> ElementType.TDIGEST;
             case DENSE_VECTOR -> ElementType.FLOAT;
             case DATE_RANGE -> ElementType.LONG_RANGE;
+            case DOUBLE_RANGE -> ElementType.DOUBLE_RANGE;
             case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT -> throw EsqlIllegalArgumentException
                 .illegalDataType(dataType);
         };

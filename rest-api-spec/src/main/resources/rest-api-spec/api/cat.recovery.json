@@ -76,6 +76,7 @@
           "time",
           "type",
           "stage",
+          "priority",
           "source_host",
           "source_node",
           "target_host",

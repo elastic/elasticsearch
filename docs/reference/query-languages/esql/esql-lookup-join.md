@@ -66,7 +66,11 @@ If you're familiar with SQL, `LOOKUP JOIN` has left-join behavior. This means th
 stack: ga 9.2.0+
 ```
 
-Remote lookup joins are supported in [cross-cluster queries](/reference/query-languages/esql/esql-cross-clusters.md). The lookup index must exist on _all_ remote clusters being queried, because each cluster uses its local lookup index data. This follows the same pattern as [remote mode Enrich](/reference/query-languages/esql/esql-cross-clusters.md#esql-enrich-remote).
+Remote lookup joins are supported in [cross-cluster queries](/reference/query-languages/esql/esql-cross-clusters.md).
+
+By default, {{esql}} resolves the lookup index on every cluster in the query and each cluster joins against its own local index with that name. This follows the same pattern as [remote mode Enrich](/reference/query-languages/esql/esql-cross-clusters.md#esql-enrich-remote).
+
+If the lookup index is missing from one or more remote clusters, use [coordinator mode](#coordinator-mode).
 
 ```esql
 FROM log-cluster-*:logs-* | LOOKUP JOIN hosts ON source.ip
@@ -78,7 +82,36 @@ FROM log-cluster-*:logs-* | LOOKUP JOIN hosts ON source.ip
 serverless: preview
 ```
 
-`LOOKUP JOIN` is also supported in [cross-project search (CPS)](/reference/query-languages/esql/esql-cross-serverless-projects.md). The lookup index must exist on every {{serverless-short}} project being queried.
+`LOOKUP JOIN` is also supported in [cross-project search (CPS)](/reference/query-languages/esql/esql-cross-serverless-projects.md).
+
+By default, {{esql}} resolves the lookup index on every project in the query and each project joins against its own local index with that name. In this case, the lookup index must exist on every project being queried.
+
+If the lookup index is missing from one or more linked projects, use [coordinator mode](#coordinator-mode).
+
+### Run `LOOKUP JOIN` on coordinating node [coordinator-mode]
+
+```{applies_to}
+stack: preview 9.6+
+serverless: preview
+```
+
+In cross-cluster or cross-project queries, you can prefix the index name with `_coordinator:` to run the lookup on the local cluster or origin project instead of on each remote cluster or linked project.
+
+Use this when the lookup index is missing from one or more remote clusters or linked projects in the query, or when you need `LOOKUP JOIN` after pipeline-breaking commands such as `STATS`, `LIMIT`, or `SORT`.
+
+```esql
+FROM *:data | LOOKUP JOIN _coordinator:lookup-index ON field
+```
+
+The lookup runs against the local lookup index on the coordinating node rather than against lookup index copies on each remote cluster.
+The join runs on the coordinating node and reads the lookup index from the local cluster or origin project only.
+
+Source rows from remote clusters or linked projects are still queried, then joined against that single lookup index.
+
+Note the following constraints specific to coordinator mode:
+
+* On {{stack}} deployments, the remote cluster name `_coordinator` is reserved. If a remote cluster is registered under that name, coordinator mode cannot be used. The query fails with a validation error until the remote cluster is renamed.
+* After a coordinator `LOOKUP JOIN`, remote operations are not supported in the same query. Specifically, a `LOOKUP JOIN` (without the `_coordinator:` prefix) and `ENRICH _remote:` cannot appear later in the pipeline.
 
 ## Example
 
@@ -108,7 +141,7 @@ PUT threat_list
 }
 ```
 1. The lookup index must use this mode
-  
+
 ```console
 PUT firewall_logs
 {
@@ -240,4 +273,4 @@ The following are the current limitations with `LOOKUP JOIN`:
   * Aliases, datemath, and datastreams are supported, as long as the index pattern matches a single concrete index {applies_to}`stack: ga 9.1.0`.
 * The name of the match field in `LOOKUP JOIN lu_idx ON match_field` must match an existing field in the query. This may require `RENAME`s or `EVAL`s to achieve.
 * The query will circuit break if there are too many matching documents in the lookup index, or if the documents are too large. More precisely, `LOOKUP JOIN` works in batches of, normally, about 10,000 rows; a large amount of heap space is needed if the matching documents from the lookup index for a batch are multiple megabytes or larger. This is roughly the same as for `ENRICH`.
-* Cross-cluster `LOOKUP JOIN` can not be used after aggregations (`STATS`), `SORT` and `LIMIT` commands, and coordinator-side `ENRICH` commands.
+* Cross-cluster or cross-project `LOOKUP JOIN` cannot be used after a command that runs on the querying cluster. This includes all pipeline-breaking commands — `STATS`, `INLINE STATS`, `SORT`, `LIMIT`, `TS_INFO`, and `METRICS_INFO` among them — and any command that only ever runs on the querying cluster, such as `CHANGE_POINT`, `FORK`, `FUSE`, `RERANK`, `COMPLETION`, `MMR`, and coordinator-side `ENRICH`. Use the [`_coordinator:` prefix](#coordinator-mode) to avoid this restriction.

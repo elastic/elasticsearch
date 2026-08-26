@@ -10,8 +10,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.benchmark.Utils;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.simdvec.SimdVecLibrary;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -111,8 +110,8 @@ public class VectorScorerFloat32OperationBenchmark {
     @Benchmark
     public float nativeWithNativeSeg() {
         return switch (function) {
-            case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductF32(nativeSegA, nativeSegB, size);
-            case EUCLIDEAN -> vectorSimilarityFunctions.squareDistanceF32(nativeSegA, nativeSegB, size);
+            case DOT_PRODUCT -> VEC_LIBRARY.dotProductF32(nativeSegA, nativeSegB, size);
+            case EUCLIDEAN -> VEC_LIBRARY.squareDistanceF32(nativeSegA, nativeSegB, size);
             default -> throw new IllegalArgumentException(function.toString());
         };
     }
@@ -120,11 +119,11 @@ public class VectorScorerFloat32OperationBenchmark {
     @Benchmark
     public float nativeWithHeapSeg() {
         return switch (function) {
-            case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductF32(heapSegA, heapSegB, size);
-            case EUCLIDEAN -> vectorSimilarityFunctions.squareDistanceF32(heapSegA, heapSegB, size);
+            case DOT_PRODUCT -> VEC_LIBRARY.dotProductF32(heapSegA, heapSegB, size);
+            case EUCLIDEAN -> VEC_LIBRARY.squareDistanceF32(heapSegA, heapSegB, size);
             default -> throw new IllegalArgumentException(function.toString());
         };
     }
 
-    static final VectorSimilarityFunctions vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions().orElseThrow();
+    static final SimdVecLibrary VEC_LIBRARY = SimdVecLibrary.instance().orElseThrow();
 }

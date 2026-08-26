@@ -10,9 +10,8 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.index.codec.vectors.BFloat16;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.BFloat16QueryType;
+import org.elasticsearch.simdvec.SimdVecLibrary;
+import org.elasticsearch.simdvec.SimdVecLibrary.BFloat16QueryType;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -39,7 +38,7 @@ import java.util.stream.IntStream;
 /**
  * Bare-bones bulk operation benchmark for bfloat16 vector similarity functions.
  * Dispatches directly to the native BULK / BULK_OFFSETS / BULK_SPARSE implementations
- * via {@link VectorSimilarityFunctions}, bypassing the Lucene scorer infrastructure
+ * via {@link SimdVecLibrary}, bypassing the Lucene scorer infrastructure
  * so the inner SIMD kernel cost is the dominant signal:
  * <ul>
  *   <li>{@code scoreBulk} — contiguous slice (sequential by construction)</li>
@@ -173,13 +172,13 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
     private float callSingleScore(MemorySegment vec, MemorySegment query, int dims) {
         return switch (queryType) {
             case FLOAT32 -> switch (function) {
-                case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductDBF16QF32(vec, query, dims);
-                case EUCLIDEAN -> vectorSimilarityFunctions.squareDistanceDBF16QF32(vec, query, dims);
+                case DOT_PRODUCT -> VEC_LIBRARY.dotProductDBF16QF32(vec, query, dims);
+                case EUCLIDEAN -> VEC_LIBRARY.squareDistanceDBF16QF32(vec, query, dims);
                 default -> throw new UnsupportedOperationException(function.toString());
             };
             case BFLOAT16 -> switch (function) {
-                case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductDBF16QBF16(vec, query, dims);
-                case EUCLIDEAN -> vectorSimilarityFunctions.squareDistanceDBF16QBF16(vec, query, dims);
+                case DOT_PRODUCT -> VEC_LIBRARY.dotProductDBF16QBF16(vec, query, dims);
+                case EUCLIDEAN -> VEC_LIBRARY.squareDistanceDBF16QBF16(vec, query, dims);
                 default -> throw new UnsupportedOperationException(function.toString());
             };
         };
@@ -189,15 +188,15 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
         switch (queryType) {
             case FLOAT32 -> {
                 switch (function) {
-                    case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductDBF16QF32Bulk(a, b, dims, count, results);
-                    case EUCLIDEAN -> vectorSimilarityFunctions.squareDistanceDBF16QF32Bulk(a, b, dims, count, results);
+                    case DOT_PRODUCT -> VEC_LIBRARY.dotProductDBF16QF32Bulk(a, b, dims, count, results);
+                    case EUCLIDEAN -> VEC_LIBRARY.squareDistanceDBF16QF32Bulk(a, b, dims, count, results);
                     default -> throw new UnsupportedOperationException(function.toString());
                 }
             }
             case BFLOAT16 -> {
                 switch (function) {
-                    case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductDBF16QBF16Bulk(a, b, dims, count, results);
-                    case EUCLIDEAN -> vectorSimilarityFunctions.squareDistanceDBF16QBF16Bulk(a, b, dims, count, results);
+                    case DOT_PRODUCT -> VEC_LIBRARY.dotProductDBF16QBF16Bulk(a, b, dims, count, results);
+                    case EUCLIDEAN -> VEC_LIBRARY.squareDistanceDBF16QBF16Bulk(a, b, dims, count, results);
                     default -> throw new UnsupportedOperationException(function.toString());
                 }
             }
@@ -216,47 +215,15 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
         switch (queryType) {
             case FLOAT32 -> {
                 switch (function) {
-                    case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductDBF16QF32BulkWithOffsets(
-                        a,
-                        b,
-                        dims,
-                        pitch,
-                        offsets,
-                        count,
-                        results
-                    );
-                    case EUCLIDEAN -> vectorSimilarityFunctions.squareDistanceDBF16QF32BulkWithOffsets(
-                        a,
-                        b,
-                        dims,
-                        pitch,
-                        offsets,
-                        count,
-                        results
-                    );
+                    case DOT_PRODUCT -> VEC_LIBRARY.dotProductDBF16QF32BulkWithOffsets(a, b, dims, pitch, offsets, count, results);
+                    case EUCLIDEAN -> VEC_LIBRARY.squareDistanceDBF16QF32BulkWithOffsets(a, b, dims, pitch, offsets, count, results);
                     default -> throw new UnsupportedOperationException(function.toString());
                 }
             }
             case BFLOAT16 -> {
                 switch (function) {
-                    case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductDBF16QBF16BulkWithOffsets(
-                        a,
-                        b,
-                        dims,
-                        pitch,
-                        offsets,
-                        count,
-                        results
-                    );
-                    case EUCLIDEAN -> vectorSimilarityFunctions.squareDistanceDBF16QBF16BulkWithOffsets(
-                        a,
-                        b,
-                        dims,
-                        pitch,
-                        offsets,
-                        count,
-                        results
-                    );
+                    case DOT_PRODUCT -> VEC_LIBRARY.dotProductDBF16QBF16BulkWithOffsets(a, b, dims, pitch, offsets, count, results);
+                    case EUCLIDEAN -> VEC_LIBRARY.squareDistanceDBF16QBF16BulkWithOffsets(a, b, dims, pitch, offsets, count, results);
                     default -> throw new UnsupportedOperationException(function.toString());
                 }
             }
@@ -267,15 +234,15 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
         switch (queryType) {
             case FLOAT32 -> {
                 switch (function) {
-                    case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductDBF16QF32BulkSparse(addresses, b, dims, count, results);
-                    case EUCLIDEAN -> vectorSimilarityFunctions.squareDistanceDBF16QF32BulkSparse(addresses, b, dims, count, results);
+                    case DOT_PRODUCT -> VEC_LIBRARY.dotProductDBF16QF32BulkSparse(addresses, b, dims, count, results);
+                    case EUCLIDEAN -> VEC_LIBRARY.squareDistanceDBF16QF32BulkSparse(addresses, b, dims, count, results);
                     default -> throw new UnsupportedOperationException(function.toString());
                 }
             }
             case BFLOAT16 -> {
                 switch (function) {
-                    case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductDBF16QBF16BulkSparse(addresses, b, dims, count, results);
-                    case EUCLIDEAN -> vectorSimilarityFunctions.squareDistanceDBF16QBF16BulkSparse(addresses, b, dims, count, results);
+                    case DOT_PRODUCT -> VEC_LIBRARY.dotProductDBF16QBF16BulkSparse(addresses, b, dims, count, results);
+                    case EUCLIDEAN -> VEC_LIBRARY.squareDistanceDBF16QBF16BulkSparse(addresses, b, dims, count, results);
                     default -> throw new UnsupportedOperationException(function.toString());
                 }
             }
@@ -352,7 +319,5 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
         return scores;
     }
 
-    private static final VectorSimilarityFunctions vectorSimilarityFunctions = NativeAccess.instance()
-        .getVectorSimilarityFunctions()
-        .orElseThrow();
+    private static final SimdVecLibrary VEC_LIBRARY = SimdVecLibrary.instance().orElseThrow();
 }

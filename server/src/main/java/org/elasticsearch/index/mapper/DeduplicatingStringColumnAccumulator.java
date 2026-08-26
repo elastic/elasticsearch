@@ -12,8 +12,9 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.escf.EscfColumnBuilder;
 import org.elasticsearch.escf.EscfColumnData;
-import org.elasticsearch.escf.EscfRowColumnBuilder;
+import org.elasticsearch.escf.EscfColumnKind;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -77,7 +78,10 @@ final class DeduplicatingStringColumnAccumulator {
     /** Drains into a STRING {@link EscfColumnData} (scalar if every doc has at most one value, ARRAY otherwise) and releases all state. */
     EscfColumnData finish(Recycler<BytesRef> recycler) {
         final int docCount = docOrds.length;
-        final EscfRowColumnBuilder builder = EscfRowColumnBuilder.strings(recycler);
+        // MERGE: a doc with several interned values becomes a multi-valued ARRAY row. Hint STRING so an
+        // all-absent column still finishes as STRING rather than the default kind.
+        final EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, recycler);
+        builder.hintScalar(EscfColumnKind.STRING);
         for (int doc = 0; doc < docCount; doc++) {
             final int[] ords = docOrds[doc];
             if (ords == null) {

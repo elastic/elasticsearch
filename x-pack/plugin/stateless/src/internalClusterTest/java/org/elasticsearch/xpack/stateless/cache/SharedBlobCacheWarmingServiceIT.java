@@ -45,8 +45,8 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -688,7 +688,11 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
     }
 
     public void testCacheIsWarmedBeforeSearchShardRecoveryWhenVBCCGetsUploaded() {
-        var nodeSettings = Settings.builder()
+        // When true, the VBCC is released immediately after upload (pre-recentlyUploadedVbccs behaviour): the first chunk
+        // request from the search node receives a ResourceAlreadyUploadedException and warming falls back to the object store.
+        // When false, the default timeout keeps the VBCC alive so chunk requests succeed and warming can use the indexing node.
+        final boolean immediateVbccRelease = randomBoolean();
+        var nodeSettingsBuilder = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
@@ -697,8 +701,14 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             // Match the VBCC transport chunk size with the pre-warm range so that each warming range is fetched with a single
             // transport request, reducing the interleaving window where a mid-range flush can surface RAUE on a sibling gap.
             .put(TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
-            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
-            .build();
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings());
+        if (immediateVbccRelease) {
+            nodeSettingsBuilder.put(
+                StatelessCommitService.STATELESS_UPLOAD_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT.getKey(),
+                TimeValue.ZERO
+            );
+        }
+        var nodeSettings = nodeSettingsBuilder.build();
         final var indexNode = startMasterAndIndexNode(nodeSettings);
 
         var searchNode = startSearchNode(nodeSettings);
@@ -758,8 +768,9 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 handler.messageReceived(alteredRequest, channel, task);
             });
 
-        // Upload VBCC on first message to get a chunk from the indexing node. This will return a ResourceAlreadyUploadedException and will
-        // make the warming service to fetch from the object store.
+        // Upload VBCC on first message to get a chunk from the indexing node. With immediateVbccRelease the VBCC is already gone
+        // by then and the handler returns ResourceAlreadyUploadedException, making the warming service fall back to the object store.
+        // With the default timeout the VBCC is still alive so the chunk request succeeds and warming can proceed via the indexing node.
         final var flushed = new AtomicBoolean(false);
         final var flushCountdown = new CountDownLatch(1);
         MockTransportService.getInstance(searchNode).addSendBehavior((connection, requestId, action, request, options) -> {
@@ -802,7 +813,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
                     @Override
                     public void sendResponse(TransportResponse response) {
-                        assert false : "unexpectedly trying to send response " + response;
+                        // With immediateVbccRelease the VBCC is gone before the first chunk request arrives, so the handler
+                        // must never reach a success response. With the default timeout the VBCC is still alive, so it can.
+                        assert immediateVbccRelease == false : "unexpectedly trying to send response " + response;
+                        channel.sendResponse(response);
                     }
                 }, task)
             );
@@ -1484,7 +1498,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
             ClusterService clusterService,
-            IndicesService indicesService
+            IndicesService indicesService,
+            PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder
         ) {
             MaybeNoFreeRegionForWarmingStatelessSharedBlobCacheService maybeNoFreeRegionForWarmingBlobCacheService =
                 new MaybeNoFreeRegionForWarmingStatelessSharedBlobCacheService(
@@ -1493,9 +1508,9 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     threadPool,
                     blobCacheMetrics,
                     clusterService,
-                    indicesService
+                    indicesService,
+                    metricHolder
                 );
-            maybeNoFreeRegionForWarmingBlobCacheService.assertInvariants();
             return maybeNoFreeRegionForWarmingBlobCacheService;
         }
     }
@@ -1509,17 +1524,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
             ClusterService clusterService,
-            IndicesService indicesService
+            IndicesService indicesService,
+            PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder
         ) {
-            super(
-                environment,
-                settings,
-                threadPool,
-                blobCacheMetrics,
-                clusterService,
-                indicesService,
-                new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
-            );
+            super(environment, settings, threadPool, blobCacheMetrics, clusterService, indicesService, metricHolder);
         }
 
         @Override
@@ -1530,13 +1538,14 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             long blobLength,
             RangeMissingHandler writer,
             Executor fetchExecutor,
+            long timestampMillis,
             ActionListener<Boolean> listener
         ) {
             if (noFreeRegionForWarming.get()) {
                 // Simulate no free region
                 listener.onResponse(false);
             } else {
-                super.maybeFetchRange(cacheKey, region, range, blobLength, writer, fetchExecutor, listener);
+                super.maybeFetchRange(cacheKey, region, range, blobLength, writer, fetchExecutor, timestampMillis, listener);
             }
         }
     }
@@ -1706,7 +1715,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         }
 
         @Override
-        protected void scheduleWarmingTask(ActionListener<Releasable> task) {
+        protected void scheduleWarmingTask(AbstractWarmingTask task) {
             var interceptor = scheduleWarmingTaskInterceptor;
             if (interceptor != null) {
                 interceptor.accept(task);

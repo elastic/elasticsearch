@@ -76,8 +76,10 @@ import static org.elasticsearch.core.Strings.format;
  * The fan out and collect algorithm is traditionally used as the initial phase which can either be a query execution or collection of
  * distributed frequencies
  */
-abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase {
+public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase {
     protected static final float DEFAULT_INDEX_BOOST = 1.0f;
+    public static final String INTERNAL_PARTIAL_RESULTS_CANCEL_REASON = "partial results are not allowed and at least one shard has failed";
+    public static final String ALL_SHARDS_FAILED_DUE_TO_INTERNAL_CANCEL = "All shards failed due to internal cancel";
 
     private final Logger logger;
     private final NamedWriteableRegistry namedWriteableRegistry;
@@ -107,7 +109,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final AtomicInteger outstandingShards;
     private final int maxConcurrentRequestsPerNode;
     private final Map<String, PendingExecutions> pendingExecutionsPerNode;
-    private final AtomicBoolean requestCancelled = new AtomicBoolean();
+    private final AtomicBoolean internalCancelTriggered = new AtomicBoolean();
+    private final AtomicInteger internalCancelledShardCount = new AtomicInteger();
     private final int skippedCount;
     private final TransportVersion mintransportVersion;
     protected final SearchResponseMetrics searchResponseMetrics;
@@ -365,6 +368,17 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     }
                     onPhaseFailure(currentPhase, "Partial shards failure", null);
                 } else {
+                    if (internalCancelledShardCount.get() == results.getNumShards()) {
+                        // All shards encountered internal TaskCancelledException, which is not included in shard failures. To prevent a
+                        // spurious SERVICE_UNAVAILABLE response due to no shard failures being present, provide a placeholder cause to
+                        // onPhaseFailure() which can be filtered out later
+                        onPhaseFailure(
+                            currentPhase,
+                            ALL_SHARDS_FAILED_DUE_TO_INTERNAL_CANCEL,
+                            new ElasticsearchException(ALL_SHARDS_FAILED_DUE_TO_INTERNAL_CANCEL)
+                        );
+                        return;
+                    }
                     int discrepancy = getNumShards() - successfulOps.get();
                     assert discrepancy > 0 : "discrepancy: " + discrepancy;
                     if (logger.isDebugEnabled()) {
@@ -450,9 +464,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             performPhaseOnShard(shardIndex, shardIt, nextShard);
         } else {
             if (request.allowPartialSearchResults() == false) {
-                if (requestCancelled.compareAndSet(false, true)) {
+                if (internalCancelTriggered.compareAndSet(false, true)) {
                     try {
-                        searchTransportService.cancelSearchTask(task, "partial results are not allowed and at least one shard has failed");
+                        searchTransportService.cancelSearchTask(task, INTERNAL_PARTIAL_RESULTS_CANCEL_REASON);
                     } catch (Exception cancelFailure) {
                         logger.debug("Failed to cancel search request", cancelFailure);
                     }
@@ -497,7 +511,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
         // we don't aggregate shard on failures due to the internal cancellation,
         // but do keep the header counts right
-        if ((requestCancelled.get() && ExceptionsHelper.isTaskCancelledException(e)) == false) {
+        if (isInternalCancel(e) == false) {
             AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
             // lazily create shard failures, so we can early build the empty shard failure list in most cases (no failures)
             if (shardFailures == null) { // this is double checked locking but it's fine since SetOnce uses a volatile read internally
@@ -524,7 +538,17 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 assert failure == null : "shard failed before but shouldn't: " + failure;
                 successfulOps.decrementAndGet(); // if this shard was successful before (initial phase) we have to adjust the counter
             }
+        } else {
+            internalCancelledShardCount.incrementAndGet();
         }
+    }
+
+    private boolean isInternalCancel(Exception e) {
+        // It's possible for a TaskCancelledException due to the internal cancel to reach here before internalCancelTriggered has been set
+        // to true if the search is cancelled from another cluster, so also check the task cancellation reason
+        return (ExceptionsHelper.isTaskCancelledException(e)
+            && (internalCancelTriggered.get()
+                || task.getReasonCancelled() != null && task.getReasonCancelled().contains(INTERNAL_PARTIAL_RESULTS_CANCEL_REASON)));
     }
 
     /**

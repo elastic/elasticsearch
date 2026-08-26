@@ -42,13 +42,13 @@
 ///     a timestamp is extracted from each CC and the most recent timestamp per BCC is used to backfill all the regions stamped
 ///     {@code BACKFILL_IN_PROGRESS_TIMESTAMP}. CCs with no timestamp range resolve to minimal real timestamp.
 ///
-///   - Offline prewarming, driven by [org.elasticsearch.xpack.stateless.StatelessIndexEventListener] through
+///   - Offline prewarming, driven by [org.elasticsearch.xpack.stateless.StatelessSearchNodeRecoveryListener] through
 ///     [org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService#warmBlobOffsets], uses a single timestamp per blob,
 ///     applied uniformly to every warmed region of that blob (the whole range from the start of the blob to the computed end). The
 ///     per-blob value is the most recent known timestamp among the CCs referenced in that blob, so it can over-approximate the age of
 ///     older regions in the blob.
 ///
-///   - Recovery header warming, also driven by [org.elasticsearch.xpack.stateless.StatelessIndexEventListener] through
+///   - Recovery header warming, also driven by [org.elasticsearch.xpack.stateless.StatelessSearchNodeRecoveryListener] through
 ///     [org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService], resolves a single per-CC timestamp for each
 ///     Lucene file being fetched and applies to all regions covering that file. When several files share a region, the first file to
 ///     populate the region sets its timestamp.
@@ -56,7 +56,8 @@
 ///   - Prefetching, in [org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher#computeTimestampPerBlob], picks a single
 ///     timestamp per blob for the blobs being prefetched, both for the blob containing the new commit and for other referenced blobs.
 ///     Blob containing the new commit gets the timestamp of the new commit, and other referenced blobs get the most recent known
-///     timestamp among the CCs referenced in each blob.
+///     timestamp among the CCs referenced in each blob. Each blob is resolved once, preferring the triggering commit's timestamp when the
+///     blob's own timestamp is unknown before the terminal fallback value.
 ///
 ///   - On-demand search reads, served through [org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory] for regions that
 ///     were not prewarmed or that have been evicted, use the per-CC timestamp of the file being read.

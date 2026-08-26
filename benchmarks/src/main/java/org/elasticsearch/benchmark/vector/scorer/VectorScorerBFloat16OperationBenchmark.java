@@ -11,8 +11,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.index.codec.vectors.BFloat16;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.simdvec.SimdVecLibrary;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -73,7 +72,7 @@ public class VectorScorerBFloat16OperationBenchmark {
     public VectorSimilarityType function;
 
     @Param
-    public VectorSimilarityFunctions.BFloat16QueryType queryType;
+    public SimdVecLibrary.BFloat16QueryType queryType;
 
     private LuceneFunction<float[]> luceneImpl;
 
@@ -142,12 +141,12 @@ public class VectorScorerBFloat16OperationBenchmark {
     public float nativeWithNativeSeg() {
         return switch (function) {
             case DOT_PRODUCT -> switch (queryType) {
-                case FLOAT32 -> vectorSimilarityFunctions.dotProductDBF16QF32(nativeSegA, nativeSegB, size);
-                case BFLOAT16 -> vectorSimilarityFunctions.dotProductDBF16QBF16(nativeSegA, nativeSegB, size);
+                case FLOAT32 -> VEC_LIBRARY.dotProductDBF16QF32(nativeSegA, nativeSegB, size);
+                case BFLOAT16 -> VEC_LIBRARY.dotProductDBF16QBF16(nativeSegA, nativeSegB, size);
             };
             case EUCLIDEAN -> switch (queryType) {
-                case FLOAT32 -> vectorSimilarityFunctions.squareDistanceDBF16QF32(nativeSegA, nativeSegB, size);
-                case BFLOAT16 -> vectorSimilarityFunctions.squareDistanceDBF16QBF16(nativeSegA, nativeSegB, size);
+                case FLOAT32 -> VEC_LIBRARY.squareDistanceDBF16QF32(nativeSegA, nativeSegB, size);
+                case BFLOAT16 -> VEC_LIBRARY.squareDistanceDBF16QBF16(nativeSegA, nativeSegB, size);
             };
             default -> throw new IllegalArgumentException(function.toString());
         };
@@ -157,16 +156,16 @@ public class VectorScorerBFloat16OperationBenchmark {
     public float nativeWithHeapSeg() {
         return switch (function) {
             case DOT_PRODUCT -> switch (queryType) {
-                case FLOAT32 -> vectorSimilarityFunctions.dotProductDBF16QF32(heapSegA, heapSegB, size);
-                case BFLOAT16 -> vectorSimilarityFunctions.dotProductDBF16QBF16(heapSegA, heapSegB, size);
+                case FLOAT32 -> VEC_LIBRARY.dotProductDBF16QF32(heapSegA, heapSegB, size);
+                case BFLOAT16 -> VEC_LIBRARY.dotProductDBF16QBF16(heapSegA, heapSegB, size);
             };
             case EUCLIDEAN -> switch (queryType) {
-                case FLOAT32 -> vectorSimilarityFunctions.squareDistanceDBF16QF32(heapSegA, heapSegB, size);
-                case BFLOAT16 -> vectorSimilarityFunctions.squareDistanceDBF16QBF16(heapSegA, heapSegB, size);
+                case FLOAT32 -> VEC_LIBRARY.squareDistanceDBF16QF32(heapSegA, heapSegB, size);
+                case BFLOAT16 -> VEC_LIBRARY.squareDistanceDBF16QBF16(heapSegA, heapSegB, size);
             };
             default -> throw new IllegalArgumentException(function.toString());
         };
     }
 
-    static final VectorSimilarityFunctions vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions().orElseThrow();
+    static final SimdVecLibrary VEC_LIBRARY = SimdVecLibrary.instance().orElseThrow();
 }

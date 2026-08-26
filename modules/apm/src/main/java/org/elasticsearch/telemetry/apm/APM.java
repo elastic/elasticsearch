@@ -18,6 +18,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
+import org.elasticsearch.telemetry.TelemetryLoggingFilterProvider;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.APMLoggingService;
@@ -60,12 +61,13 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
     }
 
     @Override
-    public TelemetryProvider getTelemetryProvider(Environment environment) {
+    public TelemetryProvider getTelemetryProvider(Environment environment, List<TelemetryLoggingFilterProvider> filterProviders) {
         Path diskBufferPath = environment.dataDirs()[0].resolve("telemetry-buffer");
         final APMTelemetryProvider apmTelemetryProvider = new APMTelemetryProvider(
             environment.settings(),
             diskBufferPath,
-            environment.configDir()
+            environment.configDir(),
+            filterProviders
         );
         telemetryProvider.set(apmTelemetryProvider);
         return apmTelemetryProvider;
@@ -127,6 +129,7 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
             // Logs
             OtelSdkSettings.TELEMETRY_LOGS_ENDPOINT,
             OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENABLED,
+            OtelSdkSettings.TELEMETRY_LOGS_QUERYLOG_ENABLED,
             OtelSdkSettings.TELEMETRY_LOGS_MAX_QUEUE_SIZE,
             OtelSdkSettings.TELEMETRY_LOGS_SSL_CERTIFICATE_AUTHORITIES,
             OtelSdkSettings.TELEMETRY_LOGS_SSL_CERTIFICATE,

@@ -16,6 +16,8 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPoolsCollector;
+import org.elasticsearch.cluster.PartitionSizeCollector;
+import org.elasticsearch.cluster.SearchLaneRequirementsCollector;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
@@ -33,6 +35,7 @@ import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.plugins.PluginsLoader;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.readiness.ReadinessService;
@@ -50,8 +53,10 @@ import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -105,6 +110,14 @@ class NodeServiceProvider {
             CacheSizesAndCommitmentCollector.class,
             () -> CacheSizesAndCommitmentCollector.EMPTY
         );
+        final PartitionSizeCollector partitionSizeCollector = pluginsService.loadSingletonServiceProvider(
+            PartitionSizeCollector.class,
+            () -> PartitionSizeCollector.EMPTY
+        );
+        final SearchLaneRequirementsCollector searchLaneRequirementsCollector = pluginsService.loadSingletonServiceProvider(
+            SearchLaneRequirementsCollector.class,
+            () -> SearchLaneRequirementsCollector.EMPTY
+        );
         final InternalClusterInfoService service = new InternalClusterInfoService(
             settings,
             writeLoadConstraintSettings,
@@ -113,7 +126,9 @@ class NodeServiceProvider {
             client,
             estimatedHeapUsageCollector,
             cacheSizesAndCommitmentCollector,
-            new NodeUsageStatsForThreadPoolsCollector()
+            partitionSizeCollector,
+            new NodeUsageStatsForThreadPoolsCollector(),
+            searchLaneRequirementsCollector
         );
         if (DiscoveryNode.isMasterNode(settings)) {
             // listen for state changes (this node starts/stops being the elected master, or new nodes are added)
@@ -147,7 +162,8 @@ class NodeServiceProvider {
         String nodeId,
         LinkedProjectConfigService linkedProjectConfigService,
         CrossProjectModeDecider crossProjectModeDecider,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        List<? extends TransportMessageListener.Provider> transportMessageListenerProviders
     ) {
         return new TransportService(
             settings,
@@ -161,7 +177,8 @@ class NodeServiceProvider {
             linkedProjectConfigService,
             telemetryProvider,
             crossProjectModeDecider,
-            projectResolver
+            projectResolver,
+            transportMessageListenerProviders
         );
     }
 
@@ -202,5 +219,15 @@ class NodeServiceProvider {
 
     ReadinessService newReadinessService(PluginsService pluginsService, ClusterService clusterService, Environment environment) {
         return new ReadinessService(clusterService, environment);
+    }
+
+    ShutdownPrepareService newShutdownPrepareService(
+        PluginsService pluginsService,
+        Settings settings,
+        HttpServerTransport httpServerTransport,
+        TransportService transportService,
+        TerminationHandler terminationHandler
+    ) {
+        return new ShutdownPrepareService(settings, httpServerTransport, transportService, terminationHandler);
     }
 }

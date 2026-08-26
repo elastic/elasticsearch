@@ -10,8 +10,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.benchmark.Utils;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.simdvec.SimdVecLibrary;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -108,9 +107,9 @@ public class VectorScorerInt8OperationBenchmark {
     @Benchmark
     public float nativeWithNativeSeg() {
         return switch (function) {
-            case COSINE -> vectorSimilarityFunctions.cosineI8(nativeSegA, nativeSegB, size);
-            case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductI8(nativeSegA, nativeSegB, size);
-            case EUCLIDEAN -> vectorSimilarityFunctions.squareDistanceI8(nativeSegA, nativeSegB, size);
+            case COSINE -> VEC_LIBRARY.cosineI8(nativeSegA, nativeSegB, size);
+            case DOT_PRODUCT -> VEC_LIBRARY.dotProductI8(nativeSegA, nativeSegB, size);
+            case EUCLIDEAN -> VEC_LIBRARY.squareDistanceI8(nativeSegA, nativeSegB, size);
             default -> throw new IllegalArgumentException(function.toString());
         };
     }
@@ -118,12 +117,12 @@ public class VectorScorerInt8OperationBenchmark {
     @Benchmark
     public float nativeWithHeapSeg() {
         return switch (function) {
-            case COSINE -> vectorSimilarityFunctions.cosineI8(heapSegA, heapSegB, size);
-            case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductI8(heapSegA, heapSegB, size);
-            case EUCLIDEAN -> vectorSimilarityFunctions.squareDistanceI8(heapSegA, heapSegB, size);
+            case COSINE -> VEC_LIBRARY.cosineI8(heapSegA, heapSegB, size);
+            case DOT_PRODUCT -> VEC_LIBRARY.dotProductI8(heapSegA, heapSegB, size);
+            case EUCLIDEAN -> VEC_LIBRARY.squareDistanceI8(heapSegA, heapSegB, size);
             default -> throw new IllegalArgumentException(function.toString());
         };
     }
 
-    static final VectorSimilarityFunctions vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions().orElseThrow();
+    static final SimdVecLibrary VEC_LIBRARY = SimdVecLibrary.instance().orElseThrow();
 }

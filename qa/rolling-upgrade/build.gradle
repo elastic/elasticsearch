@@ -7,27 +7,46 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
-apply plugin: 'elasticsearch.internal-test-artifact-base'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.fwc-test'
 apply plugin: 'elasticsearch.bc-upgrade-test'
 
-testArtifacts {
-  registerTestArtifactFromSourceSet(sourceSets.javaRestTest)
+// Each suite is parameterized over the upgrade phases and an earlier phase sets up the cluster state a later phase asserts on,
+// so a phase that passed must still run when a later phase is retried.
+smartRetry.pruneIndividualTests.set(false)
+
+restResources {
+  restTests {
+    includeCore '*'
+  }
 }
 
 buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
+  def yamlBwcTest = tasks.register("v${bwcVersion}#yamlBwcTest", StandaloneRestIntegTestTask) {
+    testClassesDirs = sourceSets.yamlRestTest.output.classesDirs
+    classpath = sourceSets.yamlRestTest.runtimeClasspath
+
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.old_cluster_version", bwcVersion)
+  }
+
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)
+
+    dependsOn yamlBwcTest
   }
 }
 
 tasks.withType(Test).configureEach {
   // CI doesn't like it when there's multiple clusters running at once
   maxParallelForks = 1
+}
+
+tasks.named("yamlRestTest") {
+  enabled = false
 }

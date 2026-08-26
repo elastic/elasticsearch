@@ -146,7 +146,8 @@ public class ExternalRelationSerializationTests extends AbstractLogicalPlanSeria
      */
     public void testDeclaredReadSpecRejectedForOlderTransportVersion() throws IOException {
         DeclaredReadSpec spec = DeclaredReadSpec.of(Map.of("id", "emp_no"), "id");
-        List<Attribute> output = randomFieldAttributes(1, 3, false);
+        TransportVersion before = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("dataset_declared_schema"));
+        List<Attribute> output = randomFieldAttributes(1, 3, false, before);
         SimpleSourceMetadata metadata = new SimpleSourceMetadata(output, "csv", "s3://bucket/x.csv", null, null, Map.of(), Map.of());
         ExternalRelation original = new ExternalRelation(
             randomSource(),
@@ -159,7 +160,6 @@ public class ExternalRelationSerializationTests extends AbstractLogicalPlanSeria
             List.of(),
             spec
         );
-        TransportVersion before = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("dataset_declared_schema"));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> copyInstance(original, before));
         assertThat(e.getMessage(), containsString("not supported on all nodes"));
     }
@@ -169,7 +169,8 @@ public class ExternalRelationSerializationTests extends AbstractLogicalPlanSeria
      * NON-empty spec is rejected. Guards the {@code else if (isEmpty() == false)} branch against an always-throw regression.
      */
     public void testEmptyDeclaredReadSpecSerializesToOlderTransportVersion() throws IOException {
-        List<Attribute> output = randomFieldAttributes(1, 3, false);
+        TransportVersion before = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("dataset_declared_schema"));
+        List<Attribute> output = randomFieldAttributes(1, 3, false, before);
         SimpleSourceMetadata metadata = new SimpleSourceMetadata(output, "csv", "s3://bucket/x.csv", null, null, Map.of(), Map.of());
         // Six-arg constructor => default (NONE) spec.
         ExternalRelation original = new ExternalRelation(
@@ -180,7 +181,6 @@ public class ExternalRelationSerializationTests extends AbstractLogicalPlanSeria
             FileList.UNRESOLVED,
             Map.of()
         );
-        TransportVersion before = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("dataset_declared_schema"));
         ExternalRelation roundTripped = copyInstance(original, before);
         assertThat(roundTripped.declaredReadSpec(), equalTo(DeclaredReadSpec.NONE));
     }

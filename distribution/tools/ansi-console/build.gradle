@@ -18,7 +18,7 @@ dependencies {
   testImplementation project(":test:framework")
 
   // multi-platform (Windows too) terminal detection and output formatting
-  api "org.fusesource.jansi:jansi:2.4.0"
+  api "org.fusesource.jansi:jansi:2.4.3"
 }
 
 

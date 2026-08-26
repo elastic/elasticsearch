@@ -36,6 +36,8 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
+import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
@@ -1009,9 +1011,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     private static Settings cacheEnabledSettings() {
         return Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
     }
 
@@ -1482,9 +1484,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         String failOnPathSuffix = "f1.parquet";
 
         Settings cacheSettings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheSettings)) {
@@ -1541,9 +1543,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         String failOnPathSuffix = "f0.parquet";
 
         Settings cacheSettings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheSettings)) {
@@ -2434,11 +2436,30 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * The extensionless branch of the same failure — the shape produced by data-lake litter that carries no extension
-     * at all ({@code _SUCCESS} markers, {@code folder/} placeholders, bare prefixes), which the listing does not
-     * filter out.
+     * The extensionless branch of the same failure — the shape produced by a non-hidden file that carries no extension
+     * at all (e.g. a bare prefix file). Hidden litter like {@code _SUCCESS} is now filtered before reaching schema
+     * resolution, so this test uses a non-hidden extensionless name to exercise the same error path.
      */
     public void testMultiFileGlobWithoutFormatReportsMissingExtension() {
+        Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/vpcflow/bare_prefix", List.of(attr("a", DataType.KEYWORD)));
+        List<StorageEntry> listing = List.of(entry("s3://bucket/vpcflow/bare_prefix", 0));
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> resolveMultiFileWithConfig("s3://bucket/vpcflow/*", schemasByPath, listing, Map.of())
+        );
+
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+        assertThat(e.getMessage(), containsString("s3://bucket/vpcflow/bare_prefix"));
+        assertThat(e.getMessage(), containsString("no file extension"));
+        assertThat(e.getMessage(), containsString("[format]"));
+    }
+
+    /**
+     * When the listing contains only non-data objects (e.g. {@code _SUCCESS} markers), the glob expansion filter
+     * removes them all and the resolver reports that no files matched rather than failing on an unreadable extension.
+     */
+    public void testMultiFileGlobWithOnlyLitterReportsNoFiles() {
         Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/vpcflow/_SUCCESS", List.of(attr("a", DataType.KEYWORD)));
         List<StorageEntry> listing = List.of(entry("s3://bucket/vpcflow/_SUCCESS", 0));
 
@@ -2447,10 +2468,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             () -> resolveMultiFileWithConfig("s3://bucket/vpcflow/*", schemasByPath, listing, Map.of())
         );
 
-        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
-        assertThat(e.getMessage(), containsString("s3://bucket/vpcflow/_SUCCESS"));
-        assertThat(e.getMessage(), containsString("no file extension"));
-        assertThat(e.getMessage(), containsString("[format]"));
+        assertThat(e.getMessage(), containsString("Glob pattern matched no files"));
+        assertThat(e.getMessage(), containsString("s3://bucket/vpcflow/*"));
     }
 
     /**
@@ -2613,9 +2632,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemasByPath);
 
         Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
 
         // FFW-specific assertions of listing-cache + anchor-schema-cache reuse.
@@ -2792,9 +2811,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
      */
     public void testMultiFileCacheReducesSchemaLoaderCallsPerStrategy() throws Exception {
         Settings cacheSettings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
 
         for (FormatReader.SchemaResolution strategy : MULTI_FILE_STRATEGIES) {
@@ -3043,9 +3062,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of(), schemasByPath);
 
         Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
@@ -3088,9 +3107,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of(), schemasByPath);
 
         Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
@@ -3135,9 +3154,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         // The file-metadata cache is freshness-discovery (like listing) and shares the listing TTL, so a
         // short listing TTL is what expires it and forces the re-probe.
         Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "500ms")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "500ms")
             .build();
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
@@ -3169,9 +3188,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of(), schemasByPath);
 
         Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", false)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", false)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
@@ -3207,9 +3226,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of("s3://bucket/d/", listing), schemasByPath);
 
         Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", false)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", false)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
@@ -3241,9 +3260,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         NullMtimeStorageProvider nullMtimeProvider = new NullMtimeStorageProvider(schemasByPath);
 
         Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
@@ -4728,4 +4747,168 @@ public class ExternalSourceResolverTests extends ESTestCase {
             delegate.close();
         }
     }
+
+    /**
+     * {@code mapResolveFailure} is where a resolution failure's status is decided, and it decides by TYPE: an
+     * {@link IllegalArgumentException} (or {@link UnsupportedOperationException}) is returned untouched, and
+     * everything else is re-wrapped in a bare {@link org.elasticsearch.ElasticsearchException} -- a 500. So a glob
+     * that trips the discovery cap, which is the user having asked for too much, came back as a server fault for as
+     * long as the cap threw a {@code QlIllegalArgumentException}: not an {@code IllegalArgumentException}, therefore
+     * the default arm, therefore 500.
+     *
+     * <p>The assertion is at {@code resolve}, not at {@code GlobExpander}: the throw site was already covered by
+     * {@code GlobExpanderTests} while this frame -- the one that actually picks the status -- was not, and a test
+     * that only re-checks the throw site cannot tell the two outcomes apart.
+     */
+    public void testGlobDiscoveryCapEscapesResolutionAsClientError() {
+        String prefix = "s3://bucket/data/";
+        List<StorageEntry> listing = new ArrayList<>();
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        for (int i = 0; i < 5; i++) {
+            String path = prefix + "part-" + i + ".parquet";
+            listing.add(entry(path, 100));
+            schemasByPath.put(path, List.of(attr("x", DataType.INTEGER)));
+        }
+        ExternalSourceResolver resolver = createResolver(
+            schemasByPath,
+            Map.of(prefix, listing),
+            Settings.builder().put(ExternalSourceSettings.MAX_DISCOVERED_FILES.getKey(), 2).build()
+        );
+
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(prefix + "*.parquet"), Map.of(), future);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertEquals("too wide a glob is the caller's mistake, not a server fault", RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+        assertThat(e.getMessage(), containsString("discovered too many files"));
+        assertThat(e.getMessage(), containsString("esql.external.max_discovered_files"));
+    }
+
+    /**
+     * The same {@code mapResolveFailure} contract for the other end of the config surface: a per-query reader
+     * setting the reader itself rejects. {@code FileSourceFactory.validateConfig} runs the reader's own parser
+     * OUTSIDE the factory loop's try (deliberately -- a config error must not be retried against the next factory),
+     * so the reader's exception escapes {@code resolveSingleSource} raw and its type alone decides 400 versus 500.
+     *
+     * <p>Wired with the REAL {@code CsvFormatReader}/{@code NdJsonFormatReader}, not a stub: a stub would accept
+     * whatever the test fed it and prove nothing about the parser that ships. Both readers, because each owns its
+     * own copy of the bound check.
+     */
+    public void testReaderSettingRejectionEscapesResolutionAsClientError() {
+        for (String[] format : List.of(new String[] { "csv", ".csv" }, new String[] { "ndjson", ".ndjson" })) {
+            String path = "s3://bucket/data/file" + format[1];
+            ExternalSourceResolver resolver = createResolverWithRealTextReaders(
+                Map.of(path, List.of(attr("x", DataType.INTEGER))),
+                format[0],
+                format[1]
+            );
+
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(List.of(path), Map.of(path, Map.of("schema_sample_size", "0")), future);
+
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+            assertEquals(
+                "format [" + format[0] + "]: a rejected reader setting is a client error",
+                RestStatus.BAD_REQUEST,
+                ExceptionsHelper.status(e)
+            );
+            assertThat(e.getMessage(), containsString("schema_sample_size must be positive"));
+        }
+    }
+
+    /**
+     * A resolver whose single registered format is one of the real text readers, so a per-query reader setting is
+     * parsed by production code. Storage is still stubbed -- the rejection happens in {@code validateConfig}, before
+     * any byte is read, so no real object is needed.
+     */
+    private ExternalSourceResolver createResolverWithRealTextReaders(
+        Map<String, List<Attribute>> schemasByPath,
+        String formatName,
+        String extension
+    ) {
+        StubStorageProvider storageProvider = new StubStorageProvider(Map.of(), schemasByPath);
+        FormatReaderFactory readerFactory = "csv".equals(formatName)
+            ? (s, bf) -> new CsvFormatReader(bf, "csv", List.of(".csv"))
+            : (s, bf) -> new NdJsonFormatReader(s, bf, null);
+
+        DataSourcePlugin plugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("s3");
+            }
+
+            @Override
+            public Set<FormatSpec> formatSpecs() {
+                return Set.of(FormatSpec.of(formatName, extension, Set.of("schema_sample_size")));
+            }
+
+            @Override
+            public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+                return Map.of("s3", stubStorageProviderFactory(storageProvider));
+            }
+
+            @Override
+            public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+                return Map.of(formatName, readerFactory);
+            }
+        };
+
+        List<DataSourcePlugin> plugins = List.of(plugin);
+        DataSourceModule module = new DataSourceModule(
+            plugins,
+            DataSourceCapabilities.build(plugins),
+            Settings.EMPTY,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
+        );
+        return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module);
+    }
+
+    private ExternalSourceResolver createResolver(
+        Map<String, List<Attribute>> schemasByPath,
+        Map<String, List<StorageEntry>> listingsByPrefix,
+        Settings settings
+    ) {
+        StubFormatReader formatReader = new StubFormatReader(schemasByPath);
+        StubStorageProvider storageProvider = new StubStorageProvider(listingsByPrefix, schemasByPath);
+
+        DataSourcePlugin plugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("s3");
+            }
+
+            @Override
+            public Set<FormatSpec> formatSpecs() {
+                return Set.of(FormatSpec.of("parquet", ".parquet"));
+            }
+
+            @Override
+            public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+                return Map.of("s3", stubStorageProviderFactory(storageProvider));
+            }
+
+            @Override
+            public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+                return Map.of("parquet", (s, bf) -> formatReader);
+            }
+        };
+
+        List<DataSourcePlugin> plugins = List.of(plugin);
+        DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
+        DataSourceModule module = new DataSourceModule(
+            plugins,
+            capabilities,
+            settings,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
+        );
+
+        return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module, settings);
+    }
+
 }

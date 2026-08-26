@@ -81,6 +81,7 @@ import java.util.Map;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -138,6 +139,10 @@ public class SearchEngine extends Engine {
     // Guarded by the openReaders monitor
     private final Map<DirectoryReader, OpenReaderInfo> openReaders = new HashMap<>();
 
+    // Keyed by segments file name. Insertions happen only on the processCommitTaskRunner thread;
+    // removals are driven by SharedPITCommitState's refcount reaching zero (any thread).
+    private final ConcurrentHashMap<String, SharedPITCommitState> sharedCommitReaders = new ConcurrentHashMap<>();
+
     private final CircuitBreaker readerHeapBreaker;
     private final SegmentReservations reservations = new SegmentReservations();
     private final ToLongFunction<SegmentCommitInfo> segmentBytesFn = DirectoryReaderHeapEstimator::segmentBytes;
@@ -179,21 +184,7 @@ public class SearchEngine extends Engine {
         // we limit to one task to force sequential execution of enqueued tasks
         this.processCommitTaskRunner = new ThrottledTaskRunner("engine", 1, refreshExecutor);
 
-        this.relocatedPITReaderTracker = new RelocatedPITReaderTracker(
-            relocatedPITReader -> acquireSearcherSupplier(
-                relocatedPITReader.wrapper,
-                SearcherScope.EXTERNAL,
-                r -> reshardSearchFilters.maybeWrapDirectoryReaderForPitRelocation(
-                    r,
-                    shardId,
-                    engineConfig.getIndexSettings().getIndexMetadata(),
-                    engineConfig.getMapperService(),
-                    relocatedPITReader.reshardingMetadata,
-                    relocatedPITReader.splitShardCountSummary
-                ),
-                relocatedPITReader.pitReaderManager
-            )
-        );
+        this.relocatedPITReaderTracker = new RelocatedPITReaderTracker();
 
         ElasticsearchDirectoryReader directoryReader = null;
         ElasticsearchReaderManager readerManager = null;
@@ -363,6 +354,7 @@ public class SearchEngine extends Engine {
                 statelessSharedBlobCacheService,
                 searchDirectory::getCacheBlobReaderForPreFetching,
                 searchDirectory::getTimestampMillis,
+                searchDirectory::resolveRegionTimestampMillis,
                 config.getThreadPool(),
                 prefetchExecutor,
                 clusterSettings,
@@ -395,6 +387,13 @@ public class SearchEngine extends Engine {
         synchronized (openReaders) {
             openReaders.put(directoryReader, new OpenReaderInfo(commit.getFileNames(), reservation, bccDependencies));
         }
+    }
+
+    /**
+     * Returns the number of distinct Lucene commits referenced by open relocated PIT contexts.
+     */
+    public int getSharedPITCommitReaderCount() {
+        return sharedCommitReaders.size();
     }
 
     // Reserve bytes for a non-refresh reader (engine open, PIT relocation) using the no-break path so the caller's
@@ -508,7 +507,6 @@ public class SearchEngine extends Engine {
             notification.clusterStateVersion()
         );
         var ccTermAndGen = notification.compoundCommit().primaryTermAndGeneration();
-        searchDirectory.updateLatestUploadedBcc(notification.latestUploadedBatchedCompoundCommitTermAndGen());
         searchDirectory.updateLatestCommitInfo(ccTermAndGen, notification.nodeId());
 
         SubscribableListener
@@ -518,6 +516,11 @@ public class SearchEngine extends Engine {
             // cache space and requests.
             .<Void>newForked(l -> maybePreFetchLatestCommit(notification, l))
             .<Void>andThen(l -> {
+                // Update the tracker only after the foreground prefetch completes so that
+                // isUploaded=true is never observable before the shared blob cache is populated.
+                // For background prefetch this andThen fires almost immediately (the prefetch is
+                // async), so the window is negligible; for foreground prefetch it closes entirely.
+                searchDirectory.updateLatestUploadedBcc(notification.latestUploadedBatchedCompoundCommitTermAndGen());
                 if (addOrExecuteSegmentGenerationListener(ccTermAndGen, l.map(g -> null))) {
                     commitNotifications.add(notification);
                     if (pendingCommitNotifications.incrementAndGet() == 1) {
@@ -583,10 +586,12 @@ public class SearchEngine extends Engine {
                     newCommitFiles.keySet().removeAll(searchDirectory.getKnownFileNames());
                     Map<String, BlobFileRanges> newBlobFileRanges = ConcurrentCollections.newConcurrentMap();
                     final Map<FileCacheKey, Long> backfillTimestampsByCacheKey = ConcurrentCollections.newConcurrentMap();
+                    final boolean timestampBackfillEnabled = searchDirectory.timestampBackfillEnabled();
+                    final var metadataReadDirectory = searchDirectory.createMetadataReadDirectory(timestampBackfillEnabled);
                     ObjectStoreService.readReferencedCompoundCommitsUsingCache(
                         newCommitFiles,
                         null,
-                        searchDirectory,
+                        metadataReadDirectory,
                         IOContext.DEFAULT,
                         DIRECT_EXECUTOR_SERVICE,
                         referencedCompoundCommit -> {
@@ -599,6 +604,7 @@ public class SearchEngine extends Engine {
                                 )
                             );
                             var bccBlobFile = referencedCompoundCommit.statelessCompoundCommitReference().bccBlobFile();
+                            // Accumulate raw per-CC timestamps; resolution happens once below, before backfilling.
                             long ccTimestamp = BlobFileRanges.midpointMillisOrUnknownForCache(
                                 referencedCompoundCommit.statelessCompoundCommitReference().compoundCommit().getTimestampFieldValueRange()
                             );
@@ -608,8 +614,22 @@ public class SearchEngine extends Engine {
                                 BlobFileRanges::mostRecentKnownTimestamp
                             );
                         },
+                        (blobFile, bccSize) -> {},
                         listenableFuture.map(aVoid -> {
-                            searchDirectory.backfillMetadataReadTimestamps(Collections.unmodifiableMap(backfillTimestampsByCacheKey));
+                            if (timestampBackfillEnabled) {
+                                // Resolve each blob once: keep its own timestamp when known, else prefer this (triggering) commit's
+                                // timestamp, else the directory terminal fallback. Mirrors the prefetch path so both stamp regions
+                                // consistently.
+                                long latestCommitTimestamp = BlobFileRanges.midpointMillisOrUnknownForCache(
+                                    latestCommit.getTimestampFieldValueRange()
+                                );
+                                backfillTimestampsByCacheKey.replaceAll(
+                                    (cacheKey, rawMillis) -> searchDirectory.resolveRegionTimestampMillis(
+                                        BlobFileRanges.firstKnownTimestamp(rawMillis, latestCommitTimestamp)
+                                    )
+                                );
+                                searchDirectory.backfillMetadataReadTimestamps(Collections.unmodifiableMap(backfillTimestampsByCacheKey));
+                            }
                             return newBlobFileRanges;
                         })
                     );
@@ -1516,7 +1536,7 @@ public class SearchEngine extends Engine {
         processCommitTaskRunner.enqueueTask(listener.map(releasable -> {
             Closeable currentReaderRef = null;
             Closeable storeRef = null;
-            Closeable relocatedPitReaderRef = null;
+            Closeable sharedReaderCleanup = null;
             try (releasable) {
                 ensureOpen();
                 // Ensure that the store is not closed while opening the PIT searchers, since this runs async and we don't want to
@@ -1526,6 +1546,25 @@ public class SearchEngine extends Engine {
                 }
                 storeRef = store::decRef;
 
+                // Cache hit: a SharedPITCommitState for this commit already exists, meaning a previous
+                // PIT already paid the cost of opening and tracking it. We just increment the refcount
+                // and skip all reader construction, reducing SegmentReader wrappers from O(PITs x segments)
+                // to O(segments) for PITs sharing the same commit.
+                // tryIncRef uses a CAS loop to guard against concurrent eviction: if the entry's refcount
+                // has already reached zero on another thread, we fall through to the cache-miss path.
+                SharedPITCommitState existingState = sharedCommitReaders.get(segmentsFileName);
+                if (existingState != null && existingState.tryIncRef()) {
+                    var handle = new PITCommitHandle(existingState);
+                    sharedReaderCleanup = handle;
+                    var searcherSupplier = relocatedPITReaderTracker.addRelocatedPitReader(
+                        new RelocatedPITReader(handle, wrapper, relocatedReshardingMetadata, relocatedSplitShardCountSummary, store::decRef)
+                    );
+                    storeRef = null;
+                    sharedReaderCleanup = null;
+                    return searcherSupplier;
+                }
+
+                // Cache miss: construct a fresh reader for this commit and populate the cache.
                 // Acquire the current reader so we can use it as the base for openIfChanged below.
                 // If openIfChanged returns a new reader, this reference is released in the finally block.
                 // If openIfChanged returns null (PIT is on the same commit), currentReaderRef is set to
@@ -1533,8 +1572,10 @@ public class SearchEngine extends Engine {
                 ElasticsearchDirectoryReader currentReader = readerManager.acquire();
                 currentReaderRef = () -> readerManager.release(currentReader);
 
-                // merging metadata is necessary to allow opening an old commit from SearchDirectory
-                // TODO: pre-warm to speed up recoveries
+                // merging metadata is necessary to allow opening an old commit from SearchDirectory.
+                // This is only done once per distinct commit; subsequent PITs at the same commit reuse
+                // the existing PITCommitHandle and skip this call.
+                // TODO: transfer replicated headers/footers and pre-warm to speed up recoveries
                 searchDirectory.mergePITReaderMetadata(metadata);
                 // The current reader directory has a reference to the store directory (directory variable)
                 // and it does a reference comparison to see if the directory is the same. Therefore we have
@@ -1563,7 +1604,11 @@ public class SearchEngine extends Engine {
 
                 ElasticsearchDirectoryReader relocatedPitReader = (ElasticsearchDirectoryReader) pitReader;
                 var pitReaderManager = wrapForAssertions(new ElasticsearchReaderManager(relocatedPitReader), config());
-                relocatedPitReaderRef = () -> pitReaderManager.release(relocatedPitReader);
+                var state = new SharedPITCommitState(segmentsFileName, pitReaderManager);
+                var handle = new PITCommitHandle(state);
+                // sharedReaderCleanup ensures pitReaderManager is closed (via handle.close()) if
+                // anything below throws before the state is handed off to the tracker.
+                sharedReaderCleanup = handle;
                 Set<PrimaryTermAndGeneration> bccDeps = new HashSet<>();
                 for (BlobFileRanges blobFileRanges : metadata.values()) {
                     bccDeps.add(blobFileRanges.getBatchedCompoundCommitTermAndGeneration());
@@ -1584,24 +1629,19 @@ public class SearchEngine extends Engine {
                         releaseReservationAndUncharge(pitReservation);
                     }
                 }
+                sharedCommitReaders.put(segmentsFileName, state);
                 // Register the relocated PIT reader with relocatedPITReaderTracker so it is closed
                 // when the engine closes, even if the returned SearcherSupplier is never used (e.g.
                 // because the shard closes before the PIT context is registered with SearchService).
                 var searcherSupplier = relocatedPITReaderTracker.addRelocatedPitReader(
-                    new RelocatedPITReader(
-                        pitReaderManager,
-                        wrapper,
-                        relocatedReshardingMetadata,
-                        relocatedSplitShardCountSummary,
-                        store::decRef
-                    )
+                    new RelocatedPITReader(handle, wrapper, relocatedReshardingMetadata, relocatedSplitShardCountSummary, store::decRef)
                 );
                 // From now on, the relocated PIT reader is owned by the relocatedPITReaderTracker
                 storeRef = null;
-                relocatedPitReaderRef = null;
+                sharedReaderCleanup = null;
                 return searcherSupplier;
             } finally {
-                IOUtils.closeWhileHandlingException(currentReaderRef, relocatedPitReaderRef, storeRef);
+                IOUtils.closeWhileHandlingException(currentReaderRef, sharedReaderCleanup, storeRef);
             }
         }));
     }
@@ -1650,20 +1690,12 @@ public class SearchEngine extends Engine {
         }
     }
 
-    private static class RelocatedPITReaderTracker implements Closeable {
+    private class RelocatedPITReaderTracker implements Closeable {
 
-        @FunctionalInterface
-        interface SearcherSupplierFactory {
-            SearcherSupplier create(RelocatedPITReader relocatedPITReader);
-        }
-
-        private final SearcherSupplierFactory searcherSupplierFactory;
         private final Set<RelocatedPITReader> trackedReaders = new HashSet<>();
         private boolean closed = false;
 
-        RelocatedPITReaderTracker(SearcherSupplierFactory searcherSupplierFactory) {
-            this.searcherSupplierFactory = searcherSupplierFactory;
-        }
+        RelocatedPITReaderTracker() {}
 
         synchronized SearcherSupplier addRelocatedPitReader(RelocatedPITReader relocatedPITReader) {
             ensureOpen();
@@ -1701,21 +1733,32 @@ public class SearchEngine extends Engine {
             ensureOpen();
             var removed = trackedReaders.remove(relocatedPITReader);
             assert removed : "Expected to find relocated PIT reader [" + relocatedPITReader + "] in trackedReaders";
-            var pitReaderManager = relocatedPITReader.pitReaderManager();
+            var pitCommitHandle = relocatedPITReader.pitCommitHandle();
             var storeRef = relocatedPITReader.storeRef();
 
             try (storeRef) {
-                SearcherSupplier delegate = searcherSupplierFactory.create(relocatedPITReader);
-                // searcherSupplierFactory.create() acquires its own store ref for the delegate's
+                SearcherSupplier delegate = acquireSearcherSupplier(
+                    relocatedPITReader.wrapper,
+                    SearcherScope.EXTERNAL,
+                    r -> reshardSearchFilters.maybeWrapDirectoryReaderForPitRelocation(
+                        r,
+                        shardId,
+                        engineConfig.getIndexSettings().getIndexMetadata(),
+                        engineConfig.getMapperService(),
+                        relocatedPITReader.reshardingMetadata,
+                        relocatedPITReader.splitShardCountSummary
+                    ),
+                    relocatedPITReader.pitCommitHandle().readerManager()
+                );
+                // acquireSearcherSupplier() acquires its own store ref for the delegate's
                 // lifetime, so we can release ours (via the try-with-resources block) here.
                 return new SearcherSupplier(Function.identity()) {
                     @Override
                     protected void doClose() {
-                        // We need to close the readerManager before the delegate searcher supplier because it
-                        // holds the directory reader that holds the file handles to the commit's files.
-                        // We need to ensure those are released before closing the delegate searcher supplier,
-                        // which might close the store and thereby the underlying directory if it is the thing using it.
-                        IOUtils.closeWhileHandlingException(pitReaderManager, delegate);
+                        // Close the PIT commit handle (decRef) before the delegate searcher supplier,
+                        // because the underlying directory reader holds file handles to the commit's files
+                        // that must be released before the delegate closes the store and its directory.
+                        IOUtils.closeWhileHandlingException(pitCommitHandle, delegate);
                     }
 
                     @Override
@@ -1724,7 +1767,7 @@ public class SearchEngine extends Engine {
                     }
                 };
             } catch (Exception e) {
-                IOUtils.closeWhileHandlingException(pitReaderManager);
+                IOUtils.closeWhileHandlingException(pitCommitHandle);
                 throw e;
             }
         }
@@ -1746,8 +1789,66 @@ public class SearchEngine extends Engine {
         }
     }
 
+    /**
+     * Shared state for a single {@link ElasticsearchReaderManager} serving one Lucene commit.
+     * Multiple relocated PIT contexts that reference the same commit share one instance, reducing
+     * {@link org.apache.lucene.index.SegmentReader} wrapper objects from O(PITs &times; segments)
+     * to O(segments per commit).
+     * <p>
+     * Insertions into {@link #sharedCommitReaders} occur only on the
+     * {@link #processCommitTaskRunner} thread. Removals are driven by the refcount reaching zero
+     * and may happen on any thread; {@link AbstractRefCounted#tryIncRef()} guards against acquiring
+     * a reference to an entry that is concurrently being evicted, and
+     * {@link ConcurrentHashMap#remove(Object, Object)} in {@link #closeInternal()} prevents
+     * removing a replacement entry for the same commit inserted after this instance was evicted.
+     */
+    private final class SharedPITCommitState extends AbstractRefCounted {
+        private final String segmentsFileName;
+        private final ElasticsearchReaderManager readerManager;
+
+        SharedPITCommitState(String segmentsFileName, ElasticsearchReaderManager readerManager) {
+            this.segmentsFileName = segmentsFileName;
+            this.readerManager = readerManager;
+        }
+
+        ElasticsearchReaderManager readerManager() {
+            return readerManager;
+        }
+
+        @Override
+        protected void closeInternal() {
+            sharedCommitReaders.remove(segmentsFileName, this);
+            IOUtils.closeWhileHandlingException(readerManager);
+        }
+    }
+
+    /**
+     * A per-PIT handle to a {@link SharedPITCommitState}. Each relocated PIT context owns one
+     * instance; {@link #close()} decrements the shared refcount exactly once, so multiple
+     * independent closers cannot accidentally release a reference they do not own.
+     */
+    private static final class PITCommitHandle implements Closeable {
+        private final SharedPITCommitState state;
+        private final AtomicBoolean released = new AtomicBoolean(false);
+
+        PITCommitHandle(SharedPITCommitState state) {
+            this.state = state;
+        }
+
+        ElasticsearchReaderManager readerManager() {
+            return state.readerManager();
+        }
+
+        @Override
+        public void close() {
+            if (released.compareAndSet(false, true)) {
+                state.decRef();
+            }
+        }
+    }
+
     private record RelocatedPITReader(
-        ElasticsearchReaderManager pitReaderManager,
+        PITCommitHandle pitCommitHandle,
         Function<Searcher, Searcher> wrapper,
         IndexReshardingMetadata reshardingMetadata,
         SplitShardCountSummary splitShardCountSummary,
@@ -1755,7 +1856,7 @@ public class SearchEngine extends Engine {
     ) implements Closeable {
         @Override
         public void close() {
-            IOUtils.closeWhileHandlingException(pitReaderManager, storeRef);
+            IOUtils.closeWhileHandlingException(pitCommitHandle, storeRef);
         }
     }
 

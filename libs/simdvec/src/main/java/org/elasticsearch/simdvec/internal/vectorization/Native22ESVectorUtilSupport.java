@@ -10,21 +10,18 @@
 package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 import org.elasticsearch.simdvec.MultiVectorsSource;
+import org.elasticsearch.simdvec.SimdVecLibrary;
 
 import java.lang.foreign.MemorySegment;
 
 public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport {
 
-    private static final VectorSimilarityFunctions DISTANCE_FUNCS = NativeAccess.instance()
-        .getVectorSimilarityFunctions()
-        .orElseThrow(AssertionError::new);
+    private static final SimdVecLibrary DISTANCE_FUNCS = SimdVecLibrary.instance().orElseThrow(AssertionError::new);
 
     /*
      * This is technically separate to the Panama22 implementation, but there's
@@ -38,10 +35,10 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
     }
 
     @Override
-    public float dotProduct(float[] a, float[] b, int offset, int length) {
+    public float dotProduct(float[] a, int aOffset, float[] b, int bOffset, int length) {
         return DISTANCE_FUNCS.dotProductF32(
-            MemorySegment.ofArray(a).asSlice((long) offset * Float.BYTES, (long) length * Float.BYTES),
-            MemorySegment.ofArray(b).asSlice((long) offset * Float.BYTES, (long) length * Float.BYTES),
+            MemorySegment.ofArray(a).asSlice((long) aOffset * Float.BYTES, (long) length * Float.BYTES),
+            MemorySegment.ofArray(b).asSlice((long) bOffset * Float.BYTES, (long) length * Float.BYTES),
             length
         );
     }

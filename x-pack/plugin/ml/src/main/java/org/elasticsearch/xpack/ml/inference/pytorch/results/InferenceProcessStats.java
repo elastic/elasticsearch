@@ -40,7 +40,9 @@ public record InferenceProcessStats(long memoryRss, long memoryMaxRss) implement
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(MEMORY_RSS.getPreferredName(), memoryRss);
-        builder.field(MEMORY_MAX_RSS.getPreferredName(), memoryMaxRss);
+        if (memoryMaxRss > 0) {
+            builder.field(MEMORY_MAX_RSS.getPreferredName(), memoryMaxRss);
+        }
         builder.endObject();
         return builder;
     }

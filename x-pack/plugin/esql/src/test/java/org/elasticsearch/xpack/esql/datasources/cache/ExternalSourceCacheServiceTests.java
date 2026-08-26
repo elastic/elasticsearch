@@ -678,6 +678,119 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    public void testForeignConfiguredStripeDeltaDoesNotEnrich() throws Exception {
+        // Stripe state is an accumulating per-entry cover, so a delta from another read cannot contribute even its
+        // row count without mixing two reads into one fold. Stricter than the whole-file path, deliberately.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/a.ndjson";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", Map.of("format", "ndjson"));
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.FALSE, null, false)
+            );
+            service.getOrComputeSchema(
+                key,
+                k -> SchemaCacheEntry.from(
+                    schema,
+                    "ndjson",
+                    path,
+                    Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp", ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-own"),
+                    Map.of()
+                )
+            );
+
+            Map<String, Object> foreignFragment = stripeFragment(mtime, "fp", 30L, 100L, 0, 0, 100, true, true, false);
+            foreignFragment.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-foreign");
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(foreignFragment)));
+
+            SchemaCacheEntry entry = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            assertNull(
+                "a stripe delta from another read must not enter this entry's cover",
+                entry.safeMetadata().get(ExternalStats.STRIPE_ENTRY_PREFIX + "0")
+            );
+        }
+    }
+
+    public void testStripeFoldKeepsTheReadConfigurationOnTheFoldedResult() throws Exception {
+        // The stripe merge keeps only recognised _stats.* keys, so the identity is re-attached by hand afterwards.
+        // Drop that and every stripe-rail count arrives configuration-less — which is invisible at the entry (it
+        // already carries its own) and only shows where the folded result is CONSUMED. The dataset-aggregate promise
+        // is such a consumer: a configuration-less contribution no longer matches what the promise expects.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String pathA = "file:///data/a.ndjson";
+            String pathB = "file:///data/b.ndjson";
+            long mtime = 1000L;
+            seedSchemaCache(service, SchemaCacheKey.build(pathA, mtime, ".ndjson", Map.of("format", "ndjson")), pathA, "fp");
+            seedSchemaCache(service, SchemaCacheKey.build(pathB, mtime, ".ndjson", Map.of("format", "ndjson")), pathB, "fp");
+            SchemaCacheKey key = datasetKey();
+            service.registerPendingDatasetAggregate(
+                key,
+                Map.of(pathA, mtime, pathB, mtime),
+                2,
+                "fp",
+                Map.of(pathA, "config-own", pathB, "config-own"),
+                "ndjson",
+                "file:///data/*.ndjson"
+            );
+
+            service.reconcileSourceStatsFromContributions(
+                Map.of(pathA, completeCoverInTwoFragments(mtime, 15L, 25L), pathB, completeCoverInTwoFragments(mtime, 20L, 40L))
+            );
+
+            Map<String, Object> aggregate = service.getDatasetAggregate(key);
+            assertNotNull("the folded stripe result must carry its read configuration through to the promise", aggregate);
+            assertEquals(100L, ((Number) aggregate.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+        }
+    }
+
+    /**
+     * TWO fragments covering one stripe, both stamped. Two rather than one on purpose: a single-fragment fold is a
+     * map copy that carries every key through, so only a real merge exercises the re-attach — the merge keeps
+     * recognised {@code _stats.*} keys and drops the rest.
+     */
+    private static List<Map<String, Object>> completeCoverInTwoFragments(long mtime, long firstRows, long secondRows) {
+        Map<String, Object> first = stripeFragment(mtime, "fp", firstRows, 1024L, 0, 0, 40, true, false, false);
+        Map<String, Object> second = stripeFragment(mtime, "fp", secondRows, 1024L, 0, 40, 100, false, true, true);
+        first.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-own");
+        second.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-own");
+        return List.of(first, second);
+    }
+
+    public void testWholeFileMergeRefusesContributionsFromDifferentReads() throws Exception {
+        // The merge keeps the FIRST contribution's identity keys and folds the others' columns into it, so two reads
+        // that configured the same file differently would end with one read's column statistics wearing the other's
+        // label. The stripe fold already refuses this disagreement; the whole-file path must too.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "s3://bucket/data/file.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.FALSE, null, false)
+            );
+            service.getOrComputeSchema(
+                key,
+                k -> SchemaCacheEntry.from(
+                    schema,
+                    "csv",
+                    path,
+                    Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp", ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-a"),
+                    Map.of()
+                )
+            );
+
+            // Same path, same mtime, same options, same row count — different reads.
+            service.reconcileSourceStatsFromContributions(
+                Map.of(path, List.of(wholeFileWithShape(mtime, "fp", "config-a", 100L), wholeFileWithShape(mtime, "fp", "config-b", 100L)))
+            );
+
+            SchemaCacheEntry entry = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            assertFalse(
+                "contributions from two different reads must not merge into one measurement",
+                entry.safeMetadata().containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+        }
+    }
+
     public void testDatasetAggregateRefusesForeignShapedContributions() throws Exception {
         // The multi-file rail is the way around the per-file gate if it is left read-config-blind: a glob promise summing
         // per-file counts would sum counts harvested by a DIFFERENT read. Same rule as the per-file tier — the

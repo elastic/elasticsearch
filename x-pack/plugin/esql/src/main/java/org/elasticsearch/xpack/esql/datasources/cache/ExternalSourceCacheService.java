@@ -1334,6 +1334,13 @@ public class ExternalSourceCacheService implements Closeable {
         Map<String, Object> merged = new HashMap<>(base);
         for (int i = 1; i < maps.size(); i++) {
             Map<String, Object> next = maps.get(i);
+            if (sameReadConfig(base, next) == false) {
+                // Two branches of one query read this file differently — legitimate, and not something to merge:
+                // the merge keeps the FIRST contribution's identity and folds the others' columns into it, which
+                // would relabel one read's measurements as the other's. Safe-miss, no assertion; the stripe fold
+                // refuses the same disagreement.
+                return null;
+            }
             if (agreesWithBase(base, next) == false) {
                 // Two whole-file scans of the SAME (path, config, mtime) file disagree on row count / mtime /
                 // fingerprint — non-deterministic, so neither can be trusted. Assert-and-bail: fail fast in test
@@ -1361,6 +1368,20 @@ public class ExternalSourceCacheService implements Closeable {
         return merged;
     }
 
+    /** Whether two contributions for one path were produced by the same read configuration; see {@link #agreesWithBase}. */
+    private static boolean sameReadConfig(Map<String, Object> a, Map<String, Object> b) {
+        return Objects.equals(a.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY), b.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY));
+    }
+
+    /**
+     * Whether two whole-file contributions for the same path agree on the facts that CANNOT legitimately differ
+     * within one reconcile — the row count, the mtime and the config fingerprint. Disagreement there means a
+     * non-deterministic read, which is an invariant violation rather than a state to handle.
+     * <p>
+     * The read configuration is deliberately NOT here: two branches of one query (a FORK, a subquery) may read the
+     * same file differently, which is legitimate, not a bug. That difference is handled as a safe-miss by
+     * {@link #sameReadConfig} instead of tripping an assertion.
+     */
     private static boolean agreesWithBase(Map<String, Object> a, Map<String, Object> b) {
         return sameNumericOrEqual(a.get(SourceStatisticsSerializer.STATS_ROW_COUNT), b.get(SourceStatisticsSerializer.STATS_ROW_COUNT))
             && sameNumericOrEqual(a.get(ExternalStats.MTIME_MILLIS_KEY), b.get(ExternalStats.MTIME_MILLIS_KEY))

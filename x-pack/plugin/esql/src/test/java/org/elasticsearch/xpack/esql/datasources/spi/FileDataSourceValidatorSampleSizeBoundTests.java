@@ -12,11 +12,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.not;
 
 /**
  * The registration-time bound on {@code schema_sample_size} must admit the value the readers use by default.
@@ -93,7 +93,7 @@ public class FileDataSourceValidatorSampleSizeBoundTests extends ESTestCase {
             ValidationException.class,
             () -> validatorWithResolver().validateDataset(Map.of(), "file:///data/events.parquet", Map.of("schema_sample_size", "100"))
         );
-        assertThat(e.getMessage(), containsString("schema_sample_size"));
+        assertEquals(List.of(FileDataSourceValidator.notSupportedByFormatError("schema_sample_size", "parquet")), e.validationErrors());
     }
 
     public void testSchemaSampleSizeIsRejectedForParquetWhenFormatExplicit() {
@@ -105,7 +105,7 @@ public class FileDataSourceValidatorSampleSizeBoundTests extends ESTestCase {
                 Map.of("format", "parquet", "schema_sample_size", "100")
             )
         );
-        assertThat(e.getMessage(), containsString("schema_sample_size"));
+        assertEquals(List.of(FileDataSourceValidator.notSupportedByFormatError("schema_sample_size", "parquet")), e.validationErrors());
     }
 
     public void testSchemaSampleSizeIsAcceptedForCsvWhenInferredFromExtension() {
@@ -126,23 +126,27 @@ public class FileDataSourceValidatorSampleSizeBoundTests extends ESTestCase {
         assertEquals(100, result.get("schema_sample_size"));
     }
 
-    public void testSchemaSampleSizeIsAcceptedForExtensionlessResource() {
-        // Format unknown at PUT time — stored tentatively so it can reach a text reader at query time.
-        Map<String, Object> result = validatorWithResolver().validateDataset(
-            Map.of(),
-            "file:///data/events",
-            Map.of("schema_sample_size", "100")
+    public void testSchemaSampleSizeIsRejectedForExtensionlessResource() {
+        // Format unknown at PUT time: like any other format-specific key, the value is not stored
+        // tentatively — the user is told to pin `format`. Pre-tightening datasets are tolerated at
+        // query time instead (FileSourceFactory#LEGACY_VOCABULARY_KEYS).
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validatorWithResolver().validateDataset(Map.of(), "file:///data/events", Map.of("schema_sample_size", "100"))
         );
-        assertEquals(100, result.get("schema_sample_size"));
+        assertEquals(
+            List.of(FileDataSourceValidator.cannotDetermineFormatError("file:///data/events", Set.of("schema_sample_size"))),
+            e.validationErrors()
+        );
     }
 
-    public void testParquetRejectionErrorNamesTheSettingNotTheFormat() {
+    public void testParquetRejectionErrorNamesTheSettingAndTheFormat() {
+        // Documented vocabulary that does not apply to Parquet: the message must say exactly that,
+        // not "unknown setting" or a pin-the-format hint.
         ValidationException e = expectThrows(
             ValidationException.class,
             () -> validatorWithResolver().validateDataset(Map.of(), "file:///data/events.parquet", Map.of("schema_sample_size", "50"))
         );
-        assertThat(e.getMessage(), containsString("schema_sample_size"));
-        // Not an unknown-format error (those carry a "set \"format\"" hint).
-        assertThat(e.getMessage(), not(containsString("set \"format\"")));
+        assertEquals(List.of("[schema_sample_size] is not supported for format [parquet]"), e.validationErrors());
     }
 }

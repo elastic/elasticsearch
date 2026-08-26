@@ -7,14 +7,28 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -65,7 +79,7 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
     public void testFrameworkKeysAreSubsetOfCoordinatorKeys() {
         Set<String> missing = new TreeSet<>(StorageProviderRegistry.FRAMEWORK_KEYS);
         missing.removeAll(FileSourceFactory.COORDINATOR_KEYS);
-        assertTrue("FRAMEWORK_KEYS not in FileSourceFactory.COORDINATOR_KEYS: " + missing, missing.isEmpty());
+        assertTrue("FRAMEWORK_KEYS not in COORDINATOR_KEYS: " + missing, missing.isEmpty());
     }
 
     public void testCoordinatorKeysIncludesAllErrorPolicyKeys() {
@@ -100,7 +114,7 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
 
     /**
      * Pins the dataset CRUD vocabulary against the query path: the coordinator-level data-shape keys a
-     * dataset accepts must be exactly {@code FileSourceFactory.COORDINATOR_KEYS} minus the EXTERNAL-only allowlist
+     * dataset accepts must be exactly {@code COORDINATOR_KEYS} minus the EXTERNAL-only allowlist
      * ({@code reader}) and the internal {@code _datasource} envelope. {@code format} is a first-class
      * dataset setting and so must be present in {@code COORDINATOR_DATASET_KEYS}. If a future change
      * adds a coordinator key without either exposing it on the dataset or allowlisting it as
@@ -111,8 +125,7 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
         expected.removeAll(FileSourceFactory.EXTERNAL_ONLY_KEYS);
         expected.remove(ExternalSourceResolver.DATASOURCE_CONFIG_KEY);
         assertEquals(
-            "dataset coordinator keys must equal FileSourceFactory.COORDINATOR_KEYS minus the EXTERNAL-only allowlist and the internal "
-                + "_datasource key",
+            "dataset coordinator keys must equal COORDINATOR_KEYS minus the EXTERNAL-only allowlist and the internal " + "_datasource key",
             expected,
             new TreeSet<>(FileDataSourceValidator.COORDINATOR_DATASET_KEYS)
         );
@@ -123,32 +136,131 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
     }
 
     /**
-     * Pins the dataset-query bypass: schema_sample_size stored at PUT time must not cause "unknown option"
-     * at query time when the Parquet reader doesn't claim it. The bypass is only active for dataset-originated
-     * queries (config contains {@code _datasource}); inline queries without that key still reject it.
-     * Production wiring: FileSourceFactory.validateConfig conditionally includes FORMAT_SPECIFIC_VOCABULARY_KEYS.
+     * Drives the production chokepoint, {@link FileSourceFactory#validateConfig}: a stored
+     * {@code schema_sample_size} reaching a reader that does not claim it must be ignored with a
+     * warning, not fail as "unknown option" — identically with and without the {@code _datasource}
+     * envelope, whose presence cannot discriminate dataset from inline queries (see
+     * {@code FileSourceFactory#LEGACY_VOCABULARY_KEYS}).
      */
-    public void testFormatSpecificVocabularyKeysBypassRequiresDatasourceKey() {
-        Set<String> parquetReaderKeys = Set.of("optimized_reader", "late_materialization");
-        Map<String, Object> datasetConfig = Map.of("schema_sample_size", "50", "_datasource", Map.of());
-        Map<String, Object> inlineConfig = Map.of("schema_sample_size", "50");
+    public void testLegacyVocabularyKeyIsIgnoredWithWarningWhenReaderDoesNotClaimIt() {
+        FileSourceFactory factory = newStubParquetFactory();
+        String location = "s3://bucket/data.parquet";
 
-        // Dataset path: bypass active — no exception.
-        ConfigKeyValidator.check(
-            datasetConfig,
-            List.of(parquetReaderKeys, FileSourceFactory.COORDINATOR_KEYS, FileDataSourceValidator.FORMAT_SPECIFIC_VOCABULARY_KEYS)
-        );
+        // Dataset-originated shape: parent settings ride in under _datasource.
+        factory.validateConfig(location, Map.of("schema_sample_size", "50", ExternalSourceResolver.DATASOURCE_CONFIG_KEY, Map.of()));
+        assertWarnings(FileDataSourceValidator.notSupportedByFormatError("schema_sample_size", "stub-parquet") + "; ignored");
 
-        // Inline path: bypass absent — schema_sample_size must be rejected.
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> ConfigKeyValidator.check(inlineConfig, List.of(parquetReaderKeys, FileSourceFactory.COORDINATOR_KEYS))
-        );
+        // Inline shape (no envelope, e.g. an empty-settings data source or a WITH clause): same tolerance.
+        factory.validateConfig(location, Map.of("schema_sample_size", "50"));
+        assertWarnings(FileDataSourceValidator.notSupportedByFormatError("schema_sample_size", "stub-parquet") + "; ignored");
+
+        // The tolerance is scoped to LEGACY_VOCABULARY_KEYS: a genuinely unknown key still fails.
+        expectThrows(IllegalArgumentException.class, () -> factory.validateConfig(location, Map.of("not_a_setting", "x")));
     }
 
-    /** Pins the membership of FORMAT_SPECIFIC_VOCABULARY_KEYS so drift is caught at compile time. */
-    public void testFormatSpecificVocabularyKeysContainsSchemaSampleSize() {
-        assertTrue(FileDataSourceValidator.FORMAT_SPECIFIC_VOCABULARY_KEYS.contains("schema_sample_size"));
+    /**
+     * Pins {@link FileSourceFactory#LEGACY_VOCABULARY_KEYS} against the format plugins' own
+     * {@link FormatSpec}s, not a hand-typed copy: every text format must still claim each legacy key,
+     * and the set must be exactly the sampling bound — a closed legacy shim, not a growing vocabulary.
+     * Parquet's spec (which must NOT claim it) is not on this classpath; the resolver-aware validator
+     * tests and {@code DatasetSchemaSampleSizeValidationIT} cover that side.
+     */
+    public void testLegacyVocabularyKeysAreClaimedByEveryTextFormat() {
+        List<FormatSpec> textSpecs = new ArrayList<>();
+        textSpecs.addAll(new CsvDataSourcePlugin().formatSpecs());
+        textSpecs.addAll(new NdJsonDataSourcePlugin().formatSpecs());
+        assertFalse(textSpecs.isEmpty());
+        for (FormatSpec spec : textSpecs) {
+            assertTrue(
+                "text format [" + spec.format() + "] no longer claims " + FileSourceFactory.LEGACY_VOCABULARY_KEYS,
+                spec.configKeys().containsAll(FileSourceFactory.LEGACY_VOCABULARY_KEYS)
+            );
+        }
+        assertEquals(Set.of(FileDataSourceValidator.SCHEMA_SAMPLE_SIZE), FileSourceFactory.LEGACY_VOCABULARY_KEYS);
+    }
+
+    /**
+     * Real {@link FileSourceFactory} wiring with a reader registered for {@code .parquet} that claims no
+     * config keys, standing in for the real Parquet reader (not on this classpath). Under test is the
+     * factory's claimed-set composition and warning, not the reader.
+     */
+    private static FileSourceFactory newStubParquetFactory() {
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        formatRegistry.registerLazy("stub-parquet", (s, bf) -> new StubNoConfigReader(), Settings.EMPTY, null);
+        formatRegistry.registerExtension(".parquet", "stub-parquet");
+        StorageProviderRegistry storageRegistry = new StorageProviderRegistry(Settings.EMPTY);
+        storageRegistry.registerFactory("s3", StorageProviderFactory.noConfigKeys(StubStorageProvider::new));
+        return new FileSourceFactory(storageRegistry, formatRegistry, new DecompressionCodecRegistry(), Settings.EMPTY);
+    }
+
+    /** Claims no config keys (like Parquet does for {@code schema_sample_size}); never actually reads. */
+    private static final class StubNoConfigReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            throw new UnsupportedOperationException("validateConfig never reads");
+        }
+
+        @Override
+        public org.elasticsearch.compute.operator.CloseableIterator<org.elasticsearch.compute.data.Page> read(
+            StorageObject object,
+            FormatReadContext context
+        ) {
+            throw new UnsupportedOperationException("validateConfig never reads");
+        }
+
+        @Override
+        public String formatName() {
+            return "stub-parquet";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /** Constructible and closeable (validateConfig creates and releases the provider) but never actually reads. */
+    private static final class StubStorageProvider implements StorageProvider {
+        @Override
+        public StorageObject newObject(StoragePath path) {
+            throw new UnsupportedOperationException("validateConfig never opens storage objects");
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length) {
+            throw new UnsupportedOperationException("validateConfig never opens storage objects");
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+            throw new UnsupportedOperationException("validateConfig never opens storage objects");
+        }
+
+        @Override
+        public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+            throw new UnsupportedOperationException("validateConfig never lists storage objects");
+        }
+
+        @Override
+        public boolean exists(StoragePath path) {
+            throw new UnsupportedOperationException("validateConfig never probes storage objects");
+        }
+
+        @Override
+        public List<String> supportedSchemes() {
+            return List.of("s3");
+        }
+
+        @Override
+        public void close() {}
     }
 
     public void testFormatIsAFirstClassDatasetKey() {
@@ -165,7 +277,7 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
     public void testExternalOnlyKeysAreCoordinatorKeys() {
         Set<String> missing = new TreeSet<>(FileSourceFactory.EXTERNAL_ONLY_KEYS);
         missing.removeAll(FileSourceFactory.COORDINATOR_KEYS);
-        assertTrue("EXTERNAL_ONLY_KEYS not in FileSourceFactory.COORDINATOR_KEYS: " + missing, missing.isEmpty());
+        assertTrue("EXTERNAL_ONLY_KEYS not in COORDINATOR_KEYS: " + missing, missing.isEmpty());
     }
 
     /**

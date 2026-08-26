@@ -50,9 +50,10 @@ public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
      * by {@code CsvFormatReaderRecognizedKeysTests.testFormatSpecConfigKeysMatchRecognizedKeys}.
      *
      * <p>{@code schema_sample_size} is present here but absent from Parquet's equivalent set —
-     * sampling is only meaningful for text formats. When the format is known at PUT time,
+     * sampling is only meaningful for text formats. At PUT time,
      * {@link org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator} only admits it
-     * via this format-specific key set, so it is rejected for Parquet at registration time.
+     * via this format-specific key set: it is rejected for Parquet when the format is known, and
+     * rejected with a pin-the-{@code format} hint when the format cannot be determined.
      */
     static final Set<String> FORMAT_CONFIG_KEYS = Set.of(
         "delimiter",

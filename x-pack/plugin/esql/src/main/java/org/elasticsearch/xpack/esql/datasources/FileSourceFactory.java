@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Nullable;
@@ -78,6 +79,16 @@ final class FileSourceFactory implements ExternalSourceFactory {
      * either be added to the dataset vocabulary or explicitly listed here.
      */
     static final Set<String> EXTERNAL_ONLY_KEYS = Set.of(FormatNameResolver.CONFIG_READER);
+
+    /**
+     * Handles existing problematic dataset configurations: before {@code schema_sample_size} became
+     * format-scoped at PUT time, it could be registered on any dataset (e.g. Parquet) and is still stored
+     * in cluster state. When such a stored key reaches a reader that does not consume it, it is ignored
+     * with a warning instead of failing the query as an "unknown option". Applied to every query, because
+     * nothing reliably marks a config as dataset-originated (the {@code _datasource} envelope is absent
+     * when the parent data source has no settings).
+     */
+    static final Set<String> LEGACY_VOCABULARY_KEYS = Set.of(FileDataSourceValidator.SCHEMA_SAMPLE_SIZE);
 
     static {
         Set<String> keys = new HashSet<>();
@@ -290,19 +301,19 @@ final class FileSourceFactory implements ExternalSourceFactory {
         Configured<FormatReader> resolvedReader = resolveFormatReader(storagePath.objectName(), config).withConfigTrackingConsumedKeys(
             config
         );
-        // For dataset-originated queries (_datasource key present), include FORMAT_SPECIFIC_VOCABULARY_KEYS
-        // so that schema_sample_size stored when the format was unknown at PUT does not fail as "unknown option"
-        // against a Parquet reader. Inline queries (no _datasource) have no PUT-time ambiguity and should still
-        // reject schema_sample_size for Parquet formats.
-        List<Set<String>> claimedSets = config.containsKey(ExternalSourceResolver.DATASOURCE_CONFIG_KEY)
-            ? List.of(
-                resolvedStorage.consumedKeys(),
-                resolvedReader.consumedKeys(),
-                COORDINATOR_KEYS,
-                FileDataSourceValidator.FORMAT_SPECIFIC_VOCABULARY_KEYS
-            )
-            : List.of(resolvedStorage.consumedKeys(), resolvedReader.consumedKeys(), COORDINATOR_KEYS);
-        ConfigKeyValidator.check(config, claimedSets);
+        ConfigKeyValidator.check(
+            config,
+            List.of(resolvedStorage.consumedKeys(), resolvedReader.consumedKeys(), COORDINATOR_KEYS, LEGACY_VOCABULARY_KEYS)
+        );
+        // Consume-and-warn: a legacy key the reader does not consume does nothing, and the user must be
+        // told. Identical warnings from per-file re-validation dedupe in the thread context.
+        for (String key : LEGACY_VOCABULARY_KEYS) {
+            if (config.containsKey(key) && resolvedReader.consumedKeys().contains(key) == false) {
+                HeaderWarning.addWarning(
+                    FileDataSourceValidator.notSupportedByFormatError(key, resolvedReader.value().formatName()) + "; ignored"
+                );
+            }
+        }
     }
 
     @Override

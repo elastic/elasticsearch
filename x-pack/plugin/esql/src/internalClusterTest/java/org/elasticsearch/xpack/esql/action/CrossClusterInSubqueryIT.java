@@ -522,10 +522,18 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase imple
      * {@code EsqlResolveFieldsAction} runs before IN-subquery resolution and cannot be bypassed.
      */
     public void testRemoteViewRejectedWithInSubquery() {
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
         expectThrows(VerificationException.class, containsString("Unknown index [cluster-a:remote_events_view]"), () -> runQuery("""
             FROM events
             | WHERE id IN (FROM cluster-a:remote_events_view | KEEP id)
             """, null).close());
+
+        setSkipUnavailable(REMOTE_CLUSTER_1, true);
+        expectThrows(VerificationException.class, containsString("Unknown column [id]"), () -> runQuery("""
+            FROM events
+            | WHERE id IN (FROM cluster-a:remote_events_view | KEEP id)
+            """, null).close());
+
     }
 
     // ---- LOOKUP JOIN inside WHERE IN subquery body (issue #149877) ----

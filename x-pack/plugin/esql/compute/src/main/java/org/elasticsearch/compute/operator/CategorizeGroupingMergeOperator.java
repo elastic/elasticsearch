@@ -29,51 +29,59 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Coordinator-side operator for the FINAL phase of distributed {@code LIMIT BY CATEGORIZE}.
+ * Coordinator-side operator for the FINAL phase of distributed {@code LIMIT BY CATEGORIZE} and
+ * {@code TOPN BY CATEGORIZE}.
  *
- * <p>Receives pages whose last channel is a constant {@link BytesRefBlock} containing a
- * serialized {@link org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategorizer} state
- * (written by a data-node {@link CategorizeStateEmitOperator}), and whose second-to-last
- * channel is an {@link IntBlock} of local category IDs (written by
- * {@link CategorizeEvalOperator}).
- *
- * <p>For each page:
+ * <p>Wraps an inner grouping operator (e.g. {@link GroupedLimitOperator} or
+ * {@link org.elasticsearch.compute.operator.topn.GroupedTopNOperator}). Each page received from the exchange carries the current
+ * categorizer state as a constant {@link BytesRefBlock} at {@code stateChannel} (appended by
+ * {@link CategorizeGroupingOperator}). For each page, this operator:
  * <ol>
- *   <li>Deserializes the state and merges each category into the coordinator's global
- *       categorizer via
- *       {@link TokenListCategorizer#mergeWireCategory(SerializableTokenListCategory)},
- *       building a {@code localId → globalId} mapping.</li>
- *   <li>Remaps the {@link IntBlock} of local category IDs to global IDs, preserving
- *       multi-valued structure ({@code [a, b] ≠ [b, a]}) and mapping
- *       {@code NULL_ORD (0) → 0}.</li>
- *   <li>Drops the state channel and replaces the local-ID channel with the remapped
- *       global-ID channel.</li>
+ *   <li>Deserializes the state and merges each category into the coordinator's global categorizer
+ *       via {@link TokenListCategorizer#mergeWireCategory}, building a local→global ID map.</li>
+ *   <li>Remaps the local category-ID block at {@code catIdChannel} to global IDs, preserving
+ *       multi-valued structure.</li>
+ *   <li>Drops the state channel and passes the remapped page to the inner operator.</li>
  * </ol>
  *
- * <p>The output pages then feed a {@link GroupedLimitOperator} that applies the final
- * global limit using the global category IDs.
+ * <p>Because {@code mergeWireCategory} is idempotent and categories are monotonically growing,
+ * re-merging an older state snapshot from a previous page is safe.
  */
-public class CategorizeStateMergeOperator extends AbstractPageMappingOperator {
+public class CategorizeGroupingMergeOperator implements Operator {
 
     public static final class Factory implements Operator.OperatorFactory {
         private final int catIdChannel;
         private final int stateChannel;
         private final CategorizeDef categorizeDef;
+        private final Operator.OperatorFactory innerFactory;
 
-        public Factory(int catIdChannel, int stateChannel, CategorizeDef categorizeDef) {
+        public Factory(int catIdChannel, int stateChannel, CategorizeDef categorizeDef, Operator.OperatorFactory innerFactory) {
             this.catIdChannel = catIdChannel;
             this.stateChannel = stateChannel;
             this.categorizeDef = categorizeDef;
+            this.innerFactory = innerFactory;
         }
 
         @Override
-        public CategorizeStateMergeOperator get(DriverContext driverContext) {
-            return new CategorizeStateMergeOperator(catIdChannel, stateChannel, categorizeDef, driverContext.blockFactory());
+        public CategorizeGroupingMergeOperator get(DriverContext driverContext) {
+            return new CategorizeGroupingMergeOperator(
+                catIdChannel,
+                stateChannel,
+                categorizeDef,
+                innerFactory.get(driverContext),
+                driverContext.blockFactory()
+            );
         }
 
         @Override
         public String describe() {
-            return "CategorizeStateMergeOperator[catIdChannel=" + catIdChannel + ", stateChannel=" + stateChannel + "]";
+            return "CategorizeGroupingMergeOperator[catIdChannel="
+                + catIdChannel
+                + ", stateChannel="
+                + stateChannel
+                + ", inner="
+                + innerFactory.describe()
+                + "]";
         }
     }
 
@@ -82,12 +90,20 @@ public class CategorizeStateMergeOperator extends AbstractPageMappingOperator {
     private final int catIdChannel;
     private final int stateChannel;
     private final TokenListCategorizer.CloseableTokenListCategorizer globalCategorizer;
+    private final Operator inner;
     private final BlockFactory blockFactory;
 
-    private CategorizeStateMergeOperator(int catIdChannel, int stateChannel, CategorizeDef categorizeDef, BlockFactory blockFactory) {
+    private CategorizeGroupingMergeOperator(
+        int catIdChannel,
+        int stateChannel,
+        CategorizeDef categorizeDef,
+        Operator inner,
+        BlockFactory blockFactory
+    ) {
         this.catIdChannel = catIdChannel;
         this.stateChannel = stateChannel;
         this.blockFactory = blockFactory;
+        this.inner = inner;
         this.globalCategorizer = new TokenListCategorizer.CloseableTokenListCategorizer(
             new CategorizationBytesRefHash(new BytesRefHash(2048, blockFactory.bigArrays())),
             CategorizationPartOfSpeechDictionary.getInstance(),
@@ -96,7 +112,36 @@ public class CategorizeStateMergeOperator extends AbstractPageMappingOperator {
     }
 
     @Override
-    protected Page process(Page page) {
+    public boolean needsInput() {
+        return inner.needsInput();
+    }
+
+    @Override
+    public void addInput(Page page) {
+        inner.addInput(mergeAndRemap(page));
+    }
+
+    @Override
+    public void finish() {
+        inner.finish();
+    }
+
+    @Override
+    public boolean isFinished() {
+        return inner.isFinished();
+    }
+
+    @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return inner.canProduceMoreDataWithoutExtraInput();
+    }
+
+    @Override
+    public Page getOutput() {
+        return inner.getOutput();
+    }
+
+    private Page mergeAndRemap(Page page) {
         BytesRefBlock stateBlock = page.getBlock(stateChannel);
         IntBlock localCatIds = page.getBlock(catIdChannel);
 
@@ -115,9 +160,7 @@ public class CategorizeStateMergeOperator extends AbstractPageMappingOperator {
         }
     }
 
-    /**
-     * Deserializes the state from the constant BytesRefBlock and builds a local→global ID map.
-     */
+    /** Deserializes the state from the constant BytesRefBlock and builds a local→global ID map. */
     private Map<Integer, Integer> buildIdMap(BytesRefBlock stateBlock) {
         Map<Integer, Integer> idMap = new HashMap<>();
         idMap.put(NULL_ORD, NULL_ORD);
@@ -139,9 +182,7 @@ public class CategorizeStateMergeOperator extends AbstractPageMappingOperator {
         return idMap;
     }
 
-    /**
-     * Remaps an {@link IntBlock} using {@code idMap}, preserving multi-valued structure.
-     */
+    /** Remaps an {@link IntBlock} using {@code idMap}, preserving multi-valued structure. */
     private IntBlock remapIntBlock(IntBlock original, Map<Integer, Integer> idMap) {
         IntVector vec = original.asVector();
         if (vec != null) {
@@ -187,16 +228,13 @@ public class CategorizeStateMergeOperator extends AbstractPageMappingOperator {
         int out = 0;
         for (int i = 0; i < blockCount; i++) {
             if (i == stateChannel) {
-                // Drop the state block — release it since it's not in the new page.
                 page.getBlock(i).close();
                 continue;
             }
             if (i == catIdChannel) {
-                // Replace the local-ID block with the global-ID block — release the original.
                 page.getBlock(i).close();
                 blocks[out++] = newCatIds;
             } else {
-                // Keep this block in the new page; ownership transfers.
                 blocks[out++] = page.getBlock(i);
             }
         }
@@ -205,11 +243,11 @@ public class CategorizeStateMergeOperator extends AbstractPageMappingOperator {
 
     @Override
     public String toString() {
-        return "CategorizeStateMergeOperator[catIdChannel=" + catIdChannel + ", stateChannel=" + stateChannel + "]";
+        return "CategorizeGroupingMergeOperator[catIdChannel=" + catIdChannel + ", stateChannel=" + stateChannel + ", inner=" + inner + "]";
     }
 
     @Override
     public void close() {
-        Releasables.close(super::close, globalCategorizer);
+        Releasables.close(inner, globalCategorizer);
     }
 }

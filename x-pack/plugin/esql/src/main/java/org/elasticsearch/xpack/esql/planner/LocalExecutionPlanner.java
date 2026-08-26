@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash.CategorizeDef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
@@ -31,9 +32,8 @@ import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.query.TimeSeriesSourceOperator;
-import org.elasticsearch.compute.operator.CategorizeEvalOperator;
-import org.elasticsearch.compute.operator.CategorizeStateEmitOperator;
-import org.elasticsearch.compute.operator.CategorizeStateMergeOperator;
+import org.elasticsearch.compute.operator.CategorizeGroupingMergeOperator;
+import org.elasticsearch.compute.operator.CategorizeGroupingOperator;
 import org.elasticsearch.compute.operator.ChangePointOperator;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.ColumnLoadOperator;
@@ -215,6 +215,7 @@ import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.DenseVectorExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
+import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -884,7 +885,7 @@ public class LocalExecutionPlanner {
         if (numericFactory != null) {
             return source.with(numericFactory, source.layout);
         }
-        var common = topNCommon(rowSize, topNExec.order(), topNExec.limit(), topNExec.docValuesAttributes(), source, context);
+        var common = topNCommon(rowSize, topNExec.order(), topNExec.limit(), topNExec.docValuesAttributes(), source.layout, context);
         TopNOperator.ParallelWorkerConfig parallelWorkerConfig = null;
         if (parallelWorkerExecutor != null) {
             int workerCount = Math.max(1, Math.min(context.plannerSettings.parallelTopNMaxWorkers(), esqlWorkerPoolSize / 2));
@@ -1187,24 +1188,56 @@ public class LocalExecutionPlanner {
         };
     }
 
-    /** SINGLE mode: original behavior. */
+    /**
+     * SINGLE mode: local execution with no exchange. If CATEGORIZE is present (single-node queries),
+     * wraps {@link org.elasticsearch.compute.operator.topn.GroupedTopNOperator} in
+     * {@link CategorizeGroupingOperator} with {@code isSingleNode=true}.
+     */
     private PhysicalOperation planTopNBySingle(TopNByExec topNByExec, LocalExecutionPlannerContext context) {
         final Integer rowSize = topNByExec.estimatedRowSize();
         PhysicalOperation source = plan(topNByExec.child(), context);
-
         int channelsBefore = source.layout.numberOfChannels();
-        var resolved = resolveGroupKeys(topNByExec.groupings(), source, context);
-        source = resolved.source();
-        List<Integer> groupKeys = resolved.groupKeys();
-        if (groupKeys.isEmpty()) {
-            throw new EsqlIllegalArgumentException("TopNBy groupings cannot be empty at runtime");
+
+        if (LocalMapper.hasCategorize(topNByExec.groupings()) == false) {
+            var resolved = resolveGroupKeys(topNByExec.groupings(), source, context);
+            List<Integer> groupKeys = resolved.groupKeys();
+            if (groupKeys.isEmpty()) {
+                throw new EsqlIllegalArgumentException("TopNBy groupings cannot be empty at runtime");
+            }
+            var common = topNCommon(
+                rowSize,
+                topNByExec.order(),
+                topNByExec.limitPerGroup(),
+                topNByExec.docValuesAttributes(),
+                source.layout,
+                context
+            );
+            source = source.with(
+                new GroupedTopNOperator.GroupedTopNOperatorFactory(
+                    common.limit,
+                    asList(common.elementTypes),
+                    asList(common.encoders),
+                    common.orders,
+                    groupKeys,
+                    context.pageSize(topNByExec, rowSize),
+                    context.plannerSettings.valuesLoadingJumboSize().getBytes(),
+                    topNByExec.outputOrdering()
+                ),
+                source.layout
+            );
+            return projectAwayInternalChannels(source, channelsBefore);
         }
 
-        // Build topNCommon AFTER inserting any CategorizeEvalOperators so that elementTypes
-        // and encoders cover the newly added int channels.
-        var common = topNCommon(rowSize, topNByExec.order(), topNByExec.limitPerGroup(), topNByExec.docValuesAttributes(), source, context);
-        source = source.with(
-            new GroupedTopNOperator.GroupedTopNOperatorFactory(
+        return planCategorizeGroupingSingle(source, topNByExec.groupings(), channelsBefore, (groupKeys, innerLayout) -> {
+            var common = topNCommon(
+                rowSize,
+                topNByExec.order(),
+                topNByExec.limitPerGroup(),
+                topNByExec.docValuesAttributes(),
+                innerLayout,
+                context
+            );
+            return new GroupedTopNOperator.GroupedTopNOperatorFactory(
                 common.limit,
                 asList(common.elementTypes),
                 asList(common.encoders),
@@ -1213,35 +1246,36 @@ public class LocalExecutionPlanner {
                 context.pageSize(topNByExec, rowSize),
                 context.plannerSettings.valuesLoadingJumboSize().getBytes(),
                 topNByExec.outputOrdering()
-            ),
-            source.layout
-        );
-        return projectAwayInternalChannels(source, channelsBefore);
+            );
+        }, context);
     }
 
     /**
-     * INITIAL mode (data node): capturing factories for CATEGORIZE groupings so
-     * {@link CategorizeStateEmitOperator} can serialize state after filtering.
+     * INITIAL mode (data node): wraps {@link GroupedTopNOperator} in {@link CategorizeGroupingOperator}
+     * so each output page carries the current categorizer state inline.
+     * The exchange carries {@code [base | catId | state]} channels.
      */
     private PhysicalOperation planTopNByInitial(TopNByExec topNByExec, LocalExecutionPlannerContext context) {
         final Integer rowSize = topNByExec.estimatedRowSize();
         PhysicalOperation source = plan(topNByExec.child(), context);
 
-        // Project source to only the declared logical output attrs (strips sort keys added by
-        // InsertFieldExtraction and any other fields not in the exchange output). This ensures
-        // that the base channel count on the data node matches ExchangeSourceExec.output().size()
-        // on the coordinator side.
+        // Project to declared logical output (strips sort keys not in the exchange output).
         source = projectToLogicalOutput(source, topNByExec.output());
 
-        List<Integer> groupKeys = new ArrayList<>(topNByExec.groupings().size());
-        List<CategorizeEvalOperator[]> categorizeHolders = new ArrayList<>();
+        // catId channel will be appended at this position by CategorizeGroupingOperator.
+        int catIdChannel = source.layout.numberOfChannels();
+        Layout innerLayout = source.layout.builder().append(new Layout.ChannelSet(Set.of(new NameId()), DataType.INTEGER)).build();
 
+        Attribute fieldAttr = null;
+        CategorizeDef categorizeDef = null;
+        List<Integer> groupKeys = new ArrayList<>(topNByExec.groupings().size());
         for (Expression grouping : topNByExec.groupings()) {
             if (Alias.unwrap(grouping) instanceof Categorize categorize) {
-                CategorizeEvalOperator[] holder = new CategorizeEvalOperator[1];
-                categorizeHolders.add(holder);
-                source = addCapturingCategorizeChannel(source, categorize, context, holder);
-                groupKeys.add(source.layout.numberOfChannels() - 1);
+                groupKeys.add(catIdChannel);
+                if (fieldAttr == null) {
+                    fieldAttr = Expressions.attribute(categorize.field());
+                    categorizeDef = categorize.categorizeDef();
+                }
             } else {
                 groupKeys.add(getAttributeChannel(grouping, source.layout, "TOP-N BY expression must be an attribute"));
             }
@@ -1249,70 +1283,60 @@ public class LocalExecutionPlanner {
         if (groupKeys.isEmpty()) {
             throw new EsqlIllegalArgumentException("TopNBy groupings cannot be empty at runtime");
         }
+        if (fieldAttr == null) {
+            throw new EsqlIllegalArgumentException("TopNBy INITIAL mode requires a CATEGORIZE grouping");
+        }
+        int fieldChannel = source.layout.get(fieldAttr.id()).channel();
 
-        var common = topNCommon(rowSize, topNByExec.order(), topNByExec.limitPerGroup(), topNByExec.docValuesAttributes(), source, context);
-        source = source.with(
-            new GroupedTopNOperator.GroupedTopNOperatorFactory(
-                common.limit,
-                asList(common.elementTypes),
-                asList(common.encoders),
-                common.orders,
-                groupKeys,
-                context.pageSize(topNByExec, rowSize),
-                context.plannerSettings.valuesLoadingJumboSize().getBytes(),
-                topNByExec.outputOrdering()
-            ),
-            source.layout
+        var common = topNCommon(
+            rowSize,
+            topNByExec.order(),
+            topNByExec.limitPerGroup(),
+            topNByExec.docValuesAttributes(),
+            innerLayout,
+            context
+        );
+        var topNFactory = new GroupedTopNOperator.GroupedTopNOperatorFactory(
+            common.limit,
+            asList(common.elementTypes),
+            asList(common.encoders),
+            common.orders,
+            groupKeys,
+            context.pageSize(topNByExec, rowSize),
+            context.plannerSettings.valuesLoadingJumboSize().getBytes(),
+            topNByExec.outputOrdering()
         );
 
-        for (CategorizeEvalOperator[] holder : categorizeHolders) {
-            Layout stateLayout = source.layout.builder().append(new Layout.ChannelSet(Set.of(new NameId()), DataType.KEYWORD)).build();
-            source = source.with(new CategorizeStateEmitOperator.Factory(holder), stateLayout);
-        }
-
-        return source; // do NOT project away — exchange carries cat_id + state channels
+        Layout stateLayout = innerLayout.builder().append(new Layout.ChannelSet(Set.of(new NameId()), DataType.KEYWORD)).build();
+        source = source.with(
+            new CategorizeGroupingOperator.Factory(fieldChannel, categorizeDef, context.analysisRegistry(), topNFactory, false),
+            stateLayout
+        );
+        return source; // exchange carries [base | catId | state] channels
     }
 
     /**
-     * FINAL mode (coordinator): merge per-shard states, remap cat IDs, apply global TOP-N BY limit.
-     * <p>
-     * Data nodes append extra channels beyond the base exchange output in this order:
-     * {@code [base | catId0 .. catId(N-1) | state0 .. state(N-1)]}
-     * All catId channels come first, then all state channels — NOT interleaved. These extra channels
-     * are NOT declared in the exchange output (they are physical-only), so the layout only tracks
-     * the base channels. For pair k (0-indexed): catIdChannel = channelsBefore + k; stateChannel =
-     * channelsBefore + N (constant — after each merge drops its state, the next state shifts down
-     * to the same fixed position).
+     * FINAL mode (coordinator): wraps {@link GroupedTopNOperator} in {@link CategorizeGroupingMergeOperator}
+     * which merges per-page categorizer state from data nodes, remaps local category IDs to global IDs,
+     * and delegates to the inner operator. Exchange carries {@code [base | catId | state]} channels.
      */
     private PhysicalOperation planTopNByFinal(TopNByExec topNByExec, LocalExecutionPlannerContext context) {
         final Integer rowSize = topNByExec.estimatedRowSize();
         PhysicalOperation source = plan(topNByExec.child(), context);
 
-        // Base channels only in the layout; cat_id/state are extra runtime-only channels.
+        // Base channels only in the layout; catId and state are extra runtime-only channels appended by INITIAL.
         int channelsBefore = source.layout.numberOfChannels();
+        int catIdChannel = channelsBefore;      // first extra channel
+        int stateChannel = channelsBefore + 1;  // state immediately follows catId (one CATEGORIZE per LIMIT BY)
 
-        // INITIAL emits [base | catId0..catId(N-1) | state0..state(N-1)], NOT interleaved.
-        // All catIds come first, then all states. After each merge drops its state channel,
-        // the next state shifts down by one but always lands at channelsBefore + numCatPairs.
-        int numCatPairs = (int) topNByExec.groupings().stream().filter(g -> Alias.unwrap(g) instanceof Categorize).count();
-
+        CategorizeDef categorizeDef = null;
         List<Integer> groupKeys = new ArrayList<>(topNByExec.groupings().size());
-        int catPairIndex = 0;
         for (Expression grouping : topNByExec.groupings()) {
             if (Alias.unwrap(grouping) instanceof Categorize categorize) {
-                int catIdChannel = channelsBefore + catPairIndex;
-                // States follow all catIds; after catPairIndex merges each dropped one state,
-                // the next state is always at channelsBefore + numCatPairs.
-                int stateChannel = channelsBefore + numCatPairs;
-
-                // After merge: state dropped, cat_id stays → extend layout by one cat_id channel.
-                Layout mergedLayout = source.layout.builder().append(new Layout.ChannelSet(Set.of(new NameId()), DataType.INTEGER)).build();
-                source = source.with(
-                    new CategorizeStateMergeOperator.Factory(catIdChannel, stateChannel, categorize.categorizeDef()),
-                    mergedLayout
-                );
                 groupKeys.add(catIdChannel);
-                catPairIndex++;
+                if (categorizeDef == null) {
+                    categorizeDef = categorize.categorizeDef();
+                }
             } else {
                 groupKeys.add(getAttributeChannel(grouping, source.layout, "TOP-N BY expression must be an attribute"));
             }
@@ -1320,20 +1344,33 @@ public class LocalExecutionPlanner {
         if (groupKeys.isEmpty()) {
             throw new EsqlIllegalArgumentException("TopNBy groupings cannot be empty at runtime");
         }
+        if (categorizeDef == null) {
+            throw new EsqlIllegalArgumentException("TopNBy FINAL mode requires a CATEGORIZE grouping");
+        }
 
-        var common = topNCommon(rowSize, topNByExec.order(), topNByExec.limitPerGroup(), topNByExec.docValuesAttributes(), source, context);
+        // mergedLayout: base + catId (state is dropped by CategorizeGroupingMergeOperator).
+        Layout mergedLayout = source.layout.builder().append(new Layout.ChannelSet(Set.of(new NameId()), DataType.INTEGER)).build();
+        var common = topNCommon(
+            rowSize,
+            topNByExec.order(),
+            topNByExec.limitPerGroup(),
+            topNByExec.docValuesAttributes(),
+            mergedLayout,
+            context
+        );
+        var topNFactory = new GroupedTopNOperator.GroupedTopNOperatorFactory(
+            common.limit,
+            asList(common.elementTypes),
+            asList(common.encoders),
+            common.orders,
+            groupKeys,
+            context.pageSize(topNByExec, rowSize),
+            context.plannerSettings.valuesLoadingJumboSize().getBytes(),
+            topNByExec.outputOrdering()
+        );
         source = source.with(
-            new GroupedTopNOperator.GroupedTopNOperatorFactory(
-                common.limit,
-                asList(common.elementTypes),
-                asList(common.encoders),
-                common.orders,
-                groupKeys,
-                context.pageSize(topNByExec, rowSize),
-                context.plannerSettings.valuesLoadingJumboSize().getBytes(),
-                topNByExec.outputOrdering()
-            ),
-            source.layout
+            new CategorizeGroupingMergeOperator.Factory(catIdChannel, stateChannel, categorizeDef, topNFactory),
+            mergedLayout
         );
         return projectAwayInternalChannels(source, channelsBefore);
     }
@@ -1342,22 +1379,11 @@ public class LocalExecutionPlanner {
 
     private record GroupKeysResult(PhysicalOperation source, List<Integer> groupKeys) {}
 
-    /**
-     * Resolves grouping keys for LIMIT BY / TOP-N-BY operators. For each grouping expression,
-     * if it wraps a {@link Categorize}, a {@link CategorizeEvalOperator} is chained to append
-     * a new channel; otherwise the existing attribute channel is used directly.
-     *
-     * @return updated {@code source} (may have extra channels) and the resolved channel indices
-     */
+    /** Resolves grouping-key channel indices for SINGLE-mode LIMIT BY / TOP-N-BY operators. */
     private GroupKeysResult resolveGroupKeys(List<Expression> groupings, PhysicalOperation source, LocalExecutionPlannerContext context) {
         List<Integer> groupKeys = new ArrayList<>(groupings.size());
         for (Expression grouping : groupings) {
-            if (Alias.unwrap(grouping) instanceof Categorize categorize) {
-                source = addCategorizeChannel(source, categorize, context);
-                groupKeys.add(source.layout.numberOfChannels() - 1);
-            } else {
-                groupKeys.add(getAttributeChannel(grouping, source.layout, "LIMIT BY expression must be an attribute"));
-            }
+            groupKeys.add(getAttributeChannel(grouping, source.layout, "LIMIT BY expression must be an attribute"));
         }
         return new GroupKeysResult(source, groupKeys);
     }
@@ -1367,21 +1393,21 @@ public class LocalExecutionPlanner {
         List<Order> order,
         Expression limitExpr,
         Set<Attribute> docValuesAttributes,
-        PhysicalOperation source,
+        Layout layout,
         LocalExecutionPlannerContext context
     ) {
         assert rowSize != null && rowSize > 0 : "estimated row size [" + rowSize + "] wasn't set";
 
-        ElementType[] elementTypes = new ElementType[source.layout.numberOfChannels()];
-        TopNEncoder[] encoders = new TopNEncoder[source.layout.numberOfChannels()];
-        List<Layout.ChannelSet> inverse = source.layout.inverse();
+        ElementType[] elementTypes = new ElementType[layout.numberOfChannels()];
+        TopNEncoder[] encoders = new TopNEncoder[layout.numberOfChannels()];
+        List<Layout.ChannelSet> inverse = layout.inverse();
         for (int channel = 0; channel < inverse.size(); channel++) {
             var fieldExtractPreference = fieldExtractPreference(docValuesAttributes, inverse.get(channel).nameIds());
             elementTypes[channel] = PlannerUtils.toElementType(inverse.get(channel).type(), fieldExtractPreference);
             encoders[channel] = TopNExec.encoder(inverse.get(channel).type(), context.shardContexts);
         }
         List<TopNOperator.SortOrder> orders = order.stream().map(o -> {
-            int sortByChannel = getAttributeChannel(o.child(), source.layout, "order by expression must be an attribute");
+            int sortByChannel = getAttributeChannel(o.child(), layout, "order by expression must be an attribute");
             return new TopNOperator.SortOrder(
                 sortByChannel,
                 o.direction().equals(Order.OrderDirection.ASC),
@@ -2414,58 +2440,76 @@ public class LocalExecutionPlanner {
         };
     }
 
-    /** SINGLE mode: original behavior — local execution with no state transfer. */
+    /**
+     * SINGLE mode: local execution with no exchange. If CATEGORIZE is present (single-node queries
+     * without an exchange), wraps {@link GroupedLimitOperator} in {@link CategorizeGroupingOperator}
+     * with {@code isSingleNode=true} so no state channel is appended.
+     */
     private PhysicalOperation planLimitBySingle(LimitByExec limitBy, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(limitBy.child(), context);
         int limitValue = (Integer) limitBy.limitPerGroup().fold(context.foldCtx);
-
         int channelsBefore = source.layout.numberOfChannels();
-        var resolved = resolveGroupKeys(limitBy.groupings(), source, context);
-        source = resolved.source();
-        List<Integer> groupKeys = resolved.groupKeys();
 
-        source = source.with(new GroupedLimitOperator.Factory(limitValue, groupKeys, buildElementTypes(source.layout)), source.layout);
-        return projectAwayInternalChannels(source, channelsBefore);
+        if (LocalMapper.hasCategorize(limitBy.groupings()) == false) {
+            var resolved = resolveGroupKeys(limitBy.groupings(), source, context);
+            source = source.with(
+                new GroupedLimitOperator.Factory(limitValue, resolved.groupKeys(), buildElementTypes(source.layout)),
+                source.layout
+            );
+            return projectAwayInternalChannels(source, channelsBefore);
+        }
+
+        return planCategorizeGroupingSingle(
+            source,
+            limitBy.groupings(),
+            channelsBefore,
+            (groupKeys, innerLayout) -> new GroupedLimitOperator.Factory(limitValue, groupKeys, buildElementTypes(innerLayout)),
+            context
+        );
     }
 
     /**
-     * INITIAL mode (data node): for each CATEGORIZE grouping, uses a capturing factory so the
-     * downstream {@link CategorizeStateEmitOperator} can read the serialized categorizer state.
-     * After {@link GroupedLimitOperator}, adds a state channel per CATEGORIZE grouping.
-     * Does NOT project away internal channels — the exchange carries cat_id + state.
+     * INITIAL mode (data node): wraps {@link GroupedLimitOperator} in {@link CategorizeGroupingOperator}
+     * so each output page carries the current categorizer state inline.
+     * The exchange carries {@code [base | catId | state]} channels.
      */
     private PhysicalOperation planLimitByInitial(LimitByExec limitBy, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(limitBy.child(), context);
         int limitValue = (Integer) limitBy.limitPerGroup().fold(context.foldCtx);
 
-        // Project source to only the declared logical output attrs (strips sort keys and any
-        // other fields not in the exchange output). This ensures that the base channel count
-        // on the data node matches ExchangeSourceExec.output().size() on the coordinator side.
+        // Project to declared logical output (strips sort keys not in the exchange output).
         source = projectToLogicalOutput(source, limitBy.output());
 
-        List<Integer> groupKeys = new ArrayList<>(limitBy.groupings().size());
-        List<CategorizeEvalOperator[]> categorizeHolders = new ArrayList<>();
+        // catId channel will be appended at this position by CategorizeGroupingOperator.
+        int catIdChannel = source.layout.numberOfChannels();
+        Layout innerLayout = source.layout.builder().append(new Layout.ChannelSet(Set.of(new NameId()), DataType.INTEGER)).build();
 
+        Attribute fieldAttr = null;
+        CategorizeDef categorizeDef = null;
+        List<Integer> groupKeys = new ArrayList<>(limitBy.groupings().size());
         for (Expression grouping : limitBy.groupings()) {
             if (Alias.unwrap(grouping) instanceof Categorize categorize) {
-                CategorizeEvalOperator[] holder = new CategorizeEvalOperator[1];
-                categorizeHolders.add(holder);
-                source = addCapturingCategorizeChannel(source, categorize, context, holder);
-                groupKeys.add(source.layout.numberOfChannels() - 1);
+                groupKeys.add(catIdChannel);
+                if (fieldAttr == null) {
+                    fieldAttr = Expressions.attribute(categorize.field());
+                    categorizeDef = categorize.categorizeDef();
+                }
             } else {
                 groupKeys.add(getAttributeChannel(grouping, source.layout, "LIMIT BY expression must be an attribute"));
             }
         }
-
-        source = source.with(new GroupedLimitOperator.Factory(limitValue, groupKeys, buildElementTypes(source.layout)), source.layout);
-
-        // Append a state channel for each CATEGORIZE grouping.
-        for (CategorizeEvalOperator[] holder : categorizeHolders) {
-            Layout stateLayout = source.layout.builder().append(new Layout.ChannelSet(Set.of(new NameId()), DataType.KEYWORD)).build();
-            source = source.with(new CategorizeStateEmitOperator.Factory(holder), stateLayout);
+        if (fieldAttr == null) {
+            throw new EsqlIllegalArgumentException("LIMIT BY INITIAL mode requires a CATEGORIZE grouping");
         }
+        int fieldChannel = source.layout.get(fieldAttr.id()).channel();
 
-        return source; // exchange carries [logical_output..., cat_id, state] channels
+        var limitFactory = new GroupedLimitOperator.Factory(limitValue, groupKeys, buildElementTypes(innerLayout));
+        Layout stateLayout = innerLayout.builder().append(new Layout.ChannelSet(Set.of(new NameId()), DataType.KEYWORD)).build();
+        source = source.with(
+            new CategorizeGroupingOperator.Factory(fieldChannel, categorizeDef, context.analysisRegistry(), limitFactory, false),
+            stateLayout
+        );
+        return source; // exchange carries [base | catId | state] channels
     }
 
     /**
@@ -2490,51 +2534,94 @@ public class LocalExecutionPlanner {
     }
 
     /**
-     * FINAL mode (coordinator): merge per-shard states, remap cat IDs, apply global LIMIT BY.
-     * <p>
-     * Data nodes append extra channels beyond the base exchange output in this order:
-     * {@code [base | catId0 .. catId(N-1) | state0 .. state(N-1)]}
-     * All catId channels come first, then all state channels — NOT interleaved. These extra channels
-     * are NOT declared in the exchange output (they are physical-only), so the layout only tracks
-     * the base channels. For pair k (0-indexed): catIdChannel = channelsBefore + k; stateChannel =
-     * channelsBefore + N (constant — after each merge drops its state, the next state shifts down
-     * to the same fixed position).
+     * FINAL mode (coordinator): wraps {@link GroupedLimitOperator} in {@link CategorizeGroupingMergeOperator}
+     * which merges per-page categorizer state from data nodes, remaps local category IDs to global IDs,
+     * and delegates to the inner operator. Exchange carries {@code [base | catId | state]} channels.
      */
     private PhysicalOperation planLimitByFinal(LimitByExec limitBy, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(limitBy.child(), context);
         int limitValue = (Integer) limitBy.limitPerGroup().fold(context.foldCtx);
 
-        // Base channels only in the layout; cat_id/state are extra runtime-only channels.
+        // Base channels only in the layout; catId and state are extra runtime-only channels appended by INITIAL.
         int channelsBefore = source.layout.numberOfChannels();
+        int catIdChannel = channelsBefore;      // first extra channel
+        int stateChannel = channelsBefore + 1;  // state immediately follows catId (one CATEGORIZE per LIMIT BY)
 
-        // INITIAL emits [base | catId0..catId(N-1) | state0..state(N-1)], NOT interleaved.
-        // All catIds come first, then all states. After each merge drops its state channel,
-        // the next state shifts down by one but always lands at channelsBefore + numCatPairs.
-        int numCatPairs = (int) limitBy.groupings().stream().filter(g -> Alias.unwrap(g) instanceof Categorize).count();
-
+        CategorizeDef categorizeDef = null;
         List<Integer> groupKeys = new ArrayList<>(limitBy.groupings().size());
-        int catPairIndex = 0;
         for (Expression grouping : limitBy.groupings()) {
             if (Alias.unwrap(grouping) instanceof Categorize categorize) {
-                int catIdChannel = channelsBefore + catPairIndex;
-                // States follow all catIds; after catPairIndex merges each dropped one state,
-                // the next state is always at channelsBefore + numCatPairs.
-                int stateChannel = channelsBefore + numCatPairs;
-
-                // After merge: state dropped, cat_id stays → extend layout by one cat_id channel.
-                Layout mergedLayout = source.layout.builder().append(new Layout.ChannelSet(Set.of(new NameId()), DataType.INTEGER)).build();
-                source = source.with(
-                    new CategorizeStateMergeOperator.Factory(catIdChannel, stateChannel, categorize.categorizeDef()),
-                    mergedLayout
-                );
                 groupKeys.add(catIdChannel);
-                catPairIndex++;
+                if (categorizeDef == null) {
+                    categorizeDef = categorize.categorizeDef();
+                }
             } else {
                 groupKeys.add(getAttributeChannel(grouping, source.layout, "LIMIT BY expression must be an attribute"));
             }
         }
+        if (categorizeDef == null) {
+            throw new EsqlIllegalArgumentException("LIMIT BY FINAL mode requires a CATEGORIZE grouping");
+        }
 
-        source = source.with(new GroupedLimitOperator.Factory(limitValue, groupKeys, buildElementTypes(source.layout)), source.layout);
+        // mergedLayout: base + catId (state is dropped by CategorizeGroupingMergeOperator).
+        Layout mergedLayout = source.layout.builder().append(new Layout.ChannelSet(Set.of(new NameId()), DataType.INTEGER)).build();
+        var limitFactory = new GroupedLimitOperator.Factory(limitValue, groupKeys, buildElementTypes(mergedLayout));
+        source = source.with(
+            new CategorizeGroupingMergeOperator.Factory(catIdChannel, stateChannel, categorizeDef, limitFactory),
+            mergedLayout
+        );
+        return projectAwayInternalChannels(source, channelsBefore);
+    }
+
+    /**
+     * Shared SINGLE-mode CATEGORIZE path for {@link #planLimitBySingle} and {@link #planTopNBySingle}.
+     * Wraps {@code innerFactory} in {@link CategorizeGroupingOperator} with {@code isSingleNode=true}
+     * so the categorizer runs locally without appending a state channel.
+     */
+    @FunctionalInterface
+    private interface InnerFactory {
+        Operator.OperatorFactory build(List<Integer> groupKeys, Layout innerLayout);
+    }
+
+    private PhysicalOperation planCategorizeGroupingSingle(
+        PhysicalOperation source,
+        List<Expression> groupings,
+        int channelsBefore,
+        InnerFactory innerFactory,
+        LocalExecutionPlannerContext context
+    ) {
+        int catIdChannel = source.layout.numberOfChannels();
+        Layout innerLayout = source.layout.builder().append(new Layout.ChannelSet(Set.of(new NameId()), DataType.INTEGER)).build();
+
+        Attribute fieldAttr = null;
+        CategorizeDef categorizeDef = null;
+        List<Integer> groupKeys = new ArrayList<>(groupings.size());
+        for (Expression grouping : groupings) {
+            if (Alias.unwrap(grouping) instanceof Categorize categorize) {
+                groupKeys.add(catIdChannel);
+                if (fieldAttr == null) {
+                    fieldAttr = Expressions.attribute(categorize.field());
+                    categorizeDef = categorize.categorizeDef();
+                }
+            } else {
+                groupKeys.add(getAttributeChannel(grouping, source.layout, "LIMIT BY expression must be an attribute"));
+            }
+        }
+        if (fieldAttr == null) {
+            throw new EsqlIllegalArgumentException("SINGLE CATEGORIZE mode: no CATEGORIZE grouping found");
+        }
+        int fieldChannel = source.layout.get(fieldAttr.id()).channel();
+
+        source = source.with(
+            new CategorizeGroupingOperator.Factory(
+                fieldChannel,
+                categorizeDef,
+                context.analysisRegistry(),
+                innerFactory.build(groupKeys, innerLayout),
+                true
+            ),
+            innerLayout
+        );
         return projectAwayInternalChannels(source, channelsBefore);
     }
 
@@ -2561,10 +2648,8 @@ public class LocalExecutionPlanner {
     }
 
     /**
-     * Projects away any channels appended beyond {@code channelsBefore} by {@link #resolveGroupKeys}.
-     * Those channels (e.g. the integer categorize channel added by {@link #addCategorizeChannel}) are
-     * internal grouping keys; they must not leak into downstream pages or through an exchange, because
-     * different shards assign independent integer IDs and the coordinator would group incorrectly.
+     * Projects away any channels appended beyond {@code channelsBefore}.
+     * Internal grouping key channels must not leak into downstream pages or through an exchange.
      */
     private PhysicalOperation projectAwayInternalChannels(PhysicalOperation source, int channelsBefore) {
         if (source.layout.numberOfChannels() == channelsBefore) {
@@ -2577,48 +2662,6 @@ public class LocalExecutionPlanner {
             builder.append(inverse.get(ch));
         }
         return source.with(new ProjectOperatorFactory(projection), builder.build());
-    }
-
-    /**
-     * Chains a {@link CategorizeEvalOperator} that reads the raw text field referenced by
-     * {@code categorize.field()}, runs it through the ML categorizer, and appends a new
-     * {@code IntBlock} channel to the page. The new channel holds ordered category IDs —
-     * multivalue positions are NOT unrolled, so {@code [a, b] != [b, a]}.
-     */
-    private PhysicalOperation addCategorizeChannel(PhysicalOperation source, Categorize categorize, LocalExecutionPlannerContext context) {
-        Attribute fieldAttr = Expressions.attribute(categorize.field());
-        if (fieldAttr == null) {
-            throw new EsqlIllegalArgumentException("CATEGORIZE field must resolve to an attribute");
-        }
-        int fieldChannel = source.layout.get(fieldAttr.id()).channel();
-        Layout newLayout = source.layout.builder().append(new Layout.ChannelSet(Set.of(new NameId()), DataType.INTEGER)).build();
-        return source.with(
-            new CategorizeEvalOperator.Factory(fieldChannel, categorize.categorizeDef(), context.analysisRegistry()),
-            newLayout
-        );
-    }
-
-    /**
-     * Like {@link #addCategorizeChannel} but uses the capturing constructor overload so that
-     * a later {@link CategorizeStateEmitOperator} can retrieve the created operator instance
-     * and serialize its categorizer state.
-     */
-    private PhysicalOperation addCapturingCategorizeChannel(
-        PhysicalOperation source,
-        Categorize categorize,
-        LocalExecutionPlannerContext context,
-        CategorizeEvalOperator[] holder
-    ) {
-        Attribute fieldAttr = Expressions.attribute(categorize.field());
-        if (fieldAttr == null) {
-            throw new EsqlIllegalArgumentException("CATEGORIZE field must resolve to an attribute");
-        }
-        int fieldChannel = source.layout.get(fieldAttr.id()).channel();
-        Layout newLayout = source.layout.builder().append(new Layout.ChannelSet(Set.of(new NameId()), DataType.INTEGER)).build();
-        return source.with(
-            new CategorizeEvalOperator.Factory(fieldChannel, categorize.categorizeDef(), context.analysisRegistry(), holder),
-            newLayout
-        );
     }
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {

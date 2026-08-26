@@ -150,7 +150,7 @@ public class LocalMapper {
     }
 
     /** Returns true if any expression in the list contains a {@link GroupingFunction.NonEvaluatableGroupingFunction}. */
-    static boolean hasCategorize(List<? extends org.elasticsearch.xpack.esql.core.expression.Expression> groupings) {
+    public static boolean hasCategorize(List<? extends org.elasticsearch.xpack.esql.core.expression.Expression> groupings) {
         return groupings.stream().anyMatch(g -> g.anyMatch(e -> e instanceof GroupingFunction.NonEvaluatableGroupingFunction));
     }
 

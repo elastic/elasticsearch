@@ -29,87 +29,88 @@ import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import java.io.IOException;
 
 /**
- * A stateful page-mapping operator that evaluates {@code CATEGORIZE(field)} for use in
- * {@code LIMIT BY} and {@code TOPN BY}. Unlike
- * {@link org.elasticsearch.compute.aggregation.blockhash.CategorizeBlockHash}, this operator
- * does NOT unroll multivalued fields. A position with N text values produces a multivalued
- * {@code IntBlock} with N ordered category IDs, so that {@code [a, b]} and {@code [b, a]}
- * map to different groups.
+ * Data-node operator for distributed {@code LIMIT BY CATEGORIZE} and {@code TOPN BY CATEGORIZE}.
  *
- * The category 0 is reserved for null fields. Any non-null field would produce a positive integer.
+ * <p>Wraps an inner grouping operator (e.g. {@link GroupedLimitOperator} or
+ * {@link org.elasticsearch.compute.operator.topn.GroupedTopNOperator}). On each call to {@link #addInput}, the text field at
+ * {@code textChannel} is classified by the ML categorizer and the resulting integer category-ID
+ * block is appended to the page before delegating to the inner operator.
  *
- * <p>The operator appends the new {@code IntBlock} as an extra channel on each output page.
+ * <p>On each call to {@link #getOutput}, the inner operator's output page is retrieved and the
+ * current categorizer state is serialized and appended as a constant {@link BytesRefBlock}. This
+ * per-page state allows the coordinator to merge shard models and remap category IDs without
+ * buffering all output — categories are monotonically growing and {@code mergeWireCategory} is
+ * idempotent, so any snapshot is valid.
+ *
+ * <p>When {@code isSingleNode=true} (local-only queries without an exchange), the state channel
+ * is not appended; the inner operator's output is returned directly.
  */
-public class CategorizeEvalOperator extends AbstractPageMappingOperator {
+public class CategorizeGroupingOperator implements Operator {
 
     public static final class Factory implements Operator.OperatorFactory {
         private final int textChannel;
         private final CategorizeDef categorizeDef;
         private final AnalysisRegistry analysisRegistry;
-        /**
-         * Optional single-element array; when non-null, the created operator is stored at index 0
-         * so that a downstream {@link CategorizeStateEmitOperator} can read the categorizer state.
-         */
-        private final CategorizeEvalOperator[] captureInto;
-
-        public Factory(int textChannel, CategorizeDef categorizeDef, AnalysisRegistry analysisRegistry) {
-            this(textChannel, categorizeDef, analysisRegistry, null);
-        }
+        private final Operator.OperatorFactory innerFactory;
+        private final boolean isSingleNode;
 
         public Factory(
             int textChannel,
             CategorizeDef categorizeDef,
             AnalysisRegistry analysisRegistry,
-            CategorizeEvalOperator[] captureInto
+            Operator.OperatorFactory innerFactory,
+            boolean isSingleNode
         ) {
             this.textChannel = textChannel;
             this.categorizeDef = categorizeDef;
             this.analysisRegistry = analysisRegistry;
-            this.captureInto = captureInto;
+            this.innerFactory = innerFactory;
+            this.isSingleNode = isSingleNode;
         }
 
         @Override
-        public CategorizeEvalOperator get(DriverContext driverContext) {
-            CategorizeEvalOperator op = new CategorizeEvalOperator(
+        public CategorizeGroupingOperator get(DriverContext driverContext) {
+            return new CategorizeGroupingOperator(
                 textChannel,
                 categorizeDef,
                 analysisRegistry,
+                innerFactory.get(driverContext),
+                isSingleNode,
                 driverContext.blockFactory()
             );
-            if (captureInto != null) {
-                captureInto[0] = op;
-            }
-            return op;
         }
 
         @Override
         public String describe() {
-            return "CategorizeEvalOperator[channel=" + textChannel + "]";
+            return "CategorizeGroupingOperator[channel=" + textChannel + ", inner=" + innerFactory.describe() + "]";
         }
     }
 
     private static final CategorizationAnalyzerConfig DEFAULT_ANALYZER_CONFIG = CategorizationAnalyzerConfig
         .buildStandardEsqlCategorizationAnalyzer();
 
-    /**
-     * Ordinal reserved for null values and strings that produce no tokens after analysis
-     * (empty strings, pure numbers, stop-words, etc.).
-     */
+    /** Ordinal reserved for null values and strings that produce no tokens after analysis. */
     private static final int NULL_ORD = 0;
 
     private final int textChannel;
     private final TokenListCategorizer.CloseableTokenListCategorizer categorizer;
     private final CategorizationAnalyzer analyzer;
+    private final Operator inner;
+    private final boolean isSingleNode;
     private final BlockFactory blockFactory;
 
-    private CategorizeEvalOperator(
+    private CategorizeGroupingOperator(
         int textChannel,
         CategorizeDef categorizeDef,
         AnalysisRegistry analysisRegistry,
+        Operator inner,
+        boolean isSingleNode,
         BlockFactory blockFactory
     ) {
         this.textChannel = textChannel;
+        this.isSingleNode = isSingleNode;
         this.blockFactory = blockFactory;
+        this.inner = inner;
         this.categorizer = new TokenListCategorizer.CloseableTokenListCategorizer(
             new CategorizationBytesRefHash(new BytesRefHash(2048, blockFactory.bigArrays())),
             CategorizationPartOfSpeechDictionary.getInstance(),
@@ -127,16 +128,60 @@ public class CategorizeEvalOperator extends AbstractPageMappingOperator {
     }
 
     @Override
-    protected Page process(Page page) {
-        IntBlock categorized = categorize(page.getBlock(textChannel));
+    public boolean needsInput() {
+        return inner.needsInput();
+    }
+
+    @Override
+    public void addInput(Page page) {
+        IntBlock catIds = categorize(page.getBlock(textChannel));
         boolean success = false;
         try {
-            Page result = page.appendBlock(categorized);
+            Page withCatIds = page.appendBlock(catIds);
+            success = true;
+            inner.addInput(withCatIds);
+        } finally {
+            if (success == false) {
+                catIds.close();
+            }
+        }
+    }
+
+    @Override
+    public void finish() {
+        inner.finish();
+    }
+
+    @Override
+    public boolean isFinished() {
+        return inner.isFinished();
+    }
+
+    @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return inner.canProduceMoreDataWithoutExtraInput();
+    }
+
+    @Override
+    public Page getOutput() {
+        Page p = inner.getOutput();
+        if (p == null || isSingleNode) {
+            return p;
+        }
+        BytesRefBlock stateBlock = null;
+        boolean success = false;
+        try {
+            BytesRef state = serializeCategorizer();
+            stateBlock = blockFactory.newConstantBytesRefBlockWith(state, p.getPositionCount());
+            Page result = p.appendBlock(stateBlock);
             success = true;
             return result;
         } finally {
             if (success == false) {
-                categorized.close();
+                if (stateBlock != null) {
+                    stateBlock.close();
+                }
+                p.releaseBlocks();
             }
         }
     }
@@ -147,7 +192,7 @@ public class CategorizeEvalOperator extends AbstractPageMappingOperator {
             try (IntVector.FixedBuilder result = blockFactory.newIntVectorFixedBuilder(vBlock.getPositionCount())) {
                 BytesRef scratch = new BytesRef();
                 for (int p = 0; p < vBlock.getPositionCount(); p++) {
-                    result.appendInt(p, process(vVector.getBytesRef(p, scratch)));
+                    result.appendInt(p, computeCategory(vVector.getBytesRef(p, scratch)));
                 }
                 return result.build().asBlock();
             }
@@ -162,12 +207,12 @@ public class CategorizeEvalOperator extends AbstractPageMappingOperator {
                 int first = vBlock.getFirstValueIndex(p);
                 int count = vBlock.getValueCount(p);
                 if (count == 1) {
-                    result.appendInt(process(vBlock.getBytesRef(first, scratch)));
+                    result.appendInt(computeCategory(vBlock.getBytesRef(first, scratch)));
                     continue;
                 }
                 result.beginPositionEntry();
                 for (int i = first; i < first + count; i++) {
-                    result.appendInt(process(vBlock.getBytesRef(i, scratch)));
+                    result.appendInt(computeCategory(vBlock.getBytesRef(i, scratch)));
                 }
                 result.endPositionEntry();
             }
@@ -175,7 +220,7 @@ public class CategorizeEvalOperator extends AbstractPageMappingOperator {
         }
     }
 
-    private int process(BytesRef v) {
+    private int computeCategory(BytesRef v) {
         var category = categorizer.computeCategory(v.utf8ToString(), analyzer);
         if (category == null) {
             return NULL_ORD;
@@ -185,13 +230,11 @@ public class CategorizeEvalOperator extends AbstractPageMappingOperator {
 
     /**
      * Serializes the current categorizer state as a {@link BytesRef}.
-     * Wire format: {@code writeBoolean(false)} (seenNull always false here) +
-     * {@code writeVInt(count)} + each {@link SerializableTokenListCategory#writeTo}.
-     * Mirrors {@code CategorizeBlockHash.serializeCategorizer()}.
+     * Wire format mirrors {@code CategorizeBlockHash.serializeCategorizer()}.
      */
-    BytesRef serializeCategorizer() {
+    private BytesRef serializeCategorizer() {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.writeBoolean(false); // seenNull: CategorizeEvalOperator uses NULL_ORD=0, not a separate null flag
+            out.writeBoolean(false); // seenNull: uses NULL_ORD=0, not a separate null flag
             int count = categorizer.getCategoryCount();
             out.writeVInt(count);
             for (SerializableTokenListCategory category : categorizer.toCategoriesById()) {
@@ -205,11 +248,11 @@ public class CategorizeEvalOperator extends AbstractPageMappingOperator {
 
     @Override
     public String toString() {
-        return "CategorizeEvalOperator[channel=" + textChannel + "]";
+        return "CategorizeGroupingOperator[channel=" + textChannel + ", inner=" + inner + "]";
     }
 
     @Override
     public void close() {
-        Releasables.close(super::close, categorizer, analyzer);
+        Releasables.close(inner, categorizer, analyzer);
     }
 }

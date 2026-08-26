@@ -119,10 +119,7 @@ public class LimitByGoldenTests extends GoldenTestCase {
             """, STAGES_WITH_NODE_REDUCE);
     }
 
-    /** Four mixed groupings: expression, CATEGORIZE(attribute), attribute, CATEGORIZE(expression).
-     *  expression should get extracted into its own eval since it's reused as the first groping and inside the CATEGORIZE
-     *  in the fourth grouping
-     * */
+    /** Three mixed groupings: CATEGORIZE(expression), attribute, expression */
     public void testLimitByCategorizeMixedGroupings() {
         runGoldenTest("""
             FROM sample_data

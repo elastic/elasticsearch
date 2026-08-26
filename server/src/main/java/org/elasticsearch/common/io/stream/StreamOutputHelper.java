@@ -56,6 +56,12 @@ public enum StreamOutputHelper {
     static final int MAX_CHAR_BYTES = 3;
 
     /**
+     * Maximum number of bytes in a UTF-8 code point, which is more than {@link #MAX_CHAR_BYTES} because a code point outside the basic
+     * multilingual plane is made up of two chars.
+     */
+    static final int MAX_CODE_POINT_BYTES = 4;
+
+    /**
      * Write string prefixed by some number of bytes (possibly zero) from the beginning of the given {@code buffer}. The given
      * {@code buffer} will also be used when encoding the given string. This is almost certainly more efficient than calling
      * {@link StreamOutput#writeByte} repeatedly, but less efficient than writing the bytes directly into the buffer underneath the

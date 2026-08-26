@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.Objects;
 
 import static org.elasticsearch.common.io.stream.StreamOutputHelper.MAX_CHAR_BYTES;
+import static org.elasticsearch.common.io.stream.StreamOutputHelper.MAX_CODE_POINT_BYTES;
 import static org.elasticsearch.common.io.stream.StreamOutputHelper.putCharUtf8;
 import static org.elasticsearch.common.io.stream.StreamOutputHelper.putMultiByteVInt;
 import static org.elasticsearch.common.io.stream.StreamOutputHelper.putVInt;
@@ -452,10 +453,40 @@ public class BufferedStreamOutput extends StreamOutput {
             assert end == position + Integer.BYTES + byteLength : end + " vs " + position + " plus " + byteLength;
             this.position = end;
         } else {
-            // TODO: encode into the buffer with bounds checks instead, so that long values don't need the scratch buffer
-            writeInt(byteLength);
-            final int written = StreamOutputHelper.writeUtf8Chars(str, this);
-            assert written == byteLength : written + " bytes written but expected " + byteLength;
+            writeTextWithBoundsChecks(str, byteLength);
         }
+    }
+
+    // slower (cold) path extracted to its own method to allow fast & hot path to be inlined
+    private void writeTextWithBoundsChecks(String str, int byteLength) throws IOException {
+        writeInt(byteLength);
+        final long startPosition = position();
+        // a code point that straddles the end of the buffer is encoded here first and then written across the boundary one byte at a time
+        final byte[] straddlingCodePoint = new byte[MAX_CODE_POINT_BYTES];
+        final int charCount = str.length();
+        int i = 0;
+        while (i < charCount) {
+            final int position = this.position;
+            // no char needs more than MAX_CHAR_BYTES, including the pair of chars making up a supplementary code point
+            int chunkChars = Math.min((endPosition - position) / MAX_CHAR_BYTES, charCount - i);
+            if (0 < chunkChars && i + chunkChars < charCount && Character.isHighSurrogate(str.charAt(i + chunkChars - 1))) {
+                // leave the whole surrogate pair for the next step, otherwise each half would be encoded as the replacement character
+                chunkChars -= 1;
+            }
+            if (0 < chunkChars) {
+                this.position = UnicodeUtil.UTF16toUTF8(str, i, chunkChars, buffer, position);
+                i += chunkChars;
+            } else {
+                // too little of the buffer left to fit another char, so this code point straddles the boundary
+                final int chars = Character.charCount(str.codePointAt(i));
+                final int length = UnicodeUtil.UTF16toUTF8(str, i, chars, straddlingCodePoint, 0);
+                for (int b = 0; b < length; b++) {
+                    // one byte at a time, so that the buffer is always handed to the delegate whole
+                    writeByte(straddlingCodePoint[b]);
+                }
+                i += chars;
+            }
+        }
+        assert position() - startPosition == byteLength : position() - startPosition + " bytes written but expected " + byteLength;
     }
 }

@@ -800,6 +800,34 @@ public class BytesStreamsTests extends ESTestCase {
         }
     }
 
+    public void testWriteTextEncodesSurrogatePairAtEveryBufferOffset() throws IOException {
+        // sweeping the buffer size puts the boundary at every offset in turn, so the pair straddles it in one of these iterations
+        final String string = "a\u00E5\u65E5\uD83D\uDE00b";
+        final byte[] expected = expectedTextBytes(string);
+        for (int bufferSize = 1; bufferSize <= expected.length + 1; bufferSize++) {
+            final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            try (BufferedStreamOutput output = new BufferedStreamOutput(bytes, new BytesRef(new byte[bufferSize]))) {
+                output.writeText(new Text(string));
+            }
+            assertArrayEquals("buffer size " + bufferSize, expected, bytes.toByteArray());
+        }
+    }
+
+    public void testWriteTextEncodesCodePointsAcrossPageBoundary() throws IOException {
+        // the trailing filler pushes the text past one page, so each value straddles the page boundary for some of these prefix lengths
+        final int pageSize = PageCacheRecycler.PAGE_SIZE_IN_BYTES;
+        for (String straddling : List.of("\uD83D\uDE00", "\u65E5", "\u00E5", "a", "\uD800")) {
+            for (int prefixLength = pageSize - Integer.BYTES - 8; prefixLength < pageSize; prefixLength++) {
+                final String string = "a".repeat(prefixLength) + straddling + "b".repeat(pageSize);
+                try (RecyclerBytesStreamOutput output = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
+                    output.writeText(new Text(string));
+                    final String message = "straddling [" + straddling + "] at prefix length " + prefixLength;
+                    assertArrayEquals(message, expectedTextBytes(string), BytesReference.toBytes(output.bytes()));
+                }
+            }
+        }
+    }
+
     public void testWriteTextFlushesChunksToDelegate() throws IOException {
         // the encoding fits neither the stream's own buffer nor the scratch buffer, so it reaches the delegate in chunks
         final String string = randomAlphaOfLength(20_000) + "\uD83D\uDE00".repeat(20_000) + "\u65E5".repeat(20_000);

@@ -46,7 +46,7 @@ public class TransportGetServiceAccountAction extends HandledTransportAction<Get
         if (request.getServiceName() != null) {
             filter = filter.and(v -> v.id().serviceName().equals(request.getServiceName()));
         }
-        final ServiceAccountInfo[] serviceAccountInfos = ServiceAccountService.getServiceAccounts()
+        final ServiceAccountInfo[] serviceAccountInfos = ServiceAccountService.getBuiltInServiceAccounts()
             .values()
             .stream()
             .filter(filter)

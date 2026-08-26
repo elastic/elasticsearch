@@ -95,8 +95,10 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     // When the JVM property that overrides LARGE_BLOB_THRESHOLD_BYTE_SIZE is set (typically in tests to
     // exercise the resumable-upload path with small blobs), lower the minimum to that value so that it can
     // also be set explicitly as a repository setting.
+    // https://docs.cloud.google.com/storage/docs/performing-resumable-uploads#chunked-upload
+    // 2026-08-26: "It's recommended that you use at least 8 MiB for the chunk size."
     private static final ByteSizeValue MULTIPART_UPLOAD_SIZE_THRESHOLD_MIN = ByteSizeValue.of(
-        Math.min((long) GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE, ByteSizeUnit.MB.toBytes(5)),
+        Math.min((long) GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE, ByteSizeUnit.MB.toBytes(8)),
         ByteSizeUnit.BYTES
     );
 

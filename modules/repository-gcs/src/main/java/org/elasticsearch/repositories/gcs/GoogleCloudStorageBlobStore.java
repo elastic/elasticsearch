@@ -120,7 +120,9 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         final String key = "es.repository_gcs.large_blob_threshold_byte_size";
         final String largeBlobThresholdByteSizeProperty = System.getProperty(key);
         if (largeBlobThresholdByteSizeProperty == null) {
-            LARGE_BLOB_THRESHOLD_BYTE_SIZE = Math.toIntExact(ByteSizeValue.of(5, ByteSizeUnit.MB).getBytes());
+            // https://docs.cloud.google.com/storage/docs/performing-resumable-uploads#chunked-upload
+            // 2026-08-26: "It's recommended that you use at least 8 MiB for the chunk size."
+            LARGE_BLOB_THRESHOLD_BYTE_SIZE = Math.toIntExact(ByteSizeValue.of(8, ByteSizeUnit.MB).getBytes());
         } else {
             final int largeBlobThresholdByteSize;
             try {
@@ -665,7 +667,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         if (failIfAlreadyExists) {
             throw new UnsupportedOperationException("GCS XML API multipart upload does not support failIfAlreadyExists");
         }
-        final long chunkSize = LARGE_BLOB_THRESHOLD_BYTE_SIZE;
+        final long chunkSize = getLargeBlobThresholdInBytes();
         final int nbParts = ConcurrentMultipartHelper.numberOfParts(blobSize, chunkSize);
 
         final StorageClass storageClass = resolveStorageClass(purpose);

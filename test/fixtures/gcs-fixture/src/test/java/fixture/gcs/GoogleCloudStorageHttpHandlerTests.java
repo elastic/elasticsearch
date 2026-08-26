@@ -673,6 +673,66 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         assertEquals(Set.of("e/g/"), new HashSet<>(jsonMapView.get("prefixes")));
     }
 
+    public void testListBlobsHonoursFieldsParam() {
+        final var bucket = randomIdentifier();
+        final var handler = new GoogleCloudStorageHttpHandler(bucket);
+        final var blobName = randomIdentifier();
+        final int blobSize = randomIntBetween(1, 1024);
+
+        assertEquals(
+            RestStatus.OK,
+            executeMultipartUpload(handler, bucket, blobName, randomBytesReference(blobSize), null).restStatus()
+        );
+
+        // Without a fields restriction every standard field is present
+        final var fullResponse = handleRequest(
+            handler,
+            "GET",
+            "/storage/v1/b/" + bucket + "/o" + generateQueryString("prefix", blobName)
+        );
+        assertEquals(RestStatus.OK, fullResponse.restStatus());
+        final var fullJson = XContentTestUtils.createJsonMapView(new ByteArrayInputStream(BytesReference.toBytes(fullResponse.body())));
+        final var fullItem = (Map<?, ?>) ((List<?>) fullJson.get("items")).get(0);
+        assertTrue("expected 'id' in unrestricted response", fullItem.containsKey("id"));
+        assertTrue("expected 'generation' in unrestricted response", fullItem.containsKey("generation"));
+        assertTrue("expected 'updated' in unrestricted response", fullItem.containsKey("updated"));
+
+        // With a fields restriction only the requested fields appear in items
+        final var restrictedResponse = handleRequest(
+            handler,
+            "GET",
+            "/storage/v1/b/" + bucket + "/o"
+                + generateQueryString("prefix", blobName, "fields", "items/name,items/size,nextPageToken,prefixes")
+        );
+        assertEquals(RestStatus.OK, restrictedResponse.restStatus());
+        final var restrictedJson = XContentTestUtils.createJsonMapView(
+            new ByteArrayInputStream(BytesReference.toBytes(restrictedResponse.body()))
+        );
+        final var restrictedItem = (Map<?, ?>) ((List<?>) restrictedJson.get("items")).get(0);
+        assertTrue("expected 'name' in restricted response", restrictedItem.containsKey("name"));
+        assertTrue("expected 'size' in restricted response", restrictedItem.containsKey("size"));
+        assertEquals("size must match upload", String.valueOf(blobSize), restrictedItem.get("size"));
+        assertFalse("unexpected 'id' in restricted response", restrictedItem.containsKey("id"));
+        assertFalse("unexpected 'generation' in restricted response", restrictedItem.containsKey("generation"));
+        assertFalse("unexpected 'updated' in restricted response", restrictedItem.containsKey("updated"));
+    }
+
+    public void testParseRequestedItemFields() {
+        assertNull(GoogleCloudStorageHttpHandler.parseRequestedItemFields(null));
+
+        // slash-separated format sent by the GCS SDK
+        assertEquals(
+            Set.of("name", "size"),
+            GoogleCloudStorageHttpHandler.parseRequestedItemFields("items/name,items/size,nextPageToken,prefixes")
+        );
+
+        // parenthesized format (alternative SDK representation)
+        assertEquals(
+            Set.of("name", "size"),
+            GoogleCloudStorageHttpHandler.parseRequestedItemFields("items(name,size),nextPageToken,prefixes")
+        );
+    }
+
     public void testMethodBucketObjectPattern() {
         final var inputs = new String[] {
             "DELETE http://host/storage/v1/b/bucket/o/test/tests-vQzflxz2Swa_bhmlM6gtyA/data-DxS0qi-A.dat?generation=1 HTTP/1.1",

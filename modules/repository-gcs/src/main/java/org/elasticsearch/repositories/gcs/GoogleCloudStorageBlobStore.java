@@ -16,6 +16,7 @@ import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.RequestBody;
 import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.Storage.BlobField;
 import com.google.cloud.storage.Storage.BlobListOption;
 import com.google.cloud.storage.StorageBatchResult;
 import com.google.cloud.storage.StorageClass;
@@ -104,6 +105,13 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     // MAX deletes per batch is 100 https://docs.cloud.google.com/storage/docs/batch#overview
     public static final int MAX_DELETES_PER_BATCH = 100;
+
+    /**
+     * Restricts list responses to fields actually used by this class. {@link BlobListOption#fields} unconditionally
+     * injects {@code nextPageToken} and {@code prefixes} and always includes {@link BlobField#NAME} and
+     * {@link BlobField#BUCKET}, so pagination and {@link Blob#isDirectory()} are unaffected.
+     */
+    private static final BlobListOption LIST_FIELDS = BlobListOption.fields(BlobField.SIZE);
 
     /**
      * Storage classes that may be configured for snapshot blob uploads.
@@ -295,7 +303,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, String path, String prefix) throws IOException {
         final String pathPrefix = buildKey(path, prefix);
         final Map<String, BlobMetadata> mapBuilder = new HashMap<>();
-        client().meteredList(purpose, bucketName, BlobListOption.currentDirectory(), BlobListOption.prefix(pathPrefix))
+        client().meteredList(purpose, bucketName, BlobListOption.currentDirectory(), BlobListOption.prefix(pathPrefix), LIST_FIELDS)
             .iterateAll()
             .forEach(blob -> {
                 assert blob.getName().startsWith(path);
@@ -310,7 +318,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     Map<String, BlobContainer> listChildren(OperationPurpose purpose, BlobPath path) throws IOException {
         final String pathStr = path.buildAsString();
         final Map<String, BlobContainer> mapBuilder = new HashMap<>();
-        client().meteredList(purpose, bucketName, BlobListOption.currentDirectory(), BlobListOption.prefix(pathStr))
+        client().meteredList(purpose, bucketName, BlobListOption.currentDirectory(), BlobListOption.prefix(pathStr), LIST_FIELDS)
             .iterateAll()
             .forEach(blob -> {
                 if (blob.isDirectory()) {
@@ -724,7 +732,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      */
     DeleteResult deleteDirectory(OperationPurpose purpose, String pathStr) throws IOException {
         DeleteResult deleteResult = DeleteResult.ZERO;
-        MeteredStorage.MeteredBlobPage meteredPage = client().meteredList(purpose, bucketName, BlobListOption.prefix(pathStr));
+        MeteredStorage.MeteredBlobPage meteredPage = client().meteredList(purpose, bucketName, BlobListOption.prefix(pathStr), LIST_FIELDS);
         do {
             final AtomicLong blobsDeleted = new AtomicLong(0L);
             final AtomicLong bytesDeleted = new AtomicLong(0L);

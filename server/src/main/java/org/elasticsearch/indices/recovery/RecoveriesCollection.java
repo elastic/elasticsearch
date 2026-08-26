@@ -24,6 +24,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SEND;
+
 /**
  * This class holds a collection of all on going recoveries on the current node (i.e., the node is the target node
  * of those recoveries). The class is used to guarantee concurrent semantics such that once a recoveries was done/cancelled/failed
@@ -106,7 +108,7 @@ public class RecoveriesCollection {
             failRecovery(
                 newRecoveryTarget.recoveryId(),
                 new RecoveryFailedException(oldRecoveryTarget.state(), "failed to retry recovery", e),
-                true
+                FAIL_SEND
             );
             return null;
         }
@@ -183,11 +185,11 @@ public class RecoveriesCollection {
     /**
      * Fails the recovery with the given id (if found) and remove it from the recovery collection
      *
-     * @param id               id of the recovery to fail
-     * @param e                exception with reason for the failure
-     * @param sendShardFailure true a shard failed message should be sent to the master
+     * @param id              id of the recovery to fail
+     * @param e               exception with reason for the failure
+     * @param failureStrategy failure strategy decides if master should be notified
      */
-    public void failRecovery(long id, RecoveryFailedException e, boolean sendShardFailure) {
+    public void failRecovery(long id, RecoveryFailedException e, RecoveryListener.FailureStrategy failureStrategy) {
         RecoveryTarget removed = removeRecoveryTarget(id);
         if (removed != null) {
             logger.trace(
@@ -195,9 +197,9 @@ public class RecoveriesCollection {
                 removed.shardId(),
                 removed.sourceNode(),
                 removed.recoveryId(),
-                sendShardFailure
+                failureStrategy
             );
-            removed.fail(e, sendShardFailure);
+            removed.fail(e, failureStrategy);
         }
     }
 

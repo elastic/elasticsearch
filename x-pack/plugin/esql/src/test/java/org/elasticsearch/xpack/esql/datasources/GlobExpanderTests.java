@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -20,6 +21,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -35,6 +37,14 @@ public class GlobExpanderTests extends ESTestCase {
 
     /** The legacy switch that turns partition detection off, now folded into Strategy.NONE. */
     private static final Map<String, Object> HIVE_OFF = Map.of(PartitionConfig.CONFIG_PARTITIONING_HIVE, "false");
+
+    /** Hive off, and every name-based exclusion off — the raw listing an empty exclusion list restores. */
+    private static final Map<String, Object> NO_EXCLUSION = Map.of(
+        PartitionConfig.CONFIG_PARTITIONING_HIVE,
+        "false",
+        ExclusionConfig.CONFIG_FILE_EXCLUSIONS,
+        List.of()
+    );
 
     /** The settings map a PartitionConfig-shaped test intent resolves from. */
     private static Map<String, Object> configMapOf(PartitionConfig config) {
@@ -268,8 +278,8 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * The brace-only fast path uses {@code exists()} to probe each candidate and skips {@link
-     * GlobExpander#isHiddenObject}. This is intentional: a brace pattern explicitly names every
+     * The brace-only fast path uses {@code exists()} to probe each candidate and applies no exclusion.
+     * This is intentional: a brace pattern explicitly names every
      * alternative, so the caller is opting in — the same way a literal path would. This test locks in
      * that design so the asymmetry with wildcard expansion is visible and deliberate.
      */
@@ -296,7 +306,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
         StubProvider provider = new StubProvider(listing);
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/**/*.csv", provider);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/**", provider);
         assertTrue(result.isResolved());
         assertEquals("the key=value segment is exempt, the plain _ segment is not", 1, result.fileCount());
         assertEquals("s3://bucket/data/_dept=alpha/part1.csv", result.path(0).toString());
@@ -1039,9 +1049,19 @@ public class GlobExpanderTests extends ESTestCase {
             List.of(hint(FileMetadataColumns.SIZE, PartitionFilterHintExtractor.Operator.GREATER_THAN, 150))
         );
 
+        // Crossing hive with the exclusion settings: the default (absent keys), the explicitly-spelled default
+        // (which must resolve to — and therefore collide with — the absent case), an empty list, and a custom list.
+        List<Map<String, Object>> configs = new ArrayList<>();
+        for (Map<String, Object> hive : List.of(HIVE_ON, HIVE_OFF)) {
+            configs.add(hive);
+            configs.add(withExclusion(hive, ExclusionConfig.DEFAULT_FILE_EXCLUSIONS, ExclusionConfig.DEFAULT_FILE_INCLUSIONS));
+            configs.add(withExclusion(hive, List.of(), List.of()));
+            configs.add(withExclusion(hive, List.of("*.tmp"), List.of()));
+        }
+
         Map<String, List<String>> listingByDiscriminator = new HashMap<>();
         for (var hints : hintSets) {
-            for (Map<String, Object> hive : List.of(HIVE_ON, HIVE_OFF)) {
+            for (Map<String, Object> hive : configs) {
                 String discriminator = GlobExpander.listingCacheDiscriminator(pattern, hints, hive);
                 List<String> files = new ArrayList<>();
                 FileList expanded = GlobExpander.expand(pattern, new PrefixAwareStubProvider(tree), hints, hive, MAX, MAX);
@@ -1062,7 +1082,7 @@ public class GlobExpanderTests extends ESTestCase {
      * genuinely matches the glob and the two flag values produce different listings. It verifies both that the
      * discriminator moves (cache-safety) and that the expansions actually differ (the channel is wired in).
      */
-    public void testDiscriminatorCoversExcludeNonDataObjectsChannel() throws IOException {
+    public void testDiscriminatorCoversExclusionConfigChannel() throws IOException {
         Map<String, List<StorageEntry>> tree = Map.of(
             "s3://bucket/data/",
             List.of(entry("s3://bucket/data/_SUCCESS", 0), entry("s3://bucket/data/file.parquet", 100))
@@ -1072,36 +1092,36 @@ public class GlobExpanderTests extends ESTestCase {
 
         // The flag must produce different cache keys — a cached filtered listing must not be served to an
         // unfiltered request (or vice versa).
-        String discriminatorOn = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_OFF, true);
-        String discriminatorOff = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_OFF, false);
-        assertNotEquals("excludeNonDataObjects flag must move the discriminator", discriminatorOn, discriminatorOff);
+        String discriminatorOn = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_OFF);
+        String discriminatorOff = GlobExpander.listingCacheDiscriminator(pattern, null, NO_EXCLUSION);
+        assertNotEquals("the exclusion settings must move the discriminator", discriminatorOn, discriminatorOff);
 
-        // The expansions must actually differ — _SUCCESS matches * but is excluded when the flag is on.
-        FileList withExclusion = GlobExpander.expand(pattern, provider, null, HIVE_OFF, MAX, MAX, true);
-        FileList withoutExclusion = GlobExpander.expand(pattern, provider, null, HIVE_OFF, MAX, MAX, false);
-        assertEquals("exclusion on: only data file survives", 1, withExclusion.fileCount());
-        assertEquals("exclusion off: _SUCCESS included", 2, withoutExclusion.fileCount());
+        // The expansions must actually differ — _SUCCESS matches * but the default exclusions drop it.
+        FileList withExclusion = GlobExpander.expand(pattern, provider, null, HIVE_OFF, MAX, MAX);
+        FileList withoutExclusion = GlobExpander.expand(pattern, provider, null, NO_EXCLUSION, MAX, MAX);
+        assertEquals("default exclusions: only the data file survives", 1, withExclusion.fileCount());
+        assertEquals("empty exclusion list: _SUCCESS included", 2, withoutExclusion.fileCount());
     }
 
     /**
-     * When non-data exclusion is explicitly disabled the raw listing is returned, restoring the old behavior.
-     * This also proves the flag is not hard-wired to {@code true} inside the expansion.
+     * An empty {@code file_exclusions} list returns the raw listing, restoring the pre-exclusion behavior. This
+     * also proves the default is resolved from the settings rather than hard-wired inside the expansion.
      */
     public void testNonDataExclusionCanBeDisabled() throws IOException {
         List<StorageEntry> listing = List.of(entry("s3://bucket/data/_SUCCESS", 0), entry("s3://bucket/data/file.parquet", 100));
         StubProvider provider = new StubProvider(listing);
 
-        FileList excluded = GlobExpander.expand("s3://bucket/data/*", provider, null, HIVE_OFF, MAX, MAX, true);
-        assertEquals("exclusion on: _SUCCESS must be filtered out", 1, excluded.fileCount());
+        FileList excluded = GlobExpander.expand("s3://bucket/data/*", provider, null, HIVE_OFF, MAX, MAX);
+        assertEquals("default exclusions: _SUCCESS must be filtered out", 1, excluded.fileCount());
 
-        FileList raw = GlobExpander.expand("s3://bucket/data/*", provider, null, HIVE_OFF, MAX, MAX, false);
-        assertEquals("exclusion off: _SUCCESS must be present", 2, raw.fileCount());
+        FileList raw = GlobExpander.expand("s3://bucket/data/*", provider, null, NO_EXCLUSION, MAX, MAX);
+        assertEquals("empty exclusion list: _SUCCESS must be present", 2, raw.fileCount());
     }
 
     /**
      * Non-data exclusion must apply through the comma-separated path ({@code doExpandCommaSeparated}), not just the
-     * single-glob path. Each comma segment independently calls {@link GlobExpander#expandGlobWithRewriteFallback},
-     * which in turn calls {@code doExpandGlob} where the filter lives — so the flag must be threaded all the way.
+     * single-glob path. Each comma segment independently expands with the rewrite fallback, which in turn calls
+     * {@code doExpandGlob} where the filter lives — so the resolved config must be threaded all the way.
      */
     public void testNonDataExclusionAppliesToCommaSeparatedSegments() throws IOException {
         Map<String, List<StorageEntry>> tree = Map.of(
@@ -1112,7 +1132,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
         String paths = "s3://bucket/a/*,s3://bucket/b/*";
 
-        FileList result = GlobExpander.expand(paths, new PrefixAwareStubProvider(tree), null, HIVE_OFF, MAX, MAX, true);
+        FileList result = GlobExpander.expand(paths, new PrefixAwareStubProvider(tree), null, HIVE_OFF, MAX, MAX);
         assertEquals("both segments: only data files survive", 2, result.fileCount());
         List<String> names = new ArrayList<>();
         for (int i = 0; i < result.fileCount(); i++) {
@@ -1120,6 +1140,54 @@ public class GlobExpanderTests extends ESTestCase {
         }
         assertTrue(names.contains("s3://bucket/a/file1.parquet"));
         assertTrue(names.contains("s3://bucket/b/file2.parquet"));
+    }
+
+    /**
+     * The refactor from a fixed predicate to a resolved {@link ExclusionConfig} rewrote the discriminator's
+     * encoding. Byte-stability is not required — the string never leaves the node, it only keys an in-process
+     * cache — but the PARTITION must not move: exactly the requests that shared a listing before must share one
+     * now, and exactly those that were separated must stay separated. The expected grouping was derived by
+     * running this same grouping against the parent commit, not guessed.
+     */
+    public void testDiscriminatorPartitionUnchangedByExclusionRefactor() {
+        String pattern = "s3://bucket/data/year=*/*.parquet";
+        List<List<PartitionFilterHintExtractor.PartitionFilterHint>> hintSets = List.of(
+            List.of(),
+            List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024)),
+            List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025)),
+            List.of(hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "us")),
+            List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.EQUALS, "a.parquet")),
+            List.of(hint(FileMetadataColumns.SIZE, PartitionFilterHintExtractor.Operator.GREATER_THAN, 150))
+        );
+
+        Map<String, List<Integer>> cellsByDiscriminator = new LinkedHashMap<>();
+        int cell = 0;
+        for (var hints : hintSets) {
+            for (Map<String, Object> hive : List.of(HIVE_ON, HIVE_OFF)) {
+                cellsByDiscriminator.computeIfAbsent(GlobExpander.listingCacheDiscriminator(pattern, hints, hive), k -> new ArrayList<>())
+                    .add(cell);
+                cell++;
+            }
+        }
+
+        // Cells run hintSet-major: (no hint, year=2024, year=2025, region, _file.name, _file.size) x (HIVE_ON, HIVE_OFF).
+        // [0,6]: a region hint cannot narrow this glob, so it shares the un-hinted entry.
+        // [1,3,5,7]: with hive off there is no rewrite, so every non-_file hint collapses onto the un-hinted entry.
+        List<List<Integer>> expected = List.of(
+            List.of(0, 6),
+            List.of(1, 3, 5, 7),
+            List.of(2),
+            List.of(4),
+            List.of(8),
+            List.of(9),
+            List.of(10),
+            List.of(11)
+        );
+        assertEquals(
+            "the listing-cache partition must survive the encoding change",
+            expected,
+            new ArrayList<>(cellsByDiscriminator.values())
+        );
     }
 
     /**
@@ -1438,6 +1506,13 @@ public class GlobExpanderTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    private static Map<String, Object> withExclusion(Map<String, Object> base, List<String> exclusions, List<String> inclusions) {
+        Map<String, Object> config = new HashMap<>(base);
+        config.put(ExclusionConfig.CONFIG_FILE_EXCLUSIONS, exclusions);
+        config.put(ExclusionConfig.CONFIG_FILE_INCLUSIONS, inclusions);
+        return config;
     }
 
     private static StorageEntry entry(String path, long length) {

@@ -94,7 +94,7 @@ public final class GlobExpander {
         int maxDiscoveredFiles,
         int maxGlobExpansion
     ) throws IOException {
-        FileList expanded = expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion, true);
+        FileList expanded = expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion);
         if (expanded.isResolved() == false || expanded.fileCount() == 0) {
             return expanded;
         }
@@ -110,7 +110,9 @@ public final class GlobExpander {
      * every segment of a comma list) is expanded through {@link #expandGlobWithRewriteFallback}, which recovers the
      * files a glob rewrite can hide behind a value-spelling mismatch. A comma list is handled per segment so one
      * segment's rewrite-to-empty cannot be masked by another segment that still matches.
-     * Non-data objects (hidden files and directory placeholders) are excluded by default.
+     * Objects matching the dataset's {@code file_exclusions}/{@code file_inclusions} settings — by default the
+     * Spark/Hive hidden-file convention, see {@link ExclusionConfig} — are excluded; directory placeholder keys
+     * (paths ending in {@code /}) are always skipped.
      */
     public static FileList expand(
         String path,
@@ -120,37 +122,11 @@ public final class GlobExpander {
         int maxDiscoveredFiles,
         int maxGlobExpansion
     ) throws IOException {
-        return expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion, true);
-    }
-
-    /**
-     * Expands a whole path — glob or comma-separated list — applying the filter hints, with explicit control over
-     * non-data object exclusion. When {@code excludeNonDataObjects} is {@code true} (the default), objects matching
-     * the Spark/Hive/Trino hidden-file convention are excluded from the listing: any entry whose relative path has a
-     * segment beginning with {@code _} or {@code .}, and zero-byte directory placeholder keys (paths ending in
-     * {@code /}). When {@code false}, the raw listing is returned as today.
-     */
-    public static FileList expand(
-        String path,
-        StorageProvider provider,
-        @Nullable List<PartitionFilterHint> hints,
-        @Nullable Map<String, Object> config,
-        int maxDiscoveredFiles,
-        int maxGlobExpansion,
-        boolean excludeNonDataObjects
-    ) throws IOException {
         PartitionConfig partitionConfig = PartitionConfig.fromConfig(config);
+        ExclusionConfig.Matchers exclusion = ExclusionConfig.fromConfig(config).compile();
         return path.indexOf(',') >= 0
-            ? doExpandCommaSeparated(path, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, excludeNonDataObjects)
-            : expandGlobWithRewriteFallback(
-                path,
-                provider,
-                hints,
-                partitionConfig,
-                maxDiscoveredFiles,
-                maxGlobExpansion,
-                excludeNonDataObjects
-            );
+            ? doExpandCommaSeparated(path, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, exclusion)
+            : expandGlobWithRewriteFallback(path, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, exclusion);
     }
 
     /**
@@ -173,31 +149,23 @@ public final class GlobExpander {
         PartitionConfig partitionConfig,
         int maxDiscoveredFiles,
         int maxGlobExpansion,
-        boolean excludeNonDataObjects
+        ExclusionConfig.Matchers exclusion
     ) throws IOException {
         if (effectivePattern(pattern, hints, partitionConfig).equals(pattern)) {
-            return doExpandGlob(pattern, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, excludeNonDataObjects);
+            return doExpandGlob(pattern, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, exclusion);
         }
         // The retry drops the rewrite but keeps the exact _file.* filters, so it can only come back empty when the
         // un-rewritten glob genuinely matches nothing.
         List<PartitionFilterHint> fileHintsOnly = fileMetadataHints(hints);
         FileList expanded;
         try {
-            expanded = doExpandGlob(pattern, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, excludeNonDataObjects);
+            expanded = doExpandGlob(pattern, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, exclusion);
         } catch (IOException e) {
             // The rewritten prefix may name a folder that does not exist; the local filesystem throws where object
             // stores return empty. Both mean the rewrite, not the dataset, emptied the listing — retry either way.
             logger.debug(() -> "Rewritten listing of [" + pattern + "] failed; re-listing without the glob rewrite", e);
             try {
-                return doExpandGlob(
-                    pattern,
-                    provider,
-                    fileHintsOnly,
-                    partitionConfig,
-                    maxDiscoveredFiles,
-                    maxGlobExpansion,
-                    excludeNonDataObjects
-                );
+                return doExpandGlob(pattern, provider, fileHintsOnly, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, exclusion);
             } catch (IOException retryFailure) {
                 retryFailure.addSuppressed(e);
                 throw retryFailure;
@@ -207,15 +175,7 @@ public final class GlobExpander {
             logger.debug("Rewrite of [{}] narrowed to an empty listing; re-listing without the glob rewrite", pattern);
             // A full re-list can exceed max_discovered_files and throw, exactly as the un-filtered query would; that
             // cap error is preserved deliberately — deciding spelling-miss vs genuinely-empty needs the full listing.
-            return doExpandGlob(
-                pattern,
-                provider,
-                fileHintsOnly,
-                partitionConfig,
-                maxDiscoveredFiles,
-                maxGlobExpansion,
-                excludeNonDataObjects
-            );
+            return doExpandGlob(pattern, provider, fileHintsOnly, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, exclusion);
         }
         return expanded;
     }
@@ -279,28 +239,14 @@ public final class GlobExpander {
         return expandGlob(pattern, provider, null, (Map<String, Object>) null);
     }
 
-    /**
-     * Expands a single glob with full control over non-data object exclusion. When {@code excludeNonDataObjects} is
-     * {@code false} the raw glob listing is returned (today's behavior); when {@code true} (the default in all other
-     * overloads), the hidden-file convention is applied — see {@link #isHiddenObject}.
-     */
-    public static FileList expandGlob(
-        String pattern,
-        StorageProvider provider,
-        @Nullable List<PartitionFilterHint> hints,
-        PartitionConfig partitionConfig,
-        boolean excludeNonDataObjects
-    ) throws IOException {
-        return doExpandGlob(pattern, provider, hints, partitionConfig, Integer.MAX_VALUE, Integer.MAX_VALUE, excludeNonDataObjects);
-    }
-
     public static FileList expandGlob(
         String pattern,
         StorageProvider provider,
         @Nullable List<PartitionFilterHint> hints,
         @Nullable Map<String, Object> config
     ) throws IOException {
-        return doExpandGlob(pattern, provider, hints, PartitionConfig.fromConfig(config), Integer.MAX_VALUE, Integer.MAX_VALUE, true);
+        ExclusionConfig.Matchers exclusion = ExclusionConfig.fromConfig(config).compile();
+        return doExpandGlob(pattern, provider, hints, PartitionConfig.fromConfig(config), Integer.MAX_VALUE, Integer.MAX_VALUE, exclusion);
     }
 
     public static FileList expandGlob(
@@ -311,7 +257,8 @@ public final class GlobExpander {
         int maxDiscoveredFiles,
         int maxGlobExpansion
     ) throws IOException {
-        return doExpandGlob(pattern, provider, hints, PartitionConfig.fromConfig(config), maxDiscoveredFiles, maxGlobExpansion, true);
+        ExclusionConfig.Matchers exclusion = ExclusionConfig.fromConfig(config).compile();
+        return doExpandGlob(pattern, provider, hints, PartitionConfig.fromConfig(config), maxDiscoveredFiles, maxGlobExpansion, exclusion);
     }
 
     static FileList doExpandGlob(
@@ -321,7 +268,7 @@ public final class GlobExpander {
         PartitionConfig partitionConfig,
         int maxDiscoveredFiles,
         int maxGlobExpansion,
-        boolean excludeNonDataObjects
+        ExclusionConfig.Matchers exclusion
     ) throws IOException {
         Check.notNull(pattern, "pattern cannot be null");
         Check.notNull(provider, "provider cannot be null");
@@ -389,12 +336,18 @@ public final class GlobExpander {
                     relativePath = entryPath.substring(prefixStr.length());
                 } else {
                     // Defensive fallback: provider returned a path that does not begin with the listing prefix.
-                    // objectName() yields only the last component, so isHiddenObject below will miss a hidden
+                    // objectName() yields only the last component, so the exclusion check below will miss a hidden
                     // intermediate directory (e.g. _delta_log/file.json → sees "file.json", not "_delta_log").
                     // TODO: investigate which providers hit this branch and whether they can be fixed upstream.
                     relativePath = entry.path().objectName();
                 }
-                if (matcher.matches(relativePath) && (excludeNonDataObjects == false || isHiddenObject(relativePath) == false)) {
+                if (relativePath.endsWith("/")) {
+                    // Zero-byte directory placeholder key (e.g. the S3 console "folder" object). Always skipped as
+                    // listing normalization, not exclusion policy: a segment name never carries its trailing slash,
+                    // so no name glob could express this.
+                    continue;
+                }
+                if (matcher.matches(relativePath) && exclusion.keeps(relativePath)) {
                     matched.add(entry);
                     checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles);
                 }
@@ -449,52 +402,6 @@ public final class GlobExpander {
         return result;
     }
 
-    /**
-     * Returns {@code true} when a listed entry should be excluded as a non-data object, matching the
-     * Spark/Hive/Trino hidden-file convention that Hadoop's {@code HiddenPathFilter} applies at each directory level
-     * during recursive traversal. In a flat object-store listing the same effect is achieved by inspecting every
-     * segment of the relative path:
-     * <ul>
-     *   <li>A segment starting with {@code .} is hidden: covers {@code .part-r-*.crc} sidecars and
-     *       {@code .hidden/} subtrees.</li>
-     *   <li>A segment starting with {@code _} is hidden <em>unless</em> it is a Hive partition key=value segment
-     *       (contains {@code =}): covers {@code _SUCCESS}, {@code _metadata}, and entire subtrees such as
-     *       {@code _delta_log/…} and {@code _temporary/…}, while leaving valid partition directories such as
-     *       {@code _index=alpha/} intact.</li>
-     *   <li>A path ending with {@code /} is a zero-byte directory placeholder key (e.g. the S3 console "folder"
-     *       object).</li>
-     * </ul>
-     * Explicitly-named objects (brace expansion, single-file resolve) are never passed through this filter — the
-     * caller is responsible for not applying it there.
-     */
-    static boolean isHiddenObject(String relativePath) {
-        if (relativePath.endsWith("/")) {
-            return true;
-        }
-        int start = 0;
-        for (int i = 0; i <= relativePath.length(); i++) {
-            if (i == relativePath.length() || relativePath.charAt(i) == '/') {
-                if (i > start) {
-                    char first = relativePath.charAt(start);
-                    if (first == '.') {
-                        return true;
-                    }
-                    if (first == '_') {
-                        // Hive partition directories use key=value notation; a segment starting with '_'
-                        // that contains '=' is a legitimate partition directory, not metadata litter.
-                        int eqIdx = relativePath.indexOf('=', start);
-                        boolean isPartitionSegment = eqIdx >= start && eqIdx < i;
-                        if (isPartitionSegment == false) {
-                            return true;
-                        }
-                    }
-                }
-                start = i + 1;
-            }
-        }
-        return false;
-    }
-
     private static void checkDiscoveredFilesLimit(int discoveredCount, int maxDiscoveredFiles) {
         Check.clientError(
             discoveredCount <= maxDiscoveredFiles,
@@ -522,7 +429,7 @@ public final class GlobExpander {
             PartitionConfig.fromConfig(config),
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            true
+            ExclusionConfig.fromConfig(config).compile()
         );
     }
 
@@ -541,7 +448,7 @@ public final class GlobExpander {
             PartitionConfig.fromConfig(config),
             maxDiscoveredFiles,
             maxGlobExpansion,
-            true
+            ExclusionConfig.fromConfig(config).compile()
         );
     }
 
@@ -552,7 +459,7 @@ public final class GlobExpander {
         PartitionConfig partitionConfig,
         int maxDiscoveredFiles,
         int maxGlobExpansion,
-        boolean excludeNonDataObjects
+        ExclusionConfig.Matchers exclusion
     ) throws IOException {
         Check.notNull(pathList, "pathList cannot be null");
         Check.notNull(provider, "provider cannot be null");
@@ -572,7 +479,7 @@ public final class GlobExpander {
                     partitionConfig,
                     remainingBudget,
                     maxGlobExpansion,
-                    excludeNonDataObjects
+                    exclusion
                 );
                 if (expanded instanceof GenericFileList g && expanded.fileCount() > 0) {
                     allEntries.addAll(g.files());
@@ -612,7 +519,8 @@ public final class GlobExpander {
     /**
      * Everything about a query that determines which files a {@code path} lists: the resolved
      * {@link PartitionConfig} (strategy AND path template),
-     * the effective (post-rewrite) glob pattern, and the {@code _file.*} metadata filters. These are the inputs
+     * the effective (post-rewrite) glob pattern, the {@code _file.*} metadata filters, and the resolved
+     * {@link ExclusionConfig}. These are the inputs
      * {@link #doExpandGlob} consults beyond the storage contents themselves — the rewrite via {@link #effectivePattern}
      * and the file filters via {@link #applyFileMetadataFilters} — and this value shares those same helpers, so the
      * listing cache key it feeds cannot drift from the listing it names. Note this binds only the cache key: a new
@@ -628,20 +536,20 @@ public final class GlobExpander {
         PartitionConfig partitionConfig,
         String effectivePattern,
         List<String> encodedFileHints,
-        boolean excludeNonDataObjects
+        ExclusionConfig exclusionConfig
     ) {
 
         static ListingIdentity of(
             String path,
             @Nullable List<PartitionFilterHint> hints,
             PartitionConfig partitionConfig,
-            boolean excludeNonDataObjects
+            ExclusionConfig exclusionConfig
         ) {
             return new ListingIdentity(
                 partitionConfig,
                 effectiveWholePathPattern(path, hints, partitionConfig),
                 encodedFileMetadataHints(hints),
-                excludeNonDataObjects
+                exclusionConfig
             );
         }
 
@@ -660,7 +568,19 @@ public final class GlobExpander {
             for (String encodedHint : encodedFileHints) {
                 appendLengthPrefixed(sb, encodedHint);
             }
-            sb.append(excludeNonDataObjects ? '1' : '0');
+            // Both exclusion lists are framed like encodedFileHints above — a count, then that many
+            // length-prefixed entries — so no user-supplied glob can forge a field boundary. Entry order is
+            // preserved rather than sorted: order does not change semantics (any-match), so two same-set
+            // different-order configs merely get distinct keys, which is safe over-fragmentation and keeps
+            // encode() aligned with the record's equals.
+            sb.append(exclusionConfig.fileExclusions().size()).append(':');
+            for (String glob : exclusionConfig.fileExclusions()) {
+                appendLengthPrefixed(sb, glob);
+            }
+            sb.append(exclusionConfig.fileInclusions().size()).append(':');
+            for (String glob : exclusionConfig.fileInclusions()) {
+                appendLengthPrefixed(sb, glob);
+            }
             return sb.toString();
         }
     }
@@ -675,28 +595,14 @@ public final class GlobExpander {
      * guarantee equal listings, so it is safe to key the listing cache on it. See {@link ListingIdentity} for the
      * inputs it captures and why they are exhaustive; hints that reach none of them (an ordinary data column, say)
      * leave the discriminator untouched, so an incidentally-filtered query still shares the un-filtered entry.
-     * Non-data object exclusion defaults to {@code true}.
+     * The exclusion settings resolve from {@code config} via {@link ExclusionConfig#fromConfig}.
      */
     public static String listingCacheDiscriminator(
         String path,
         @Nullable List<PartitionFilterHint> hints,
         @Nullable Map<String, Object> config
     ) {
-        return listingCacheDiscriminator(path, hints, config, true);
-    }
-
-    /**
-     * Like {@link #listingCacheDiscriminator(String, List, Map)} but with explicit control over non-data object
-     * exclusion. Two requests that differ only in this flag must get distinct cache keys, or a filtered listing (which
-     * omits hidden objects) could be served to a request that expects the raw listing.
-     */
-    public static String listingCacheDiscriminator(
-        String path,
-        @Nullable List<PartitionFilterHint> hints,
-        @Nullable Map<String, Object> config,
-        boolean excludeNonDataObjects
-    ) {
-        return ListingIdentity.of(path, hints, PartitionConfig.fromConfig(config), excludeNonDataObjects).encode();
+        return ListingIdentity.of(path, hints, PartitionConfig.fromConfig(config), ExclusionConfig.fromConfig(config)).encode();
     }
 
     /**

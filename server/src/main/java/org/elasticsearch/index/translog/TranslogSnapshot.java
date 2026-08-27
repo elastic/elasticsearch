@@ -9,6 +9,7 @@
 package org.elasticsearch.index.translog;
 
 import org.elasticsearch.common.io.Channels;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.EOFException;
@@ -29,7 +30,7 @@ final class TranslogSnapshot extends BaseTranslogReader {
     private int skippedOperations;
     private int readOperations;
     private BufferedChecksumStreamInput reuse;
-    // When the most recently read record was an IndexBatch, its exploded ops are buffered here
+    // When the most recently read record was a batch, its exploded ops are buffered here
     // and emitted one-by-one by subsequent next() calls before reading the next on-disk record.
     private final Deque<Translog.Operation> pendingExploded;
 
@@ -92,9 +93,10 @@ final class TranslogSnapshot extends BaseTranslogReader {
             readOperations++;
             return op;
         }
-        // A batch record contributed docCount to operationCounter (and hence to totalOperations).
-        // Explode and queue them; the next loop iteration will emit one and bump readOperations.
-        final Translog.IndexBatch batch = (Translog.IndexBatch) record;
+        // A batch record contributed its replayable row count to operationCounter (and hence to
+        // totalOperations). Explode and queue them; the next loop iteration will emit one and
+        // bump readOperations.
+        final IndexOperationBatch.TranslogRecord batch = (IndexOperationBatch.TranslogRecord) record;
         final List<Translog.Operation> exploded = batch.explode();
         pendingExploded.addAll(exploded);
         return null;

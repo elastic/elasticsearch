@@ -179,6 +179,9 @@ def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
 tasks.named('check').configure { dependsOn csvSpecTests }
 
 
+ext.fixtureCoverageLayoutRoots = [
+  ndjson: file("${ndjsonFixtureOutputRoot}/iceberg-fixtures")
+]
 ext.fixtureCoverageFormats = ['ndjson', 'ndjson-compressed']
 ext.fixtureCoverageSpecDirs = [
   project(xpackModule('esql:qa:testFixtures')).file('src/main/resources'),

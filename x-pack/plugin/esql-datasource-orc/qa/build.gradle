@@ -210,6 +210,9 @@ def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
 tasks.named('check').configure { dependsOn csvSpecTests }
 
 
+ext.fixtureCoverageLayoutRoots = [
+  orc: orcFixtureOutputDir
+]
 ext.fixtureCoverageFormats = ['orc']
 ext.fixtureCoverageSpecDirs = [
   project(xpackModule('esql:qa:testFixtures')).file('src/main/resources'),

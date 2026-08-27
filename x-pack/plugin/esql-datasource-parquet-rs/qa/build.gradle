@@ -134,6 +134,11 @@ def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
 
 tasks.named('check').configure { dependsOn csvSpecTests }
 
+// Generates nothing: this module mounts esql-datasource-parquet/qa's fixture tree cross-project, so
+// those cells are gated there. Declared rather than omitted -- an absent declaration and a module
+// with nothing to check used to look identical, which is how this gate sat inert in four modules.
+ext.fixtureCoverageLayoutRoots = [:]
+ext.fixtureCoverageLayoutRootsReason = 'rule: fixtures are generated and gated by esql-datasource-parquet:qa; this module only reads them'
 ext.fixtureCoverageFormats = ['parquet-rs']
 // Mirrors what the source sets actually mount above: parquet-rs reads the PARQUET module's spec
 // resources as well as its own, so a gate scanning only its own directory would report live exclusions

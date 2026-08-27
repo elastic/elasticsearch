@@ -48,7 +48,25 @@ def declarationFile = project(xpackModule('esql:qa:fixture-common'))
 // least once.
 def coverageFormats = ext.fixtureCoverageFormats
 def coverageSpecDirs = ext.fixtureCoverageSpecDirs.collect { file(it) }
-def coverageLayoutRoots = ext.has('fixtureCoverageLayoutRoots') ? ext.fixtureCoverageLayoutRoots : null
+// Opt-OUT, not opt-in. A module applying this script must say what it generates, or say that it
+// generates nothing and why. Silence used to mean "skip", which is why this gate ran inert in four of
+// the five modules for the life of the change: nobody decided to skip parquet, orc, ndjson and
+// parquet-rs -- nobody decided anything, and a pass looked identical to a decision.
+if (ext.has('fixtureCoverageLayoutRoots') == false) {
+  throw new GradleException(
+      "${project.path} applies fixture-coverage.gradle but declares no ext.fixtureCoverageLayoutRoots. " +
+      "Declare [format: rootDir] for the formats it generates, or [:] plus " +
+      "ext.fixtureCoverageLayoutRootsReason if it generates none."
+  )
+}
+def coverageLayoutRoots = ext.fixtureCoverageLayoutRoots
+def coverageLayoutRootsReason = ext.has('fixtureCoverageLayoutRootsReason') ? ext.fixtureCoverageLayoutRootsReason : ''
+if (coverageLayoutRoots.isEmpty() && coverageLayoutRootsReason.isEmpty()) {
+  throw new GradleException(
+      "${project.path} declares no layout roots but gives no reason; an undeclared exemption is " +
+      "indistinguishable from an oversight. Set ext.fixtureCoverageLayoutRootsReason."
+  )
+}
 
 // The negative space goes to a FILE, not just the build log. A gap that exists only as a lifecycle line is
 // discoverable for as long as the console scrollback lasts, which is the same problem as a gap nobody
@@ -348,8 +366,8 @@ tasks.register('checkFixtureGeneration') {
   dependsOn tasks.matching { it.name.startsWith('generate') || it.name.startsWith('sync') }
 
   doLast {
-    if (coverageLayoutRoots == null) {
-      logger.lifecycle('fixture generation: no layout roots declared for this module, nothing to walk')
+    if (coverageLayoutRoots.isEmpty()) {
+      logger.lifecycle("fixture generation: ${coverageLayoutRootsReason}")
       return
     }
     def roots = coverageLayoutRoots

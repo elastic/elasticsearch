@@ -628,7 +628,8 @@ public class GcsStorageObjectTests extends ESTestCase {
             byte[] data = "data".getBytes(StandardCharsets.UTF_8);
             buf.put(data);
             long deadline = System.nanoTime() + burnNanos;
-            while (System.nanoTime() < deadline) { /* spin */ }
+            while (System.nanoTime() < deadline) {
+                /* spin */ }
             return data.length;
         }).when(mockReader).read(any(ByteBuffer.class));
 

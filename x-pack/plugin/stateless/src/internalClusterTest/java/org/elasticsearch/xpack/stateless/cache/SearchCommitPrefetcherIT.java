@@ -136,7 +136,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
                 skipPrefetchingBecauseSearchIsIdle ? TimeValue.ZERO : TimeValue.THIRTY_SECONDS
             )
             // Release VBCCs immediately so the notification window cannot accumulate extra indexing-node chunk reads
-            // and push bytesReadFromIndexingNode over bccTotalSizeInBytes before the assertion at line 173.
+            // and push bytesReadFromIndexingNode over bccTotalSizeInBytes before the total size assertion below
             .put(StatelessCommitService.STATELESS_UPLOAD_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT.getKey(), TimeValue.ZERO)
             .build();
         var indexNode = startMasterAndIndexNode(nodeSettings);
@@ -503,11 +503,9 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         var searchEngine = getShardEngine(findSearchShard(indexName), SearchEngine.class);
         assertThat(searchEngine.getTotalPrefetchedBytes(), is(equalTo(0L)));
 
-        // Track the search node's refresh pool to know when N-notification segment openings are done.
-        // processCommitNotifications() runs on REFRESH and blocks until VBCC cache fills complete,
-        // so draining REFRESH guarantees all N-notification indexing-node reads have finished.
         ThreadPool searchThreadPool = internalCluster().getInstance(ThreadPool.class, DiscoveryNodeRole.SEARCH_ROLE);
         long preIndexingRefreshTasks = getNumberOfCompletedTasks(searchThreadPool, ThreadPool.Names.REFRESH);
+        long preIndexingPrewarmTasks = getNumberOfCompletedTasks(searchThreadPool, StatelessPlugin.PREWARM_THREAD_POOL);
 
         var numberOfCommits = randomIntBetween(5, 8);
         for (int j = 0; j < numberOfCommits; j++) {
@@ -516,8 +514,13 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             refresh(indexName);
         }
 
-        // Wait for all N-notification segment openings (and their VBCC reads) to complete
+        // Wait for all N-notification segment openings (and their VBCC reads) to complete.
+        // When backgroundPrefetch=true, background prefetch tasks run on PREWARM_THREAD_POOL and may contact
+        // the indexing node after REFRESH drains — drain PREWARM too so the snapshot is stable.
         assertNoRunningAndQueueTasks(searchThreadPool, ThreadPool.Names.REFRESH, preIndexingRefreshTasks);
+        if (backgroundPrefetch) {
+            assertNoRunningAndQueueTasks(searchThreadPool, StatelessPlugin.PREWARM_THREAD_POOL, preIndexingPrewarmTasks);
+        }
 
         // Snapshot indexing-node reads before the flush so we can assert M's prefetch adds nothing
         var indexingNodeReadsBeforeFlush = bytesReadFromIndexingNode.bytesCount();

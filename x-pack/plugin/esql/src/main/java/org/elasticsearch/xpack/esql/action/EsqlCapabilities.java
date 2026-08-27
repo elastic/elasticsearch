@@ -1173,6 +1173,11 @@ public class EsqlCapabilities {
         FIX_PARTIAL_PREFIX_COMPOUND_TOPN_PUSHDOWN,
 
         /**
+         * Reject doubles at the exactly representable 2^63 boundary when converting to long.
+         */
+        FIX_DOUBLE_TO_LONG_OVERFLOW,
+
+        /**
          * Clamp {@code COUNT_DISTINCT} precision thresholds before narrowing them to integers.
          */
         FN_COUNT_DISTINCT_PRECISION_CLAMP,

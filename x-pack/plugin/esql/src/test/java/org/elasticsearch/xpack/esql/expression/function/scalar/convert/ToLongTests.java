@@ -26,6 +26,8 @@ import java.util.List;
 import java.util.function.Supplier;
 
 public class ToLongTests extends AbstractScalarFunctionTestCase {
+    private static final double MAX_DOUBLE_CONVERTIBLE_TO_LONG = Math.nextDown((double) Long.MAX_VALUE);
+
     public ToLongTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -77,7 +79,7 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
             DataType.LONG,
             Math::round,
             Long.MIN_VALUE,
-            Long.MAX_VALUE,
+            MAX_DOUBLE_CONVERTIBLE_TO_LONG,
             List.of()
         );
         // from doubles outside long's range, negative
@@ -164,7 +166,7 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
         TestCaseSupplier.unary(
             suppliers,
             evaluatorName("String", "in"),
-            TestCaseSupplier.doubleCases(Long.MIN_VALUE, Long.MAX_VALUE, true)
+            TestCaseSupplier.doubleCases(Long.MIN_VALUE, MAX_DOUBLE_CONVERTIBLE_TO_LONG, true)
                 .stream()
                 .map(
                     tds -> new TestCaseSupplier.TypedDataSupplier(

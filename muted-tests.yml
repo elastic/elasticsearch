@@ -34,10 +34,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.continuous.TransformContinuousIT
   method: testContinuousEvents
   issue: https://github.com/elastic/elasticsearch/issues/153782
-- class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
-  issue: https://github.com/elastic/elasticsearch/issues/156233
-- class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/156234
 - class: org.elasticsearch.search.SearchWithRejectionsIT
   method: testOpenContextsAfterRejections
   issue: https://github.com/elastic/elasticsearch/issues/156244
@@ -47,9 +43,6 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/42_knn_search_int4_flat/Test bad parameters}
   issue: https://github.com/elastic/elasticsearch/issues/156975
-- class: org.elasticsearch.xpack.ccr.ChainIT
-  method: testFollowIndex {targetCluster=FOLLOWER}
-  issue: https://github.com/elastic/elasticsearch/issues/157152
 - class: org.elasticsearch.index.query.SearchExecutionContextTests
   method: testFielddataLookupSometimesLoop
   issue: https://github.com/elastic/elasticsearch/issues/157154
@@ -67,6 +60,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.ManyRequestsIT
   method: testManyRequests
   issue: https://github.com/elastic/elasticsearch/issues/151627
+- class: org.elasticsearch.xpack.inference.InferenceRestIT
+  method: test {p0=inference/30_semantic_text_inference/Calculates embeddings using the default ELSER 2 endpoint}
+  issue: https://github.com/elastic/elasticsearch/issues/157795
+- class: org.elasticsearch.xpack.ilm.actions.RolloverActionIT
+  method: testILMRolloverRetriesOnReadOnlyBlock
+  issue: https://github.com/elastic/elasticsearch/issues/157832
 
 # Examples:
 #

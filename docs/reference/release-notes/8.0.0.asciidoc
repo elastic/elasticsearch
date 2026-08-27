@@ -37,6 +37,12 @@ bin/elasticsearch-create-enrollment-token -s kibana
 is due to https://github.com/FasterXML/jackson-core/issues/882[a bug in Jackson parser].
 Fixed in {es} 8.6.1 ({es-pull}92480[#91456])
 // end::jackson-filtering-bug[]
+// tag::cgroup-v2-startup-failure[]
+* {es} versions 8.0.0–8.4.3 fail to start on Linux hosts that use
+https://man7.org/linux/man-pages/man7/cgroups.7.html[cgroups] version 2 exclusively
+with the bundled JDK. Upgrade to 8.5.0 or later to resolve this.
+Refer to https://ela.st/es-may-fail-on-cgroup-v2[our KB article] for more guidance.
+// end::cgroup-v2-startup-failure[]
 
 
 [[breaking-8.0.0]]

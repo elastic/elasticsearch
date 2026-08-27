@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 157630
+summary: Fix empty `collectRange` crash in doc-values queries (lucene#16546)
+type: bug

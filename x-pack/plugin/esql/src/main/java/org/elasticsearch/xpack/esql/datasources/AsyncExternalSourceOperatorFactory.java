@@ -271,6 +271,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * that require per-split injection. When set, {@link #openNextSliceQueueLeaf} claims batches
      * of splits and calls {@link RangeAwareFormatReader#readAll} instead of individual
      * {@link RangeAwareFormatReader#readRange} calls.
+     * <p>
+     * Always {@code false} today: no reader overrides
+     * {@link RangeAwareFormatReader#supportsBatchRead()} since the native parquet reader was removed,
+     * so {@link #openNextBatch} is dormant. The wiring is kept for the next batching reader.
      */
     private final boolean batchReadCapable;
     @Nullable
@@ -1340,15 +1344,21 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         ColumnMapping mapping,
         DriverContext driverContext,
         @Nullable List<Attribute> perFileReadSchema,
-        @Nullable List<String> perFileCols
+        @Nullable List<String> perFileCols,
+        @Nullable Consumer<String> informationalWarningSink
     ) {
         // Empty queryDataSchema = no data columns projected (COUNT(*), _file.*-only, or a TopN with
         // all data columns deferred to _rowPosition): nothing to reshape, and the full-width mapping
         // would trip SchemaAdaptingIterator's size-vs-width guard. Treat it like identity and pass the
         // pages through (deferred extraction is handled in wrapWithEncoderIfNeeded).
-        if (mapping == null || mapping.isIdentity() || queryDataSchema.isEmpty()) {
+        if (mapping == null || queryDataSchema.isEmpty()) {
             return pages;
         }
+        // Identity mappings are no longer short-circuited here: SchemaAdaptingIterator validates
+        // output block element types on every page, catching reader bugs (wrong block type for a
+        // declared column) before they reach a consumer that casts and throws a bare
+        // ClassCastException with no column name. The overhead is O(columns) per page —
+        // ref-counting for identity slots plus the type check — which is negligible.
         // The reader appends the synthetic {@link ColumnExtractor#ROW_POSITION_COLUMN} to the
         // per-file projection whenever the query projection carries it — for deferred extraction
         // AND for plain _id / _file.record_ref composition (see {@link #perFileQueryProjection}).
@@ -1374,7 +1384,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             mapping,
             producerBlockFactory(driverContext),
             rowPositionInputIndex,
-            perFileColumnTypes
+            perFileColumnTypes,
+            informationalWarningSink
         );
     }
 
@@ -1987,7 +1998,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     rangeEnd,
                     PhysicalNames.translateSchema(perFileResolvedAttributes, renames),
                     errorPolicy,
-                    bufferedInformationalWarningSink(state.buffer)
+                    bufferedInformationalWarningSink(state.buffer),
+                    rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : state.rowsRemaining
                 );
                 if (fileContext != null) {
                     rangeCtx.setFileContext(fileContext);
@@ -2023,7 +2035,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // COMPRESSED position while text readers anchor _rowPosition in decompressed bytes —
                 // composing _id from that mix yields non-split-invariant, collision-prone tokens. Take
                 // the slot out of the reader's projection and null-splice it instead: null _id over
-                // these layouts, same honest carve-out parquet-rs gets. Only the reader's column list is
+                // these layouts, same honest carve-out columnar readers get. Only the reader's column list is
                 // narrowed (readerCols); the shared perFileCols still feeds the adapter below at full
                 // width, matching the pre-hoist behaviour where the adapter recomputed the projection.
                 boolean compressedOffsetSplit = "true".equals(fileSplit.config().get(FileSplitProvider.COMPRESSED_OFFSET_SPLIT_KEY));
@@ -2100,7 +2112,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 fileSplit.columnMapping(),
                 state.driverContext,
                 perFileReadSchema,
-                perFileCols
+                perFileCols,
+                bufferedInformationalWarningSink(state.buffer)
             );
             // Deferred extraction: register one extractor per opened file split. Range-splits of
             // the same file therefore register multiple extractors; this is benign — each row's
@@ -2127,11 +2140,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     /**
      * Batch-read path: claims {@code max(1, ceil(remaining / (parallelism * 2)))} splits from the
      * queue at once and opens a single {@link RangeAwareFormatReader#readAll} iterator over all of
-     * them. This allows the reader (e.g. parquet-rs) to process the files concurrently in a single
+     * them. This allows the reader to process the files concurrently in a single
      * async call rather than paying one sequential S3 round-trip per file.
      * <p>
      * Only called when {@link #batchReadCapable} is {@code true}, which requires no partition-column
-     * injection (incompatible with a unified batch iterator).
+     * injection (incompatible with a unified batch iterator) — and which no reader satisfies today, so
+     * this method is currently never entered.
      */
     private boolean openNextBatch(ProducerState state) throws IOException {
         if (noFurtherCandidates()) {
@@ -2268,7 +2282,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             }
             pages = applyRowPositionStrategy(fileReader, pages, perFileCols);
             pages = StatsCapturingIterator.wrap(pages, state.buffer.capturedSourceMetadataSink());
-            CloseableIterator<Page> adapted = adaptSchema(pages, mapping, state.driverContext, perFileReadSchema, perFileCols);
+            CloseableIterator<Page> adapted = adaptSchema(
+                pages,
+                mapping,
+                state.driverContext,
+                perFileReadSchema,
+                perFileCols,
+                bufferedInformationalWarningSink(state.buffer)
+            );
             CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(adapted, perFileCols, state.driverContext);
             // Per-file virtual-column iterator (built with FileMetadataColumns.extractValues for
             // this file) so {@code _file.*} columns carry the right values for the current file.

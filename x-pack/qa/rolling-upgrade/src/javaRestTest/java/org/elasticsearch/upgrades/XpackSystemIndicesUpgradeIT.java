@@ -20,9 +20,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.test.SecuritySettingsSourceField;
 
 import java.io.IOException;
 import java.util.List;

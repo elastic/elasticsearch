@@ -109,7 +109,7 @@ final class CompressionDelegatingFormatReader implements FormatReader {
 
     @Override
     public FormatReader withReadConfig(String readConfig) {
-        // Delegate: a compressed .csv.gz is read exactly like the plain file, so its harvest must carry the same read
+        // Delegate: a compressed .csv.gz is read exactly like the plain file, so its harvest must carry the same
         // read configuration. Without this the interface default returns the wrapper, the inner reader stamps nothing, and its
         // contribution can no longer match the entry the resolver seeded — the warm rail dies for compressed files
         // only.

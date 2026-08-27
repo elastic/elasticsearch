@@ -878,7 +878,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * Legacy {@code null} overload: a {@code null} {@code pathsRequiringStats} keeps the original
-     * eager-for-every-path behavior, so all footers are read regardless of query read configuration.
+     * eager-for-every-path behavior, so all footers are read regardless of query shape.
      */
     public void testFirstFileWinsLegacyNullSetReadsAllFooters() throws Exception {
         AtomicInteger metadataReads = new AtomicInteger();
@@ -2437,7 +2437,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * The extensionless branch of the same failure — the read configuration produced by a non-hidden file that carries no extension
+     * The extensionless branch of the same failure — the listing produced by a non-hidden file that carries no extension
      * at all (e.g. a bare prefix file). Hidden litter like {@code _SUCCESS} is now filtered before reaching schema
      * resolution, so this test uses a non-hidden extensionless name to exercise the same error path.
      */
@@ -2517,7 +2517,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
         assertThat(e.getMessage(), containsString("names a compression codec, not a data format"));
-        // It must suggest the read configuration that WOULD work, built from the codec actually seen.
+        // It must suggest the layout that WOULD work, built from the codec actually seen.
         assertThat(e.getMessage(), containsString(".csv.gz"));
         assertThat(e.getMessage(), not(containsString("does not match any registered format")));
     }
@@ -3694,7 +3694,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             }
 
             // Declares IOException so a suite can inject the checked storage/reader failure that the real
-            // readers raise (the read configuration FileSourceFactory types as client-caused), not only unchecked ones.
+            // readers raise (the failure FileSourceFactory types as client-caused), not only unchecked ones.
             @Override
             public SourceMetadata metadata(StorageObject object) throws IOException {
                 Exception e = failure.get();

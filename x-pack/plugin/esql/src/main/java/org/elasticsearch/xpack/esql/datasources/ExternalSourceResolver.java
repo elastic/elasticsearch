@@ -1151,11 +1151,15 @@ public class ExternalSourceResolver {
      * these are the inferred rails, and a declared read reaches its own seed elsewhere.
      */
     private static SchemaCacheEntry stampInferredReadConfig(SchemaCacheEntry entry) {
-        // File-typed (columnar) formats do not participate in this identity: they harvest without stamping, and
-        // their rows never drop under a lenient policy, so a declared retype changes which VALUES a column yields
-        // but not which rows exist. Stamping them would make the serve gate strip a row count that is genuinely
-        // read-config-independent, taking COUNT(*) cold for every mapped columnar dataset. Their per-column stats are
-        // already guarded by the declared-overlay poison.
+        // File-typed (columnar) formats do not participate in this identity because they harvest no scan-derived
+        // statistics at all: their row counts come from footer metadata (row-group and stripe counts), which the
+        // declaration cannot change, and nothing on those rails publishes through the capture sink. There is no
+        // declaration-dependent measurement to stamp. Stamping them anyway would make the serve gate strip a row
+        // count that is genuinely read-configuration-independent, taking COUNT(*) cold for every mapped columnar
+        // dataset. Their per-column statistics are already guarded by the declared-overlay poison.
+        //
+        // Note this does NOT rest on columnar rows never dropping — since ColumnarRowDropHelper they do drop under
+        // skip_row with declared types. It rests on the harvest, which is footer-derived either way.
         if (FILE_TYPED_FORMATS.contains(entry.sourceType())) {
             return entry;
         }
@@ -1296,7 +1300,7 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * One multi-file resolve's dataset-aggregate prefetch: the key (or {@code null} when the read configuration does
+     * One multi-file resolve's dataset-aggregate prefetch: the key (or {@code null} when the resolve does
      * not qualify — including the non-cacheable case, gated here so it lives in one place) and the
      * memoized aggregate if present. Read BEFORE the per-file gather; see {@link #applyDatasetAggregate}
      * for why post-gather reads self-defeat under cache pressure. Package-private for testing.
@@ -1876,6 +1880,13 @@ public class ExternalSourceResolver {
         return reader == null || reader.aggregatePushdownSupport().appliesImplicitNullsForAbsentColumn();
     }
 
+    /**
+     * Reads metadata from all files in {@code listing} with an async, bounded fan-out (see {@link #gatherPerFile}),
+     * then aggregates statistics across all files. Responds with a merged flat stats map, or {@code null} if any file
+     * lacks statistics (via {@link #aggregateFileStatistics}). A read failure is treated as "could not aggregate" and
+     * responds with {@code null} so the caller marks stats partial — except cancellation, which is surfaced as a
+     * failure so the query aborts promptly instead of silently degrading.
+     */
     private void readAndAggregateAllFileStats(
         FileList listing,
         Map<String, Object> config,
@@ -1926,13 +1937,6 @@ public class ExternalSourceResolver {
      * each file so repeated multi-file resolves do not re-read footers. Responds with {@code null} if any file cannot
      * be resolved or lacks statistics; a bare cancellation is surfaced as a failure so it is never masked as partial
      * stats.
-     */
-    /**
-     * Reads metadata from all files in {@code listing} with an async, bounded fan-out (see {@link #gatherPerFile}),
-     * then aggregates statistics across all files. Responds with a merged flat stats map, or {@code null} if any file
-     * lacks statistics (via {@link #aggregateFileStatistics}). A read failure is treated as "could not aggregate" and
-     * responds with {@code null} so the caller marks stats partial — except cancellation, which is surfaced as a
-     * failure so the query aborts promptly instead of silently degrading.
      */
     private void readAndAggregateAllFileStatsWithCache(
         FileList listing,

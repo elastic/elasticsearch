@@ -139,8 +139,12 @@ public class ParquetFormatReaderRecognizedKeysTests extends ESTestCase {
      * <ul>
      *   <li>{@code optimized_reader} — selects the reader implementation; both decode the same values from the
      *       same footer-described pages.</li>
-     *   <li>{@code late_materialization} — selects when projected columns are materialised relative to filtering;
-     *       the rows and values produced are identical either way.</li>
+     *   <li>{@code late_materialization} — selects when projected columns are materialised relative to filtering.
+     *       The rows and values produced are identical either way, but only because
+     *       {@link ParquetFormatReader#dropsRowsUnderPushedFilter()} returns false: the filtered decode paths
+     *       null-and-keep where an unfiltered one would drop. If that ever changes — and its own javadoc invites
+     *       it — this key starts deciding the surviving row set and stops being inert, with nothing here to
+     *       notice. Re-derive this justification if that gate is lifted.</li>
      * </ul>
      */
     private static final Set<String> IDENTITY_INERT_KEYS = Set.of(

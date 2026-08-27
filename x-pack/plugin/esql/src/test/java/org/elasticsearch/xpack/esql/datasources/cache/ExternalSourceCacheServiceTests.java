@@ -1889,7 +1889,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     public void testReconcileWholeFileWinsOverConcurrentPartials() throws Exception {
-        // Mixed read configuration: WholeFile + StripeFragments for the same file. The whole-file read is
+        // Mixed contribution kinds: WholeFile + StripeFragments for the same file. The whole-file read is
         // authoritative — its row count already covers every row — and fragments must not be
         // summed on top. Locks the reconciler's whole-file-first routing.
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {

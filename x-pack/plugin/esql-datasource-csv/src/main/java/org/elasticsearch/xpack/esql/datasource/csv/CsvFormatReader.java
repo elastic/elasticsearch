@@ -6327,8 +6327,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * @param structural {@code true} for tokeniser errors (Jackson, bracket parser) and
          *                   row-shape mismatches (column count) where {@code skip_row} is the
          *                   natural escape hatch; {@code false} for field-type errors where
-         *                   {@code null_field} is the better suggestion. Only affects the hint
-         *                   appended to the FAIL_FAST {@link ParsingException}.
+         *                   {@code null_field} is the better suggestion. Besides selecting that hint, this is the
+         *                   discriminator the stats publish gate reads: a {@code false} here is a projected column's
+         *                   coercion failure, which makes the surviving row set a function of the query's
+         *                   projection, so the publish is suppressed (see {@code projectionDependentDrop}).
          */
         private void onRowError(String message, Exception cause, String[] row, boolean structural) {
             onRowErrorImpl(message, cause, CsvErrorMessages.summarizeRow(row), structural);

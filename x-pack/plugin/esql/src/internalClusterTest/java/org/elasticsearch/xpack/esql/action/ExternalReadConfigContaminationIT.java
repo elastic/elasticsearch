@@ -199,7 +199,6 @@ public class ExternalReadConfigContaminationIT extends AbstractExternalDataSourc
         assertScanRows(declared, 0L); // the licensed count crosses; only the extrema are configuration-bound
     }
 
-    /** Asserts how many records {@code COUNT(*)} actually had to read: 0 means it was served from the cache. */
     /**
      * ONE dataset, three queries, and the reproduction a reviewer measured on this branch's parent. Under
      * {@code skip_row} only PROJECTED columns are coerced, so the query's projection decides which rows survive —
@@ -246,6 +245,7 @@ public class ExternalReadConfigContaminationIT extends AbstractExternalDataSourc
         return StoragePath.fileUri(file);
     }
 
+    /** Asserts how many records {@code COUNT(*)} actually had to read: 0 means it was served from the cache. */
     private void assertScanRows(String dataset, long expectedScanRows) {
         String query = "FROM " + dataset + " | STATS c = COUNT(*)";
         try (var response = run(syncEsqlQueryRequest(query).profile(true), TIMEOUT)) {
@@ -339,18 +339,6 @@ public class ExternalReadConfigContaminationIT extends AbstractExternalDataSourc
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("ts", DatasetFieldMapping.withFormat("datetime", null, "yyyy-dd-MM'T'HH:mm:ss"));
         return new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
-    }
-
-    private String registerWithSettings(String name, String uri, DatasetMapping mapping, Map<String, Object> settings) {
-        registerDataSource(SRC, Map.of());
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                new PutDatasetAction.Request(TIMEOUT, TIMEOUT, name, SRC, uri, null, new LinkedHashMap<>(settings), mapping)
-            )
-        );
-        datasets.add(name);
-        return name;
     }
 
     private String register(String name, String uri, DatasetMapping mapping) {

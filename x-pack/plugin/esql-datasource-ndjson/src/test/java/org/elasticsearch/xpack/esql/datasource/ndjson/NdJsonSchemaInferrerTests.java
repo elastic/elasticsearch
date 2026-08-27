@@ -275,6 +275,46 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
         }
     }
 
+    public void testFourDigitStringIsNotADatetime() throws IOException {
+        // strict_date_optional_time accepts a bare 4-digit year, which would make any all-4-digit
+        // string column look temporal. The filter that prevents that lives on the same path the
+        // nanosecond discriminator now sits on, so it is pinned here too.
+        check("""
+            {"code": "5327"}
+            {"code": "4536"}
+            """, field("code", DataType.KEYWORD));
+    }
+
+    public void testBooleanDetection() throws IOException {
+        check("""
+            {"active": true}
+            {"active": false}
+            """, field("active", DataType.BOOLEAN));
+    }
+
+    public void testNullMarksFieldNullableWithoutContributingAType() throws IOException {
+        check("""
+            {"v": 1}
+            {"v": null}
+            """, field("v", DataType.INTEGER, true));
+    }
+
+    public void testIntegerTooLargeForLongFallsBackToDouble() throws IOException {
+        check("""
+            {"v": 99999999999999999999999999}
+            """, field("v", DataType.DOUBLE));
+    }
+
+    public void testNonObjectLineIsSkipped() throws IOException {
+        // A line that is not a JSON object is a whole-line scanner failure: inference skips it and
+        // leaves the decision to the read's error policy, rather than failing the whole plan.
+        check("""
+            {"v": 1}
+            [1, 2]
+            {"v": 2}
+            """, field("v", DataType.INTEGER, true));
+    }
+
     private void check(String ndjson, Attribute... expected) throws IOException {
         try (ByteArrayInputStream inputStream = new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8))) {
             List<Attribute> result = NdJsonSchemaInferrer.inferSchema(inputStream, 100, null);

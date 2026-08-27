@@ -11,7 +11,11 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
+import java.util.Locale;
 
 /**
  * The discriminator is fed by two different parsers in production &mdash; the NDJSON rail's
@@ -105,6 +109,40 @@ public class TemporalInferenceTests extends ESTestCase {
         // Away from the boundary years the zone cannot move the instant out of the window, so the
         // conservative decline above costs nothing here.
         assertTrue(TemporalInference.forcesDateNanos(ndjsonParse("2023-10-23T12:15:03.360103847Europe/Paris")));
+    }
+
+    /**
+     * A boundary-year timestamp with no zone and no offset at all. The exact-window arm must read it
+     * as UTC — which is what the decoders will do with it too — rather than declining the way it
+     * declines a named zone it cannot resolve.
+     */
+    public void testZonelessBoundaryYearForces() {
+        assertForcesOnBothRails("1970-01-01T00:00:00.000000001");
+    }
+
+    /**
+     * Inside the ceiling year but past the ceiling instant: the year pre-filter cannot decide it and
+     * the exact check has to reject on the seconds comparison, not on the nanosecond tie-break.
+     */
+    public void testWithinCeilingYearButPastCeilingInstantDoesNotForce() {
+        assertDoesNotForceOnBothRails("2262-06-01T00:00:00.123456789Z");
+    }
+
+    /**
+     * An accessor carrying a year and a time but no month or day cannot be placed on the timeline, so
+     * the window is undecidable and the value stays datetime. Unreachable through either production
+     * parser — both require a full date — but {@link TemporalInference#forcesDateNanos} is public and
+     * takes any accessor, so the branch is real and pinned here rather than left to trust.
+     */
+    public void testAccessorWithoutFullDateDoesNotForce() {
+        DateTimeFormatter yearAndTime = new DateTimeFormatterBuilder().appendValue(ChronoField.YEAR, 4)
+            .appendLiteral('T')
+            .append(DateTimeFormatter.ISO_LOCAL_TIME)
+            .toFormatter(Locale.ROOT);
+        TemporalAccessor parsed = yearAndTime.parse("1970T00:00:00.000000001");
+        assertTrue("precondition: the fraction is visible", parsed.isSupported(ChronoField.NANO_OF_SECOND));
+        assertFalse("precondition: it cannot be placed on the timeline", parsed.isSupported(ChronoField.INSTANT_SECONDS));
+        assertFalse(TemporalInference.forcesDateNanos(parsed));
     }
 
     private static TemporalAccessor ndjsonParse(String value) {

@@ -266,7 +266,8 @@ public class CsvSchemaInferrer {
             case INTEGER -> canParseInt(value);
             case LONG -> canParseLong(value);
             case DOUBLE -> canParseDouble(value);
-            default -> throw new IllegalStateException("not a non-temporal candidate type: " + type);
+            // Unreachable: the walk stops before KEYWORD and intercepts both temporal rungs above.
+            default -> throw new AssertionError("not a non-temporal candidate type: " + type);
         };
     }
 

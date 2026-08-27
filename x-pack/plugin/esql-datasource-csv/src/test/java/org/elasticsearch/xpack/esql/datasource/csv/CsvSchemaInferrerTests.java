@@ -404,6 +404,38 @@ public class CsvSchemaInferrerTests extends ESTestCase {
         assertSame("nothing widened, so the original list is returned", schema, widened);
     }
 
+    public void testCustomDatetimeFormatRejectsNonMatchingValue() {
+        // The custom-format arm has to be able to say "not a timestamp" too, not only "millis".
+        DateFormatter custom = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSSXX");
+        List<String[]> rows = List.<String[]>of(new String[] { "not a date at all" });
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(new String[] { "ts" }, rows, custom);
+        assertEquals(DataType.KEYWORD, schema.get(0).dataType());
+    }
+
+    public void testWideningSkipsNullEmptyAndShortRows() {
+        // Widening must treat a missing cell, an empty cell and the literal "null" as carrying no
+        // type evidence, exactly as the initial inference pass does — otherwise a ragged file would
+        // widen columns to KEYWORD on absence alone.
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(
+            new String[] { "id", "note" },
+            List.of(new String[] { "1", "alpha" }, new String[] { "2", "beta" }),
+            null
+        );
+        assertEquals(DataType.INTEGER, schema.get(0).dataType());
+
+        List<Attribute> widened = CsvSchemaInferrer.widenSchema(
+            schema,
+            List.of(
+                new String[] { "3" },               // short row: "note" cell absent entirely
+                new String[] { "", "gamma" },       // empty cell
+                new String[] { "null", "delta" },   // the literal null marker
+                new String[] { null, "epsilon" }    // an actual null cell
+            ),
+            null
+        );
+        assertSame("absence is not evidence, so nothing should widen", schema, widened);
+    }
+
     public void testSynthesizeColumnNames() {
         String[] names = CsvFormatReader.synthesizeColumnNames(4, "col");
         assertArrayEquals(new String[] { "col0", "col1", "col2", "col3" }, names);

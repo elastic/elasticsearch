@@ -71,17 +71,23 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
             @Override
             public void process(HitContext hit) throws IOException {
                 for (DocValueField f : fields) {
+                    List<Object> ignoredValues = new ArrayList<>();
+                    List<Object> values = f.fetcher.fetchValues(hit.source(), hit.docId(), ignoredValues);
+                    // Doc value fetches should not return any ignored values
+                    assert ignoredValues.isEmpty();
+                    if (values.isEmpty()) {
+                        // The document has no value for this field. Leave it out of the hit entirely rather than attaching an empty
+                        // DocumentField, so that the doc values path matches the fields path (see ValueFetcher#fetchDocumentField).
+                        continue;
+                    }
                     DocumentField hitField = hit.hit().field(f.field);
                     if (hitField == null) {
-                        hitField = new DocumentField(f.field, new ArrayList<>(2));
+                        hitField = new DocumentField(f.field, new ArrayList<>(values.size()));
                         // even if we request a doc values of a meta-field (e.g. _routing),
                         // docValues fields will still be document fields, and put under "fields" section of a hit.
                         hit.hit().setDocumentField(hitField);
                     }
-                    List<Object> ignoredValues = new ArrayList<>();
-                    hitField.getValues().addAll(f.fetcher.fetchValues(hit.source(), hit.docId(), ignoredValues));
-                    // Doc value fetches should not return any ignored values
-                    assert ignoredValues.isEmpty();
+                    hitField.getValues().addAll(values);
                 }
             }
         };

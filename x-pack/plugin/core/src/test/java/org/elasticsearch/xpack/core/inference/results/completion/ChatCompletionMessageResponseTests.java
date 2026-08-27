@@ -97,7 +97,14 @@ public class ChatCompletionMessageResponseTests extends AbstractBWCWireSerializa
             "Hello!",
             null,
             "assistant",
-            List.of(new ChatCompletionToolCallResponse(0, "call_abc", new ChatCompletionToolCallResponse.Function("{}", "get_weather"), "function")),
+            List.of(
+                new ChatCompletionToolCallResponse(
+                    0,
+                    "call_abc",
+                    new ChatCompletionToolCallResponse.Function("{}", "get_weather"),
+                    "function"
+                )
+            ),
             null,
             null
         );

@@ -76,7 +76,11 @@ public class ChatCompletionChoiceResponseTests extends AbstractBWCWireSerializat
     }
 
     public void testToXContentChunked_WithFinishReason_DeltaWrapper() throws IOException {
-        var choice = new ChatCompletionChoiceResponse(new ChatCompletionMessageResponse("Hello!", null, "assistant", null, null, null), "stop", 0);
+        var choice = new ChatCompletionChoiceResponse(
+            new ChatCompletionMessageResponse("Hello!", null, "assistant", null, null, null),
+            "stop",
+            0
+        );
 
         assertThat(toXContent(choice, "delta"), is(XContentHelper.stripWhitespace("""
             {

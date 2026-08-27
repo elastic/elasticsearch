@@ -94,7 +94,7 @@ public class GoogleVertexAiCompletionResponseEntity {
                 .createParser(XContentParserConfiguration.EMPTY, responseJson)
         ) {
             moveToFirstToken(parser);
-            chunk = GoogleVertexAiUnifiedStreamingProcessor.GoogleVertexAiChatCompletionChunkResponseParser.parse(parser);
+            chunk = GoogleVertexAiUnifiedStreamingProcessor.GoogleVertexAiChatCompletionChunkParser.parse(parser);
         }
         var results = chunk.choices().stream().map(choice -> choice.message().content()).map(ChatCompletionResults.Result::new).toList();
 

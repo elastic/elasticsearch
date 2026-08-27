@@ -70,6 +70,71 @@ public class CsvFormatReaderStatusSnapshotTests extends ESTestCase {
         assertTrue("read_nanos should be > 0 after at least one batch", after.readNanos() > 0);
     }
 
+    /**
+     * Verifies that {@link CsvFormatReader} accumulates {@code asyncCpuNanos()} from the
+     * {@link StorageObject} into its own CPU counter via {@code withAsyncCpuOnClose}.
+     */
+    public void testAsyncCpuNanosAccumulated() throws IOException {
+        long injectedAsyncCpu = 5_000_000L; // 5 ms injected from a "GCS-like" storage object
+        String csv = """
+            id:long
+            1
+            """;
+        StorageObject object = inMemoryCsvWithAsyncCpu(csv, injectedAsyncCpu);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("id"), 10)) {
+            while (iterator.hasNext()) {
+                Releasables.close(iterator.next()::releaseBlocks);
+            }
+        }
+
+        assertTrue(
+            "readCpuNanos must include asyncCpuNanos from the storage object",
+            reader.statusSnapshot().readCpuNanos() >= injectedAsyncCpu
+        );
+    }
+
+    private static StorageObject inMemoryCsvWithAsyncCpu(String content, long asyncCpuNanos) {
+        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+        return new StorageObject() {
+            @Override
+            public long asyncCpuNanos() {
+                return asyncCpuNanos;
+            }
+
+            @Override
+            public InputStream newStream() {
+                return new ByteArrayInputStream(bytes);
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                throw new UnsupportedOperationException("range reads not needed");
+            }
+
+            @Override
+            public long length() {
+                return bytes.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.now();
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://async-cpu-test.csv");
+            }
+        };
+    }
+
     private static StorageObject inMemoryCsv(String content) {
         byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
         return new StorageObject() {

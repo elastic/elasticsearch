@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -27,8 +26,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class RangeStorageObjectTests extends ESTestCase {
-
+public class RangeStorageObjectTests extends DelegateStorageObjectTests {
     private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
 
     private static final byte[] FILE_BYTES = "Hello, World! This is test data for range reads.".getBytes(StandardCharsets.UTF_8);
@@ -80,22 +78,16 @@ public class RangeStorageObjectTests extends ESTestCase {
 
     public void testPathDelegates() {
         StoragePath path = StoragePath.of("s3://bucket/file.csv");
-        StorageObject delegate = new InMemoryStorageObject(FILE_BYTES, path);
-        RangeStorageObject range = new RangeStorageObject(delegate, 0, 10);
-        assertEquals(path, range.path());
+        assertEquals(path, makeStorageObject(new InMemoryStorageObject(FILE_BYTES, path)).path());
     }
 
     public void testExistsDelegates() throws IOException {
-        StorageObject delegate = new InMemoryStorageObject(FILE_BYTES);
-        RangeStorageObject range = new RangeStorageObject(delegate, 0, 10);
-        assertTrue(range.exists());
+        assertTrue(makeStorageObject(new InMemoryStorageObject(FILE_BYTES)).exists());
     }
 
     public void testLastModifiedDelegates() throws IOException {
         Instant now = Instant.now();
-        StorageObject delegate = new InMemoryStorageObject(FILE_BYTES, StoragePath.of("s3://bucket/test"), now);
-        RangeStorageObject range = new RangeStorageObject(delegate, 0, 10);
-        assertEquals(now, range.lastModified());
+        assertEquals(now, makeStorageObject(new InMemoryStorageObject(FILE_BYTES, StoragePath.of("s3://bucket/test"), now)).lastModified());
     }
 
     public void testZeroOffsetFullLength() throws IOException {
@@ -215,6 +207,7 @@ public class RangeStorageObjectTests extends ESTestCase {
     public void testNegativeOffsetThrows() {
         StorageObject delegate = new InMemoryStorageObject(FILE_BYTES);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new RangeStorageObject(delegate, -1, 10));
+
         assertTrue(e.getMessage().contains("offset must be >= 0"));
     }
 
@@ -225,13 +218,8 @@ public class RangeStorageObjectTests extends ESTestCase {
     }
 
     public void testSupportsNativeAsyncDelegatesToDelegate() {
-        StorageObject syncDelegate = new InMemoryStorageObject(FILE_BYTES);
-        RangeStorageObject syncRange = new RangeStorageObject(syncDelegate, 0, 10);
-        assertFalse(syncRange.supportsNativeAsync());
-
-        StorageObject asyncDelegate = new AsyncCapableStorageObject(FILE_BYTES);
-        RangeStorageObject asyncRange = new RangeStorageObject(asyncDelegate, 0, 10);
-        assertTrue(asyncRange.supportsNativeAsync());
+        assertFalse(makeStorageObject(new InMemoryStorageObject(FILE_BYTES)).supportsNativeAsync());
+        assertTrue(makeStorageObject(new AsyncCapableStorageObject(FILE_BYTES)).supportsNativeAsync());
     }
 
     public void testReadBytesAsyncAdjustsPosition() throws Exception {
@@ -294,14 +282,12 @@ public class RangeStorageObjectTests extends ESTestCase {
 
     public void testMetricsDelegatesToWrapped() {
         StorageObjectMetrics snapshot = new StorageObjectMetrics(7, 1234, 4096, 2);
-        StorageObject delegate = new InMemoryStorageObject(FILE_BYTES) {
+        assertSame(snapshot, makeStorageObject(new InMemoryStorageObject(FILE_BYTES) {
             @Override
             public StorageObjectMetrics metrics() {
                 return snapshot;
             }
-        };
-        RangeStorageObject range = new RangeStorageObject(delegate, 0, FILE_BYTES.length);
-        assertSame(snapshot, range.metrics());
+        }).metrics());
     }
 
     /**
@@ -312,7 +298,7 @@ public class RangeStorageObjectTests extends ESTestCase {
      */
     public void testAbortStreamDelegates() throws IOException {
         AbortTrackingStorageObject delegate = new AbortTrackingStorageObject(FILE_BYTES);
-        RangeStorageObject range = new RangeStorageObject(delegate, 7, 6);
+        StorageObject range = makeStorageObject(delegate);
 
         InputStream stream = range.newStream();
         range.abortStream(stream);
@@ -428,5 +414,10 @@ public class RangeStorageObjectTests extends ESTestCase {
         public StoragePath path() {
             return path;
         }
+    }
+
+    @Override
+    public StorageObject makeStorageObject(StorageObject delegate) {
+        return new RangeStorageObject(delegate, 7, 6);
     }
 }

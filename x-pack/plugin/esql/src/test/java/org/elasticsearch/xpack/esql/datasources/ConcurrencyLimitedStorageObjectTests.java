@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
@@ -45,7 +44,7 @@ import static org.mockito.Mockito.when;
  * each, which is what AGENTS.md calls out as "the real class is complex". Tracked as follow-up to
  * incrementally extend {@code TestStorageObjects} with builders for those shapes.
  */
-public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
+public class ConcurrencyLimitedStorageObjectTests extends DelegateStorageObjectTests {
 
     private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
 
@@ -174,12 +173,8 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
     }
 
     public void testMetricsDelegatesToWrapped() {
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(3);
         StorageObjectMetrics snapshot = new StorageObjectMetrics(11, 2222, 8192, 3);
-        StorageObject delegate = TestStorageObjects.metricsOnly(snapshot);
-
-        ConcurrencyLimitedStorageObject obj = new ConcurrencyLimitedStorageObject(delegate, limiter);
-        assertSame(snapshot, obj.metrics());
+        assertSame(snapshot, makeStorageObject(TestStorageObjects.metricsOnly(snapshot)).metrics());
     }
 
     /**
@@ -310,5 +305,10 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
         expectThrows(IOException.class, () -> obj.abortStream(wrapper));
         assertEquals("permit must be released even if delegate.abortStream throws", 3, limiter.availablePermits());
         verify(delegate, times(1)).abortStream(any(InputStream.class));
+    }
+
+    @Override
+    public StorageObject makeStorageObject(StorageObject delegate) {
+        return new ConcurrencyLimitedStorageObject(delegate, new ConcurrencyLimiter(3));
     }
 }

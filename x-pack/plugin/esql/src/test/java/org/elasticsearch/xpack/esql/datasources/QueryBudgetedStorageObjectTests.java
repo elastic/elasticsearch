@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -41,7 +40,7 @@ import static org.mockito.Mockito.when;
  * each, which is what AGENTS.md calls out as "the real class is complex". Tracked as follow-up to
  * incrementally extend {@code TestStorageObjects} with builders for those shapes.
  */
-public class QueryBudgetedStorageObjectTests extends ESTestCase {
+public class QueryBudgetedStorageObjectTests extends DelegateStorageObjectTests {
 
     private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
 
@@ -166,12 +165,8 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
     }
 
     public void testMetricsDelegatesToWrapped() {
-        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(3, 60_000L, null);
         StorageObjectMetrics snapshot = new StorageObjectMetrics(5, 999, 2048, 1);
-        StorageObject delegate = TestStorageObjects.metricsOnly(snapshot);
-
-        QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
-        assertSame(snapshot, obj.metrics());
+        assertSame(snapshot, makeStorageObject(TestStorageObjects.metricsOnly(snapshot)).metrics());
     }
 
     public void testNewStreamReleasesOnDelegateException() throws Exception {
@@ -249,4 +244,10 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
         assertEquals("permit must be released even if delegate.abortStream throws", 0, budget.inFlight());
         verify(delegate, times(1)).abortStream(any(InputStream.class));
     }
+
+    @Override
+    public StorageObject makeStorageObject(StorageObject delegate) {
+        return new QueryBudgetedStorageObject(delegate, new QueryConcurrencyBudget(3, 60_000L, null));
+    }
+
 }

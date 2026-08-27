@@ -72,4 +72,53 @@ final class TestStorageObjects {
             }
         };
     }
+
+    /**
+     * Delegate fixture whose only meaningful method is {@link StorageObject#asyncCpuNanos}; every
+     * other SPI call throws {@link UnsupportedOperationException}. Use this in decorator delegation
+     * tests that only call {@code asyncCpuNanos()} on the wrapper.
+     */
+    static StorageObject withAsyncCpuNanos(long nanos) {
+        return new StorageObject() {
+            @Override
+            public long asyncCpuNanos() {
+                return nanos;
+            }
+
+            @Override
+            public InputStream newStream() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long length() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Instant lastModified() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean exists() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public StoragePath path() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public int readBytes(long position, ByteBuffer target) {
+                throw new UnsupportedOperationException();
+            }
+        };
+    }
 }

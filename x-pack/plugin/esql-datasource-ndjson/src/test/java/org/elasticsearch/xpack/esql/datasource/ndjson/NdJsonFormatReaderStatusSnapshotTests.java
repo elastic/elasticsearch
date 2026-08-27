@@ -14,10 +14,15 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.Before;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -60,5 +65,65 @@ public class NdJsonFormatReaderStatusSnapshotTests extends ESTestCase {
         assertEquals("ndjson", after.format());
         assertEquals("no malformed lines in this fixture", 0L, after.parseErrors());
         assertTrue("read_nanos should be > 0 after at least one decodePage call", after.readNanos() > 0);
+    }
+
+    /**
+     * Verifies that {@link NdJsonFormatReader} accumulates {@code asyncCpuNanos()} from the
+     * {@link StorageObject} into its own CPU counter via {@code withAsyncCpuOnClose}.
+     */
+    public void testAsyncCpuNanosAccumulated() throws IOException {
+        long injectedAsyncCpu = 5_000_000L; // 5 ms injected from a "GCS-like" storage object
+        String ndjson = """
+            {"id": 1}
+            """;
+        byte[] bytes = ndjson.getBytes(StandardCharsets.UTF_8);
+        StorageObject object = new StorageObject() {
+            @Override
+            public long asyncCpuNanos() {
+                return injectedAsyncCpu;
+            }
+
+            @Override
+            public InputStream newStream() {
+                return new ByteArrayInputStream(bytes);
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                throw new UnsupportedOperationException("range reads not needed");
+            }
+
+            @Override
+            public long length() {
+                return bytes.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.now();
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://async-cpu-test.ndjson");
+            }
+        };
+        var reader = new NdJsonFormatReader(null, blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("id"), 10)) {
+            while (iterator.hasNext()) {
+                Releasables.close(iterator.next()::releaseBlocks);
+            }
+        }
+
+        assertTrue(
+            "readCpuNanos must include asyncCpuNanos from the storage object",
+            reader.statusSnapshot().readCpuNanos() >= injectedAsyncCpu
+        );
     }
 }

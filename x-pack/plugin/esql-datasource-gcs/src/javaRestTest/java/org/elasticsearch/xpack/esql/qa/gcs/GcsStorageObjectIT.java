@@ -15,8 +15,12 @@ import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.gcs.GcsStorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.AfterClass;
@@ -26,8 +30,12 @@ import org.junit.ClassRule;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.management.ManagementFactory;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Integration tests for GcsStorageObject using GoogleCloudStorageHttpFixture.
@@ -162,5 +170,41 @@ public class GcsStorageObjectIT extends ESTestCase {
 
     public void testProviderSupportedSchemes() {
         assertEquals(java.util.List.of("gs"), provider.supportedSchemes());
+    }
+
+    /**
+     * Verifies that CPU time on the GCS executor thread is accumulated in
+     * {@link org.elasticsearch.xpack.esql.datasource.gcs.GcsStorageObject#asyncCpuNanos()}.
+     * Uses a real GCS read via the fixture so the measurement is meaningful.
+     */
+    public void testAsyncCpuNanosAccumulatesOnRead() throws Exception {
+        assumeTrue(
+            "per-thread CPU timing not supported on this JVM",
+            ManagementFactory.getThreadMXBean().isCurrentThreadCpuTimeSupported()
+        );
+
+        StoragePath path = StoragePath.of("gs://" + BUCKET + "/" + TEST_KEY);
+        StorageObject obj = provider.newObject(path);
+        long contentLength = TEST_CONTENT.getBytes(StandardCharsets.UTF_8).length;
+
+        DirectBufferFactory factory = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
+
+        // Inline executor: the GCS Runnable runs on the test thread, so ThreadMXBean
+        // measures the executor CPU directly without cross-thread handoff.
+        obj.readBytesAsync(0, contentLength, factory, Runnable::run, ActionListener.wrap(buf -> {
+            result.set(buf);
+            latch.countDown();
+        }, e -> {
+            error.set(e);
+            latch.countDown();
+        }));
+
+        assertTrue(latch.await(10, TimeUnit.SECONDS));
+        if (result.get() != null) result.get().close();
+        assertNull(error.get());
+        assertTrue("asyncCpuNanos must be > 0 after a real GCS read", obj.asyncCpuNanos() > 0L);
     }
 }

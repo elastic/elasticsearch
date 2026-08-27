@@ -33,6 +33,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -602,5 +603,59 @@ public class GcsStorageObjectTests extends ESTestCase {
 
         assertEquals(0L, obj.metrics().requestCount());
         assertEquals(0L, obj.metrics().bytesRead());
+    }
+
+    /**
+     * Verifies that CPU time spent inside the executor Runnable submitted by
+     * {@link GcsStorageObject#readBytesAsync} is accumulated in {@link GcsStorageObject#asyncCpuNanos()}.
+     * Uses an inline executor (Runnable::run) so the "executor thread" is the test thread and
+     * {@link java.lang.management.ThreadMXBean} can measure its CPU directly.
+     */
+    public void testAsyncCpuNanosAccumulatesOnReadBytesAsync() throws Exception {
+        assumeTrue(
+            "per-thread CPU timing not supported on this JVM",
+            java.lang.management.ManagementFactory.getThreadMXBean().isCurrentThreadCpuTimeSupported()
+        );
+
+        ReadChannel mockReader = mock(ReadChannel.class);
+        when(mockStorage.reader(any(BlobId.class))).thenReturn(mockReader);
+        // Burn CPU for a fixed wall-clock window. Since this is a tight spin on System.nanoTime()
+        // the thread consumes CPU the entire time, so ThreadMXBean should report at least half
+        // the wall time as CPU time even on platforms with ~1ms timer resolution.
+        long burnNanos = 10_000_000L; // 10 ms
+        doAnswer(invocation -> {
+            ByteBuffer buf = invocation.getArgument(0);
+            byte[] data = "data".getBytes(StandardCharsets.UTF_8);
+            buf.put(data);
+            long deadline = System.nanoTime() + burnNanos;
+            while (System.nanoTime() < deadline) { /* spin */ }
+            return data.length;
+        }).when(mockReader).read(any(ByteBuffer.class));
+
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
+
+        obj.readBytesAsync(0, 4, FACTORY, Runnable::run, ActionListener.wrap(buf -> {
+            result.set(buf);
+            latch.countDown();
+        }, e -> {
+            error.set(e);
+            latch.countDown();
+        }));
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        if (result.get() != null) result.get().close();
+        assertNull(error.get());
+        // Assert at least half the burn window to tolerate timer resolution on macOS (~1ms).
+        // A zero result means the CPU timer didn't fire at all — the instrumentation is broken.
+        assertThat(
+            "asyncCpuNanos must capture at least half the CPU-burning window",
+            obj.asyncCpuNanos(),
+            greaterThanOrEqualTo(burnNanos / 2)
+        );
     }
 }

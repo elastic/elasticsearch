@@ -9,16 +9,18 @@
 
 package org.elasticsearch.nativeaccess;
 
+import org.elasticsearch.foreign.Upcall;
 import org.elasticsearch.nativeaccess.jdk.JdkMappedSegment;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
+import org.elasticsearch.nativeaccess.lib.Kernel32Library.Address;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library.Handle;
+import org.elasticsearch.nativeaccess.lib.Kernel32Library.MemoryBasicInformation;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -98,6 +100,8 @@ public class WindowsNativeAccess extends AbstractNativeAccess {
      *
      * @see <a href="http://msdn.microsoft.com/en-us/library/windows/desktop/ms683242%28v=vs.85%29.aspx">HandlerRoutine docs</a>
      */
+    @Upcall
+    @FunctionalInterface
     public interface ConsoleCtrlHandler {
 
         int CTRL_CLOSE_EVENT = 2;
@@ -126,14 +130,14 @@ public class WindowsNativeAccess extends AbstractNativeAccess {
         if (kernel.SetProcessWorkingSetSize(process, size, size) == false) {
             logger.warn("Unable to lock JVM memory. Failed to set working set size. Error code {}", kernel.GetLastError());
         } else {
-            var memInfo = kernel.newMemoryBasicInformation();
-            var address = memInfo.BaseAddress();
+            MemoryBasicInformation memInfo = kernel.newMemoryBasicInformation();
+            Address address = memInfo.baseAddress();
             while (kernel.VirtualQueryEx(process, address, memInfo) != 0) {
                 boolean lockable = memInfo.State() == MEM_COMMIT
                     && (memInfo.Protect() & PAGE_NOACCESS) != PAGE_NOACCESS
                     && (memInfo.Protect() & PAGE_GUARD) != PAGE_GUARD;
                 if (lockable) {
-                    kernel.VirtualLock(memInfo.BaseAddress(), memInfo.RegionSize());
+                    kernel.VirtualLock(memInfo.baseAddress(), memInfo.RegionSize());
                 }
                 // Move to the next region
                 address = address.add(memInfo.RegionSize());
@@ -218,16 +222,6 @@ public class WindowsNativeAccess extends AbstractNativeAccess {
     @Override
     public ProcessLimits getProcessLimits() {
         return new ProcessLimits(ProcessLimits.UNKNOWN, ProcessLimits.UNKNOWN, ProcessLimits.UNKNOWN);
-    }
-
-    @Override
-    public Optional<SimdVecLibrary> getVectorSimilarityFunctions() {
-        return Optional.empty(); // not supported yet
-    }
-
-    @Override
-    public Optional<ParquetRsFunctions> getParquetRsFunctions() {
-        return Optional.empty(); // not supported yet
     }
 
     @Override

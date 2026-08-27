@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.junit.Before;
@@ -790,6 +792,123 @@ public class OptimizedParquetReaderTests extends ESTestCase {
     @FunctionalInterface
     interface GroupCreator {
         List<Group> create(SimpleGroupFactory factory);
+    }
+
+    /**
+     * A keyword predicate column whose null runs are aligned to the read batch size, so whole
+     * decoded batches are null and the reader hands the pushed-filter evaluator a
+     * {@code ConstantNullBlock}. Until this was fixed the read died with a {@code ClassCastException}
+     * (elastic/elasticsearch#157313) the moment the first all-null batch was reached; the surviving
+     * rows must come from the valued batches only.
+     */
+    public void testKeywordFilterOverAlternatingAllNullBatches() throws IOException {
+        final int batchSize = 64;
+        final int batches = 8;
+        final int totalRows = batchSize * batches;
+
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("code")
+            .named("alternating_null_schema");
+
+        // Even-numbered batches are entirely null; odd-numbered batches carry values, half of
+        // which match the predicate.
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < totalRows; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                if ((i / batchSize) % 2 == 1) {
+                    g.add("code", i % 2 == 0 ? "US" : "CA");
+                }
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        ReferenceAttribute codeAttr = new ReferenceAttribute(Source.EMPTY, "code", DataType.KEYWORD);
+        Expression eq = new Equals(Source.EMPTY, codeAttr, new Literal(Source.EMPTY, new BytesRef("US"), DataType.KEYWORD), null);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(
+            new ParquetPushedExpressions(List.of(eq))
+        );
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        List<Long> survivingIds = new ArrayList<>();
+        try (CloseableIterator<Page> iter = reader.read(storageObject, FormatReadContext.of(null, batchSize))) {
+            while (iter.hasNext()) {
+                Page page = iter.next();
+                try {
+                    LongBlock idBlock = page.getBlock(0);
+                    for (int pos = 0; pos < page.getPositionCount(); pos++) {
+                        survivingIds.add(idBlock.getLong(pos));
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+
+        List<Long> expected = new ArrayList<>();
+        for (int i = 0; i < totalRows; i++) {
+            if ((i / batchSize) % 2 == 1 && i % 2 == 0) {
+                expected.add((long) i);
+            }
+        }
+        assertThat("rows must come only from the valued batches", survivingIds, equalTo(expected));
+        assertFalse("the fixture must actually produce survivors", expected.isEmpty());
+    }
+
+    /**
+     * Pins what actually happens when the predicate column is absent from the file's schema
+     * entirely, as it is for the files of a multi-file glob that lack it.
+     *
+     * <p>Contrary to what elastic/elasticsearch#157313 assumed, this shape does <b>not</b> reach the
+     * all-null crash on this reader path. The evaluator never receives a null block for the column: no block is
+     * registered under that name at all, so {@code evaluateExpression} bails to the conservative
+     * "all rows survive" sentinel and the reader emits every row. The predicate is
+     * {@code Pushability.RECHECK}, so {@code FilterExec} applies it downstream and the query answer
+     * is still correct - just decided above the reader rather than inside it.
+     *
+     * <p>The crash needs a column that IS in the schema and whose batch decodes entirely null -
+     * see {@link #testKeywordFilterOverAlternatingAllNullBatches}. Behaviour here is identical
+     * before and after the fix; this test exists so that stays true.
+     */
+    public void testKeywordFilterOnColumnMissingFromFileSchema() throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .named("missing_predicate_column_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 200; i++) {
+                groups.add(factory.newGroup().append("id", (long) i));
+            }
+            return groups;
+        });
+
+        ReferenceAttribute cityAttr = new ReferenceAttribute(Source.EMPTY, "city", DataType.KEYWORD);
+        Expression eq = new Equals(Source.EMPTY, cityAttr, new Literal(Source.EMPTY, new BytesRef("paris"), DataType.KEYWORD), null);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(
+            new ParquetPushedExpressions(List.of(eq))
+        );
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        int rows = 0;
+        try (CloseableIterator<Page> iter = reader.read(storageObject, FormatReadContext.of(List.of("id", "city"), 64))) {
+            while (iter.hasNext()) {
+                Page page = iter.next();
+                try {
+                    rows += page.getPositionCount();
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+        assertThat("the reader defers to FilterExec via the all-survive sentinel", rows, equalTo(200));
     }
 
     private byte[] createParquetFile(MessageType schema, GroupCreator groupCreator) throws IOException {

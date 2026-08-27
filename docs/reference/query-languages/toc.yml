@@ -72,6 +72,7 @@ toc:
           - file: query-dsl/query-dsl-rule-query.md
       - file: query-dsl/term-level-queries.md
         children:
+          - file: query-dsl/query-dsl-bitmap-terms-query.md
           - file: query-dsl/query-dsl-exists-query.md
           - file: query-dsl/query-dsl-fuzzy-query.md
           - file: query-dsl/query-dsl-ids-query.md
@@ -384,10 +385,12 @@ toc:
                   - file: esql/functions-operators/mv-functions/mv_dedupe.md
                   - file: esql/functions-operators/mv-functions/mv_difference.md
                   - file: esql/functions-operators/mv-functions/mv_first.md
+                  - file: esql/functions-operators/mv-functions/mv_greater.md
                   - file: esql/functions-operators/mv-functions/mv_in_range.md
                   - file: esql/functions-operators/mv-functions/mv_intersection.md
                   - file: esql/functions-operators/mv-functions/mv_intersects.md
                   - file: esql/functions-operators/mv-functions/mv_last.md
+                  - file: esql/functions-operators/mv-functions/mv_less.md
                   - file: esql/functions-operators/mv-functions/mv_like.md
                   - file: esql/functions-operators/mv-functions/mv_max.md
                   - file: esql/functions-operators/mv-functions/mv_median.md

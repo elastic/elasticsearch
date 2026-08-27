@@ -1137,7 +1137,7 @@ public class SearchEngine extends Engine {
      */
     public void maybeWarmCurrentReaderForResharding() {
         final var indexMetadata = engineConfig.getIndexSettings().getIndexMetadata();
-        if (ReshardSearchFilters.shouldWarm(shardId, indexMetadata.getReshardingMetadata()) == false) {
+        if (ReshardSearchFilters.mayContainUnownedDocuments(shardId, indexMetadata.getReshardingMetadata()) == false) {
             return;
         }
         try {

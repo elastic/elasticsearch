@@ -66,7 +66,7 @@ public final class ReshardSearchFilters implements Closeable {
      */
     public void maybeWarm(DirectoryReader reader, ShardId shardId, IndexMetadata indexMetadata, MapperService mapperService)
         throws ExecutionException {
-        if (shouldWarm(shardId, indexMetadata.getReshardingMetadata()) == false) {
+        if (mayContainUnownedDocuments(shardId, indexMetadata.getReshardingMetadata()) == false) {
             return;
         }
 
@@ -214,7 +214,7 @@ public final class ReshardSearchFilters implements Closeable {
                     yield false;
                 }
 
-                yield shouldWarm(shardId, reshardingMetadata);
+                yield mayContainUnownedDocuments(shardId, reshardingMetadata);
             }
             case INVALID -> throw new StaleRequestException(shardId, summary);
         };
@@ -223,7 +223,7 @@ public final class ReshardSearchFilters implements Closeable {
     /**
      * Returns whether the shard may still contain unowned documents that require search filtering.
      */
-    public static boolean shouldWarm(ShardId shardId, IndexReshardingMetadata reshardingMetadata) {
+    public static boolean mayContainUnownedDocuments(ShardId shardId, IndexReshardingMetadata reshardingMetadata) {
         if (reshardingMetadata == null || reshardingMetadata.isSplit() == false) {
             return false;
         }
@@ -231,10 +231,10 @@ public final class ReshardSearchFilters implements Closeable {
         IndexReshardingState.Split split = reshardingMetadata.getSplit();
         if (split.isTargetShard(shardId.id())) {
             /// We ensure that refresh happens between unowned data being deleted and target shard moving to DONE.
-            /// So at this point we know that there is no unowned data and we can skip filtering and warming.
+            /// So at this point we know that there is no unowned data and we can skip filtering.
             return split.targetStateAtLeast(shardId.id(), IndexReshardingState.Split.TargetShardState.DONE) == false;
         } else {
-            /// Similarly since we ensure the refresh is done after deleting unowned data we can skip filtering and warming
+            /// Similarly since we ensure the refresh is done after deleting unowned data we can skip filtering
             /// if the shard is DONE.
             return split.sourceStateAtLeast(shardId.id(), IndexReshardingState.Split.SourceShardState.DONE) == false;
         }

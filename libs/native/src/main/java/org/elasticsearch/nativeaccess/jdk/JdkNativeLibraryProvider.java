@@ -16,6 +16,6 @@ import java.util.Map;
 public class JdkNativeLibraryProvider extends NativeLibraryProvider {
 
     public JdkNativeLibraryProvider() {
-        super("jdk", Map.of(ParquetRsLibrary.class, JdkParquetRsLibrary::new));
+        super("jdk", Map.of());
     }
 }

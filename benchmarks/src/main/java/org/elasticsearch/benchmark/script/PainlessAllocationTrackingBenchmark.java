@@ -99,7 +99,12 @@ public class PainlessAllocationTrackingBenchmark {
     @Param({ "trivial", "allocating", "contains", "complex", "def_alloc" })
     private String script;
 
-    private IngestConditionalScript compiledScript;
+    /**
+     * Shared, because compiling once is the point of {@link Scope#Benchmark}. The script <em>instance</em> is not shared:
+     * it holds the allocation counter as a field, so running one instance on several threads would have them all writing
+     * the same field and would measure cache-line contention that a node never sees.
+     */
+    private IngestConditionalScript.Factory factory;
 
     @Setup
     public void setup() throws Exception {
@@ -167,27 +172,32 @@ public class PainlessAllocationTrackingBenchmark {
                 default -> throw new IllegalArgumentException("unknown script: " + script);
             };
 
-            IngestConditionalScript.Factory factory = engine.compile(
-                "alloc-bench-" + script,
-                source,
-                IngestConditionalScript.CONTEXT,
-                Map.of()
-            );
-
-            Map<String, Object> params = new HashMap<>();
-            params.put("word", "echo");
-            Map<String, Object> ctxMap = new HashMap<>();
-            ctxMap.put("message", "test");
-
-            compiledScript = factory.newInstance(params, ctxMap);
+            factory = engine.compile("alloc-bench-" + script, source, IngestConditionalScript.CONTEXT, Map.of());
         } finally {
             System.clearProperty(ALLOCATION_METRICS_ENABLED_PROPERTY);
         }
     }
 
+    /** One script instance per thread, as a node has: instances come from a leaf or a request, never shared across threads. */
+    @State(Scope.Thread)
+    public static class PerThread {
+
+        private IngestConditionalScript script;
+
+        @Setup
+        public void setup(PainlessAllocationTrackingBenchmark benchmark) {
+            Map<String, Object> params = new HashMap<>();
+            params.put("word", "echo");
+            Map<String, Object> context = new HashMap<>();
+            context.put("message", "test");
+
+            script = benchmark.factory.newInstance(params, context);
+        }
+    }
+
     @Benchmark
-    public boolean benchmark() {
-        return compiledScript.execute();
+    public boolean benchmark(PerThread perThread) {
+        return perThread.script.execute();
     }
 
     /**

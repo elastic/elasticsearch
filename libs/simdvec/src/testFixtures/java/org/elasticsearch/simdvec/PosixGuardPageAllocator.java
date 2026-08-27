@@ -80,6 +80,7 @@ final class PosixGuardPageAllocator extends GuardPageAllocator {
     }
 
     @Override
+    @SuppressWarnings("restricted") // MemorySegment.reinterpret is a restricted method; used to tie munmap to the arena scope.
     protected MemorySegment reserve(long byteSize) {
         MemorySegment base = memLibrary.mmap(
             MemorySegment.NULL, // let the kernel choose the address

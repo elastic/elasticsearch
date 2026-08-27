@@ -21,7 +21,6 @@ import org.elasticsearch.foreign.StructFactory;
 import org.elasticsearch.foreign.StructSize;
 import org.elasticsearch.foreign.StructSpecification;
 import org.elasticsearch.foreign.WideString;
-import org.elasticsearch.foreign.adapter.ArenaAdapter;
 import org.elasticsearch.nativeaccess.WindowsNativeAccess.ConsoleCtrlHandler;
 
 import java.lang.foreign.Arena;
@@ -191,7 +190,7 @@ public abstract class Kernel32Library {
      */
     public int GetShortPathNameW(String lpszLongPath, char[] lpszShortPath, int cchBuffer) {
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment shortPath = lpszShortPath != null ? ArenaAdapter.allocate(arena, JAVA_CHAR, cchBuffer) : MemorySegment.NULL;
+            MemorySegment shortPath = lpszShortPath != null ? arena.allocate(JAVA_CHAR, cchBuffer) : MemorySegment.NULL;
 
             int ret = GetShortPathNameW(lpszLongPath, shortPath, cchBuffer);
             if (shortPath != MemorySegment.NULL) {

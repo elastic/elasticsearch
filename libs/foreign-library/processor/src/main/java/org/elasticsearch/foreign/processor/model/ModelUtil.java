@@ -20,8 +20,6 @@ import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
@@ -142,24 +140,6 @@ final class ModelUtil {
             }
         }
         return Set.of();
-    }
-
-    /** Finds the first {@code public static} method with the given name on a type. */
-    static ExecutableElement findPublicStaticMethod(TypeElement type, String methodName) {
-        for (var enclosed : type.getEnclosedElements()) {
-            if (enclosed.getKind() != ElementKind.METHOD) {
-                continue;
-            }
-            ExecutableElement m = (ExecutableElement) enclosed;
-            if (m.getSimpleName().contentEquals(methodName) == false) {
-                continue;
-            }
-            var modifiers = m.getModifiers();
-            if (modifiers.contains(Modifier.PUBLIC) && modifiers.contains(Modifier.STATIC)) {
-                return m;
-            }
-        }
-        return null;
     }
 
     /**

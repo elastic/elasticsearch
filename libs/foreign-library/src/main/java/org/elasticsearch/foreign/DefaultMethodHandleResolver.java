@@ -21,6 +21,7 @@ import java.lang.invoke.MethodHandle;
 public final class DefaultMethodHandleResolver implements MethodHandleResolver {
 
     @Override
+    @SuppressWarnings("restricted") // Linker.downcallHandle is a restricted native-access method; this resolver exists to call it.
     public MethodHandle resolve(ResolvedSymbol symbol, FunctionDescriptor descriptor, Linker linker, Linker.Option... options) {
         return linker.downcallHandle(symbol.address(), descriptor, options);
     }

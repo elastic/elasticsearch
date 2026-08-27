@@ -51,12 +51,10 @@ public interface ZstdLibrary {
 
     /**
      * Heap-friendly variant of {@link #compress}: same C symbol bound with the {@code critical}
-     * linker option so on-heap {@link MemorySegment} arguments avoid a JNI copy. On JDK 21 the critical
-     * linker option is unavailable, so the binding is wrapped by {@link ZstdHeapFallback#compressHeap} which
-     * stages the heap segments off-heap before the libzstd call.
+     * linker option so on-heap {@link MemorySegment} arguments avoid a JNI copy.
      */
     @Function("ZSTD_compress")
-    @Critical(fallbackAdapter = ZstdHeapFallback.class)
+    @Critical
     long compressHeap(MemorySegment dst, long dstCap, MemorySegment src, long srcSize, int level);
 
     /**
@@ -72,12 +70,10 @@ public interface ZstdLibrary {
 
     /**
      * Heap-friendly variant of {@link #decompress}: same C symbol bound with the {@code critical}
-     * linker option so on-heap {@link MemorySegment} arguments avoid a JNI copy. On JDK 21 the critical
-     * linker option is unavailable, so the binding is wrapped by {@link ZstdHeapFallback#decompressHeap} which
-     * stages the heap segments off-heap before the libzstd call.
+     * linker option so on-heap {@link MemorySegment} arguments avoid a JNI copy.
      */
     @Function("ZSTD_decompress")
-    @Critical(fallbackAdapter = ZstdHeapFallback.class)
+    @Critical
     long decompressHeap(MemorySegment dst, long dstCap, MemorySegment src, long srcSize);
 
     /**

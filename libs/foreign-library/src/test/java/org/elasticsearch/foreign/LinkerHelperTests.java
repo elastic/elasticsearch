@@ -30,6 +30,7 @@ import static java.lang.foreign.ValueLayout.JAVA_INT;
 public class LinkerHelperTests extends TestCase {
 
     @BeforeClass
+    @SuppressWarnings("restricted") // System.loadLibrary is a restricted method; needed to link kernel32 in the Windows test.
     public static void loadWindowsLibraries() {
         if (Platform.current() == Platform.WINDOWS_X64) {
             System.loadLibrary("kernel32");

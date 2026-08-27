@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.LongAdder;
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
-import static org.elasticsearch.foreign.adapter.MemorySegmentAdapter.varHandleWithoutOffset;
+import static org.elasticsearch.foreign.MemoryLayoutVarHandles.varHandleWithoutOffset;
 
 public final class Zstd {
 

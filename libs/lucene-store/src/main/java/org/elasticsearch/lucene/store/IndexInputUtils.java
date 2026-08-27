@@ -368,9 +368,6 @@ public final class IndexInputUtils {
     ) throws IOException {
         byte[] buf = scratchSupplier.apply(bytesToRead);
         in.readBytes(buf, 0, bytesToRead);
-        MemorySegmentUtils.withDowncallSegment(buf, bytesToRead, s -> {
-            action.accept(s);
-            return null;
-        });
+        action.accept(MemorySegment.ofArray(buf).asSlice(0, bytesToRead));
     }
 }

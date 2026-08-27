@@ -10,7 +10,6 @@
 package org.elasticsearch.nativeaccess.jdk;
 
 import org.elasticsearch.foreign.LoaderHelper;
-import org.elasticsearch.foreign.adapter.MemorySegmentAdapter;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.lib.ParquetRsLibrary;
@@ -55,7 +54,7 @@ public final class JdkParquetRsLibrary implements ParquetRsLibrary {
             if (len <= 0) {
                 return null;
             }
-            return MemorySegmentAdapter.getString(buf, 0);
+            return buf.getString(0);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -64,8 +63,8 @@ public final class JdkParquetRsLibrary implements ParquetRsLibrary {
     @Override
     public long[] getStatistics(String path, String configJson) {
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment pathSeg = MemorySegmentAdapter.allocateString(arena, path);
-            MemorySegment configSeg = configJson != null ? MemorySegmentAdapter.allocateString(arena, configJson) : MemorySegment.NULL;
+            MemorySegment pathSeg = arena.allocateFrom(path);
+            MemorySegment configSeg = configJson != null ? arena.allocateFrom(configJson) : MemorySegment.NULL;
             MemorySegment outRows = arena.allocate(JAVA_LONG);
             MemorySegment outBytes = arena.allocate(JAVA_LONG);
             int rc = (int) getStatistics$mh.invokeExact(pathSeg, configSeg, outRows, outBytes);
@@ -81,8 +80,8 @@ public final class JdkParquetRsLibrary implements ParquetRsLibrary {
     @Override
     public int getSchemaFFI(String path, String configJson, long schemaAddr) {
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment pathSeg = MemorySegmentAdapter.allocateString(arena, path);
-            MemorySegment configSeg = configJson != null ? MemorySegmentAdapter.allocateString(arena, configJson) : MemorySegment.NULL;
+            MemorySegment pathSeg = arena.allocateFrom(path);
+            MemorySegment configSeg = configJson != null ? arena.allocateFrom(configJson) : MemorySegment.NULL;
             return (int) getSchemaFFI$mh.invokeExact(pathSeg, configSeg, schemaAddr);
         } catch (Throwable t) {
             throw new AssertionError(t);

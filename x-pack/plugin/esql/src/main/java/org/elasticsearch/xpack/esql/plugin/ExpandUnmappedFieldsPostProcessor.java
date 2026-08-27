@@ -184,7 +184,7 @@ class ExpandUnmappedFieldsPostProcessor {
             for (Page p : result.pages()) {
                 newPages.add(rewritePage(unmappedIdx, fieldNames, factory, p, originalColumnCount, reservationFactor));
             }
-            assert assertNoAllNullExpandedColumn(newPages, originalColumnCount - 1, fieldNames);
+            assert assertNoAllNullExpandedColumn(newPages, originalColumnCount, fieldNames);
             success = true;
             return newPages;
         } finally {
@@ -197,16 +197,16 @@ class ExpandUnmappedFieldsPostProcessor {
     /**
      * Guard rail for what {@code UnmappedFieldsBlockLoader} promises this class: every key it writes into {@code _unmapped_fields}
      * holds a value, and that value is what {@link #appendRow} writes back, so no expanded column can come out {@code null} in every
-     * row. An all-null column would be a silent lie about the data - it reads as "every document has this field, with no value" where
-     * the truth is "no document has this field" - so a violation is a bug on one side of that contract rather than anything the user
-     * can provoke.
+     * row.
      * <p>
      * Only the expanded columns are checked: a retained column can legitimately be all null, e.g. {@code KEEP field_absent_everywhere}
      * resolves to a {@code null} literal.
      *
      * @return {@code true}, so this can be called from an {@code assert} and skipped entirely in production
      */
-    private static boolean assertNoAllNullExpandedColumn(List<Page> pages, int retainedBlockCount, List<String> fieldNames) {
+    private static boolean assertNoAllNullExpandedColumn(List<Page> pages, int originalColumnCount, List<String> fieldNames) {
+        // Same layout as rewritePage builds: the retained columns are every original column but _unmapped_fields, then the expansion.
+        int retainedBlockCount = originalColumnCount - 1;
         for (int i = 0; i < fieldNames.size(); i++) {
             int column = retainedBlockCount + i;
             boolean allNull = true;

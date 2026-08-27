@@ -128,10 +128,38 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
         assertMap(filtered, matchesMap().entry("hobby", "chess"));
     }
 
+    /**
+     * Objects are not expanded into columns of their own, but a nully object still says nothing about the field it sits under, so it
+     * must not keep that field's column alive either - not even through a leaf buried inside it, which would not be mapped anyway.
+     */
+    public void testValuelessSourceObjectsAreDropped() throws IOException {
+        Map<String, Object> emptyObject = new HashMap<>();
+        Map<String, Object> nullyLeaves = new HashMap<>();
+        nullyLeaves.put("baz", singletonList(null));
+        nullyLeaves.put("inga", emptyObject);
+        Map<String, Object> source = new HashMap<>();
+        source.put("empty_object", emptyObject);
+        source.put("object_of_nully_leaves", nullyLeaves);
+        source.put("array_of_nully_objects", List.of(Map.of("foo", singletonList(null)), Map.of("bar", List.of())));
+        source.put("hobby", "chess");
+        Map<String, Object> filtered = load(UnmappedFieldsPattern.ALL, source);
+        assertMap(filtered, matchesMap().entry("hobby", "chess"));
+    }
+
+    /** An object with anything at all in it is kept, since the coordinator has a value to render for the field it sits under. */
+    public void testSourceObjectWithAValueIsKept() throws IOException {
+        Map<String, Object> nested = new HashMap<>();
+        nested.put("baz", "world");
+        nested.put("empty", List.of());
+        Map<String, Object> filtered = load(UnmappedFieldsPattern.ALL, Map.of("extra", nested));
+        assertMap(filtered, matchesMap().entry("extra", matchesMap().entry("baz", "world").entry("empty", List.of())));
+    }
+
     public void testOnlyValuelessSourceValuesEmitsNull() throws IOException {
         Map<String, Object> source = new HashMap<>();
         source.put("first_pet", null);
         source.put("tags", List.of());
+        source.put("address", Map.of("city", List.of()));
         assertThat(load(UnmappedFieldsPattern.ALL, source), nullValue());
     }
 

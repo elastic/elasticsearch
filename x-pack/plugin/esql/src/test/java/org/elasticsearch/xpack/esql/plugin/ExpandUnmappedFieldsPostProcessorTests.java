@@ -219,6 +219,55 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
     }
 
+    /** The column has to be null in every row of every page, so the guard rail only trips once all pages agree. */
+    public void testAllNullExpandedColumnAcrossPagesTripsGuardRail() {
+        BlockFactory bf = blockFactory();
+        Result result = result(
+            List.of(intAttr(), unmappedAttr()),
+            List.of(
+                page(bf, List.of(row(1, jsonObject("{'a':null}")))),
+                page(bf, List.of(row(2, jsonObject("{'a':null,'b':'y'}")))),
+                page(bf, List.of(row(3, jsonObject("{'b':'z'}"))))
+            )
+        );
+
+        AssertionError e = expectThrows(AssertionError.class, () -> expand(result, bf));
+        assertThat(e.getMessage(), containsString("Expanded unmapped field 'a' into a column that is null in every row"));
+        assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
+     * The flip side of {@link #testAllNullExpandedColumnAcrossPagesTripsGuardRail}: a single value in a single page is enough to
+     * justify the column, so the guard rail must stay quiet however many other pages are null throughout.
+     */
+    public void testValueInOnePageOnlyDoesNotTripGuardRail() {
+        BlockFactory bf = blockFactory();
+        Result result = result(
+            List.of(intAttr(), unmappedAttr()),
+            List.of(
+                page(bf, List.of(row(1, jsonObject("{'b':'y'}")))),
+                page(bf, List.of(row(2, jsonObject("{'a':'x'}")), row(3, jsonObject("{'b':'z'}")))),
+                page(bf, List.of(row(4, jsonObject("{'b':'w'}"))))
+            )
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "a", "b")));
+            assertThat(
+                nonNullRows(expanded),
+                contains(
+                    matchesMap().entry(INT_ATTR, 1).entry("b", "y"),
+                    matchesMap().entry(INT_ATTR, 2).entry("a", "x"),
+                    matchesMap().entry(INT_ATTR, 3).entry("b", "z"),
+                    matchesMap().entry(INT_ATTR, 4).entry("b", "w")
+                )
+            );
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
     public void testNonStringJsonValuesAreStringified() {
         BlockFactory bf = blockFactory();
         Result result = result(

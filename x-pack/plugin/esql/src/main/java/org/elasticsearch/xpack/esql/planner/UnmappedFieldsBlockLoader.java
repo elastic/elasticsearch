@@ -37,7 +37,8 @@ import java.util.Set;
  *
  * <p>Dropping the value-less keys here rather than on the coordinator keeps them off the wire entirely, and is what lets the
  * coordinator turn every key it receives into an output column without producing one that is null in every row - see
- * {@code UnmappedFields#carriesValue} and {@code ExpandUnmappedFieldsPostProcessor}.
+ * {@link UnmappedFields#carriesValue} and {@code ExpandUnmappedFieldsPostProcessor} (package-private in another package, so it
+ * cannot be linked from here).
  *
  * <p>Field-level security needs no handling here: it strips denied fields from the {@code _source} this reads, so they never
  * reach the pattern. {@code EsqlSecurityIT#testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoadAll} holds that down.
@@ -114,16 +115,16 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
                     .v2();
                 try (XContentBuilder json = XContentFactory.jsonBuilder()) {
                     json.startObject();
-                    boolean anyValue = false;
+                    boolean keep = false;
                     for (Map.Entry<String, Object> entry : sourceMap.entrySet()) {
                         if (pattern.matches(entry.getKey()) && carriesValue(entry.getValue())) {
-                            anyValue = true;
+                            keep = true;
                             json.field(entry.getKey(), entry.getValue());
                         }
                     }
                     json.endObject();
                     // An empty object would carry no more information than a null, and the coordinator treats the two the same.
-                    if (anyValue) {
+                    if (keep) {
                         ((BytesRefBuilder) builder).appendBytesRef(BytesReference.bytes(json).toBytesRef());
                     } else {
                         builder.appendNull();
@@ -135,11 +136,14 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
         }
 
         /**
-         * Whether a {@code _source} value says anything about the field it sits under. {@code null}, {@code []}, {@code [null]} and any
-         * nesting of those do not: a document writing one of them tells us as little about the field as a document omitting it
-         * altogether, and Elasticsearch indexes nothing for either. Shipping such a value to the coordinator would only cost bytes and
-         * a parse to arrive at the same {@code null} - and, worse, would earn the field a whole output column that is {@code null} in
-         * every row, which {@code ExpandUnmappedFieldsPostProcessor#assertNoAllNullExpandedColumn} asserts against.
+         * Whether a {@code _source} value says anything about the field it sits under. {@code null}, {@code []}, {@code {}} and any
+         * nesting of those - {@code [null]}, {@code [{"foo":null},{"bar":[]}]}, {@code {"baz":[null],"inga":{}}} - do not: a document
+         * writing one of them tells us as little about the field as a document omitting it altogether, and Elasticsearch indexes
+         * nothing for either, not even a leaf field inside the object.
+         * <p>
+         * Shipping such a value to the coordinator would only cost bytes and a parse to arrive at the same {@code null} - and, worse,
+         * would earn the field a whole output column that is {@code null} in every row, which
+         * {@code ExpandUnmappedFieldsPostProcessor#assertNoAllNullExpandedColumn} asserts against.
          */
         private static boolean carriesValue(Object value) {
             if (value == null) {
@@ -147,6 +151,16 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
             }
             if (value instanceof List<?> values) {
                 for (Object element : values) {
+                    if (carriesValue(element)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            // Objects are not expanded into columns of their own, but a nully one still says nothing about the field it sits under, so
+            // it must not keep that field's column alive either.
+            if (value instanceof Map<?, ?> map) {
+                for (Object element : map.values()) {
                     if (carriesValue(element)) {
                         return true;
                     }

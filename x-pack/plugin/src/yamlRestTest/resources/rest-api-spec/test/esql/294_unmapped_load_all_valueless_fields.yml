@@ -1,7 +1,7 @@
 ---
 setup:
   - requires:
-      test_runner_features: [ capabilities ]
+      test_runner_features: [ capabilities, allowed_warnings_regex ]
       capabilities:
         - method: POST
           path: /_query
@@ -9,7 +9,7 @@ setup:
           capabilities: [ optional_fields_load_all, optional_fields_load_all_skips_valueless_fields ]
       reason: "under SET unmapped_fields=\"load_all\", a source field that is null, [] or [null] everywhere expands into no column"
 
-  # dynamic:false keeps specific_unmapped_field unmapped no matter what the documents write to it, so it is only ever discoverable
+  # dynamic:false keeps every field but id unmapped no matter what the documents write to it, so those are only ever discoverable
   # by reading _source on the data node - which is the path this test is about.
   - do:
       indices.create:
@@ -24,6 +24,16 @@ setup:
   - do:
       indices.create:
         index: load-all-valueless-mixed
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+
+  - do:
+      indices.create:
+        index: load-all-valueless-nested
         body:
           mappings:
             dynamic: false
@@ -65,12 +75,28 @@ setup:
           - { "index": { } }
           - { "id": "5", "specific_unmapped_field": "present" }
 
+  # Objects and arrays of objects whose every leaf is nully. Elasticsearch would map nully_object and nully_object.inga as objects
+  # and nothing at all for their leaves; document 3 is the one object with something in it.
+  - do:
+      bulk:
+        index: load-all-valueless-nested
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "id": "1", "nully_array_of_objects": [ { "foo": null }, { "bar": [ ] } ] }
+          - { "index": { } }
+          - { "id": "2", "nully_object": { "baz": [ null ], "inga": { } } }
+          - { "index": { } }
+          - { "id": "3", "object_with_a_value": { "baz": "world" } }
+
 ---
 'valueless unmapped field expands into no column':
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'SET unmapped_fields="load_all"; FROM load-all-valueless | SORT id | LIMIT 10'
+          query: 'SET unmapped_fields="load_all"; FROM load-all-valueless | SORT id'
   - length: { columns: 1 }
   - match: { columns.0.name: id }
   - match: { columns.0.type: keyword }
@@ -79,9 +105,11 @@ setup:
 ---
 'explicitly kept valueless unmapped field is a null column':
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'SET unmapped_fields="load_all"; FROM load-all-valueless | KEEP specific_unmapped_field | LIMIT 10'
+          query: 'SET unmapped_fields="load_all"; FROM load-all-valueless | KEEP specific_unmapped_field'
   - length: { columns: 1 }
   - match: { columns.0.name: specific_unmapped_field }
   - match: { columns.0.type: keyword }
@@ -94,9 +122,11 @@ setup:
 ---
 'valueless values are null in a column another document filled':
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'SET unmapped_fields="load_all"; FROM load-all-valueless-mixed | SORT id | LIMIT 10'
+          query: 'SET unmapped_fields="load_all"; FROM load-all-valueless-mixed | SORT id'
   - length: { columns: 2 }
   - match: { columns.0.name: id }
   - match: { columns.1.name: specific_unmapped_field }
@@ -110,11 +140,28 @@ setup:
 ---
 'a column one index brings into existence still covers the valueless index':
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'SET unmapped_fields="load_all"; FROM load-all-valueless,load-all-valueless-mixed | LIMIT 20'
+          query: 'SET unmapped_fields="load_all"; FROM load-all-valueless,load-all-valueless-mixed'
   - length: { columns: 2 }
   - match: { columns.0.name: id }
   - match: { columns.1.name: specific_unmapped_field }
   - match: { columns.1.type: keyword }
   - length: { values: 10 }
+
+---
+'nully objects and arrays of objects expand into no column':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load_all"; FROM load-all-valueless-nested | SORT id'
+  # Only the object that has something in it earns a column; the value it renders as is the objectsGap, so it is not asserted here.
+  - length: { columns: 2 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: object_with_a_value }
+  - match: { columns.1.type: keyword }
+  - length: { values: 3 }

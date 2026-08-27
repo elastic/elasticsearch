@@ -1,0 +1,6 @@
+area: Vector Search
+issues:
+ - 157696
+pr: 157730
+summary: Fix bfloat16 reading from old index versions with endianness mismatches
+type: bug

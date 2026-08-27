@@ -24,8 +24,8 @@ import java.util.Arrays;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.applyI4Corrections;
-import static org.elasticsearch.nativeaccess.Int4TestUtils.dotProductI4SinglePacked;
-import static org.elasticsearch.nativeaccess.Int4TestUtils.unpackNibbles;
+import static org.elasticsearch.simdvec.Int4TestUtils.dotProductI4SinglePacked;
+import static org.elasticsearch.simdvec.Int4TestUtils.unpackNibbles;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.writePackedVectorWithCorrection;
 
 public class Int4BenchmarkUtils {

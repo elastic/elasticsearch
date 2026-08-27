@@ -15,9 +15,6 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineBatch;
@@ -31,8 +28,6 @@ import org.elasticsearch.sourcebatch.SourceBatch;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.common.settings.Setting.boolSetting;
-
 /**
  * Handles the batch indexing code path for primary and replica shards, using the columnar
  * metadata-mapper pipeline ({@link ShardBatchMapper}) rather than per-document row parsing.
@@ -41,33 +36,24 @@ public final class ShardBatchIndexer {
 
     private static final Logger logger = LogManager.getLogger(ShardBatchIndexer.class);
 
-    public static final FeatureFlag BATCH_INDEXING_FEATURE_FLAG = new FeatureFlag("batch_indexing");
-    public static final Setting<Boolean> BATCH_INDEXING = boolSetting("indices.batch_indexing", false, value -> {
-        if (value && BATCH_INDEXING_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalArgumentException(
-                "[indices.batch_indexing] can only be enabled when the batch_indexing feature flag is enabled"
-            );
-        }
-    }, Setting.Property.NodeScope);
-
     // Maximum number of operations to parse and index in a single pass to bound memory usage.
     static final int BATCH_CHUNK_SIZE = 5000;
 
-    private final boolean batchIndexingEnabled;
+    private final BatchIndexingEnabled batchIndexingEnabled;
     private final Recycler<BytesRef> recycler;
 
-    ShardBatchIndexer(Settings settings, Recycler<BytesRef> recycler) {
-        this.batchIndexingEnabled = BATCH_INDEXING.get(settings);
+    ShardBatchIndexer(BatchIndexingEnabled batchIndexingEnabled, Recycler<BytesRef> recycler) {
+        this.batchIndexingEnabled = batchIndexingEnabled;
         this.recycler = recycler;
     }
 
     /**
      * Checks whether the batch indexing path can be used for this request.
-     * Returns true if batch indexing is enabled, an EIRF batch is present, synthetic source is active,
+     * Returns true if batch indexing is enabled, a source batch is present, synthetic source is active,
      * and all operations are index/create (no deletes, no updates).
      */
     public boolean canUseBatchIndexing(BulkShardRequest request) {
-        if (batchIndexingEnabled == false) {
+        if (batchIndexingEnabled.isEnabled() == false) {
             return false;
         }
         if (request.getBulkShardBatch() == null) {
@@ -178,7 +164,7 @@ public final class ShardBatchIndexer {
 
             // Find the end of the contiguous valid run within this chunk. A failed or NOOP primary
             // response ends the run; the remainder falls back to sequential processing.
-            // A batch is written as a single contiguous Translog.IndexBatch record, so a primary
+            // A batch is written as a single contiguous IndexOperationBatch.TranslogRecord, so a primary
             // no-op in the middle of a chunk ends the batch here (rather than being skipped).
             // TODO: This will be resolved in a follow-up to allow the engine level batch execution
             // to handle mixed index and no-op operations.

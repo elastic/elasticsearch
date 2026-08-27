@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetim
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -47,12 +49,21 @@ public final class PromqlFunctionDefinition {
     private final List<PromqlParamInfo> params;
     private final List<String> examples;
     private final CounterSupport counterSupport;
+    private final ClassicHistogramHandler classicHistogramHandler;
     private final String differenceFromPrometheus;
     private final List<StackAvailability> stack;
 
     @FunctionalInterface
     public interface FunctionBuilder {
         Expression build(Source source, Expression target, PromqlFunctionRegistry.PromqlContext ctx, List<Expression> extraParams);
+    }
+
+    /**
+     * Builds the specialized logical plan node used to evaluate classic histogram.
+     */
+    @FunctionalInterface
+    public interface ClassicHistogramHandler {
+        HistogramFunctionCall build(Source source, LogicalPlan child, PromqlFunctionDefinition definition, List<Expression> extraParams);
     }
 
     /**
@@ -152,6 +163,7 @@ public final class PromqlFunctionDefinition {
         List<PromqlParamInfo> params,
         List<String> examples,
         CounterSupport counterSupport,
+        ClassicHistogramHandler classicHistogramHandler,
         String differenceFromPrometheus,
         List<StackAvailability> stack
     ) {
@@ -163,6 +175,9 @@ public final class PromqlFunctionDefinition {
         Objects.requireNonNull(params, "params cannot be null");
         Objects.requireNonNull(examples, "examples cannot be null");
         Objects.requireNonNull(counterSupport, "counterSupport cannot be null");
+        if (classicHistogramHandler != null && functionType != FunctionType.HISTOGRAM) {
+            throw new IllegalArgumentException("classicHistogramHandler may only be set for histogram functions");
+        }
         if (arity.max() != params.size()) {
             throw new IllegalArgumentException(
                 String.format(
@@ -187,6 +202,7 @@ public final class PromqlFunctionDefinition {
         this.params = params;
         this.examples = examples;
         this.counterSupport = counterSupport;
+        this.classicHistogramHandler = classicHistogramHandler;
         // Optional: only set for functions whose Elasticsearch behavior diverges from the Prometheus reference.
         this.differenceFromPrometheus = differenceFromPrometheus;
         // Stack availability rendered into the docs applies_to badge. Empty until declared; the docs generator rejects
@@ -233,6 +249,17 @@ public final class PromqlFunctionDefinition {
 
     public CounterSupport counterSupport() {
         return counterSupport;
+    }
+
+    /**
+     * Returns the specialized classic histogram handler, or {@code null} when this histogram function only supports the
+     * regular native-histogram translation path.
+     */
+    public ClassicHistogramHandler classicHistogramHandler() {
+        if (functionType != FunctionType.HISTOGRAM) {
+            throw new IllegalStateException("classicHistogramHandler may only be called for histogram functions");
+        }
+        return classicHistogramHandler;
     }
 
     /**
@@ -420,6 +447,7 @@ public final class PromqlFunctionDefinition {
         private String extendedDescription;
         private List<PromqlParamInfo> params;
         private CounterSupport counterSupport = CounterSupport.UNSUPPORTED;
+        private ClassicHistogramHandler classicHistogramHandler;
         private String differenceFromPrometheus;
         private List<StackAvailability> stack = List.of();
 
@@ -647,6 +675,17 @@ public final class PromqlFunctionDefinition {
             return this;
         }
 
+        /**
+         * Configures the specialized logical plan node used for classic histograms.
+         */
+        public PromqlFunctionDefinition.Builder classicHistogramHandler(ClassicHistogramHandler classicHistogramHandler) {
+            if (functionType != FunctionType.HISTOGRAM) {
+                throw new IllegalStateException("classicHistogramHandler may only be configured for histogram functions");
+            }
+            this.classicHistogramHandler = Objects.requireNonNull(classicHistogramHandler);
+            return this;
+        }
+
         public PromqlFunctionDefinition.Builder scalar(Function<Source, ? extends Expression> ctorRef) {
             this.functionType = FunctionType.SCALAR;
             this.arity = PromqlFunctionArity.NONE;
@@ -740,6 +779,7 @@ public final class PromqlFunctionDefinition {
                 params,
                 examples,
                 counterSupport,
+                classicHistogramHandler,
                 differenceFromPrometheus,
                 stack
             );

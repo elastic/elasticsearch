@@ -4,7 +4,10 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+
 package org.elasticsearch.upgrades;
+
+import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
@@ -19,7 +22,11 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
-public class WatcherRestartIT extends AbstractUpgradeTestCase {
+public class WatcherRestartIT extends AbstractXpackRollingUpgradeTestCase {
+
+    public WatcherRestartIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
 
     public void testWatcherRestart() throws Exception {
         client().performRequest(new Request("POST", "/_watcher/_stop"));
@@ -30,7 +37,7 @@ public class WatcherRestartIT extends AbstractUpgradeTestCase {
     }
 
     public void testEnsureWatcherDeletesLegacyTemplates() throws Exception {
-        if (CLUSTER_TYPE.equals(ClusterType.UPGRADED)) {
+        if (isUpgradedCluster()) {
             // legacy index template created in previous releases should not be present anymore
             assertBusy(() -> {
                 Request request = new Request("GET", "/_template/*watch*");

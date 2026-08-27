@@ -1,0 +1,5 @@
+pr: 157853
+summary: Upgrade reactor-core to 3.8.7
+area: Snapshot/Restore
+type: upgrade
+issues: []

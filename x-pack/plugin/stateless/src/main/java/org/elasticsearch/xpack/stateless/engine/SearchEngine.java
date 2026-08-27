@@ -84,6 +84,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -356,7 +357,7 @@ public class SearchEngine extends Engine {
                 @Override
                 public void afterRefresh(boolean didRefresh) {
                     if (didRefresh) {
-                        maybeWarmCurrentReaderForResharding();
+                        warmReaderCacheAfterResharding();
                     }
                 }
             });
@@ -372,7 +373,7 @@ public class SearchEngine extends Engine {
                 clusterSettings,
                 prefetcherDynamicSettings
             );
-            maybeWarmCurrentReaderForResharding();
+            warmReaderCacheAfterResharding();
             success = true;
         } catch (Exception e) {
             throw new EngineCreationFailureException(config.getShardId(), "Failed to create a search engine", e);
@@ -1136,22 +1137,18 @@ public class SearchEngine extends Engine {
     /**
      * Schedules warming of the current reader's resharding unowned-document bitsets when this shard is in an active split.
      */
-    public void maybeWarmCurrentReaderForResharding() {
+    public void warmReaderCacheAfterResharding() {
         final var indexMetadata = engineConfig.getIndexSettings().getIndexMetadata();
-        if (ReshardSearchFilters.mayContainUnownedDocuments(shardId, indexMetadata.getReshardingMetadata()) == false) {
-            return;
-        }
-        try {
+        if (ReshardSearchFilters.mayContainUnownedDocuments(shardId, indexMetadata.getReshardingMetadata())) {
             engineConfig.getThreadPool().executor(ThreadPool.Names.WARMER).execute(() -> {
                 try (Searcher searcher = acquireSearcher("reshard_unowned_bitset_warming", SearcherScope.INTERNAL)) {
-                    final var query = new ShardSplittingQuery(indexMetadata, shardId.id(), engineConfig.getMapperService().hasNested());
-                    reshardSearchFilters.unownedBitsetCache().warmBitSets(query, searcher.getDirectoryReader());
-                } catch (Exception e) {
+                    var query = new ShardSplittingQuery(indexMetadata, shardId.id(), engineConfig.getMapperService().hasNested());
+                    var reader = searcher.getDirectoryReader();
+                    reshardSearchFilters.unownedBitsetCache().warmBitSets(query, reader);
+                } catch (ExecutionException e) {
                     logger.debug(() -> Strings.format("failed to warm resharding unowned-document bitsets for shard [%s]", shardId), e);
                 }
             });
-        } catch (RuntimeException e) {
-            logger.debug(() -> Strings.format("failed to schedule resharding unowned-document bitset warming for shard [%s]", shardId), e);
         }
     }
 

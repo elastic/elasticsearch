@@ -1577,7 +1577,7 @@ public class StatelessPlugin extends Plugin
             );
         }
         if (hasSearchRole) {
-            indexModule.addIndexEventListener(new ReshardSearchWarmer(threadPool.get().executor(ThreadPool.Names.WARMER)));
+            indexModule.addIndexEventListener(new ReshardSearchWarmer());
             indexModule.addIndexEventListener(
                 new StatelessSearchNodeLifecycleListener(
                     searchShardSizeCollector.get(),

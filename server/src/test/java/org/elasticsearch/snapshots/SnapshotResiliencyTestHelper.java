@@ -725,6 +725,8 @@ public class SnapshotResiliencyTestHelper {
                 new TransportFetchPhaseResponseChunkAction(transportService, activeFetchPhaseTasks, namedWriteableRegistry);
                 Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
 
+                shardStateAction = new ShardStateAction(clusterService, transportService, allocationService, rerouteService, threadPool);
+
                 // Inject initialization from subclass which may be needed by initializations after this point.
                 doInit(actions, actionFilters);
 
@@ -736,7 +738,6 @@ public class SnapshotResiliencyTestHelper {
                     indicesService,
                     createSnapshotShardContextFactory()
                 );
-                shardStateAction = new ShardStateAction(clusterService, transportService, allocationService, rerouteService, threadPool);
                 nodeConnectionsService = new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService);
                 actions.put(
                     TransportUpdateSnapshotStatusAction.TYPE,

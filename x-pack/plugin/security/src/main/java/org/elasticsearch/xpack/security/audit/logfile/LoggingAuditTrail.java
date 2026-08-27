@@ -292,9 +292,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         Property.Dynamic
     );
     /**
-     * Maximum raw request body size (in bytes) that may be included in audit events when
-     * {@link #INCLUDE_REQUEST_BODY} is {@code true}. Requests whose body exceeds this limit are
-     * rejected with HTTP 413 to keep the audit log a complete record of every accepted request.
+     * Maximum rendered JSON length (in characters) that may be included in audit events when
+     * {@link #INCLUDE_REQUEST_BODY} is {@code true}. The limit is applied to the output of
+     * {@link org.elasticsearch.common.xcontent.XContentHelper#convertToJson} rather than the raw
+     * request bytes, so it accounts for format differences (e.g. SMILE expanding to JSON).
+     * Requests whose rendered body exceeds this limit are rejected with HTTP 413 to keep the
+     * audit log a complete record of every accepted request.
      * <p>
      * {@code 0} disables the limit (no rejection); use with caution on endpoints that may receive
      * large bodies such as OTLP or Prometheus remote-write ingestion endpoints.

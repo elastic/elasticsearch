@@ -31,29 +31,30 @@ public class AuditUtil {
     /**
      * Renders the body of {@code request} as a JSON string for inclusion in audit log events.
      * <p>
-     * If {@code maxBytes > 0} and the raw request body size exceeds that limit, an
+     * If {@code maxBytes > 0} and the rendered JSON length exceeds that limit, an
      * {@link ElasticsearchStatusException} with status 413 is thrown so the caller can reject
-     * the request before the expensive JSON conversion is attempted.
+     * the request before it is written to the audit log.
      *
-     * @param maxBytes   maximum allowed size of the raw request body, in bytes; {@code 0} = unlimited
+     * @param maxBytes   maximum allowed length of the rendered JSON string, in characters; {@code 0} = unlimited
      * @param settingKey the cluster setting key to include in the error message; may be {@code null}
      *                   when {@code maxBytes} is {@code 0}
      */
     public static String restRequestContent(RestRequest request, int maxBytes, String settingKey) {
         if (request.hasContent()) {
             var content = request.content();
-            if (maxBytes > 0 && content.length() > maxBytes) {
-                throw new ElasticsearchStatusException(
-                    "Request body size [{}] exceeds the audit body size limit [{}]; "
-                        + "adjust the [{}] setting to increase the limit or set it to 0 to disable",
-                    RestStatus.REQUEST_ENTITY_TOO_LARGE,
-                    ByteSizeValue.ofBytes(content.length()),
-                    ByteSizeValue.ofBytes(maxBytes),
-                    settingKey
-                );
-            }
             try {
-                return XContentHelper.convertToJson(content, false, false, request.getXContentType());
+                String json = XContentHelper.convertToJson(content, false, false, request.getXContentType());
+                if (maxBytes > 0 && json.length() > maxBytes) {
+                    throw new ElasticsearchStatusException(
+                        "Request body size [{}] exceeds the audit body size limit [{}]; "
+                            + "adjust the [{}] setting to increase the limit or set it to 0 to disable",
+                        RestStatus.REQUEST_ENTITY_TOO_LARGE,
+                        ByteSizeValue.ofBytes(json.length()),
+                        ByteSizeValue.ofBytes(maxBytes),
+                        settingKey
+                    );
+                }
+                return json;
             } catch (IOException ioe) {
                 return "Invalid Format: " + content.utf8ToString();
             }

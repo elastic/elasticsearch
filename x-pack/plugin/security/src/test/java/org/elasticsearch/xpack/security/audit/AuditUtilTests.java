@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.is;
  */
 public class AuditUtilTests extends ESTestCase {
 
-    // ── restRequestContent with size limit ────────────────────────────────────
+    // ── restRequestContent with JSON-length size limit ────────────────────────
 
     public void testRestRequestContentExceedsLimitThrows() {
         String json = "{\"key\":\"value\"}";

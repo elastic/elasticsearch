@@ -185,6 +185,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String EVENT_TYPE_FIELD_NAME = "event.type";
     public static final String EVENT_ACTION_FIELD_NAME = "event.action";
     public static final String PRINCIPAL_FIELD_NAME = "user.name";
+    public static final String PRINCIPAL_FULL_NAME_FIELD_NAME = "user.full_name";
+    public static final String PRINCIPAL_EMAIL_FIELD_NAME = "user.email";
     public static final String PRINCIPAL_RUN_BY_FIELD_NAME = "user.run_by.name";
     public static final String PRINCIPAL_RUN_AS_FIELD_NAME = "user.run_as.name";
     public static final String PRINCIPAL_REALM_FIELD_NAME = "user.realm";
@@ -1679,9 +1681,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         LogEntryBuilder withRunAsSubject(Authentication authentication) {
-            logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getAuthenticatingSubject().getUser().principal())
+            final User authenticatingUser = authentication.getAuthenticatingSubject().getUser();
+            logEntry.with(PRINCIPAL_FIELD_NAME, authenticatingUser.principal())
                 .with(PRINCIPAL_REALM_FIELD_NAME, authentication.getAuthenticatingSubject().getRealm().getName())
                 .with(PRINCIPAL_RUN_AS_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
+            addUserFullNameAndEmail(logEntry, authenticatingUser);
             if (authentication.getAuthenticatingSubject().getRealm().getDomain() != null) {
                 logEntry.with(PRINCIPAL_DOMAIN_FIELD_NAME, authentication.getAuthenticatingSubject().getRealm().getDomain().name());
             }
@@ -1761,7 +1765,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
         static void addAuthenticationFieldsToLogEntry(StringMapMessage logEntry, Authentication authentication) {
             assert false == authentication.isCloudApiKey() : "audit logging for Cloud API keys is not supported";
-            logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
+            final User effectiveUser = authentication.getEffectiveSubject().getUser();
+            logEntry.with(PRINCIPAL_FIELD_NAME, effectiveUser.principal());
+            addUserFullNameAndEmail(logEntry, effectiveUser);
             logEntry.with(AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
             if (authentication.isApiKey() || authentication.isCrossClusterAccess()) {
                 logEntry.with(
@@ -1834,6 +1840,19 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                             + "_"
                             + authentication.getAuthenticatingSubject().getMetadata().get(TOKEN_SOURCE_FIELD)
                     );
+            }
+        }
+
+        /**
+         * Emits ECS/OTel {@code user.full_name} and {@code user.email} for the user already recorded as {@code user.name}.
+         * Not included in the PatternLayout or the final logfile output.
+         */
+        private static void addUserFullNameAndEmail(StringMapMessage logEntry, User user) {
+            if (user.fullName() != null) {
+                logEntry.with(PRINCIPAL_FULL_NAME_FIELD_NAME, user.fullName());
+            }
+            if (user.email() != null) {
+                logEntry.with(PRINCIPAL_EMAIL_FIELD_NAME, user.email());
             }
         }
 

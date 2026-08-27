@@ -169,6 +169,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -2069,6 +2070,36 @@ public class LoggingAuditTrailTests extends ESTestCase {
         updateLoggerSettings(Settings.builder().put(settings).put("xpack.security.audit.logfile.events.exclude", "access_granted").build());
         auditTrail.accessGranted(requestId, authentication, "_action", request, authorizationInfo);
         assertEmptyLog(logger);
+    }
+
+    public void testCustomizerSeesUserFullNameAndEmail() throws Exception {
+        final User user = new User("u1", new String[] { "r1" }, "Ada Lovelace", "ada@example.com", Map.of(), true);
+        final Authentication authentication = AuthenticationTestHelper.builder().user(user).build(false);
+        final AtomicBoolean rewriteRan = new AtomicBoolean();
+        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(
+            settings,
+            clusterService,
+            logger,
+            threadContext,
+            new AuditLogCustomizer() {
+                @Override
+                public Message rewrite(AuditEventContext ctx, MapMessage<?, ?> entry) {
+                    assertThat(entry.get(LoggingAuditTrail.PRINCIPAL_FULL_NAME_FIELD_NAME), equalTo(user.fullName()));
+                    assertThat(entry.get(LoggingAuditTrail.PRINCIPAL_EMAIL_FIELD_NAME), equalTo(user.email()));
+                    rewriteRan.set(true);
+                    return entry;
+                }
+            }
+        );
+
+        auditTrail.accessGranted(
+            randomRequestId(),
+            authentication,
+            "_action",
+            new MockRequest(threadContext),
+            () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, user.roles())
+        );
+        assertTrue(rewriteRan.get());
     }
 
     public void testCustomizerCanSuppressAuditEntry() throws Exception {

@@ -96,6 +96,7 @@ import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesWildcardQuery;
+import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
@@ -813,7 +814,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             } else if (usesBinaryDocValues) {
                 return new ScanningBinaryDocValuesTermQuery(name(), indexedValueForSearch(value), useArrayOrderBinaryDocValues);
             } else {
-                return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
+                return XSortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
             }
         }
 
@@ -852,7 +853,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     useArrayOrderBinaryDocValues
                 );
             } else {
-                return SortedSetDocValuesField.newSlowRangeQuery(
+                return XSortedSetDocValuesRangeQuery.newSlowRangeQuery(
                     name(),
                     lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
                     upperTerm == null ? null : indexedValueForSearch(upperTerm),
@@ -1492,8 +1493,8 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean isSingleValueEnforced() {
-        return docValuesParameters.multiValue() == false;
+    protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
+        return docValuesParameters.multiValue() == false && (token != XContentParser.Token.VALUE_NULL || fieldType().nullValue != null);
     }
 
     @Override
@@ -2126,6 +2127,10 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     public CompositeSyntheticFieldLoader syntheticFieldLoader(String fullFieldName, String leafFieldName) {
-        return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, syntheticFieldLoaderLayers());
+        var layers = syntheticFieldLoaderLayers();
+        if (onFailureColumnEnabled()) {
+            layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexCreatedVersion));
+        }
+        return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, layers);
     }
 }

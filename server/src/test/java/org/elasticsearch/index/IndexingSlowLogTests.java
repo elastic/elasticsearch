@@ -43,14 +43,13 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.index.SearchSlowLogTests.mockLogFieldProvider;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -187,11 +186,8 @@ public class IndexingSlowLogTests extends ESTestCase {
         int numberOfLoggersAfter = numberOfLoggers();
         assertThat(
             numberOfLoggersAfter,
-            anyOf(
-                equalTo(numberOfLoggersBefore),
-                // number of loggers here might be smaller: log4j logger registry expunges stale entries on every getLoggers() call
-                lessThan(numberOfLoggersBefore)
-            )
+            // number of loggers here might be smaller: log4j logger registry expunges stale entries on every getLoggers() call
+            lessThanOrEqualTo(numberOfLoggersBefore)
         );
     }
 

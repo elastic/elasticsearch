@@ -121,6 +121,12 @@ public class ExternalReadConfigContaminationIT extends AbstractExternalDataSourc
      *
      * <p>On main the final query answers 199 with nothing scanned — the poisoner's count, served to a dataset whose
      * own answer is 200.
+     *
+     * <p>Read this as a correctness pin rather than as evidence the read-configuration gate works. The poisoner's
+     * drop is a coercion failure of a projected column, which is projection-dependent, so its publish is now
+     * suppressed at the producer and there is no longer a foreign count for the gate to refuse. It passes with the
+     * gate disabled. {@link #testDeclaredDialectDoesNotPoisonTheInferredExtremum} drops no rows by construction and
+     * remains the gate's discriminator.
      */
     public void testStrictDeclaredReadDoesNotPoisonTheInferredCount() throws Exception {
         String uri = writeDropFixture();
@@ -131,7 +137,8 @@ public class ExternalReadConfigContaminationIT extends AbstractExternalDataSourc
         // statistics, which is why a poisoner-first ordering quietly self-heals and proves nothing.
         assertCount(victim, "STATS c = COUNT(*)", ROWS);
         assertCount(victim, "STATS c = COUNT(*)", ROWS);
-        // Parses age, drops the row that will not coerce, and publishes 199 into the entry they share.
+        // Parses age and drops the row that will not coerce. On main that survivor count reached the shared entry;
+        // now the drop is recognised as projection-dependent and the publish is suppressed before it gets there.
         assertCount(poisoner, "STATS c = COUNT(*), hi = MAX(age)", ROWS - 1L);
         // Its own answer is every row; it must not inherit the poisoner's.
         assertCount(victim, "STATS c = COUNT(*)", ROWS);

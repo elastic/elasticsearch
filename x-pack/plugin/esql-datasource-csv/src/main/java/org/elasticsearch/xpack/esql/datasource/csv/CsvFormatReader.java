@@ -3245,6 +3245,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * (safe-miss, re-scan) rather than cache a pragma-dependent count. Rare (pathological oversized records).
          */
         private boolean recordCapDropped = false;
+
+        /**
+         * Set when SKIP_ROW dropped a row because a PROJECTED column's value failed coercion. Which columns are
+         * coerced is decided by the query's projection, and the projection is not in the cache identity (path +
+         * mtime + config fingerprint + read configuration): a COUNT(*) over the same dataset coerces nothing,
+         * drops nothing, and answers N where this scan measured N-1. So the whole publish is suppressed -- the row
+         * count AND every column family, since a co-projected column's statistics are computed over the same
+         * projection-dependent survivor set. Structural drops (width and tokeniser faults) are decided before the
+         * projection and still commit; NULL_FIELD nulls the cell and drops nothing.
+         */
+        private boolean projectionDependentDrop = false;
         /**
          * The byte offsets of the rows that SURVIVED into the current page, in page order. {@link #rowStartBytes}
          * holds an offset for every PARSED row (including ones later dropped by a structural/field error during
@@ -3557,15 +3568,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     // The first three are in the identity, so a dropped row does not make these stats wrong for this
                     // read: they are committed as this configuration's measurement and the cache refuses to serve
                     // them to a read configured differently. The fourth is not, and cannot be -- projection is
-                    // per-query, and the coordinator and a data node see different ones. That leaves an OPEN
-                    // residual, measured and reachable with no declaration anywhere: an inferred column typed from a
-                    // sample window, a non-coercing value beyond that window, error_mode=skip_row. A query reading
-                    // the column drops the row and commits N-1; a plain COUNT(*) over the same dataset then serves
-                    // N-1 where its own scan answers N. Both carry the same identity, so no gate downstream can
-                    // separate them — only suppressing this publish can, and doing that safely means first
-                    // establishing which drop paths are projection-dependent: structural drops are not (they drop
-                    // whatever is projected), and null_field does not drop at all. Suppressing on any dropped row
-                    // breaks three contracts these tests pin. Left open deliberately, not overlooked.
+                    // per-query, and the coordinator and a data node see different ones. So a drop DECIDED BY the
+                    // projection -- a projected column's value failing coercion under skip_row, see
+                    // projectionDependentDrop -- suppresses the whole publish, because no identity downstream can
+                    // separate this scan's N-1 from a COUNT(*) scan's N over the same file. Structural drops are
+                    // projection-independent (they drop whatever is projected) and commit; null_field does not
+                    // drop at all. Suppressing on any dropped row instead of on this one would be over-broad, and
+                    // would take the other two with it.
                     //
                     // FAIL_FAST aborts before EOF, so naturallyExhausted gates it out. NONE scope suppresses all
                     // publishing. (A scan cut short mid-way -- LIMIT, cancellation, a chunk exceeding its error
@@ -3576,6 +3585,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         && pinnedMtimeMillis >= 0
                         && schema != null
                         && recordCapDropped == false
+                        && projectionDependentDrop == false
                         && statsColumnScope != StripeColumnScope.NONE) {
                         if (statsStripeSize > 0) {
                             // Chunk-parallel read: only per-stripe fragments are cacheable. Emit one
@@ -6343,6 +6353,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     "{}",
                     "CSV parse error at row [" + totalRowCount + "]: " + message + "; row: " + rowExcerpt + hint
                 );
+            }
+            if (structural == false) {
+                // Reached only under SKIP_ROW: NULL_FIELD routes coercion failures to onFieldError and keeps the
+                // row, and FAIL_FAST threw above. A non-structural row error is precisely a projected column's
+                // coercion failure -- the projection-dependent drop the publish gate refuses to commit.
+                projectionDependentDrop = true;
             }
             errorCount++;
             skipWarnings.add("Row [" + totalRowCount + "] error: " + message);

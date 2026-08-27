@@ -790,8 +790,10 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         int badRow = total / 2;
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < total; i++) {
-            // brackets column `tags`; the mid-file row has a non-integer id -> dropped under skip_row.
-            sb.append(i == badRow ? "notanint" : Integer.toString(i)).append(",[a,b]\n");
+            // brackets column `tags`; the mid-file row carries an extra column -> wrong-width structural drop
+            // under skip_row. Structural rather than a coercion failure on purpose: a coercion drop is
+            // projection-dependent and suppresses the publish outright, which would leave nothing to align.
+            sb.append(Integer.toString(i)).append(",[a,b]").append(i == badRow ? ",zzz" : "").append("\n");
         }
         byte[] data = sb.toString().getBytes(StandardCharsets.UTF_8);
         long stripe = 8; // small grid -> many stripes across the file

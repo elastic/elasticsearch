@@ -14,14 +14,11 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -118,15 +115,6 @@ public final class DateFieldMapper extends FieldMapper {
     ).withLocale(DEFAULT_LOCALE);
     private static final DateFormatter EPOCH_MILLIS_FORMATTER = DateFormatter.forPattern("epoch_millis").withLocale(DEFAULT_LOCALE);
     private static final DateMathParser EPOCH_MILLIS_PARSER = EPOCH_MILLIS_FORMATTER.toDateMathParser();
-    // FieldType constants for the Lucene field variants emitted by the columnar parse path.
-    // The compat harness compares frozen FieldType, so the column must carry exactly the same type
-    // as the corresponding field produced by the row-major path.
-    private static final IndexableFieldType SORTED_NUMERIC_DV_FIELD_TYPE = SortedNumericDocValuesField.TYPE;
-    private static final IndexableFieldType SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE = SortedNumericDocValuesField.indexedField("_sentinel", 0L)
-        .fieldType();
-    private static final IndexableFieldType LONG_FIELD_TYPE = new LongField("_sentinel", 0L, Field.Store.NO).fieldType();
-    // Stored-only variant: matches the separate StoredField(name, timestamp) emitted by the row path.
-    private static final IndexableFieldType LONG_STORED_ONLY_FIELD_TYPE = new StoredField("_sentinel", 0L).fieldType();
 
     public enum Resolution {
         MILLISECONDS(CONTENT_TYPE, NumericType.DATE, DateMillisDocValuesField::new) {
@@ -1176,6 +1164,8 @@ public final class DateFieldMapper extends FieldMapper {
 
     private final boolean stored;
     private final boolean indexed;
+    private final LuceneLongColumn.Spec columnSpec;
+    private final LuceneLongColumn.Spec storedSpec;
     private final DocValuesParameter.Values docValuesParameters;
     private final DocValuesFieldFactory dvFactory;
     private final Locale locale;
@@ -1207,6 +1197,12 @@ public final class DateFieldMapper extends FieldMapper {
         super(leafName, mappedFieldType, builderParams);
         this.stored = builder.store.getValue();
         this.indexed = builder.index.getValue();
+        this.columnSpec = LuceneLongColumn.builder()
+            .name(mappedFieldType.name())
+            .indexType(mappedFieldType.indexType())
+            .indexed(this.indexed)
+            .build();
+        this.storedSpec = LuceneLongColumn.builder().name(mappedFieldType.name()).stored(true).build();
         this.docValuesParameters = builder.docValuesParameters.getValue();
         this.dvFactory = new DocValuesFieldFactory(
             docValuesParameters.multiValue(),
@@ -1289,17 +1285,9 @@ public final class DateFieldMapper extends FieldMapper {
                 )
             );
         };
-        final IndexableFieldType columnFieldType;
-        if (fieldType().hasDocValuesSkipper()) {
-            columnFieldType = SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE;
-        } else if (indexed) {
-            columnFieldType = LONG_FIELD_TYPE;
-        } else {
-            columnFieldType = SORTED_NUMERIC_DV_FIELD_TYPE;
-        }
-        ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), columnFieldType, LongColumn.NumericKind.LONG));
+        ctx.addColumn(columnSpec.build(outData));
         if (stored) {
-            ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), LONG_STORED_ONLY_FIELD_TYPE, LongColumn.NumericKind.LONG));
+            ctx.addColumn(storedSpec.build(outData));
         }
         // Publish the timestamp ESCF column on the context so that postColumnarParse hooks
         // (DataStreamTimestampFieldMapper, TsidExtractingIdFieldMapper) can read per-document

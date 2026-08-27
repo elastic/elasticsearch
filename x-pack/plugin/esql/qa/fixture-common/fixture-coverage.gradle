@@ -16,11 +16,14 @@
  * This is the static half: declaration versus spec corpus, no test execution. That is deliberate. Anything
  * keyed on what actually RAN varies with LOCAL backend availability, snapshotBuild, OS/arch and FIPS, so as
  * a gate it would be flaky by construction and muted within a week. This check is deterministic, so it can
- * be enforcing -- and because it hangs off precommit rather than the test tasks, it runs even in release
- * builds where csvSpecTests is disabled.
+ * be enforcing -- and because the declaration checks hang off precommit rather than the test tasks, they
+ * run even in release builds where csvSpecTests is disabled.
  *
  * Hooked to precommit following the goldenTestingConventions precedent (x-pack/plugin/esql/build.gradle);
  * check depends on precommit, so CI reaches it and `./gradlew precommit` catches it locally too.
+ *
+ * checkFixtureGeneration is the exception. It asks whether generation produced files, which has no answer
+ * on a release build that generates none, so it hangs off csvSpecTests instead -- see its own comment.
  *
  * Required ext properties, read at SCRIPT level (inside a task closure `ext` resolves to the task's own
  * property bag, not the project's -- which is how the first version of this file crashed at realization):

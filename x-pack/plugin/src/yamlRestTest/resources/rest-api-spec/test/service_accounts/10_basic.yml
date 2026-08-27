@@ -52,6 +52,65 @@ teardown:
   - match: { "elastic/fleet-server.managed_by": "elastic" }
 
 ---
+"Test get service accounts filtered by managed_by":
+  - do:
+      security.get_service_accounts:
+        managed_by: elastic
+  - length: { '': 4 }
+  - is_true: "elastic/auto-ops"
+  - is_true: "elastic/fleet-server"
+  - is_true: "elastic/fleet-server-remote"
+  - is_true: "elastic/kibana"
+
+  - do:
+      security.get_service_accounts:
+        managed_by: [ elastic, user ]
+  - length: { '': 4 }
+  - is_true: "elastic/auto-ops"
+  - is_true: "elastic/fleet-server"
+  - is_true: "elastic/fleet-server-remote"
+  - is_true: "elastic/kibana"
+
+  - do:
+      security.get_service_accounts:
+        managed_by: user
+  - length: { '': 0 }
+
+  - do:
+      security.get_service_accounts:
+        namespace: elastic
+        service: fleet-server
+        managed_by: user
+  - length: { '': 0 }
+
+  - do:
+      catch: bad_request
+      security.get_service_accounts:
+        managed_by: elasticsearch
+  - match: { "error.type": "illegal_argument_exception" }
+  - match: { "error.reason": "invalid managed_by value [elasticsearch]; must be one of [elastic, user]" }
+
+  - do:
+      catch: bad_request
+      security.get_service_accounts:
+        managed_by: ""
+  - match: { "error.type": "action_request_validation_exception" }
+  - match: { "error.reason": "Validation Failed: 1: managed_by must name at least one of [elastic, user];" }
+
+---
+"Test get service accounts scoped outside the elastic namespace":
+  - do:
+      security.get_service_accounts:
+        namespace: foo
+  - length: { '': 0 }
+
+  - do:
+      security.get_service_accounts:
+        namespace: foo
+        service: bar
+  - length: { '': 0 }
+
+---
 "Test service account tokens":
   - skip:
       features: headers

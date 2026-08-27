@@ -110,9 +110,9 @@ public final class GlobExpander {
      * every segment of a comma list) is expanded through {@link #expandGlobWithRewriteFallback}, which recovers the
      * files a glob rewrite can hide behind a value-spelling mismatch. A comma list is handled per segment so one
      * segment's rewrite-to-empty cannot be masked by another segment that still matches.
-     * Objects matching the dataset's {@code file_exclusions}/{@code file_inclusions} settings — by default the
-     * Spark/Hive hidden-file convention, see {@link ExclusionConfig} — are excluded; directory placeholder keys
-     * (paths ending in {@code /}) are always skipped.
+     * Objects matching the dataset's {@code file_exclusions} patterns are excluded — by default names beginning
+     * with {@code _} or {@code .}, see {@link ExclusionConfig}. Directory placeholder keys (paths ending in
+     * {@code /}, and the prefix's own marker) are always skipped.
      */
     public static FileList expand(
         String path,

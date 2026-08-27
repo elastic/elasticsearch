@@ -29,12 +29,9 @@ import java.util.Set;
  *
  * <p><b>Why that spelling and not {@code _*}.</b> A full-match pattern of {@code **}{@code /_*} matches exactly the
  * paths whose FINAL segment starts with an underscore, because {@code *} cannot cross a separator. It therefore
- * cannot touch a directory, which is what makes it safe: partition values live in directory names and never in the
- * file name. The previous default matched every segment, so it dropped {@code _dept=alpha/} too, and needed a
- * second list carving out {@code _*=*} to rescue it. That carve-out was a proxy for "this is a partition
- * directory" that only held for {@code partition_detection: hive}; under {@code template} the directories are bare
- * values with no {@code =}, nothing was rescued, and a partition named {@code _foo/} was silently dropped along
- * with its rows. Matching only the leaf makes the whole question disappear rather than answering it.
+ * cannot touch a directory — and partition values live in directory names, never in the file name, under every
+ * {@code partition_detection} mode. That is the whole of the partition-safety argument: the default is not
+ * permitted anywhere a partition could be, so there is no exception to carve out and no mode to special-case.
  *
  * <p>The cost, stated plainly: junk <em>directories</em> are no longer excluded by default. A failed Spark job's
  * {@code _temporary/} holds real data files, and they will be read until the dataset names it —

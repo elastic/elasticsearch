@@ -50,6 +50,14 @@ def coverageFormats = ext.fixtureCoverageFormats
 def coverageSpecDirs = ext.fixtureCoverageSpecDirs.collect { file(it) }
 def coverageLayoutRoots = ext.has('fixtureCoverageLayoutRoots') ? ext.fixtureCoverageLayoutRoots : null
 
+// The negative space goes to a FILE, not just the build log. A gap that exists only as a lifecycle line is
+// discoverable for as long as the console scrollback lasts, which is the same problem as a gap nobody
+// declared. This renders every declared cell and every declared gap, with its reason.
+def coverageReportDir = layout.buildDirectory.dir('reports/fixture-coverage')
+// Captured at CONFIGURATION time: reading Task.project inside doLast is deprecated in Gradle 9 and
+// fails outright in 10. Same reason fixture-manifest.gradle captures it here rather than in the task.
+def coverageProjectPath = project.path
+
 tasks.register('checkFixtureCoverage') {
   description = 'Fails when a declared layout cell has no spec that reads it.'
   group = 'verification'
@@ -112,6 +120,7 @@ tasks.register('checkFixtureCoverage') {
       best
     }
     def problems = []
+    def report = []
     coverageFormats.each { token ->
       // Specs are routed by SUITE TOKEN; layout source overrides are keyed by FORMAT. Different axes.
       def format = props.getProperty("suite.${token}.format")
@@ -145,7 +154,35 @@ tasks.register('checkFixtureCoverage') {
       }
       logger.lifecycle("fixture coverage [${token}]: ${declaredCells.size()} declared cell(s), " +
                        "${declaredGaps.size()} declared gap(s) ${declaredGaps.keySet().sort()}")
+      report << ""
+      report << "suite ${token}  (format ${format}): ${declaredCells.size()} cell(s), ${declaredGaps.size()} gap(s)"
+      report << "-" * 96
+      layouts.each { layout ->
+        if (declaredGaps.containsKey(layout)) {
+          report << String.format("  %-28s %-8s %s", layout, "GAP", declaredGaps[layout].replaceAll(/\s+/, ' '))
+        } else if (declaredCells.contains(layout)) {
+          report << String.format("  %-28s %-8s", layout, consumed.contains(layout) ? "read" : "UNREAD")
+        } else {
+          report << String.format("  %-28s %-8s", layout, "n/a")
+        }
+      }
     }
+
+    // Written BEFORE the throw: when the gate fails, a rendering of what is actually declared is exactly
+    // what the reader needs, so it must not be the thing that goes missing on failure.
+    def coverageReportFile = coverageReportDir.get().asFile.toPath().resolve('declared-matrix.txt').toFile()
+    coverageReportFile.parentFile.mkdirs()
+    coverageReportFile.text = ([
+      "declared fixture matrix  (project ${coverageProjectPath})",
+      "=" * 96,
+      "read   = declared, generated, and a routed spec reads it",
+      "GAP    = declared empty for this format, reason shown",
+      "n/a    = layout not declared for this format",
+      "",
+      "Only suites in fixtureCoverageFormats appear here. The compressed suites route specs from the",
+      "declaration but are not gated: their cells are owned by the primary suite for the same format."
+    ] + report).join("\n") + "\n"
+    logger.lifecycle("declared fixture matrix -> ${coverageReportFile}")
 
     if (problems.isEmpty() == false) {
       throw new GradleException("fixture coverage failed:\n  " + problems.join("\n  "))

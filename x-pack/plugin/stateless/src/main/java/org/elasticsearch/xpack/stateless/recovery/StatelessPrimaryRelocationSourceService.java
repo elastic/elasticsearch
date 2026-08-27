@@ -153,15 +153,17 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             this::startRelocationWithFreshClusterState
         );
 
-        clusterService.getClusterSettings()
-            .initializeAndWatch(SLOW_RELOCATION_THRESHOLD_SETTING, value -> this.slowRelocationWarningThreshold = value);
-        clusterService.getClusterSettings()
-            .initializeAndWatch(ID_LOOKUP_RECENCY_THRESHOLD_SETTING, value -> this.idLookupRecencyThreshold = value);
-        clusterService.getClusterSettings()
-            .initializeAndWatchIfRegistered(
-                PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
-                throttledPrimaryRelocations::updateMaxConcurrentOutgoingRelocations
-            );
+        if (hasIndexRole) {
+            clusterService.getClusterSettings()
+                .initializeAndWatch(SLOW_RELOCATION_THRESHOLD_SETTING, value -> this.slowRelocationWarningThreshold = value);
+            clusterService.getClusterSettings()
+                .initializeAndWatch(ID_LOOKUP_RECENCY_THRESHOLD_SETTING, value -> this.idLookupRecencyThreshold = value);
+            clusterService.getClusterSettings()
+                .initializeAndWatchIfRegistered(
+                    PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
+                    throttledPrimaryRelocations::updateMaxConcurrentOutgoingRelocations
+                );
+        }
     }
 
     /// Registers the shared recovery scheduling listeners (available via Guice when the transport action is constructed).
@@ -230,10 +232,11 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
     }
 
     void startRelocation(Task task, StatelessPrimaryRelocationAction.Request request, ActionListener<StartRelocationResponse> listener) {
-        // Note that we trigger prewarm on the target before the source-side throttle queue. Indeed, by the relocation
-        // has already passed through the own target-side recovery throttle (the concurrency limit on incoming recoveries),
-        // so the target node cannot be overloaded by prewarm requests. Starting early overlaps cache warming with any
-        // queue wait, reducing overall relocation latency.
+        assert hasIndexRole : "startRelocation called on a non-index node";
+        // Note that we trigger prewarm on the target before entering the source-side throttle queue. By the time the
+        // relocation reaches `startRelocation`, it has already passed through the target's own recovery throttle (concurrency
+        // limit on incoming recoveries), so the target node cannot be overloaded by prewarm requests. Starting early
+        // overlaps cache warming with any queue wait, reducing overall relocation latency.
         initiatePrewarm(task, request);
 
         RecoveryClusterStateDelay.ensureClusterStateVersion(
@@ -686,6 +689,11 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         }
 
         // visible for testing
+        synchronized boolean closed() {
+            return this.closed;
+        }
+
+        // visible for testing
         void registerRecoverySchedulingListeners(CompositeRecoverySchedulingListener schedulingListeners) {
             assert this.schedulingListeners == null : "already registered scheduling listeners";
             this.schedulingListeners = schedulingListeners;
@@ -815,6 +823,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         }
 
         private void awaitEmpty() {
+            assert closed();
             final CountDownLatch emptyLatch = new CountDownLatch(1);
             final RecoverySchedulingListener listener = new RecoverySchedulingListener() {
                 @Override

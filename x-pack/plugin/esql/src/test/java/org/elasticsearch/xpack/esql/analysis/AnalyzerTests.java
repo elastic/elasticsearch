@@ -4673,7 +4673,7 @@ public class AnalyzerTests extends ESTestCase {
         books().error(
             "FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"text-embedding-inference-id\", \"type\" : \"image\" }",
             containsString(
-                "cannot use inference endpoint [text-embedding-inference-id] with task type [text_embedding] within a DenseVector "
+                "cannot use inference endpoint [text-embedding-inference-id] with task type [text_embedding] within a DENSE_VECTOR "
                     + "command. Only inference endpoints with the task type [embedding] are supported"
             )
         );
@@ -4683,7 +4683,7 @@ public class AnalyzerTests extends ESTestCase {
         assumeDenseVectorCommandEnabled();
         books().error(
             "FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"completion-inference-id\" }",
-            containsString("cannot use inference endpoint [completion-inference-id] with task type [completion] within a DenseVector")
+            containsString("cannot use inference endpoint [completion-inference-id] with task type [completion] within a DENSE_VECTOR")
         );
     }
 

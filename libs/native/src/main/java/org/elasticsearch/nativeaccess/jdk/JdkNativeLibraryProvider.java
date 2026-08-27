@@ -9,15 +9,13 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
-import org.elasticsearch.nativeaccess.lib.JavaLibrary;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
-import org.elasticsearch.nativeaccess.lib.ParquetRsLibrary;
 
 import java.util.Map;
 
 public class JdkNativeLibraryProvider extends NativeLibraryProvider {
 
     public JdkNativeLibraryProvider() {
-        super("jdk", Map.of(JavaLibrary.class, JdkJavaLibrary::new, ParquetRsLibrary.class, JdkParquetRsLibrary::new));
+        super("jdk", Map.of());
     }
 }

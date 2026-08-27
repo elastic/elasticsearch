@@ -87,7 +87,14 @@ sealed interface SourceStatsContribution {
         }
     }
 
-    /** A chunk dropped rows mid-scan (SKIP_ROW); the file's whole contribution set must be discarded to avoid an under-count. */
+    /**
+     * A scan of the file did not complete cleanly — the parallel coordinators publish
+     * {@link ExternalStats#CHUNK_HAD_ERRORS_KEY} from their close paths on an error, a truncated read, or an
+     * early close (LIMIT, cancellation) that left chunks unconsumed — so the scan's extent is not deterministic
+     * and the reconciler discards the file's whole contribution set rather than commit stats another scan would
+     * not reproduce. A row dropped by the error policy is NOT poison: a clean-completing scan commits its
+     * survivor statistics, and the readers themselves suppress the publish when the projection decided the drops.
+     */
     record Poison() implements SourceStatsContribution {}
 
     /**

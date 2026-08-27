@@ -60,8 +60,8 @@ public final class ExternalStats {
      * effective policy — licenses the crossing.
      * <p>
      * Absent means "no licence": the row count is treated as read-config-scoped like every other statistic. Under
-     * {@code skip_row} or {@code null_field} a width-overflow row is dropped, so the count becomes a function of the
-     * declared column count and may not be shared.
+     * {@code skip_row} or {@code null_field} rows can be dropped, so the count is a survivor count for that read
+     * rather than the file's physical record count, and may not be shared.
      */
     public static final String ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY = "_stats.row_count_read_config_independent";
 

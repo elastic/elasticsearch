@@ -3658,8 +3658,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 base.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, readConfig);
             }
             // Only FAIL_FAST licenses this count to cross resolved read configurations: any structural mismatch aborts before publish,
-            // so a committed count is the physical record count for every declaration. Under the lenient policies a
-            // width-overflow row is dropped, which makes the count a function of the declared column count.
+            // so a committed count is the physical record count for every declaration. Under the lenient policies dropped rows make a
+            // committed count a survivor count for this read, not the file's physical record count.
             if (errorPolicy.isStrict()) {
                 base.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
             }

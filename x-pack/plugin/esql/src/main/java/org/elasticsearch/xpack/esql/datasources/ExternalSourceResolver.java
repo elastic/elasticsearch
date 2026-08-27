@@ -2531,28 +2531,26 @@ public class ExternalSourceResolver {
      *       ROW-COUNT is served back ({@link #rowCountOnlyStats} strips the per-column {@code _stats.columns.*}). A
      *       column MIN/MAX value depends on the declared column type (numeric vs lexicographic order), so it is never
      *       folded from a possibly differently-declared harvest — strict MIN/MAX re-scans instead of warming;</li>
-     *   <li>the row-count is served only under a {@link ErrorPolicy.Mode#FAIL_FAST} error policy — the one policy where
-     *       a SUCCESSFUL scan's row-count equals the physical record count for ANY declaration (any structural error,
-     *       e.g. a row wider than the declared column count, aborts the query before publish; width underflow keeps the
-     *       row). Under {@code skip_row} or {@code null_field} a width-overflow row is DROPPED (the drop is declaration-
-     *       independent of value coercion but NOT of the declared column count), so the row-count would become
-     *       declaration-dependent; {@link #warmsRowCountSafely} keeps those off the warm path — they re-scan, still
-     *       returning the correct count.</li>
+     *   <li>the row-count is served only under a {@link ErrorPolicy.Mode#FAIL_FAST} error policy — the one policy
+     *       where a SUCCESSFUL scan's row-count equals the physical record count for ANY declaration (any structural
+     *       error, e.g. a malformed record, aborts the query before publish, and declared binding imposes no
+     *       row-width limit in either direction, so no row is lost to the declaration's width). Under
+     *       {@code skip_row} or {@code null_field} a committed count is a survivor count, not guaranteed to be the
+     *       physical record count, so it may not be shared across declarations;
+     *       {@link #warmsRowCountSafely} keeps those off the warm path — they re-scan, still returning the correct
+     *       count.</li>
      * </ul>
-     * The two guards make the served row-count a correct NUMBER for every declaration, but the file+config key leaves one
-     * residual, disclosed here and NOT closed by this work: a strict dataset that declares FEWER columns
-     * than the file has (a legal narrower binding) would on its own ERROR on {@code COUNT(*)} (its rows overflow its
-     * declared width under {@code FAIL_FAST}); once a wider — or inferred — dataset over the same file+config has warmed
-     * the shared entry, that dataset's {@code COUNT(*)} folds to the physical row-count instead of erroring. That is a
-     * masked abort, not a wrong count (every materializing query on such a mis-bound dataset still fails loudly), and it
-     * flaps with cache state. The read-configuration fingerprint ({@link ReadConfigFingerprint}) does NOT close this, in
-     * either direction, and an earlier revision of this javadoc wrongly claimed it closed the strict-vs-strict half.
-     * Two strict datasets over one file+config share a single {@code #strict-declared} entry — the declared mapping is
-     * not in the key — and the strict serve path reads that entry through {@link #rowCountOnlyStats} with no
-     * read-configuration gate. So a narrower declaration is still served a wider one's count, exactly as an inferred
-     * harvest still crosses to a strict reader. Both halves ride the same {@code FAIL_FAST} licence, which is what lets
-     * strict datasets warm at all; withdrawing it would make every one of them re-scan. The residual therefore stands
-     * deliberately, and is disclosed here rather than deferred.
+     * The two guards make the served row-count not merely a correct NUMBER for every declaration but every
+     * declaration's OWN answer. An earlier revision of this javadoc disclosed a residual here: a strict dataset
+     * declaring FEWER columns than the file was believed to ERROR on {@code COUNT(*)} under {@code FAIL_FAST}
+     * (rows overflowing the declared width), which a foreign declaration's warm count would then mask. The premise
+     * is false: a DECLARED schema binds by name and imposes no row-width limit — the CSV reader's
+     * "row has [N] columns but schema defines [M]" tripwire applies only to positional (pinned-INFERRED) binding
+     * ({@code CsvFormatReader#initProjection} lifts the limit whenever a declared field-index binding is present),
+     * a declared column the file lacks null-fills with a warning, and declared-type/date-pattern conversion touches
+     * only projected columns, of which an ungrouped {@code COUNT(*)} has none. NDJSON binds by key with no width
+     * concept. So a narrower strict declaration's own {@code COUNT(*)} commits the physical record count — the same
+     * number the shared entry serves — and the file+config-shared entry is exact for the one statistic it serves.
      * <p>
      * File-typed (columnar) formats are excluded: they already warm via split-discovery per-split stats, and the strict
      * columnar coercibility check seeds a physical-schema entry under the inferred key. The non-cacheable branch (e.g.
@@ -2628,13 +2626,13 @@ public class ExternalSourceResolver {
 
     /**
      * True when a successful scan's row-count is INDEPENDENT of the declared schema, so it is safe to serve from a
-     * file+config-shared cache entry. This holds only under a {@link ErrorPolicy.Mode#FAIL_FAST} policy: any structural
-     * error (e.g. a row wider than the declared column count) aborts the query before publish, and width underflow keeps
-     * the row, so a committed {@code FAIL_FAST} row-count equals the physical record count for any declaration. Under
-     * {@link ErrorPolicy.Mode#SKIP_ROW} or {@link ErrorPolicy.Mode#NULL_FIELD} a width-overflow row is DROPPED (the CSV
-     * reader drops a structurally-malformed row "even under NULL_FIELD"), and the width depends on the declared column
-     * count, so the row-count becomes declaration-dependent — a shared entry could then serve a wrong {@code COUNT(*)} to
-     * a differently-declared dataset. Resolved through {@link ErrorPolicy#fromConfig} against the reader's own default so
+     * file+config-shared cache entry. This holds only under a {@link ErrorPolicy.Mode#FAIL_FAST} policy: any
+     * structural error (e.g. a malformed record) aborts the query before publish, and declared binding imposes no
+     * row-width limit in either direction, so a committed {@code FAIL_FAST} row-count equals the physical record
+     * count for any declaration. Under {@link ErrorPolicy.Mode#SKIP_ROW} or {@link ErrorPolicy.Mode#NULL_FIELD}
+     * rows can be dropped (the CSV reader drops a structurally-malformed row even under NULL_FIELD), so a committed
+     * count is a survivor count; only {@code FAIL_FAST} guarantees the physical record count, and lenient reads
+     * conservatively stay off the shared warm path. Resolved through {@link ErrorPolicy#fromConfig} against the reader's own default so
      * it is format-agnostic (and catches the implicit {@code SKIP_ROW} a bare {@code max_errors} selects).
      */
     private boolean warmsRowCountSafely(String sourceType, Map<String, Object> config) {

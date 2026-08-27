@@ -154,9 +154,7 @@ public class MultiTermsAggregationBuilderTests extends AbstractXContentSerializi
 
     public void testMaxTermsAccepted() {
         MultiValuesSourceFieldConfig field = new MultiValuesSourceFieldConfig.Builder().setFieldName("field").build();
-        new MultiTermsAggregationBuilder("my_terms").terms(
-            Collections.nCopies(MultiTermsAggregationBuilder.MAX_TERMS_SIZE, field)
-        );
+        new MultiTermsAggregationBuilder("my_terms").terms(Collections.nCopies(MultiTermsAggregationBuilder.MAX_TERMS_SIZE, field));
     }
 
     public void testSupportsParallelCollection() {

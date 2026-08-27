@@ -551,8 +551,7 @@ public final class RestoreService implements ClusterStateApplier {
 
         projectBuilder.dataStreams(dataStreamsToRestore, dataStreamAliasesToRestore);
 
-        // Apply renaming on index names, returning a map of names where
-        // the key is the renamed index and the value is the original name
+        // Get map of new index name to old IndexId:
         final Map<String, IndexId> indicesToRestore = renamedIndices(
             request,
             requestedIndicesIncludingSystem,
@@ -562,23 +561,23 @@ public final class RestoreService implements ClusterStateApplier {
             repositoryData
         );
 
-        // When explicitly requested, allow restoring over a destination that's currently open by routing it through the same guarded
-        // validation restoreOverOpenIndices uses, instead of requiring the caller to close it first.
-        // The exact identity resolved here is a safety net, not a hard external contract like it is for that guarded entry point: if the
-        // destination is deleted and recreated under the same name before this update is published, the guard simply rejects the stale
-        // identity rather than silently restoring onto the wrong index.
-        final Map<String, Index> guardedOpenIndexTargets;
+        // When explicitly requested, allow restoring over a destination that's currently open by routing it through the same
+        // open-index validation restoreOverOpenIndices uses, instead of requiring the caller to close it first.
+        // The exact identity resolved here is a safety net, not a hard external contract like it is for the restoreOverOpenIndices entry
+        // point: if the destination is deleted and recreated under the same name before this update is published, the check simply rejects
+        // the stale identity rather than silently restoring onto the wrong index.
+        final Map<String, Index> openIndexTargets;
         if (request.restoreOverOpenIndex()) {
             final ProjectMetadata currentProject = clusterService.state().metadata().getProject(projectId);
-            guardedOpenIndexTargets = new HashMap<>();
+            openIndexTargets = new HashMap<>();
             for (String renamedIndexName : indicesToRestore.keySet()) {
                 final IndexMetadata currentIndexMetadata = currentProject.index(renamedIndexName);
                 if (currentIndexMetadata != null && currentIndexMetadata.getState() == IndexMetadata.State.OPEN) {
-                    guardedOpenIndexTargets.put(renamedIndexName, currentIndexMetadata.getIndex());
+                    openIndexTargets.put(renamedIndexName, currentIndexMetadata.getIndex());
                 }
             }
         } else {
-            guardedOpenIndexTargets = Map.of();
+            openIndexTargets = Map.of();
         }
 
         // Now we can start the actual restore process by adding shards to be recovered in the cluster state
@@ -594,7 +593,7 @@ public final class RestoreService implements ClusterStateApplier {
             dataStreamsToRestore.values(),
             updater,
             UUIDs.randomBase64UUID(),
-            guardedOpenIndexTargets,
+            openIndexTargets,
             listener
         );
     }
@@ -604,7 +603,7 @@ public final class RestoreService implements ClusterStateApplier {
      * repository-side identity of the snapshot index to restore it from, and that snapshot index's metadata.
      *
      * @param destinationIndex     the exact current identity (name and index UUID) of the open index to restore over, resolved by the
-     *                             caller before submitting the guarded restore, so that an index deleted and recreated under the same
+     *                             caller before submitting the restore, so that an index deleted and recreated under the same
      *                             name is never silently adopted
      * @param snapshotIndexId      the repository-side identity of the index to restore from within {@code snapshot}
      * @param snapshotIndexMetadata the metadata of {@code snapshotIndexId} as recorded in the snapshot
@@ -612,14 +611,14 @@ public final class RestoreService implements ClusterStateApplier {
     record OpenIndexRestoreTarget(Index destinationIndex, IndexId snapshotIndexId, IndexMetadata snapshotIndexMetadata) {}
 
     /**
-     * Submits a guarded restore over already-open destination indices from pre-resolved targets, in one cluster-state update that
+     * Submits a restore over already-open destination indices from pre-resolved targets, in one cluster-state update that
      * atomically applies the restored metadata and a new history UUID, rebuilds the index blocks, replaces routing with snapshot-recovery
      * routing, adds the correlated {@link RestoreInProgress} entry, and reroutes. Every target is validated before anything is mutated, so
      * a conflict on any one target — most notably an active snapshot of the destination, a transient condition that should be retried once
      * the snapshot finishes — leaves every destination unchanged. A retry that supplies the same {@code restoreUUID} as an already-applied
-     * guarded restore observes the correlated {@link RestoreInProgress} entry and is a no-op rather than a second initialization.
+     * restore observes the correlated {@link RestoreInProgress} entry and is a no-op rather than a second initialization.
      * <p>
-     * This is not a production entry point: the public REST path reaches the guarded restore through {@link #restoreSnapshot} with
+     * This is not a production entry point: the public REST path reaches the open-index restore through {@link #restoreSnapshot} with
      * {@link RestoreSnapshotRequest#restoreOverOpenIndex()} set, which resolves the open destinations by name itself and submits through
      * the same {@link #submitRestoreSnapshotStateTask} path. This package-private variant instead takes the exact resolved {@link Index}
      * identities and snapshot metadata directly, bypassing request-based index resolution, so that tests can exercise the guard logic
@@ -639,12 +638,12 @@ public final class RestoreService implements ClusterStateApplier {
         ActionListener<RestoreCompletionResponse> listener
     ) {
         final Map<String, IndexId> indicesToRestore = new HashMap<>();
-        final Map<String, Index> guardedOpenIndexTargets = new HashMap<>();
+        final Map<String, Index> openIndexTargets = new HashMap<>();
         final ProjectMetadata.Builder snapshotProjectBuilder = ProjectMetadata.builder(projectId);
         for (OpenIndexRestoreTarget target : targets) {
             final String name = target.destinationIndex().getName();
             indicesToRestore.put(name, target.snapshotIndexId());
-            guardedOpenIndexTargets.put(name, target.destinationIndex());
+            openIndexTargets.put(name, target.destinationIndex());
             snapshotProjectBuilder.put(target.snapshotIndexMetadata(), false);
         }
         final Metadata snapshotMetadata = Metadata.builder().put(snapshotProjectBuilder).build();
@@ -664,7 +663,7 @@ public final class RestoreService implements ClusterStateApplier {
             List.of(),
             (clusterState, builder) -> {},
             restoreUUID,
-            guardedOpenIndexTargets,
+            openIndexTargets,
             listener
         );
     }
@@ -685,7 +684,7 @@ public final class RestoreService implements ClusterStateApplier {
         Collection<DataStream> dataStreamsToRestore,
         BiConsumer<ClusterState, ProjectMetadata.Builder> updater,
         String restoreUUID,
-        Map<String, Index> guardedOpenIndexTargets,
+        Map<String, Index> openIndexTargets,
         ActionListener<RestoreCompletionResponse> listener
     ) {
         submitUnbatchedTask(
@@ -702,7 +701,7 @@ public final class RestoreService implements ClusterStateApplier {
                 clusterService.getSettings(),
                 listener,
                 restoreUUID,
-                guardedOpenIndexTargets
+                openIndexTargets
             )
         );
     }
@@ -1571,7 +1570,7 @@ public final class RestoreService implements ClusterStateApplier {
          * before this task was submitted, or the test-facing {@link #restoreOverOpenIndices} path, whose caller resolved the exact
          * identity itself.
          */
-        private final Map<String, Index> guardedOpenIndexTargets;
+        private final Map<String, Index> openIndexTargets;
 
         /**
          * Feature states to restore.
@@ -1617,7 +1616,7 @@ public final class RestoreService implements ClusterStateApplier {
             Settings settings,
             ActionListener<RestoreCompletionResponse> listener,
             String restoreUUID,
-            Map<String, Index> guardedOpenIndexTargets
+            Map<String, Index> openIndexTargets
         ) {
             super(request.masterNodeTimeout());
             this.request = request;
@@ -1631,7 +1630,7 @@ public final class RestoreService implements ClusterStateApplier {
             this.settings = settings;
             this.listener = new AllocationActionListener<>(listener, threadPool.getThreadContext());
             this.restoreUUID = restoreUUID;
-            this.guardedOpenIndexTargets = guardedOpenIndexTargets;
+            this.openIndexTargets = openIndexTargets;
         }
 
         @Override
@@ -1642,9 +1641,9 @@ public final class RestoreService implements ClusterStateApplier {
                 throw new SnapshotRestoreException(snapshot, "project [" + projectId + "] does not exist");
             }
 
-            if (guardedOpenIndexTargets.isEmpty() == false) {
-                // A guarded restore over an open index supplies its own restore UUID, so an existing
-                // RestoreInProgress entry with that UUID means this call is a retry of an already-applied guarded restore: treat it as a
+            if (openIndexTargets.isEmpty() == false) {
+                // A restore over an open index supplies its own restore UUID, so an existing
+                // RestoreInProgress entry with that UUID means this call is a retry of an already-applied restore: treat it as a
                 // no-op rather than re-validating or re-mutating anything. An ordinary restore's restoreUUID is always freshly random, so
                 // this can never match for it.
                 if (RestoreInProgress.get(currentState).get(restoreUUID) != null) {
@@ -1766,17 +1765,17 @@ public final class RestoreService implements ClusterStateApplier {
                     rtBuilder.addAsNewRestore(updatedIndexMetadata, recoverySource, ignoreShards);
                     blocks.addBlocks(projectId, updatedIndexMetadata);
                 } else {
-                    final Index guardedOpenIndexTarget = guardedOpenIndexTargets.get(renamedIndexName);
+                    final Index openIndexTarget = openIndexTargets.get(renamedIndexName);
                     final IndexMetadata.Builder indexMdBuilder;
-                    if (guardedOpenIndexTarget != null) {
-                        // Guarded restore over an already-open index: the caller has explicitly
-                        // authorized restoring over this exact open index, so use the guarded validation instead of requiring CLOSE.
-                        validateExistingOpenIndexForGuardedRestore(
+                    if (openIndexTarget != null) {
+                        // Restore over an already-open index: the caller has explicitly
+                        // authorized restoring over this exact open index, so use the open-index validation instead of requiring CLOSE.
+                        validateExistingOpenIndexForRestore(
                             currentState,
                             projectId,
                             currentIndexMetadata,
                             snapshotIndexMetadata,
-                            guardedOpenIndexTarget,
+                            openIndexTarget,
                             partial
                         );
                         indexMdBuilder = restoreOverClosedIndex(snapshotIndexMetadata, currentIndexMetadata);
@@ -2010,7 +2009,7 @@ public final class RestoreService implements ClusterStateApplier {
             String renamedIndex,
             boolean partial
         ) {
-            // Index exist - checking that it's closed. Restoring over an open index is only possible through the guarded internal
+            // Index exist - checking that it's closed. Restoring over an open index is only possible through the internal
             // restoreOverOpenIndices entry point, which never reaches this method.
             if (currentIndexMetadata.getState() != IndexMetadata.State.CLOSE) {
                 throw new SnapshotRestoreException(
@@ -2047,7 +2046,7 @@ public final class RestoreService implements ClusterStateApplier {
         }
 
         /**
-         * Validates a guarded restore over an already-open index: the caller has explicitly authorized
+         * Validates a restore over an already-open index: the caller has explicitly authorized
          * restoring over {@code expectedIndex} while it stays open, so this replaces {@link #validateExistingClosedIndex} rather than
          * extending it. Preserves the same close-index safety rule that blocks closing an index being snapshotted or already restored,
          * without cancelling the conflicting operation.
@@ -2055,7 +2054,7 @@ public final class RestoreService implements ClusterStateApplier {
          * @param expectedIndex the exact identity (name and index UUID) of the destination the caller resolved before submitting this
          *                      cluster-state update, so that an index deleted and recreated under the same name is never silently adopted
          */
-        private void validateExistingOpenIndexForGuardedRestore(
+        private void validateExistingOpenIndexForRestore(
             ClusterState currentState,
             ProjectId projectId,
             IndexMetadata currentIndexMetadata,
@@ -2070,7 +2069,7 @@ public final class RestoreService implements ClusterStateApplier {
                 );
             }
             assert currentIndexMetadata.getState() == IndexMetadata.State.OPEN
-                : "guarded open-index restore target is not open: " + currentIndexMetadata.getIndex();
+                : "open-index restore target is not open: " + currentIndexMetadata.getIndex();
             if (partial) {
                 throw new SnapshotRestoreException(
                     snapshot,
@@ -2098,7 +2097,7 @@ public final class RestoreService implements ClusterStateApplier {
                 throw new SnapshotRestoreException(snapshot, "cannot restore index [" + expectedIndex + "] because it is being resharded");
             }
             // Preserve the existing close-index safety rule: an index being snapshotted cannot be restored over in place either, and this
-            // guarded restore must not cancel or otherwise interfere with that snapshot.
+            // restore must not cancel or otherwise interfere with that snapshot.
             final Map<Snapshot, Set<Index>> snapshottingIndices = SnapshotsServiceUtils.snapshottingIndicesBySnapshot(
                 projectState,
                 indexAsSet

@@ -76,11 +76,11 @@ import static org.hamcrest.Matchers.nullValue;
  * recreate its index service with reopened-index semantics rather than update it in place, while keeping the shard store on disk so that
  * the restore file diff can reuse identical local Lucene files.
  * <p>
- * {@link #initializeRestoreOverOpenIndex} drives this through the guarded {@link RestoreService#restoreOverOpenIndices} restore path,
+ * {@link #initializeRestoreOverOpenIndex} drives this through the {@link RestoreService#restoreOverOpenIndices} restore path,
  * except for {@link #testOverlappingRestoreTransitionsDoNotCorruptTheSecondRestore}, which instead publishes the equivalent
  * transition directly via {@link #initializeRestoreOverOpenIndexBypassingMasterGuard}: that test simulates a hypothetical caller that
- * isn't guarded against overlapping restores the way {@link RestoreService#restoreOverOpenIndices} itself now is, so the node-side
- * transition's own robustness needs to be verified independently of any single caller's guard.
+ * isn't protected against overlapping restores the way {@link RestoreService#restoreOverOpenIndices} itself now is, so the node-side
+ * transition's own robustness needs to be verified independently of any single caller's protection.
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
@@ -306,11 +306,11 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
     }
 
     /**
-     * The guarded restore preserves the existing close-index safety rule rather than cancelling a conflicting snapshot: it must reject
-     * before publishing anything if an active snapshot already includes the destination index, leaving the index untouched, and a plain
-     * retry after that snapshot finishes must then succeed.
+     * The restore over an open index preserves the existing close-index safety rule rather than cancelling a conflicting snapshot: it must
+     * reject before publishing anything if an active snapshot already includes the destination index, leaving the index untouched, and a
+     * plain retry after that snapshot finishes must then succeed.
      */
-    public void testGuardedRestoreRejectsActiveSnapshotConflict() throws Exception {
+    public void testRestoreOverOpenIndexRejectsActiveSnapshotConflict() throws Exception {
         internalCluster().startMasterOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode();
 
@@ -334,7 +334,7 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
             blockingSnapshot.actionGet(TEST_REQUEST_TIMEOUT);
         }
 
-        assertThat("a rejected guarded restore must leave the destination unchanged", historyUuid(), nullValue());
+        assertThat("a rejected restore must leave the destination unchanged", historyUuid(), nullValue());
 
         // the conflict is transient: a plain retry after the snapshot finishes succeeds
         initializeRestoreOverOpenIndex(restoreTarget);
@@ -343,10 +343,10 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
     }
 
     /**
-     * A guarded restore covering more than one destination is all-or-nothing: a conflict on any one target must leave every target
+     * A restore covering more than one open-index destination is all-or-nothing: a conflict on any one target must leave every target
      * unchanged, not just the conflicting one.
      */
-    public void testGuardedRestoreOverMultipleIndicesIsAllOrNothing() throws Exception {
+    public void testRestoreOverMultipleOpenIndicesIsAllOrNothing() throws Exception {
         internalCluster().startMasterOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode();
 
@@ -361,7 +361,7 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
         final RestoreTarget otherTarget = resolveRestoreTarget(otherIndex);
 
         // only "otherIndex" conflicts; INDEX_NAME would pass validation on its own, so leaving it unchanged too demonstrates that the
-        // guarded restore is genuinely all-or-nothing rather than skipping just the conflicting target
+        // restore is genuinely all-or-nothing rather than skipping just the conflicting target
         blockNodeOnAnyFiles(REPOSITORY_NAME, dataNode);
         final ActionFuture<CreateSnapshotResponse> blockingSnapshot = clusterAdmin().prepareCreateSnapshot(
             TEST_REQUEST_TIMEOUT,
@@ -402,7 +402,7 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
     }
 
     /**
-     * The ordinary public restore API ({@link RestoreService#restoreSnapshot}) can also reach the guarded open-index path, but only when
+     * The ordinary public restore API ({@link RestoreService#restoreSnapshot}) can also reach the open-index restore path, but only when
      * the caller explicitly opts in via {@link RestoreSnapshotRequest#restoreOverOpenIndex}; the default behavior (reject an open
      * destination) must be unchanged.
      */
@@ -495,7 +495,7 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
     }
 
     /**
-     * Submits the guarded restore without waiting for it, so that callers expecting a specific failure (via {@link #expectThrows}) can
+     * Submits the restore without waiting for it, so that callers expecting a specific failure (via {@link #expectThrows}) can
      * observe the real exception type through {@link PlainActionFuture#actionGet} instead of {@link #safeGet}, which converts every
      * failure into a generic {@link AssertionError}.
      */

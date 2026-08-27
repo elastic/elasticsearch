@@ -683,15 +683,15 @@ public class RestoreServiceTests extends ESTestCase {
         assertTrue(RestoreService.isRestoringShard(initRestore, s.primary()));
     }
 
-    // ---- guarded restore-over-open-index tests ---------------------------------------------
+    // ---- restore-over-open-index tests ---------------------------------------------
 
     /**
-     * Guarded restore over an open index must refuse to publish the transition until every node in the cluster supports
+     * A restore over an open index must refuse to publish the transition until every node in the cluster supports
      * {@link RecoveryFeatures#RESTORE_OVER_OPEN_INDEX_RECREATES_INDEX_SERVICE}, since a node without it cannot safely
      * recreate the {@code IndexService} for the resulting open-to-open history-UUID change.
      */
     public void testRestoreOverOpenIndicesRejectsWhenNodeFeatureMissing() throws Exception {
-        withGuardedRestoreHarness(false, fixture -> {
+        withOpenIndexRestoreHarness(false, fixture -> {
             PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
             fixture.restoreService()
                 .restoreOverOpenIndices(
@@ -712,11 +712,11 @@ public class RestoreServiceTests extends ESTestCase {
     }
 
     /**
-     * The caller resolves the exact destination {@link Index} (name and UUID) before submitting the guarded restore, precisely so that an
+     * The caller resolves the exact destination {@link Index} (name and UUID) before submitting the restore, precisely so that an
      * index deleted and recreated under the same name is never silently adopted as the destination.
      */
     public void testRestoreOverOpenIndicesRejectsExactIdentityMismatch() throws Exception {
-        withGuardedRestoreHarness(true, fixture -> {
+        withOpenIndexRestoreHarness(true, fixture -> {
             Index staleIndex = new Index(fixture.index().getName(), UUIDs.randomBase64UUID());
             PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
             fixture.restoreService()
@@ -738,12 +738,12 @@ public class RestoreServiceTests extends ESTestCase {
     }
 
     /**
-     * A retry that supplies the same restore UUID as an already-applied guarded restore observes the correlated
+     * A retry that supplies the same restore UUID as an already-applied restore observes the correlated
      * {@link RestoreInProgress} entry and must be a no-op rather than a second initialization.
      */
     public void testRestoreOverOpenIndicesIdempotentRetryIsANoOp() throws Exception {
         final String restoreUUID = UUIDs.randomBase64UUID();
-        withGuardedRestoreHarness(true, fixture -> {
+        withOpenIndexRestoreHarness(true, fixture -> {
             PlainActionFuture<RestoreService.RestoreCompletionResponse> first = new PlainActionFuture<>();
             fixture.restoreService()
                 .restoreOverOpenIndices(
@@ -785,7 +785,7 @@ public class RestoreServiceTests extends ESTestCase {
         return state.metadata().getProject(ProjectId.DEFAULT).index(indexName).getSettings().get(IndexMetadata.SETTING_HISTORY_UUID);
     }
 
-    private record GuardedRestoreFixture(
+    private record OpenIndexRestoreFixture(
         RestoreService restoreService,
         ClusterService clusterService,
         Index index,
@@ -803,17 +803,17 @@ public class RestoreServiceTests extends ESTestCase {
         }
     }
 
-    private interface GuardedRestoreTestBody {
-        void run(GuardedRestoreFixture fixture) throws Exception;
+    private interface OpenIndexRestoreTestBody {
+        void run(OpenIndexRestoreFixture fixture) throws Exception;
     }
 
     /**
      * Builds a real, single-node {@link ClusterService} (via {@link ClusterServiceUtils}) with one open index, and a {@link RestoreService}
-     * wired to it. Dependencies that the guarded-restore validation path never reaches (index creation, mapping/version verification
+     * wired to it. Dependencies that the open-index restore validation path never reaches (index creation, mapping/version verification
      * beyond a pass-through, shard limits, system indices, file settings) are mocked or stubbed with no-ops; constructing the real
      * equivalents would require an unrelated mapper/x-content registry setup this test does not exercise.
      */
-    private void withGuardedRestoreHarness(boolean nodeFeatureSupported, GuardedRestoreTestBody body) throws Exception {
+    private void withOpenIndexRestoreHarness(boolean nodeFeatureSupported, OpenIndexRestoreTestBody body) throws Exception {
         final ThreadPool threadPool = new TestThreadPool(getTestName());
         try (ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool)) {
             final ClusterState initial = clusterService.state();
@@ -880,7 +880,7 @@ public class RestoreServiceTests extends ESTestCase {
             final IndexId snapshotIndexId = new IndexId(index.getName(), randomUUID());
 
             body.run(
-                new GuardedRestoreFixture(restoreService, clusterService, index, snapshot, snapshotInfo, snapshotIndexId, indexMetadata)
+                new OpenIndexRestoreFixture(restoreService, clusterService, index, snapshot, snapshotInfo, snapshotIndexId, indexMetadata)
             );
         } finally {
             terminate(threadPool);

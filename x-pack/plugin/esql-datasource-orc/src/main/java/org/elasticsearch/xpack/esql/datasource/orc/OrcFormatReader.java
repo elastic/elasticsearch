@@ -1504,10 +1504,10 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             } catch (IOException e) {
                 throw new IllegalArgumentException("Failed to read ORC batch", e);
             } finally {
-                counters.addReadNanos(System.nanoTime() - startNanos);
                 if (startCpuNanos >= 0) {
                     counters.addReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
                 }
+                counters.addReadNanos(System.nanoTime() - startNanos);
             }
         }
 

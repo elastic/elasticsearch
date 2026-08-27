@@ -1038,10 +1038,10 @@ public class NdJsonPageDecoder implements Closeable {
             long deltaErrors = errorCount - startErrorCount;
             counters.addRowsEmitted(deltaTotal - deltaErrors);
             counters.addParseErrors(deltaErrors);
-            counters.addReadNanos(System.nanoTime() - startNanos);
             if (startCpuNanos >= 0) {
                 counters.addReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
             }
+            counters.addReadNanos(System.nanoTime() - startNanos);
         }
     }
 

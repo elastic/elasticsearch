@@ -87,6 +87,7 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
         @Nullable String endOfLifeDate,
         @Nullable Configuration configuration,
         @Nullable EndpointMetadata.Display display,
+        @Nullable EndpointMetadata.ModelIdentity modelIdentity,
         @Nullable String fingerprint,
         List<EndpointMetadata.EndpointRegion> regions,
         boolean deniedByRegionPolicy
@@ -102,6 +103,7 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
         private static final String PROPERTIES = "properties";
         private static final String CONFIGURATION = "configuration";
         private static final String DISPLAY = "display";
+        private static final String MODEL_IDENTITY = "model_identity";
         private static final String FINGERPRINT = "fingerprint";
         private static final String REGIONS = "regions";
         private static final String DENIED_BY_REGION_POLICY = "denied_by_region_policy";
@@ -120,9 +122,10 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
                 (String) args[6],
                 (Configuration) args[7],
                 (EndpointMetadata.Display) args[8],
-                (String) args[9],
-                args[10] != null ? (List<EndpointMetadata.EndpointRegion>) args[10] : List.of(),
-                args[11] != null && (Boolean) args[11]
+                (EndpointMetadata.ModelIdentity) args[9],
+                (String) args[10],
+                args[11] != null ? (List<EndpointMetadata.EndpointRegion>) args[11] : List.of(),
+                args[12] != null && (Boolean) args[12]
             )
         );
 
@@ -139,6 +142,11 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
                 optionalConstructorArg(),
                 (p, c) -> EndpointMetadata.Display.parse(p),
                 new ParseField(DISPLAY)
+            );
+            AUTHORIZED_ENDPOINT_PARSER.declareObject(
+                optionalConstructorArg(),
+                (p, c) -> EndpointMetadata.ModelIdentity.parse(p),
+                new ParseField(MODEL_IDENTITY)
             );
             AUTHORIZED_ENDPOINT_PARSER.declareString(optionalConstructorArg(), new ParseField(FINGERPRINT));
             AUTHORIZED_ENDPOINT_PARSER.declareObjectArray(

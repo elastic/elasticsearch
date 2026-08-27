@@ -197,17 +197,17 @@ public class TransportGetCheckpointActionTests extends ESTestCase {
         assertThat(options.type(), equalTo(TransportRequestOptions.Type.REG));
     }
 
-    public void testCheckpointNodeTransportOptions_CapsLongRequestTimeout() {
-        TransportRequestOptions options = TransportGetCheckpointAction.checkpointNodeTransportOptions(TimeValue.timeValueHours(12));
-        assertThat(options.timeout(), equalTo(TimeValue.timeValueSeconds(30)));
+    public void testCheckpointNodeTransportOptions_HonorsLongRequestTimeout() {
+        TimeValue timeout = TimeValue.timeValueHours(12);
+        assertThat(TransportGetCheckpointAction.checkpointNodeTransportOptions(timeout).timeout(), equalTo(timeout));
     }
 
-    public void testCheckpointNodeTransportOptions_HonorsShorterRequestTimeout() {
+    public void testCheckpointNodeTransportOptions_HonorsShortRequestTimeout() {
         TimeValue timeout = TimeValue.timeValueSeconds(5);
         assertThat(TransportGetCheckpointAction.checkpointNodeTransportOptions(timeout).timeout(), equalTo(timeout));
     }
 
-    public void testCheckpointNodeTransportOptions_NullTimeoutUsesSenderCap() {
-        assertThat(TransportGetCheckpointAction.checkpointNodeTransportOptions(null).timeout(), equalTo(TimeValue.timeValueSeconds(30)));
+    public void testCheckpointNodeTransportOptions_NullTimeoutLeavesEmpty() {
+        assertThat(TransportGetCheckpointAction.checkpointNodeTransportOptions(null), equalTo(TransportRequestOptions.EMPTY));
     }
 }

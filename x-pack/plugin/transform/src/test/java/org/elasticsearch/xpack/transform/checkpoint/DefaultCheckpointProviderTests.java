@@ -19,6 +19,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.MockLog.LoggingExpectation;
@@ -451,6 +452,46 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
             transformAuditor,
             transformConfig
         );
+    }
+
+    public void testGetIndexCheckpointsTimeoutBacksOffFrom30sTo12h() {
+        assertThat(CheckpointProvider.getIndexCheckpointsTimeout(0).millis(), equalTo(TimeValue.timeValueSeconds(30).millis()));
+        assertThat(CheckpointProvider.getIndexCheckpointsTimeout(1).millis(), equalTo(TimeValue.timeValueSeconds(60).millis()));
+        assertThat(CheckpointProvider.getIndexCheckpointsTimeout(2).millis(), equalTo(TimeValue.timeValueMinutes(2).millis()));
+        assertThat(CheckpointProvider.getIndexCheckpointsTimeout(11).millis(), equalTo(TimeValue.timeValueHours(12).millis()));
+        assertThat(CheckpointProvider.getIndexCheckpointsTimeout(100).millis(), equalTo(TimeValue.timeValueHours(12).millis()));
+        assertThat(CheckpointProvider.getIndexCheckpointsTimeout(-1).millis(), equalTo(TimeValue.timeValueSeconds(30).millis()));
+    }
+
+    public void testCreateNextCheckpointPassesTimeoutToGetCheckpointRequest() throws InterruptedException {
+        String transformId = getTestName();
+        TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
+
+        GetCheckpointAction.Response checkpointResponse = new GetCheckpointAction.Response(Map.of("source_index", new long[] { 1L }), null);
+        ArgumentCaptor<GetCheckpointAction.Request> requestCaptor = ArgumentCaptor.forClass(GetCheckpointAction.Request.class);
+        doAnswer(withResponse(checkpointResponse)).when(client).execute(eq(GetCheckpointAction.INSTANCE), requestCaptor.capture(), any());
+
+        DefaultCheckpointProvider provider = newCheckpointProvider(transformConfig);
+        TimeValue timeout = TimeValue.timeValueMinutes(2);
+        CountDownLatch latch = new CountDownLatch(1);
+        provider.createNextCheckpoint(null, timeout, new LatchedActionListener<>(ActionListener.wrap(r -> {}, e -> {}), latch));
+        assertThat(latch.await(100, TimeUnit.MILLISECONDS), is(true));
+        assertThat(requestCaptor.getValue().getTimeout(), equalTo(timeout));
+    }
+
+    public void testCreateNextCheckpointWithoutTimeoutUses12h() throws InterruptedException {
+        String transformId = getTestName();
+        TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
+
+        GetCheckpointAction.Response checkpointResponse = new GetCheckpointAction.Response(Map.of("source_index", new long[] { 1L }), null);
+        ArgumentCaptor<GetCheckpointAction.Request> requestCaptor = ArgumentCaptor.forClass(GetCheckpointAction.Request.class);
+        doAnswer(withResponse(checkpointResponse)).when(client).execute(eq(GetCheckpointAction.INSTANCE), requestCaptor.capture(), any());
+
+        DefaultCheckpointProvider provider = newCheckpointProvider(transformConfig);
+        CountDownLatch latch = new CountDownLatch(1);
+        provider.createNextCheckpoint(null, new LatchedActionListener<>(ActionListener.wrap(r -> {}, e -> {}), latch));
+        assertThat(latch.await(100, TimeUnit.MILLISECONDS), is(true));
+        assertThat(requestCaptor.getValue().getTimeout(), equalTo(TimeValue.timeValueHours(12)));
     }
 
     public void testClientSupplierIsConsultedPerCall() throws InterruptedException {

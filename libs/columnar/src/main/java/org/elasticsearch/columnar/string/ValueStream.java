@@ -24,6 +24,7 @@ import org.elasticsearch.columnar.substrate.ChunkedBytesReader;
 import org.elasticsearch.columnar.substrate.ChunkedBytesWriter;
 import org.elasticsearch.columnar.substrate.MonotonicReader;
 import org.elasticsearch.columnar.substrate.MonotonicWriter;
+import org.elasticsearch.columnar.substrate.internal.ByteArrayInts;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -52,9 +53,6 @@ public final class ValueStream {
 
     /** Mean value length below which a block keeps its lengths inline. */
     private static final int INLINE_MEAN_LENGTH = 32;
-
-    /** Bytes a vint length can take, so the block header can be sized before the lengths are known. */
-    private static final int MAX_VINT_BYTES = 5;
 
     /** Where a stream's bytes and offsets landed. */
     /**
@@ -182,7 +180,7 @@ public final class ValueStream {
             for (int i = 0; i < pendingCount; i++) {
                 max = Math.max(max, pending[i]);
             }
-            final int width = max < 0x100 ? 1 : (max < 0x10000 ? 2 : 4);
+            final int width = ByteArrayInts.widthFor(max);
             // Which layout is smaller is decided after compression, so an uncompressed byte count cannot
             // choose between them. What separates them is how long the values are: short ones repeat
             // together with their length as a single pattern, and splitting the two apart costs more than
@@ -202,10 +200,8 @@ public final class ValueStream {
             scratch[0] = (byte) width;
             int at = 1;
             for (int i = 0; i < pendingCount; i++) {
-                final int value = pending[i];
-                for (int b = 0; b < width; b++) {
-                    scratch[at++] = (byte) (value >>> (8 * b));
-                }
+                ByteArrayInts.writeIntLE(pending[i], width, scratch, at);
+                at += width;
             }
             chunks.append(scratch, 0, length);
             chunks.append(pendingBytes, 0, pendingLength);
@@ -219,20 +215,16 @@ public final class ValueStream {
             //
             // The block is assembled whole and handed over once. Appending a length and then a value for
             // every one of them costs two calls and two bounds checks per value, to move a handful of bytes.
-            scratch = ArrayUtil.growNoCopy(scratch, 1 + pendingCount * MAX_VINT_BYTES + pendingLength);
+            scratch = ArrayUtil.growNoCopy(scratch, 1 + pendingCount * ByteArrayInts.MAX_VINT_BYTES + pendingLength);
             scratch[0] = INLINE;
             int at = 1;
             int from = 0;
             for (int i = 0; i < pendingCount; i++) {
-                int length = pending[i];
-                while ((length & ~0x7F) != 0) {
-                    scratch[at++] = (byte) ((length & 0x7F) | 0x80);
-                    length >>>= 7;
-                }
-                scratch[at++] = (byte) length;
-                System.arraycopy(pendingBytes, from, scratch, at, pending[i]);
-                at += pending[i];
-                from += pending[i];
+                final int length = pending[i];
+                at += ByteArrayInts.writeVInt(length, scratch, at);
+                System.arraycopy(pendingBytes, from, scratch, at, length);
+                at += length;
+                from += length;
             }
             chunks.append(scratch, 0, at);
         }
@@ -275,6 +267,8 @@ public final class ValueStream {
         private long cachedBlock = -1;
         private int[] starts;
         private int[] lengths;
+        // Cursor for the readVInt(byte[], int[]) overload, reused across block decodes to avoid allocation.
+        private final int[] cursor = new int[1];
 
         Reader(ChunkedBytesReader chunks, LongValues offsets, long numValues, int valuesPerBlock) {
             this.chunks = chunks;
@@ -318,29 +312,20 @@ public final class ValueStream {
             final long first = blockIndex * valuesPerBlock;
             final int count = (int) Math.min(valuesPerBlock, numValues - first);
             if (width == INLINE) {
-                int position = block.offset + 1;
+                cursor[0] = block.offset + 1;
                 for (int i = 0; i < count; i++) {
-                    int length = 0;
-                    int shift = 0;
-                    byte b;
-                    do {
-                        b = bytes[position++];
-                        length |= (b & 0x7F) << shift;
-                        shift += 7;
-                    } while ((b & 0x80) != 0);
-                    starts[i] = position;
+                    final int length = ByteArrayInts.readVInt(bytes, cursor);
+                    starts[i] = cursor[0];
                     lengths[i] = length;
-                    position += length;
+                    cursor[0] += length;
                 }
                 return count;
             }
             int at = block.offset + 1;
             int position = at + count * width;
             for (int i = 0; i < count; i++) {
-                int length = 0;
-                for (int b = 0; b < width; b++) {
-                    length |= (bytes[at++] & 0xFF) << (8 * b);
-                }
+                final int length = ByteArrayInts.readIntLE(bytes, at, width);
+                at += width;
                 starts[i] = position;
                 lengths[i] = length;
                 position += length;

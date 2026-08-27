@@ -63,6 +63,7 @@ import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRangeQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesWildcardQuery;
+import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.script.ScriptCompiler;
 
 import java.io.IOException;
@@ -100,7 +101,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(new TermQuery(new Term("field", "foo")), ft.termQuery("foo", MOCK_CONTEXT));
 
         MappedFieldType ft2 = new KeywordFieldType("field", false, true, Map.of());
-        assertEquals(SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef("foo")), ft2.termQuery("foo", MOCK_CONTEXT));
+        assertEquals(XSortedSetDocValuesRangeQuery.newSlowExactQuery("field", new BytesRef("foo")), ft2.termQuery("foo", MOCK_CONTEXT));
 
         MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("bar", MOCK_CONTEXT));
@@ -311,7 +312,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         MappedFieldType ft2 = new KeywordFieldType("field", false, true, Map.of());
         assertEquals(
-            SortedSetDocValuesField.newSlowRangeQuery("field", BytesRefs.toBytesRef("foo"), BytesRefs.toBytesRef("bar"), true, false),
+            XSortedSetDocValuesRangeQuery.newSlowRangeQuery("field", BytesRefs.toBytesRef("foo"), BytesRefs.toBytesRef("bar"), true, false),
             ft2.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_CONTEXT)
         );
 

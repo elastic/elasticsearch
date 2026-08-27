@@ -325,7 +325,8 @@ public class ServiceUtilsTests extends ESTestCase {
         assertThat(
             exception.getMessage(),
             is(
-                "[service_settings] Invalid url [^^] received for field [url]. Error: unable to parse url [^^]. Reason: Illegal character in path"
+                "[service_settings] Invalid url [^^] received for field [url]. "
+                    + "Error: unable to parse url [^^]. Reason: Illegal character in path"
             )
         );
     }

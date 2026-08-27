@@ -210,10 +210,6 @@ public class SplitTargetService {
         var stateMachine = onGoingSplits.remove(indexShard);
         if (stateMachine != null) {
             stateMachine.cancel();
-            // The split will not reach DONE, so fail pending listeners before removing the per-shard tracker; otherwise the tracker is
-            // discarded without completing them.
-            reshardIndexService.notifySplitFailure(indexShard.shardId(), new IndexShardClosedException(indexShard.shardId()));
-            reshardIndexService.stopTrackingSplit(indexShard.shardId());
         }
     }
 
@@ -258,7 +254,9 @@ public class SplitTargetService {
         }
 
         void cancel() {
-            cancelled.set(true);
+            if (cancelled.compareAndSet(false, true)) {
+                reshardIndexService.failAndStopTrackingSplit(shard, new IndexShardClosedException(shard.shardId()));
+            }
         }
 
         private synchronized void advance(State newState) {
@@ -327,14 +325,14 @@ public class SplitTargetService {
                 }
                 case State.SplitApplied splitApplied -> {
                     logger.info("notifying of split completion for target shard {}", shard.shardId());
-                    reshardIndexService.notifySplitCompletion(shard.shardId());
+                    reshardIndexService.notifySplitCompletion(shard);
                     deleteUnownedData();
                 }
                 case State.UnownedDataDeleted ignored -> {
                     changeStateToDone();
                 }
                 case State.Done ignored -> {
-                    reshardIndexService.stopTrackingSplit(shard.shardId());
+                    reshardIndexService.stopTrackingSplit(shard);
                     onCompleted.run();
                 }
 
@@ -364,7 +362,7 @@ public class SplitTargetService {
                     logger.warn("Failed to complete split target shard sequence", failed.exception);
 
                     if (failed.destinationState instanceof State.Split) {
-                        reshardIndexService.notifySplitFailure(shard.shardId(), failed.exception);
+                        reshardIndexService.notifySplitFailure(shard, failed.exception);
                         /// Transition to SPLIT failed in some unexpected way and now we are failing all incoming refresh requests
                         /// due to the `notifySplitFailure` call above.
                         /// There is nothing we can really do at this point to recover so we hope we can figure this out on recovery.

@@ -12,8 +12,10 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.state.TransportAwaitClusterStateVersionAppliedAction;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -22,10 +24,12 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -103,6 +107,40 @@ public class SplitTargetServiceTests extends ESTestCase {
 
         var request5 = new TransportReshardSplitAction.Request(new ShardId("foo", "1", 0), sourceNode, targetNode, 2, 100);
         assertThrows(IllegalStateException.class, () -> sts.acceptHandoff(indexShard, request5, ActionListener.noop()));
+    }
+
+    public void testCancelSplitsCleansUpSplitTrackingOnce() {
+        var threadPool = mock(ThreadPool.class);
+        var clusterService = mock(ClusterService.class);
+        var reshardIndexService = new ReshardIndexService(
+            mock(IndicesService.class),
+            mock(NodeClient.class),
+            ReshardMetrics.NOOP,
+            clusterService,
+            null,
+            null
+        );
+        var sts = new SplitTargetService(Settings.EMPTY, new NoOpClient(threadPool), clusterService, reshardIndexService);
+
+        var split = dummySplit();
+        var indexShard = mock(IndexShard.class);
+        when(indexShard.shardId()).thenReturn(split.shardId());
+        var failureCount = new AtomicInteger();
+        reshardIndexService.maybeAwaitSplit(
+            IndexReshardingMetadata.newSplitByMultiple(1, 2),
+            indexShard,
+            ActionListener.wrap(ignored -> fail("should not have completed"), e -> {
+                assertTrue(e instanceof IndexShardClosedException);
+                failureCount.incrementAndGet();
+            })
+        );
+        sts.initializeSplitInCloneState(indexShard, split);
+
+        sts.cancelSplits(indexShard);
+        sts.cancelSplits(indexShard);
+
+        assertEquals(1, failureCount.get());
+        assertTrue(sts.getShardsWithOngoingSplits().isEmpty());
     }
 
     public void testAwaitSplitStateAppliedActionRetries() {

@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -522,9 +523,10 @@ public class JobConfigProvider {
                 SearchHit[] hits = response.getHits().getHits();
                 for (SearchHit hit : hits) {
                     jobIds.add(hit.field(Job.ID.getPreferredName()).getValue());
-                    List<Object> groups = hit.field(Job.GROUPS.getPreferredName()).getValues();
+                    // Jobs that belong to no groups have no value for the groups field, so it is absent from the hit.
+                    DocumentField groups = hit.field(Job.GROUPS.getPreferredName());
                     if (groups != null) {
-                        groupsIds.addAll(groups.stream().map(Object::toString).toList());
+                        groupsIds.addAll(groups.getValues().stream().map(Object::toString).toList());
                     }
                 }
                 if (allowMissingConfigs) {

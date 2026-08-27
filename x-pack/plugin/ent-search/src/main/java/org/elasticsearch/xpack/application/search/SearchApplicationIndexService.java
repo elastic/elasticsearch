@@ -431,9 +431,13 @@ public class SearchApplicationIndexService {
     private static SearchApplicationListItem hitToSearchApplicationListItem(SearchHit searchHit) {
         final Map<String, DocumentField> documentFields = searchHit.getDocumentFields();
         final String resourceName = documentFields.get(SearchApplication.NAME_FIELD.getPreferredName()).getValue();
+        // The analytics collection name is optional, so it is absent from the hit for applications that have none.
+        final DocumentField analyticsCollectionName = documentFields.get(
+            SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName()
+        );
         return new SearchApplicationListItem(
             resourceName,
-            documentFields.get(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName()).getValue(),
+            analyticsCollectionName == null ? null : analyticsCollectionName.getValue(),
             documentFields.get(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName()).getValue()
         );
     }

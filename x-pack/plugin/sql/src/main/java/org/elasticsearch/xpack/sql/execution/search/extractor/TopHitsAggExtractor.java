@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.toUnsignedLong;
@@ -80,7 +82,13 @@ public class TopHitsAggExtractor implements BucketExtractor {
             return null;
         }
 
-        Object value = agg.getHits().getAt(0).getDocumentFields().values().iterator().next().getValue();
+        // FIRST/LAST sort by one field while extracting another, so the top hit may have no value for the extracted
+        // field, in which case it is absent from the hit and the result is NULL.
+        Map<String, DocumentField> documentFields = agg.getHits().getAt(0).getDocumentFields();
+        if (documentFields.isEmpty()) {
+            return null;
+        }
+        Object value = documentFields.values().iterator().next().getValue();
         if (fieldDataType == DATETIME || fieldDataType == DATE) {
             return DateUtils.asDateTimeWithNanos(value.toString()).withZoneSameInstant(zoneId());
         } else if (SqlDataTypes.isTimeBased(fieldDataType)) {

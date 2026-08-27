@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -84,7 +85,10 @@ class ExpandSearchPhase extends SearchPhase {
         }
         for (SearchHit hit : searchHits.getHits()) {
             BoolQueryBuilder groupQuery = new BoolQueryBuilder();
-            Object collapseValue = hit.field(collapseBuilder.getField()).getValue();
+            // The collapse field is absent from the hit entirely when the document has no value for it,
+            // which is the same "no value" case handled below.
+            DocumentField collapseField = hit.field(collapseBuilder.getField());
+            Object collapseValue = collapseField == null ? null : collapseField.getValue();
             if (collapseValue != null) {
                 groupQuery.filter(QueryBuilders.matchQuery(collapseBuilder.getField(), collapseValue));
             } else {

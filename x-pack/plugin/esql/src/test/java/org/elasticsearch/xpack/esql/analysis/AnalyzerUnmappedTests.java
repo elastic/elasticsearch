@@ -72,6 +72,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -1475,16 +1476,14 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             Tuple.tuple("| GROK first_name \"%{WORD:a}\"", "GROK"),
             Tuple.tuple("| MV_EXPAND first_name", "MV_EXPAND"),
             Tuple.tuple("| FORK (WHERE emp_no > 1) (WHERE emp_no < 100)", "FORK"),
-            Tuple.tuple("| EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code", "LOOKUP JOIN"),
-            // Allowing Aggregate must not allow INLINE STATS: it wraps its Aggregate in an InlineStats, which stays off the allow-list.
-            Tuple.tuple("| INLINE STATS m = MAX(salary) BY languages", "INLINE STATS")
+            Tuple.tuple("| EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code", "LOOKUP JOIN")
         )) {
             test().addLanguagesLookup()
                 .statementError(
                     setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
                     containsString(
-                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT "
-                            + "and STATS commands; ["
+                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
+                            + "STATS and INLINE STATS commands; ["
                             + commandAndLabel.v2()
                             + "] is not supported yet"
                     )
@@ -1506,9 +1505,23 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertThat(Expressions.names(plan.output()), equalTo(List.of("name", "x")));
     }
 
+    public void testLoadAllModeAllowsInlineStats() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("""
+            FROM test
+            | INLINE STATS c = COUNT(*)
+            | INLINE STATS m = MAX(salary) BY languages
+            """));
+        assertThat(Expressions.names(plan.output()), hasItems("c", "m"));
+    }
+
     public void testLoadAllModeAllowsStats() {
         LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | STATS c = COUNT(*) BY languages"));
         assertThat(Expressions.names(plan.output()), equalTo(List.of("c", "languages")));
+    }
+
+    public void testLoadAllModeAllowsStatsCombinedWithInlineStats() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | INLINE STATS c = COUNT(*) | STATS s = SUM(c)"));
+        assertThat(Expressions.names(plan.output()), equalTo(List.of("s")));
     }
 
     /**
@@ -1520,16 +1533,16 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             .statementError(
                 setUnmappedLoadAll("TS test | STATS MAX(RATE(network.bytes_in)) BY host"),
                 containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT "
-                        + "and STATS commands; [TS] is not supported yet"
+                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
+                        + "STATS and INLINE STATS commands; [TS] is not supported yet"
                 )
             );
         test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
             .statementError(
                 setUnmappedLoadAll("TS test | SORT @timestamp | LIMIT 10"),
                 containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT "
-                        + "and STATS commands; [TS] is not supported yet"
+                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
+                        + "STATS and INLINE STATS commands; [TS] is not supported yet"
                 )
             );
     }

@@ -422,13 +422,10 @@ public abstract class DocumentParserContext {
      * IllegalArgumentException}, rejecting the whole document. When it is {@code IGNORE}, the violating value is instead written to a
      * per-field failure column (see {@link OnFailureStoredValues}) and the field is marked ignored, so indexing continues without the
      * value ever reaching the field's own doc values.
-     * <p>
-     * {@code IGNORE} redirects fields that fail validation to a failure column and proceeds.
      *
      * @return {@code true} if this value was redirected to the failure column and the caller must skip {@link
      * FieldMapper#parseCreateField} for it; {@code false} if the caller should parse and index this value normally.
-     *         Multi-fields are always parsed regardless of the return value — each sub-field applies its own
-     *         {@code doc_values} configuration independently (see {@link FieldMapper#doParseMultiFields}).
+     *         Multi-fields are parsed either way — each applies its own {@code doc_values} configuration.
      */
     public final boolean enforceSingleValue(String fieldName, FieldMapper.DocValuesParameter.Values.OnFailure onFailure)
         throws IOException {

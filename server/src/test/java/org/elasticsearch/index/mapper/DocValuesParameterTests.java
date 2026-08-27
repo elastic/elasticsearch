@@ -988,11 +988,8 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
             equalTo(true)
         );
 
-        // Multi-field: both values indexed normally; no failure-column sidecar; not marked ignored.
-        // Note: in columnar mode the keyword encoder packs multiple values into a single binary doc-values
-        // field, so getFields("field.raw").size() == 1 even for a two-element array. Storage routing and
-        // _ignored absence are the reliable signals here; end-to-end term-query visibility is covered by
-        // the YAML REST test in mapping/42_doc_values_on_failure.yml.
+        // In columnar mode the keyword encoder packs multiple values into one binary doc-values field, so
+        // getFields("field.raw").size() == 1 even for a two-element array — assert storage routing instead.
         FieldStorageVerifier.forField("field.raw", doc.rootDoc()).expectDocValues().verify();
         assertThat(
             "multi-field must not be recorded as ignored — it applied no constraint",
@@ -1002,9 +999,8 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     }
 
     /**
-     * Verifies Jordan Powers's mapping from the issue: a sub-field that is explicitly configured with
-     * {@code doc_values: { multi_value: true }} must not have that setting overridden by the parent's
-     * {@code multi_value: false} constraint.
+     * A sub-field explicitly configured with {@code doc_values: { multi_value: true }} keeps that setting; the
+     * parent's {@code multi_value: false} does not override it.
      */
     public void testOnFailureIgnoreMultiFieldWithExplicitMultiValueTrueKeepsBothValues() throws Exception {
         assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
@@ -1035,10 +1031,8 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.array("field", "first", "second")));
 
-        // Parent redirects the duplicate.
         FieldStorageVerifier.forField("field", doc.rootDoc()).expectDocValues().expectOnFailure().verify();
 
-        // The text multi-field with explicit multi_value: true must store both values without any failure sidecar.
         FieldStorageVerifier.forField("field.txt", doc.rootDoc()).expectDocValues().verify();
         assertThat(
             "explicitly multi_value:true sub-field must not produce a failure-column entry",
@@ -1054,7 +1048,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
 
     /**
      * When the sub-field also carries {@code multi_value: false, on_failure: ignore}, it enforces the constraint
-     * independently, redirecting its own duplicate to its own {@code ._on_failure} column.  Both the parent and
+     * independently, redirecting its own duplicate to its own {@code ._on_failure} column. Both the parent and
      * sub-field are recorded in {@code _ignored}.
      */
     public void testOnFailureIgnoreMultiFieldWithOwnConstraintRedirectsIndependently() throws Exception {
@@ -1087,7 +1081,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.array("field", "first", "second")));
 
-        // Parent enforces its own constraint.
         FieldStorageVerifier.forField("field", doc.rootDoc()).expectDocValues().expectOnFailure().verify();
         assertThat(
             "parent must be recorded as ignored",
@@ -1095,7 +1088,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
             equalTo(true)
         );
 
-        // Sub-field enforces its own constraint independently.
         FieldStorageVerifier.forField("field.raw", doc.rootDoc()).expectDocValues().expectOnFailure().verify();
         assertThat(
             "sub-field with its own constraint must also be recorded as ignored",
@@ -1106,7 +1098,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
 
     /**
      * A sub-field with {@code multi_value: false} at the default {@code on_failure: fail} rejects the whole
-     * document even when the parent is configured to {@code ignore} the violation.  Each field's {@code on_failure}
+     * document even when the parent is configured to {@code ignore} the violation. Each field's {@code on_failure}
      * setting is evaluated independently.
      */
     public void testMultiFieldOnFailureFailRejectsDocumentEvenWhenParentIgnores() throws Exception {
@@ -1150,7 +1142,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     /**
      * The index-level settings {@code index.mapping.doc_values.multi_value=false} and
      * {@code index.mapping.doc_values.on_failure=ignore} apply to every field in the index, multi-fields
-     * included.  This is the one path where a sub-field picks up the constraint without explicitly naming it.
+     * included. This is the one path where a sub-field picks up the constraint without explicitly naming it.
      */
     public void testIndexLevelMultiValueAndOnFailureSettingsApplyToMultiFields() throws Exception {
         assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
@@ -1172,7 +1164,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.array("field", "first", "second")));
 
-        // Both parent and sub-field inherit the index-level constraint and redirect the duplicate.
         FieldStorageVerifier.forField("field", doc.rootDoc()).expectDocValues().expectOnFailure().verify();
         assertThat(
             "parent must be recorded as ignored",

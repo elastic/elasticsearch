@@ -31,9 +31,15 @@ import java.util.Set;
  *
  * <p><b>Why that spelling and not {@code _*}.</b> A full-match pattern of {@code **}{@code /_*} matches exactly the
  * paths whose FINAL segment starts with an underscore, because {@code *} cannot cross a separator. It therefore
- * cannot touch a directory — and partition values live in directory names, never in the file name, under every
- * {@code partition_detection} mode. That is the whole of the partition-safety argument: the default is not
- * permitted anywhere a partition could be, so there is no exception to carve out and no mode to special-case.
+ * cannot touch a directory, and partition values live in directory names. That is the partition-safety argument:
+ * the file-name rules are not permitted anywhere a partition directory could be, under any
+ * {@code partition_detection} mode, so there is no exception to carve out and no mode to special-case.
+ *
+ * <p>One residual, recorded rather than hidden. {@code HivePartitionDetector} walks every segment including the
+ * leaf, and binds an extensionless, dot-free {@code key=value} file name as a partition. A file named
+ * {@code _dept=alpha} is therefore both a bindable partition shape and a name the default drops. Vanishingly rare
+ * — a real data file has an extension, which disqualifies it — but it is the one place a partition value is not a
+ * directory name.
  *
  * <p><b>Why those two directories are named rather than matched by a wildcard.</b> A directory rule with a
  * wildcard, {@code **}{@code /_*}{@code /**}, would catch every junk directory and also {@code _dept=alpha/} and
@@ -116,7 +122,8 @@ public record ExclusionConfig(List<String> fileExclusions) {
      * registration path accepts is exactly a value the read path uses as written.
      */
     private static boolean validEntry(String glob) {
-        if (glob == null || glob.isEmpty()) {
+        // Never null: asStringList only yields String elements, and a null element makes it return null instead.
+        if (glob.isEmpty()) {
             return false;
         }
         try {

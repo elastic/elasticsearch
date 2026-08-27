@@ -344,9 +344,9 @@ public final class GlobExpander {
                     relativePath = entry.path().objectName();
                 }
                 if (relativePath.isEmpty() || relativePath.endsWith("/")) {
-                    // Directory placeholder key (e.g. the S3 console "folder" object). Always skipped as listing
-                    // normalization, not exclusion policy: a segment name never carries its trailing slash, so no
-                    // name glob could express this.
+                    // Directory placeholder key (e.g. the S3 console "folder" object). These are not files, so they
+                    // are skipped as listing normalization rather than left to exclusion policy — a dataset should
+                    // not have to configure away an artefact of how a console represents a folder.
                     //
                     // The empty case is the placeholder for the listing prefix ITSELF — listing `s3://b/data/*`
                     // returns the key `s3://b/data/`, whose path relative to the prefix is "". It is not caught by

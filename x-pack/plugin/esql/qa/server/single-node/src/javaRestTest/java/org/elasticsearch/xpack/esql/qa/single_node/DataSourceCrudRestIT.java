@@ -285,12 +285,7 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         final String parent = "exclusion_parent";
         final String dataset = "exclusion_child";
         putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
-        putDataset(
-            dataset,
-            parent,
-            "s3://bucket/data/*.parquet",
-            Map.of("file_exclusions", List.of("_*", ".*", "*.tmp"), "file_inclusions", List.of("_*=*"))
-        );
+        putDataset(dataset, parent, "s3://bucket/data/*.parquet", Map.of("file_exclusions", List.of("**/_*", "**/.*", "**/*.tmp")));
 
         Map<String, Object> got = getDataset(dataset);
         @SuppressWarnings("unchecked")
@@ -298,8 +293,11 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         assertThat(hits, hasSize(1));
         @SuppressWarnings("unchecked")
         Map<String, Object> settings = (Map<String, Object>) hits.get(0).get("settings");
-        assertThat("the exclusion globs round-trip verbatim", settings.get("file_exclusions"), equalTo(List.of("_*", ".*", "*.tmp")));
-        assertThat(settings.get("file_inclusions"), equalTo(List.of("_*=*")));
+        assertThat(
+            "the exclusion patterns round-trip verbatim",
+            settings.get("file_exclusions"),
+            equalTo(List.of("**/_*", "**/.*", "**/*.tmp"))
+        );
 
         deleteDataset(dataset);
         deleteDataSource(parent);
@@ -318,22 +316,39 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> settings = (Map<String, Object>) hits.get(0).get("settings");
         assertThat("defaults are resolved at read time, never written to cluster state", settings, not(hasKey("file_exclusions")));
-        assertThat(settings, not(hasKey("file_inclusions")));
 
         deleteDataset(dataset);
         deleteDataSource(parent);
     }
 
-    /** Entries name one path segment, so a path entry is refused at registration rather than silently never matching. */
-    public void testPutDatasetRejectsExclusionEntryWithASlash() throws IOException {
+    /** A pattern that cannot be parsed is refused at registration rather than failing every later query. */
+    public void testPutDatasetRejectsAnUnparseableExclusionPattern() throws IOException {
         final String parent = "bad_exclusion_parent";
         putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
         ResponseException ex = expectThrows(
             ResponseException.class,
-            () -> putDataset("bad_exclusion_child", parent, "s3://bucket/data", Map.of("file_exclusions", List.of("_temporary/**")))
+            () -> putDataset("bad_exclusion_child", parent, "s3://bucket/data", Map.of("file_exclusions", List.of("a[b")))
         );
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("single path-segment name globs"));
+        assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("unterminated character class"));
+        deleteDataSource(parent);
+    }
+
+    /** A directory pattern is legal, and is how a dataset excludes a subtree. */
+    public void testPutDatasetAcceptsADirectoryExclusionPattern() throws IOException {
+        final String parent = "dir_exclusion_parent";
+        final String dataset = "dir_exclusion_child";
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
+        putDataset(dataset, parent, "s3://bucket/data/**", Map.of("file_exclusions", List.of("**/backup_2024/**")));
+
+        Map<String, Object> got = getDataset(dataset);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> hits = (List<Map<String, Object>>) got.get("datasets");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> settings = (Map<String, Object>) hits.get(0).get("settings");
+        assertThat(settings.get("file_exclusions"), equalTo(List.of("**/backup_2024/**")));
+
+        deleteDataset(dataset);
         deleteDataSource(parent);
     }
 

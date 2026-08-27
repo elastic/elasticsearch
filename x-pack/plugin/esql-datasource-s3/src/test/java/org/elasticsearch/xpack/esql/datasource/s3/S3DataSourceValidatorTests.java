@@ -288,14 +288,13 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         Map<String, Object> result = validator.validateDataset(
             Map.of(),
             "s3://bucket/path/*.parquet",
-            Map.of("file_exclusions", List.of("_*", ".*", "*.tmp"), "file_inclusions", List.of("_*=*"))
+            Map.of("file_exclusions", List.of("**/_*", "**/.*", "**/_temporary/**"))
         );
         assertEquals(
-            "stored verbatim — glob entries are case-sensitive user data",
-            List.of("_*", ".*", "*.tmp"),
+            "stored verbatim, since patterns are case-sensitive user data",
+            List.of("**/_*", "**/.*", "**/_temporary/**"),
             result.get("file_exclusions")
         );
-        assertEquals(List.of("_*=*"), result.get("file_inclusions"));
     }
 
     /** The empty list is a legitimate value: exclude nothing. */
@@ -304,30 +303,31 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertEquals(List.of(), result.get("file_exclusions"));
     }
 
-    /** Entries match one path-segment name, so a path entry is refused with a message that says so. */
-    public void testValidateDatasetExclusionRejectsPathEntry() {
-        ValidationException e = expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_exclusions", List.of("_temporary/**")))
+    /** Entries are ordinary resource patterns, so a directory pattern is legal rather than refused. */
+    public void testValidateDatasetExclusionAcceptsADirectoryPattern() {
+        Map<String, Object> result = validator.validateDataset(
+            Map.of(),
+            "s3://b/p",
+            Map.of("file_exclusions", List.of("**/_temporary/**"))
         );
-        assertThat(e.validationErrors(), hasSize(1));
-        assertThat(e.getMessage(), containsString("single path-segment name globs"));
+        assertEquals(List.of("**/_temporary/**"), result.get("file_exclusions"));
     }
 
-    public void testValidateDatasetExclusionRejectsUncompilableGlob() {
+    public void testValidateDatasetExclusionRejectsAnUnparseablePattern() {
         ValidationException e = expectThrows(
             ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_inclusions", List.of("[")))
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_exclusions", List.of("a[b")))
         );
         assertThat(e.validationErrors(), hasSize(1));
-        assertThat(e.getMessage(), containsString("valid glob patterns"));
+        assertThat(e.getMessage(), containsString("must contain only valid patterns"));
+        assertThat(e.getMessage(), containsString("unterminated character class"));
     }
 
-    /** A shape problem is reported once, by the list validator — the owning parser must not add a second error. */
+    /** A shape problem is reported once, by the list validator, not twice by the owning parser as well. */
     public void testValidateDatasetExclusionRejectsNonListWithOneMessage() {
         ValidationException e = expectThrows(
             ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_exclusions", "_*"))
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_exclusions", "**/_*"))
         );
         assertThat(e.validationErrors(), hasSize(1));
         assertThat(e.getMessage(), containsString("must be a JSON array of strings"));

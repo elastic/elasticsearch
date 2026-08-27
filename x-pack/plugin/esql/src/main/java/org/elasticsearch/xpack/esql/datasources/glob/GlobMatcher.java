@@ -26,8 +26,9 @@ import java.util.List;
  * {@code old_events.csv}. Matching directly removes the seam, so none of those are representable.
  *
  * <p>It also removes a denial of service. Repeated {@code **} compiled to nested optional {@code .*} groups, which
- * backtrack exponentially: ten of them took seconds on a short path and fifteen did not finish. Segment matching
- * here is a memoised walk over (pattern segment, path segment), so cost is bounded by their product.
+ * backtrack exponentially in the number of globstars, and the cost also grows with the path. Ten globstars against
+ * a twenty-five segment path took seconds; fifteen did not finish. Segment matching here is a memoised walk over
+ * (pattern segment, path segment), so cost is bounded by their product.
  *
  * <p><b>The language.</b> ClickHouse is the reference — a pattern written for its s3 table function means the same
  * thing here — with two deliberate departures, both documented:
@@ -325,7 +326,9 @@ final class GlobMatcher {
             switch (c) {
                 case '*' -> {
                     // A run of stars inside a segment is a plain star: only a segment that is exactly `**` is the
-                    // globstar. Matches ClickHouse, which gives zero-level semantics to a whole path component only.
+                    // globstar. This follows ClickHouse's stated rule, that `**` is special only as a complete path
+                    // component, rather than its behaviour — its legacy expansion lets a glued `a**` cross directory
+                    // levels, which its own source comment describes as not being a globstar at all.
                     while (i < name.length() && name.charAt(i) == '*') {
                         i++;
                     }

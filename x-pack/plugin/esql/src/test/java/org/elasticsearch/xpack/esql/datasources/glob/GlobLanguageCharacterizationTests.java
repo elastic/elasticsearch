@@ -280,7 +280,8 @@ public class GlobLanguageCharacterizationTests extends ESTestCase {
 
     /**
      * The regex translation this replaced compiled repeated {@code **} into nested optional {@code .*} groups,
-     * which backtrack exponentially: ten of them took seconds on a short path and fifteen did not finish. The
+     * which backtrack exponentially in the number of globstars, and worsen with path length: ten against a
+     * twenty-five segment path took seconds, and fifteen did not finish. The
      * matcher runs once per discovered object on the coordinator thread, and nothing validates a dataset's
      * resource pattern before then, so a pattern like this was a way to hang a coordinator. Matching is now a
      * memoised walk over (pattern segment, path segment), so the cost is bounded by their product.

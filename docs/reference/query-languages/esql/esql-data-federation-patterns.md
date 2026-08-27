@@ -201,10 +201,9 @@ By contrast, a stray `]` or `}` with no matching opener is an ordinary character
 
 ## ClickHouse compatibility
 
-The language is compatible with the glob syntax of the ClickHouse `s3` table function: `*`, `?`,
-`**`, `{a,b}` alternation, and `{N..M}` numeric ranges, including their zero-padding rule, all mean the same
-thing, and `\` is a literal there too. A pattern written for ClickHouse selects the same objects here, with
-two deliberate exceptions:
+The language is compatible with the glob syntax of the ClickHouse `s3` table function: `*`, `?`, `**`,
+`{a,b}` alternation, and `{N..M}` numeric ranges mean the same thing, and `\` is a literal there too. A
+pattern written for ClickHouse selects the same objects here, with two deliberate exceptions:
 
 - **Character classes are supported here.** ClickHouse treats `[` and `]` as literal characters. A pattern
   relying on that, such as one matching a file literally named `part[0].csv` with bare brackets, must use a
@@ -212,13 +211,17 @@ two deliberate exceptions:
 - **Malformed patterns are rejected here.** ClickHouse treats shapes such as an unclosed `[` or `{` as
   literal text; here they are [errors](#invalid-patterns).
 
-Two smaller differences:
+Four smaller differences:
 
-- Here a `*` inside a brace alternative is a wildcard, so `{a*,b}.csv` matches `a.csv`, `ax.csv`, and
-  `b.csv`. ClickHouse instead treats the whole group as literal text when an alternative contains `*`,
-  matching only a file literally named `{a*,b}.csv`.
-- Here a run of stars glued to other text, such as `a**`, stays within one segment like `a*`. In ClickHouse
-  it can cross directory levels.
+- Here a `*` inside a brace alternative is a wildcard of that alternative, so `{a*,b}.csv` matches `a.csv`,
+  `axyz.csv` and `b.csv`. In ClickHouse the braces and comma become literal characters while the `*` stays a
+  live wildcard, so the same pattern matches names such as `{ax,b}.csv`.
+- Here a run of stars glued to other text, such as `a**`, stays within one segment like `a*`. In ClickHouse it
+  can cross directory levels. This follows ClickHouse's stated rule, that `**` is special only as a complete
+  path component, rather than its behaviour.
+- Zero-padding of a numeric range differs at the edges. Here a range pads when either endpoint is written
+  padded, so `{1..05}` pads; ClickHouse pads from one endpoint only.
+- A brace group here expands to at most 1024 alternatives. ClickHouse has no such cap.
 
 ## Brace groups and partition placeholders
 

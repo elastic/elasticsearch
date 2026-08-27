@@ -153,11 +153,19 @@ public class ExclusionDefaultDeltaTests extends ESTestCase {
         }
     }
 
-    /** The property the whole design rests on: the default cannot touch a directory, so no partition is at risk. */
-    public void testTheDefaultNeverMatchesOnADirectorySegment() {
+    /**
+     * The property the design rests on: the default's file-name rules cannot match a directory, so no partition is
+     * at risk from them. The probe deliberately generates short segments, which cannot spell the two directories
+     * the default names literally — those are covered separately and by name.
+     */
+    public void testTheDefaultsFileNameRulesNeverMatchADirectorySegment() {
         for (int i = 0; i < 3000; i++) {
             String directory = randomSegment();
             String path = directory + "/data.parquet";
+            assertFalse(
+                "a directory named [" + directory + "] must not drop its data file",
+                directory.equals("_temporary") || directory.equals("_delta_log")
+            );
             assertTrue("a directory named [" + directory + "] must not drop its data file", nowExcluded(path) == false);
         }
     }

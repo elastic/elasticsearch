@@ -74,6 +74,7 @@ public class ExclusionConfigTests extends ESTestCase {
     public void testValidateAcceptsWellFormedSettings() {
         ExclusionConfig.validate(null);
         ExclusionConfig.validate(Map.of());
+        ExclusionConfig.validate(Map.of("partition_detection", "hive")); // present config, absent key
         ExclusionConfig.validate(Map.of(CONFIG_FILE_EXCLUSIONS, List.of("**/_*", "**/.*", "**/_temporary/**")));
         ExclusionConfig.validate(Map.of(CONFIG_FILE_EXCLUSIONS, List.of()));
     }
@@ -113,11 +114,12 @@ public class ExclusionConfigTests extends ESTestCase {
     // -- the compiled filter, and the partition-safety property the default rests on --
 
     /**
-     * The default matches only the FINAL segment, because {@code *} cannot cross a separator. Partition values live
-     * in directory names and never in the file name, so no partition directory can be touched — under any
-     * {@code partition_detection} mode, which is what the previous {@code _*=*} carve-out only managed for hive.
+     * The default's FILE-NAME rules match only the final segment, because {@code *} cannot cross a separator, so no
+     * partition directory can be touched by them under any {@code partition_detection} mode — which is what the
+     * previous {@code _*=*} carve-out only managed for hive. The default's two DIRECTORY rules name their targets
+     * literally, which is the only shape that reaches a directory without reaching a partition.
      */
-    public void testTheDefaultNeverTouchesADirectory() {
+    public void testTheDefaultsFileNameRulesNeverTouchADirectory() {
         ExclusionConfig.NameFilter filter = ExclusionConfig.DEFAULT.compile();
 
         assertFalse("a marker file", filter.keeps("_SUCCESS"));

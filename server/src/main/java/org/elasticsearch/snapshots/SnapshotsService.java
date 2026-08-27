@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
+import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
@@ -137,6 +138,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     public static final IndexVersion OLD_SNAPSHOT_FORMAT = IndexVersions.V_7_5_0;
 
     public static final String POLICY_ID_METADATA_FIELD = "policy";
+
+    public static final String SHARD_BEING_RESTORED_REASON = "primary shard is being restored from a snapshot";
 
     private static final Logger logger = LogManager.getLogger(SnapshotsService.class);
 
@@ -1869,7 +1872,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                 entry.indices().values(),
                                 entry.version().onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION),
                                 repositoryData,
-                                repoName
+                                repoName,
+                                entry.partial()
                             );
                             final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> updatedAssignmentsBuilder = ImmutableOpenMap
                                 .builder(entry.shards());
@@ -2002,6 +2006,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         // tests whether node IDs are currently marked for removal
         private final Predicate<String> nodeIdRemovalPredicate;
 
+        // Snapshot of RestoreInProgress from the initial cluster state use to detect whether a shard's primary is currently being restored
+        // from a snapshot — the condition that causes partial=true snapshots to record that shard as MISSING rather than WAITING.
+        private final RestoreInProgress restoreInProgress;
+
         /** Updates outstanding to be applied to existing snapshot entries. Maps repository name to shard snapshot updates. */
         private final Map<ProjectRepo, List<ShardSnapshotUpdate>> updatesByRepo;
 
@@ -2024,6 +2032,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             this.batchExecutionContext = batchExecutionContext;
             this.initialState = batchExecutionContext.initialState();
             this.nodeIdRemovalPredicate = SnapshotsInProgress.get(initialState)::isNodeIdForRemoval;
+            this.restoreInProgress = RestoreInProgress.get(initialState);
             this.completionHandler = completionHandler;
 
             // SnapshotsInProgress is organized by ProjectRepo, so organize the shard snapshot updates similarly.
@@ -2373,7 +2382,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 final ShardSnapshotStatus shardSnapshotStatus = SnapshotsServiceUtils.initShardSnapshotStatus(
                     generation,
                     shardRouting,
-                    nodeIdRemovalPredicate
+                    nodeIdRemovalPredicate,
+                    entry.partial(),
+                    restoreInProgress
                 );
                 final ShardId routingShardId = shardRouting != null ? shardRouting.shardId() : new ShardId(index, repoShardId.shardId());
                 if (shardSnapshotStatus.isActive()) {
@@ -2996,7 +3007,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 indexIds.values(),
                 SnapshotsServiceUtils.useShardGenerations(version),
                 repositoryData,
-                repositoryName
+                repositoryName,
+                request.partial()
             );
             if (request.partial() == false) {
                 Set<String> missing = new TreeSet<>(); // sorted for more usable message

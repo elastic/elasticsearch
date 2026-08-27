@@ -119,7 +119,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.MAX_SLOW_OPERATION_THREAD_DUMPS;
+import static org.elasticsearch.xpack.stateless.recovery.SlowRelocationLogger.MAX_SLOW_OPERATION_THREAD_DUMPS;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
@@ -804,7 +804,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
 
     @TestLogging(
         reason = "verifying INFO logging of repeated hot threads dumps",
-        value = "org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction:INFO"
+        value = "org.elasticsearch.xpack.stateless.recovery.SlowRelocationLogger:INFO"
     )
     public void testSlowRelocationLogsRepeatedHotThreadsDumps() throws Exception {
         final var nodeSettings = Settings.builder().put(SLOW_RELOCATION_THRESHOLD_SETTING.getKey(), TimeValue.timeValueMillis(100)).build();
@@ -821,12 +821,12 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
             .getShard(0);
         final var permitFuture = new PlainActionFuture<Releasable>();
         indexShard.acquirePrimaryOperationPermit(permitFuture, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        try (Releasable permit = safeGet(permitFuture); var mockLog = MockLog.capture(TransportStatelessPrimaryRelocationAction.class)) {
+        try (Releasable permit = safeGet(permitFuture); var mockLog = MockLog.capture(SlowRelocationLogger.class)) {
             for (int sample = 1; sample <= MAX_SLOW_OPERATION_THREAD_DUMPS; sample++) {
                 mockLog.addExpectation(
                     new MockLog.SeenEventExpectation(
                         "hot threads dump " + sample,
-                        TransportStatelessPrimaryRelocationAction.class.getCanonicalName(),
+                        SlowRelocationLogger.class.getCanonicalName(),
                         Level.INFO,
                         "* recovery [*]: flush and acquire permits #" + sample + " with [*] operations holding permits*"
                     )
@@ -1096,13 +1096,19 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
             Setting.Property.NodeScope
         );
 
+        static final Setting<Boolean> SYNC_BCC_HEADER_PREWARM = Setting.boolSetting(
+            "test.stateless.sync_bcc_header_prewarm",
+            false,
+            Setting.Property.NodeScope
+        );
+
         public DisableWarmOnUploadPlugin(Settings settings) {
             super(settings);
         }
 
         @Override
         public List<Setting<?>> getSettings() {
-            return CollectionUtils.concatLists(super.getSettings(), List.of(ENABLED_WARMING));
+            return CollectionUtils.concatLists(super.getSettings(), List.of(ENABLED_WARMING, SYNC_BCC_HEADER_PREWARM));
         }
 
         @Override
@@ -1138,6 +1144,23 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                     // warmed afterward.
                     var subscribableListener = new SubscribableListener<Void>();
                     super.warmCache(type, indexShard, commit, directory, endTargetsToWarm, false, subscribableListener);
+                    safeAwait(subscribableListener);
+                    subscribableListener.addListener(listener);
+                }
+
+                @Override
+                public void warmCacheForBCCHeadersRead(
+                    IndexShard indexShard,
+                    BlobStoreCacheDirectory directory,
+                    Set<BlobFile> lastCommitBlobs,
+                    ActionListener<Void> listener
+                ) {
+                    if (clusterSettings.get(SYNC_BCC_HEADER_PREWARM) == false) {
+                        super.warmCacheForBCCHeadersRead(indexShard, directory, lastCommitBlobs, listener);
+                        return;
+                    }
+                    var subscribableListener = new SubscribableListener<Void>();
+                    super.warmCacheForBCCHeadersRead(indexShard, directory, lastCommitBlobs, subscribableListener);
                     safeAwait(subscribableListener);
                     subscribableListener.addListener(listener);
                 }
@@ -1237,6 +1260,9 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                 .put(indexNodesSettings)
                 // Disable warm-on-upload since otherwise it populates the cache when uploading the flush after relocation handoff.
                 .put(DisableWarmOnUploadPlugin.ENABLED_WARMING.getKey(), false)
+                // Ensure BCC header pre-warming completes before readIndexingShardState reads region 0, so the test
+                // observes exactly one cache write instead of two when they race to fill different sub-ranges.
+                .put(DisableWarmOnUploadPlugin.SYNC_BCC_HEADER_PREWARM.getKey(), true)
                 .build()
         );
         ensureStableCluster(3);

@@ -106,7 +106,7 @@ public class PlannerSettings {
      */
     public static final Setting<Boolean> SINGLE_SHARD_SINGLE_PASS_AGGREGATION = Setting.boolSetting(
         "esql.single_shard_single_pass_aggregation",
-        false,
+        true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

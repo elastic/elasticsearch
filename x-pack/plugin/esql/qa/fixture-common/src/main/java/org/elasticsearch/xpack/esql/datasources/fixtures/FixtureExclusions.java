@@ -15,6 +15,7 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * The spec cases a suite does not run, and why.
@@ -51,7 +52,17 @@ public final class FixtureExclusions {
     /** One exclusion: which suite, which case, what kind, and the reason in full. */
     public record Exclusion(String suite, String spec, String caseName, Kind kind, String reason) {}
 
-    private final Map<String, Map<String, Exclusion>> bySuite;
+    /**
+     * Suite token -> (spec, case) -> exclusion. The spec is part of the KEY, not merely a field on the
+     * value: keying by case name alone let two same-named cases in different specs of one suite clobber
+     * each other, silently re-enabling the loser. The three-argument {@link #find} used to compensate by
+     * filtering after the lookup, which cannot recover an entry the map never stored.
+     */
+    private final Map<String, Map<SpecCase, Exclusion>> bySuite;
+
+    /** The identity of an excluded case: its spec and its name. */
+    private record SpecCase(String spec, String caseName) {}
+
     private final Set<String> declaredSuites;
 
     public static FixtureExclusions get() {
@@ -77,7 +88,7 @@ public final class FixtureExclusions {
     }
 
     private FixtureExclusions(Properties props) {
-        Map<String, Map<String, Exclusion>> parsed = new LinkedHashMap<>();
+        Map<String, Map<SpecCase, Exclusion>> parsed = new LinkedHashMap<>();
         String suitesValue = props.getProperty("suites");
         if (suitesValue == null || suitesValue.isBlank()) {
             throw new IllegalStateException("fixture-exclusions.properties must declare a 'suites' list");
@@ -94,8 +105,14 @@ public final class FixtureExclusions {
             if (key.equals("suites") || key.startsWith("reason.")) {
                 continue;
             }
+            // Fail on an unrecognised key rather than skipping it. FixtureMatrix has always rejected
+            // unknown keys; this file silently ignored them, so a mistyped or newly-invented key -- a
+            // `frozen.<suite>` before the parser learned it, a `reason` misspelt as `reasons` -- read as
+            // an absent declaration and did nothing at all.
             if (key.startsWith("exclude.") == false) {
-                continue;
+                throw new IllegalStateException(
+                    "unknown key [" + key + "] in [" + RESOURCE + "]; expected 'suites', 'reason.<name>' or 'exclude.<suite>.<spec>.<case>'"
+                );
             }
             String rest = key.substring("exclude.".length());
             // FIRST dot: the key is exclude.<suite>.<spec>.<case>, and the suite token is the leading
@@ -171,7 +188,21 @@ public final class FixtureExclusions {
                 }
                 reason = shared.trim();
             }
-            parsed.computeIfAbsent(suite, k -> new LinkedHashMap<>()).put(caseOnly, new Exclusion(suite, spec, caseOnly, kind, reason));
+            // A repeated key is a real hazard rather than a tidiness issue: Properties.load keeps the
+            // last value silently, so two entries for one case resolve to whichever happens to be lower
+            // in the file. This file carried four such duplicates, one of them with two DIFFERENT
+            // reasons. The composite key means a duplicate now collides here, where it can be reported.
+            Exclusion previous = parsed.computeIfAbsent(suite, k -> new LinkedHashMap<>())
+                .put(new SpecCase(spec, caseOnly), new Exclusion(suite, spec, caseOnly, kind, reason));
+            if (previous != null) {
+                throw new IllegalStateException(
+                    "duplicate exclusion ["
+                        + key
+                        + "] in ["
+                        + RESOURCE
+                        + "]; it is declared more than once, and only the last declaration would take effect"
+                );
+            }
         }
         this.bySuite = Map.copyOf(parsed);
         this.declaredSuites = Set.copyOf(declaredSuites);
@@ -179,7 +210,7 @@ public final class FixtureExclusions {
 
     /** The case names the given suite does not run. */
     public Set<String> casesFor(String suite) {
-        return bySuite.getOrDefault(suite, Map.of()).keySet();
+        return bySuite.getOrDefault(suite, Map.of()).keySet().stream().map(SpecCase::caseName).collect(Collectors.toSet());
     }
 
     /** Every exclusion the given suite declares. */
@@ -189,20 +220,26 @@ public final class FixtureExclusions {
 
     /** The exclusion for a case on a suite, or {@code null} if the suite runs it. */
     public Exclusion find(String suite, String caseName) {
-        return bySuite.getOrDefault(suite, Map.of()).get(caseName);
+        return bySuite.getOrDefault(suite, Map.of())
+            .entrySet()
+            .stream()
+            .filter(e -> e.getKey().caseName().equals(caseName))
+            .map(Map.Entry::getValue)
+            .findFirst()
+            .orElse(null);
     }
 
     /**
      * The exclusion for a case in a specific spec, or {@code null} if that suite runs it.
      *
-     * <p>The spec is part of the identity because case names are NOT unique across spec files -- 24 names
-     * are duplicated, 48 instances -- so matching on the bare name silences every same-named case. A
-     * lookup that ignored the spec would, for example, take the exclusion declared against
-     * external-multivalue and apply it to csv-multivalue's identically-named case as well.
+     * <p>The spec is part of the key because case names are not unique across spec files. Within a
+     * single suite's routed set the collisions are few -- promoting the Hive-shadow spec to the shared
+     * directory put {@code noneStopsTheColumnSubstitution} and {@code shadowedColumnSubstitutionAndWarning}
+     * into two specs the parquet suite both loads -- but one is enough to silence the wrong case, and
+     * across the whole spec corpus dozens of names repeat.
      */
     public Exclusion find(String suite, String spec, String caseName) {
-        Exclusion candidate = bySuite.getOrDefault(suite, Map.of()).get(caseName);
-        return candidate != null && candidate.spec().equals(spec) ? candidate : null;
+        return bySuite.getOrDefault(suite, Map.of()).get(new SpecCase(spec, caseName));
     }
 
     /**

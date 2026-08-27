@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.csv;
 
 import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -5926,6 +5927,31 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertEquals(new BytesRef("Bob"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
             assertEquals(3L, ((LongBlock) page.getBlock(0)).getLong(1));
             assertEquals(new BytesRef("Charlie"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
+            page.releaseBlocks();
+        }
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/esql-planning/issues/1805")
+    public void testNonRecordAlignedNonFirstSplitDropsFirstLineWithPinnedReadSchema() throws IOException {
+        // Same split shape as the test above, but with the schema pinned the way the PLANNER pins it:
+        // FileSplitProvider attaches the reconciled per-file schema to the split and
+        // AsyncExternalSourceOperatorFactory forwards it as context.readSchema(). The sibling test
+        // pins via reader.withSchema(), which lands on a different branch of read()'s schema chain.
+        String csv = "partial-line-from-previous-split\n2,Bob\n3,Charlie\n";
+        StorageObject object = createStorageObject(csv);
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.TRUE, null, false),
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD, Nullability.TRUE, null, false)
+        );
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        FormatReadContext ctx = FormatReadContext.builder().batchSize(10).firstSplit(false).readSchema(schema).build();
+        try (CloseableIterator<Page> iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals("non-record-aligned non-first split must drop leading partial line", 2, page.getPositionCount());
+            assertEquals(2L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(3L, ((LongBlock) page.getBlock(0)).getLong(1));
             page.releaseBlocks();
         }
     }

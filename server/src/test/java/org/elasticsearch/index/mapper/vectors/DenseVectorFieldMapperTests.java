@@ -133,11 +133,11 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         MappedFieldType fieldType = mapperService.fieldType("field");
         MappedFieldType.EmbeddingsField expected = new MappedFieldType.EmbeddingsField(
             new FieldAndFormat("field", null),
-            MappedFieldType.EmbeddingsFieldSource.FIELDS
+            MappedFieldType.EmbeddingsFieldSource.DOC_VALUES
         );
         assertEquals(expected, fieldType.embeddingsField(null));
         assertEquals(expected, fieldType.embeddingsField(VectorType.DENSE_VECTOR));
-        assertNull(fieldType.embeddingsField(VectorType.SPARSE_VECTOR));
+        assertUnsupportedEmbeddings(fieldType, VectorType.SPARSE_VECTOR);
         assertParseMinimalWarnings();
     }
 

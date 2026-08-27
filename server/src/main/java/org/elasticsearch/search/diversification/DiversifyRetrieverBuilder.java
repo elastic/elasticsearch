@@ -59,6 +59,9 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
     public static final NodeFeature RETRIEVER_RESULT_DIVERSIFICATION_MMR_FEATURE = new NodeFeature("retriever.result_diversification_mmr");
     public static final NodeFeature MMR_NULL_DENSE_VECTOR_FIX = new NodeFeature("retriever.mmr_null_dense_vector_fix");
+    public static final NodeFeature DIVERSIFY_INCOMPATIBLE_EMBEDDINGS_FIELD_ERROR = new NodeFeature(
+        "retriever.diversify_incompatible_embeddings_field_error"
+    );
     public static final NodeFeature DIVERSIFY_ENCODED_SOURCE_VECTOR_FIX = new NodeFeature("retriever.diversify_encoded_source_vector_fix");
     private static final VectorSimilarityFunction QUERY_VECTOR_SIMILARITY_FUNCTION = VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
 

@@ -147,7 +147,7 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         );
         assertEquals(expected, fieldType.embeddingsField(null));
         assertEquals(expected, fieldType.embeddingsField(VectorType.SPARSE_VECTOR));
-        assertNull(fieldType.embeddingsField(VectorType.DENSE_VECTOR));
+        assertUnsupportedEmbeddings(fieldType, VectorType.DENSE_VECTOR);
         assertParseMinimalWarnings();
     }
 

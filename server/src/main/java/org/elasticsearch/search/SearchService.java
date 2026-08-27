@@ -2240,10 +2240,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     continue;
                 }
                 MappedFieldType.EmbeddingsField embeddings = fieldType.embeddingsField(embeddingsField.getValue());
-                if (embeddings == null) {
-                    // The field cannot produce embeddings of the requested type — skip, as with an unmapped field.
-                    continue;
-                }
                 switch (embeddings.source()) {
                     case FIELDS -> fetchFields.add(embeddings.fieldAndFormat());
                     case DOC_VALUES -> docValueFields.add(embeddings.fieldAndFormat());

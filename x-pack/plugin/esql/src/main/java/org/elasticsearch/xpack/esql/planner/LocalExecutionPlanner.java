@@ -613,7 +613,15 @@ public class LocalExecutionPlanner {
             );
             Layout outputLayout = operation.layout.builder().append(generatedFields.get(i)).build();
             operation = operation.with(
-                new TextEmbeddingOperator.Factory(inferenceService, inferenceId, inputEvaluatorFactory, denseVector.timeout()),
+                new TextEmbeddingOperator.Factory(
+                    inferenceService,
+                    inferenceId,
+                    inputEvaluatorFactory,
+                    denseVector.timeout(),
+                    denseVector.source(),
+                    // The DENSE_VECTOR command tolerates per-row inference failures: warn, null the row, and continue.
+                    true
+                ),
                 outputLayout
             );
         }

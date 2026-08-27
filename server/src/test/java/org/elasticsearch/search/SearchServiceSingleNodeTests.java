@@ -3277,8 +3277,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
     /**
      * Tests that {@code SearchService#parseSource} correctly resolves embeddings fields into a
-     * {@link FetchFieldsContext}, and silently skips unmapped fields and fields whose vector type does not
-     * match the requested one.
+     * {@link FetchFieldsContext}, silently skips unmapped fields, and rejects fields that cannot produce
+     * embeddings of the requested type.
      */
     public void testFetchEmbeddingsFields() throws IOException {
         createEmbeddingsTestIndex("emb_test");
@@ -3301,11 +3301,19 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             contains(new FieldAndFormat("sparse", null))
         );
 
-        // dense_vector field requested as SPARSE_VECTOR → type mismatch, skipped, no context.
-        assertThat(resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("dense", VectorType.SPARSE_VECTOR)), nullValue());
+        // dense_vector field requested as SPARSE_VECTOR → type mismatch, rejected.
+        assertEmbeddingsFieldRejected(
+            "emb_test",
+            s -> s.fetchEmbeddingsField("dense", VectorType.SPARSE_VECTOR),
+            "Field [dense] of type [dense_vector] does not support [sparse_vector] embeddings"
+        );
 
-        // keyword field produces no embeddings → skipped, no context.
-        assertThat(resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("keyword", null)), nullValue());
+        // keyword field produces no embeddings → rejected.
+        assertEmbeddingsFieldRejected(
+            "emb_test",
+            s -> s.fetchEmbeddingsField("keyword", null),
+            "Field [keyword] of type [keyword] does not support embeddings"
+        );
 
         // Unmapped field → skipped, no context.
         assertThat(resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("unmapped", null)), nullValue());
@@ -3323,7 +3331,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
     /**
      * Tests that when both an explicit {@code fields} request and embeddings fields are present,
      * {@code SearchService#parseSource} prepends the resolved embeddings fields before the user-supplied
-     * fields, and leaves the pre-existing context unchanged when all embeddings fields are skipped.
+     * fields, and leaves the pre-existing context unchanged when all embeddings fields are skipped (e.g.
+     * because the field is unmapped).
      */
     public void testFetchEmbeddingsFieldsWithFetchFields() throws IOException {
         createEmbeddingsTestIndex("emb_test");
@@ -3334,9 +3343,9 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             contains(new FieldAndFormat("dense", null), new FieldAndFormat("keyword", null))
         );
 
-        // embeddings field skipped (type mismatch) → pre-existing fetchFieldsContext is left intact.
+        // embeddings field skipped (unmapped) → pre-existing fetchFieldsContext is left intact.
         assertThat(
-            resolveFetchFields("emb_test", s -> s.fetchField("keyword").fetchEmbeddingsField("dense", VectorType.SPARSE_VECTOR)),
+            resolveFetchFields("emb_test", s -> s.fetchField("keyword").fetchEmbeddingsField("unmapped", null)),
             contains(new FieldAndFormat("keyword", null))
         );
     }
@@ -3408,6 +3417,15 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             FetchFieldsContext fetchFieldsContext = context.fetchFieldsContext();
             return fetchFieldsContext == null ? null : fetchFieldsContext.fields();
         }
+    }
+
+    /**
+     * Asserts that {@code SearchService#parseSource} rejects the embeddings fields configured by
+     * {@code sourceConsumer} with {@code expectedMessage}.
+     */
+    private void assertEmbeddingsFieldRejected(String indexName, Consumer<SearchSourceBuilder> sourceConsumer, String expectedMessage) {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> resolveFetchFields(indexName, sourceConsumer));
+        assertThat(e.getMessage(), equalTo(expectedMessage));
     }
 
     private List<String> parseFeatureData(SearchHit hit, String fieldName) {

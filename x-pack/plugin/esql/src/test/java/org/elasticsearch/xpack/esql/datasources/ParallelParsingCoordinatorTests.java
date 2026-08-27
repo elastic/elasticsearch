@@ -25,6 +25,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
@@ -293,31 +294,78 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * A segment probe reads under the ambient {@link StorageRetryCancellation} scope the read installed, not one
-     * of its own. That scope is what a probe parked in retry/throttle backoff consults to abort instead of
-     * sleeping out its retry budget, and read-time segmentation has no separately cancellable task to key a scope
-     * of its own on, so installing one would replace the read's live cancel signal with a dead one.
+     * A cancelled read fails before the strided walk's first stream. The supplier is the ambient
+     * {@link StorageRetryCancellation} scope: installing a nested one would replace the read's live signal.
      */
-    public void testSegmentProbesReadUnderTheAmbientRetryCancellationScope() throws IOException {
+    public void testComputeSegmentsAlreadyCancelledDispatchesNoStridedProbe() {
         byte[] payload = "line1\nline2\nline3\nline4\nline5\nline6\n".getBytes(StandardCharsets.UTF_8);
-        List<Boolean> scopeSeenByProbe = new ArrayList<>();
+        AtomicInteger opens = new AtomicInteger();
         StorageObject obj = new InMemoryStorageObject(payload) {
             @Override
             public InputStream newStream(long position, long length) {
-                scopeSeenByProbe.add(StorageRetryCancellation.isCancelled());
+                opens.incrementAndGet();
                 return super.newStream(position, length);
             }
         };
 
-        StorageRetryCancellation.runWithCancellation(
-            () -> true,
-            () -> ParallelParsingCoordinator.computeSegments(new NewlineSegmentableReader(1), obj, payload.length, 3, 1)
+        TaskCancelledException thrown = expectThrows(
+            TaskCancelledException.class,
+            () -> StorageRetryCancellation.runWithCancellation(
+                () -> true,
+                () -> ParallelParsingCoordinator.computeSegments(new NewlineSegmentableReader(1), obj, payload.length, 3, 1)
+            )
         );
+        assertEquals(RecordBoundaryProbe.CANCELLED_MESSAGE, thrown.getMessage());
+        assertEquals("a cancel already true must not open a strided probe", 0, opens.get());
+    }
 
-        assertFalse("the segment walk must have probed at least once", scopeSeenByProbe.isEmpty());
-        for (boolean seen : scopeSeenByProbe) {
-            assertTrue("a probe read must see the cancellation scope the read installed", seen);
-        }
+    public void testComputeSegmentsCancelAfterTheFirstStridedProbeDispatchesNoMore() {
+        byte[] payload = "line1\nline2\nline3\nline4\nline5\nline6\n".getBytes(StandardCharsets.UTF_8);
+        AtomicInteger opens = new AtomicInteger();
+        AtomicBoolean cancelled = new AtomicBoolean();
+        StorageObject obj = new InMemoryStorageObject(payload) {
+            @Override
+            public InputStream newStream(long position, long length) {
+                opens.incrementAndGet();
+                cancelled.set(true);
+                return super.newStream(position, length);
+            }
+        };
+
+        expectThrows(
+            TaskCancelledException.class,
+            () -> StorageRetryCancellation.runWithCancellation(
+                cancelled::get,
+                () -> ParallelParsingCoordinator.computeSegments(new NewlineSegmentableReader(1), obj, payload.length, 3, 1)
+            )
+        );
+        assertEquals("probes after the first must not read", 1, opens.get());
+    }
+
+    /**
+     * The proven walk checks cancel after each step, so a signal that is already true still opens the first
+     * stream and then fails rather than walking the rest of the file.
+     */
+    public void testComputeSegmentsAlreadyCancelledStopsTheProvenWalk() {
+        byte[] payload = "id,name\n1,\"a\"\n2,\"b\"\n3,\"c\"\n4,\"d\"\n5,\"e\"\n6,\"f\"\n".getBytes(StandardCharsets.UTF_8);
+        AtomicInteger opens = new AtomicInteger();
+        StorageObject obj = new InMemoryStorageObject(payload) {
+            @Override
+            public InputStream newStream(long position, long length) {
+                opens.incrementAndGet();
+                return super.newStream(position, length);
+            }
+        };
+        CsvFormatReader csvReader = new CsvFormatReader(blockFactory());
+
+        expectThrows(
+            TaskCancelledException.class,
+            () -> StorageRetryCancellation.runWithCancellation(
+                () -> true,
+                () -> ParallelParsingCoordinator.computeSegments(csvReader, obj, payload.length, 4, 1)
+            )
+        );
+        assertEquals("the proven walk must stop after the step that sees cancel", 1, opens.get());
     }
 
     public void testComputeSegmentsAlignsToBoundaries() throws IOException {

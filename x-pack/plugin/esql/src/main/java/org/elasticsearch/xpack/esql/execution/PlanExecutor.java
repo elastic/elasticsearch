@@ -178,8 +178,7 @@ public class PlanExecutor {
         // NOTE: this release-across-the-read guarantee holds for storage backends with native async
         // reads (e.g. S3). Backends whose readBytesAsync is an executor-backed sync read (local, GCS)
         // still occupy one of that executor's threads for the duration of each footer read; the bound
-        // limits how many do so at once, and giving those blocking reads a home of their own is handled
-        // by the follow-up concurrency-fairness work rather than here.
+        // limits how many do so at once.
         final ExternalSourceResolver externalSourceResolver = createExternalSourceResolver(
             externalSourceExecutor,
             dataSourceModule,

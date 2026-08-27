@@ -414,7 +414,7 @@ final class RecordBoundaryProbe {
      * cancel signal with this method's, leaving a probe parked in retry/throttle backoff unable to observe the
      * cancel at all.
      *
-     * @param strideBytes the grid the offsets sit on, i.e. how small a span the caller is asking for
+     * @param strideBytes the grid the offsets sit on, i.e., how small a span the caller is asking for
      */
     static List<Long> advancingBoundaries(
         RecordSplitter splitter,
@@ -489,7 +489,7 @@ final class RecordBoundaryProbe {
     ) throws IOException {
         List<Long> boundaries = new ArrayList<>();
         boundaries.add(0L);
-        // The last proven record start, i.e. the base offset the exact walk streams from when the probe is
+        // The last proven record start, i.e., the base offset the exact walk streams from when the probe is
         // AMBIGUOUS. The file start is always a record start, so it seeds at 0.
         long exactCursor = 0L;
         long pos = strideBytes;

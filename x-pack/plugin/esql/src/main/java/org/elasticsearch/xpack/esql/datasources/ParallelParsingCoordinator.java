@@ -590,9 +590,10 @@ public final class ParallelParsingCoordinator {
             );
         }
         // Both walks are sequential, so either resolves every boundary in one call. Segmentation runs on the
-        // thread that already carries the read's StorageRetryCancellation scope, so it passes no cancellation
-        // supplier of its own: a probe read parked in retry/throttle backoff observes the read's own cancel
-        // signal through that ambient scope, which a supplier here would displace.
+        // thread that already carries the read's StorageRetryCancellation scope. The walks read that scope
+        // through StorageRetryCancellation::isCancelled; they do not install a nested one, which would
+        // replace the read's live signal. A probe parked in retry/throttle backoff still sees the same
+        // signal through the ambient scope.
         List<Long> boundaries;
         if (strided) {
             // The offsets of a nominal-size grid, resumed from each boundary rather than walked blind. Both
@@ -609,11 +610,17 @@ public final class ParallelParsingCoordinator {
                 nominalSize,
                 minSegment,
                 maxRecordBytes,
-                () -> false
+                StorageRetryCancellation::isCancelled
             );
         } else {
-            boundaries = RecordBoundaryProbe.provenBoundaries(splitter, storageObject, fileLength, nominalSize, minSegment, () -> false)
-                .boundaries();
+            boundaries = RecordBoundaryProbe.provenBoundaries(
+                splitter,
+                storageObject,
+                fileLength,
+                nominalSize,
+                minSegment,
+                StorageRetryCancellation::isCancelled
+            ).boundaries();
         }
 
         List<long[]> segments = new ArrayList<>(boundaries.size());

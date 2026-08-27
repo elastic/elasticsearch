@@ -2103,7 +2103,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             case "IP" -> DataType.IP;
             case "VERSION", "V" -> DataType.VERSION;
             case "NULL", "N" -> DataType.NULL;
-            default -> throw EsqlIllegalArgumentException.illegalDataType(typeName);
+            default -> throw new ParsingException("illegal data type [{}]", typeName);
         };
     }
 

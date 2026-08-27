@@ -91,6 +91,7 @@ public final class FixtureDimensions {
     private final Map<String, Map<String, String>> formatDefaultsByName;
     private final Map<String, Map<String, String>> backendByName;
     private final Map<String, Map<String, String>> absenceByName;
+    private final Map<String, Set<String>> valueDisjointByPair;
     private final Map<String, Verdict> verdicts;
 
     private FixtureDimensions(
@@ -108,6 +109,7 @@ public final class FixtureDimensions {
         Map<String, Map<String, String>> formatDefaultsByName,
         Map<String, Map<String, String>> backendByName,
         Map<String, Map<String, String>> absenceByName,
+        Map<String, Set<String>> valueDisjointByPair,
         Map<String, Verdict> verdicts
     ) {
         this.names = List.copyOf(names);
@@ -124,6 +126,7 @@ public final class FixtureDimensions {
         this.formatDefaultsByName = Map.copyOf(formatDefaultsByName);
         this.backendByName = Map.copyOf(backendByName);
         this.absenceByName = Map.copyOf(absenceByName);
+        this.valueDisjointByPair = Map.copyOf(valueDisjointByPair);
         this.verdicts = Map.copyOf(verdicts);
     }
 
@@ -165,6 +168,25 @@ public final class FixtureDimensions {
      */
     public String defaultValue(String dimension, String format) {
         return formatDefaultsByName.getOrDefault(dimension, Map.of()).getOrDefault(format, defaultValue(dimension));
+    }
+
+    /**
+     * Whether a vector carries a value combination no configuration can express.
+     *
+     * <p>Distinct from a per-cell absence: neither value is missing on its own, only their pairing is
+     * unconstructible, so there is no cell to license. Left unexpressed the derivation emits vectors that
+     * look expressible and can never run.
+     */
+    public boolean carriesDisjointValues(Map<String, String> vector) {
+        for (Map.Entry<String, Set<String>> declared : valueDisjointByPair.entrySet()) {
+            int dot = declared.getKey().indexOf('.');
+            String left = vector.get(declared.getKey().substring(0, dot));
+            String right = vector.get(declared.getKey().substring(dot + 1));
+            if (left != null && right != null && declared.getValue().contains(left + ":" + right)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The storage backend a value corresponds to, or null when the dimension names none. */
@@ -262,6 +284,8 @@ public final class FixtureDimensions {
         Map<String, Map<String, String>> backends = new LinkedHashMap<>();
         Map<String, Map<String, String>> absences = new LinkedHashMap<>();
         Map<String, Verdict> verdicts = new LinkedHashMap<>();
+        Map<String, Set<String>> valueDisjoint = new LinkedHashMap<>();
+        Set<String> disjointWhys = new LinkedHashSet<>();
 
         for (String key : new TreeSet<>(props.stringPropertyNames())) {
             String value = props.getProperty(key).trim();
@@ -322,7 +346,18 @@ public final class FixtureDimensions {
             } else if (key.startsWith("pair.")) {
                 String rest = key.substring("pair.".length());
                 // pair.<a>.<b> is the verdict; pair.<a>.<b>.why carries the mechanism for a reader.
+                if (rest.endsWith(".value_disjoint.why")) {
+                    disjointWhys.add(rest.substring(0, rest.length() - ".value_disjoint.why".length()));
+                    continue;
+                }
                 if (rest.endsWith(".why") || rest.endsWith(".needs")) {
+                    continue;
+                }
+                // A value-PAIR hole, which the per-cell absence grammar cannot express: neither value is
+                // absent on its own, only their combination is unconstructible. Intercepted before the
+                // verdict parse, which would read `value_disjoint` as a malformed verdict.
+                if (rest.endsWith(".value_disjoint")) {
+                    valueDisjoint.put(rest.substring(0, rest.length() - ".value_disjoint".length()), new LinkedHashSet<>(splitList(value)));
                     continue;
                 }
                 verdicts.put(rest, parseVerdict(key, value));
@@ -418,6 +453,43 @@ public final class FixtureDimensions {
                 }
             }
         }
+        // Normalised to the dimension order the pair key already uses, so a declaration written the other
+        // way round cannot silently fail to match the vectors it is meant to exclude.
+        Map<String, Set<String>> normalisedDisjoint = new LinkedHashMap<>();
+        for (Map.Entry<String, Set<String>> entry : valueDisjoint.entrySet()) {
+            String pair = entry.getKey();
+            int dot = pair.indexOf('.');
+            if (dot < 0) {
+                throw new IllegalStateException("malformed value_disjoint pair [" + pair + "]");
+            }
+            String left = pair.substring(0, dot);
+            String right = pair.substring(dot + 1);
+            requireDeclaredDimension(values, left, "value_disjoint");
+            requireDeclaredDimension(values, right, "value_disjoint");
+            if (disjointWhys.contains(pair) == false) {
+                throw new IllegalStateException(
+                    "value_disjoint [" + pair + "] declares no why; an unexplained hole is indistinguishable from an oversight"
+                );
+            }
+            Set<String> combinations = new LinkedHashSet<>();
+            for (String combination : entry.getValue()) {
+                int colon = combination.indexOf(':');
+                if (colon < 0) {
+                    throw new IllegalStateException("value_disjoint [" + pair + "] entry [" + combination + "] is not <value>:<value>");
+                }
+                String leftValue = combination.substring(0, colon).trim();
+                String rightValue = combination.substring(colon + 1).trim();
+                if (values.get(left).contains(leftValue) == false) {
+                    throw new IllegalStateException("value_disjoint [" + pair + "] names undeclared value [" + leftValue + "]");
+                }
+                if (values.get(right).contains(rightValue) == false) {
+                    throw new IllegalStateException("value_disjoint [" + pair + "] names undeclared value [" + rightValue + "]");
+                }
+                combinations.add(leftValue + ":" + rightValue);
+            }
+            normalisedDisjoint.put(left + "." + right, combinations);
+        }
+
         for (String name : names) {
             if (BINDS.contains(binds.get(name)) == false) {
                 throw new IllegalStateException(
@@ -521,6 +593,7 @@ public final class FixtureDimensions {
             formatDefaults,
             backends,
             absences,
+            normalisedDisjoint,
             verdicts
         );
     }
@@ -800,6 +873,11 @@ public final class FixtureDimensions {
                     vector.put(d, defaultValue(d, format));
                 }
                 vector.putAll(assignment);
+                // Before dedup, so the universe count reflects the removal honestly rather than hiding it
+                // behind vectors that happened to collide.
+                if (carriesDisjointValues(vector)) {
+                    continue;
+                }
                 if (seen.add(Map.copyOf(vector))) {
                     consumer.accept(vector);
                 }

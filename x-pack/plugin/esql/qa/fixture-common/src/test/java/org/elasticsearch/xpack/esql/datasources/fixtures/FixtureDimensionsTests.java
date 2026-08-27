@@ -447,7 +447,51 @@ public class FixtureDimensionsTests extends ESTestCase {
     public void testTheVectorUniverseIsUnchangedByPerFormatDefaults() {
         int[] seen = { 0 };
         FixtureDimensions.get().forEachVector(v -> seen[0]++);
-        assertThat(seen[0], equalTo(11685));
+        // 10,997 rather than 11,685: the declared value-disjoint pair removes 688 vectors the reader
+        // cannot be configured to run. A declared, counted removal of the unconstructible -- not lost
+        // coverage, and not a number to adjust when it drifts.
+        assertThat(seen[0], equalTo(10997));
+    }
+
+    /** No vector may survive carrying a combination the reader rejects outright. */
+    public void testNoVectorCarriesADisjointValuePair() {
+        FixtureDimensions d = FixtureDimensions.get();
+        int[] offenders = { 0 };
+        d.forEachVector(v -> {
+            if (d.carriesDisjointValues(v)) {
+                offenders[0]++;
+            }
+        });
+        assertThat(offenders[0], equalTo(0));
+    }
+
+    /**
+     * The removal must not touch what any suite runs. Every one of the 688 is unconstructible, so if a
+     * per-format count moved, the declaration had caught something expressible and would be wrong.
+     */
+    public void testDisjointRemovalLeavesEveryFormatsSelectionUntouched() {
+        FixtureDimensions d = FixtureDimensions.get();
+        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(24));
+        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(18));
+        assertThat(d.directiveExpressibleVectors("ndjson").size(), equalTo(18));
+        assertThat(d.directiveExpressibleVectors("parquet").size(), equalTo(9));
+    }
+
+    /** A hole nobody explained is indistinguishable from a forgotten line. */
+    public void testAValueDisjointWithoutAWhyIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "pair.error_mode.format.value_disjoint = skip_row:parquet");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("declares no why"));
+    }
+
+    /** A disjoint naming a value the dimension does not declare would silently match nothing. */
+    public void testAValueDisjointNamingAnUndeclaredValueIsRejected() {
+        String[] lines = ArrayUtils.append(
+            ArrayUtils.append(wellFormed(), "pair.error_mode.format.value_disjoint = explode:parquet"),
+            "pair.error_mode.format.value_disjoint.why = because"
+        );
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("explode"));
     }
 
     /** The reader default is per-extension: a .tsv is read plain where a .csv is read quoted. */

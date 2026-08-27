@@ -171,18 +171,7 @@ public class NdJsonSchemaInferrer {
             }
             case VALUE_STRING -> {
                 if (field.children == null) {
-                    String text = parser.getText();
-                    // The KEYWORD short-circuit is what keeps this cheap: once a field is known to be
-                    // a string field, no later value pays a date parse. Every sampled value of a
-                    // keyword column would otherwise be parsed as a date and thrown away.
-                    if (field.types.contains(DataType.KEYWORD)) {
-                        field.addType(DataType.KEYWORD);
-                    } else {
-                        TemporalAccessor parsed = tryParseDateTime(text);
-                        field.addType(
-                            parsed == null ? DataType.KEYWORD : forcesDateNanos(parsed) ? DataType.DATE_NANOS : DataType.DATETIME
-                        );
-                    }
+                    inferStringType(field, parser.getText());
                 }
             }
             case VALUE_NUMBER_INT -> {
@@ -315,6 +304,27 @@ public class NdJsonSchemaInferrer {
             resolved = resolved == null ? type : TypeWidening.join(resolved, type, TypeWidening.Policy.INFERENCE);
         }
         return resolved;
+    }
+
+    /**
+     * Types one string value.
+     * <p>
+     * Kept out of {@link #inferValueSchema} deliberately. That method carries the per-value token
+     * switch for every field of every sampled line, and it is small enough for the JIT to inline;
+     * growing it with this body measurably slowed the whole switch, including the string field that
+     * never reaches the date parse at all.
+     * <p>
+     * The KEYWORD short-circuit is what keeps a string field cheap: once a field is known to hold
+     * strings, no later value pays a date parse. Without it every sampled value of a keyword column
+     * would be parsed as a date and the result thrown away.
+     */
+    private void inferStringType(FieldInfo field, String text) {
+        if (field.types.contains(DataType.KEYWORD)) {
+            field.addType(DataType.KEYWORD);
+            return;
+        }
+        TemporalAccessor parsed = tryParseDateTime(text);
+        field.addType(parsed == null ? DataType.KEYWORD : forcesDateNanos(parsed) ? DataType.DATE_NANOS : DataType.DATETIME);
     }
 
     /**

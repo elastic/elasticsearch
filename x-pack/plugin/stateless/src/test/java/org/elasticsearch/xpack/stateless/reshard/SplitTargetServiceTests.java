@@ -109,7 +109,7 @@ public class SplitTargetServiceTests extends ESTestCase {
         assertThrows(IllegalStateException.class, () -> sts.acceptHandoff(indexShard, request5, ActionListener.noop()));
     }
 
-    public void testCancelSplitsCleansUpSplitTrackingOnce() {
+    public void testCancelSplitsIsIdempotent() {
         var threadPool = mock(ThreadPool.class);
         var clusterService = mock(ClusterService.class);
         var reshardIndexService = new ReshardIndexService(

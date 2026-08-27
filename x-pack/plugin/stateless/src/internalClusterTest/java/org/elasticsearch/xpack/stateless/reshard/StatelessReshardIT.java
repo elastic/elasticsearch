@@ -5498,17 +5498,23 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             releaseSplit.countDown();
             PostIndexListenerPlugin.reset();
         }
+
+        // Answering the request is not enough: a leftover tracker entry leaves the closed IndexShard pinned.
+        final var reshardIndexService = internalCluster().getInstance(ReshardIndexService.class, indexNode);
+        assertBusy(() -> assertThat(reshardIndexService.getShardsTrackingSplitCompletion(), empty()));
     }
 
-    /// Deleting an index mid-reshard leaves nothing behind: the stale-index GC removes the whole per-index prefix, and neither split
-    /// service keeps state for the abandoned split, which would otherwise leak memory.
+    /// Deleting an index mid-reshard must leave nothing behind: the stale-index GC reclaims the per-index prefix, and no reshard
+    /// state survives the abandoned split.
     private static void assertReshardStateEventuallyCleanedUp(String indexNode, Set<String> deletedIndexUUIDs) throws Exception {
         final var splitTargetService = internalCluster().getInstance(SplitTargetService.class, indexNode);
         final var splitSourceService = internalCluster().getInstance(SplitSourceService.class, indexNode);
+        final var reshardIndexService = internalCluster().getInstance(ReshardIndexService.class, indexNode);
         assertBusy(() -> {
             assertThat(getIndexUUIDsInObjectStore(), everyItem(not(in(deletedIndexUUIDs))));
             assertThat("Split target state left behind", splitTargetService.getShardsWithOngoingSplits(), empty());
             assertThat("Split source state left behind", splitSourceService.getShardsWithActiveSplitState(), empty());
+            assertThat("Split completion listeners left behind", reshardIndexService.getShardsTrackingSplitCompletion(), empty());
         });
     }
 

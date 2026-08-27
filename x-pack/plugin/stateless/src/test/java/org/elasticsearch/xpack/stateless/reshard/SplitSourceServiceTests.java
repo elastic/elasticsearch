@@ -41,6 +41,8 @@ import static org.mockito.Mockito.when;
 public class SplitSourceServiceTests extends ESTestCase {
     AtomicLong nowInMillis = new AtomicLong();
 
+    /// [SplitSourceService#waitForHandoffSuccessOrFailure] must not look up the index itself. The observer it starts releases the
+    /// permits, so a lookup that throws on a deleted index strands them.
     public void testHandoffReleasesPermitsWhenIndexIsGone() throws Exception {
         final var permitsClosed = new AtomicInteger();
         try (ClusterService clusterService = ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool())) {

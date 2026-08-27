@@ -60,8 +60,10 @@ import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import java.util.ArrayList;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -257,9 +259,14 @@ public class ReshardIndexService {
         splitCompletionTracker.stopTrackingShard(indexShard);
     }
 
-    /** Fail any listeners waiting for this shard instance to split, then stop tracking it. */
+    /** Call when the shard is closed before its split finished, since nothing else will complete its listeners. */
     void failAndStopTrackingSplit(IndexShard indexShard, Exception e) {
         splitCompletionTracker.failAndStopTrackingShard(indexShard, e);
+    }
+
+    // visible for testing: a finished or cancelled split must clear this, or the closed IndexShard stays pinned.
+    Set<ShardId> getShardsTrackingSplitCompletion() {
+        return splitCompletionTracker.getTrackedShards();
     }
 
     public void transitionSourceState(
@@ -289,6 +296,7 @@ public class ReshardIndexService {
             final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
             final var indexShard = indexService.getShard(shardId.id());
             maybeAwaitSplit(indexShard.indexSettings().getIndexMetadata().getReshardingMetadata(), indexShard, listener);
+            // The shard is removed from IndexService before its split is cancelled, so cancellation can miss a listener added here.
             if (indexService.getShardOrNull(shardId.id()) != indexShard) {
                 failAndStopTrackingSplit(indexShard, new IndexShardClosedException(shardId));
             }
@@ -860,7 +868,7 @@ public class ReshardIndexService {
     // that if we're shutting down anyway there's no point in notifying these listeners. Tearing
     // down the node should fail any remote requests anyway.
     private static class SplitCompletionTracker {
-        // A replacement shard has the same ShardId, so use the IndexShard instance to isolate each local shard generation.
+        // A replacement shard reuses the ShardId, so key on the instance; otherwise it inherits the closed shard's listeners.
         private final ConcurrentHashMap<IndexShard, ShardSplitCompletionTracker> shardListeners;
 
         SplitCompletionTracker() {
@@ -909,6 +917,10 @@ public class ReshardIndexService {
                 tracker.notifyFailure(e);
                 shardListeners.remove(indexShard, tracker);
             }
+        }
+
+        public Set<ShardId> getTrackedShards() {
+            return shardListeners.keySet().stream().map(IndexShard::shardId).collect(Collectors.toSet());
         }
 
         private ShardSplitCompletionTracker getOrCreateShardTracker(IndexShard indexShard) {

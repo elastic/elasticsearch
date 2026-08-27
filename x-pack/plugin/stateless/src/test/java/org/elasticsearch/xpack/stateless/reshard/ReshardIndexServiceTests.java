@@ -49,6 +49,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
@@ -250,14 +251,19 @@ public class ReshardIndexServiceTests extends ESTestCase {
         svc.maybeAwaitSplit(reshardingMetadata, targetIndexShard, failOnFailure);
     }
 
+    /** A split whose target shard is in the earliest state that a refresh can actually reach it in. */
+    private static IndexReshardingMetadata splitWithTargetAwaitingSplit(ShardId targetShard) {
+        return IndexReshardingMetadata.newSplitByMultiple(1, 2)
+            .transitionSplitTargetToNewState(targetShard, IndexReshardingState.Split.TargetShardState.HANDOFF);
+    }
+
     public void testMaybeAwaitSplitFailsLateRegistrationAfterShardRemoval() {
         final var indicesService = mock(IndicesService.class);
         final var indexService = mock(IndexService.class);
         final var indexShard = mock(IndexShard.class);
-        final var replacementIndexShard = mock(IndexShard.class);
         final var index = new Index("index", INDEX_UUID_NA_VALUE);
         final var targetShard = new ShardId(index, 1);
-        final var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(1, 2);
+        final var reshardingMetadata = splitWithTargetAwaitingSplit(targetShard);
         final var indexMetadata = IndexMetadata.builder(index.getName())
             .settings(indexSettings(IndexVersion.current(), 2, 1))
             .numberOfShards(2)
@@ -276,45 +282,66 @@ public class ReshardIndexServiceTests extends ESTestCase {
         when(indicesService.indexServiceSafe(index)).thenReturn(indexService);
         when(indexService.getShard(targetShard.id())).thenReturn(indexShard);
         when(indexShard.shardId()).thenReturn(targetShard);
-        when(replacementIndexShard.shardId()).thenReturn(targetShard);
 
-        final var existingRefresh = new PlainActionFuture<Void>();
-        svc.maybeAwaitSplit(reshardingMetadata, indexShard, existingRefresh);
-        assertFalse(existingRefresh.isDone());
+        final var earlyRefresh = new PlainActionFuture<Void>();
+        svc.maybeAwaitSplit(reshardingMetadata, indexShard, earlyRefresh);
+        assertFalse(earlyRefresh.isDone());
 
+        // indexSettings() is the last call maybeAwaitSplit makes before registering, so cancel the split from here to hit the race.
         final var cancellationRan = new AtomicBoolean();
-        final var lateRefresh = new PlainActionFuture<Void>();
         when(indexShard.indexSettings()).thenAnswer(invocation -> {
             assertTrue(cancellationRan.compareAndSet(false, true));
             svc.failAndStopTrackingSplit(indexShard, new IndexShardClosedException(targetShard));
-            assertTrue(existingRefresh.isDone());
+            assertTrue(earlyRefresh.isDone());
             return shardIndexSettings;
         });
-        final var replacementRefresh = new PlainActionFuture<Void>();
-        when(indexService.getShardOrNull(targetShard.id())).thenAnswer(invocation -> {
-            assertTrue(cancellationRan.get());
-            assertFalse("late refresh listener completed before revalidation", lateRefresh.isDone());
-            svc.maybeAwaitSplit(reshardingMetadata, replacementIndexShard, replacementRefresh);
-            assertFalse(replacementRefresh.isDone());
-            return replacementIndexShard;
-        });
+        // The shard is gone from IndexService by the time maybeAwaitSplit re-checks, which is what makes it fail the listener.
+        when(indexService.getShardOrNull(targetShard.id())).thenReturn(null);
 
+        final var lateRefresh = new PlainActionFuture<Void>();
         svc.maybeAwaitSplit(targetShard, lateRefresh);
 
-        expectThrows(IndexShardClosedException.class, existingRefresh::actionGet);
+        assertTrue("early refresh was left waiting for a split that will never complete", earlyRefresh.isDone());
+        assertTrue("late refresh was left waiting for a split that will never complete", lateRefresh.isDone());
+        expectThrows(IndexShardClosedException.class, earlyRefresh::actionGet);
         expectThrows(IndexShardClosedException.class, lateRefresh::actionGet);
-        assertFalse(replacementRefresh.isDone());
+        // A tracker left behind here would pin the closed shard for the lifetime of the node.
+        assertThat(svc.getShardsTrackingSplitCompletion(), empty());
+    }
+
+    public void testMaybeAwaitSplitTracksShardInstancesIndependently() {
+        final var svc = new ReshardIndexService(
+            mock(IndicesService.class),
+            mock(NodeClient.class),
+            ReshardMetrics.NOOP,
+            mock(ClusterService.class),
+            null,
+            null
+        );
+        final var index = new Index("index", INDEX_UUID_NA_VALUE);
+        final var targetShard = new ShardId(index, 1);
+        final var reshardingMetadata = splitWithTargetAwaitingSplit(targetShard);
+        // A shard that closes and comes back is a new IndexShard with the same ShardId, so the two must not interfere.
+        final var closingIndexShard = mock(IndexShard.class);
+        final var replacementIndexShard = mock(IndexShard.class);
+        when(closingIndexShard.shardId()).thenReturn(targetShard);
+        when(replacementIndexShard.shardId()).thenReturn(targetShard);
+
+        final var closingRefresh = new PlainActionFuture<Void>();
+        final var replacementRefresh = new PlainActionFuture<Void>();
+        svc.maybeAwaitSplit(reshardingMetadata, closingIndexShard, closingRefresh);
+        svc.maybeAwaitSplit(reshardingMetadata, replacementIndexShard, replacementRefresh);
+
+        svc.failAndStopTrackingSplit(closingIndexShard, new IndexShardClosedException(targetShard));
+        assertTrue(closingRefresh.isDone());
+        expectThrows(IndexShardClosedException.class, closingRefresh::actionGet);
+        assertFalse("closing one shard generation must not complete the other", replacementRefresh.isDone());
 
         svc.notifySplitCompletion(replacementIndexShard);
+        assertTrue(replacementRefresh.isDone());
         replacementRefresh.actionGet();
         svc.stopTrackingSplit(replacementIndexShard);
-
-        // The stale tracker was removed rather than retaining its latched failure.
-        final var retriedOldRefresh = new PlainActionFuture<Void>();
-        svc.maybeAwaitSplit(reshardingMetadata, indexShard, retriedOldRefresh);
-        assertFalse(retriedOldRefresh.isDone());
-        svc.failAndStopTrackingSplit(indexShard, new IndexShardClosedException(targetShard));
-        expectThrows(IndexShardClosedException.class, retriedOldRefresh::actionGet);
+        assertThat(svc.getShardsTrackingSplitCompletion(), empty());
     }
 
     private ClusterState transitionSplitTargetToNewState(

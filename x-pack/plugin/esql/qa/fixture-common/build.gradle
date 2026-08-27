@@ -43,3 +43,7 @@ tasks.named('forbiddenApisMain').configure {
   // isolated classpath.
   replaceSignatureFiles 'jdk-signatures'
 }
+
+// The dimension contract gate. Static half on precommit; see the script for why the artifact
+// half rides csvSpecTests in the consuming modules instead.
+apply from: "dimension-contract.gradle"

@@ -589,12 +589,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecDenseVectorAggsIT
   method: test {csv-spec:dense_vector_aggs.sumDenseVectorOverflow}
   issue: https://github.com/elastic/elasticsearch/issues/156194
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerSubqueryTests
-  method: testTSSubqueryWithConflictingTypesInUnionAll
-  issue: https://github.com/elastic/elasticsearch/issues/156226
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerSubqueryTests
-  method: testTSSubqueryWithConflictingTypesAndExplicitCast
-  issue: https://github.com/elastic/elasticsearch/issues/156229
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetCompressedFormatSpecIT
   method: test {csv-spec:external-basic.aggregateByGender [lz4raw/HTTP]}
   issue: https://github.com/elastic/elasticsearch/issues/156241

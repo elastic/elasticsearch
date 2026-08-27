@@ -392,6 +392,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
         // A multi-source FROM <dataset> has no single-EXTERNAL equivalent, so a suite that rebuilds specs
         // into an EXTERNAL query cannot express it. Skip such specs here rather than failing in the rebuild.
+        // Unreachable while no suite overrides forceExternalRebuild(): only directive-free specs get this far,
+        // so datasetSources is empty. Kept paired with that hook -- see its javadoc.
         assumeFalse(
             "multi-source FROM <dataset> has no single-EXTERNAL equivalent; skipped on EXTERNAL-rebuild backends",
             testCase.datasetSources.size() > 1
@@ -399,8 +401,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
         // A declared schema is a property of the DATASET, not of a query: EXTERNAL has no clause that carries one, and
         // copying the directive's reserved `mappings` key into an EXTERNAL WITH would fail option validation instead of
-        // declaring anything, so such a case is skipped rather than rebuilt.
-        //
+        // declaring anything, so such a case is skipped rather than rebuilt. Unreachable for the same reason as the
+        // guard above.
         assumeFalse(
             "a declared schema cannot be expressed as an EXTERNAL ... WITH query; skipped on EXTERNAL-rebuild backends",
             declaresMappings()
@@ -575,6 +577,12 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * to {@code true} for a reader that registers no file extension and is therefore only reachable via
      * {@code EXTERNAL ... WITH "reader": "<name>"}, making it a sanctioned EXTERNAL holdout like gRPC/Flight
      * and Iceberg.
+     * <p>
+     * <b>No suite overrides this today.</b> The only one that did was the native parquet reader's, which has
+     * been removed, so {@link #doTest} now falls through to the EXTERNAL branch solely for specs that carry no
+     * {@code dataset:} directive at all (the Iceberg holdout). Consequently {@link #rebuildExternalFromDatasets}
+     * always returns its argument unchanged and the two dataset-shape guards in {@link #doTest} cannot fire.
+     * Kept as the hook for the next reader that is unaddressable via {@code FROM <dataset>}.
      */
     protected boolean forceExternalRebuild() {
         return false;

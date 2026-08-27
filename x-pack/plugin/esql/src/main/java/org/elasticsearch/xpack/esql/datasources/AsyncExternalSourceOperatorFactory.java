@@ -271,6 +271,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * that require per-split injection. When set, {@link #openNextSliceQueueLeaf} claims batches
      * of splits and calls {@link RangeAwareFormatReader#readAll} instead of individual
      * {@link RangeAwareFormatReader#readRange} calls.
+     * <p>
+     * Always {@code false} today: no reader overrides
+     * {@link RangeAwareFormatReader#supportsBatchRead()} since the native parquet reader was removed,
+     * so {@link #openNextBatch} is dormant. The wiring is kept for the next batching reader.
      */
     private final boolean batchReadCapable;
     @Nullable
@@ -2140,7 +2144,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * async call rather than paying one sequential S3 round-trip per file.
      * <p>
      * Only called when {@link #batchReadCapable} is {@code true}, which requires no partition-column
-     * injection (incompatible with a unified batch iterator).
+     * injection (incompatible with a unified batch iterator) — and which no reader satisfies today, so
+     * this method is currently never entered.
      */
     private boolean openNextBatch(ProducerState state) throws IOException {
         if (noFurtherCandidates()) {

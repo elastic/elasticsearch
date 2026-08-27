@@ -1,8 +1,8 @@
 // Shared spec: declared-schema reads that every format must agree on.
 //
-// Audience is six FORMAT suites, not four: the CSV, TSV, NDJSON and Parquet spec suites run these cases, ORC also picks
-// them up (it globs external-*). Counted as IT classes rather than formats the number is eight, since the
-// compressed CSV and TSV suites run them too -- csv-declared-schema-multifile.csv-spec's header counts classes.
+// Audience is five FORMAT suites, not four: the CSV, TSV, NDJSON and Parquet spec suites run these cases, ORC also
+// picks them up (it globs external-*). Counted as IT classes rather than formats the number is eight, since the
+// compressed CSV, TSV and NDJSON suites run them too -- csv-declared-schema-multifile.csv-spec's header counts classes.
 //
 // A declaration rides the `dataset:` directive under the reserved `mappings` key, which DatasetRegistry lifts out
 // of the WITH JSON and sends as the PUT body's top-level `mappings` field. See csv-declared-schema.csv-spec for

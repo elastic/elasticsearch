@@ -1689,6 +1689,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
             // read_nanos must grow as the iterator is consumed (row-group transitions + per-batch
             // decode), not just cover the read()/readRange() setup phase measured before the loop.
             assertThat(reader.statusSnapshot().readNanos(), greaterThan(readNanosAfterOpen));
+            // read_cpu_nanos must be positive (ThreadMXBean fires on the same thread) and bounded by wall time.
+            assertThat(reader.statusSnapshot().readCpuNanos(), greaterThan(0L));
+            assertThat(reader.statusSnapshot().readCpuNanos(), lessThanOrEqualTo(reader.statusSnapshot().readNanos()));
         }
     }
 

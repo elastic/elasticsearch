@@ -60,6 +60,7 @@ public class NdJsonFormatReaderStatusSnapshotTests extends ESTestCase {
         assertEquals("ndjson", after.format());
         assertEquals("no malformed lines in this fixture", 0L, after.parseErrors());
         assertTrue("read_nanos should be > 0 after at least one decodePage call", after.readNanos() > 0);
+        assertTrue("read_cpu_nanos should be > 0 after at least one decodePage call", after.readCpuNanos() > 0);
         assertTrue("read_cpu_nanos must not exceed read_nanos", after.readCpuNanos() <= after.readNanos());
 
         // Test manual addition to read_cpu_nanos

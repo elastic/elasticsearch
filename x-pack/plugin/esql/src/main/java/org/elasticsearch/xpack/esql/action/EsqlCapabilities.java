@@ -1582,7 +1582,7 @@ public class EsqlCapabilities {
         VIEWS_EXPLICIT_INCLUDE_EXCLUDE_FIX,
 
         /**
-         * Changes how certain {@code METADATA} fields are handled for views
+         * Changes how {@code METADATA} fields are handled for views
          * See https://github.com/elastic/esql-planning/issues/480
          */
         VIEWS_METADATA_BEHAVIOR_CHANGES(VIEWS_WITH_BRANCHING.isEnabled()),

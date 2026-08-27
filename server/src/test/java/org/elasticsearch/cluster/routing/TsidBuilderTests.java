@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -36,6 +37,50 @@ public class TsidBuilderTests extends ESTestCase {
 
     private static IndexVersion randomSinglePrefixByteVersion() {
         return IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG);
+    }
+
+    /**
+     * A builder reused via {@link TsidBuilder#reset()} — as {@code DimensionsExtractor} does on the
+     * batch path — must produce exactly what a fresh builder would, since state carried across builds
+     * (the hasher, and the multi-byte layout's value-similarity staging buffer) outlives a single
+     * build. The second shape is array-valued, so its dimension count exceeds the number of
+     * value-similarity bytes it emits and the backing array is deliberately larger than the returned
+     * slice.
+     */
+    public void testReusedBuilderMatchesFreshBuilder() {
+        for (IndexVersion version : List.of(randomMultiplePrefixBytesVersion(), randomSinglePrefixByteVersion())) {
+            TsidBuilder reused = TsidBuilder.newBuilder();
+
+            // Fills every value-similarity slot: 5 distinct paths against a cap of 4.
+            BytesRef first = addDistinctPaths(reused).buildTsid(version);
+            assertThat(first, equalTo(addDistinctPaths(TsidBuilder.newBuilder()).buildTsid(version)));
+
+            // 5 dimensions collapsing onto 1 path, so only one value-similarity byte is emitted.
+            reused.reset();
+            BytesRef second = addRepeatedPath(reused).buildTsid(version);
+            assertThat(second, equalTo(addRepeatedPath(TsidBuilder.newBuilder()).buildTsid(version)));
+            assertThat(second, not(equalTo(first)));
+
+            // And back again, so the shrink/grow transition is covered in both directions.
+            reused.reset();
+            assertThat(addDistinctPaths(reused).buildTsid(version), equalTo(first));
+        }
+    }
+
+    private static TsidBuilder addDistinctPaths(TsidBuilder builder) {
+        return builder.addStringDimension("a", "1")
+            .addStringDimension("b", "2")
+            .addStringDimension("c", "3")
+            .addStringDimension("d", "4")
+            .addStringDimension("e", "5");
+    }
+
+    private static TsidBuilder addRepeatedPath(TsidBuilder builder) {
+        return builder.addStringDimension("a", "1")
+            .addStringDimension("a", "2")
+            .addStringDimension("a", "3")
+            .addStringDimension("a", "4")
+            .addStringDimension("a", "5");
     }
 
     public void testAddDimensions() {
@@ -218,5 +263,46 @@ public class TsidBuilderTests extends ESTestCase {
 
     public void testEnableSinglePrefixByte() {
         assertTrue(TsidBuilder.useSingleBytePrefixLayout(IndexVersion.current()));
+    }
+
+    public void testAddPrehashedDimensionMatchesTypedDimensions() {
+        BufferedMurmur3Hasher hasher = new BufferedMurmur3Hasher(0L);
+
+        String path = "dim.host";
+        MurmurHash3.Hash128 pathHash = TsidBuilder.hashPath(hasher, path);
+
+        // String dimension: value hash = murmur3(utf8 bytes)
+        String strVal = randomAlphaOfLengthBetween(1, 32);
+        BytesRef strRef = new BytesRef(strVal);
+        hasher.reset();
+        hasher.update(strRef.bytes, strRef.offset, strRef.length);
+        MurmurHash3.Hash128 strValueHash = hasher.digestHash();
+        assertEqualBuilders(
+            TsidBuilder.newBuilder().addStringDimension("other", "anchor").addStringDimension(path, strVal),
+            TsidBuilder.newBuilder()
+                .addStringDimension("other", "anchor")
+                .addPrehashedDimension(path, pathHash.h1, pathHash.h2, strValueHash.h1, strValueHash.h2)
+        );
+
+        // Long dimension: value hash = Hash128(1, v)
+        long longVal = randomLong();
+        assertEqualBuilders(
+            TsidBuilder.newBuilder().addLongDimension(path, longVal),
+            TsidBuilder.newBuilder().addPrehashedDimension(path, pathHash.h1, pathHash.h2, 1L, longVal)
+        );
+
+        // Boolean dimension: value hash = Hash128(3, v ? 1 : 0)
+        boolean boolVal = randomBoolean();
+        assertEqualBuilders(
+            TsidBuilder.newBuilder().addBooleanDimension(path, boolVal),
+            TsidBuilder.newBuilder().addPrehashedDimension(path, pathHash.h1, pathHash.h2, 3L, boolVal ? 1L : 0L)
+        );
+
+        // Double dimension: value hash = Hash128(2, Double.doubleToLongBits(v))
+        double doubleVal = randomDoubleBetween(-1e9, 1e9, true);
+        assertEqualBuilders(
+            TsidBuilder.newBuilder().addDoubleDimension(path, doubleVal),
+            TsidBuilder.newBuilder().addPrehashedDimension(path, pathHash.h1, pathHash.h2, 2L, Double.doubleToLongBits(doubleVal))
+        );
     }
 }

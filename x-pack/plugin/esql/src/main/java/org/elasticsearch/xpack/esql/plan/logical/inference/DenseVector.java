@@ -52,6 +52,13 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
 
     public static final String TIMEOUT_OPTION_NAME = "timeout";
 
+    /**
+     * Built-in default inference endpoint used when the query provides no {@code inference_id} (via {@code WITH}) and no
+     * cluster-level default ({@code esql.command.dense_vector.default_inference_id}) is configured. This is the E5 text
+     * embedding endpoint that is registered on ML-capable nodes, so it works with zero configuration.
+     */
+    public static final String DEFAULT_INFERENCE_ID = ".multilingual-e5-small-elasticsearch";
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "DenseVector",
@@ -70,7 +77,7 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
     private List<Attribute> lazyOutput;
 
     public DenseVector(Source source, LogicalPlan child, Expression rowLimit, List<NamedExpression> fields) {
-        this(source, child, Literal.NULL, rowLimit, fields, List.of(), null);
+        this(source, child, Literal.keyword(Source.EMPTY, DEFAULT_INFERENCE_ID), rowLimit, fields, List.of(), null);
     }
 
     public DenseVector(

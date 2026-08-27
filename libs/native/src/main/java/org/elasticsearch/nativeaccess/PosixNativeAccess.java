@@ -12,14 +12,12 @@ package org.elasticsearch.nativeaccess;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.nativeaccess.jdk.PosixMappedSegment;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
-import org.elasticsearch.nativeaccess.lib.ParquetRsLibrary;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Optional;
 import java.util.OptionalLong;
 
 public abstract class PosixNativeAccess extends AbstractNativeAccess {
@@ -30,14 +28,12 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
     private static final int O_WRONLY = 1;
 
     protected final PosixCLibrary libc;
-    protected final ParquetRsFunctions parquetRsFunctions;
     protected final PosixConstants constants;
     protected final ProcessLimits processLimits;
 
     PosixNativeAccess(String name, NativeLibraryProvider libraryProvider, PosixConstants constants) {
         super(name, libraryProvider);
         this.libc = libraryProvider.getLibrary(PosixCLibrary.class);
-        this.parquetRsFunctions = parquetRsFunctionsOrNull(libraryProvider);
         this.constants = constants;
         this.processLimits = new ProcessLimits(
             getMaxThreads(),
@@ -65,20 +61,6 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
             logger.warn("unable to retrieve " + description + " [" + libc.strerror(libc.errno()) + "]");
             return ProcessLimits.UNKNOWN;
         }
-    }
-
-    static ParquetRsFunctions parquetRsFunctionsOrNull(NativeLibraryProvider libraryProvider) {
-        if (isNativeRustLibSupported()) {
-            try {
-                var lib = libraryProvider.getLibrary(ParquetRsLibrary.class);
-                logger.info("Loaded parquet-rs native library");
-                return new ParquetRsFunctions(lib);
-            } catch (UnsatisfiedLinkError e) {
-                logger.info("parquet-rs native library not available: {}", e.getMessage());
-                return null;
-            }
-        }
-        return null;
     }
 
     @Override
@@ -195,11 +177,6 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
     protected abstract boolean nativePreallocate(int fd, long currentSize, long newSize);
 
     @Override
-    public Optional<ParquetRsFunctions> getParquetRsFunctions() {
-        return Optional.ofNullable(parquetRsFunctions);
-    }
-
-    @Override
     public MappedSegment map(FileChannel fileChannel, FileChannel.MapMode mode, long position, long size) throws IOException {
         return PosixMappedSegment.ofShared(fileChannel, mode, position, size);
     }
@@ -210,23 +187,5 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
         } else {
             return Long.toUnsignedString(value);
         }
-    }
-
-    static boolean isNativeRustLibSupported() {
-        return isMacOrLinuxAarch64() || isLinuxAmd64();
-    }
-
-    /**
-     * Returns true iff the architecture is x64 (amd64) and the OS Linux (the OS we currently support for the native lib).
-     */
-    static boolean isLinuxAmd64() {
-        String name = System.getProperty("os.name");
-        return (name.startsWith("Linux")) && System.getProperty("os.arch").equals("amd64");
-    }
-
-    /** Returns true iff the OS is Mac or Linux, and the architecture is aarch64. */
-    static boolean isMacOrLinuxAarch64() {
-        String name = System.getProperty("os.name");
-        return (name.startsWith("Mac") || name.startsWith("Linux")) && System.getProperty("os.arch").equals("aarch64");
     }
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -2146,9 +2147,7 @@ public class VerifierTests extends ESTestCase {
                 containsString("[" + functionName + "] " + functionType + " cannot be used after DEDUP")
             );
         }
-        if (EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled()) {
-            supportsHighlight(fullText()).query("from test | highlight \"data\" on title | where " + functionInvocation);
-        }
+        supportsHighlight(fullText()).query("from test | highlight \"data\" on title | where " + functionInvocation);
     }
 
     public void testFullTextFunctionsAfterFork() {
@@ -4777,7 +4776,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testHighlightRejectsInvalidOptionEnums() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         assertInvalidHighlightOption("encoder", "xml");
         assertInvalidHighlightOption("boundary_scanner", "chars");
         assertInvalidHighlightOption("order", "doc");
@@ -4786,7 +4784,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testHighlightRejectsInvalidOptionValues() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         assertInvalidHighlightOptionValue("analyzer", "123", containsString("Option [analyzer] must be a string"));
         assertInvalidHighlightOptionValue("pre_tags", "123", containsString("Option [pre_tags] must be a string"));
         assertInvalidHighlightOptionValue("post_tags", "true", containsString("Option [post_tags] must be a string"));
@@ -4822,7 +4819,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testHighlightAcceptsValidQueries() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         supportsHighlight(defaultAnalyzer()).query(
             "FROM test | HIGHLIGHT \"\\\"quick fox\\\" OR (ca* AND jump~) OR /f[ao]x/\" ON first_name"
         );
@@ -4857,7 +4853,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testHighlightAnalyzerOption() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         supportsHighlight(defaultAnalyzer()).error(
             "FROM test | HIGHLIGHT \"search\" ON first_name WITH { \"analyzer\": \"not_a_real_analyzer\" }",
             containsString("[not_a_real_analyzer] is not a registered analyzer")
@@ -4881,7 +4876,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testHighlightRejectsInvalidQueries() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         supportsHighlight(defaultAnalyzer()).error(
             "FROM test | HIGHLIGHT \"x\" ON salary",
             containsString("HIGHLIGHT ON field [salary] must be [text] or [keyword], found [integer]")
@@ -4928,24 +4922,24 @@ public class VerifierTests extends ESTestCase {
             containsString("HIGHLIGHT query field [title] is not in ON fields [body]")
         );
         // Reject field references outside ON while translating the query.
-        fullText().error(
+        supportsHighlight(fullText()).error(
             "FROM test | HIGHLIGHT \"title:fox\" ON body",
             allOf(containsString("in HIGHLIGHT:"), containsString("field [title] is not one of the searchable fields [body]"))
         );
-        fullText().error(
+        supportsHighlight(fullText()).error(
             "FROM test | HIGHLIGHT QSTR(\"title:fox\") ON body",
             allOf(containsString("in HIGHLIGHT:"), containsString("field [title] is not one of the searchable fields [body]"))
         );
-        fullText().error(
+        supportsHighlight(fullText()).error(
             "FROM test | HIGHLIGHT KQL(\"title: fox\") ON body",
             allOf(containsString("in HIGHLIGHT:"), containsString("field [title] is not one of the searchable fields [body]"))
         );
         // Report the first field outside ON.
-        fullText().error(
+        supportsHighlight(fullText()).error(
             "FROM test | HIGHLIGHT \"body:fox OR tags:dog\" ON title",
             allOf(containsString("in HIGHLIGHT:"), containsString("field [body] is not one of the searchable fields [title]"))
         );
-        fullText().error(
+        supportsHighlight(fullText()).error(
             "FROM test | HIGHLIGHT QSTR(\"body:fox OR tags:dog\") ON title",
             allOf(containsString("in HIGHLIGHT:"), containsString("field [body] is not one of the searchable fields [title]"))
         );
@@ -4955,6 +4949,14 @@ public class VerifierTests extends ESTestCase {
             "FROM test | STATS c = COUNT(*) | HIGHLIGHT MATCH(title, \"fox\") ON title",
             containsString("Unknown column [title]")
         );
+    }
+
+    public void testHighlightRejectedOnOlderTransportVersion() {
+        defaultAnalyzer().minimumTransportVersion(TransportVersionUtils.randomVersionNotSupporting(Highlight.ESQL_HIGHLIGHT))
+            .error(
+                "FROM test | HIGHLIGHT \"search\" ON first_name",
+                containsString("HIGHLIGHT is not supported on every participating node")
+            );
     }
 
     private void assertInvalidHighlightOption(String optionName, String optionValue) {

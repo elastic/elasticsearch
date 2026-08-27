@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 156216
-summary: "ESQL Highlight: Remove Snapshot Gate"
+summary: "Release the `HIGHLIGHT` command"
 type: feature

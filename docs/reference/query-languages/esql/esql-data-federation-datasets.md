@@ -272,24 +272,28 @@ The following settings apply to all file-based data sources:
 | `error_mode` | `fail_fast` | How malformed rows are handled. Valid values: `"fail_fast"`, `"skip_row"`, `"null_field"`. For Parquet, `skip_row` fills affected columns with null instead of skipping the entire row. For CSV, TSV, and NDJSON, `null_field` fills only individual value failures with null. Rows whose structure cannot be parsed (for example, an unparsable JSON line or a malformed CSV row) are still dropped. |
 | `max_errors` | unbounded | Maximum malformed rows allowed before the query fails. Ignored when `error_mode` is `fail_fast`. |
 | `max_error_ratio` | `0.0` | Fraction of malformed rows allowed (0.0–1.0). Ignored when `error_mode` is `fail_fast`. |
-| `file_exclusions` | `["_*", ".*"]` | Globs naming objects to leave out of the listing. Each entry matches the **name of a single path segment**, so `_*` skips both a `_SUCCESS` file and everything under a `_temporary/` directory. Refer to [excluding non-data objects](#excluding-non-data-objects). |
-| `file_inclusions` | `["_*=*"]` | Globs that override `file_exclusions`. A segment matching one of these is kept even when an exclusion also matches it. The default keeps Hive partition directories such as `_dept=alpha/`. |
+| `file_exclusions` {applies_to}`stack: experimental 9.6+` | `["_*", ".*"]` | Globs naming objects to leave out of the listing. Each entry matches the **name of a single path segment**, so `_*` skips both a `_SUCCESS` file and everything under a `_temporary/` directory. Refer to [excluding non-data objects](#excluding-non-data-objects). |
+| `file_inclusions` {applies_to}`stack: experimental 9.6+` | `["_*=*"]` | Globs that override `file_exclusions`. A segment matching one of these is kept even when an exclusion also matches it. The default keeps Hive partition directories such as `_dept=alpha/`. |
 
 ### Excluding non-data objects
+
+```{applies_to}
+stack: experimental 9.6+
+```
 
 Object-store prefixes rarely hold only data. A Spark `_SUCCESS` marker, `.crc` sidecars, a `_temporary/`
 or `_delta_log/` subtree, or a folder placeholder the S3 console created all sit next to the files you want
 to read, and any object no reader can claim fails the whole query.
 
 By default a dataset skips them, following the convention Spark, Hive and Trino use: a path segment beginning
-with `_` or `.` is not data. There is one exception, and it applies to underscores only — a segment starting
+with `_` or `.` is not data. There is one exception, and it applies to underscores only: a segment starting
 with `_` that also contains an `=` is a Hive partition directory and is kept, so `_dept=alpha/` is read while
 `_SUCCESS` is not. A segment starting with `.` is always skipped, `=` or no `=`, so `.key=value/` is dropped.
 
 That default is expressed as the two settings above, so you can change it.
 
 Note that the `resource` pattern is your first filter: a dataset on `**/*.parquet` never sees a `README.md` at
-all, so there is nothing to exclude. These settings are for objects the `resource` pattern *does* match — most
+all, so there is nothing to exclude. These settings are for objects the `resource` pattern *does* match, most
 often data-shaped files in a directory you do not want read. A retired partition kept alongside the live ones
 is the common case:
 
@@ -314,12 +318,12 @@ PUT /_query/dataset/access_logs
 ```
 
 To turn name-based exclusion off entirely, set `"file_exclusions": []`. Directory placeholder keys are still
-skipped — see below — so this reads every object the resource pattern matches except those.
+skipped (see below), so this reads every object the resource pattern matches except those.
 
 Two rules are worth knowing. Entries match one path-segment name, never a path, so `_temporary` is correct
 and `_temporary/**` is rejected when you register the dataset. And exclusion applies to wildcard discovery
-only. An object you name explicitly in `resource` is always read, because naming it is a request to read it —
-whether the resource carries no wildcard at all, or names the object as one segment of a comma-separated
+only. An object you name explicitly in `resource` is always read, because naming it is a request to read it,
+whether the resource carries no wildcard at all or names the object as one segment of a comma-separated
 resource.
 
 Objects whose key ends in `/` are directory placeholders rather than files — the empty markers an object-store

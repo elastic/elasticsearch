@@ -12,6 +12,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.XContentType;
@@ -278,6 +280,13 @@ public class AuthenticationTestHelper {
     }
 
     public static Authentication randomCloudApiKeyAuthentication(User user, String apiKeyId) {
+        return randomCloudApiKeyAuthentication(user, apiKeyId, null);
+    }
+
+    /**
+     * @param limitedByRoleNames the cloud-reported cap on the key's assigned roles, or {@code null} for an uncapped key
+     */
+    public static Authentication randomCloudApiKeyAuthentication(User user, String apiKeyId, @Nullable List<String> limitedByRoleNames) {
         if (apiKeyId == null) {
             apiKeyId = user != null ? user.principal() : ESTestCase.randomAlphanumericOfLength(64);
         }
@@ -290,11 +299,25 @@ public class AuthenticationTestHelper {
         return Authentication.newCloudAuthentication(
             Authentication.AuthenticationType.API_KEY,
             Subject.Type.CLOUD_API_KEY,
-            AuthenticationResult.success(user, user.metadata()),
+            AuthenticationResult.success(user, withCloudLimitedByRoles(user.metadata(), limitedByRoleNames)),
             "node_" + ESTestCase.randomAlphaOfLengthBetween(3, 8),
             null
         );
 
+    }
+
+    /**
+     * @param limitedByRoleNames the cloud-reported cap on the user's assigned roles, or {@code null} for an uncapped user
+     */
+    public static Authentication randomCloudUserAuthentication(@Nullable List<String> limitedByRoleNames) {
+        final String realmName = "cloud_realm_" + ESTestCase.randomAlphaOfLengthBetween(3, 8);
+        return Authentication.newCloudAuthentication(
+            Authentication.AuthenticationType.TOKEN,
+            Subject.Type.USER,
+            AuthenticationResult.success(randomUser(), withCloudLimitedByRoles(Map.of(), limitedByRoleNames)),
+            "node_" + ESTestCase.randomAlphaOfLengthBetween(3, 8),
+            new RealmConfig.RealmIdentifier("cloud", realmName)
+        );
     }
 
     public static Authentication randomCloudServiceAccountAuthentication() {
@@ -302,23 +325,41 @@ public class AuthenticationTestHelper {
     }
 
     public static Authentication randomCloudServiceAccountAuthentication(String serviceAccountId) {
+        return randomCloudServiceAccountAuthentication(
+            serviceAccountId,
+            ESTestCase.randomBoolean() ? null : randomCloudLimitedByRoleNames()
+        );
+    }
+
+    /**
+     * @param limitedByRoleNames the cloud-reported cap on the account's assigned roles, or {@code null} for an uncapped account
+     */
+    public static Authentication randomCloudServiceAccountAuthentication(
+        String serviceAccountId,
+        @Nullable List<String> limitedByRoleNames
+    ) {
         final User user = new User(
             serviceAccountId,
             ESTestCase.randomArray(1, 3, String[]::new, () -> "role_" + ESTestCase.randomAlphaOfLengthBetween(3, 8))
         );
-        final Map<String, Object> metadata = ESTestCase.randomBoolean()
-            ? Map.of()
-            : Map.of(
-                AuthenticationField.CLOUD_SERVICE_ACCOUNT_LIMITED_BY_ROLES_KEY,
-                ESTestCase.randomList(1, 3, () -> "limited_by_role_" + ESTestCase.randomAlphaOfLengthBetween(3, 8))
-            );
         return Authentication.newCloudAuthentication(
             Authentication.AuthenticationType.TOKEN,
             Subject.Type.CLOUD_SERVICE_ACCOUNT,
-            AuthenticationResult.success(user, metadata),
+            AuthenticationResult.success(user, withCloudLimitedByRoles(Map.of(), limitedByRoleNames)),
             "node_" + ESTestCase.randomAlphaOfLengthBetween(3, 8),
             null
         );
+    }
+
+    public static List<String> randomCloudLimitedByRoleNames() {
+        return ESTestCase.randomList(1, 3, () -> "limited_by_role_" + ESTestCase.randomAlphaOfLengthBetween(3, 8));
+    }
+
+    private static Map<String, Object> withCloudLimitedByRoles(Map<String, Object> metadata, @Nullable List<String> limitedByRoleNames) {
+        if (limitedByRoleNames == null) {
+            return metadata;
+        }
+        return Maps.copyMapWithAddedEntry(metadata, AuthenticationField.CLOUD_LIMITED_BY_ROLES_KEY, limitedByRoleNames);
     }
 
     public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo(

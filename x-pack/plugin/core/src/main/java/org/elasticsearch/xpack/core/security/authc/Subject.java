@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.RoleDescriptorsBytes;
@@ -126,10 +127,14 @@ public class Subject {
     }
 
     public RoleReferenceIntersection getRoleReferenceIntersection(@Nullable AnonymousUser anonymousUser) {
+        assert type == CLOUD_API_KEY
+            || type == Type.USER
+            || type == CLOUD_SERVICE_ACCOUNT
+            || false == metadata.containsKey(AuthenticationField.CLOUD_LIMITED_BY_ROLES_KEY)
+            : "cloud limited-by roles cannot be enforced for subject type [" + type + "]";
         return switch (type) {
-            case CLOUD_API_KEY, USER -> buildRoleReferencesForUser(anonymousUser);
+            case CLOUD_API_KEY, CLOUD_SERVICE_ACCOUNT, USER -> maybeLimitedByCloudRoles(buildRoleReferencesForUser(anonymousUser));
             case API_KEY -> buildRoleReferencesForApiKey();
-            case CLOUD_SERVICE_ACCOUNT -> buildRoleReferencesForCloudServiceAccount();
             case SERVICE_ACCOUNT -> buildRoleReferencesForServiceAccount();
             case CROSS_CLUSTER_ACCESS -> buildRoleReferencesForCrossClusterAccess();
         };
@@ -290,31 +295,31 @@ public class Subject {
     }
 
     /**
-     * Roles for a cloud service account are built like the roles of an ES API key: the role names assigned to the service account
-     * are intersected with the limited-by role names captured at authentication time, if any. The intersection is applied when the
-     * roles are materialized (each set of role names builds its own {@code Role} and the results are combined with
-     * {@code Role#limitedBy}), rather than by intersecting the role names themselves.
+     * Caps a cloud subject's assigned roles with the limited-by role names captured at authentication time, if any. This works like
+     * the roles of an ES API key: the cap is applied when the roles are materialized (each set of role names builds its own
+     * {@code Role} and the results are combined with {@code Role#limitedBy}), rather than by intersecting the role names themselves.
      */
-    private RoleReferenceIntersection buildRoleReferencesForCloudServiceAccount() {
-        final RoleReference.NamedRoleReference assignedRoleReference = new RoleReference.NamedRoleReference(user.roles());
-        final List<String> limitedByRoleNames = getCloudServiceAccountLimitedByRoleNames();
+    private RoleReferenceIntersection maybeLimitedByCloudRoles(RoleReferenceIntersection assigned) {
+        final List<String> limitedByRoleNames = getCloudLimitedByRoleNames();
         if (limitedByRoleNames == null) {
-            return new RoleReferenceIntersection(assignedRoleReference);
+            return assigned;
         }
         return new RoleReferenceIntersection(
-            assignedRoleReference,
-            new RoleReference.NamedRoleReference(limitedByRoleNames.toArray(String[]::new))
+            CollectionUtils.appendToCopy(
+                assigned.getRoleReferences(),
+                new RoleReference.NamedRoleReference(limitedByRoleNames.toArray(String[]::new))
+            )
         );
     }
 
     @Nullable
-    private List<String> getCloudServiceAccountLimitedByRoleNames() {
-        final Object value = metadata.get(AuthenticationField.CLOUD_SERVICE_ACCOUNT_LIMITED_BY_ROLES_KEY);
+    private List<String> getCloudLimitedByRoleNames() {
+        final Object value = metadata.get(AuthenticationField.CLOUD_LIMITED_BY_ROLES_KEY);
         if (value == null) {
             return null;
         }
         assert value instanceof List<?> && ((List<?>) value).stream().allMatch(String.class::isInstance)
-            : "cloud service account limited-by roles metadata must be a list of role names";
+            : "cloud limited-by roles metadata must be a list of role names";
         @SuppressWarnings("unchecked")
         final List<String> limitedByRoleNames = (List<String>) value;
         return limitedByRoleNames;

@@ -37,6 +37,7 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -51,6 +52,7 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelp
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfoTests.randomRoleDescriptorsIntersection;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
@@ -190,6 +192,57 @@ public class AuthenticationTests extends ESTestCase {
             AuthenticationTestHelper.randomCloudServiceAccountAuthentication(serviceAccountId1),
             randomCloudApiKeyAuthentication(serviceAccountId1)
         );
+    }
+
+    public void testCloudLimitedByRolesSurviveSerializationRoundTrip() throws IOException {
+        final List<String> limitedByRoleNames = AuthenticationTestHelper.randomCloudLimitedByRoleNames();
+        final Authentication authentication = randomBoolean()
+            ? randomCloudApiKeyAuthentication(null, null, limitedByRoleNames)
+            : AuthenticationTestHelper.randomCloudUserAuthentication(limitedByRoleNames);
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            authentication.writeTo(out);
+            final Authentication deserialized = new Authentication(out.bytes().streamInput());
+            assertThat(deserialized, equalTo(authentication));
+            assertThat(
+                deserialized.getAuthenticatingSubject().getMetadata(),
+                hasEntry(AuthenticationField.CLOUD_LIMITED_BY_ROLES_KEY, limitedByRoleNames)
+            );
+        }
+    }
+
+    /**
+     * An older node has no notion of a cloud role cap, so it would authorize the assigned roles in full. Serialization must fail rather
+     * than silently escalate the subject's privileges.
+     */
+    public void testCloudLimitedByRolesCannotBeSentToNodeThatCannotEnforceThem() {
+        final TransportVersion limitedByRolesVersion = TransportVersion.fromName("security_cloud_service_account_and_limited_by_roles");
+        final TransportVersion cloudApiKeyVersion = TransportVersion.fromName("security_cloud_api_key_realm_and_type");
+        // a version that can parse a cloud API key subject but cannot enforce a cap on it, so the cap guard is what rejects the write
+        final TransportVersion olderVersion = randomFrom(
+            TransportVersionUtils.allReleasedVersions()
+                .stream()
+                .filter(v -> v.supports(cloudApiKeyVersion) && false == v.supports(limitedByRolesVersion))
+                .toList()
+        );
+        final Authentication capped = randomCloudApiKeyAuthentication(null, null, AuthenticationTestHelper.randomCloudLimitedByRoleNames());
+
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> capped.maybeRewriteForOlderVersion(olderVersion)).getMessage(),
+            containsString("can't enforce cloud limited-by roles")
+        );
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(olderVersion);
+            assertThat(
+                expectThrows(IllegalArgumentException.class, () -> capped.writeTo(out)).getMessage(),
+                containsString("can't enforce cloud limited-by roles")
+            );
+        }
+
+        // an uncapped cloud API key must keep serializing to the same node
+        final Authentication uncapped = randomCloudApiKeyAuthentication();
+        assertThat(uncapped.maybeRewriteForOlderVersion(olderVersion), notNullValue());
     }
 
     public void testCrossClusterAccessCanAccessResourceOf() throws IOException {

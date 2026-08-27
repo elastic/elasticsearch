@@ -128,8 +128,8 @@ public final class Authentication implements ToXContentObject {
         "security_cloud_api_key_realm_and_type"
     );
 
-    private static final TransportVersion SECURITY_CLOUD_SERVICE_ACCOUNT_REALM_AND_TYPE = TransportVersion.fromName(
-        "security_cloud_service_account_realm_and_type"
+    private static final TransportVersion SECURITY_CLOUD_SERVICE_ACCOUNT_AND_LIMITED_BY_ROLES = TransportVersion.fromName(
+        "security_cloud_service_account_and_limited_by_roles"
     );
 
     private final AuthenticationType type;
@@ -292,11 +292,23 @@ public final class Authentication implements ToXContentObject {
                     + "]"
             );
         }
-        if (isCloudServiceAccount() && olderVersion.supports(SECURITY_CLOUD_SERVICE_ACCOUNT_REALM_AND_TYPE) == false) {
+        if (isCloudServiceAccount() && olderVersion.supports(SECURITY_CLOUD_SERVICE_ACCOUNT_AND_LIMITED_BY_ROLES) == false) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
-                    + SECURITY_CLOUD_SERVICE_ACCOUNT_REALM_AND_TYPE.toReleaseVersion()
+                    + SECURITY_CLOUD_SERVICE_ACCOUNT_AND_LIMITED_BY_ROLES.toReleaseVersion()
                     + "] can't handle cloud service account authentication and attempted to rewrite for ["
+                    + olderVersion.toReleaseVersion()
+                    + "]"
+            );
+        }
+        // Keyed on metadata presence rather than subject type: an uncapped cloud subject must keep rewriting as it did before, but a
+        // cap that an older node would silently ignore must never be forwarded.
+        if (hasCloudLimitedByRoles(authenticatingSubject)
+            && olderVersion.supports(SECURITY_CLOUD_SERVICE_ACCOUNT_AND_LIMITED_BY_ROLES) == false) {
+            throw new IllegalArgumentException(
+                "versions of Elasticsearch before ["
+                    + SECURITY_CLOUD_SERVICE_ACCOUNT_AND_LIMITED_BY_ROLES.toReleaseVersion()
+                    + "] can't enforce cloud limited-by roles and attempted to rewrite for ["
                     + olderVersion.toReleaseVersion()
                     + "]"
             );
@@ -583,6 +595,14 @@ public final class Authentication implements ToXContentObject {
         return effectiveSubject.getType() == Subject.Type.CLOUD_SERVICE_ACCOUNT;
     }
 
+    /**
+     * Whether the authenticating subject carries a cap on its assigned roles, as reported by the cloud identity provider. Only nodes on
+     * the transport version that introduced the cap enforce it, so it must never be serialized to an older node.
+     */
+    private static boolean hasCloudLimitedByRoles(Subject authenticatingSubject) {
+        return authenticatingSubject.getMetadata().containsKey(AuthenticationField.CLOUD_LIMITED_BY_ROLES_KEY);
+    }
+
     public boolean isCrossClusterAccess() {
         return effectiveSubject.getType() == Subject.Type.CROSS_CLUSTER_ACCESS;
     }
@@ -711,11 +731,23 @@ public final class Authentication implements ToXContentObject {
             );
         }
         if (effectiveSubject.getType() == Subject.Type.CLOUD_SERVICE_ACCOUNT
-            && out.getTransportVersion().supports(SECURITY_CLOUD_SERVICE_ACCOUNT_REALM_AND_TYPE) == false) {
+            && out.getTransportVersion().supports(SECURITY_CLOUD_SERVICE_ACCOUNT_AND_LIMITED_BY_ROLES) == false) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
-                    + SECURITY_CLOUD_SERVICE_ACCOUNT_REALM_AND_TYPE.toReleaseVersion()
+                    + SECURITY_CLOUD_SERVICE_ACCOUNT_AND_LIMITED_BY_ROLES.toReleaseVersion()
                     + "] can't handle cloud service account authentication and attempted to send to ["
+                    + out.getTransportVersion().toReleaseVersion()
+                    + "]"
+            );
+        }
+        // Keyed on metadata presence rather than subject type: an uncapped cloud subject must keep serializing as it did before, but a
+        // cap that an older node would silently ignore must never be sent.
+        if (hasCloudLimitedByRoles(authenticatingSubject)
+            && out.getTransportVersion().supports(SECURITY_CLOUD_SERVICE_ACCOUNT_AND_LIMITED_BY_ROLES) == false) {
+            throw new IllegalArgumentException(
+                "versions of Elasticsearch before ["
+                    + SECURITY_CLOUD_SERVICE_ACCOUNT_AND_LIMITED_BY_ROLES.toReleaseVersion()
+                    + "] can't enforce cloud limited-by roles and attempted to send to ["
                     + out.getTransportVersion().toReleaseVersion()
                     + "]"
             );

@@ -672,13 +672,16 @@ final class NdJsonPageIterator extends BufferingPageIterator {
     protected void closeInternal() throws IOException {
         // Close the decoder even if a stats publish throws — the publish is best-effort caching, the close is not.
         try {
-            // Cache on clean whole-file drain. Runs before closing the decoder so its errorCount is still readable.
-            // Which lines survive is a function of the file bytes, the error policy (pinned by the cache
-            // fingerprint), the resolved read configuration (stamped beside it -- a declared type or date pattern
-            // decides which values coerce), and the PROJECTION, since only projected columns are coerced. The
-            // first three are in the identity, so a dropped line does not make these stats wrong for this read.
-            // The fourth cannot be -- it is per-query -- leaving an open, measured residual; the CSV twin carries
-            // the reproduction and why guarding it is not a one-liner. NONE scope
+            // Cache on clean whole-file drain. Runs before closing the decoder so its drop flags are still
+            // readable. Which lines survive is a function of the file bytes, the error policy (pinned by the
+            // cache fingerprint), the resolved read configuration (stamped beside it -- a declared type or date
+            // pattern decides which values coerce), and the PROJECTION, since only projected columns are decoded.
+            // The first three are in the identity, so a dropped line does not make these stats wrong for this
+            // read. The fourth cannot be -- it is per-query -- so a drop DECIDED BY the projection (a projected
+            // column's coercion or shape failure under skip_row, or a lazily-validated constraint -- see
+            // projectionDependentDrop) suppresses the whole publish, exactly as the CSV twin does: no identity
+            // downstream can separate this scan's N-1 from a COUNT(*) scan's N. Whole-line drops (malformed or
+            // truncated JSON) are projection-independent and commit. NONE scope
             // suppresses all publishing. A scan cut short mid-way (LIMIT, cancellation, a chunk exceeding its error
             // budget) leaves naturallyExhausted false or an uncovered stripe, so it safe-misses rather than
             // serving; the coordinator's whole-file poison covers the non-clean-close case.
@@ -687,6 +690,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                 && pinnedMtimeMillis >= 0
                 && fingerprinter != null
                 && pageDecoder.capDropped() == false
+                && pageDecoder.projectionDependentDrop() == false
                 && statsColumnScope != StripeColumnScope.NONE) {
                 // Fingerprint must use the FULL file schema for parity with NdJsonFormatReader.metadata().
                 // Prefer the planner-provided schema (resolvedAttributes), fall back to the decoder's

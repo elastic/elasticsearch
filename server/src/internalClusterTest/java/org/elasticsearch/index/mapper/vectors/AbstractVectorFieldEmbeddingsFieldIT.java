@@ -92,6 +92,8 @@ abstract class AbstractVectorFieldEmbeddingsFieldIT<C extends AbstractVectorFiel
         public abstract void writeMapping(XContentBuilder builder) throws IOException;
     }
 
+    static final String NON_VECTOR_FIELD = "non_vector_field";
+
     String indexName = null;
     List<C> vectorFields = new ArrayList<>();
     final boolean excludeSourceVectors;
@@ -222,7 +224,37 @@ abstract class AbstractVectorFieldEmbeddingsFieldIT<C extends AbstractVectorFiel
         assertEmbeddingsFieldsNoHits("Fetching all vector fields at once", allRequested);
     }
 
-    // TODO: Add no field value test
+    /**
+     * When a document is indexed with no value for any vector field, the fetch phase runs and the vector type match check in
+     * {@code embeddingsField} is executed, but no embeddings are returned for the hit.
+     */
+    public void testFetchEmbeddingsFieldsNoFieldValue() throws Exception {
+        indexName = randomIndexName();
+        assertAcked(prepareCreate(indexName).setMapping(generateMapping()));
+
+        BulkRequestBuilder bulk = client().prepareBulk(indexName);
+        bulk.add(client().prepareIndex(indexName).setSource(Map.of(NON_VECTOR_FIELD, randomAlphaOfLength(10))));
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        assertNoFailures(bulk.get(TEST_REQUEST_TIMEOUT));
+        ensureGreen(indexName);
+
+        for (C field : vectorFields) {
+            String fieldName = field.fieldName();
+            String message = field.toString();
+
+            assertEmbeddingsFieldsHit(message, singletonMap(fieldName, null), Map.of());
+            assertEmbeddingsFieldsHit(message, Map.of(fieldName, field.vectorType()), Map.of());
+            assertEmbeddingsFieldsHit(
+                message,
+                Map.of(fieldName, randomValueOtherThan(field.vectorType(), () -> randomFrom(VectorType.values()))),
+                Map.of()
+            );
+        }
+
+        Map<String, VectorType> allRequested = new HashMap<>();
+        vectorFields.forEach(f -> allRequested.put(f.fieldName(), null));
+        assertEmbeddingsFieldsHit("Fetching all vector fields at once", allRequested, Map.of());
+    }
 
     void fetchEmbeddingsFieldsTestCase(IndexVersion indexVersion) throws Exception {
         if (excludeSourceVectors) {
@@ -284,6 +316,7 @@ abstract class AbstractVectorFieldEmbeddingsFieldIT<C extends AbstractVectorFiel
         for (C field : vectorFields) {
             field.writeMapping(builder);
         }
+        builder.startObject(NON_VECTOR_FIELD).field("type", "keyword").endObject();
         return builder.endObject().endObject();
     }
 

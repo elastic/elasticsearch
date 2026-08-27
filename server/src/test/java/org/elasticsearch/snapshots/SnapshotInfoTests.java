@@ -223,11 +223,12 @@ public class SnapshotInfoTests extends ESTestCase {
     }
 
     public void testSuccessSnapshotDataStreamWithFailureStoreIsComplete() {
+        // Failure-store indices are not checked — completeness depends only on backing indices.
         DataStream ds = DataStreamTestHelper.newInstance(DS_NAME, List.of(index(BACKING_1)), List.of(index(FAILURE_1)));
         Map<String, SnapshotInfo.IndexSnapshotDetails> details = new HashMap<>();
         details.put(BACKING_1, successDetails());
-        details.put(FAILURE_1, successDetails());
-        SnapshotInfo snap = snapshotWithDataStream(List.of(DS_NAME), List.of(BACKING_1, FAILURE_1), details, List.of());
+        details.put(FAILURE_1, SnapshotInfo.IndexSnapshotDetails.SKIPPED);
+        SnapshotInfo snap = snapshotWithDataStream(List.of(DS_NAME), List.of(BACKING_1, FAILURE_1), details, List.of(shardFailure(FAILURE_1)));
 
         assertTrue(snap.isDataStreamComplete(ds));
     }
@@ -247,29 +248,14 @@ public class SnapshotInfoTests extends ESTestCase {
         assertFalse(snap.isDataStreamComplete(ds));
     }
 
-    public void testPartialSnapshotWithFailedFailureStoreIndexIsNotComplete() {
-        DataStream ds = DataStreamTestHelper.newInstance(DS_NAME, List.of(index(BACKING_1)), List.of(index(FAILURE_1)));
+    public void testPartialSnapshotWithAllBackingIndicesCompleteIsComplete() {
+        DataStream ds = DataStreamTestHelper.newInstance(DS_NAME, List.of(index(BACKING_1), index(BACKING_2)));
         Map<String, SnapshotInfo.IndexSnapshotDetails> details = new HashMap<>();
         details.put(BACKING_1, successDetails());
-        details.put(FAILURE_1, SnapshotInfo.IndexSnapshotDetails.SKIPPED);
+        details.put(BACKING_2, successDetails());
         SnapshotInfo snap = snapshotWithDataStream(
             List.of(DS_NAME),
-            List.of(BACKING_1, FAILURE_1),
-            details,
-            List.of(shardFailure(FAILURE_1))
-        );
-
-        assertFalse(snap.isDataStreamComplete(ds));
-    }
-
-    public void testPartialSnapshotWithAllIndicesCompleteIsComplete() {
-        DataStream ds = DataStreamTestHelper.newInstance(DS_NAME, List.of(index(BACKING_1)), List.of(index(FAILURE_1)));
-        Map<String, SnapshotInfo.IndexSnapshotDetails> details = new HashMap<>();
-        details.put(BACKING_1, successDetails());
-        details.put(FAILURE_1, successDetails());
-        SnapshotInfo snap = snapshotWithDataStream(
-            List.of(DS_NAME),
-            List.of(BACKING_1, FAILURE_1),
+            List.of(BACKING_1, BACKING_2),
             details,
             List.of(shardFailure("other-index"))
         );

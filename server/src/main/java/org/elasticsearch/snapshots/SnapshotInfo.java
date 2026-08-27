@@ -536,16 +536,13 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
 
     /**
      * Returns {@code true} if {@code dataStream} is completely captured in this snapshot — i.e.,
-     * the stream's metadata and every shard of every backing and failure-store index were
-     * successfully stored.
+     * the stream's metadata and every shard of every backing index were successfully stored.
      * <p>
      * A data stream is complete when all of the following hold:
      * <ul>
      *   <li>The data stream's name appears in {@link #dataStreams()}, confirming its metadata was
      *       captured.</li>
      *   <li>Every backing index from {@link DataStream#getIndices()} satisfies
-     *       {@link #isIndexComplete}.</li>
-     *   <li>Every failure-store index from {@link DataStream#getFailureIndices()} satisfies
      *       {@link #isIndexComplete}.</li>
      * </ul>
      * Callers should already exclude snapshots in state {@link SnapshotState#FAILED} or

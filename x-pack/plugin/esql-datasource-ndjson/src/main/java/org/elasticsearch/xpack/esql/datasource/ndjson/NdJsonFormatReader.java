@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
-
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;

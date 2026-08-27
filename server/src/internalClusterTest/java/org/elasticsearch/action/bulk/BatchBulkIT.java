@@ -37,6 +37,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.sourcebatch.SourceBatch;
@@ -77,7 +78,7 @@ public class BatchBulkIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(ShardBatchIndexer.BATCH_INDEXING.getKey(), true)
+            .put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true)
             .build();
     }
 
@@ -244,6 +245,57 @@ public class BatchBulkIT extends ESIntegTestCase {
             assertNoFailures(searchResponse);
             assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
         });
+
+        // the batch listener hooks must feed the indexing stats exactly like the sequential path
+        var statsResponse = indicesAdmin().prepareStats(index).clear().setIndexing(true).get();
+        var primaryStats = statsResponse.getPrimaries().getIndexing().getTotal();
+        assertThat(primaryStats.getIndexCount(), equalTo((long) numDocs));
+        assertThat(primaryStats.getIndexCurrent(), equalTo(0L));
+        assertThat(primaryStats.getIndexFailedCount(), equalTo(0L));
+        // replicas take the batch path too: 1 replica per shard doubles the total
+        assertThat(statsResponse.getTotal().getIndexing().getTotal().getIndexCount(), equalTo(numDocs * 2L));
+    }
+
+    public void testBatchModeWithVersionConflicts() throws IOException {
+        String index = "test-batch-version-conflict";
+        createBatchIndex(index, 1, 0);
+        String coordinatingNode = findCoordinatingNode();
+
+        int numDocs = randomIntBetween(5, 20);
+        BulkRequest firstBulk = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            firstBulk.add(
+                new IndexRequest(index).id("doc-" + i)
+                    .opType(DocWriteRequest.OpType.CREATE)
+                    .source(Map.of("name", "doc-" + i, "value", i, "message", "hello world " + i))
+            );
+        }
+        assertNoFailures(client(coordinatingNode).bulk(firstBulk).actionGet());
+
+        // re-creating the same ids fails every item with a version conflict, through the batch path
+        BulkRequest conflictingBulk = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            conflictingBulk.add(
+                new IndexRequest(index).id("doc-" + i)
+                    .opType(DocWriteRequest.OpType.CREATE)
+                    .source(Map.of("name", "doc-" + i, "value", i, "message", "hello again " + i))
+            );
+        }
+        BulkResponse conflictingResponse = client(coordinatingNode).bulk(conflictingBulk).actionGet();
+        assertTrue(conflictingResponse.hasFailures());
+        for (BulkItemResponse item : conflictingResponse.getItems()) {
+            assertTrue(item.isFailed());
+            assertThat(item.getFailure().getStatus(), equalTo(RestStatus.CONFLICT));
+        }
+
+        // failures must be recorded by the batch listener hooks: failed and version-conflict
+        // counts match the conflicting docs, and index_current returns to zero
+        var statsResponse = indicesAdmin().prepareStats(index).clear().setIndexing(true).get();
+        var primaryStats = statsResponse.getPrimaries().getIndexing().getTotal();
+        assertThat(primaryStats.getIndexCount(), equalTo((long) numDocs));
+        assertThat(primaryStats.getIndexFailedCount(), equalTo((long) numDocs));
+        assertThat(primaryStats.getIndexFailedDueToVersionConflictCount(), equalTo((long) numDocs));
+        assertThat(primaryStats.getIndexCurrent(), equalTo(0L));
     }
 
     public void testSyntheticSourceReconstruction() throws IOException {

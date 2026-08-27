@@ -16,9 +16,6 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineBatch;
@@ -32,8 +29,6 @@ import org.elasticsearch.sourcebatch.SourceBatch;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.common.settings.Setting.boolSetting;
-
 /**
  * Handles the batch indexing code path for primary and replica shards, using the columnar
  * metadata-mapper pipeline ({@link ShardBatchMapper}) rather than per-document row parsing.
@@ -42,23 +37,14 @@ public final class ShardBatchIndexer {
 
     private static final Logger logger = LogManager.getLogger(ShardBatchIndexer.class);
 
-    public static final FeatureFlag BATCH_INDEXING_FEATURE_FLAG = new FeatureFlag("batch_indexing");
-    public static final Setting<Boolean> BATCH_INDEXING = boolSetting("indices.batch_indexing", false, value -> {
-        if (value && BATCH_INDEXING_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalArgumentException(
-                "[indices.batch_indexing] can only be enabled when the batch_indexing feature flag is enabled"
-            );
-        }
-    }, Setting.Property.NodeScope);
-
     // Maximum number of operations to parse and index in a single pass to bound memory usage.
     static final int BATCH_CHUNK_SIZE = 5000;
 
-    private final boolean batchIndexingEnabled;
+    private final BatchIndexingEnabled batchIndexingEnabled;
     private final Recycler<BytesRef> recycler;
 
-    ShardBatchIndexer(Settings settings, Recycler<BytesRef> recycler) {
-        this.batchIndexingEnabled = BATCH_INDEXING.get(settings);
+    ShardBatchIndexer(BatchIndexingEnabled batchIndexingEnabled, Recycler<BytesRef> recycler) {
+        this.batchIndexingEnabled = batchIndexingEnabled;
         this.recycler = recycler;
     }
 
@@ -74,7 +60,7 @@ public final class ShardBatchIndexer {
      * and all operations are index/create (no deletes, no updates).
      */
     public boolean canUseBatchIndexing(BulkShardRequest request) {
-        if (batchIndexingEnabled == false) {
+        if (batchIndexingEnabled.isEnabled() == false) {
             return false;
         }
         if (request.getBulkShardBatch() == null) {

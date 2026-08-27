@@ -15,17 +15,17 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
+import org.elasticsearch.xpack.core.security.action.service.CreateUserManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 
 /**
- * Creates a token for a built-in service account. Tokens for user-managed accounts are created by
- * {@link TransportCreateUserManagedServiceAccountTokenAction}, so that the two can be authorized separately.
+ * Creates a token for a user-managed service account. The authentication is passed on because the token document
+ * records who created it, the same as for a built-in account.
  */
-public class TransportCreateServiceAccountTokenAction extends HandledTransportAction<
+public class TransportCreateUserManagedServiceAccountTokenAction extends HandledTransportAction<
     CreateServiceAccountTokenRequest,
     CreateServiceAccountTokenResponse> {
 
@@ -33,14 +33,14 @@ public class TransportCreateServiceAccountTokenAction extends HandledTransportAc
     private final SecurityContext securityContext;
 
     @Inject
-    public TransportCreateServiceAccountTokenAction(
+    public TransportCreateUserManagedServiceAccountTokenAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ServiceAccountService serviceAccountService,
         SecurityContext securityContext
     ) {
         super(
-            CreateServiceAccountTokenAction.NAME,
+            CreateUserManagedServiceAccountTokenAction.NAME,
             transportService,
             actionFilters,
             CreateServiceAccountTokenRequest::new,
@@ -60,7 +60,7 @@ public class TransportCreateServiceAccountTokenAction extends HandledTransportAc
         if (authentication == null) {
             listener.onFailure(new IllegalStateException("authentication is required"));
         } else {
-            serviceAccountService.createBuiltInToken(authentication, request, listener);
+            serviceAccountService.createUserManagedToken(authentication, request, listener);
         }
     }
 }

@@ -757,20 +757,38 @@ public class ServiceAccountServiceTests extends ESTestCase {
         verify(indexServiceAccountTokenStore, never()).authenticate(any(), any());
     }
 
-    public void testCreateIndexTokenWillDelegate() {
+    public void testCreateBuiltInTokenWillDelegate() {
         final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
         final CreateServiceAccountTokenRequest request = newCreateTokenRequest(BUILT_IN_ACCOUNT_ID);
         final ActionListener<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
-        serviceAccountService.createIndexToken(authentication, request, future);
+        serviceAccountService.createBuiltInToken(authentication, request, future);
         verify(indexServiceAccountTokenStore).createBuiltInToken(eq(authentication), eq(request), eq(future));
         verify(userManagedServiceAccountStore, never()).getByPrincipal(any(), any());
     }
 
-    public void testDeleteIndexTokenWillDelegate() {
+    public void testDeleteBuiltInTokenWillDelegate() {
         final DeleteServiceAccountTokenRequest request = newDeleteTokenRequest(BUILT_IN_ACCOUNT_ID);
         final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-        serviceAccountService.deleteIndexToken(request, future);
+        serviceAccountService.deleteBuiltInToken(request, future);
         verify(indexServiceAccountTokenStore).deleteBuiltInToken(eq(request), eq(future));
+    }
+
+    public void testTheBuiltInTokenPathsDoNotReachAUserManagedAccount() {
+        final CreateServiceAccountTokenRequest createRequest = newCreateTokenRequest(USER_MANAGED_ACCOUNT_ID);
+        serviceAccountService.createBuiltInToken(
+            AuthenticationTestHelper.builder().serviceAccount().build(),
+            createRequest,
+            new PlainActionFuture<>()
+        );
+        verify(indexServiceAccountTokenStore).createBuiltInToken(any(), eq(createRequest), any());
+        verify(indexServiceAccountTokenStore, never()).createUserManagedToken(any(), any(), any());
+
+        final DeleteServiceAccountTokenRequest deleteRequest = newDeleteTokenRequest(USER_MANAGED_ACCOUNT_ID);
+        serviceAccountService.deleteBuiltInToken(deleteRequest, new PlainActionFuture<>());
+        verify(indexServiceAccountTokenStore).deleteBuiltInToken(eq(deleteRequest), any());
+        verify(indexServiceAccountTokenStore, never()).deleteUserManagedToken(any(), any());
+
+        verify(userManagedServiceAccountStore, never()).getByPrincipal(any(), any());
     }
 
     /**
@@ -780,7 +798,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
     public void testCreatingATokenRequiresTheUserManagedAccountToExist() {
         final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
         final PlainActionFuture<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
-        serviceAccountService.createIndexToken(authentication, newCreateTokenRequest(USER_MANAGED_ACCOUNT_ID), future);
+        serviceAccountService.createUserManagedToken(authentication, newCreateTokenRequest(USER_MANAGED_ACCOUNT_ID), future);
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
         assertThat(e.getMessage(), equalTo("service account [" + USER_MANAGED_ACCOUNT_ID + "] does not exist"));
@@ -798,9 +816,8 @@ public class ServiceAccountServiceTests extends ESTestCase {
 
             final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
             final CreateServiceAccountTokenRequest request = newCreateTokenRequest(USER_MANAGED_ACCOUNT_ID);
-            serviceAccountService.createIndexToken(authentication, request, new PlainActionFuture<>());
+            serviceAccountService.createUserManagedToken(authentication, request, new PlainActionFuture<>());
             verify(indexServiceAccountTokenStore).createUserManagedToken(eq(authentication), eq(request), any());
-            verify(indexServiceAccountTokenStore, never()).createBuiltInToken(any(), any(), any());
         }
     }
 
@@ -813,7 +830,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
     public void testCreatingATokenWhereTheAccountStoreIsNotConfiguredReportsTheAccountAsMissing() {
         final ServiceAccountService service = newServiceAccountService(null);
         final PlainActionFuture<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
-        service.createIndexToken(
+        service.createUserManagedToken(
             AuthenticationTestHelper.builder().serviceAccount().build(),
             newCreateTokenRequest(USER_MANAGED_ACCOUNT_ID),
             future
@@ -831,10 +848,9 @@ public class ServiceAccountServiceTests extends ESTestCase {
     public void testDeletingATokenDoesNotRequireTheUserManagedAccountToExist() {
         final DeleteServiceAccountTokenRequest request = newDeleteTokenRequest(USER_MANAGED_ACCOUNT_ID);
         final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-        serviceAccountService.deleteIndexToken(request, future);
+        serviceAccountService.deleteUserManagedToken(request, future);
         verify(indexServiceAccountTokenStore).deleteUserManagedToken(eq(request), eq(future));
         verify(userManagedServiceAccountStore, never()).getByPrincipal(any(), any());
-        verify(indexServiceAccountTokenStore, never()).deleteBuiltInToken(any(), any());
     }
 
     public void testPutUserManagedAccountDelegatesToTheAccountStore() {

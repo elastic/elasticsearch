@@ -21,7 +21,6 @@ import org.junit.Before;
 
 import java.util.List;
 
-import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -30,47 +29,47 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-public class TransportDeleteServiceAccountTokenActionTests extends ESTestCase {
+public class TransportDeleteUserManagedServiceAccountTokenActionTests extends ESTestCase {
 
     private ServiceAccountService serviceAccountService;
-    private TransportDeleteServiceAccountTokenAction transportDeleteServiceAccountTokenAction;
+    private TransportDeleteUserManagedServiceAccountTokenAction action;
 
     @Before
     public void init() {
         serviceAccountService = mock(ServiceAccountService.class);
+        stubDeleteResult(randomBoolean());
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
-        transportDeleteServiceAccountTokenAction = new TransportDeleteServiceAccountTokenAction(
-            transportService,
-            ActionFilters.EMPTY,
-            serviceAccountService
-        );
+        action = new TransportDeleteUserManagedServiceAccountTokenAction(transportService, ActionFilters.EMPTY, serviceAccountService);
     }
 
-    public void testDoExecuteWillDelegateToTheBuiltInPathForAnyNamespace() {
-        for (String namespace : List.of("elastic", randomValueOtherThan("elastic", () -> randomAlphaOfLengthBetween(3, 8)))) {
+    public void testExecutionWillDelegateToTheUserManagedPathForAnyNamespace() {
+        for (String namespace : List.of("elastic", "engineering")) {
             final DeleteServiceAccountTokenRequest request = newRequest(namespace);
-            transportDeleteServiceAccountTokenAction.doExecute(mock(Task.class), request, new PlainActionFuture<>());
-            verify(serviceAccountService).deleteBuiltInToken(eq(request), anyActionListener());
+            action.doExecute(mock(Task.class), request, new PlainActionFuture<>());
+            verify(serviceAccountService).deleteUserManagedToken(eq(request), any());
         }
-        verify(serviceAccountService, never()).deleteUserManagedToken(any(), any());
+        verify(serviceAccountService, never()).deleteBuiltInToken(any(), any());
     }
 
     public void testWhetherATokenWasDeletedIsReported() {
         for (boolean found : List.of(true, false)) {
-            doAnswer(invocation -> {
-                @SuppressWarnings("unchecked")
-                final ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
-                listener.onResponse(found);
-                return null;
-            }).when(serviceAccountService).deleteBuiltInToken(any(), any());
-
+            stubDeleteResult(found);
             final PlainActionFuture<DeleteServiceAccountTokenResponse> future = new PlainActionFuture<>();
-            transportDeleteServiceAccountTokenAction.doExecute(mock(Task.class), newRequest("elastic"), future);
+            action.doExecute(mock(Task.class), newRequest("engineering"), future);
             assertThat(future.actionGet().found(), is(found));
         }
     }
 
     private static DeleteServiceAccountTokenRequest newRequest(String namespace) {
         return new DeleteServiceAccountTokenRequest(namespace, randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
+    }
+
+    private void stubDeleteResult(boolean found) {
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
+            listener.onResponse(found);
+            return null;
+        }).when(serviceAccountService).deleteUserManagedToken(any(), any());
     }
 }

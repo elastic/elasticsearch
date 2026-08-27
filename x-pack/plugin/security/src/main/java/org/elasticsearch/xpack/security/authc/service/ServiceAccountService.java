@@ -283,7 +283,11 @@ public class ServiceAccountService {
         }));
     }
 
-    public void createIndexToken(
+    /**
+     * Creates a token for the built-in service account the request names, failing if no built-in account carries that
+     * principal. The namespace is not consulted: this operates on built-in accounts whatever it is handed.
+     */
+    public void createBuiltInToken(
         Authentication authentication,
         CreateServiceAccountTokenRequest request,
         ActionListener<CreateServiceAccountTokenResponse> listener
@@ -291,9 +295,20 @@ public class ServiceAccountService {
         if (indexServiceAccountTokenStore == null) {
             throw new IllegalStateException("Can't create token because index service account token store not configured");
         }
-        if (isBuiltInNamespace(request.getNamespace())) {
-            indexServiceAccountTokenStore.createBuiltInToken(authentication, request, listener);
-            return;
+        indexServiceAccountTokenStore.createBuiltInToken(authentication, request, listener);
+    }
+
+    /**
+     * Creates a token for the user-managed service account the request names. The account is resolved first and must
+     * exist, though it need not be enabled; a principal in the reserved namespace is refused.
+     */
+    public void createUserManagedToken(
+        Authentication authentication,
+        CreateServiceAccountTokenRequest request,
+        ActionListener<CreateServiceAccountTokenResponse> listener
+    ) {
+        if (indexServiceAccountTokenStore == null) {
+            throw new IllegalStateException("Can't create token because index service account token store not configured");
         }
         final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
         resolveUserManagedAccount(
@@ -305,19 +320,25 @@ public class ServiceAccountService {
     }
 
     /**
-     * Deletes a service account token. Unlike creating one, this does not resolve the account first: a token can
-     * outlive a force-deleted account, and those leftovers must remain removable — the credentials API lists them, so
-     * refusing to delete them would leave an operator able to see a token they cannot clean up.
+     * Deletes a token belonging to a built-in service account, answering {@code false} when no built-in account
+     * carries the requested principal, since no such token can exist.
      */
-    public void deleteIndexToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
+    public void deleteBuiltInToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
         if (indexServiceAccountTokenStore == null) {
             throw new IllegalStateException("Can't delete token because index service account token store not configured");
         }
-        if (isBuiltInNamespace(request.getNamespace())) {
-            indexServiceAccountTokenStore.deleteBuiltInToken(request, listener);
-        } else {
-            indexServiceAccountTokenStore.deleteUserManagedToken(request, listener);
+        indexServiceAccountTokenStore.deleteBuiltInToken(request, listener);
+    }
+
+    /**
+     * Deletes a token belonging to a user-managed service account. The account is not resolved and need not exist,
+     * since a token can outlive a force-deleted account and those leftovers must stay removable.
+     */
+    public void deleteUserManagedToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
+        if (indexServiceAccountTokenStore == null) {
+            throw new IllegalStateException("Can't delete token because index service account token store not configured");
         }
+        indexServiceAccountTokenStore.deleteUserManagedToken(request, listener);
     }
 
     public void findTokensFor(GetServiceAccountCredentialsRequest request, ActionListener<GetServiceAccountCredentialsResponse> listener) {

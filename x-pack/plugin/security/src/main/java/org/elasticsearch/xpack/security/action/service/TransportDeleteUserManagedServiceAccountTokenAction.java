@@ -14,29 +14,29 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenResponse;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 
 /**
- * Deletes a token belonging to a built-in service account. Tokens of user-managed accounts are deleted by
- * {@link TransportDeleteUserManagedServiceAccountTokenAction}, so that the two can be authorized separately.
+ * Deletes a token belonging to a user-managed service account. The account itself need not exist: force-deleting an
+ * account leaves its tokens behind, and those must stay removable.
  */
-public class TransportDeleteServiceAccountTokenAction extends HandledTransportAction<
+public class TransportDeleteUserManagedServiceAccountTokenAction extends HandledTransportAction<
     DeleteServiceAccountTokenRequest,
     DeleteServiceAccountTokenResponse> {
 
     private final ServiceAccountService serviceAccountService;
 
     @Inject
-    public TransportDeleteServiceAccountTokenAction(
+    public TransportDeleteUserManagedServiceAccountTokenAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ServiceAccountService serviceAccountService
     ) {
         super(
-            DeleteServiceAccountTokenAction.NAME,
+            DeleteUserManagedServiceAccountTokenAction.NAME,
             transportService,
             actionFilters,
             DeleteServiceAccountTokenRequest::new,
@@ -51,6 +51,6 @@ public class TransportDeleteServiceAccountTokenAction extends HandledTransportAc
         DeleteServiceAccountTokenRequest request,
         ActionListener<DeleteServiceAccountTokenResponse> listener
     ) {
-        serviceAccountService.deleteBuiltInToken(request, listener.map(DeleteServiceAccountTokenResponse::new));
+        serviceAccountService.deleteUserManagedToken(request, listener.map(DeleteServiceAccountTokenResponse::new));
     }
 }

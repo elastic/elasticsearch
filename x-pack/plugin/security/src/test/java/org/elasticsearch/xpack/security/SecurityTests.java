@@ -348,7 +348,7 @@ public class SecurityTests extends ESTestCase {
         IndexServiceAccountTokenStore indexServiceAccountTokenStore = findComponent(IndexServiceAccountTokenStore.class, components);
         assertNull(indexServiceAccountTokenStore);
         var account = randomFrom(ServiceAccountService.getBuiltInServiceAccounts().values());
-        assertThrows(IllegalStateException.class, () -> serviceAccountService.createIndexToken(null, null, null));
+        assertThrows(IllegalStateException.class, () -> serviceAccountService.createBuiltInToken(null, null, null));
         var future = new PlainActionFuture<Authentication>();
         serviceAccountService.authenticateToken(ServiceAccountToken.newToken(account.id(), "test"), "test", future);
         assertTrue(future.get().isServiceAccount());

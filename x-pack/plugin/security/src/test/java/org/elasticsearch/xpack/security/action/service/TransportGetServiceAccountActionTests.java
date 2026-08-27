@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.security.action.service;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.tasks.Task;
@@ -16,53 +18,169 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse;
 import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountManagedBy;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.junit.Before;
 
 import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.List;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 public class TransportGetServiceAccountActionTests extends ESTestCase {
 
+    private static final List<String> ALL_BUILT_IN_PRINCIPALS = List.of(
+        "elastic/auto-ops",
+        "elastic/fleet-server",
+        "elastic/fleet-server-remote",
+        "elastic/kibana"
+    );
+
+    private ServiceAccountService serviceAccountService;
     private TransportGetServiceAccountAction transportGetServiceAccountAction;
 
     @Before
     public void init() {
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
-        transportGetServiceAccountAction = new TransportGetServiceAccountAction(transportService, ActionFilters.EMPTY);
+        serviceAccountService = mock(ServiceAccountService.class);
+        stubUserManagedAccounts(List.of());
+        transportGetServiceAccountAction = new TransportGetServiceAccountAction(
+            transportService,
+            ActionFilters.EMPTY,
+            serviceAccountService
+        );
     }
 
-    public void testDoExecute() {
-        final GetServiceAccountRequest request1 = randomFrom(
-            new GetServiceAccountRequest(null, null),
-            new GetServiceAccountRequest("elastic", null)
+    public void testTheBuiltInAccountsAreReported() {
+        assertThat(principalsFor(new GetServiceAccountRequest(null, null)), equalTo(ALL_BUILT_IN_PRINCIPALS));
+        assertThat(principalsFor(new GetServiceAccountRequest("elastic", null)), equalTo(ALL_BUILT_IN_PRINCIPALS));
+        assertThat(principalsFor(new GetServiceAccountRequest("elastic", "fleet-server")), contains("elastic/fleet-server"));
+    }
+
+    public void testANameNoBuiltInAccountCarriesMatchesNothing() {
+        assertThat(principalsFor(new GetServiceAccountRequest("foo", null)), equalTo(List.of()));
+        assertThat(principalsFor(new GetServiceAccountRequest("elastic", "foo")), equalTo(List.of()));
+        assertThat(principalsFor(new GetServiceAccountRequest("foo", "bar")), equalTo(List.of()));
+    }
+
+    public void testTheAccountStoreIsNotConsultedUnlessUserManagedAccountsAreAsked() {
+        stubUserManagedAccountsFailure();
+        assertThat(principalsFor(new GetServiceAccountRequest(null, null)), equalTo(ALL_BUILT_IN_PRINCIPALS));
+        assertThat(principalsFor(elasticOnly()), equalTo(ALL_BUILT_IN_PRINCIPALS));
+        verify(serviceAccountService, never()).getUserManagedAccountInfos(any(), any(), any());
+    }
+
+    public void testBothKindsAreReportedTogether() {
+        stubUserManagedAccounts(
+            List.of(
+                new ServiceAccountInfo.UserManaged("engineering/deploy_bot", List.of("deployer"), true),
+                new ServiceAccountInfo.UserManaged("aaa/first", List.of("reader"), false)
+            )
         );
-        final PlainActionFuture<GetServiceAccountResponse> future1 = new PlainActionFuture<>();
-        transportGetServiceAccountAction.doExecute(mock(Task.class), request1, future1);
-        final GetServiceAccountResponse getServiceAccountResponse1 = future1.actionGet();
-        assertThat(getServiceAccountResponse1.getServiceAccountInfos().length, equalTo(4));
+        final List<ServiceAccountInfo> infos = infosFor(bothKinds());
         assertThat(
-            Arrays.stream(getServiceAccountResponse1.getServiceAccountInfos()).map(ServiceAccountInfo::principal).toList(),
-            containsInAnyOrder("elastic/auto-ops", "elastic/fleet-server", "elastic/fleet-server-remote", "elastic/kibana")
+            infos.stream().map(ServiceAccountInfo::principal).toList(),
+            equalTo(
+                List.of(
+                    "aaa/first",
+                    "elastic/auto-ops",
+                    "elastic/fleet-server",
+                    "elastic/fleet-server-remote",
+                    "elastic/kibana",
+                    "engineering/deploy_bot"
+                )
+            )
         );
-
-        final GetServiceAccountRequest request2 = new GetServiceAccountRequest("elastic", "fleet-server");
-        final PlainActionFuture<GetServiceAccountResponse> future2 = new PlainActionFuture<>();
-        transportGetServiceAccountAction.doExecute(mock(Task.class), request2, future2);
-        final GetServiceAccountResponse getServiceAccountResponse2 = future2.actionGet();
-        assertThat(getServiceAccountResponse2.getServiceAccountInfos().length, equalTo(1));
-        assertThat(getServiceAccountResponse2.getServiceAccountInfos()[0].principal(), equalTo("elastic/fleet-server"));
-
-        final GetServiceAccountRequest request3 = randomFrom(
-            new GetServiceAccountRequest("foo", null),
-            new GetServiceAccountRequest("elastic", "foo"),
-            new GetServiceAccountRequest("foo", "bar")
+        assertThat(
+            infos.stream().map(ServiceAccountInfo::managedBy).toList(),
+            equalTo(
+                List.of(
+                    ServiceAccountManagedBy.USER,
+                    ServiceAccountManagedBy.ELASTIC,
+                    ServiceAccountManagedBy.ELASTIC,
+                    ServiceAccountManagedBy.ELASTIC,
+                    ServiceAccountManagedBy.ELASTIC,
+                    ServiceAccountManagedBy.USER
+                )
+            )
         );
-        final PlainActionFuture<GetServiceAccountResponse> future3 = new PlainActionFuture<>();
-        transportGetServiceAccountAction.doExecute(mock(Task.class), request3, future3);
-        final GetServiceAccountResponse getServiceAccountResponse3 = future3.actionGet();
-        assertThat(getServiceAccountResponse3.getServiceAccountInfos().length, equalTo(0));
+    }
+
+    public void testAskingOnlyForUserManagedAccountsExcludesTheBuiltInOnes() {
+        assertThat(infosFor(userOnly()), empty());
+
+        final ServiceAccountInfo.UserManaged account = new ServiceAccountInfo.UserManaged(
+            "engineering/deploy_bot",
+            List.of("deployer"),
+            true
+        );
+        stubUserManagedAccounts(List.of(account));
+        assertThat(infosFor(userOnly()), contains(account));
+    }
+
+    public void testTheNameFilterIsPassedToTheAccountStore() {
+        infosFor(new GetServiceAccountRequest("engineering", "deploy_bot", EnumSet.allOf(ServiceAccountManagedBy.class)));
+        verify(serviceAccountService).getUserManagedAccountInfos(eq("engineering"), eq("deploy_bot"), any());
+    }
+
+    public void testAFailedAccountStoreReadFailsTheRequest() {
+        stubUserManagedAccountsFailure();
+        for (GetServiceAccountRequest request : List.of(bothKinds(), userOnly())) {
+            final PlainActionFuture<GetServiceAccountResponse> future = new PlainActionFuture<>();
+            transportGetServiceAccountAction.doExecute(mock(Task.class), request, future);
+            final ElasticsearchException e = expectThrows(ElasticsearchException.class, future::actionGet);
+            assertThat(e.getMessage(), equalTo("account store unavailable"));
+        }
+    }
+
+    private static GetServiceAccountRequest elasticOnly() {
+        return new GetServiceAccountRequest(null, null, EnumSet.of(ServiceAccountManagedBy.ELASTIC));
+    }
+
+    private static GetServiceAccountRequest userOnly() {
+        return new GetServiceAccountRequest(null, null, EnumSet.of(ServiceAccountManagedBy.USER));
+    }
+
+    private static GetServiceAccountRequest bothKinds() {
+        return new GetServiceAccountRequest(null, null, EnumSet.allOf(ServiceAccountManagedBy.class));
+    }
+
+    private List<String> principalsFor(GetServiceAccountRequest request) {
+        return infosFor(request).stream().map(ServiceAccountInfo::principal).toList();
+    }
+
+    private List<ServiceAccountInfo> infosFor(GetServiceAccountRequest request) {
+        final PlainActionFuture<GetServiceAccountResponse> future = new PlainActionFuture<>();
+        transportGetServiceAccountAction.doExecute(mock(Task.class), request, future);
+        return Arrays.asList(future.actionGet().getServiceAccountInfos());
+    }
+
+    private void stubUserManagedAccounts(List<ServiceAccountInfo> infos) {
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<List<ServiceAccountInfo>> listener = (ActionListener<List<ServiceAccountInfo>>) invocation
+                .getArguments()[2];
+            listener.onResponse(infos);
+            return null;
+        }).when(serviceAccountService).getUserManagedAccountInfos(any(), any(), any());
+    }
+
+    private void stubUserManagedAccountsFailure() {
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<List<ServiceAccountInfo>> listener = (ActionListener<List<ServiceAccountInfo>>) invocation
+                .getArguments()[2];
+            listener.onFailure(new ElasticsearchException("account store unavailable"));
+            return null;
+        }).when(serviceAccountService).getUserManagedAccountInfos(any(), any(), any());
     }
 }

@@ -14,32 +14,32 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
-import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
-import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenResponse;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountRequest;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountResponse;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 
 /**
- * Deletes a token belonging to a built-in service account. Tokens of user-managed accounts are deleted by
- * {@link TransportDeleteUserManagedServiceAccountTokenAction}, so that the two can be authorized separately.
+ * Deletes a user-managed service account. Whether the account's surviving tokens block the delete is decided by
+ * {@code force}, which the service layer applies.
  */
-public class TransportDeleteServiceAccountTokenAction extends HandledTransportAction<
-    DeleteServiceAccountTokenRequest,
-    DeleteServiceAccountTokenResponse> {
+public class TransportDeleteUserManagedServiceAccountAction extends HandledTransportAction<
+    DeleteUserManagedServiceAccountRequest,
+    DeleteUserManagedServiceAccountResponse> {
 
     private final ServiceAccountService serviceAccountService;
 
     @Inject
-    public TransportDeleteServiceAccountTokenAction(
+    public TransportDeleteUserManagedServiceAccountAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ServiceAccountService serviceAccountService
     ) {
         super(
-            DeleteServiceAccountTokenAction.NAME,
+            DeleteUserManagedServiceAccountAction.NAME,
             transportService,
             actionFilters,
-            DeleteServiceAccountTokenRequest::new,
+            DeleteUserManagedServiceAccountRequest::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.serviceAccountService = serviceAccountService;
@@ -48,9 +48,14 @@ public class TransportDeleteServiceAccountTokenAction extends HandledTransportAc
     @Override
     protected void doExecute(
         Task task,
-        DeleteServiceAccountTokenRequest request,
-        ActionListener<DeleteServiceAccountTokenResponse> listener
+        DeleteUserManagedServiceAccountRequest request,
+        ActionListener<DeleteUserManagedServiceAccountResponse> listener
     ) {
-        serviceAccountService.deleteBuiltInToken(request, listener.map(DeleteServiceAccountTokenResponse::new));
+        serviceAccountService.deleteUserManagedAccount(
+            request.getAccountId(),
+            request.isForce(),
+            request.getRefreshPolicy(),
+            listener.map(DeleteUserManagedServiceAccountResponse::new)
+        );
     }
 }

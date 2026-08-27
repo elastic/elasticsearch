@@ -433,6 +433,32 @@ public final class EscfColumnBuilder {
         }
     }
 
+    /**
+     * Appends an explicit JSON {@code null} element to the current array row. Requires an open array
+     * (i.e. {@link #beginArray} has been called and {@link #endArray} has not). The element kind must
+     * match the already-resolved child kind when one is set; a null as the very first element
+     * conservatively promotes the row to an inline {@code UNION_ARRAY} (since the child kind is
+     * unknown and deferred resolution is not supported).
+     *
+     * <p>If the column was already promoted to a union, appends a {@link SourceValueType#NULL} byte
+     * into the open inline slot instead.
+     */
+    public void appendNull() {
+        assert arrayOpen : "appendNull requires an open array (call beginArray first)";
+        if (current instanceof ArrayBuilder ab) {
+            byte kind = ab.childKind();
+            if (kind == UNSET_ARRAY_KIND) {
+                // No child kind resolved yet — conservatively emit a UNION_ARRAY row.
+                heterogeneousArrayElement(SourceValueType.NULL, 0L, 0.0, null, 0, 0);
+            } else {
+                ab.appendNull(kind);
+            }
+        } else {
+            // Already a union column (or SPLIT scalar-vs-array promoted).
+            appendUnionArrayElement(SourceValueType.NULL, 0L, 0.0, null, 0, 0);
+        }
+    }
+
     private void appendBytesElement(byte childKind, byte typeByte, byte[] bytes, int off, int len) {
         if (current instanceof ArrayBuilder ab) {
             if (ab.childKind() == UNSET_ARRAY_KIND || ab.childKind() == childKind) {
@@ -654,6 +680,8 @@ public final class EscfColumnBuilder {
                 union.slotIntLE(len);
                 union.slotBytes(bytes, off, len);
             }
+            case SourceValueType.NULL -> {
+            } // type byte only; SourceValueType.elemDataSize(NULL) == 0
             default -> throw new AssertionError("unexpected union array element type " + SourceValueType.name(typeByte));
         }
     }
@@ -680,9 +708,14 @@ public final class EscfColumnBuilder {
 
     /**
      * Rewrites the first {@code upToRow} rows of {@code ab} into a fresh {@link UnionBuilder}: present
-     * non-empty rows become {@code FIXED_ARRAY} slots (fixed children bulk-copied), present empty rows
+     * non-empty rows become {@code FIXED_ARRAY} or {@code UNION_ARRAY} slots, present empty rows
      * become zero-length {@code UNION_ARRAY} slots, absent rows become {@code ABSENT} slots.
      * Rows {@code [upToRow, rowsConsumed)} are left for the caller.
+     *
+     * <p>When the child has no null elements ({@code childValidity == null}), non-empty rows are
+     * written as {@code FIXED_ARRAY} slots with a bulk byte-copy of the child data — the fast path.
+     * When the child has null elements, each row is written as a {@code UNION_ARRAY} slot with
+     * per-element type bytes: {@link SourceValueType#NULL} for nulls, {@code elemType} for non-nulls.
      */
     private UnionBuilder rewriteArrayToUnion(ArrayBuilder ab, int upToRow) {
         ab.seal();
@@ -691,6 +724,7 @@ public final class EscfColumnBuilder {
         boolean fixed = ab.childKind == EscfColumnKind.LONG || ab.childKind == EscfColumnKind.DOUBLE;
         // Unresolved kind (only empty arrays/absents) never reaches the typed slot branch below.
         byte elemType = ab.childKind == UNSET_ARRAY_KIND ? 0 : childInlineType(ab.childKind);
+        boolean hasNullElems = ab.childValidity != null;
         for (int r = 0; r < upToRow; r++) {
             int from = ab.rowOffsets[r];
             int to = ab.rowOffsets[r + 1];
@@ -698,7 +732,8 @@ public final class EscfColumnBuilder {
                 union.addAbsent();
             } else if (from == to) {
                 union.addInlineArray(SourceValueType.UNION_ARRAY, EMPTY_BYTES); // present empty array
-            } else {
+            } else if (hasNullElems == false) {
+                // Dense child — bulk-copy as a FIXED_ARRAY slot (fast path).
                 union.beginInlineSlot(SourceValueType.FIXED_ARRAY);
                 union.slotByte(elemType);
                 if (fixed) {
@@ -709,6 +744,25 @@ public final class EscfColumnBuilder {
                         int bt = ab.childOffsets[e + 1];
                         union.slotIntLE(bt - bf);
                         union.slotSlice(childBytes, bf, bt - bf);
+                    }
+                }
+                union.endInlineSlot();
+            } else {
+                // Nullable child — emit per-element types as a UNION_ARRAY slot.
+                union.beginInlineSlot(SourceValueType.UNION_ARRAY);
+                for (int e = from; e < to; e++) {
+                    if (ab.childValidity.get(e) == false) {
+                        union.slotByte(SourceValueType.NULL);
+                    } else {
+                        union.slotByte(elemType);
+                        if (fixed) {
+                            union.slotSlice(childBytes, e * 8, 8);
+                        } else {
+                            int bf = ab.childOffsets[e];
+                            int bt = ab.childOffsets[e + 1];
+                            union.slotIntLE(bt - bf);
+                            union.slotSlice(childBytes, bf, bt - bf);
+                        }
                     }
                 }
                 union.endInlineSlot();
@@ -723,20 +777,27 @@ public final class EscfColumnBuilder {
 
     /** Replays row {@code r} of {@code ab} into the currently-open union slot as typed elements. */
     private void replayRowAsUnionElements(UnionBuilder union, ArrayBuilder ab, int r) {
-        boolean fixed = ab.childKind == EscfColumnKind.LONG || ab.childKind == EscfColumnKind.DOUBLE;
-        byte elemType = childInlineType(ab.childKind);
-        BytesReference childBytes = ab.childData.bytes();
         int from = ab.rowOffsets[r];
         int to = ab.elemCount;
-        for (int e = from; e < to; e++) {
-            union.slotByte(elemType);
-            if (fixed) {
-                union.slotSlice(childBytes, e * 8, 8);
-            } else {
-                int bf = ab.childOffsets[e];
-                int bt = ab.childOffsets[e + 1];
-                union.slotIntLE(bt - bf);
-                union.slotSlice(childBytes, bf, bt - bf);
+        if (from < to) {
+            // Defer childInlineType until we know there are elements to replay.
+            boolean fixed = ab.childKind == EscfColumnKind.LONG || ab.childKind == EscfColumnKind.DOUBLE;
+            byte elemType = childInlineType(ab.childKind);
+            BytesReference childBytes = ab.childData.bytes();
+            for (int e = from; e < to; e++) {
+                if (ab.childValidity != null && ab.childValidity.get(e) == false) {
+                    union.slotByte(SourceValueType.NULL);
+                } else {
+                    union.slotByte(elemType);
+                    if (fixed) {
+                        union.slotSlice(childBytes, e * 8, 8);
+                    } else {
+                        int bf = ab.childOffsets[e];
+                        int bt = ab.childOffsets[e + 1];
+                        union.slotIntLE(bt - bf);
+                        union.slotSlice(childBytes, bf, bt - bf);
+                    }
+                }
             }
         }
         ab.childData.close();
@@ -1194,6 +1255,12 @@ public final class EscfColumnBuilder {
         private boolean sealed;
         /** Set once {@code childData} has been closed by a rewrite/replay; makes {@link #discard()} idempotent. */
         private boolean consumed;
+        /**
+         * Element-level validity bitset (bit set = element non-null); {@code null} when every element is
+         * non-null. Lazily materialised on the first null element, mirroring the pattern in
+         * {@link BaseBuilder#advanceAbsent()}.
+         */
+        private FixedBitSet childValidity;
 
         ArrayBuilder(byte childKind, boolean splitValidity, Recycler<BytesRef> recycler) {
             this.childKind = childKind;
@@ -1258,6 +1325,7 @@ public final class EscfColumnBuilder {
         void appendLong(long value) {
             resolveKind(EscfColumnKind.LONG);
             recordElemOffset();
+            markChildPresent();
             writeLongLE(childData, value);
             childDataLen += Long.BYTES;
             elemCount++;
@@ -1266,6 +1334,7 @@ public final class EscfColumnBuilder {
         void appendDouble(double value) {
             resolveKind(EscfColumnKind.DOUBLE);
             recordElemOffset();
+            markChildPresent();
             writeLongLE(childData, Double.doubleToRawLongBits(value));
             childDataLen += Long.BYTES;
             elemCount++;
@@ -1274,6 +1343,7 @@ public final class EscfColumnBuilder {
         void appendBytes(byte elemKind, byte[] bytes, int offset, int length) {
             resolveKind(elemKind);
             recordElemOffset();
+            markChildPresent();
             writeBytes(childData, bytes, offset, length);
             childDataLen += length;
             elemCount++;
@@ -1283,9 +1353,51 @@ public final class EscfColumnBuilder {
         void appendFixedBits(byte elemKind, long bits) {
             resolveKind(elemKind);
             recordElemOffset();
+            markChildPresent();
             writeLongLE(childData, bits);
             childDataLen += Long.BYTES;
             elemCount++;
+        }
+
+        /**
+         * Appends an explicit JSON {@code null} element of the given {@code elemKind}. A null element
+         * occupies a placeholder slot in the child data so that positional cursors stay in step: 8 zero
+         * bytes for fixed-64 kinds (reuses {@link #ZERO_BYTES}), a zero-length range for var-width kinds.
+         * The child validity bitset is materialised and the bit for this slot is left clear (null).
+         */
+        void appendNull(byte elemKind) {
+            resolveKind(elemKind);
+            recordElemOffset();
+            markChildNull();
+            if (elemKind == EscfColumnKind.LONG || elemKind == EscfColumnKind.DOUBLE) {
+                // 8 zero bytes as a placeholder; ZERO_BYTES is large enough (512 bytes).
+                writeBytes(childData, ZERO_BYTES, 0, Long.BYTES);
+                childDataLen += Long.BYTES;
+            }
+            // var-width: zero-length range — nothing written to childData; recordElemOffset() already captured the fence.
+            elemCount++;
+        }
+
+        /** Marks the most-recently-added element present in the child validity bitset. */
+        private void markChildPresent() {
+            if (childValidity != null) {
+                childValidity = FixedBitSet.ensureCapacity(childValidity, elemCount + 1);
+                childValidity.set(elemCount);
+            }
+        }
+
+        /**
+         * Marks the most-recently-added element null in the child validity bitset.
+         * Materialises the bitset on first null, backfilling all prior elements as present.
+         */
+        private void markChildNull() {
+            if (childValidity == null) {
+                childValidity = new FixedBitSet(Math.max(64, elemCount + 1));
+                childValidity.set(0, elemCount); // [0, elemCount) are non-null
+            } else {
+                childValidity = FixedBitSet.ensureCapacity(childValidity, elemCount + 1);
+            }
+            // bit[elemCount] is left clear — this element is null
         }
 
         private void resolveKind(byte k) {
@@ -1336,14 +1448,15 @@ public final class EscfColumnBuilder {
             rowOffsets[docCount] = elemCount;
             childOffsets = ensureIntCapacity(childOffsets, elemCount + 1);
             childOffsets[elemCount] = childDataLen;
+            // childValidity may be over-sized; EscfColumn.from re-windows it to [0, elemCount).
             final EscfColumnData child;
             if (childKind == EscfColumnKind.LONG || childKind == EscfColumnKind.DOUBLE) {
-                child = EscfColumnData.ofFixed64(childKind, elemCount, null, childData.moveToBytesReference());
+                child = EscfColumnData.ofFixed64(childKind, elemCount, childValidity, childData.moveToBytesReference());
             } else {
                 child = EscfColumnData.ofVarWidth(
                     childKind,
                     elemCount,
-                    null,
+                    childValidity,
                     Arrays.copyOf(childOffsets, elemCount + 1),
                     childData.moveToBytesReference()
                 );

@@ -20,9 +20,16 @@ import org.elasticsearch.sourcebatch.SourceValueType;
 
 /**
  * An ESCF column whose values are all arrays of a single fixed primitive element kind, stored in a
- * columnar list layout: a per-row element-range offset vector ({@code offsets}) over a single dense
+ * columnar list layout: a per-row element-range offset vector ({@code offsets}) over a single
  * primitive {@code child} sub-column. Row {@code d}'s elements are the child elements in
  * {@code [offsets[d], offsets[d + 1])}. There are no inline arrays.
+ *
+ * <p>The child sub-column may carry its own validity bitset (distinct from this column's outer
+ * {@link #validity} bitset). Clear bits in the child validity represent explicit JSON {@code null}
+ * elements within an array, not absent elements — an element can never be absent inside an array.
+ * Null elements occupy a placeholder slot in the child data (8 zero bytes for fixed-64, a
+ * zero-length range for var-width) so that the child is always positionally indexed from 0 to
+ * {@code totalElems - 1}.
  */
 final class EscfArrayColumn extends EscfColumn {
 
@@ -55,6 +62,11 @@ final class EscfArrayColumn extends EscfColumn {
     @Override
     public byte leafValueKind() {
         return child.kind();
+    }
+
+    @Override
+    public boolean hasNullLeafValues() {
+        return child.isDense() == false;
     }
 
     @Override

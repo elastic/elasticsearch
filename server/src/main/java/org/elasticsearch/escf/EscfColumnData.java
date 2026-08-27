@@ -29,11 +29,12 @@ import org.elasticsearch.sourcebatch.SourceValueType;
  *       offsets into {@code child}.</li>
  *   <li>{@code data} — the recycler-backed value payload; {@code null} for BOOL (values live in {@code values})
  *       and for ARRAY (the payload lives in {@code child}).</li>
- *   <li>{@code child} — the dense primitive sub-column for ARRAY (itself a native
- *       {@link EscfColumnData} of kind LONG, DOUBLE, or STRING); {@code null} for every other kind.
- *       Kept native rather than pre-serialized so the "native in-memory" invariant above also holds for
- *       ARRAY; it is only flattened to {@code child_kind(1) | child_values} bytes at the wire boundary in
- *       {@link EscfBatch}.</li>
+ *   <li>{@code child} — the primitive sub-column for ARRAY (itself a native {@link EscfColumnData}
+ *       of kind LONG, DOUBLE, or STRING); {@code null} for every other kind. The child may carry its
+ *       own {@code validity} bitset: a clear bit indicates an explicit JSON {@code null} element (not
+ *       an absent element — elements cannot be absent inside an array). Kept native rather than
+ *       pre-serialized so the "native in-memory" invariant above also holds for ARRAY; it is only
+ *       flattened to bytes at the wire boundary in {@link EscfBatch}.</li>
  * </ul>
  */
 public record EscfColumnData(
@@ -73,7 +74,10 @@ public record EscfColumnData(
         return new EscfColumnData(kind, docCount, validity, null, null, offsets, data, null);
     }
 
-    /** ARRAY: per-row element-range offsets over a native primitive {@code child} sub-column. */
+    /**
+     * ARRAY: per-row element-range offsets over a native primitive {@code child} sub-column.
+     * The child may carry a validity bitset expressing explicit JSON {@code null} elements.
+     */
     static EscfColumnData ofArray(int docCount, FixedBitSet validity, int[] offsets, EscfColumnData child) {
         return new EscfColumnData(EscfColumnKind.ARRAY, docCount, validity, null, null, offsets, null, child);
     }

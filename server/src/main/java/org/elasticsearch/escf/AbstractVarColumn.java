@@ -62,8 +62,11 @@ abstract class AbstractVarColumn extends EscfColumn {
 
     /**
      * Returns a dense {@link BytesRefValuesCursor} positioned before the first row of this column's
-     * window. The column must be fully present ({@link #validity} {@code == null}); call this only on
-     * dense columns.
+     * window. This cursor is purely positional — it advances one slot per call and is unaware of the
+     * validity bitset. The caller is responsible for consulting the validity (or child bitset) to
+     * determine whether each slot is meaningful. For null elements in an array child, a null slot has
+     * a zero-length offset range and therefore returns an empty {@link BytesRef}; the child validity
+     * bitset distinguishes null from an empty string.
      *
      * @param retainValues when {@code false} every {@link BytesRefValuesCursor#nextValue()} returns the
      *                     cursor's single reusable {@link BytesRef}, valid only until the next
@@ -72,7 +75,6 @@ abstract class AbstractVarColumn extends EscfColumn {
      *                     stays valid indefinitely.
      */
     final DenseBytesRefValuesCursor bytesRefValuesCursor(boolean retainValues) {
-        assert validity == null : "values cursor is only valid for dense (fully-present) columns";
         return new DenseBytesRefValuesCursor(docCount, this, retainValues);
     }
 

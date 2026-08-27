@@ -56,6 +56,68 @@ public class ArrayReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * A long array with a null element: {@link ColumnarArrayReader#isNull()} returns {@code true} at
+     * the null position and {@code false} at the non-null positions.
+     */
+    public void testNullElementIsNull() {
+        // Build a nullable-child ARRAY column directly via the builder.
+        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
+        b.beginArray(0);
+        b.appendLong(10L);
+        b.appendNull();     // position 1 is null
+        b.appendLong(30L);
+        b.endArray();
+        EscfColumnData data = b.finish(1);
+
+        EscfColumn col = EscfColumn.from(data);
+        ArrayReader reader = col.getArrayValue(0);
+
+        assertTrue(reader.next());
+        assertFalse("element 0 is not null", reader.isNull());
+        assertEquals(SourceValueType.LONG, reader.type());
+        assertEquals(10L, reader.longValue());
+
+        assertTrue(reader.next());
+        assertTrue("element 1 is null", reader.isNull());
+        assertEquals(SourceValueType.NULL, reader.type());
+
+        assertTrue(reader.next());
+        assertFalse("element 2 is not null", reader.isNull());
+        assertEquals(SourceValueType.LONG, reader.type());
+        assertEquals(30L, reader.longValue());
+
+        assertFalse(reader.next());
+    }
+
+    /** A string array with a null element: isNull() at the null position. */
+    public void testNullStringElementIsNull() {
+        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
+        b.beginArray(0);
+        b.appendString(new org.apache.lucene.util.BytesRef("alpha"));
+        b.appendNull();   // position 1
+        b.appendString(new org.apache.lucene.util.BytesRef("gamma"));
+        b.endArray();
+        EscfColumnData data = b.finish(1);
+
+        EscfColumn col = EscfColumn.from(data);
+        ArrayReader reader = col.getArrayValue(0);
+
+        assertTrue(reader.next());
+        assertFalse(reader.isNull());
+        assertEquals("alpha", reader.stringValue());
+
+        assertTrue(reader.next());
+        assertTrue(reader.isNull());
+        assertEquals(SourceValueType.NULL, reader.type());
+
+        assertTrue(reader.next());
+        assertFalse(reader.isNull());
+        assertEquals("gamma", reader.stringValue());
+
+        assertFalse(reader.next());
+    }
+
     private static SourceBatch encode(String json) throws IOException {
         return EscfEncoder.encode(List.of(new BytesArray(json)), XContentType.JSON);
     }

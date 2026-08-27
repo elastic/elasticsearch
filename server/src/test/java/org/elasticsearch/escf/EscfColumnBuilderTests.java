@@ -833,6 +833,174 @@ public class EscfColumnBuilderTests extends ESTestCase {
     }
 
     /** Builds in SPLIT mode; scalar/union cases behave identically under MERGE. */
+    // ----- appendNull: element validity in array columns -----
+
+    /**
+     * A long array with a null element stays as an ARRAY column (not a UNION). The null element
+     * occupies an 8-byte zero placeholder in the child; the child validity bitset marks it null.
+     * {@link ColumnarArrayReader#isNull()} returns {@code true} at that element.
+     */
+    public void testAppendNullLong() {
+        EscfColumnBuilder b = builder();
+        b.beginArray(0);
+        b.appendLong(1L);
+        b.appendNull();   // null in position 1
+        b.appendLong(3L);
+        b.endArray();
+        EscfColumnData data = b.finish(1);
+
+        assertEquals(EscfColumnKind.ARRAY, data.kind());
+        assertNotNull("child must carry a validity bitset for the null element", data.child().validity());
+
+        EscfColumn col = EscfColumn.from(data);
+        assertTrue(col.hasNullLeafValues());
+
+        ArrayReader reader = col.getArrayValue(0);
+        // element 0: non-null long
+        assertTrue(reader.next());
+        assertFalse(reader.isNull());
+        assertEquals(SourceValueType.LONG, reader.type());
+        assertEquals(1L, reader.longValue());
+        // element 1: explicit null
+        assertTrue(reader.next());
+        assertTrue(reader.isNull());
+        assertEquals(SourceValueType.NULL, reader.type());
+        // element 2: non-null long
+        assertTrue(reader.next());
+        assertFalse(reader.isNull());
+        assertEquals(SourceValueType.LONG, reader.type());
+        assertEquals(3L, reader.longValue());
+        assertFalse(reader.next());
+    }
+
+    /**
+     * A string array with a null element stays as an ARRAY-of-STRING column. The null element is a
+     * zero-length range in the child; the bitset distinguishes it from an empty string.
+     */
+    public void testAppendNullString() {
+        EscfColumnBuilder b = builder();
+        b.beginArray(0);
+        b.appendString(bytesRef("x"));
+        b.appendNull();    // null in position 1
+        b.appendString(bytesRef("zzz"));
+        b.endArray();
+        EscfColumnData data = b.finish(1);
+
+        assertEquals(EscfColumnKind.ARRAY, data.kind());
+        assertNotNull("child must carry a validity bitset", data.child().validity());
+
+        EscfColumn col = EscfColumn.from(data);
+        assertTrue(col.hasNullLeafValues());
+
+        ArrayReader reader = col.getArrayValue(0);
+        assertTrue(reader.next());
+        assertFalse(reader.isNull());
+        assertEquals("x", reader.stringValue());
+        assertTrue(reader.next());
+        assertTrue(reader.isNull());
+        assertEquals(SourceValueType.NULL, reader.type());
+        assertTrue(reader.next());
+        assertFalse(reader.isNull());
+        assertEquals("zzz", reader.stringValue());
+        assertFalse(reader.next());
+    }
+
+    /**
+     * A null as the first element with no prior element has no resolved child kind, so the row is
+     * conservatively promoted to an inline UNION_ARRAY (the "all-null arrays stay UNION" rule).
+     */
+    public void testAppendNullLeadingPromotion() {
+        EscfColumnBuilder b = builder();
+        b.beginArray(0);
+        b.appendNull();  // no child kind known yet → promotes to UNION_ARRAY inline
+        b.endArray();
+        EscfColumnData data = b.finish(1);
+
+        // Column should be UNION since the null-only row forced a UNION_ARRAY slot.
+        assertEquals(EscfColumnKind.UNION, data.kind());
+    }
+
+    /**
+     * A null followed by a heterogeneous element still promotes to UNION:
+     * once a null triggers the UNION_ARRAY path, the column stays there.
+     */
+    public void testHeterogeneousAfterNull() {
+        // Row 0: [null, 1L, "x"] — heterogeneous after null → UNION
+        EscfColumnBuilder b = builder();
+        b.beginArray(0);
+        b.appendNull();    // leading null → UNION_ARRAY inline
+        b.appendLong(1L);  // this appends via appendUnionArrayElement
+        b.endArray();
+        EscfColumnData data = b.finish(1);
+        assertEquals(EscfColumnKind.UNION, data.kind());
+        assertEquals(SourceValueType.UNION_ARRAY, data.typeVector().bytes[0]);
+    }
+
+    /**
+     * An ARRAY column with a nullable child gets rewritten to a UNION when a second array row has
+     * a different child kind. The rewrite (via rewriteArrayToUnion) must emit UNION_ARRAY slots with
+     * per-element type bytes, including NULL for the null elements.
+     */
+    public void testNullableArrayRewriteToUnion() {
+        EscfColumnBuilder b = builder();
+        b.beginArray(0);
+        b.appendLong(10L);
+        b.appendNull();    // element 1 is null → childValidity non-null
+        b.appendLong(30L);
+        b.endArray();
+        b.beginArray(1);
+        b.appendString(bytesRef("x")); // different child kind → triggers rewriteArrayToUnion
+        b.endArray();
+        EscfColumnData data = b.finish(2);
+
+        // After the rewrite the column must be UNION.
+        assertEquals(EscfColumnKind.UNION, data.kind());
+        // Row 0 must come back as a UNION_ARRAY (because the original row had a null element).
+        EscfColumn col = EscfColumn.from(data);
+        assertEquals(SourceValueType.UNION_ARRAY, col.getTypeByte(0));
+        // Row 1 contains only a non-null string element.
+        assertEquals(SourceValueType.UNION_ARRAY, col.getTypeByte(1));
+
+        // Verify row 0 elements via the ArrayReader.
+        ArrayReader r0 = col.getArrayValue(0);
+        assertTrue(r0.next());
+        assertFalse(r0.isNull());
+        assertEquals(SourceValueType.LONG, r0.type());
+        assertEquals(10L, r0.longValue());
+        assertTrue(r0.next());
+        assertTrue(r0.isNull());
+        assertEquals(SourceValueType.NULL, r0.type());
+        assertTrue(r0.next());
+        assertFalse(r0.isNull());
+        assertEquals(SourceValueType.LONG, r0.type());
+        assertEquals(30L, r0.longValue());
+        assertFalse(r0.next());
+    }
+
+    /**
+     * A non-null ARRAY column has {@code hasNullLeafValues() == false}; once a null element is
+     * appended the predicate flips to {@code true}.
+     */
+    public void testHasNullLeafValues() {
+        EscfColumnBuilder b = builder();
+        b.beginArray(0);
+        b.appendLong(1L);
+        b.appendLong(2L);
+        b.endArray();
+        EscfColumnData data = b.finish(1);
+        EscfColumn col = EscfColumn.from(data);
+        assertFalse("dense child → no null leaf values", col.hasNullLeafValues());
+
+        EscfColumnBuilder b2 = builder();
+        b2.beginArray(0);
+        b2.appendLong(1L);
+        b2.appendNull();
+        b2.endArray();
+        EscfColumnData data2 = b2.finish(1);
+        EscfColumn col2 = EscfColumn.from(data2);
+        assertTrue("non-null child validity → has null leaf values", col2.hasNullLeafValues());
+    }
+
     private static EscfColumnBuilder builder() {
         return new EscfColumnBuilder(CollisionPolicy.SPLIT);
     }

@@ -2466,6 +2466,152 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
     // --- test helpers ---
 
+    /**
+     * The stripe fold's identity disjunction, all three arms. Fragments arrive over the wire from data nodes, so the
+     * coordinator cannot assume a path's contributions describe one consistent read: the file may have been modified
+     * between sibling scans, the config may have changed mid-flight, or two branches of one query may resolve
+     * different read configurations. Folding disagreeing fragments would attribute one read's records to another's
+     * measurement. No existing test puts two DISAGREEING fragments in a single contribution list -- the whole-file
+     * rail and the two-reconcile-call tests both miss this arm.
+     */
+    public void testMtimeMismatchInsideFoldBails() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/employees.csv";
+            SchemaCacheKey key = SchemaCacheKey.build(path, 1000L, ".csv", Map.of("format", "csv"));
+            seedSchemaCache(service, key, path, "fp");
+            Map<String, Object> first = stripeFragment(1000L, "fp", 100L, 1024L, 0, 0, 100, true, true, false);
+            Map<String, Object> second = stripeFragment(2000L, "fp", 50L, 1024L, 1, 1024, 1100, true, true, true);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(first, second)));
+            assertStripeFoldCommittedNothing(service, key);
+        }
+    }
+
+    public void testFingerprintMismatchInsideFoldBails() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/employees.csv";
+            SchemaCacheKey key = SchemaCacheKey.build(path, 1000L, ".csv", Map.of("format", "csv"));
+            seedSchemaCache(service, key, path, "fp");
+            Map<String, Object> first = stripeFragment(1000L, "fp", 100L, 1024L, 0, 0, 100, true, true, false);
+            Map<String, Object> second = stripeFragment(1000L, "other", 50L, 1024L, 1, 1024, 1100, true, true, true);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(first, second)));
+            assertStripeFoldCommittedNothing(service, key);
+        }
+    }
+
+    /**
+     * The read-configuration arm. The entry is seeded carrying {@code rcA} deliberately: with an unstamped entry the
+     * entry-level read-configuration gate in applyStripeDelta refuses the delta first and this test passes even with
+     * the fold's own arm disabled -- measured, so the seeding is what makes it discriminate.
+     */
+    public void testReadConfigMismatchInsideFoldBails() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/employees.csv";
+            SchemaCacheKey key = SchemaCacheKey.build(path, 1000L, ".csv", Map.of("format", "csv"));
+            seedSchemaCacheWithReadConfig(service, key, path, "fp", "rcA");
+            Map<String, Object> first = stripeFragment(1000L, "fp", 100L, 1024L, 0, 0, 100, true, true, false);
+            first.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "rcA");
+            Map<String, Object> second = stripeFragment(1000L, "fp", 50L, 1024L, 1, 1024, 1100, true, true, true);
+            second.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "rcB");
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(first, second)));
+            assertStripeFoldCommittedNothing(service, key);
+        }
+    }
+
+    /** Two fragments tiled on different stripe grids describe incomparable coverage: bail rather than guess. */
+    public void testMixedStripeGridsBail() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/employees.csv";
+            SchemaCacheKey key = SchemaCacheKey.build(path, 1000L, ".csv", Map.of("format", "csv"));
+            seedSchemaCache(service, key, path, "fp");
+            Map<String, Object> first = stripeFragment(1000L, "fp", 100L, 1024L, 0, 0, 100, true, true, true);
+            Map<String, Object> second = stripeFragment(1000L, "fp", 200L, 2048L, 0, 0, 200, true, true, true);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(first, second)));
+            assertStripeFoldCommittedNothing(service, key);
+        }
+    }
+
+    /**
+     * A zero-length fragment that does not close its stripe advances the cover walk nowhere. Accepting it would
+     * either loop or, worse, commit a stripe the query never fully observed.
+     */
+    public void testNonAdvancingFragmentBails() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/employees.csv";
+            SchemaCacheKey key = SchemaCacheKey.build(path, 1000L, ".csv", Map.of("format", "csv"));
+            seedSchemaCache(service, key, path, "fp");
+            Map<String, Object> stalled = stripeFragment(1000L, "fp", 7L, 1024L, 0, 0, 0, true, false, false);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(stalled)));
+            assertStripeFoldCommittedNothing(service, key);
+        }
+    }
+
+    /**
+     * A delta carrying no mtime has no freshness key, so nothing could ever invalidate what it commits. The key here
+     * is itself built at mtime -1 (the file's mtime was unknown at resolve): without the guard the freshness match
+     * succeeds (-1 == -1) and the stats stick forever.
+     */
+    public void testDeltaWithoutMtimeIsNotCommitted() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/employees.csv";
+            SchemaCacheKey key = SchemaCacheKey.build(path, -1L, ".csv", Map.of("format", "csv"));
+            seedSchemaCache(service, key, path, "fp");
+            Map<String, Object> fragment = stripeFragment(1000L, "fp", 100L, 1024L, 0, 0, 100, true, true, true);
+            fragment.remove(ExternalStats.MTIME_MILLIS_KEY);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(fragment)));
+            assertStripeFoldCommittedNothing(service, key);
+        }
+    }
+
+    /**
+     * A fragment in the cover chain that carries no row count leaves the stripe's total unknowable: safe-miss.
+     * <p>
+     * Read this one as a contract pin rather than as a proven discriminator. Both guards it walks are
+     * null-propagation, so the mutations that would remove them throw inside the reconcile instead of committing a
+     * wrong stat -- the test goes red either way, which means red does not isolate the guard. The six fold tests
+     * above were each mutation-proven against the specific branch they defend; this one was not, and says so.
+     */
+    public void testStatsLessFragmentInChainSafeMisses() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/employees.csv";
+            SchemaCacheKey key = SchemaCacheKey.build(path, 1000L, ".csv", Map.of("format", "csv"));
+            seedSchemaCache(service, key, path, "fp");
+            Map<String, Object> head = stripeFragment(1000L, "fp", 40L, 1024L, 0, 0, 40, true, false, false);
+            Map<String, Object> tail = stripeFragment(1000L, "fp", 0L, 1024L, 0, 40, 100, false, true, true);
+            tail.remove(SourceStatisticsSerializer.STATS_ROW_COUNT);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(head, tail)));
+            assertStripeFoldCommittedNothing(service, key);
+        }
+    }
+
+    /** Neither the whole-file fold nor any individual stripe may reach the entry. */
+    private static void assertStripeFoldCommittedNothing(ExternalSourceCacheService service, SchemaCacheKey key) throws Exception {
+        SchemaCacheEntry entry = service.getOrComputeSchema(key, k -> { throw new AssertionError("entry should already be cached"); });
+        assertNull("no whole-file fold may commit", entry.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        assertNull("stripe 0 must not commit", entry.safeMetadata().get(ExternalStats.STRIPE_ENTRY_PREFIX + "0"));
+        assertNull("stripe 1 must not commit", entry.safeMetadata().get(ExternalStats.STRIPE_ENTRY_PREFIX + "1"));
+    }
+
+    /** {@link #seedSchemaCache} plus a resolved read-configuration fingerprint on the entry's metadata. */
+    private static void seedSchemaCacheWithReadConfig(
+        ExternalSourceCacheService service,
+        SchemaCacheKey key,
+        String path,
+        String fingerprint,
+        String readConfig
+    ) throws Exception {
+        List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.FALSE, null, false));
+        service.getOrComputeSchema(
+            key,
+            k -> SchemaCacheEntry.from(
+                schema,
+                "csv",
+                path,
+                Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint, ExternalStats.READ_CONFIG_FINGERPRINT_KEY, readConfig),
+                Map.of()
+            )
+        );
+    }
+
     private static void seedSchemaCache(ExternalSourceCacheService service, SchemaCacheKey key, String path, String fingerprint)
         throws Exception {
         List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.FALSE, null, false));

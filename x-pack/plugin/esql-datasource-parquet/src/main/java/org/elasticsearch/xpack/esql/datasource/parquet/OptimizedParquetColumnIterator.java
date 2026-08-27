@@ -89,7 +89,8 @@ import java.util.function.IntConsumer;
  *
  * <p>Both this iterator and the baseline {@code ParquetColumnIterator} share list-column
  * decoding and utility helpers via {@link ParquetColumnDecoding}. The baseline remains
- * the stable fallback when {@code optimized_reader=false} is explicitly set via config.
+ * a test oracle via {@link ParquetFormatReader#withBaselinePath()} and the package-private
+ * boolean constructor, not a dataset {@code optimized_reader=false} setting.
  *
  * <p><b>Memory:</b> Prefetched bytes live on the heap and are charged to the REQUEST circuit
  * breaker via {@link BlockFactory#breaker()}; the charge is released when the chunks'

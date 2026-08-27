@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.lz4.Lz4DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDataSourcePlugin;
@@ -83,6 +84,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
             GzipDataSourcePlugin.class,
             Bzip2DataSourcePlugin.class,
             ZstdDataSourcePlugin.class,
+            Lz4DataSourcePlugin.class,
             ParquetDataSourcePlugin.class
         );
     }
@@ -174,7 +176,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
      *   <li><b>bzip2</b> ({@code SPLITTABLE_OR_INDEXED_COMPRESSED}): falls back to single-threaded
      *       {@code CompressionDelegatingFormatReader.read()}. The producer thread runs the full format parse
      *       directly, so both {@code read_nanos} and {@code read_cpu_nanos} are populated.</li>
-     *   <li><b>gzip / zstd</b> ({@code STREAM_ONLY_COMPRESSED}): routes through
+     *   <li><b>gzip / zstd / lz4</b> ({@code STREAM_ONLY_COMPRESSED}): routes through
      *       {@link org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinator}. The producer
      *       thread only polls the result queue, so {@code read_nanos} is near-zero; {@code read_cpu_nanos}
      *       captures the real CPU via the coordinator's background-thread accumulator.</li>
@@ -183,9 +185,10 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
     public void testMetricsCompression() throws IOException {
         // bzip2: SPLITTABLE_OR_INDEXED_COMPRESSED — producer thread does the full parse, so read_nanos is populated
         assertCompressedDataset("bz2", AbstractExternalDataSourceIT::writeBzip2, true);
-        // gzip/zstd: STREAM_ONLY_COMPRESSED — producer only polls the streaming coordinator queue, read_nanos is near-zero
+        // gzip/zstd/lz4: STREAM_ONLY_COMPRESSED — producer only polls the streaming coordinator queue, read_nanos is near-zero
         assertCompressedDataset("gz", AbstractExternalDataSourceIT::writeGzipped, false);
         assertCompressedDataset("zst", AbstractExternalDataSourceIT::writeZstd, false);
+        assertCompressedDataset("lz4", AbstractExternalDataSourceIT::writeLz4, false);
     }
 
     /**

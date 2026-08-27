@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
@@ -295,11 +296,7 @@ public final class DatafeedManager {
             final boolean hasCpsCredential = hasCallerCloudCredential(credentialTransitions, threadPool, request.getCloudCredential());
 
             BiConsumer<DatafeedConfig, ActionListener<Boolean>> wrappedValidator = (updatedConfig, validatorListener) -> {
-                // Validate project_routing requires CPS to be enabled in the environment
-                if (updatedConfig.getProjectRouting() != null && DatafeedConfig.isCPSAllowed(crossProjectModeDecider) == false) {
-                    validatorListener.onFailure(DatafeedConfig.projectRoutingRequiresCpsException());
-                    return;
-                }
+                warnIfProjectRoutingIsInert(request.getUpdate().getProjectRouting());
                 jobConfigProvider.validateDatafeedJob(updatedConfig, validatorListener);
             };
 
@@ -594,12 +591,7 @@ public final class DatafeedManager {
         ActionListener<PutDatafeedAction.Response> listener
     ) {
         DatafeedConfig.validateAggregations(request.getDatafeed().getParsedAggregations(xContentRegistry));
-
-        // Validate project_routing requires CPS to be enabled in the environment.
-        if (request.getDatafeed().getProjectRouting() != null && DatafeedConfig.isCPSAllowed(crossProjectModeDecider) == false) {
-            listener.onFailure(DatafeedConfig.projectRoutingRequiresCpsException());
-            return;
-        }
+        warnIfProjectRoutingIsInert(request.getDatafeed().getProjectRouting());
 
         CheckedConsumer<Boolean, Exception> mappingsUpdated = ok -> datafeedConfigProvider.putDatafeedConfig(
             request.getDatafeed(),
@@ -630,6 +622,12 @@ public final class DatafeedManager {
         );
 
         checkJobDoesNotHaveADatafeed(request.getDatafeed().getJobId(), ActionListener.wrap(jobOk, listener::onFailure));
+    }
+
+    private void warnIfProjectRoutingIsInert(@Nullable String projectRouting) {
+        if (projectRouting != null && DatafeedConfig.isCPSAllowed(crossProjectModeDecider) == false) {
+            HeaderWarning.addWarning(DatafeedConfig.PROJECT_ROUTING_INERT_WITHOUT_CPS_MESSAGE);
+        }
     }
 
     private void checkJobDoesNotHaveADatafeed(String jobId, ActionListener<Boolean> listener) {

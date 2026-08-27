@@ -14,7 +14,6 @@ import org.elasticsearch.logging.Logger;
 
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
-import java.util.Optional;
 import java.util.OptionalLong;
 
 class NoopNativeAccess implements NativeAccess {
@@ -84,8 +83,4 @@ class NoopNativeAccess implements NativeAccess {
         return null;
     }
 
-    @Override
-    public Optional<ParquetRsFunctions> getParquetRsFunctions() {
-        return Optional.empty();
-    }
 }

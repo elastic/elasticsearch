@@ -792,6 +792,7 @@ a:integer | a1:integer
 
 mvSliceKeywordField
 required_capability: mv_sort
+skip_columnar: MV_SLICE uses positional indexing; columnar mode returns MV values in source order rather than sorted doc-values order
 request_stored: skip
 
 FROM employees
@@ -816,6 +817,7 @@ a:integer    | a1:integer | a2:integer | a3:integer
 
 mvSliceEmpInt
 required_capability: mv_sort
+skip_columnar: MV_SLICE uses positional indexing; columnar mode returns MV values in source order rather than sorted doc-values order
 request_stored: skip
 
 from employees
@@ -834,6 +836,7 @@ emp_no:integer | salary_change.int:integer | a1:integer
 
 mvSliceEmpIntSingle
 required_capability: mv_sort
+skip_columnar: MV_SLICE uses positional indexing; columnar mode returns MV values in source order rather than sorted doc-values order
 request_stored: skip
 
 from employees
@@ -852,6 +855,7 @@ emp_no:integer | salary_change.int:integer | a1:integer
 
 mvSliceEmpIntEndOutOfBound
 required_capability: mv_sort
+skip_columnar: MV_SLICE uses positional indexing; columnar mode returns MV values in source order rather than sorted doc-values order
 request_stored: skip
 
 from employees
@@ -870,6 +874,7 @@ emp_no:integer | salary_change.int:integer | a1:integer
 
 mvSliceEmpIntOutOfBound
 required_capability: mv_sort
+skip_columnar: MV_SLICE uses positional indexing; columnar mode returns MV values in source order rather than sorted doc-values order
 request_stored: skip
 
 from employees
@@ -888,6 +893,7 @@ emp_no:integer | salary_change.int:integer | a1:integer
 
 mvSliceEmpIntStartOutOfBoundNegative
 required_capability: mv_sort
+skip_columnar: MV_SLICE uses positional indexing; columnar mode returns MV values in source order rather than sorted doc-values order
 request_stored: skip
 
 from employees
@@ -906,6 +912,7 @@ emp_no:integer | salary_change.int:integer | a1:integer
 
 mvSliceEmpIntOutOfBoundNegative
 required_capability: mv_sort
+skip_columnar: MV_SLICE uses positional indexing; columnar mode returns MV values in source order rather than sorted doc-values order
 request_stored: skip
 
 from employees
@@ -924,6 +931,7 @@ emp_no:integer | salary_change.int:integer | a1:integer
 
 mvSliceEmpLong
 required_capability: mv_sort
+skip_columnar: MV_SLICE uses positional indexing; columnar mode returns MV values in source order rather than sorted doc-values order
 request_stored: skip
 
 from employees

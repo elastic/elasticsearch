@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -73,6 +74,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 /**
  * Default Parquet column iterator with vectorized decoding and I/O prefetch.
@@ -126,6 +128,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private final Consumer<String> warningSink;
     /** The read's error policy; strict ({@code fail_fast}) makes {@link #coercionWarnings()} return {@code null}. */
     private final ErrorPolicy errorPolicy;
+    /**
+     * Per-batch row-drop accumulator for {@code skip_row} mode; {@code null} for other modes.
+     * Initialized once in the constructor; {@link ColumnarRowDropHelper#beginBatch} is called
+     * before each decoded batch in {@link #nextStandard}.
+     */
+    @Nullable
+    private final ColumnarRowDropHelper rowDropHelper;
     private final ColumnInfo[] columnInfos;
     private final PreloadedRowGroupMetadata preloadedMetadata;
     private final StorageObject storageObject;
@@ -251,12 +260,26 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private PrefetchedPageReadStore rowGroup;
     private ColumnReader[] columnReaders;
     private PageColumnReader[] pageColumnReaders;
+    /** Mirrors the sink installed on {@link #pageColumnReaders} by {@link #applyDropHelperSinks}; passed to list-column reads. */
+    @Nullable
+    private IntConsumer listColumnSink;
     private long rowsRemainingInGroup;
     private boolean exhausted = false;
     private int rowGroupOrdinal = -1;
     private int pageBatchIndexInRowGroup = 0;
 
     private final boolean lateMaterialization;
+    /**
+     * Cached at construction: remaining row budget with no record filter, no ColumnIndex
+     * {@link RowRanges}, no late-materialization, no dynamic-threshold TopN, and no
+     * {@link #rowDropHelper}. The other inputs are final; {@link #rowBudget} only walks down toward 0
+     * and never back to {@link FormatReader#NO_LIMIT}, so this never flips for the iterator's lifetime.
+     * <p>
+     * The {@link #rowDropHelper} term is what keeps a {@code skip_row} read off the prefix clip: the clip
+     * sizes its window in source rows, and a dropped row makes the batch emit fewer than it decoded, so a
+     * window sized to the exact budget can come up short with the make-up rows never read.
+     */
+    private final boolean unfilteredLimit;
     /**
      * When {@code true}, switches the prefetch + decode pipeline to a per-row-group two-phase
      * I/O flow: Phase 1 fetches only predicate column chunks, the iterator fully decodes them
@@ -418,6 +441,16 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         this.pushedExpressions = pushedExpressions;
         this.isPredicateColumn = classifyPredicateColumns(attributes, columnInfos, pushedExpressions);
         this.lateMaterialization = pushedExpressions != null;
+        // Built before unfilteredLimit below, which has to know whether this read can drop rows.
+        this.rowDropHelper = ColumnarRowDropHelper.forPolicy(errorPolicy, fileLocation);
+        this.unfilteredLimit = ParquetFormatReader.unfilteredLimit(
+            rowBudget,
+            survivingRowGroups != null,
+            allRowRanges != null,
+            lateMaterialization,
+            dynamicThreshold != null,
+            rowDropHelper != null
+        );
         this.survivorMask = lateMaterialization ? new WordMask() : null;
         this.dictionaryBitmaps = lateMaterialization ? new IdentityHashMap<>() : null;
         // Caller supplies null when late materialization is off; defensively also drop it here so
@@ -456,6 +489,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         if (dynamicThreshold != null && dynamicThreshold.noFurtherCandidates()) {
             return;
         }
+        if (budgetExhausted()) {
+            return;
+        }
         int startOrdinal = nextSurvivingRowGroupOrdinal(0);
         fillPrefetchQueue(startOrdinal);
     }
@@ -477,6 +513,12 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         Set<String> phaseColumns = useTwoPhase ? predicateColumnPaths : projectedColumnPaths;
         int nextOrdinal = fromOrdinal;
         while (pendingPrefetches.size() < prefetchDepth && nextOrdinal < rowGroups.size()) {
+            if (budgetExhausted()) {
+                break;
+            }
+            if (limitPrefetchCovered()) {
+                break;
+            }
             if (dynamicThreshold != null && dynamicThreshold.noFurtherCandidates()) {
                 break;
             }
@@ -506,6 +548,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     // applied to the predicate-column prefetch here.
                     nextRowRanges = null;
                 }
+                RowRanges limitRanges = limitPrefixRowRanges(nextOrdinal, nextBlock, (long) rowBudget - limitCoveredRows());
+                if (limitRanges != null) {
+                    nextRowRanges = nextRowRanges == null ? limitRanges : nextRowRanges.intersect(limitRanges);
+                }
                 CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future;
                 if (nextRowRanges != null) {
                     future = ColumnChunkPrefetcher.prefetchAsync(
@@ -528,6 +574,78 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             }
             nextOrdinal = nextSurvivingRowGroupOrdinal(nextOrdinal + 1);
         }
+    }
+
+    private boolean budgetExhausted() {
+        return rowBudget != FormatReader.NO_LIMIT && rowBudget <= 0;
+    }
+
+    /**
+     * Source rows already open or queued. Used to stop later-group prefetch and to prefix-clip
+     * a later group's pages to the remaining need rather than the original {@link #rowBudget}.
+     */
+    private long limitCoveredRows() {
+        long rows = 0;
+        if (rowGroupOrdinal >= 0) {
+            rows += rowsRemainingInGroup;
+        }
+        for (PendingPrefetch pending : pendingPrefetches) {
+            rows += reader.getRowGroups().get(pending.ordinal()).getRowCount();
+        }
+        return rows;
+    }
+
+    /**
+     * True when already-open plus queued row groups contain at least {@link #rowBudget} rows, so
+     * later groups would never be read. Filtered / late-mat LIMIT must not use this: a large group
+     * may yield zero survivors.
+     */
+    private boolean limitPrefetchCovered() {
+        if (unfilteredLimit == false) {
+            return false;
+        }
+        return limitCoveredRows() >= rowBudget;
+    }
+
+    /**
+     * Prefix {@code [0, min(remainingNeed, rgRows))} when every projected column has an OffsetIndex
+     * so filtered prefetch fetches dictionary + overlapping pages instead of the full chunk.
+     * {@code remainingNeed} is the rows this group can still contribute ({@link #rowBudget} minus
+     * already-open and already-queued groups at prefetch time; remaining {@link #rowBudget} at
+     * decode time). Missing index on any projected column → {@code null} (full chunk):
+     * {@link PrefetchedRowGroupBuilder} falls back to a sequential full-chunk read for index-less
+     * columns, while {@code rowsRemainingInGroup} would still become {@code selectedRowCount()}
+     * of the clipped ranges. Mixed files are rare enough that skipping the clip is safer.
+     * A prefix that covers the whole group is also {@code null}: clipping would be a no-op.
+     */
+    private RowRanges limitPrefixRowRanges(int ordinal, BlockMetaData block, long remainingNeed) {
+        if (unfilteredLimit == false) {
+            return null;
+        }
+        if (hasAllOffsetIndexes(ordinal, projectedColumnPaths) == false) {
+            return null;
+        }
+        long rgRows = block.getRowCount();
+        long end = Math.min(remainingNeed, rgRows);
+        if (end <= 0) {
+            return RowRanges.of(0, 0, rgRows);
+        }
+        if (end >= rgRows) {
+            return null;
+        }
+        return RowRanges.of(0, end, rgRows);
+    }
+
+    private boolean hasAllOffsetIndexes(int ordinal, Set<String> columnPaths) {
+        if (preloadedMetadata == null || columnPaths == null || columnPaths.isEmpty()) {
+            return false;
+        }
+        for (String path : columnPaths) {
+            if (preloadedMetadata.getOffsetIndex(ordinal, path) == null) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private boolean rowGroupDominatedByThreshold(BlockMetaData block) {
@@ -751,7 +869,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      * Computes the initial (floor) prefetch depth from the projected byte footprint of the
      * first row group. This value serves as the floor for the adaptive depth — the runtime
      * stall detector may increase depth up to {@link #MAX_PREFETCH_DEPTH} but never below
-     * this byte-based result.
+     * this byte-based result. {@link #limitPrefetchCovered()} still stops the queue once open
+     * plus queued groups cover an unfiltered {@code LIMIT} budget, so extra groups are not
+     * fetched even when this floor is greater than 1.
      */
     private static int computePrefetchDepth(List<BlockMetaData> rowGroups, Set<String> projectedColumnPaths) {
         if (rowGroups.isEmpty()) {
@@ -979,8 +1099,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         if (exhausted) {
             return false;
         }
-        if (rowBudget != FormatReader.NO_LIMIT && rowBudget <= 0) {
+        if (budgetExhausted()) {
             exhausted = true;
+            releaseHeldIo();
             return false;
         }
         // Under two-phase, drain leading fully-filtered batches before deciding: the source-row
@@ -1014,7 +1135,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         }
         if (dynamicThreshold != null && dynamicThreshold.noFurtherCandidates()) {
             exhausted = true;
-            cancelPendingPrefetch();
+            releaseHeldIo();
             return false;
         }
         try {
@@ -1088,8 +1209,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 int nextOrdinal = nextSurvivingRowGroupOrdinal(rowGroupOrdinal + 1);
                 if (nextOrdinal >= reader.getRowGroups().size()) {
                     exhausted = true;
-                    cancelPendingPrefetch();
-                    releaseCurrentReservation();
+                    releaseHeldIo();
                     logIteratorDiagnostics();
                     return false;
                 }
@@ -1280,6 +1400,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         if (thresholdRanges != null) {
             ranges = ranges == null ? thresholdRanges : ranges.intersect(thresholdRanges);
         }
+        RowRanges limitRanges = limitPrefixRowRanges(rowGroupOrdinal, block, rowBudget);
+        if (limitRanges != null) {
+            ranges = ranges == null ? limitRanges : ranges.intersect(limitRanges);
+        }
         if (ranges == null) {
             return null;
         }
@@ -1352,6 +1476,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         long rowsConsumed = 0;
         try {
             while (rowsConsumed < rowGroupRowCount) {
+                if (rowBudget != FormatReader.NO_LIMIT && totalSurvivors >= rowBudget) {
+                    // LIMIT can stop Phase-1 without decoding the tail. sourceRowsPerBatch then
+                    // sums to less than rowGroupRowCount; rowsRemainingInGroup is still set to the
+                    // full group below so per-batch bookkeeping stays in source-row units.
+                    // hasNext() zeroes it when hasMoreBatches() is false after the last emitted batch.
+                    break;
+                }
                 int rowsToRead = (int) Math.min(batchSize, rowGroupRowCount - rowsConsumed);
                 BatchPredicateResult batch = decodePredicateBatch(rowsToRead, (int) rowsConsumed, globalSurvivors);
                 predicateBatches.add(batch.compactedPredicateBlocks);
@@ -1403,7 +1534,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             }
             return false;
         }
-        rowsEliminatedByLateMaterialization += (rowGroupRowCount - totalSurvivors);
+        rowsEliminatedByLateMaterialization += (rowsConsumed - totalSurvivors);
 
         RowRanges survivorRanges = WordMaskRowRangesConverter.fromWordMask(globalSurvivors, rowGroupRowCount);
         // Phase-2 fetch path:
@@ -1640,6 +1771,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      * Initializes {@link #pageColumnReaders} for predicate columns only. Projection-only columns
      * are intentionally left {@code null}; the iterator routes their decode through
      * {@link #initProjectionColumnReaders} once Phase 2 has materialized.
+     * <p>
+     * The {@link #rowDropHelper} sink is intentionally <em>not</em> armed here: Phase-1 decode
+     * runs inside {@link #prepareTwoPhaseRowGroup} before {@link ColumnarRowDropHelper#beginBatch}
+     * has been called, so forwarding failures would NPE on the {@code failed[]} array.
+     * Skip-row row-dropping is a known limitation of the two-phase path.
      */
     private void initPredicateColumnReaders() {
         closePageColumnReaders();
@@ -1655,12 +1791,18 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], null, coercionWarnings());
             }
         }
+        // Sink intentionally not armed: see Javadoc above.
     }
 
     /**
      * Initializes {@link #pageColumnReaders} for projection-only columns under the projection
      * {@link PrefetchedPageReadStore}. Predicate columns stay {@code null} because their decoded
      * blocks are already cached inside {@link #twoPhase}.
+     * <p>
+     * The {@link #rowDropHelper} sink is intentionally <em>not</em> armed here: the two-phase
+     * emission path ({@link #nextTwoPhaseBatch}) does not call
+     * {@link ColumnarRowDropHelper#filterBlocks}, so arming the sink would accumulate failure marks
+     * that are never acted upon. Skip-row row-dropping is a known limitation of the two-phase path.
      */
     private void initProjectionColumnReaders(RowRanges survivorRowRanges) {
         closePageColumnReaders();
@@ -1674,6 +1816,41 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 ColumnDescriptor desc = columnInfos[i].descriptor();
                 PageReader pr = rowGroup.getPageReader(desc);
                 pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], survivorRowRanges, coercionWarnings());
+            }
+        }
+        // Sink intentionally not armed: see Javadoc above.
+    }
+
+    /**
+     * Propagates the {@link #rowDropHelper} sink to every non-null {@link #pageColumnReaders} entry and to
+     * {@link #listColumnSink}.
+     * <p>
+     * Must be called by any method that rebuilds {@link #columnReaders}, because {@link #listColumnSink} is a field
+     * rather than a per-call argument and would otherwise carry over from the previous row group. Today that is
+     * {@link #initColumnReaders} alone. The other two builders — {@link #initPredicateColumnReaders} and
+     * {@link #initProjectionColumnReaders} — deliberately do <em>not</em> call it and are safe without it on both
+     * counts: a freshly constructed {@link PageColumnReader} defaults to a {@code null} sink, and both null
+     * {@code columnReaders}, so the {@link #listColumnSink} branch of {@link #readColumnBlock} cannot be reached
+     * from them regardless of what the field holds.
+     *
+     * @param arm when {@code true}, installs {@link ColumnarRowDropHelper#markFailed} as the sink
+     *            (only meaningful for {@code skip_row} mode, where the standard path will apply
+     *            {@link ColumnarRowDropHelper#filterBlocks} after the read); when {@code false},
+     *            installs a {@code null} sink so column readers do not forward failures to the helper.
+     *            Pass {@code false} for paths (late-materialization, two-phase) where
+     *            {@code filterBlocks} is never called — arming the sink without applying the filter
+     *            would leave {@code failed[]} in a stale state and risk an NPE if
+     *            {@link ColumnarRowDropHelper#beginBatch} has not yet been called.
+     */
+    private void applyDropHelperSinks(boolean arm) {
+        IntConsumer sink = (arm && rowDropHelper != null) ? rowDropHelper::markFailed : null;
+        listColumnSink = sink;
+        if (pageColumnReaders == null) {
+            return;
+        }
+        for (PageColumnReader r : pageColumnReaders) {
+            if (r != null) {
+                r.setFailedPositionSink(sink);
             }
         }
     }
@@ -1693,6 +1870,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], currentRowRanges, coercionWarnings());
             }
         }
+        // Arm the sink only when this batch will be processed by nextStandard, which is the only
+        // path that calls filterBlocks. On the late-materialization path (lateMaterialization &&
+        // !currentRowGroupTriviallyPasses) nextWithLateMaterialization handles filtering and never
+        // invokes filterBlocks, so the sink must stay disarmed to avoid stale failed[] state.
+        applyDropHelperSinks(!lateMaterialization || currentRowGroupTriviallyPasses);
         boolean hasListColumns = false;
         for (int i = 0; i < columnInfos.length; i++) {
             if (columnInfos[i] != null && columnInfos[i].isRowPosition() == false && columnInfos[i].maxRepLevel() > 0) {
@@ -1782,8 +1964,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      * Adjusts {@link #prefetchDepth} based on whether the consumed prefetch future was already
      * complete. A stall ({@code wasReady == false}) means the consumer outpaced the producer —
      * grow depth by {@link #PREFETCH_DEPTH_GROWTH} unless the circuit breaker is under pressure.
-     * Sustained no-stalls mean the queue is deep enough — shrink by 1 after
-     * {@link #SHRINK_AFTER_NO_STALLS} consecutive hits.
+     * Unfiltered LIMIT still grows: {@link #limitPrefetchCovered()} is what stops extra groups
+     * once the remaining budget is queued. Sustained no-stalls mean the queue is deep enough —
+     * shrink by 1 after {@link #SHRINK_AFTER_NO_STALLS} consecutive hits.
      */
     // Package-private for testing
     void adaptPrefetchDepth(boolean wasReady) {
@@ -1896,7 +2079,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             pageBatchIndexInRowGroup++;
             rowsRemainingInGroup -= rowsToRead;
             if (rowBudget != FormatReader.NO_LIMIT) {
-                rowBudget -= useLateMaterialization ? result.getPositionCount() : rowsToRead;
+                // Decrement by emitted (post-drop) rows so that skip_row failures on the standard
+                // path don't eat from the LIMIT budget — the downstream sees only surviving rows.
+                rowBudget -= result.getPositionCount();
             }
             return result;
         } finally {
@@ -2131,6 +2316,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private Page nextStandard(int rowsToRead, int firstRowOfBatchInRG) {
         Block[] blocks = new Block[attributes.size()];
         int producedRows = -1;
+        if (rowDropHelper != null) {
+            rowDropHelper.beginBatch(rowsToRead);
+        }
         try {
             for (int col = 0; col < columnInfos.length; col++) {
                 ColumnInfo info = columnInfos[col];
@@ -2162,6 +2350,17 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             if (producedRows < 0) {
                 producedRows = rowsToRead;
             }
+            if (rowDropHelper != null && rowDropHelper.hasFailures()) {
+                // Compact all blocks to exclude failed rows. filterBlocks closes each original
+                // block and replaces it with a filtered copy (or a 0-position constant-null
+                // block when all rows fail). The _rowPosition block, if present, is filtered
+                // together with the data blocks: failed rows disappear from all columns at once.
+                // Derived from producedRows, not rowsToRead: the two agree today (rowsRemainingInGroup
+                // already counts only the rows column-index RowRanges selected), but producedRows is
+                // what the blocks above actually carry, and it is what the null-fill below must match.
+                blocks = rowDropHelper.filterBlocks(blocks, blockFactory);
+                producedRows -= rowDropHelper.failedCount();
+            }
             for (int col = 0; col < columnInfos.length; col++) {
                 if (blocks[col] == null) {
                     blocks[col] = blockFactory.newConstantNullBlock(producedRows);
@@ -2183,7 +2382,19 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     + "]"
             );
         }
-        counters.addRowsEmitted(rowsToRead);
+        // Budget accounting sits outside the try on purpose: checkBudget throws ParsingException to mark a
+        // client-data problem (HTTP 400), and routing it through ParquetReadFailures.wrap above would put it
+        // at the mercy of that mapping rather than stating the classification here. Mirrors OrcFormatReader.
+        if (rowDropHelper != null) {
+            rowDropHelper.addToTotals(rowsToRead, rowDropHelper.failedCount());
+            try {
+                rowDropHelper.checkBudget(coercionWarnings());
+            } catch (Exception e) {
+                Releasables.closeExpectNoException(blocks);
+                throw e;
+            }
+        }
+        counters.addRowsEmitted(producedRows);
         return new Page(blocks);
     }
 
@@ -2387,7 +2598,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 rowsToRead,
                 blockFactory,
                 attributes.get(colIndex).name(),
-                coercionWarnings()
+                coercionWarnings(),
+                listColumnSink
             );
         }
         ParquetColumnDecoding.skipValues(cr, rowsToRead);
@@ -2407,11 +2619,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             return null;
         }
         if (coercionWarnings == null) {
+            String outcome = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW ? "their entire row is dropped" : "they are returned as null";
             coercionWarnings = new SkipWarnings(
-                "Parquet file ["
-                    + fileLocation
-                    + "] has values that could not be coerced to the declared column type; "
-                    + "they are returned as null",
+                "Parquet file [" + fileLocation + "] has values that could not be coerced to the declared column type; " + outcome,
                 warningSink
             );
         }
@@ -2456,23 +2666,61 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
     @Override
     public void close() throws IOException {
-        cancelPendingPrefetch();
+        try {
+            releaseHeldIo(true);
+        } finally {
+            reader.close();
+        }
+    }
+
+    /**
+     * Drops the current row-group store, cancels queued prefetches, and releases breaker-accounted
+     * chunk buffers. Used when the row budget is exhausted (before {@link #close()}), at EOF, and
+     * from {@link #close()} itself. Idempotent.
+     *
+     * <p>A failing {@code rowGroup.close()} is logged and swallowed on the {@code hasNext} / EOF
+     * path so LIMIT exhaust cannot fail the query. {@link #close()} rethrows it: a failed store
+     * close usually means leaked breaker bytes.
+     */
+    private void releaseHeldIo() {
+        try {
+            releaseHeldIo(false);
+        } catch (IOException e) {
+            logger.warn("Failed to release held I/O for [{}] in [{}]", rowGroupOrdinal, fileLocation, e);
+        }
+    }
+
+    private void releaseHeldIo(boolean propagateRowGroupClose) throws IOException {
+        Exception rowGroupCloseException = null;
         try {
             closeTwoPhaseState();
             closePageColumnReaders();
             if (rowGroup != null) {
-                rowGroup.close();
+                try {
+                    rowGroup.close();
+                } catch (Exception e) {
+                    if (propagateRowGroupClose) {
+                        rowGroupCloseException = e;
+                    } else {
+                        logger.warn("Failed to close row-group store for [{}] in [{}]", rowGroupOrdinal, fileLocation, e);
+                    }
+                }
                 rowGroup = null;
             }
         } finally {
+            cancelPendingPrefetch();
             releaseCurrentReservation();
-            try {
-                if (preloadedMetadata != null) {
-                    preloadedMetadata.close();
-                }
-            } finally {
-                reader.close();
+            if (preloadedMetadata != null) {
+                // Drop OffsetIndex / ColumnIndex buffers once this iterator will not open another
+                // row group (LIMIT exhaust, EOF, TopN early-stop, close).
+                preloadedMetadata.close();
             }
+        }
+        if (rowGroupCloseException != null) {
+            if (rowGroupCloseException instanceof IOException ioe) {
+                throw ioe;
+            }
+            throw new IOException(rowGroupCloseException);
         }
     }
 

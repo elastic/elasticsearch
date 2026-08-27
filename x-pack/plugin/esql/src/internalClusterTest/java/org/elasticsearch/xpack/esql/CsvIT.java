@@ -214,6 +214,17 @@ public class CsvIT extends ESTestCase {
          * Called once after the index for {@code dataset} has been fully populated.
          */
         default void afterIndexLoaded(CsvTestsDataLoader.TestDataset dataset, Client client) throws IOException {}
+
+        /**
+         * When {@code true}, multi-value fields in the result rows are compared as unordered
+         * sets rather than ordered lists. Use this for index modes (e.g. columnar) where the
+         * storage layer returns multi-valued fields in source insertion order rather than the
+         * doc-values order that the standard mode uses, causing spurious ordering differences
+         * that are not behavioural regressions. The default is {@code false} (ordered comparison).
+         */
+        default boolean ignoreValueOrder() {
+            return false;
+        }
     }
 
     public static final IndexLoadStrategy IDENTITY_INDEX_LOAD_STRATEGY = new IndexLoadStrategy() {
@@ -423,14 +434,15 @@ public class CsvIT extends ESTestCase {
                 Map.of()
             );
 
-            CsvAssert.assertMetadata(expected, actual.columnNames(), actual.columnTypes(), logger);
+            var assertionLogger = logResults() ? logger : null;
+            CsvAssert.assertMetadata(expected, actual.columnNames(), actual.columnTypes(), assertionLogger);
             CsvAssert.assertDataWithValueConverter(
                 expected,
                 actual.values(),
                 testCase.ignoreOrder,
+                indexLoadStrategy.ignoreValueOrder(),
                 false,
-                false,
-                logResults() ? logger : null
+                assertionLogger
             );
             var warnings = listener.warnings.stream()
                 .map(w -> HeaderWarning.extractWarningValueFromWarningHeader(w, false))

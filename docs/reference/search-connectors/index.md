@@ -80,7 +80,7 @@ The columns provide specific information about each connector:
 | [Sharepoint Online](/reference/search-connectors/es-connectors-sharepoint-online.md)| **GA** | 8.9+ | 8.9+ | 8.9+ | 8.9+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/sharepoint/sharepoint_online)                       |
 | [Sharepoint Server](/reference/search-connectors/es-connectors-sharepoint.md)| **Beta** | - | 8.11+ | 8.13+ | 8.15+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/sharepoint/sharepoint_server)                       |
 | [Slack](/reference/search-connectors/es-connectors-slack.md)| **Preview** | - | - | - | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/slack)                                   |
-| [Teams](/reference/search-connectors/es-connectors-teams.md)| **Preview** | - | - | 8.13+ | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/microsoft_teams)                                   |
+| [Teams](/reference/search-connectors/es-connectors-teams.md)| **Preview** | - | 9.6+ | - | 9.6+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/microsoft_teams)                                   |
 | [Zoom](/reference/search-connectors/es-connectors-zoom.md)| **Preview** | - | 8.11+ | 8.13+ | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/zoom)                                    |
 
 :::{tip}

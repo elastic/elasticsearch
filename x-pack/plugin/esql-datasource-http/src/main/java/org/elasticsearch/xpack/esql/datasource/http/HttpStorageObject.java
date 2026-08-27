@@ -98,7 +98,10 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
             return sendRequest(this::buildGetRequest, HttpResponse.BodyHandlers.ofInputStream(), response -> {
                 int statusCode = response.statusCode();
                 if (statusCode != HttpStatus.SC_OK) {
-                    throw throwReadFailure("Failed to read object from", statusCode, readErrorBody(response.body()));
+                    long retryAfterMs = ExternalUnavailableException.parseRetryAfterMs(
+                        response.headers().firstValue("retry-after").orElse(null)
+                    );
+                    throw throwReadFailure("Failed to read object from", statusCode, readErrorBody(response.body()), retryAfterMs);
                 }
                 OptionalLong contentLength = response.headers().firstValueAsLong(HttpHeaders.CONTENT_LENGTH);
                 if (contentLength.isPresent()) {
@@ -119,15 +122,17 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      * (5xx/429) becomes an {@link ExternalUnavailableException} (503 — the read may succeed on retry);
      * any other status becomes an {@link IOException}, which the external source operator classifies as
      * a client-class 400. {@code detail} is an optional truncated error-body snippet appended for triage
-     * (a raw status alone is opaque; stores typically return a descriptive body). Returns (never throws)
-     * so both the synchronous and async read paths can route it.
+     * (a raw status alone is opaque; stores typically return a descriptive body). {@code retryAfterMs}
+     * is the parsed {@code Retry-After} hint (0 when absent). Returns (never throws) so both the
+     * synchronous and async read paths can route it.
      */
-    private Exception mapReadFailure(String context, int statusCode, String detail) {
+    private Exception mapReadFailure(String context, int statusCode, String detail, long retryAfterMs) {
         String suffix = (detail == null || detail.isEmpty()) ? "" : ", body: " + detail;
         if (ExternalUnavailableException.isRetryableStatus(statusCode)) {
             boolean throttling = ExternalUnavailableException.isThrottlingStatus(statusCode);
             return new ExternalUnavailableException(
                 throttling,
+                throttling ? retryAfterMs : 0L,
                 "HTTP store unavailable reading [{}] (HTTP {}){}",
                 path,
                 statusCode,
@@ -141,8 +146,8 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      * Synchronous-path bridge for {@link #mapReadFailure}: rethrows the mapped exception. The return
      * type lets callers write {@code throw throwReadFailure(...)} so the compiler sees an exit.
      */
-    private RuntimeException throwReadFailure(String context, int statusCode, String detail) throws IOException {
-        Exception mapped = mapReadFailure(context, statusCode, detail);
+    private RuntimeException throwReadFailure(String context, int statusCode, String detail, long retryAfterMs) throws IOException {
+        Exception mapped = mapReadFailure(context, statusCode, detail, retryAfterMs);
         if (mapped instanceof RuntimeException re) {
             throw re;
         }
@@ -212,7 +217,10 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                     // contract for an open-ended read past the end is an empty stream.
                     return InputStream.nullInputStream();
                 } else {
-                    throw throwReadFailure("Range request failed for", statusCode, readErrorBody(response.body()));
+                    long retryAfterMs = ExternalUnavailableException.parseRetryAfterMs(
+                        response.headers().firstValue("retry-after").orElse(null)
+                    );
+                    throw throwReadFailure("Range request failed for", statusCode, readErrorBody(response.body()), retryAfterMs);
                 }
             });
         } finally {
@@ -316,7 +324,10 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
                     // Discarding subscriber returned no allocator-backed memory but close()-ing is a no-op safe call.
                     response.body().close();
-                    listener.onFailure(new IOException("Range request failed for " + path + ", HTTP status: " + statusCode));
+                    long retryAfterMs = ExternalUnavailableException.parseRetryAfterMs(
+                        response.headers().firstValue("retry-after").orElse(null)
+                    );
+                    listener.onFailure(mapReadFailure("Range request failed for", statusCode, null, retryAfterMs));
                 }
             }
         );

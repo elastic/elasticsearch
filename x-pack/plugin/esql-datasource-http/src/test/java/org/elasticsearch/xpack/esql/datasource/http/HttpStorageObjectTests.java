@@ -281,6 +281,57 @@ public class HttpStorageObjectTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    public void testThrottleResponsePropagatesRetryAfterHint() throws Exception {
+        HttpResponse<java.io.InputStream> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(429);
+        when(mockResponse.headers()).thenReturn(HttpHeaders.of(java.util.Map.of("retry-after", java.util.List.of("5")), (a, b) -> true));
+        when(mockResponse.body()).thenReturn(new ByteArrayInputStream(new byte[0]));
+
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(mockResponse).when(mockClient).send(any(), any());
+
+        StoragePath path = StoragePath.of("https://example.com/file.parquet");
+        HttpStorageObject obj = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+
+        org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException eue = expectThrows(
+            org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException.class,
+            () -> obj.newStream()
+        );
+        assertTrue("exception must be flagged as throttling", eue.throttling());
+        assertEquals("retry-after hint must be propagated as ms", 5_000L, eue.retryAfterMs());
+    }
+
+    public void testAsyncThrottleResponsePropagatesRetryAfterHint() throws Exception {
+        // DirectReadBuffer is final; allocate a real zero-byte buffer instead of mocking.
+        DirectReadBuffer realBuffer = FACTORY.allocate(0);
+
+        HttpResponse<DirectReadBuffer> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(429);
+        when(mockResponse.headers()).thenReturn(HttpHeaders.of(java.util.Map.of("retry-after", java.util.List.of("3")), (a, b) -> true));
+        when(mockResponse.body()).thenReturn(realBuffer);
+
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(CompletableFuture.completedFuture(mockResponse)).when(mockClient).sendAsync(any(), any());
+
+        StoragePath path = StoragePath.of("https://example.com/file.parquet");
+        HttpStorageObject obj = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+
+        AtomicReference<Exception> error = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        obj.readBytesAsync(0, 100, FACTORY, Runnable::run, ActionListener.wrap(result -> { latch.countDown(); }, e -> {
+            error.set(e);
+            latch.countDown();
+        }));
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertThat(error.get(), instanceOf(org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException.class));
+        org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException eue =
+            (org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException) error.get();
+        assertTrue("exception must be flagged as throttling", eue.throttling());
+        assertEquals("retry-after hint must be propagated as ms", 3_000L, eue.retryAfterMs());
+    }
+
+    @SuppressWarnings("unchecked")
     private static void mockSendAsyncWithBodyChunks(HttpClient mockClient, int statusCode, List<ByteBuffer> bodyChunks) throws Exception {
         doAnswer(invocation -> {
             HttpResponse.BodyHandler<DirectReadBuffer> handler = invocation.getArgument(1);

@@ -687,6 +687,16 @@ public class RetryPolicyTests extends ESTestCase {
         );
     }
 
+    public void testDelayMillisDoesNotOverflowAtHighAttemptCounts() {
+        // 500ms initial, 30s max: overflow used to occur at attempt >= 55 (500 * 2^55 > Long.MAX_VALUE).
+        RetryPolicy policy = new RetryPolicy(0, 0, 0, 1000, 500, 30_000, RetryPolicy.NO_BUDGET, null);
+        for (int attempt = 50; attempt <= 70; attempt++) {
+            long delay = policy.delayMillis(attempt, true);
+            assertTrue("delayMillis must be positive at attempt " + attempt, delay > 0);
+            assertTrue("delayMillis must not exceed throttleMaxDelayMs at attempt " + attempt, delay <= 30_000L + 30_000L / 4 + 1);
+        }
+    }
+
     public void testParseRetryAfterMs() {
         assertEquals(5_000L, ExternalUnavailableException.parseRetryAfterMs("5"));
         assertEquals(60_000L, ExternalUnavailableException.parseRetryAfterMs("60"));

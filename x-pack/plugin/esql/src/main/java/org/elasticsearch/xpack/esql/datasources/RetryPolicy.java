@@ -32,7 +32,10 @@ import java.util.function.LongSupplier;
  * delay is either the server-supplied {@code Retry-After} hint (when the exception carries one) or the
  * computed exponential backoff, truncated to the remaining budget so the sleep never overshoots.
  * {@link #THROTTLE_RETRIES_SANITY_CAP} is a safety backstop; under typical cloud-provider
- * behaviour the time budget is the effective bound.
+ * behaviour the time budget is the effective bound. When the budget is disabled
+ * ({@code esql.external.throttle_max_retry_duration=0}) the sanity cap alone limits retries,
+ * and the total delay can reach {@link #THROTTLE_RETRIES_SANITY_CAP} ×
+ * {@link #DEFAULT_THROTTLE_MAX_DELAY_MS} (≈4.2 h).
  * <p>
  * <b>Non-throttle transient arm:</b> bounded by attempt count (default {@link #DEFAULT_MAX_RETRIES})
  * with an optional secondary time budget check — semantics unchanged from the original design.
@@ -217,7 +220,9 @@ class RetryPolicy {
         long effectiveInitial = isThrottle ? throttleInitialDelayMs : initialDelayMs;
         long effectiveMax = isThrottle ? throttleMaxDelayMs : maxDelayMs;
 
-        long baseDelay = effectiveInitial * (1L << attempt);
+        long shift = Math.min(attempt, 62); // 1L<<63 == Long.MIN_VALUE; cap to 62
+        long baseDelay = effectiveInitial * (1L << shift);
+        if (baseDelay <= 0) baseDelay = Long.MAX_VALUE; // overflow guard (wraps negative or zero at shift=62)
         long capped = Math.min(baseDelay, effectiveMax);
         long jitter = Randomness.get().nextLong(capped / 4 + 1);
         long delay = Math.min(effectiveMax, capped + jitter);
@@ -320,6 +325,9 @@ class RetryPolicy {
             }
 
             // Feed the cross-request adaptive backoff only once we've committed to retrying.
+            // Intentionally fires for hint-guided retries too: the multiplier accumulates across
+            // both paths so sustained throttling always increases computed delays, even when the
+            // current delay came from a Retry-After hint rather than the exponential schedule.
             if (adaptiveBackoff != null) {
                 adaptiveBackoff.onThrottled();
             }

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -1503,32 +1504,45 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         IOUtils.close(ir, iw, dir);
     }
 
-    public void testFieldNamesTermStateRespectsFilteredFields() throws Exception {
-        Directory dir = newDirectory();
-        IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(null));
+    public void testFieldNamesTermStateForDeniedParentWithAllowedMultiField() throws Exception {
+        DocumentMapper mapper = createMapperService(mapping(b -> {
+            b.startObject("my_field");
+            b.field("type", "text");
+            b.field("norms", false);
+            b.startObject("fields");
+            b.startObject("keyword").field("type", "keyword").field("doc_values", false).endObject();
+            b.endObject();
+            b.endObject();
+        })).documentMapper();
 
-        Document doc = new Document();
-        doc.add(new StringField("fieldA", "test", Field.Store.NO));
-        doc.add(new StringField("fieldB", "test", Field.Store.NO));
-        doc.add(new StringField(FieldNamesFieldMapper.NAME, "fieldA", Field.Store.NO));
-        doc.add(new StringField(FieldNamesFieldMapper.NAME, "fieldB", Field.Store.NO));
-        iw.addDocument(doc);
+        try (
+            Directory directory = newDirectory();
+            StandardAnalyzer analyzer = new StandardAnalyzer();
+            IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(analyzer))
+        ) {
+            ParsedDocument document = mapper.parse(source(b -> b.field("my_field", "test")));
+            writer.addDocuments(document.docs());
 
-        Automaton automaton = Automatons.patterns(List.of("fieldA", FieldNamesFieldMapper.NAME));
-        DirectoryReader reader = FieldSubsetReader.wrap(
-            DirectoryReader.open(iw),
-            new CharacterRunAutomaton(automaton),
-            IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
-            fieldName -> false
-        );
-        IndexSearcher searcher = new IndexSearcher(reader);
+            Automaton automaton = Automatons.patterns(List.of("my_field.keyword", FieldNamesFieldMapper.NAME));
+            try (
+                DirectoryReader reader = FieldSubsetReader.wrap(
+                    DirectoryReader.open(writer),
+                    new CharacterRunAutomaton(automaton),
+                    IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
+                    fieldName -> false
+                )
+            ) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                TermQuery parentExistsQuery = new TermQuery(new Term(FieldNamesFieldMapper.NAME, "my_field"));
 
-        assertEquals(1, searcher.count(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "fieldA"))));
-        assertEquals(0, searcher.count(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "fieldB"))));
-        assertEquals(0L, searcher.search(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "fieldB")), 10).totalHits.value());
+                assertEquals(1, searcher.count(new TermQuery(new Term("my_field.keyword", "test"))));
+                assertEquals(1, searcher.count(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "my_field.keyword"))));
+                assertEquals(0, searcher.count(parentExistsQuery));
+                assertEquals(0L, searcher.search(parentExistsQuery, 10).totalHits.value());
 
-        TestUtil.checkReader(reader);
-        IOUtils.close(reader, iw, dir);
+                TestUtil.checkReader(reader);
+            }
+        }
     }
 
     /**

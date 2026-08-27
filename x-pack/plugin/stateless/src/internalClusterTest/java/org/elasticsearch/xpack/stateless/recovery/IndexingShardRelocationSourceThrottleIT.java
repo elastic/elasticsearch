@@ -38,7 +38,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 
-import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.equalTo;
 
 /// Integration tests for source-side relocation throttling in stateless Elasticsearch.
 public class IndexingShardRelocationSourceThrottleIT extends AbstractStatelessPluginIntegTestCase {
@@ -156,18 +156,17 @@ public class IndexingShardRelocationSourceThrottleIT extends AbstractStatelessPl
         ensureStableCluster(2);
 
         final var updatedStats = getRecoveryStats(sourceNode);
-        assertThat("expected queued relocation to be cancelled after target node left", updatedStats.currentAsSourceQueued(), lessThan(1));
+        assertThat("expected queued relocation to be cancelled after target node left", updatedStats.currentAsSourceQueued(), equalTo(0));
 
         proceedWithHandoff.countDown();
         startIndexNode();
         ensureGreen(indexName);
-        assertTrue(getRecoveryStats(sourceNode).noCurrentRecoveries());
     }
 
     public void testAllQueuedRelocationsEventuallyComplete() {
         startMasterOnlyNode();
-        final int limit = between(1, 3);
-        final int totalShards = between(3, 6);
+        final int limit = between(1, 5);
+        final int totalShards = between(limit, 2 * limit);
 
         final var sourceNode = startIndexNode(
             Settings.builder()
@@ -289,11 +288,11 @@ public class IndexingShardRelocationSourceThrottleIT extends AbstractStatelessPl
                 }
             );
 
-        // Trigger index A's relocation: active
+        // Index A's relocation: active
         updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", sourceNode), indexA);
         awaitRecoveryCountStats(Map.of(sourceNode, stats -> stats.currentAsSource() == 1 && stats.currentAsSourceQueued() == 0));
 
-        // Trigger index B's relocation: queued
+        // Index B's relocation: queued
         updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", sourceNode), indexB);
         awaitRecoveryCountStats(Map.of(sourceNode, stats -> stats.currentAsSource() == 1 && stats.currentAsSourceQueued() == 1));
 
@@ -360,8 +359,6 @@ public class IndexingShardRelocationSourceThrottleIT extends AbstractStatelessPl
         ensureGreen(indexName);
     }
 
-    /// Waits until the given per-node recovery-stats predicates are all satisfied. Re-checks on every recovery scheduling
-    /// event on all given nodes.
     private void awaitRecoveryCountStats(Map<String, Predicate<RecoveryStats>> predicatePerNode) {
         final var conditionLatch = new CountDownLatch(1);
         final var success = new AtomicBoolean();

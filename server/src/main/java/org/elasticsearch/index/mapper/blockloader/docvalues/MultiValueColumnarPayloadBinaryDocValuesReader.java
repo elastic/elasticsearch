@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.index.mapper.BlockLoader;
 
+import java.io.IOException;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
@@ -31,7 +32,7 @@ public final class MultiValueColumnarPayloadBinaryDocValuesReader {
     public MultiValueColumnarPayloadBinaryDocValuesReader() {}
 
     /** Tests {@code predicate} against each non-null value, returning {@code true} on the first match. */
-    public boolean match(BytesRef bytes, Predicate<BytesRef> predicate) {
+    public boolean match(BytesRef bytes, Predicate<BytesRef> predicate) throws IOException {
         for (int slot = decoder.reset(bytes); slot > 0; slot--) {
             final BytesRef value = decoder.next();
             if (value != null && predicate.test(value)) {
@@ -42,7 +43,7 @@ public final class MultiValueColumnarPayloadBinaryDocValuesReader {
     }
 
     /** Appends the non-null values in document order, or a null when the document has none. */
-    public void read(BytesRef bytes, BlockLoader.BytesRefBuilder builder) {
+    public void read(BytesRef bytes, BlockLoader.BytesRefBuilder builder) throws IOException {
         final int slots = decoder.reset(bytes);
         // Two passes rather than buffering the values: the builder needs the arity up front to choose between a
         // bare value and a position entry, and a second walk of the lengths is cheaper than copying the bytes.
@@ -72,16 +73,17 @@ public final class MultiValueColumnarPayloadBinaryDocValuesReader {
     }
 
     /** Appends the minimum non-null value. */
-    public void readMin(BytesRef bytes, BlockLoader.BytesRefBuilder builder) {
+    public void readMin(BytesRef bytes, BlockLoader.BytesRefBuilder builder) throws IOException {
         readExtreme(bytes, builder, (a, b) -> a.compareTo(b) < 0);
     }
 
     /** Appends the maximum non-null value. */
-    public void readMax(BytesRef bytes, BlockLoader.BytesRefBuilder builder) {
+    public void readMax(BytesRef bytes, BlockLoader.BytesRefBuilder builder) throws IOException {
         readExtreme(bytes, builder, (a, b) -> a.compareTo(b) > 0);
     }
 
-    private void readExtreme(BytesRef bytes, BlockLoader.BytesRefBuilder builder, BiPredicate<BytesRef, BytesRef> predicate) {
+    private void readExtreme(BytesRef bytes, BlockLoader.BytesRefBuilder builder, BiPredicate<BytesRef, BytesRef> predicate)
+        throws IOException {
         BytesRef extreme = null;
         for (int slot = decoder.reset(bytes); slot > 0; slot--) {
             final BytesRef value = decoder.next();
@@ -102,7 +104,7 @@ public final class MultiValueColumnarPayloadBinaryDocValuesReader {
      * or more than 1 — nulls are dropped, so a document of two slots with one null is single-valued. When exactly one non-null slot is
      * found, {@code out} is set to a view of its bytes. Scanning stops on the second, returning {@code 2}.
      */
-    public int nonNullCount(BytesRef bytes, BytesRef out) {
+    public int nonNullCount(BytesRef bytes, BytesRef out) throws IOException {
         int nonNull = 0;
         for (int slot = decoder.reset(bytes); slot > 0; slot--) {
             final BytesRef value = decoder.next();

@@ -169,12 +169,12 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
             }
 
             @Override
-            public int nullCount() {
+            public int nullCount() throws IOException {
                 return decoder.nullSlotCount();
             }
 
             @Override
-            public BytesRef nextValue() {
+            public BytesRef nextValue() throws IOException {
                 return decoder.next();
             }
 

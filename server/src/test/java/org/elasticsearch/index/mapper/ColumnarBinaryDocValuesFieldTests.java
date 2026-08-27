@@ -16,6 +16,7 @@ import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -28,7 +29,7 @@ public class ColumnarBinaryDocValuesFieldTests extends ESTestCase {
     private static final String FIELD = "kw";
     private static final String COUNTS = FIELD + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 
-    public void testValuesTravelWithTheirCount() {
+    public void testValuesTravelWithTheirCount() throws IOException {
         final LuceneDocument doc = new LuceneDocument();
         final List<BytesRef> values = new ArrayList<>();
         for (int i = 0; i < between(2, 20); i++) {
@@ -42,7 +43,7 @@ public class ColumnarBinaryDocValuesFieldTests extends ESTestCase {
     }
 
     /** A null slot keeps its position, which is what array-order reconstruction needs. */
-    public void testNullSlotsKeepTheirPosition() {
+    public void testNullSlotsKeepTheirPosition() throws IOException {
         final LuceneDocument doc = new LuceneDocument();
         final List<BytesRef> slots = new ArrayList<>();
         for (int i = 0; i < between(2, 20); i++) {
@@ -62,7 +63,7 @@ public class ColumnarBinaryDocValuesFieldTests extends ESTestCase {
      * A document with no non-null value still writes a payload — the count describes it — which is what keeps an all-null array
      * distinguishable from a field that is simply absent.
      */
-    public void testAllNullDocumentStillWritesAPayload() {
+    public void testAllNullDocumentStillWritesAPayload() throws IOException {
         final LuceneDocument doc = new LuceneDocument();
         final List<BytesRef> slots = new ArrayList<>();
         for (int i = 0; i < between(1, 5); i++) {
@@ -74,7 +75,7 @@ public class ColumnarBinaryDocValuesFieldTests extends ESTestCase {
     }
 
     /** An empty array is a count of zero and nothing after it. */
-    public void testEmptyArrayIsACountOfZero() {
+    public void testEmptyArrayIsACountOfZero() throws IOException {
         final LuceneDocument doc = new LuceneDocument();
         ColumnarBinaryDocValuesField.recordEmptyArray(doc, FIELD);
         assertSlots(doc, List.of());
@@ -96,7 +97,7 @@ public class ColumnarBinaryDocValuesFieldTests extends ESTestCase {
     }
 
     /** Even a lone value carries its count, so the blob is never the bare value. */
-    public void testALoneValueStillCarriesItsCount() {
+    public void testALoneValueStillCarriesItsCount() throws IOException {
         final LuceneDocument doc = new LuceneDocument();
         final BytesRef value = new BytesRef(randomAlphaOfLengthBetween(1, 30));
         ColumnarBinaryDocValuesField.recordSingleValue(doc, FIELD, value, MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED);
@@ -105,7 +106,7 @@ public class ColumnarBinaryDocValuesFieldTests extends ESTestCase {
     }
 
     /** Sorted-unique collection still applies; the payload just records however many survived it. */
-    public void testSortedUniqueOrderingDeduplicates() {
+    public void testSortedUniqueOrderingDeduplicates() throws IOException {
         final LuceneDocument doc = new LuceneDocument();
         for (String value : new String[] { "b", "a", "b", "c", "a" }) {
             ColumnarBinaryDocValuesField.recordValue(
@@ -125,7 +126,7 @@ public class ColumnarBinaryDocValuesFieldTests extends ESTestCase {
     }
 
     /** The blob decodes back to exactly the slots that went in, in order. */
-    private static void assertSlots(LuceneDocument doc, List<BytesRef> expected) {
+    private static void assertSlots(LuceneDocument doc, List<BytesRef> expected) throws IOException {
         final IndexableField field = doc.getField(FIELD);
         assertNotNull("binary field", field);
         final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();

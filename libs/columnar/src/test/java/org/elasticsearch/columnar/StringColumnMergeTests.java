@@ -190,7 +190,7 @@ public class StringColumnMergeTests extends ESTestCase {
     }
 
     /** Decodes each blob back into the slots it was built from. */
-    private static void assertSlots(List<List<String>> expected, List<BytesRef> blobs) {
+    private static void assertSlots(List<List<String>> expected, List<BytesRef> blobs) throws IOException {
         assertEquals("documents with a value", expected.size(), blobs.size());
         final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
         for (int i = 0; i < expected.size(); i++) {

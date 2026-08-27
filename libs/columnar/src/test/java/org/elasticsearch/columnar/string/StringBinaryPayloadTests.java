@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -26,11 +27,11 @@ import java.util.List;
  */
 public class StringBinaryPayloadTests extends ESTestCase {
 
-    public void testRoundTripsOneSlot() {
+    public void testRoundTripsOneSlot() throws IOException {
         assertRoundTrip(slots(new BytesRef("only")));
     }
 
-    public void testRoundTripsManySlots() {
+    public void testRoundTripsManySlots() throws IOException {
         final List<BytesRef> slots = new ArrayList<>();
         for (int i = 0; i < between(2, 200); i++) {
             slots.add(new BytesRef(randomAlphaOfLengthBetween(0, 40)));
@@ -39,7 +40,7 @@ public class StringBinaryPayloadTests extends ESTestCase {
     }
 
     /** An empty value is a real value; it must not read back as a null slot, which is what the bias is for. */
-    public void testRoundTripsEmptyValuesBesideNulls() {
+    public void testRoundTripsEmptyValuesBesideNulls() throws IOException {
         assertRoundTrip(slots(new BytesRef(""), null, new BytesRef(""), new BytesRef("x"), null));
         assertRoundTrip(slots(new BytesRef("")));
         assertRoundTrip(slots(null, new BytesRef("a")));
@@ -47,7 +48,7 @@ public class StringBinaryPayloadTests extends ESTestCase {
     }
 
     /** Lengths past 127, where a slot's prefix stops fitting in one byte. */
-    public void testRoundTripsMultiByteLengths() {
+    public void testRoundTripsMultiByteLengths() throws IOException {
         assertRoundTrip(slots(new BytesRef("x".repeat(126)), new BytesRef("y".repeat(127)), new BytesRef("z".repeat(128))));
         final List<BytesRef> wide = new ArrayList<>();
         for (int i = 0; i < between(2, 20); i++) {
@@ -56,7 +57,7 @@ public class StringBinaryPayloadTests extends ESTestCase {
         assertRoundTrip(wide);
     }
 
-    public void testRoundTripsRandomSlots() {
+    public void testRoundTripsRandomSlots() throws IOException {
         for (int iter = 0; iter < 200; iter++) {
             final List<BytesRef> slots = new ArrayList<>();
             for (int i = 0; i < between(1, 30); i++) {
@@ -84,7 +85,7 @@ public class StringBinaryPayloadTests extends ESTestCase {
         }
     }
 
-    public void testNullSlotCount() {
+    public void testNullSlotCount() throws IOException {
         for (int iter = 0; iter < 200; iter++) {
             final List<BytesRef> slots = new ArrayList<>();
             int nulls = 0;
@@ -103,7 +104,7 @@ public class StringBinaryPayloadTests extends ESTestCase {
     }
 
     /** A decoder is reused across documents, so the previous payload must leave nothing behind. */
-    public void testDecoderIsReusable() {
+    public void testDecoderIsReusable() throws IOException {
         final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
         for (int iter = 0; iter < 200; iter++) {
             final List<BytesRef> slots = new ArrayList<>();
@@ -119,14 +120,14 @@ public class StringBinaryPayloadTests extends ESTestCase {
     }
 
     /** An empty array is a count of zero and nothing after it, which no other shape produces. */
-    public void testRoundTripsNoSlots() {
+    public void testRoundTripsNoSlots() throws IOException {
         assertRoundTrip(List.of());
         final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
         assertEquals("the empty payload", 0, decoder.reset(StringBinaryPayload.EMPTY));
         assertEquals(StringBinaryPayload.EMPTY, StringBinaryPayload.encode(List.of()));
     }
 
-    private static void assertRoundTrip(List<BytesRef> slots) {
+    private static void assertRoundTrip(List<BytesRef> slots) throws IOException {
         final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
         final BytesRef payload = StringBinaryPayload.encode(slots);
         assertEquals("slot count", slots.size(), decoder.reset(payload));

@@ -120,7 +120,7 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
      * Decodes the extreme non-null value from a columnar payload, whose slot count travels in the blob. Returns the blob unchanged when
      * the document has no non-null value, matching what the other encodings hand back for a document with nothing to sort on.
      */
-    public static BytesRef decodePayloadExtreme(BytesRef raw, boolean maxMode) {
+    public static BytesRef decodePayloadExtreme(BytesRef raw, boolean maxMode) throws IOException {
         final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
         BytesRef extreme = null;
         for (int slot = decoder.reset(raw); slot > 0; slot--) {

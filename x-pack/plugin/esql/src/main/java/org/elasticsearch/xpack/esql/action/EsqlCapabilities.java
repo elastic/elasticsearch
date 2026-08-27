@@ -3389,7 +3389,6 @@ public class EsqlCapabilities {
          * the data node extracts unmapped fields. So a field written that way by every document no longer expands into a column that
          * is null in every row, and where such a value sits in a column another document did fill it reads as {@code null} instead of
          * a stringified {@code "[]"}.
-         * Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL} is available.
          */
         OPTIONAL_FIELDS_LOAD_ALL_SKIPS_VALUELESS_FIELDS(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
 

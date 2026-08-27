@@ -294,6 +294,16 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
     }
 
+    /** An object that pruned away to nothing should never have been sent, let alone rendered as a literal "{}". */
+    public void testEmptyObjectTripsGuardRail() {
+        BlockFactory bf = blockFactory();
+        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, List.of(row(1, jsonObject("{'a':{}}"))))));
+
+        AssertionError e = expectThrows(AssertionError.class, () -> expand(result, bf));
+        assertThat(e.getMessage(), containsString("Unmapped field 'a' carries a null or an empty array or object"));
+        assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
+    }
+
     public void testNonStringJsonValuesAreStringified() {
         BlockFactory bf = blockFactory();
         Result result = result(

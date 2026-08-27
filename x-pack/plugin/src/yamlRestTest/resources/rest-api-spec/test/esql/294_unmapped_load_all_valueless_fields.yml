@@ -179,12 +179,16 @@ setup:
       esql.query:
         body:
           query: 'SET unmapped_fields="load_all"; FROM load-all-valueless-nested | SORT id'
-  # Only the object that has something in it earns a column; the value it renders as is the objectsGap, so it is not asserted here.
+  # Only the object that has something in it earns a column.
   - length: { columns: 2 }
   - match: { columns.0.name: id }
   - match: { columns.1.name: object_with_a_value }
   - match: { columns.1.type: keyword }
-  - length: { values: 3 }
+  - match: { values.0: [ "1", null ] }
+  - match: { values.1: [ "2", null ] }
+  # An object renders as a stringified Java map rather than as JSON today. That is the objectsGap in unmapped-load-all.csv-spec,
+  # tracked in https://github.com/elastic/elasticsearch/issues/156320; expect this expectation to change with it.
+  - match: { values.2: [ "3", "{baz=world}" ] }
 
 ---
 'nulls are stripped from an array that is kept':
@@ -196,7 +200,8 @@ setup:
           query: 'SET unmapped_fields="load_all"; FROM load-all-array-nulls | SORT id'
   - length: { columns: 2 }
   - match: { columns.1.name: tags }
-  # An array still renders as one stringified keyword rather than a multi-value - that is the arraysGap in unmapped-load-all.csv-spec.
+  # An array still renders as one stringified keyword rather than a multi-value - that is the arraysGap in unmapped-load-all.csv-spec,
+  # tracked in https://github.com/elastic/elasticsearch/issues/156320; expect these expectations to change with it.
   # The point here is that the nulls document 1 wrote are gone, so it reads exactly as if it had never carried them.
   - match: { values.0: [ "1", "[web]" ] }
   - match: { values.1: [ "2", "[web, api]" ] }

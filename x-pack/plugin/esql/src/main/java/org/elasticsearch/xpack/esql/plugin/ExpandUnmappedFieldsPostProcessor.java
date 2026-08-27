@@ -315,10 +315,10 @@ class ExpandUnmappedFieldsPostProcessor {
     }
 
     /**
-     * Guard rail for the other half of what {@code UnmappedFieldsBlockLoader} promises: a value that reached this class is pruned, so
-     * it holds no {@code null} inside an array or object and no empty array or object at any depth. {@link #appendRow} renders the
-     * whole value, so a {@code null} that survived would reach the user as a literal {@code "null"} inside a stringified array - where
-     * a mapped field would have produced a multi-value, and multi-values never contain nulls.
+     * Guard rail for the other half of what {@code UnmappedFieldsBlockLoader} promises: whatever it wrote under a key is pruned, so it
+     * holds no {@code null} inside an array or object and no empty array or object at any depth. {@link #appendRow} renders the whole
+     * value, so a {@code null} that survived would reach the user as a literal {@code "null"} inside a stringified array - where a
+     * mapped field would have produced a multi-value, and multi-values never contain nulls.
      *
      * @return {@code true}, so this can be called from an {@code assert} and skipped entirely in production
      */
@@ -331,7 +331,7 @@ class ExpandUnmappedFieldsPostProcessor {
         return true;
     }
 
-    /** Whether {@code value} holds no {@code null} inside a container, and no empty container, at any depth. */
+    /** Whether {@code value} is neither {@code null}, nor an empty container, nor a container hiding either of those at any depth. */
     private static boolean isPruned(Object value) {
         Collection<?> elements;
         if (value instanceof List<?> values) {
@@ -339,14 +339,14 @@ class ExpandUnmappedFieldsPostProcessor {
         } else if (value instanceof Map<?, ?> map) {
             elements = map.values();
         } else {
-            // A scalar has nothing to hide anything in.
-            return true;
+            // A scalar has nothing to hide anything in; a null is what everything above is guarding against.
+            return value != null;
         }
         if (elements.isEmpty()) {
             return false;
         }
         for (Object element : elements) {
-            if (element == null || isPruned(element) == false) {
+            if (isPruned(element) == false) {
                 return false;
             }
         }

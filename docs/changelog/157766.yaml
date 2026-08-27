@@ -2,5 +2,5 @@ area: Distributed
 issues:
  - 155449
 pr: 157766
-summary: Remove `explainUnassignedShardAllocation` side effects
+summary: Allocation explain no longer starts gateway shard data fetches
 type: bug

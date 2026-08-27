@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Consumer;
 
 /**
  * The dimensions of the external-datasource read path, and which pairs of them interact.
@@ -300,27 +301,44 @@ public final class FixtureDimensions {
     }
 
     /**
-     * Every vector to run: for each group, the full cross product of its members with all other
-     * dimensions at their defaults. Deduplicated, so the all-defaults baseline appears once.
+     * Feeds every vector to the consumer without materialising the set.
+     *
+     * <p>Vectors are a product, so the count grows multiplicatively with the declaration -- eleven
+     * thousand today, and a single added dimension multiplies rather than adds. Holding them all is a
+     * heap cost with no purpose for a caller that only iterates, so this is the primary form and
+     * {@link #vectors()} is the convenience that pays for a list.
+     *
+     * <p>Deduplication is unavoidable here -- every group shares the all-defaults baseline -- but it
+     * costs one set of maps rather than a set of maps plus a rendered key per vector.
      */
-    public List<Map<String, String>> vectors() {
-        Map<String, Map<String, String>> unique = new LinkedHashMap<>();
+    public void forEachVector(Consumer<Map<String, String>> consumer) {
+        Set<Map<String, String>> seen = new LinkedHashSet<>();
         for (Set<String> group : groups()) {
             Set<String> formats = formatsFor(group);
             if (formats.isEmpty()) {
                 continue;
             }
-            List<String> axes = new ArrayList<>(group);
-            for (Map<String, String> assignment : crossProduct(axes, formats)) {
+            for (Map<String, String> assignment : crossProduct(new ArrayList<>(group), formats)) {
                 Map<String, String> vector = new LinkedHashMap<>();
                 for (String d : names) {
                     vector.put(d, defaultValue(d));
                 }
                 vector.putAll(assignment);
-                unique.putIfAbsent(vector.toString(), vector);
+                if (seen.add(Map.copyOf(vector))) {
+                    consumer.accept(vector);
+                }
             }
         }
-        return List.copyOf(unique.values());
+    }
+
+    /**
+     * Every vector as a list, for callers that genuinely need one -- a {@code @ParametersFactory}
+     * cannot stream. Prefer {@link #forEachVector} anywhere else.
+     */
+    public List<Map<String, String>> vectors() {
+        List<Map<String, String>> out = new ArrayList<>();
+        forEachVector(out::add);
+        return List.copyOf(out);
     }
 
     private List<Map<String, String>> crossProduct(List<String> axes, Set<String> formats) {

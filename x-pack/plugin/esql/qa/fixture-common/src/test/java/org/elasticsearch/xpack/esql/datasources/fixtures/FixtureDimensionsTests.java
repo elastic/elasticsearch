@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources.fixtures;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -133,7 +134,7 @@ public class FixtureDimensionsTests extends ESTestCase {
         for (Set<String> g : groups) {
             out.append(
                 String.format(
-                    java.util.Locale.ROOT,
+                    Locale.ROOT,
                     "  %d  %-58s formats=%s fixtureBound=%s%n",
                     g.size(),
                     String.join(",", g),

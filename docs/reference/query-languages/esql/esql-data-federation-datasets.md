@@ -322,12 +322,7 @@ The following settings apply to all file-based data sources:
 
 ### Parquet
 
-Parquet is self-describing and is read with no settings in the common case. Its two settings are read-performance toggles, defaulted on.
-
-| Setting | Default | Description |
-|---|---|---|
-| `optimized_reader` | `true` | Uses vectorized decoding, page skipping, and I/O prefetch for the next row group. Leave enabled for normal scans. Disable it only to troubleshoot a suspected optimized-reader issue by using the baseline read path. |
-| `late_materialization` | `true` | When a filter can be pushed to the reader, reads predicate columns first and materializes other projected columns only for surviving rows. This is most useful for selective queries over wide files. Leave enabled unless you are troubleshooting filter or read-path behavior. |
+Parquet is self-describing and has no format-specific dataset settings.
 
 ## How schemas are inferred
 

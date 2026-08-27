@@ -87,8 +87,8 @@ public class CrossFormatReadBenchmark {
     public void setup() throws IOException {
         Utils.configureBenchmarkLogging();
         blockFactory = DatasourceBenchmarks.newBlockFactory();
-        byte[] csv = CsvReadBenchmark.generateFixture(rowCount, ',');
-        byte[] tsv = CsvReadBenchmark.generateFixture(rowCount, '\t');
+        byte[] csv = CsvReadBenchmark.generateFixture(rowCount, ',', false);
+        byte[] tsv = CsvReadBenchmark.generateFixture(rowCount, '\t', false);
         byte[] parquet = ParquetReadBenchmark.generateParquetFixture(rowCount);
         byte[] orc = OrcReadBenchmark.generateOrcFixture(rowCount);
         byte[] ndjson = NdJsonReadBenchmark.generateNdJsonFixture(rowCount);

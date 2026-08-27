@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -30,6 +32,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * Factory for creating source operators that read from external storage using
@@ -63,6 +66,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
     private final int batchSize;
     private final int rowLimit;
     private final ExternalSliceQueue sliceQueue;
+    private final InformationalWarningBudget informationalWarningBudget = new InformationalWarningBudget(SkipWarnings.MAX_ADDED_WARNINGS);
 
     public ExternalSourceOperatorFactory(
         StorageProvider storageProvider,
@@ -124,16 +128,24 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                 batchSize,
                 rowLimit,
                 sliceQueue,
-                driverContext.blockFactory()
+                driverContext.blockFactory(),
+                informationalWarningBudget
             );
         }
 
         StorageObject storageObject = storageProvider.newObject(path);
         try {
+            Consumer<String> warnSink = msg -> {
+                String toEmit = informationalWarningBudget.accept(msg);
+                if (toEmit != null) {
+                    HeaderWarning.addWarning(toEmit);
+                }
+            };
             FormatReadContext ctx = FormatReadContext.builder()
                 .projectedColumns(projectedColumns)
                 .batchSize(batchSize)
                 .rowLimit(rowLimit)
+                .informationalWarningSink(warnSink)
                 .build();
             CloseableIterator<Page> pages = formatReader.read(storageObject, ctx);
             pages = formatReader.rowPositionStrategy().apply(pages, SyntheticColumns.rowPositionIndexInNames(projectedColumns));
@@ -234,6 +246,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         private final int rowLimit;
         private final ExternalSliceQueue sliceQueue;
         private final BlockFactory blockFactory;
+        private final InformationalWarningBudget warningBudget;
         private final ArrayDeque<ExternalSplit> pendingChildren = new ArrayDeque<>();
         private CloseableIterator<Page> currentPages;
         private StoragePath currentSplitPath;
@@ -247,7 +260,8 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
             int batchSize,
             int rowLimit,
             ExternalSliceQueue sliceQueue,
-            BlockFactory blockFactory
+            BlockFactory blockFactory,
+            InformationalWarningBudget warningBudget
         ) {
             this.storageProvider = storageProvider;
             this.formatReader = formatReader;
@@ -258,6 +272,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
             this.rowLimit = rowLimit;
             this.sliceQueue = sliceQueue;
             this.blockFactory = blockFactory;
+            this.warningBudget = warningBudget;
         }
 
         @Override
@@ -319,6 +334,12 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                     }
                 }
 
+                Consumer<String> warnSink = msg -> {
+                    String toEmit = warningBudget.accept(msg);
+                    if (toEmit != null) {
+                        HeaderWarning.addWarning(toEmit);
+                    }
+                };
                 FormatReadContext ctx = FormatReadContext.builder()
                     .projectedColumns(effectiveProjection)
                     .batchSize(batchSize)
@@ -327,14 +348,16 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                     .lastSplit(lastSplit)
                     .recordAligned(FileSplitProvider.isRecordAlignedMacroSplit(fileSplit))
                     .splitStartByte(fileSplit.offset())
+                    .informationalWarningSink(warnSink)
                     .build();
                 CloseableIterator<Page> pages = formatReader.read(obj, ctx);
-                pages = formatReader.rowPositionStrategy().apply(pages, SyntheticColumns.rowPositionIndexInNames(projectedColumns));
 
                 // Empty queryDataSchema is COUNT(*) / _file.*-only: no data columns to reshape and the
                 // reader already emits zero-data-block row-count pages, so skip the adapter (a
                 // full-width mapping would otherwise trip its output-size-vs-mapping-width guard).
-                if (columnMapping != null && columnMapping.isIdentity() == false && queryDataSchema.isEmpty() == false) {
+                // Identity mappings are no longer short-circuited: SchemaAdaptingIterator validates
+                // output block element types on every page (see SchemaAdaptingIterator.validateOutputTypes).
+                if (columnMapping != null && queryDataSchema.isEmpty() == false) {
                     // Per-file source types are only needed when the mapping has a KEYWORD cast
                     // (the only path where LongBlock — DATETIME / DATE_NANOS / LONG — needs
                     // disambiguating). Skip the schema-narrowing dance entirely otherwise.
@@ -363,9 +386,15 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                         columnMapping,
                         blockFactory,
                         -1,
-                        perFileColumnTypes
+                        perFileColumnTypes,
+                        warnSink
                     );
                 }
+                // rowPositionStrategy is applied after SchemaAdaptingIterator: SAI validates data
+                // columns (width = queryDataSchema) and the strategy appends the synthetic
+                // _rowPosition block after. Applying it before SAI would give SAI N+1 blocks for
+                // an N-column schema, tripping validateOutputTypes.
+                pages = formatReader.rowPositionStrategy().apply(pages, SyntheticColumns.rowPositionIndexInNames(projectedColumns));
                 return pages;
             }
             throw new IllegalArgumentException("Unsupported split type: " + split.getClass().getName());

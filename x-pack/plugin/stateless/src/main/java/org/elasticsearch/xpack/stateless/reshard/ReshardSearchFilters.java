@@ -56,22 +56,11 @@ public final class ReshardSearchFilters implements Closeable {
         IOUtils.closeWhileHandlingException(unownedBitsetCache);
     }
 
-    // visible for testing
-    ReshardUnownedBitsetCache unownedBitsetCache() {
-        return unownedBitsetCache;
-    }
-
     /**
-     * Warms unowned-document bitsets for all leaves in {@code reader} when the shard may still contain unowned documents.
+     * Returns the node-scoped cache used by the reshard search filters.
      */
-    public void maybeWarm(DirectoryReader reader, ShardId shardId, IndexMetadata indexMetadata, MapperService mapperService)
-        throws ExecutionException {
-        if (mayContainUnownedDocuments(shardId, indexMetadata.getReshardingMetadata()) == false) {
-            return;
-        }
-
-        final var query = new ShardSplittingQuery(indexMetadata, shardId.id(), mapperService.hasNested());
-        unownedBitsetCache.warmBitSets(query, reader);
+    public ReshardUnownedBitsetCache unownedBitsetCache() {
+        return unownedBitsetCache;
     }
 
     public DirectoryReader maybeWrapDirectoryReaderForPitRelocation(

@@ -51,6 +51,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
+import org.elasticsearch.index.shard.ShardSplittingQuery;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
@@ -1143,7 +1144,8 @@ public class SearchEngine extends Engine {
         try {
             engineConfig.getThreadPool().executor(ThreadPool.Names.WARMER).execute(() -> {
                 try (Searcher searcher = acquireSearcher("reshard_unowned_bitset_warming", SearcherScope.INTERNAL)) {
-                    reshardSearchFilters.maybeWarm(searcher.getDirectoryReader(), shardId, indexMetadata, engineConfig.getMapperService());
+                    final var query = new ShardSplittingQuery(indexMetadata, shardId.id(), engineConfig.getMapperService().hasNested());
+                    reshardSearchFilters.unownedBitsetCache().warmBitSets(query, searcher.getDirectoryReader());
                 } catch (Exception e) {
                     logger.debug(() -> Strings.format("failed to warm resharding unowned-document bitsets for shard [%s]", shardId), e);
                 }

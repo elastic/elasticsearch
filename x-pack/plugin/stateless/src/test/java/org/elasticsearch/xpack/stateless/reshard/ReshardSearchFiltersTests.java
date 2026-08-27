@@ -391,67 +391,6 @@ public class ReshardSearchFiltersTests extends ESTestCase {
         }
     }
 
-    public void testWarmsAllLeavesDuringSplit() throws Exception {
-        try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
-            for (int i = 0; i < 2; i++) {
-                var document = new Document();
-                document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), Field.Store.NO));
-                iw.addDocument(document);
-                iw.commit();
-            }
-        }
-
-        var cache = new ReshardUnownedBitsetCache(
-            Settings.builder().put(ReshardUnownedBitsetCache.CACHE_SIZE_SETTING.getKey(), "256mb").build()
-        );
-        var filters = new ReshardSearchFilters(cache);
-        var shardId = testShardId(0);
-        var indexMetadata = IndexMetadata.builder(shardId.getIndexName())
-            .settings(indexSettings(IndexVersion.current(), 2, 0))
-            .numberOfShards(2)
-            .numberOfReplicas(0)
-            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(1, 2))
-            .build();
-        var mapperService = mock(MapperService.class);
-        when(mapperService.hasNested()).thenReturn(false);
-
-        try (DirectoryReader reader = DirectoryReader.open(directory); filters) {
-            filters.maybeWarm(reader, shardId, indexMetadata, mapperService);
-
-            assertEquals(reader.leaves().size(), cache.entryCount());
-        }
-    }
-
-    public void testDoesNotWarmWithoutSplitOrAfterTargetDone() throws Exception {
-        try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig())) {
-            var document = new Document();
-            document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId("0"), Field.Store.NO));
-            iw.addDocument(document);
-            iw.commit();
-        }
-
-        var filters = new ReshardSearchFilters(new ReshardUnownedBitsetCache(Settings.EMPTY));
-        var targetShardId = testShardId(1);
-        var mapperService = mock(MapperService.class);
-        when(mapperService.hasNested()).thenReturn(false);
-        var noSplitMetadata = IndexMetadata.builder(targetShardId.getIndexName())
-            .settings(indexSettings(IndexVersion.current(), 2, 0))
-            .numberOfShards(2)
-            .numberOfReplicas(0)
-            .build();
-        var doneReshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(1, 2)
-            .transitionSplitTargetToNewState(targetShardId, IndexReshardingState.Split.TargetShardState.HANDOFF)
-            .transitionSplitTargetToNewState(targetShardId, IndexReshardingState.Split.TargetShardState.SPLIT)
-            .transitionSplitTargetToNewState(targetShardId, IndexReshardingState.Split.TargetShardState.DONE);
-        var doneMetadata = IndexMetadata.builder(noSplitMetadata).reshardingMetadata(doneReshardingMetadata).build();
-
-        try (DirectoryReader reader = DirectoryReader.open(directory); filters) {
-            filters.maybeWarm(reader, targetShardId, noSplitMetadata, mapperService);
-            filters.maybeWarm(reader, targetShardId, doneMetadata, mapperService);
-            assertEquals(0, filters.unownedBitsetCache().entryCount());
-        }
-    }
-
     public void testMetadataListenerSchedulesOnlyWhenEnteringSplit() {
         var tasks = new ArrayList<Runnable>();
         var warmer = new ReshardSearchWarmer(tasks::add);

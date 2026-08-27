@@ -213,7 +213,7 @@ public final class ReshardUnownedBitsetCache implements IndexReader.ClosedListen
     /**
      * Populates this cache for every leaf in {@code reader} using {@code query}.
      */
-    void warmBitSets(Query query, DirectoryReader reader) throws ExecutionException {
+    public void warmBitSets(Query query, DirectoryReader reader) throws ExecutionException {
         for (LeafReaderContext leaf : reader.leaves()) {
             getBitSet(query, leaf);
         }

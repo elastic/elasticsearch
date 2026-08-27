@@ -612,6 +612,37 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         assertEquals("max marked unservable", Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMaxUnservableKey("c")));
     }
 
+    public void testNormalizeStatsToReconciledNumericToTextMarksUnservable() {
+        // The reconcile's non-widenable fallback can land on TEXT as well as KEYWORD. Both are served under
+        // lexicographic BytesRef order, so a numeric per-file extremum passed through unchanged would serve a
+        // warm MIN/MAX in the wrong order domain. The TEXT half of the representation-change arm must drop and
+        // mark exactly like the KEYWORD half.
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.columnMinKey("c"), 3L);
+        stats.put(SourceStatisticsSerializer.columnMaxKey("c"), 9L);
+        Map<String, DataType> fileTypes = Map.of("c", DataType.LONG);
+        Map<String, DataType> reconciled = Map.of("c", DataType.TEXT);
+        Map<String, Object> out = SourceStatisticsSerializer.normalizeStatsToReconciled(stats, fileTypes, reconciled);
+        assertFalse("numeric min dropped under TEXT reconcile", out.containsKey(SourceStatisticsSerializer.columnMinKey("c")));
+        assertFalse("numeric max dropped under TEXT reconcile", out.containsKey(SourceStatisticsSerializer.columnMaxKey("c")));
+        assertEquals("min marked unservable", Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMinUnservableKey("c")));
+        assertEquals("max marked unservable", Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMaxUnservableKey("c")));
+    }
+
+    public void testNormalizeStatsToReconciledNanosToMillisNarrowingMarksUnservable() {
+        // Widening reconciliation never narrows DATE_NANOS to DATETIME, but if a file/reconciled pairing in that
+        // direction ever reaches the normalizer, passing the epoch-nanos value through unchanged would serve it
+        // as epoch-millis — a warm MIN/MAX a million times too large. The narrowing arm must safe-miss, never
+        // pass through.
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.columnMinKey("ts"), 2_000_000L); // epoch-nanos in a DATE_NANOS file
+        Map<String, DataType> fileTypes = Map.of("ts", DataType.DATE_NANOS);
+        Map<String, DataType> reconciled = Map.of("ts", DataType.DATETIME);
+        Map<String, Object> out = SourceStatisticsSerializer.normalizeStatsToReconciled(stats, fileTypes, reconciled);
+        assertFalse("nanos value must not pass through as millis", out.containsKey(SourceStatisticsSerializer.columnMinKey("ts")));
+        assertEquals("min marked unservable", Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMinUnservableKey("ts")));
+    }
+
     public void testOverlayRekeyMovesWholeFamilyAndOnlyExactColumn() {
         Map<String, Object> stats = new HashMap<>();
         stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);

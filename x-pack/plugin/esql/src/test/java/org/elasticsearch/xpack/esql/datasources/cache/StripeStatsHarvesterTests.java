@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
 
@@ -207,5 +208,76 @@ public class StripeStatsHarvesterTests extends ESTestCase {
         assertTrue("stripe 1's left line falls inside the chunk", s1.atStart);
         assertTrue(s1.atEnd);
         assertFalse("a non-final chunk never marks eof", s1.eof);
+    }
+
+    // -- mergeColumnStats: the PROJECTED + ALL two-accumulator fold behind every ALL-scope emit --
+
+    public void testMergeColumnStatsUnionsProjectedAndAllScopeColumns() {
+        // An ALL-scope harvest commits BOTH accumulators: the projected one (fed from output blocks) and the
+        // full-schema one (fed raw parsed values, projection-independent). Dropping either side of the merge
+        // would publish a stripe whose column set is missing the unprojected columns — a later COUNT(col) on
+        // such a column then safe-misses forever instead of warming, and worse, a merge that kept only the
+        // projected snapshot would let the ALL scope silently degrade to PROJECTED.
+        ColumnStatsAccumulator projected = ColumnStatsAccumulator.forProjectedAttributes(new Attribute[] { longAttr("a") });
+        projected.acceptLongAt(0, 5L);
+        projected.acceptLongAt(0, 9L);
+        ColumnStatsAccumulator all = ColumnStatsAccumulator.forSchema(List.of(longAttr("a"), longAttr("b")));
+        // Same two rows: the shared column "a" folds to the same stats in both accumulators (the invariant
+        // the production emit maintains), and "b" is the unprojected file column only ALL observed.
+        all.acceptValueAt(0, 5L);
+        all.acceptValueAt(1, 100L);
+        all.acceptValueAt(0, 9L);
+        all.acceptValueAt(1, 200L);
+
+        Map<String, ExternalStats.ColumnStats> merged = StripeStatsHarvester.mergeColumnStats(projected, all);
+        assertEquals(Set.of("a", "b"), merged.keySet());
+        assertEquals(new ExternalStats.ColumnStats(0, 2, 5L, 9L), merged.get("a"));
+        assertEquals(
+            "the unprojected column comes from the ALL accumulator",
+            new ExternalStats.ColumnStats(0, 2, 100L, 200L),
+            merged.get("b")
+        );
+    }
+
+    /**
+     * Pins the overlap direction of {@code mergeColumnStats}: on a shared column, ALL wins. The inputs here
+     * deliberately violate the method's documented precondition (the two accumulators must agree on shared
+     * columns), because under that precondition the direction is unobservable — both orders produce the same
+     * map. This is therefore behavioural documentation of the failure MODE, not a wrong-answer discriminator:
+     * if a reader bug ever feeds the two accumulators different rows, the committed stat comes from the
+     * full-schema (ALL) side, exactly as the {@code merged.putAll(allSnapshot)} comment warns.
+     */
+    public void testMergeColumnStatsAllWinsOnOverlap() {
+        ColumnStatsAccumulator projected = ColumnStatsAccumulator.forProjectedAttributes(new Attribute[] { longAttr("a") });
+        projected.acceptLongAt(0, 5L);
+        ColumnStatsAccumulator all = ColumnStatsAccumulator.forSchema(List.of(longAttr("a")));
+        all.acceptValueAt(0, 7L);
+
+        Map<String, ExternalStats.ColumnStats> merged = StripeStatsHarvester.mergeColumnStats(projected, all);
+        assertEquals(new ExternalStats.ColumnStats(0, 1, 7L, 7L), merged.get("a"));
+    }
+
+    public void testMergeColumnStatsEmptySidesPassThrough() {
+        // COUNT scope commits neither accumulator, PROJECTED scope only its own: an empty side must not erase
+        // the populated one.
+        ColumnStatsAccumulator projected = ColumnStatsAccumulator.forProjectedAttributes(new Attribute[] { longAttr("a") });
+        projected.acceptLongAt(0, 5L);
+        assertEquals(
+            "null ALL side keeps the projected snapshot",
+            new ExternalStats.ColumnStats(0, 1, 5L, 5L),
+            StripeStatsHarvester.mergeColumnStats(projected, null).get("a")
+        );
+        ColumnStatsAccumulator all = ColumnStatsAccumulator.forSchema(List.of(longAttr("b")));
+        all.acceptValueAt(0, 3L);
+        assertEquals(
+            "null PROJECTED side keeps the full-schema snapshot",
+            new ExternalStats.ColumnStats(0, 1, 3L, 3L),
+            StripeStatsHarvester.mergeColumnStats(null, all).get("b")
+        );
+        assertEquals("both sides null -> empty", Map.of(), StripeStatsHarvester.mergeColumnStats(null, null));
+    }
+
+    private static Attribute longAttr(String name) {
+        return new ReferenceAttribute(Source.EMPTY, null, name, DataType.LONG, Nullability.TRUE, null, false);
     }
 }

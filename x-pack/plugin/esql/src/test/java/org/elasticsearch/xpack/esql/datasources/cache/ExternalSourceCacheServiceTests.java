@@ -1388,6 +1388,41 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    public void testCoerceColumnStatsToResolvedTypesUnrepresentableValuesNeverTruncate() {
+        String[] names = { "i", "l" };
+        DataType[] types = { DataType.INTEGER, DataType.LONG };
+
+        Map<String, Object> in = new LinkedHashMap<>();
+        // INTEGER column, Long past int range: (int) 5_000_000_000L is 705_032_704 — coercing instead of
+        // dropping would serve that garbage as a warm MIN.
+        in.put(SourceStatisticsSerializer.columnMinKey("i"), 5_000_000_000L);
+        // INTEGER column, Short value: representable, must coerce (not drop) via the Short/Byte widening arm.
+        in.put(SourceStatisticsSerializer.columnMaxKey("i"), Short.valueOf((short) 7));
+        // LONG column, non-finite doubles: no exact long exists. (long) POSITIVE_INFINITY clamps to
+        // Long.MAX_VALUE — coercing would serve that as a warm extremum.
+        in.put(SourceStatisticsSerializer.columnMinKey("l"), Double.POSITIVE_INFINITY);
+        in.put(SourceStatisticsSerializer.columnMaxKey("l"), Double.NaN);
+
+        Map<String, Object> out = ExternalSourceCacheService.coerceColumnStatsToResolvedTypes(in, names, types, true);
+        assertFalse(
+            "an out-of-int-range Long must be dropped for an INTEGER column, never truncated",
+            out.containsKey(SourceStatisticsSerializer.columnMinKey("i"))
+        );
+        assertEquals(Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMinUnservableKey("i")));
+        assertEquals(
+            "a Short widens exactly to the INTEGER column",
+            Integer.valueOf(7),
+            out.get(SourceStatisticsSerializer.columnMaxKey("i"))
+        );
+        // Non-finite doubles execute the isFinite guard in toExactLong; note the round-trip check right after it
+        // also rejects them ((double) (long) d never equals NaN/Infinity), so the guard is belt-and-braces —
+        // these assertions pin the drop outcome, whichever check produces it.
+        assertFalse(out.containsKey(SourceStatisticsSerializer.columnMinKey("l")));
+        assertEquals(Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMinUnservableKey("l")));
+        assertFalse(out.containsKey(SourceStatisticsSerializer.columnMaxKey("l")));
+        assertEquals(Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMaxUnservableKey("l")));
+    }
+
     public void testColumnValueCountFoldsAcrossStripesAsSum() throws Exception {
         // COUNT(col) is served from the harvested value count. Across stripes it must SUM (each stripe holds
         // the non-null value count of its own rows), so a multivalued column's whole-file COUNT is the total

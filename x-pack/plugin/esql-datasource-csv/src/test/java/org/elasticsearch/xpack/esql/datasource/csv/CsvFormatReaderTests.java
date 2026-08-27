@@ -222,7 +222,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     /**
      * In {@code mode: escaped} (quoting off, escaping on) the header splitter must honour the escape
      * character outside quotes, so a backslash-escaped delimiter is NOT treated as a field boundary.
-     * Before the fix, {@code splitFieldsQuoteAware} had no outside-quotes escape handling, so
+     * Before the fix, {@code splitFieldsEscapeAware} had no outside-quotes escape handling, so
      * {@code a\,b,c} was split into THREE columns ({@code a\}, {@code b}, {@code c}); after the fix
      * it correctly gives TWO ({@code a\,b} and {@code c}).
      */
@@ -7197,15 +7197,16 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertFalse(CsvFormatReader.isBlankOrComment(" , ", "//", ','));
     }
 
-    public void testIsBlankOrCommentLeadingDelimiterDoesNotBlockComment() {
-        // isBlankOrComment is a whole-line predicate used in header discovery and bracket collectors.
-        // It mirrors the old record.trim() behavior: a leading TAB is treated like other whitespace,
-        // so "\t// x" is detected as a comment. This is intentionally different from
-        // isBlankOrCommentFirstCell (char[], direct walker), which follows Jackson's first-cell rule
-        // and treats "\t// c" as data (empty first cell → not a comment).
-        assertTrue(CsvFormatReader.isBlankOrComment("\t// a comment", "//", '\t'));
-        assertTrue(CsvFormatReader.isBlankOrComment("\t\t// x", "//", '\t'));
-        // a leading delimiter alone (no comment prefix follows) is NOT a comment — it is data
+    public void testIsBlankOrCommentLeadingDelimiterBlocksComment() {
+        // isBlankOrComment uses the same first-cell rule as isBlankOrCommentFirstCell: a delimiter
+        // seen before the comment prefix means the prefix is in a subsequent cell, not the first —
+        // so the row is data, not a comment. This matches Jackson's first-cell classification.
+        assertFalse(CsvFormatReader.isBlankOrComment("\t// a comment", "//", '\t'));
+        assertFalse(CsvFormatReader.isBlankOrComment("\t\t// x", "//", '\t'));
+        // a comment in the first cell (no leading delimiter) is still detected
+        assertTrue(CsvFormatReader.isBlankOrComment("// a comment", "//", '\t'));
+        assertTrue(CsvFormatReader.isBlankOrComment("   // indented", "//", '\t'));
+        // a leading delimiter alone is data (separator-only row)
         assertFalse(CsvFormatReader.isBlankOrComment("\t", "//", '\t'));
     }
 

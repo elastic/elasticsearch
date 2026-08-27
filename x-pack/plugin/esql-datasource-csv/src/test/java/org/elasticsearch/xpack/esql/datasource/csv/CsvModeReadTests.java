@@ -383,16 +383,17 @@ public class CsvModeReadTests extends ESTestCase {
         // no-trim quoted path (house splitter)
         List<List<String>> plain = readAll(tsvReader(Map.of("mode", "quoted")), tsv);
         assertEquals("separator-only row must not be dropped (plain/house path)", 3, plain.size());
+        assertEquals("separator-only row must have 3 fields (plain path)", 3, plain.get(1).size());
+        assertNullOrEmpty(plain.get(1).get(0));
+        assertNullOrEmpty(plain.get(1).get(1));
+        assertNullOrEmpty(plain.get(1).get(2));
 
         // trim_spaces=true (Jackson path)
         List<List<String>> trimmed = readAll(tsvReader(Map.of("mode", "quoted", "trim_spaces", true)), tsv);
         assertEquals("separator-only row must not be dropped (trim_spaces path)", 3, trimmed.size());
 
-        // both paths must agree on row count and field values
-        assertEquals("plain and trim_spaces paths must agree on row count", plain.size(), trimmed.size());
-        for (int row = 0; row < plain.size(); row++) {
-            assertEquals("row " + row + " field values must agree between paths", plain.get(row), trimmed.get(row));
-        }
+        // both paths must produce identical results
+        assertEquals("plain and trim_spaces paths must agree", plain, trimmed);
     }
 
     /**
@@ -434,11 +435,30 @@ public class CsvModeReadTests extends ESTestCase {
 
         List<List<String>> plain = readAll(csvReader(Map.of()), csv);
         assertEquals("separator-only CSV row must not be dropped (plain path)", 3, plain.size());
+        assertEquals("separator-only CSV row must have 2 fields (plain path)", 2, plain.get(1).size());
+        assertNullOrEmpty(plain.get(1).get(0));
+        assertNullOrEmpty(plain.get(1).get(1));
 
         List<List<String>> trimmed = readAll(csvReader(Map.of("trim_spaces", true)), csv);
         assertEquals("separator-only CSV row must not be dropped (trim_spaces path)", 3, trimmed.size());
 
         assertEquals("plain and trim_spaces paths must agree on row count and values", plain, trimmed);
+    }
+
+    /**
+     * Regression: a TSV file whose first line is a separator-only row (only TABs, no column names)
+     * must skip that line and take the next real header line. A {@code \t\t} leading row becomes empty
+     * after {@code String.trim()}, so header discovery skips it and reads the next record.
+     */
+    public void testTsvSeparatorOnlyFirstLineSkippedForHeader() throws IOException {
+        // First line "\t\t" is all TABs — trim → "" → skip. Second line has real column names.
+        String tsv = "\t\t\na:keyword\tb:keyword\tc:keyword\nval\t1\t2\n";
+
+        List<List<String>> rows = readAll(tsvReader(Map.of()), tsv);
+        assertEquals("separator-only first line must be skipped; one data row expected", 1, rows.size());
+        assertEquals("val", rows.get(0).get(0));
+        assertEquals("1", rows.get(0).get(1));
+        assertEquals("2", rows.get(0).get(2));
     }
 
     /**

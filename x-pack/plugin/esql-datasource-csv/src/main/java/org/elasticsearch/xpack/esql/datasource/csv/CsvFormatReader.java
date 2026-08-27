@@ -1147,7 +1147,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             String headerLine = null;
             String record;
             while ((record = recordReader.readRecord(false)) != null) {
-                if (isBlankOrComment(record, options.commentPrefix(), options.delimiter())) {
+                String trimmed = record.trim();
+                if (trimmed.isEmpty() || (options.commentPrefix().isEmpty() == false && trimmed.startsWith(options.commentPrefix()))) {
                     continue;
                 }
                 headerLine = record;
@@ -1954,9 +1955,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private String consumeHeaderLine(CsvLogicalRecordReader recordReader) throws IOException {
         String record;
         while ((record = recordReader.readRecord(false)) != null) {
-            if (isBlankOrComment(record, options.commentPrefix(), options.delimiter()) == false) {
-                return record;
+            String trimmed = record.trim();
+            if (trimmed.isEmpty() || (options.commentPrefix().isEmpty() == false && trimmed.startsWith(options.commentPrefix()))) {
+                continue;
             }
+            return record;
         }
         return null;
     }
@@ -2118,32 +2121,40 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Returns true when {@code line} is blank or is a comment. A line is blank when every character is
-     * ASCII whitespace ({@code ≤ ' '}) AND NOT every character is the delimiter — a row that consists
-     * solely of the delimiter character (e.g. {@code \t\t} in TSV) has N+1 null/empty fields and is
-     * data, not whitespace filler. A row with a mix of delimiter and other whitespace (e.g. {@code "  \t  "}
-     * with TAB delimiter) is blank. A line is a comment when its first non-whitespace sequence matches
-     * {@code commentPrefix}; leading delimiter characters do not block comment detection (e.g.
-     * {@code "\t// x"} with TAB delimiter is still a comment).
+     * Returns true when {@code line} is blank or is a comment. A line is blank when it is non-empty
+     * and every character is ASCII whitespace ({@code ≤ ' '}) with at least one non-delimiter
+     * character — a row that consists solely of the delimiter (e.g. {@code \t\t} in TSV) has N+1
+     * null/empty fields and is data, not whitespace filler; a row mixing other whitespace with the
+     * delimiter (e.g. {@code "  \t  "} with TAB delimiter) is blank. The empty line is also blank.
+     * A line is a comment when its first non-whitespace sequence matches {@code commentPrefix}, using
+     * the same first-cell rule as {@link #isBlankOrCommentFirstCell}: a delimiter seen before the
+     * first non-whitespace character means the prefix is in a subsequent cell, not a comment.
      */
     static boolean isBlankOrComment(String line, String commentPrefix, char delim) {
         int len = line.length();
         int pos = 0;
         boolean seenNonDelimWs = len == 0; // empty line is blank
+        boolean seenDelim = false;
         while (pos < len) {
             char c = line.charAt(pos);
-            if (c > ' ') break; // non-whitespace: check comment prefix below
-            if (c != delim) seenNonDelimWs = true;
+            if (c > ' ') {
+                break; // non-whitespace: check comment prefix below
+            }
+            if (c == delim) {
+                seenDelim = true;
+            } else {
+                seenNonDelimWs = true;
+            }
             pos++;
         }
         if (pos == len) {
             // All characters were ASCII whitespace: blank iff at least one was not the delimiter.
             return seenNonDelimWs;
         }
-        return commentPrefix != null
-            && commentPrefix.isEmpty() == false
-            && pos + commentPrefix.length() <= len
-            && line.regionMatches(pos, commentPrefix, 0, commentPrefix.length());
+        if (seenDelim || line.charAt(pos) == delim || commentPrefix == null || commentPrefix.isEmpty()) {
+            return false;
+        }
+        return pos + commentPrefix.length() <= len && line.regionMatches(pos, commentPrefix, 0, commentPrefix.length());
     }
 
     /**
@@ -2165,17 +2176,23 @@ public class CsvFormatReader implements SegmentableFormatReader {
         boolean seenDelim = false;
         while (pos < to) {
             char c = buf[pos];
-            if (c > ' ') break; // non-whitespace: check comment prefix below
-            if (c == delim) seenDelim = true;
-            else seenNonDelimWs = true;
+            if (c > ' ') {
+                break; // non-whitespace: check comment prefix below
+            }
+            if (c == delim) {
+                seenDelim = true;
+            } else {
+                seenNonDelimWs = true;
+            }
             pos++;
         }
         if (pos == to) {
             return seenNonDelimWs;
         }
         // Non-whitespace found. Only check for a comment when still in the first cell — a delimiter
-        // seen before this point means we're in a subsequent cell (Jackson's first-cell rule).
-        if (seenDelim || commentPrefix == null || commentPrefix.isEmpty()) {
+        // seen inside the whitespace run OR the first non-whitespace being the delimiter (non-ASCII-ws
+        // delimiter, e.g. '#') both mean we're in a subsequent cell (Jackson's first-cell rule).
+        if (seenDelim || buf[pos] == delim || commentPrefix == null || commentPrefix.isEmpty()) {
             return false;
         }
         int cellEnd = to;
@@ -2293,70 +2310,35 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS
             );
         }
-        // A quote/escape-aware split, not a naive line.split(delimiter): a quoted field may embed the
-        // delimiter (a header "a,b",c is two columns, not three), and the read-side Jackson parser honours
-        // quoting — so a naive split mis-counts the header width and (Julian's report) the declared-schema
-        // width tripwire wrongly rejects or admits a file. Mirrors splitHeaderQuoteAware for the non-quoting
-        // delimiters (comma, tab).
-        return splitFieldsQuoteAware(
-            line,
-            options.delimiter(),
-            options.quoteChar(),
-            options.escapeChar(),
-            options.escaping(),
-            options.quoting()
-        );
+        // Escape-aware split (no quoting): an escape char protects any following character,
+        // so an escaped delimiter is not treated as a field boundary. Quotes are literal data.
+        // Matches splitHeaderQuoteAware for the escape handling; trailing empty fields are dropped
+        // to match String.split's default (limit 0).
+        return splitFieldsEscapeAware(line, options.delimiter(), options.escapeChar(), options.escaping());
     }
 
     /**
-     * General quote- and escape-aware field split for a single header/schema line over an arbitrary
-     * delimiter (comma, tab). When {@code quoting}, a quote opens at a field boundary (leading,
-     * ignoring whitespace) and a doubled quote inside is a literal quote. When {@code escapeAware},
-     * an escape char protects any following character both inside and outside quotes (matching
-     * {@link #splitHeaderQuoteAware}). Fields are trimmed; trailing empty fields are dropped to match
-     * {@code String.split}'s default (limit 0) behaviour, consistent with {@link #splitHeaderQuoteAware}.
+     * Escape-aware field split for a non-quoting dialect ({@code mode: plain} / {@code escaped}).
+     * Quotes are treated as literal data. When {@code escapeAware}, an escape character protects any
+     * following character (matching the data scanner's unquoted branch), so an escaped delimiter is
+     * not a field boundary. Fields are trimmed; trailing empty fields are dropped to match
+     * {@code String.split}'s default (limit 0), consistent with {@link #splitHeaderQuoteAware}.
      */
-    private static String[] splitFieldsQuoteAware(String line, char delim, char quote, char esc, boolean escapeAware, boolean quoting) {
+    private static String[] splitFieldsEscapeAware(String line, char delim, char esc, boolean escapeAware) {
         List<String> entries = new ArrayList<>();
         int start = 0;
-        boolean inQuotes = false;
-        boolean fieldHasNonWhitespace = false;
         for (int i = 0; i < line.length(); i++) {
             char c = line.charAt(i);
-            if (inQuotes) {
-                if (c == quote) {
-                    if (i + 1 < line.length() && line.charAt(i + 1) == quote) {
-                        i++; // doubled quote inside a quoted field is a literal quote
-                        continue;
-                    }
-                    inQuotes = false;
-                } else if (escapeAware && c == esc && i + 1 < line.length()) {
-                    i++; // skip the escaped char (whatever it is), matching splitHeaderQuoteAware
-                }
-                continue;
-            }
             if (escapeAware && c == esc && i + 1 < line.length()) {
                 i++;
-                fieldHasNonWhitespace = true;
                 continue;
             }
             if (c == delim) {
                 entries.add(line.substring(start, i).trim());
                 start = i + 1;
-                fieldHasNonWhitespace = false;
-                continue;
-            }
-            if (quoting && c == quote && fieldHasNonWhitespace == false) {
-                inQuotes = true;
-                continue;
-            }
-            if (Character.isWhitespace(c) == false) {
-                fieldHasNonWhitespace = true;
             }
         }
         entries.add(line.substring(start).trim());
-        // Match String.split's default (limit 0): drop trailing empty fields so a trailing delimiter
-        // ("a,b,") yields the same column count as the plain/escaped header path.
         int last = entries.size();
         while (last > 0 && entries.get(last - 1).isEmpty()) {
             last--;
@@ -3593,7 +3575,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     String headerLine = null;
                     String record;
                     while ((record = recordReader.readRecord(false)) != null) {
-                        if (isBlankOrComment(record, options.commentPrefix(), options.delimiter())) {
+                        String trimmed = record.trim();
+                        if (trimmed.isEmpty()
+                            || (options.commentPrefix().isEmpty() == false && trimmed.startsWith(options.commentPrefix()))) {
                             continue;
                         }
                         headerLine = record;

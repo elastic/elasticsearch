@@ -19,7 +19,6 @@ import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.document.column.LongValuesCursor;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.document.column.TokenStreamColumn;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
@@ -312,24 +311,6 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         }
     }
 
-    /**
-     * Converts a raw cursor long value from a {@link LongColumn} to the comparable value used in
-     * {@link FieldDescriptor}. For stored-only FLOAT/DOUBLE columns the cursor carries sortable bit
-     * encodings, but {@link IndexableField#numericValue()}{@code .longValue()} on the x-content
-     * {@link org.apache.lucene.document.StoredField} gives the truncated integer — this method
-     * applies the same conversion so both sides of the comparison agree.
-     */
-    private static long toDescriptorLong(long raw, LongColumn.NumericKind kind, FieldType ft) {
-        if (ft.stored() && ft.docValuesType() == DocValuesType.NONE) {
-            return switch (kind) {
-                case FLOAT -> (long) NumericUtils.sortableIntToFloat((int) raw);
-                case DOUBLE -> (long) NumericUtils.sortableLongToDouble(raw);
-                default -> raw;
-            };
-        }
-        return raw;
-    }
-
     private void populateColumnBatchDescriptors(MappedColumns mc, List<List<FieldDescriptor>> perDoc) {
         final ColumnBatch batch = mc.toColumnBatch();
         for (Column column : batch.columns()) {
@@ -342,24 +323,23 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
             // divergence between the two families will surface as a test failure.
             boolean isSparse = column.density() == Column.Density.SPARSE;
             if (column instanceof LongColumn longColumn) {
-                final LongColumn.NumericKind kind = longColumn.numericKind();
                 if (isSparse || randomBoolean()) {
                     final LongTupleCursor cursor = longColumn.tuples();
                     for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
-                        perDoc.get(doc).add(new FieldDescriptor(name, ft, toDescriptorLong(cursor.longValue(), kind, ft), null));
+                        perDoc.get(doc).add(new FieldDescriptor(name, ft, cursor.longValue(), null));
                     }
                 } else {
                     final LongValuesCursor cursor = longColumn.values();
                     final int size = cursor.size();
                     if (randomBoolean()) {
                         for (int doc = 0; doc < size; doc++) {
-                            perDoc.get(doc).add(new FieldDescriptor(name, ft, toDescriptorLong(cursor.nextLong(), kind, ft), null));
+                            perDoc.get(doc).add(new FieldDescriptor(name, ft, cursor.nextLong(), null));
                         }
                     } else {
                         final long[] vals = new long[size];
                         cursor.fillDocValues(vals, 0, size);
                         for (int doc = 0; doc < size; doc++) {
-                            perDoc.get(doc).add(new FieldDescriptor(name, ft, toDescriptorLong(vals[doc], kind, ft), null));
+                            perDoc.get(doc).add(new FieldDescriptor(name, ft, vals[doc], null));
                         }
                     }
                 }
@@ -438,7 +418,16 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         // so the raw 2-byte sortable encoding is compared, which the BinaryColumn columnar path also emits.
         final boolean useBinary = ft.pointDimensionCount() == 1 && ft.pointNumBytes() == 2;
         final Number numeric = useBinary ? null : field.numericValue();
-        final Long longValue = numeric != null ? numeric.longValue() : null;
+        // For stored Float/Double fields, longValue() truncates — compare at sortable bit level instead,
+        // matching the raw encoding the columnar path carries in its LongColumn cursor.
+        final Long longValue;
+        if (numeric instanceof Float f) {
+            longValue = (long) NumericUtils.floatToSortableInt(f);
+        } else if (numeric instanceof Double d) {
+            longValue = NumericUtils.doubleToSortableLong(d);
+        } else {
+            longValue = numeric != null ? numeric.longValue() : null;
+        }
         BytesRef bytesValue = null;
         if (longValue == null) {
             final BytesRef binary = field.binaryValue();

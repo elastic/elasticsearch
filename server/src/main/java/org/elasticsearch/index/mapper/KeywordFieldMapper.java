@@ -908,7 +908,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         /** How a reader of this field's binary doc values finds a document's slots. */
         public ArrayOrderSource arrayOrderSource() {
             return switch (diskFormat) {
-                case BINARY_COLUMNAR_PAYLOAD -> ArrayOrderSource.PAYLOAD;
+                case BINARY_COLUMNAR_PAYLOAD -> ArrayOrderSource.COLUMNAR_PAYLOAD;
                 case BINARY_ARRAY_ORDER_INLINE_NULL -> ArrayOrderSource.INLINE;
                 case NONE, SORTED_SET, BINARY_SEPARATE_COUNT -> ArrayOrderSource.NONE;
             };

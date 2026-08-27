@@ -91,7 +91,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             }
             return new SortedSet(warnings, dv.set());
         }
-        if (arrayOrderSource == ArrayOrderSource.PAYLOAD) {
+        if (arrayOrderSource == ArrayOrderSource.COLUMNAR_PAYLOAD) {
             // The count travels in the blob, so there is no companion column to load or advance on.
             TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);
             return binary == null ? ConstantNull.COLUMN_READER : new MultiValuedBinaryColumnarPayload(warnings, binary);

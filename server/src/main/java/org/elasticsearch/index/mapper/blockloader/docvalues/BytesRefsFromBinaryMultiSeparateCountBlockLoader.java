@@ -34,7 +34,7 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
     public enum ArrayOrderSource {
         NONE,  // no ordering
         INLINE,  // order is already preserved in the binary blob, so reads the blob directly
-        PAYLOAD  // order and count both live in the blob (the columnar codec's format); there is no companion field
+        COLUMNAR_PAYLOAD  // order and count both live in the blob (the columnar codec's format); there is no companion field
     }
 
     private final String fieldName;
@@ -82,7 +82,7 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
 
     @Override
     public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        if (arrayOrderSource == ArrayOrderSource.PAYLOAD) {
+        if (arrayOrderSource == ArrayOrderSource.COLUMNAR_PAYLOAD) {
             // The count travels in the blob, so there is no companion column to load or advance on.
             TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);
             return binary == null ? ConstantNull.COLUMN_READER : new ColumnarPayload(binary);

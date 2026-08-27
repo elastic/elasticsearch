@@ -187,6 +187,16 @@ public class CsvColumnarIT extends CsvIT {
         // absent from the mapping therefore produce 0-column / 0-row results in columnar mode.
         "partial_mapping_sample_data",
         "partial_mapping_mv_sample_data",
+        // Same reason, for the LOAD_ALL fixtures: all of these are dynamic:false and deliberately leave
+        // everything but the mapped keys in _source / _ignored_source, which strict columnar drops at
+        // ingest. synthetic_source_partial_mapping reuses mapping-partial_mapping_sample_data.json.
+        "unmapped_multi_stored_foo",
+        "unmapped_multi_stored_bar",
+        "unmapped_multi_synthetic",
+        "unmapped_multi_stored_mixed",
+        "unmapped_array_data",
+        "unmapped_object_data",
+        "synthetic_source_partial_mapping",
         // no_mapping_sample_data has no explicit mapping; all its fields are unmapped. When
         // combined with other indices in a multi-index query and LOAD is used to load the
         // unmapped fields, columnar mode returns null for them (synthetic _source cannot

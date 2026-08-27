@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.esql;
 
+import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
+import org.antlr.v4.runtime.RecognitionException;
+import org.antlr.v4.runtime.Recognizer;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseLexer;
@@ -253,12 +256,36 @@ public class CsvSpecOrderingValidator {
     private static EsqlBaseParser.QueryContext antlrParse(String query) {
         try {
             EsqlBaseLexer lexer = new EsqlBaseLexer(CharStreams.fromString(query));
-            lexer.removeErrorListeners();
             EsqlBaseParser parser = new EsqlBaseParser(new CommonTokenStream(lexer));
+            // The default listeners print to stderr; this one just records that something went wrong.
+            SyntaxErrors errors = new SyntaxErrors();
+            lexer.removeErrorListeners();
+            lexer.addErrorListener(errors);
             parser.removeErrorListeners();
-            return parser.singleStatement().query();
+            parser.addErrorListener(errors);
+            EsqlBaseParser.QueryContext parsed = parser.singleStatement().query();
+            // ANTLR recovers from a syntax error and hands back a tree covering whatever it could make
+            // sense of. Judging that fragment would report an order violation against a query the test
+            // runner is going to reject outright, so treat any error as "cannot judge".
+            return errors.seen ? null : parsed;
         } catch (Exception e) {
             return null;
+        }
+    }
+
+    private static class SyntaxErrors extends BaseErrorListener {
+        private boolean seen;
+
+        @Override
+        public void syntaxError(
+            Recognizer<?, ?> recognizer,
+            Object offendingSymbol,
+            int line,
+            int charPositionInLine,
+            String msg,
+            RecognitionException e
+        ) {
+            seen = true;
         }
     }
 

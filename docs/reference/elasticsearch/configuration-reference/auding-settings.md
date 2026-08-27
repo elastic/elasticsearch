@@ -71,7 +71,7 @@ $$$xpack-sa-lf-events-emit-request$$$
 $$$xpack-sa-lf-events-max-request-body-size$$$
 
 `xpack.security.audit.logfile.events.max_request_body_size` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Maximum request body size that may be included in audit events when [`xpack.security.audit.logfile.events.emit_request_body`](#xpack-sa-lf-events-emit-request) is `true`. Requests whose body exceeds this limit are rejected with HTTP 413 (Request Entity Too Large) rather than recorded with a truncated body, ensuring the audit log is always a complete record of accepted requests. The default value is `10mb`. Set to `0` to disable the limit (no rejection), which is not recommended on endpoints that may receive large request bodies such as OTLP or Prometheus remote-write ingestion endpoints.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Maximum raw request body size (in bytes) that may be included in audit events when [`xpack.security.audit.logfile.events.emit_request_body`](#xpack-sa-lf-events-emit-request) is `true`. Requests whose raw body size exceeds this limit are rejected with HTTP 413 (Request Entity Too Large), ensuring the audit log is always a complete record of accepted requests. The default value is `2147483647b` (`Integer.MAX_VALUE`), which is effectively unlimited. Set to `0` to disable the limit entirely. Lower this value on endpoints that may receive large request bodies, such as OTLP or Prometheus remote-write ingestion endpoints, to avoid excessive memory use during audit logging.
 
 ## Local Node Info Settings [node-audit-settings]
 

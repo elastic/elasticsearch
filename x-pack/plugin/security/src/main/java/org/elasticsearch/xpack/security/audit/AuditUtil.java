@@ -6,13 +6,16 @@
  */
 package org.elasticsearch.xpack.security.audit;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
@@ -25,9 +28,30 @@ public class AuditUtil {
     // We need to expose this to allow-list as a header passed for cross cluster requests; see `CrossClusterAccessServerTransportFilter`
     public static final String AUDIT_REQUEST_ID = "_xpack_audit_request_id";
 
-    public static String restRequestContent(RestRequest request) {
+    /**
+     * Renders the body of {@code request} as a JSON string for inclusion in audit log events.
+     * <p>
+     * If {@code maxBytes > 0} and the raw request body size exceeds that limit, an
+     * {@link ElasticsearchStatusException} with status 413 is thrown so the caller can reject
+     * the request before the expensive JSON conversion is attempted.
+     *
+     * @param maxBytes   maximum allowed size of the raw request body, in bytes; {@code 0} = unlimited
+     * @param settingKey the cluster setting key to include in the error message; may be {@code null}
+     *                   when {@code maxBytes} is {@code 0}
+     */
+    public static String restRequestContent(RestRequest request, int maxBytes, String settingKey) {
         if (request.hasContent()) {
             var content = request.content();
+            if (maxBytes > 0 && content.length() > maxBytes) {
+                throw new ElasticsearchStatusException(
+                    "Request body size [{}] exceeds the audit body size limit [{}]; "
+                        + "adjust the [{}] setting to increase the limit or set it to 0 to disable",
+                    RestStatus.REQUEST_ENTITY_TOO_LARGE,
+                    ByteSizeValue.ofBytes(content.length()),
+                    ByteSizeValue.ofBytes(maxBytes),
+                    settingKey
+                );
+            }
             try {
                 return XContentHelper.convertToJson(content, false, false, request.getXContentType());
             } catch (IOException ioe) {

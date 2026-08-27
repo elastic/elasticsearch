@@ -76,6 +76,7 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -428,19 +429,21 @@ public class SecurityRestFilterTests extends ESTestCase {
     }
 
     /**
-     * When body auditing is on and the body exceeds the configured limit, the request must be rejected
-     * with HTTP 413 rather than processed (and potentially OOMing during rendering).
+     * When {@code AuditUtil.restRequestContent} detects an oversized body during auditing, it
+     * throws {@link ElasticsearchStatusException} with status 413. {@link SecurityRestFilter}
+     * must catch that exception and reject the request without processing it further.
      */
     public void testRejectsOversizedBodyWhenBodyAuditingEnabled() throws Exception {
-        byte[] body = randomByteArrayOfLength(20);
         FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
-            new BytesArray(body),
+            new BytesArray(randomByteArrayOfLength(20)),
             XContentType.JSON
         ).build();
 
+        AuditTrail auditTrail = mock(AuditTrail.class);
         AuditTrailService auditTrailService = mock(AuditTrailService.class);
-        when(auditTrailService.includeRequestBody()).thenReturn(true);
-        when(auditTrailService.maxRequestBodyBytes()).thenReturn(10); // 10-byte limit; body is 20 bytes
+        when(auditTrailService.get()).thenReturn(auditTrail);
+        doThrow(new ElasticsearchStatusException("body exceeds audit limit", RestStatus.REQUEST_ENTITY_TOO_LARGE)).when(auditTrail)
+            .authenticationSuccess(any());
 
         SecurityRestFilter testFilter = new SecurityRestFilter(
             true,
@@ -459,19 +462,16 @@ public class SecurityRestFilterTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) ex.getCause()).status(), is(RestStatus.REQUEST_ENTITY_TOO_LARGE));
     }
 
-    /** Body within the audit limit must not be rejected. */
+    /** When {@code authenticationSuccess} does not throw, the request proceeds normally. */
     public void testAcceptsBodyWithinAuditLimit() throws Exception {
-        byte[] body = randomByteArrayOfLength(5);
         FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
-            new BytesArray(body),
+            new BytesArray(randomByteArrayOfLength(5)),
             XContentType.JSON
         ).build();
         when(channel.request()).thenReturn(restRequest);
 
         AuditTrail auditTrail = mock(AuditTrail.class);
         AuditTrailService auditTrailService = mock(AuditTrailService.class);
-        when(auditTrailService.includeRequestBody()).thenReturn(true);
-        when(auditTrailService.maxRequestBodyBytes()).thenReturn(10); // 10-byte limit; body is 5 bytes
         when(auditTrailService.get()).thenReturn(auditTrail);
 
         SecurityRestFilter testFilter = new SecurityRestFilter(

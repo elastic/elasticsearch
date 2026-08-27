@@ -294,15 +294,19 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     /**
      * Maximum raw request body size (in bytes) that may be included in audit events when
      * {@link #INCLUDE_REQUEST_BODY} is {@code true}. Requests whose body exceeds this limit are
-     * rejected with HTTP 413 rather than recorded with a truncated body, so that the audit log is
-     * always a complete record of accepted requests.
+     * rejected with HTTP 413 to keep the audit log a complete record of every accepted request.
      * <p>
-     * {@code 0} disables the limit (no rejection, unlimited audit body size); use with caution on
-     * endpoints that may receive large bodies.
+     * {@code 0} disables the limit (no rejection); use with caution on endpoints that may receive
+     * large bodies such as OTLP or Prometheus remote-write ingestion endpoints.
+     * <p>
+     * The default is {@link Integer#MAX_VALUE} bytes (the maximum representable value), which
+     * effectively imposes no limit beyond what the JVM can address in a single buffer.
      */
     public static final Setting<ByteSizeValue> MAX_REQUEST_BODY_SIZE = Setting.byteSizeSetting(
         setting("audit.logfile.events.max_request_body_size"),
-        ByteSizeValue.ofMb(10),
+        ByteSizeValue.ofBytes(Integer.MAX_VALUE),
+        ByteSizeValue.ZERO,
+        ByteSizeValue.ofBytes(Integer.MAX_VALUE),
         Property.NodeScope,
         Property.Dynamic
     );
@@ -408,7 +412,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         this.logger = logger;
         this.events = parse(INCLUDE_EVENT_SETTINGS.get(settings), EXCLUDE_EVENT_SETTINGS.get(settings));
         this.includeRequestBody = INCLUDE_REQUEST_BODY.get(settings);
-        this.maxRequestBodyBytes = (int) Math.min(MAX_REQUEST_BODY_SIZE.get(settings).getBytes(), Integer.MAX_VALUE);
+        this.maxRequestBodyBytes = (int) MAX_REQUEST_BODY_SIZE.get(settings).getBytes();
         this.threadContext = threadContext;
         this.securityContext = new SecurityContext(settings, threadContext);
         this.entryCommonFields = new EntryCommonFields(settings, null, clusterService);
@@ -417,7 +421,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         clusterService.getClusterSettings().addSettingsUpdateConsumer(newSettings -> {
             this.entryCommonFields = this.entryCommonFields.withNewSettings(newSettings);
             this.includeRequestBody = INCLUDE_REQUEST_BODY.get(newSettings);
-            this.maxRequestBodyBytes = (int) Math.min(MAX_REQUEST_BODY_SIZE.get(newSettings).getBytes(), Integer.MAX_VALUE);
+            this.maxRequestBodyBytes = (int) MAX_REQUEST_BODY_SIZE.get(newSettings).getBytes();
             // `events` is a volatile field! Keep `events` write last so that
             // `entryCommonFields`, `includeRequestBody`, and `maxRequestBodyBytes` writes happen-before!
             // `events` is always read before `entryCommonFields` and `includeRequestBody`.
@@ -1718,7 +1722,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
         LogEntryBuilder withRequestBody(RestRequest request) {
             if (includeRequestBody) {
-                final String requestContent = restRequestContent(request);
+                final String requestContent = restRequestContent(request, maxRequestBodyBytes, MAX_REQUEST_BODY_SIZE.getKey());
                 if (Strings.hasLength(requestContent)) {
                     logEntry.with(REQUEST_BODY_FIELD_NAME, requestContent);
                 }

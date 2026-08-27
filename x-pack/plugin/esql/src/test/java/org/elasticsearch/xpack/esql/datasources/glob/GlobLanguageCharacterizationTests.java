@@ -11,16 +11,15 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.PatternSyntaxException;
 
 /**
  * An exhaustive, labelled record of what the glob language does TODAY, written before the matcher is rewritten.
  *
  * <p>This is not a statement that today's behaviour is correct. Every case carries a verdict: {@link Verdict#KEEP}
  * means the rewrite must reproduce it exactly, {@link Verdict#FLIP} means the rewrite deliberately changes it and
- * the case records both the current result and the intended one. Before the rewrite every case asserts the CURRENT
- * result, so this suite is green against the shipping code. The rewrite then flips exactly the {@code FLIP} rows,
- * which makes the behavioural diff one reviewable list instead of scattered edits across test files.
+ * the case records both the result it had before the rewrite and the intended one. The rewrite flipped exactly
+ * the {@code FLIP} rows and no others — which is the property this file exists to make checkable, since the
+ * behavioural diff of a matcher rewrite is otherwise scattered across every test that touches it.
  *
  * <p>The point is that {@code GlobMatcher} is on the path of every object every dataset lists, and it had nine
  * distinct patterns under test. A defect here is silent wrong rows, so the rewrite needs a baseline it cannot
@@ -100,8 +99,12 @@ public class GlobLanguageCharacterizationTests extends ESTestCase {
         keep("(a)", "(a)", true, "same for parentheses");
     }
 
-    /** Every labelled case, asserted against the CURRENT behaviour. Green on the shipping code by construction. */
-    public void testCharacterizedBehaviourMatchesToday() {
+    /**
+     * Every labelled case, asserted against the INTENDED behaviour — for a {@code KEEP} row what it always did,
+     * for a {@code FLIP} row the corrected result. The {@code today} column stays as the record of what each case
+     * used to do, so the rewrite's behavioural diff reads as one list.
+     */
+    public void testLanguageMatchesTheIntendedBehaviour() {
         List<String> failures = new ArrayList<>();
         for (Case c : CASES) {
             boolean actual;
@@ -111,7 +114,7 @@ public class GlobLanguageCharacterizationTests extends ESTestCase {
                 failures.add(c.glob() + " vs " + c.path() + " threw " + e.getClass().getSimpleName() + " (" + c.note() + ")");
                 continue;
             }
-            if (actual != c.today()) {
+            if (actual != c.intended()) {
                 failures.add(
                     "["
                         + c.verdict()
@@ -119,8 +122,8 @@ public class GlobLanguageCharacterizationTests extends ESTestCase {
                         + c.glob()
                         + " vs "
                         + c.path()
-                        + ": recorded "
-                        + c.today()
+                        + ": intended "
+                        + c.intended()
                         + ", got "
                         + actual
                         + " — "
@@ -128,7 +131,7 @@ public class GlobLanguageCharacterizationTests extends ESTestCase {
                 );
             }
         }
-        assertTrue("characterized behaviour drifted:\n  " + String.join("\n  ", failures), failures.isEmpty());
+        assertTrue("behaviour diverged from the ledger:\n  " + String.join("\n  ", failures), failures.isEmpty());
     }
 
     /** The ledger the rewrite is measured against: what changes, and what must not. */
@@ -148,30 +151,45 @@ public class GlobLanguageCharacterizationTests extends ESTestCase {
 
     // -- inputs that throw today. Each becomes either a working pattern or a deliberate validation error.
 
-    public void testUnterminatedClassIsSilentlyAutoClosedToday() {
-        // DEFECT: a typo becomes a different pattern rather than an error.
-        assertTrue(new GlobMatcher("file[abc").matches("filea"));
+    /** Was silently auto-closed into a different pattern, so a typo changed what a dataset read. Now it is named. */
+    public void testUnterminatedClassIsRejected() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new GlobMatcher("file[abc"));
+        assertTrue(e.getMessage(), e.getMessage().contains("unterminated character class"));
     }
 
-    public void testLiteralOpenBracketFailsToCompileToday() {
-        // DEFECT, and self-inflicted: escapeGlobMeta emits exactly this shape to escape a literal '[' in a
-        // partition value, so hint-driven rewriting can generate a pattern this matcher rejects.
-        expectThrows(PatternSyntaxException.class, () -> new GlobMatcher("x[[]y"));
+    public void testUnterminatedBraceGroupIsRejected() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new GlobMatcher("file{a,b"));
+        assertTrue(e.getMessage(), e.getMessage().contains("unterminated brace group"));
     }
 
-    public void testPosixClassSyntaxSilentlyMatchesTheWrongCharactersToday() {
-        // DEFECT: [[:digit:]] is read as a class of the characters in ":digt", not as digits.
-        GlobMatcher m = new GlobMatcher("[[:digit:]]");
-        assertFalse("a digit does not match", m.matches("5"));
-        assertTrue("but a letter from the class name does", m.matches("d"));
+    /**
+     * Used to fail to compile, which mattered because {@code GlobExpander.escapeGlobMeta} emits exactly this shape
+     * to neutralise a literal {@code [} in a partition value — hint-driven rewriting could generate a pattern this
+     * matcher then rejected. A one-character class is also the only way to match a literal metacharacter at all,
+     * since backslash is a literal in this language rather than an escape.
+     */
+    public void testOneCharacterClassMatchesALiteralMetacharacter() {
+        assertTrue(new GlobMatcher("x[[]y").matches("x[y"));
+        assertFalse(new GlobMatcher("x[[]y").matches("xy"));
+        assertTrue(new GlobMatcher("a[*]b").matches("a*b"));
+        assertFalse("the star is a literal here, not a wildcard", new GlobMatcher("a[*]b").matches("axb"));
+        assertTrue(new GlobMatcher("a[?]b").matches("a?b"));
+        assertTrue(new GlobMatcher("a[{]b").matches("a{b"));
     }
 
-    public void testClassIntersectionLeaksFromJavaRegexToday() {
-        // DEFECT: '&&' is Java's set-intersection operator, so this silently matches nothing.
+    /** Used to silently match the characters of the class name rather than digits. Unsupported syntax is now named. */
+    public void testPosixClassSyntaxIsRejected() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new GlobMatcher("[[:digit:]]"));
+        assertTrue(e.getMessage(), e.getMessage().contains("POSIX character classes"));
+    }
+
+    /** {@code &&} used to become Java's set-intersection operator and silently match nothing. It is three characters. */
+    public void testClassIntersectionSyntaxIsNotInheritedFromJavaRegex() {
         GlobMatcher m = new GlobMatcher("[a&&b]");
-        assertFalse(m.matches("a"));
-        assertFalse(m.matches("b"));
-        assertFalse(m.matches("&"));
+        assertTrue(m.matches("a"));
+        assertTrue(m.matches("b"));
+        assertTrue(m.matches("&"));
+        assertFalse(m.matches("c"));
     }
 
     // -- the two engines. A brace-only pattern takes BraceExpander's exists()-based fast path instead of the
@@ -188,18 +206,18 @@ public class GlobLanguageCharacterizationTests extends ESTestCase {
     }
 
     /**
-     * DEFECT: they do NOT agree on numeric ranges. The expander produces 1.csv, 2.csv, 3.csv; the matcher reads
-     * the pattern as the literal text "1..3". So {@code {1..3}.csv} and {@code {1..3}*.csv} mean different things
-     * today purely because the second is not brace-only and takes the other engine.
+     * They used to disagree: the expander produced 1.csv, 2.csv and 3.csv while the matcher read the literal text
+     * "1..3", so {@code {1..3}.csv} and {@code {1..3}*.csv} meant different things purely because the second is not
+     * brace-only and takes the other engine. Both now parse brace bodies with the same code.
      */
-    public void testTheTwoEnginesDisagreeOnNumericRanges() {
+    public void testTheTwoEnginesNowAgreeOnNumericRanges() {
         List<String> expanded = BraceExpander.expand("{1..3}.csv", 100);
         assertEquals(List.of("1.csv", "2.csv", "3.csv"), expanded);
         GlobMatcher matcher = new GlobMatcher("{1..3}.csv");
         for (String candidate : expanded) {
-            assertFalse("the matcher rejects what the expander produced: " + candidate, matcher.matches(candidate));
+            assertTrue("the matcher accepts what the expander produced: " + candidate, matcher.matches(candidate));
         }
-        assertTrue("the matcher instead matches the literal text", matcher.matches("1..3.csv"));
+        assertFalse("and no longer matches the literal text instead", matcher.matches("1..3.csv"));
     }
 
     // -- fuzz. A fixed alphabet over the characters the language actually branches on, so the rewrite has a
@@ -251,6 +269,32 @@ public class GlobLanguageCharacterizationTests extends ESTestCase {
             }
         }
         return sb.toString();
+    }
+
+    /**
+     * The regex translation this replaced compiled repeated {@code **} into nested optional {@code .*} groups,
+     * which backtrack exponentially: ten of them took seconds on a short path and fifteen did not finish. The
+     * matcher runs once per discovered object on the coordinator thread, and nothing validates a dataset's
+     * resource pattern before then, so a pattern like this was a way to hang a coordinator. Matching is now a
+     * memoised walk over (pattern segment, path segment), so the cost is bounded by their product.
+     */
+    public void testRepeatedGlobstarsDoNotBlowUp() {
+        StringBuilder glob = new StringBuilder("a");
+        for (int i = 0; i < 40; i++) {
+            glob.append("/**");
+        }
+        glob.append("/X");
+        StringBuilder path = new StringBuilder("a");
+        for (int i = 0; i < 40; i++) {
+            path.append("/b");
+        }
+        path.append("/Y");
+
+        GlobMatcher matcher = new GlobMatcher(glob.toString());
+        long start = System.nanoTime();
+        assertFalse("the path genuinely does not match, which is the expensive case", matcher.matches(path.toString()));
+        long millis = (System.nanoTime() - start) / 1_000_000;
+        assertTrue("40 globstars took " + millis + "ms; this used to not terminate", millis < 1_000);
     }
 
     /** {@code needsRecursion} drives whether the listing is recursive, so it is part of the contract. */

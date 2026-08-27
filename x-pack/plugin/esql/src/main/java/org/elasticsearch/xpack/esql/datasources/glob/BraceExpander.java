@@ -105,7 +105,12 @@ final class BraceExpander {
      * has a leading zero (matching bash semantics: {@code {01..03}} pads, {@code {1..3}} does not).
      * Returns {@code null} if the range exceeds {@code maxExpansion}.
      */
-    private static String[] expandBraceContent(String content, int maxExpansion) {
+    /**
+     * Package-private so {@link GlobMatcher} parses brace bodies with the very same code the brace-only fast path
+     * uses. The two used to disagree: this expanded {@code {1..3}} numerically while the matcher read the literal
+     * text, so one construct meant two different things depending on which engine a pattern happened to reach.
+     */
+    static String[] expandBraceContent(String content, int maxExpansion) {
         int dotDot = content.indexOf("..");
         if (dotDot > 0 && dotDot < content.length() - 2 && content.indexOf(',') < 0) {
             String startStr = content.substring(0, dotDot);

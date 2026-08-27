@@ -1,0 +1,21 @@
+ExchangeSinkExec[[_tsid{m}#0, step{r}#1],false]
+\_TimeSeriesAggregateExec[[_tsid{m}#0, step{r}#1],[step{r}#1 AS step#1],INITIAL,[_tsid{m}#0, step{r}#1],8,BUCKET(@timestamp{f}#2,PT5M[TIME_DURATION]),BUCKET(@timestamp{f}#2,PT5M[TIME_DURATION])]
+  \_FieldExtractExec[_tsid{m}#0]<[],[],[]>
+    \_EvalExec[[BUCKET(@timestamp{f}#2,PT5M[TIME_DURATION]) AS step#1]]
+      \_FieldExtractExec[@timestamp{f}#2]<[],[],[]>
+        \_EsQueryExec[k8s], indexMode[standard], [_doc{f}#3], limit[], sort[] estimatedRowSize[36] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "@timestamp",
+    "next" : {
+      "range" : {
+        "@timestamp" : {
+          "gte" : "2024-05-09T23:58:00.000Z",
+          "lte" : "2024-05-10T00:03:00.000Z",
+          "format" : "strict_date_optional_time",
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "PROMQL index=k8s time=\"2024-05-10T00:03:00.000Z\" result=(time())@1:1"
+  }
+}, tags=[]]]]

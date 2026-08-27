@@ -872,6 +872,7 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().query("FROM test | LIMIT 1 BY CATEGORIZE(first_name)");
         defaultAnalyzer().query("FROM test | SORT emp_no | LIMIT 1 BY CATEGORIZE(first_name)");
         defaultAnalyzer().query("FROM test | LIMIT 1 BY CATEGORIZE(first_name), emp_no");
+        defaultAnalyzer().query("FROM test | SORT emp_no | LIMIT 1 BY CATEGORIZE(first_name), emp_no");
     }
 
     public void testCategorizeOnlyFirstGroupingInLimitBy() {
@@ -886,6 +887,21 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().error(
             "FROM test | LIMIT 1 BY CATEGORIZE(first_name), emp_no, CATEGORIZE(last_name)",
             equalTo("1:56: CATEGORIZE grouping function [CATEGORIZE(last_name)] can only be in the first grouping expression")
+        );
+    }
+
+    public void testCategorizeOnlyFirstGroupingInSortLimitBy() {
+        defaultAnalyzer().error(
+            "FROM test | SORT emp_no | LIMIT 1 BY emp_no, CATEGORIZE(first_name)",
+            equalTo("1:46: CATEGORIZE grouping function [CATEGORIZE(first_name)] can only be in the first grouping expression")
+        );
+        defaultAnalyzer().error(
+            "FROM test | SORT emp_no | LIMIT 1 BY CATEGORIZE(first_name), CATEGORIZE(last_name)",
+            equalTo("1:62: CATEGORIZE grouping function [CATEGORIZE(last_name)] can only be in the first grouping expression")
+        );
+        defaultAnalyzer().error(
+            "FROM test | SORT emp_no | LIMIT 1 BY CATEGORIZE(first_name), emp_no, CATEGORIZE(last_name)",
+            equalTo("1:70: CATEGORIZE grouping function [CATEGORIZE(last_name)] can only be in the first grouping expression")
         );
     }
 

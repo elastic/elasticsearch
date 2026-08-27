@@ -187,6 +187,11 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     protected NodeInfo<TopNByExec> info() {
+        // Capture local-only fields so that plan-transformation rules that rebuild this node via the
+        // NodeInfo factory (instead of replaceChild) preserve them. Mirrors LimitByExec.info().
+        Set<Attribute> capturedDocValuesAttributes = docValuesAttributes;
+        OutputOrdering capturedOutputOrdering = outputOrdering;
+        List<Attribute> capturedInitialCategorizeOutput = initialCategorizeOutput;
         return NodeInfo.create(
             this,
             (src, child, ord, lim, grp, size, m) -> new TopNByExec(
@@ -196,10 +201,10 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
                 lim,
                 grp,
                 size,
-                Set.of(),
-                OutputOrdering.SORTED,
+                capturedDocValuesAttributes,
+                capturedOutputOrdering,
                 m,
-                null
+                capturedInitialCategorizeOutput
             ),
             child(),
             order,

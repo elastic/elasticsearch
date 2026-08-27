@@ -232,7 +232,7 @@ public class LimitByExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public int hashCode() {
-        return Objects.hash(limitPerGroup, groupings, estimatedRowSize, child());
+        return Objects.hash(limitPerGroup, groupings, estimatedRowSize, mode, child());
     }
 
     @Override
@@ -249,6 +249,7 @@ public class LimitByExec extends UnaryExec implements EstimatesRowSize {
         return Objects.equals(limitPerGroup, other.limitPerGroup)
             && Objects.equals(groupings, other.groupings)
             && Objects.equals(estimatedRowSize, other.estimatedRowSize)
+            && mode == other.mode
             && Objects.equals(child(), other.child());
     }
 }

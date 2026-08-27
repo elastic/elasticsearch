@@ -397,19 +397,6 @@ public class TsidBuilder {
     // two are kept in agreement by tests comparing their bytes rather than by sharing code.
 
     /**
-     * Adds a dimension from already-computed hashes. <b>Test-only</b>: it drives this builder from the
-     * same tuples the columnar accumulator consumes, so a parity failure points at the accumulator
-     * rather than at the hashing. {@code path} is still used for the prefix-byte special-case and the
-     * array-dedup guard, so pass its {@link #hashPath}.
-     */
-    TsidBuilder addPrehashedDimension(String path, long pathH1, long pathH2, long valueH1, long valueH2) {
-        dimensions.add(
-            new Dimension(path, new MurmurHash3.Hash128(pathH1, pathH2), new MurmurHash3.Hash128(valueH1, valueH2), dimensions.size())
-        );
-        return this;
-    }
-
-    /**
      * Value hash of a string dimension: murmur3-128 of its UTF-8 bytes, seed 0.
      *
      * @param out output holder; callers retaining the result must pass a fresh instance, not a scratch

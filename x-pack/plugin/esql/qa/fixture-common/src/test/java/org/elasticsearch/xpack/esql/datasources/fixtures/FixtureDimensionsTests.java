@@ -59,7 +59,7 @@ public class FixtureDimensionsTests extends ESTestCase {
     /** A dimension nothing knows how to apply would generate vectors that cannot be run. */
     public void testEveryDimensionDeclaresHowItBinds() {
         for (String d : dimensions.names()) {
-            assertThat(d, Set.of("fixture", "directive", "backend", "pragma", "cluster"), hasItem(dimensions.binds(d)));
+            assertThat(d, FixtureDimensions.BINDS, hasItem(dimensions.binds(d)));
         }
     }
 
@@ -377,6 +377,107 @@ public class FixtureDimensionsTests extends ESTestCase {
         FixtureDimensions d = FixtureDimensions.get();
         assertThat(d.derivedFromForValue("partition_detection", "template"), equalTo("partition_path"));
         assertThat("the other values stand alone", d.derivedFromForValue("partition_detection", "hive"), nullValue());
+    }
+
+    /**
+     * F1, and it is load-bearing. A pragma is not a dataset setting. If its key reached the directive map
+     * the dimension would look directive-expressible, the per-format vector counts would move, and every
+     * dataset WITH clause would carry an unknown key -- breaking suites that pass today.
+     */
+    public void testAPragmaKeyIsNotADirectiveSetting() {
+        FixtureDimensions d = FixtureDimensions.get();
+        assertThat("distribution binds as a pragma", d.binds("distribution"), equalTo("pragma"));
+        assertThat(d.pragmaKey("distribution"), equalTo("external_distribution"));
+        assertThat("and must NOT be reachable as a directive", d.directiveKey("distribution"), nullValue());
+
+        Map<String, String> varied = new LinkedHashMap<>();
+        for (String name : d.names()) {
+            varied.put(name, d.defaultValue(name));
+        }
+        varied.put("distribution", "round_robin");
+        assertThat("a pragma slot contributes no WITH settings", d.directiveSettings(varied), equalTo(Map.of()));
+    }
+
+    /** The counts the four live vector suites are built on. A silent move here changes what CI runs. */
+    public void testDirectiveExpressibleCountsAreUnchanged() {
+        FixtureDimensions d = FixtureDimensions.get();
+        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(24));
+        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(18));
+        assertThat(d.directiveExpressibleVectors("ndjson").size(), equalTo(18));
+        assertThat(d.directiveExpressibleVectors("parquet").size(), equalTo(9));
+    }
+
+    /** The reader default is per-extension: a .tsv is read plain where a .csv is read quoted. */
+    public void testAPerFormatDefaultOverridesTheBaseDefault() {
+        FixtureDimensions d = FixtureDimensions.get();
+        assertThat(d.defaultValue("text_mode"), equalTo("quoted"));
+        assertThat(d.defaultValue("text_mode", "tsv"), equalTo("plain"));
+        assertThat("a format with no override falls back", d.defaultValue("text_mode", "csv"), equalTo("quoted"));
+    }
+
+    /** The scheme-to-backend correspondence is declared, so renaming a backend cannot rot it silently. */
+    public void testTheSchemeToBackendCorrespondenceIsDeclaredAndTotal() {
+        FixtureDimensions d = FixtureDimensions.get();
+        assertThat(d.backendFor("storage_scheme", "wasbs"), equalTo("AZURE"));
+        assertThat(d.backendFor("storage_scheme", "file"), equalTo("LOCAL"));
+        for (String scheme : d.values("storage_scheme")) {
+            assertThat("every scheme names a backend", d.backendFor("storage_scheme", scheme), notNullValue());
+        }
+    }
+
+    /** A read key on a binding nothing announces would be wiring that only looks like it exists. */
+    public void testAReadKeyOnANonFixtureDimensionIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.error_mode.read_key = mode");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("read_key"));
+    }
+
+    /** An unknown binding is a typo that would otherwise silently exclude the dimension from every seam. */
+    public void testAnUnknownBindsIsRejected() {
+        String[] lines = wellFormed().clone();
+        lines[2] = "dimension.format.binds = magic";
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("magic"));
+    }
+
+    /** A per-format default naming a format that does not exist would never apply to anything. */
+    public void testAPerFormatDefaultForAnUndeclaredFormatIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.error_mode.default.orc = skip_row");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("undeclared format"));
+    }
+
+    /** A partial backend map is a forgotten line wearing a decision's face. */
+    public void testAPartialBackendMapIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.format.backend.csv = LOCAL");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("parquet"));
+    }
+
+    /** An absence whose reason contradicts its own key would render a report that argues with itself. */
+    public void testAnAbsenceWhoseReasonKindDisagreesWithItsKeyIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.error_mode.gap.skip_row = rule: not really a gap");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("gap:"));
+    }
+
+    /** Declaring the baseline missing cannot be true -- every vector carries the default. */
+    public void testAnAbsenceOnTheDefaultValueIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.error_mode.gap.fail_fast = gap: nope");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("effective default"));
+    }
+
+    /** A per-format absence wins over a bare one, so one value can be a rule here and a gap there. */
+    public void testAPerFormatAbsenceWinsOverABareOne() {
+        String[] lines = ArrayUtils.append(
+            ArrayUtils.append(wellFormed(), "dimension.error_mode.gap.skip_row = gap: nothing writes a bad row yet"),
+            "dimension.error_mode.rule.skip_row.parquet = rule: parquet rejects the file, not the row"
+        );
+        FixtureDimensions d = FixtureDimensions.parse(declaration(lines));
+        assertThat(d.absenceReason("error_mode", "skip_row", "csv"), containsString("nothing writes"));
+        assertThat(d.absenceReason("error_mode", "skip_row", "parquet"), containsString("rejects the file"));
+        assertThat("a value with no absence is not licensed", d.absenceReason("error_mode", "fail_fast", "csv"), nullValue());
     }
 
     /** Renders the derived set so a reader can see what the declaration produces without running it. */

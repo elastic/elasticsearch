@@ -17,7 +17,7 @@ def compressedCodecs = [
   [name: 'snappy',  codec: 'SNAPPY'],
   [name: 'gzip',    codec: 'GZIP'],
   [name: 'zstd',    codec: 'ZSTD'],
-  [name: 'lz4raw',  codec: 'LZ4_RAW'],
+  [name: 'lz4_raw', codec: 'LZ4_RAW'],
 ]
 
 def serverProj = ext.serverProject

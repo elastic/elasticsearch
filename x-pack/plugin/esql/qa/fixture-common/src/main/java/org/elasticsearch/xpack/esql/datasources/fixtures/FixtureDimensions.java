@@ -63,6 +63,16 @@ public final class FixtureDimensions {
      * malformed resource becomes an ExceptionInInitializerError in an unrelated suite. Deferring it means
      * the declaration is read when it is wanted, and the failure names the caller that wanted it.
      */
+    /**
+     * How a dimension's value is made real. Public because a test that repeats the list drifts from the
+     * parser that enforces it, and then agrees with itself while both are wrong.
+     *
+     * <p>{@code fixture} writes bytes, {@code resolver} changes how those bytes are asked for,
+     * {@code directive} and {@code pragma} travel with the query, {@code backend} selects where the data
+     * lives, and {@code cluster} needs a differently-configured node.
+     */
+    public static final Set<String> BINDS = Set.of("fixture", "resolver", "directive", "pragma", "backend", "cluster");
+
     private static final class Holder {
         private static final FixtureDimensions INSTANCE = load();
     }
@@ -76,6 +86,11 @@ public final class FixtureDimensions {
     private final Map<String, Map<String, String>> directiveValuesByName;
     private final Map<String, String> derivedByName;
     private final Map<String, Map<String, String>> derivedValuesByName;
+    private final Map<String, String> readKeyByName;
+    private final Map<String, String> pragmaKeyByName;
+    private final Map<String, Map<String, String>> formatDefaultsByName;
+    private final Map<String, Map<String, String>> backendByName;
+    private final Map<String, Map<String, String>> absenceByName;
     private final Map<String, Verdict> verdicts;
 
     private FixtureDimensions(
@@ -88,6 +103,11 @@ public final class FixtureDimensions {
         Map<String, Map<String, String>> directiveValuesByName,
         Map<String, String> derivedByName,
         Map<String, Map<String, String>> derivedValuesByName,
+        Map<String, String> readKeyByName,
+        Map<String, String> pragmaKeyByName,
+        Map<String, Map<String, String>> formatDefaultsByName,
+        Map<String, Map<String, String>> backendByName,
+        Map<String, Map<String, String>> absenceByName,
         Map<String, Verdict> verdicts
     ) {
         this.names = List.copyOf(names);
@@ -99,6 +119,11 @@ public final class FixtureDimensions {
         this.directiveValuesByName = Map.copyOf(directiveValuesByName);
         this.derivedByName = Map.copyOf(derivedByName);
         this.derivedValuesByName = Map.copyOf(derivedValuesByName);
+        this.readKeyByName = Map.copyOf(readKeyByName);
+        this.pragmaKeyByName = Map.copyOf(pragmaKeyByName);
+        this.formatDefaultsByName = Map.copyOf(formatDefaultsByName);
+        this.backendByName = Map.copyOf(backendByName);
+        this.absenceByName = Map.copyOf(absenceByName);
         this.verdicts = Map.copyOf(verdicts);
     }
 
@@ -113,6 +138,50 @@ public final class FixtureDimensions {
      */
     public String directiveValue(String dimension, String value) {
         return directiveValuesByName.getOrDefault(dimension, Map.of()).getOrDefault(value, value);
+    }
+
+    /** The reader setting a fixture-bound value announces itself under, or null when it needs none. */
+    public String readKey(String dimension) {
+        return readKeyByName.get(dimension);
+    }
+
+    /**
+     * The query pragma a pragma-bound dimension travels under, or null.
+     *
+     * <p>Deliberately NOT the same map as {@link #directiveKey}: a pragma is not a dataset setting, and
+     * putting it in the directive map would make the dimension look directive-expressible, change the
+     * generated vector counts, and inject an unknown key into every dataset's WITH clause.
+     */
+    public String pragmaKey(String dimension) {
+        return pragmaKeyByName.get(dimension);
+    }
+
+    /**
+     * The value a dimension falls back to for one format.
+     *
+     * <p>Per-format because a reader default can be per-extension: the text mode a {@code .tsv} file is
+     * read with is plain, while {@code .csv} is quoted. One global default would make every tsv vector
+     * claim to vary a slot that was already at its baseline.
+     */
+    public String defaultValue(String dimension, String format) {
+        return formatDefaultsByName.getOrDefault(dimension, Map.of()).getOrDefault(format, defaultValue(dimension));
+    }
+
+    /** The storage backend a value corresponds to, or null when the dimension names none. */
+    public String backendFor(String dimension, String value) {
+        return backendByName.getOrDefault(dimension, Map.of()).get(value);
+    }
+
+    /**
+     * The declared reason a value is not exercised, or null when nothing licenses its absence.
+     *
+     * <p>A per-format reason wins over a bare one, so a value can be a rule on one format and a gap on
+     * another without either shadowing the other silently.
+     */
+    public String absenceReason(String dimension, String value, String format) {
+        Map<String, String> declared = absenceByName.getOrDefault(dimension, Map.of());
+        String perFormat = declared.get(value + "." + format);
+        return perFormat != null ? perFormat : declared.get(value);
     }
 
     /** What a dimension's value is derived from when no constant can express it, or null when one can. */
@@ -186,39 +255,68 @@ public final class FixtureDimensions {
         Map<String, Map<String, String>> directiveValues = new LinkedHashMap<>();
         Map<String, String> derived = new LinkedHashMap<>();
         Map<String, Map<String, String>> derivedValues = new LinkedHashMap<>();
+        Map<String, String> readKeys = new LinkedHashMap<>();
+        Map<String, String> declaredKeys = new LinkedHashMap<>();
+        Map<String, String> pragmaKeys = new LinkedHashMap<>();
+        Map<String, Map<String, String>> formatDefaults = new LinkedHashMap<>();
+        Map<String, Map<String, String>> backends = new LinkedHashMap<>();
+        Map<String, Map<String, String>> absences = new LinkedHashMap<>();
         Map<String, Verdict> verdicts = new LinkedHashMap<>();
 
         for (String key : new TreeSet<>(props.stringPropertyNames())) {
             String value = props.getProperty(key).trim();
             if (key.startsWith("dimension.")) {
+                // Split on the FIRST dot: a dimension name never contains one, and half the attributes
+                // are two-part (`gap.<v>.<format>` is three). Splitting on the last dot instead reads a
+                // value name as the attribute, which is why this used to need a special case per
+                // two-part attribute -- one per attribute, each easy to forget when adding the next.
                 String rest = key.substring("dimension.".length());
-                int dot = rest.lastIndexOf('.');
+                int dot = rest.indexOf('.');
                 if (dot < 0) {
                     throw new IllegalStateException("malformed dimension key [" + key + "]");
                 }
-                // `value.<v>` is the one two-part attribute, so it has to be split off before the
-                // lastIndexOf below -- which would otherwise read the value name as the attribute.
-                // Same reason as `value.<v>` below: a two-part attribute has to be split off first.
-                int derivedAt = rest.indexOf(".derived.");
-                if (derivedAt >= 0) {
-                    derivedValues.computeIfAbsent(rest.substring(0, derivedAt), k -> new LinkedHashMap<>())
-                        .put(rest.substring(derivedAt + ".derived.".length()), value);
-                    continue;
-                }
-                int valueAt = rest.indexOf(".value.");
-                if (valueAt >= 0) {
-                    directiveValues.computeIfAbsent(rest.substring(0, valueAt), k -> new LinkedHashMap<>())
-                        .put(rest.substring(valueAt + ".value.".length()), value);
-                    continue;
-                }
                 String name = rest.substring(0, dot);
-                switch (rest.substring(dot + 1)) {
-                    case "values" -> values.put(name, splitList(value));
-                    case "default" -> defaults.put(name, value);
-                    case "applies_to" -> appliesTo.put(name, new LinkedHashSet<>(splitList(value)));
-                    case "binds" -> binds.put(name, value);
-                    case "key" -> directiveKeys.put(name, value);
-                    case "derived" -> derived.put(name, value);
+                String attribute = rest.substring(dot + 1);
+                int sub = attribute.indexOf('.');
+                String head = sub < 0 ? attribute : attribute.substring(0, sub);
+                String tail = sub < 0 ? null : attribute.substring(sub + 1);
+                switch (head) {
+                    case "values" -> values.put(name, splitList(requireBare(key, tail, value)));
+                    case "applies_to" -> appliesTo.put(name, new LinkedHashSet<>(splitList(requireBare(key, tail, value))));
+                    case "binds" -> binds.put(name, requireBare(key, tail, value));
+                    case "read_key" -> readKeys.put(name, requireBare(key, tail, value));
+                    // Routed to the directive or pragma map after the loop, from `binds` -- doing it here
+                    // would depend on `binds` having been seen first, which is alphabetical luck.
+                    case "key" -> declaredKeys.put(name, requireBare(key, tail, value));
+                    case "default" -> {
+                        if (tail == null) {
+                            defaults.put(name, value);
+                        } else {
+                            formatDefaults.computeIfAbsent(name, k -> new LinkedHashMap<>()).put(tail, value);
+                        }
+                    }
+                    case "derived" -> {
+                        if (tail == null) {
+                            derived.put(name, value);
+                        } else {
+                            derivedValues.computeIfAbsent(name, k -> new LinkedHashMap<>()).put(tail, value);
+                        }
+                    }
+                    case "value" -> directiveValues.computeIfAbsent(name, k -> new LinkedHashMap<>())
+                        .put(requireQualified(key, tail), value);
+                    case "backend" -> backends.computeIfAbsent(name, k -> new LinkedHashMap<>()).put(requireQualified(key, tail), value);
+                    // `gap.<v>`, `gap.<v>.<format>`, and the `rule.` pair. The kind comes from the key and
+                    // the reason text must repeat it, so a copied line whose text says the other kind is a
+                    // build failure rather than a report that quietly contradicts itself.
+                    case "gap", "rule" -> {
+                        String slot = requireQualified(key, tail);
+                        if (value.startsWith(head + ":") == false) {
+                            throw new IllegalStateException(
+                                "absence [" + key + "] is declared as [" + head + "] but its reason does not start with [" + head + ":]"
+                            );
+                        }
+                        absences.computeIfAbsent(name, k -> new LinkedHashMap<>()).put(slot, value);
+                    }
                     default -> throw new IllegalStateException("unknown dimension attribute in [" + key + "]");
                 }
             } else if (key.startsWith("pair.")) {
@@ -234,6 +332,19 @@ public final class FixtureDimensions {
                 throw new IllegalStateException(
                     "unknown key [" + key + "] in [" + RESOURCE + "]; expected 'dimension.<n>.*' or 'pair.<a>.<b>'"
                 );
+            }
+        }
+
+        // A declared `key` means different things depending on how the dimension binds, and the
+        // difference is load-bearing: a pragma key reaching directiveKeyByName would make distribution
+        // look directive-expressible, change the per-format vector counts, and inject an unknown
+        // setting into every dataset WITH clause.
+        for (Map.Entry<String, String> declared : declaredKeys.entrySet()) {
+            String owner = declared.getKey();
+            if ("pragma".equals(binds.get(owner))) {
+                pragmaKeys.put(owner, declared.getValue());
+            } else {
+                directiveKeys.put(owner, declared.getValue());
             }
         }
 
@@ -307,6 +418,94 @@ public final class FixtureDimensions {
                 }
             }
         }
+        for (String name : names) {
+            if (BINDS.contains(binds.get(name)) == false) {
+                throw new IllegalStateException(
+                    "dimension [" + name + "] binds as [" + binds.get(name) + "], which is not one of " + BINDS
+                );
+            }
+        }
+        // A read key announces a fixture-bound value to the reader. On any other binding nothing would
+        // consume it, so it would sit in the file looking like wiring that exists.
+        for (String name : readKeys.keySet()) {
+            requireDeclaredDimension(values, name, "read_key");
+            if ("fixture".equals(binds.get(name)) == false) {
+                throw new IllegalStateException(
+                    "dimension ["
+                        + name
+                        + "] declares a read_key but binds as ["
+                        + binds.get(name)
+                        + "]; only fixture-bound values are announced"
+                );
+            }
+        }
+        List<String> declaredFormats = values.get("format");
+        for (Map.Entry<String, Map<String, String>> entry : formatDefaults.entrySet()) {
+            requireDeclaredDimension(values, entry.getKey(), "per-format default");
+            for (Map.Entry<String, String> perFormat : entry.getValue().entrySet()) {
+                if (declaredFormats.contains(perFormat.getKey()) == false) {
+                    throw new IllegalStateException(
+                        "per-format default [" + entry.getKey() + ".default." + perFormat.getKey() + "] names an undeclared format"
+                    );
+                }
+                if (values.get(entry.getKey()).contains(perFormat.getValue()) == false) {
+                    throw new IllegalStateException(
+                        "per-format default ["
+                            + entry.getKey()
+                            + ".default."
+                            + perFormat.getKey()
+                            + "] is not one of the dimension's values"
+                    );
+                }
+            }
+        }
+        // A backend correspondence is all-or-nothing: a partial map reads as "these values have a
+        // backend and the rest do not", which is indistinguishable from a forgotten line.
+        for (Map.Entry<String, Map<String, String>> entry : backends.entrySet()) {
+            requireDeclaredDimension(values, entry.getKey(), "backend mapping");
+            for (String mapped : entry.getValue().keySet()) {
+                if (values.get(entry.getKey()).contains(mapped) == false) {
+                    throw new IllegalStateException(
+                        "backend mapping [" + entry.getKey() + ".backend." + mapped + "] names a value the dimension does not declare"
+                    );
+                }
+            }
+            for (String declared : values.get(entry.getKey())) {
+                if (entry.getValue().containsKey(declared) == false) {
+                    throw new IllegalStateException(
+                        "dimension [" + entry.getKey() + "] declares backend mappings but none for value [" + declared + "]"
+                    );
+                }
+            }
+        }
+        for (Map.Entry<String, Map<String, String>> entry : absences.entrySet()) {
+            String owner = entry.getKey();
+            requireDeclaredDimension(values, owner, "absence");
+            for (String slot : entry.getValue().keySet()) {
+                int at = slot.indexOf('.');
+                String absent = at < 0 ? slot : slot.substring(0, at);
+                String format = at < 0 ? null : slot.substring(at + 1);
+                if (values.get(owner).contains(absent) == false) {
+                    throw new IllegalStateException("absence [" + owner + "." + slot + "] names a value the dimension does not declare");
+                }
+                if (format != null && declaredFormats.contains(format) == false) {
+                    throw new IllegalStateException("absence [" + owner + "." + slot + "] names an undeclared format");
+                }
+                // An absence on the value a vector falls back to would declare the BASELINE missing,
+                // which cannot be true -- every vector carries it.
+                // Not getOrDefault with a null key: Map.of() rejects one outright, and a bare absence
+                // (no format segment) is exactly the case that supplies null here.
+                String effectiveDefault = defaults.get(owner);
+                if (format != null) {
+                    effectiveDefault = formatDefaults.getOrDefault(owner, Map.of()).getOrDefault(format, effectiveDefault);
+                }
+                if (absent.equals(effectiveDefault)) {
+                    throw new IllegalStateException(
+                        "absence [" + owner + "." + slot + "] is declared on the effective default value, which every vector carries"
+                    );
+                }
+            }
+        }
         return new FixtureDimensions(
             names,
             values,
@@ -317,8 +516,35 @@ public final class FixtureDimensions {
             directiveValues,
             derived,
             derivedValues,
+            readKeys,
+            pragmaKeys,
+            formatDefaults,
+            backends,
+            absences,
             verdicts
         );
+    }
+
+    private static void requireDeclaredDimension(Map<String, List<String>> values, String name, String what) {
+        if (values.containsKey(name) == false) {
+            throw new IllegalStateException(what + " declared for unknown dimension [" + name + "]");
+        }
+    }
+
+    /** An attribute that takes no value name; a trailing segment means the declaration is malformed. */
+    private static String requireBare(String key, String tail, String value) {
+        if (tail != null) {
+            throw new IllegalStateException("dimension attribute in [" + key + "] takes no qualifier");
+        }
+        return value;
+    }
+
+    /** An attribute that requires a value name, so a bare form cannot silently mean "all values". */
+    private static String requireQualified(String key, String tail) {
+        if (tail == null) {
+            throw new IllegalStateException("dimension attribute in [" + key + "] requires a value name");
+        }
+        return tail;
     }
 
     private static Verdict parseVerdict(String key, String value) {

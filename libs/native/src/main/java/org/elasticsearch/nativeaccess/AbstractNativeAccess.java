@@ -11,27 +11,20 @@ package org.elasticsearch.nativeaccess;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.nativeaccess.lib.JavaLibrary;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.ZstdLibrary;
-
-import java.io.IOException;
-import java.nio.channels.FileChannel;
-import java.nio.channels.FileChannel.MapMode;
 
 abstract class AbstractNativeAccess implements NativeAccess {
 
     protected static final Logger logger = LogManager.getLogger(NativeAccess.class);
 
     private final String name;
-    private final JavaLibrary javaLib;
     private final Zstd zstd;
     protected boolean isMemoryLocked = false;
     protected ExecSandboxState execSandboxState = ExecSandboxState.NONE;
 
     protected AbstractNativeAccess(String name, NativeLibraryProvider libraryProvider) {
         this.name = name;
-        this.javaLib = libraryProvider.getLibrary(JavaLibrary.class);
         this.zstd = new Zstd(libraryProvider.getLibrary(ZstdLibrary.class));
     }
 
@@ -47,12 +40,6 @@ abstract class AbstractNativeAccess implements NativeAccess {
     @Override
     public Zstd getZstd() {
         return zstd;
-    }
-
-    @Override
-    public MappedSegment map(FileChannel fileChannel, MapMode mode, long position, long size) throws IOException {
-        assert fileChannel != null && position >= 0 && size > 0;
-        return javaLib.map(fileChannel, mode, position, size);
     }
 
     @Override

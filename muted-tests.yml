@@ -781,3 +781,39 @@ tests:
 - class: org.elasticsearch.index.mapper.SyntheticVersusColumnarStoredSourceIT
   method: testFallbackMultiValueViolationRestoredIdenticallyAcrossSourceModes
   issue: https://github.com/elastic/elasticsearch/issues/157799
+- class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
+  method: testUploadedCommitPrefetchNeverHitsIndexingNode
+  issue: https://github.com/elastic/elasticsearch/issues/157813
+- class: org.elasticsearch.xpack.esql.CsvColumnarIT
+  method: test {csv-spec:inlinestats.inlineStatsDroppingMultipleCommandsGroupingFields}
+  issue: https://github.com/elastic/elasticsearch/issues/157817
+- class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlGoldenTests
+  method: testBinaryWithDifferentSelectors {historical}
+  issue: https://github.com/elastic/elasticsearch/issues/157827
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=mapping/42_doc_values_on_failure/index.mapping.doc_values.on_failure=ignore applies to nullability violations (logsdb_columnar)}
+  issue: https://github.com/elastic/elasticsearch/issues/157829
+- class: org.elasticsearch.index.codec.vectors.es94.ES94HnswScalarQuantizedVectorsFormatTests
+  method: testSimpleOffHeapSize
+  issue: https://github.com/elastic/elasticsearch/issues/157839
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohexTests
+  method: testEvaluateInManyThreads {TestCase=geo_shape with literal precision and bounds}
+  issue: https://github.com/elastic/elasticsearch/issues/157840
+- class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
+  method: testCommitPrefetchingDisabledDoesNotDownloadTheEntireCommit
+  issue: https://github.com/elastic/elasticsearch/issues/157843
+- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotResiliencyTests
+  method: testSuccessfulSnapshotWithConcurrentDynamicMappingUpdates
+  issue: https://github.com/elastic/elasticsearch/issues/157844
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
+  method: testMixedOperationsDuringSplit
+  issue: https://github.com/elastic/elasticsearch/issues/157847
+- class: org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperatorTests
+  method: testFatalInferenceFailureIsNotTolerated
+  issue: https://github.com/elastic/elasticsearch/issues/157863
+- class: org.elasticsearch.index.codec.vectors.cluster.FloatLloydKMeansLocalTests
+  method: testComputeNeighbours
+  issue: https://github.com/elastic/elasticsearch/issues/157870
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecDenseVectorIT
+  method: test {csv-spec:dense_vector.limitByDenseVectorN2}
+  issue: https://github.com/elastic/elasticsearch/issues/157875

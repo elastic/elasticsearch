@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -223,11 +222,6 @@ public class WindowsNativeAccess extends AbstractNativeAccess {
     @Override
     public ProcessLimits getProcessLimits() {
         return new ProcessLimits(ProcessLimits.UNKNOWN, ProcessLimits.UNKNOWN, ProcessLimits.UNKNOWN);
-    }
-
-    @Override
-    public Optional<ParquetRsFunctions> getParquetRsFunctions() {
-        return Optional.empty(); // not supported yet
     }
 
     @Override

@@ -1,0 +1,6 @@
+pr: 157553
+summary: Prevent COUNT_DISTINCT precision thresholds outside the integer range from wrapping
+area: ES|QL
+type: bug
+issues:
+  - 157549

@@ -87,8 +87,10 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.PostRecoveryMerger;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.indices.recovery.RecoveryGate;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.indices.recovery.StatelessUnpromotableRelocationAction;
@@ -111,6 +113,7 @@ import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.RecoveryPlugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -197,11 +200,14 @@ import org.elasticsearch.xpack.stateless.memory.TransportPublishMergeMemoryEstim
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTask;
 import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTaskExecutor;
+import org.elasticsearch.xpack.stateless.recovery.EstimatedHeapUsageRecoveryGate;
 import org.elasticsearch.xpack.stateless.recovery.PITRelocationService;
 import org.elasticsearch.xpack.stateless.recovery.PitRelocationMetrics;
 import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHandler;
 import org.elasticsearch.xpack.stateless.recovery.RemoveRefreshClusterBlockService;
 import org.elasticsearch.xpack.stateless.recovery.StatelessIndexNodeRecoveryListener;
+import org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationSourceService;
+import org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationTargetService;
 import org.elasticsearch.xpack.stateless.recovery.StatelessSearchNodeRecoveryListener;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
@@ -281,7 +287,8 @@ public class StatelessPlugin extends Plugin
         CircuitBreakerPlugin,
         ExtensiblePlugin,
         HealthPlugin,
-        PersistentTaskPlugin {
+        PersistentTaskPlugin,
+        RecoveryPlugin {
 
     private static final Logger logger = LogManager.getLogger(StatelessPlugin.class);
 
@@ -513,6 +520,7 @@ public class StatelessPlugin extends Plugin
     protected final SetOnce<RefreshManagerServiceFactory> refreshManagerServiceFactory = new SetOnce<>();
     private final SetOnce<RefreshManagerService> refreshManagerService = new SetOnce<>();
     private final SetOnce<HollowShardsService> hollowShardsService = new SetOnce<>();
+    private final SetOnce<StatelessPrimaryRelocationSourceService> primaryRelocationSourceService = new SetOnce<>();
     private final SetOnce<RecoveryCommitRegistrationHandler> recoveryCommitRegistrationHandler = new SetOnce<>();
     private final SetOnce<StatelessRecoveryMetricsCollector> recoveryMetricsCollector = new SetOnce<>();
     private final SetOnce<StatelessPrimaryRelocationMetricsCollector> relocationMetricsCollector = new SetOnce<>();
@@ -535,6 +543,8 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<SnapshotsCommitService> snapshotsCommitServiceRef = new SetOnce<>();
     private final SetOnce<StatelessMemoryMetricsService> statelessMemoryMetricsService = new SetOnce<>();
     private final SetOnce<ShardsMappingSizeCollector> shardsMappingSizeCollector = new SetOnce<>();
+    private final SetOnce<EstimatedHeapUsageRecoveryGate> estimatedHeapUsageRecoveryGate = new SetOnce<>();
+    private final SetOnce<EstimatedHeapSettings> estimatedHeapSettings = new SetOnce<>();
     private final SetOnce<Client> clientRef = new SetOnce<>();
 
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(
@@ -742,6 +752,8 @@ public class StatelessPlugin extends Plugin
             throw new IllegalArgumentException("Directly setting [" + nodeMemoryAttrName + "] is not permitted - it is reserved.");
         }
         settings.put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false);
+        settings.put(PostRecoveryMerger.POST_RECOVERY_MERGER_DELAY.getKey(), TimeValue.timeValueMinutes(5));
+
         return settings.build();
     }
 
@@ -862,6 +874,7 @@ public class StatelessPlugin extends Plugin
                 settings,
                 clusterService,
                 commitService,
+                indicesService,
                 services.telemetryProvider()
             );
             components.add(uploadQueueControllerService);
@@ -920,8 +933,9 @@ public class StatelessPlugin extends Plugin
             new PluginComponentBinding<>(SearchShardSizeCollector.class, setAndGet(this.searchShardSizeCollector, searchShardSizeCollector))
         );
 
-        // We need to inject HollowShardsService into TransportStatelessPrimaryRelocationAction via DI, so it has to be
-        // available on all nodes despite being useful only on indexing nodes
+        // HollowShardsService is passed to StatelessPrimaryRelocationSourceService, which is injected into
+        // TransportStatelessPrimaryRelocationAction via DI. That's why it's constructed on all nodes, despite being useful
+        // only on indexing nodes.
         var hollowShardsService = setAndGet(
             this.hollowShardsService,
             createHollowShardsService(
@@ -985,6 +999,18 @@ public class StatelessPlugin extends Plugin
             // holding a ClusterSettings → engine reference that would prevent garbage collection of closed engines.
             setAndGet(indexEngineDynamicSettings, new IndexEngineDynamicSettings(clusterService.getClusterSettings()));
         }
+        if (EstimatedHeapSettings.appliesToNode(settings)) {
+            this.estimatedHeapUsageRecoveryGate.set(
+                EstimatedHeapUsageRecoveryGate.create(
+                    clusterService,
+                    memoryMetricsService,
+                    shardsMappingSizeCollector,
+                    estimatedHeapSettings.get(),
+                    meterRegistry
+                )
+            );
+            components.add(estimatedHeapUsageRecoveryGate.get());
+        }
         components.add(
             setAndGet(
                 blobStoreHealthIndicator,
@@ -992,7 +1018,34 @@ public class StatelessPlugin extends Plugin
             )
         );
         final StatelessPrimaryRelocationMetricsCollector relocationMetricsCollector = createRelocationMetricsCollector(meterRegistry);
-        components.add(new StatelessPrimaryRelocationMetricsCollectorProvider(relocationMetricsCollector));
+        final var relocationMetricsCollectorProvider = new StatelessPrimaryRelocationMetricsCollectorProvider(relocationMetricsCollector);
+        components.add(relocationMetricsCollectorProvider);
+
+        final StatelessCommitServiceProvider commitServiceProvider = new StatelessCommitServiceProvider(commitService);
+        final StatelessPrimaryRelocationSourceService primaryRelocationSourceService = setAndGet(
+            this.primaryRelocationSourceService,
+            new StatelessPrimaryRelocationSourceService(
+                clusterService,
+                threadPool,
+                indicesService,
+                hollowShardsService,
+                commitServiceProvider,
+                indexShardCacheWarmer,
+                hollowShardMetrics.get()
+            )
+        );
+        components.add(primaryRelocationSourceService);
+
+        components.add(
+            new StatelessPrimaryRelocationTargetService(
+                clusterService,
+                threadPool,
+                indicesService,
+                commitServiceProvider,
+                indexShardCacheWarmer,
+                relocationMetricsCollectorProvider
+            )
+        );
 
         setAndGet(this.recoveryMetricsCollector, createRecoveryMetricsCollector(meterRegistry));
 
@@ -1281,7 +1334,7 @@ public class StatelessPlugin extends Plugin
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        Releasables.close(sharedBlobCacheService.get());
+        Releasables.close(estimatedHeapUsageRecoveryGate.get(), sharedBlobCacheService.get());
         IOUtils.close(reshardSearchFilters.get());
         try {
             IOUtils.close(blobStoreHealthIndicator.get());
@@ -1324,7 +1377,7 @@ public class StatelessPlugin extends Plugin
             StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE,
             StatelessCommitService.STATELESS_UPLOAD_MAX_IO_ERROR_RETRIES,
             StatelessCommitService.STATELESS_UPLOAD_SLOW_LOG_THRESHOLD,
-            StatelessCommitService.STATELESS_UPLOAD_AVERAGE_THROUGHPUT_INITIAL_VALUE,
+            StatelessCommitService.STATELESS_UPLOAD_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT,
             IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING,
             IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING,
             BlobStoreHealthIndicator.POLL_INTERVAL_SETTING,
@@ -1444,10 +1497,12 @@ public class StatelessPlugin extends Plugin
             StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_DURATION_SETTING,
             DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED_SETTING,
             UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_ENABLED,
+            UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEXING_THROTTLING_ENABLED,
             UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INTERVAL,
             UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_THRESHOLD,
             UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_REMOVAL_THRESHOLD,
-            UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_COOLDOWN
+            UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_COOLDOWN,
+            PostRecoveryMerger.POST_RECOVERY_MERGER_DELAY
         );
     }
 
@@ -1607,7 +1662,7 @@ public class StatelessPlugin extends Plugin
                     translogConfig.getBigArrays(),
                     translogConfig.getBufferSize(),
                     translogConfig.getDiskIoBufferPool(),
-                    (operation, seqNo, location) -> replicator.add(translogConfig.getShardId(), operation, seqNo, location),
+                    replicator.listenerFor(translogConfig.getShardId()),
                     false // translog is replicated to the object store, no need fsync that
                 );
 
@@ -1924,13 +1979,20 @@ public class StatelessPlugin extends Plugin
 
     @Override
     public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+        estimatedHeapSettings.set(new EstimatedHeapSettings(clusterSettings));
         return List.of(
             new DisableSimulationRebalancingDecider(clusterSettings),
             new StatelessAllocationDecider(),
-            new EstimatedHeapUsageAllocationDecider(clusterSettings),
+            new EstimatedHeapUsageAllocationDecider(estimatedHeapSettings.get(), clusterSettings),
             new SharedCacheCapacityAllocationDecider(clusterSettings),
             new StatelessThrottlingConcurrentRecoveriesAllocationDecider(clusterSettings)
         );
+    }
+
+    @Override
+    public Collection<RecoveryGate> getRecoveryGates() {
+        final EstimatedHeapUsageRecoveryGate gate = estimatedHeapUsageRecoveryGate.get();
+        return gate != null ? List.of(gate) : List.of();
     }
 
     @Override

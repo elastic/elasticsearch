@@ -173,8 +173,8 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
         for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
-                setId(index, id);
                 append(id, key, code);
+                setId(index, id);
                 ++size;
                 return id;
             } else if (bytesRefs.bytesEqual(curId, key)) {
@@ -213,8 +213,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
     public long add(BytesRef key, int code) {
         if (size >= maxSize) {
             assert size == maxSize;
-            grow();
-            hashes = bigArrays.resize(hashes, maxSize);
+            growHashesThenTable();
         }
         return set(key, rehash(code), size);
     }
@@ -234,10 +233,18 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
     public long add(PagedBytesCursor key, int code) {
         if (size >= maxSize) {
             assert size == maxSize;
-            grow();
-            hashes = bigArrays.resize(hashes, maxSize);
+            growHashesThenTable();
         }
         return setCursor(key, rehash(code), size);
+    }
+
+    /**
+     * Makes room for one more entry, sizing {@link #hashes} before the table grows.
+     */
+    private void growHashesThenTable() {
+        hashes = bigArrays.resize(hashes, maxSizeAfterGrow());
+        grow();
+        assert hashes.size() >= maxSize;
     }
 
     private long setCursor(PagedBytesCursor key, int code, long id) {
@@ -246,8 +253,8 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
         for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
-                setId(index, id);
                 appendCursor(id, key, code);
+                setId(index, id);
                 ++size;
                 return id;
             } else if (key.equals(bytesRefs.get(curId, spareCursor))) {

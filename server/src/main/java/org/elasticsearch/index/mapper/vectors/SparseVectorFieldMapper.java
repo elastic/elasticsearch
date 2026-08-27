@@ -42,8 +42,10 @@ import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.inference.WeightedTokensUtils;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -245,6 +247,14 @@ public class SparseVectorFieldMapper extends FieldMapper {
         @Override
         public boolean isVectorEmbedding() {
             return true;
+        }
+
+        @Override
+        public FieldAndFormat embeddingsFieldAndFormat(@Nullable VectorType vectorType) {
+            if (vectorType != null && vectorType != VectorType.SPARSE_VECTOR) {
+                throw unsupportedEmbeddings(vectorType);
+            }
+            return new FieldAndFormat(name(), null);
         }
 
         @Override

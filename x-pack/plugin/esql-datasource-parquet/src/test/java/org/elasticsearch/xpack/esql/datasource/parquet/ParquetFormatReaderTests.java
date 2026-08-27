@@ -35,6 +35,7 @@ import org.apache.parquet.schema.MessageTypeParser;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -52,13 +53,18 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
@@ -66,6 +72,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
@@ -73,6 +80,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -112,9 +121,12 @@ import java.util.function.BiConsumer;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 public class ParquetFormatReaderTests extends ESTestCase {
 
@@ -3239,7 +3251,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             .build();
         try (
             org.apache.parquet.hadoop.ParquetFileReader reader = org.apache.parquet.hadoop.ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(storageObject, blockFactory.arrowAllocator()),
+                new ParquetStorageObjectAdapter(storageObject, blockFactory.breaker()),
                 options
             )
         ) {
@@ -3510,7 +3522,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertTrue(ex.getMessage(), ex.getMessage().contains("https://host/obj.parquet"));
     }
 
-    public void testCorruptDataPageProducesIllegalArgumentException() throws Exception {
+    public void testCorruptDataPageIsClient400() throws Exception {
         MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
         byte[] parquetData = createParquetFile(schema, factory -> {
             List<Group> groups = new ArrayList<>();
@@ -3536,14 +3548,15 @@ public class ParquetFormatReaderTests extends ESTestCase {
         // metadata() should still succeed (footer is intact)
         SourceMetadata metadata = reader.metadata(storageObject);
         assertNotNull(metadata);
-        // read() should fail with IllegalArgumentException (not ElasticsearchException/500)
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
+        // read() should fail as a client-class 400 (I/O / malformed page), not a server 500
+        Exception ex = expectThrows(Exception.class, () -> {
             try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 100)) {
                 while (iterator.hasNext()) {
                     iterator.next().releaseBlocks();
                 }
             }
         });
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(ex)));
         assertThat(ex.getMessage(), containsString("id"));
     }
 
@@ -3757,6 +3770,17 @@ public class ParquetFormatReaderTests extends ESTestCase {
         // error_mode: null_field. This pins the cross-format consistency and fails if a permissive default is ever
         // re-introduced for this reader.
         assertEquals(ErrorPolicy.STRICT, new ParquetFormatReader(blockFactory).defaultErrorPolicy());
+    }
+
+    public void testDoesNotDropRowsUnderPushedFilter() {
+        // Pin the capability PushFiltersToSource keys the skip_row row-drop guard on. A pushed
+        // ParquetPushedExpressions turns on late materialization, and neither nextWithLateMaterialization nor
+        // nextTwoPhaseBatch routes its page through ColumnarRowDropHelper#filterBlocks — a coercion failure there
+        // would null the cell and keep the row, i.e. null_field semantics for a skip_row read. Until both paths
+        // translate their post-predicate positions back into batch coordinates, this must stay false: it is what
+        // makes the planner hold the predicate in a FilterExec for skip_row reads that declare column types.
+        // ORC answers true (OrcFormatReaderTests.testDropsRowsUnderPushedFilter) because it filters on every path.
+        assertFalse(new ParquetFormatReader(blockFactory).dropsRowsUnderPushedFilter());
     }
 
     public void testStringToLongDoubleBooleanIpCoerces() throws Exception {
@@ -4100,13 +4124,356 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 new RangeReadContext(List.of("x"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.STRICT)
             )
         ) {
-            expectThrows(IllegalArgumentException.class, () -> {
+            expectThrows(InvalidArgumentException.class, () -> {
                 while (it.hasNext()) {
                     it.next().releaseBlocks();
                 }
             });
         }
         assertTrue("fail_fast must not emit coercion warnings", drainWarnings().isEmpty());
+    }
+
+    public void testSkipRowDropsBadRow() throws Exception {
+        // error_mode: skip_row on a columnar Parquet batch must DROP the entire row when a declared-type
+        // coercion fails — not null-fill the bad cell. Three rows: good/bad/good → 2 survivor rows.
+        // Exercises both the baseline (row-at-a-time) reader and the optimised PageColumnReader path.
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("x")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group ok1 = factory.newGroup();
+            ok1.add("x", "41");
+            Group bad = factory.newGroup();
+            bad.add("x", "hello");
+            Group ok2 = factory.newGroup();
+            ok2.add("x", "43");
+            return List.of(ok1, bad, ok2);
+        });
+        List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
+        for (ParquetFormatReader r : List.of(declaredReader("x"), declaredReader("x").withBaselinePath())) {
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    createStorageObject(parquetData),
+                    new RangeReadContext(List.of("x"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.LENIENT)
+                )
+            ) {
+                Page page = it.next();
+                assertEquals("bad row must be dropped under skip_row", 2, page.getPositionCount());
+                LongBlock longs = (LongBlock) page.getBlock(0);
+                assertEquals(41L, longs.getLong(longs.getFirstValueIndex(0)));
+                assertEquals(43L, longs.getLong(longs.getFirstValueIndex(1)));
+                page.releaseBlocks();
+            }
+            // The response headers must describe a row drop, not a null-fill: the summary and the per-cell detail
+            // have to agree with each other AND with what the page actually shows, or the user reads "returning
+            // null" next to a row that is gone. Both readers word it identically, as does ORC
+            // (OrcFormatReaderTests.testSkipRowDropsBadRow).
+            List<String> warnings = drainWarnings();
+            assertThat(warnings, hasItem(containsString("their entire row is dropped")));
+            assertThat(warnings, hasItem(allOf(containsString("[x]"), containsString("; row will be dropped"))));
+            assertThat("no null-fill wording under skip_row", warnings, everyItem(not(containsString("returning null"))));
+        }
+    }
+
+    public void testSkipRowMultiColumnSingleBadRowDropsAllColumns() throws Exception {
+        // A coercion failure in one column drops the entire row from ALL column blocks, not just the
+        // failing column. Three rows across two columns: the middle row fails on "x" — both "x" and
+        // "tag" for that row must be absent from the output.
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("x")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("tag")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group r0 = factory.newGroup();
+            r0.add("x", "1");
+            r0.add("tag", "a");
+            Group r1 = factory.newGroup();
+            r1.add("x", "bad");
+            r1.add("tag", "b");
+            Group r2 = factory.newGroup();
+            r2.add("x", "3");
+            r2.add("tag", "c");
+            return List.of(r0, r1, r2);
+        });
+        List<Attribute> plannerTypes = List.of(
+            new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, "tag", DataType.KEYWORD)
+        );
+        for (ParquetFormatReader r : List.of(declaredReader("x"), declaredReader("x").withBaselinePath())) {
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    createStorageObject(parquetData),
+                    new RangeReadContext(List.of("x", "tag"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.LENIENT)
+                )
+            ) {
+                Page page = it.next();
+                assertEquals("bad row drops all columns", 2, page.getPositionCount());
+                LongBlock xs = (LongBlock) page.getBlock(0);
+                assertEquals(1L, xs.getLong(xs.getFirstValueIndex(0)));
+                assertEquals(3L, xs.getLong(xs.getFirstValueIndex(1)));
+                BytesRefBlock tags = (BytesRefBlock) page.getBlock(1);
+                assertEquals("a", tags.getBytesRef(tags.getFirstValueIndex(0), new BytesRef()).utf8ToString());
+                assertEquals("c", tags.getBytesRef(tags.getFirstValueIndex(1), new BytesRef()).utf8ToString());
+                page.releaseBlocks();
+            }
+            drainWarnings();
+        }
+    }
+
+    public void testSkipRowAllRowsInBatchDroppedEmitsEmptyPage() throws Exception {
+        // Every row of the batch fails coercion, so the compaction leaves nothing. Both readers must still emit a
+        // well-formed page — zero positions, one block per projected attribute, all agreeing on the count (Page's
+        // constructor asserts that) — rather than a ragged page or a null block. Under LENIENT (max_error_ratio
+        // 1.0) an all-bad batch is exactly at the limit, not over it, so this must not throw either.
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("x")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group bad1 = factory.newGroup();
+            bad1.add("x", "nope");
+            Group bad2 = factory.newGroup();
+            bad2.add("x", "also-nope");
+            return List.of(bad1, bad2);
+        });
+        List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
+        for (ParquetFormatReader r : List.of(declaredReader("x"), declaredReader("x").withBaselinePath())) {
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    createStorageObject(parquetData),
+                    new RangeReadContext(List.of("x"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.LENIENT)
+                )
+            ) {
+                Page page = it.next();
+                assertEquals("all rows dropped leaves an empty page", 0, page.getPositionCount());
+                assertEquals(1, page.getBlockCount());
+                assertEquals(0, page.getBlock(0).getPositionCount());
+                page.releaseBlocks();
+            }
+            drainWarnings();
+        }
+    }
+
+    /**
+     * Characterizes the gap that {@link ParquetFormatReader#dropsRowsUnderPushedFilter()} exists to declare: with a
+     * {@link ParquetPushedExpressions} filter in hand the iterator switches to late materialization, and that path
+     * emits its page without {@code ColumnarRowDropHelper#filterBlocks} — so a {@code skip_row} coercion failure
+     * nulls the cell and the row survives, which is {@code null_field} behaviour. Three rows in, three rows out.
+     * <p>
+     * A {@code LIKE} is used because it pushes as {@code Pushability.YES} with no Parquet {@code FilterPredicate}
+     * translation, so the row group cannot be proved to trivially pass and the standard (row-dropping) path is not
+     * taken. It matches every row here, so the count is entirely about the row-drop.
+     * <p>
+     * This is why {@code PushFiltersToSource} refuses to hand this reader a filter for a {@code skip_row} read that
+     * declares column types (see {@code PushFiltersToSourceTests}) — in production the two never meet. If the
+     * late-mat and two-phase paths are ever taught to translate their post-predicate positions back into batch
+     * coordinates, this test flips to expecting 2 and the capability flag flips to {@code true} with it.
+     */
+    public void testSkipRowDoesNotDropUnderPushedFilterHencePushdownIsWithheld() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("x")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("tag")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group r0 = factory.newGroup();
+            r0.add("x", "41");
+            r0.add("tag", "keep0");
+            Group r1 = factory.newGroup();
+            r1.add("x", "bad");
+            r1.add("tag", "keep1");
+            Group r2 = factory.newGroup();
+            r2.add("x", "43");
+            r2.add("tag", "keep2");
+            return List.of(r0, r1, r2);
+        });
+        Expression like = new WildcardLike(
+            Source.EMPTY,
+            new ReferenceAttribute(Source.EMPTY, "tag", DataType.KEYWORD),
+            new WildcardPattern("keep*")
+        );
+        ParquetFormatReader reader = declaredReader("x").withPushedFilter(new ParquetPushedExpressions(List.of(like)));
+        List<Attribute> plannerTypes = List.of(
+            new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, "tag", DataType.KEYWORD)
+        );
+        int total = 0;
+        try (
+            CloseableIterator<Page> it = reader.readRange(
+                createStorageObject(parquetData),
+                new RangeReadContext(List.of("x", "tag"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.LENIENT)
+            )
+        ) {
+            while (it.hasNext()) {
+                Page p = it.next();
+                total += p.getPositionCount();
+                p.releaseBlocks();
+            }
+        }
+        assertEquals("the filtered path cannot drop rows -- the bad row survives with a null cell", 3, total);
+        assertFalse(
+            "so the reader must not advertise row-dropping under a pushed filter",
+            new ParquetFormatReader(blockFactory).dropsRowsUnderPushedFilter()
+        );
+        drainWarnings();
+    }
+
+    public void testSkipRowBudgetExceededThrows() throws Exception {
+        // error_mode: skip_row with max_errors=1 must throw a ParsingException (HTTP 400) after the
+        // second bad row is detected, which exceeds the budget of 1 error.
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("x")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group ok = factory.newGroup();
+            ok.add("x", "1");
+            Group bad1 = factory.newGroup();
+            bad1.add("x", "bad");
+            Group bad2 = factory.newGroup();
+            bad2.add("x", "also-bad");
+            Group ok2 = factory.newGroup();
+            ok2.add("x", "4");
+            return List.of(ok, bad1, bad2, ok2);
+        });
+        List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
+        ErrorPolicy budget = new ErrorPolicy(1L, false);
+        for (ParquetFormatReader r : List.of(declaredReader("x"), declaredReader("x").withBaselinePath())) {
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    createStorageObject(parquetData),
+                    new RangeReadContext(List.of("x"), 10, 0, parquetData.length, plannerTypes, budget)
+                )
+            ) {
+                ParsingException e = expectThrows(ParsingException.class, () -> {
+                    while (it.hasNext()) {
+                        it.next().releaseBlocks();
+                    }
+                });
+                // The thrown message is the one the client actually sees, so it must name the counts and the file.
+                assertThat(e.getMessage(), containsString("dropped rows"));
+                assertThat(e.getMessage(), containsString("maximum allowed is [1] errors"));
+            }
+            // checkBudget also records the trip into the same collector, ahead of the throw.
+            assertThat(drainWarnings(), hasItem(containsString("Columnar error budget exceeded")));
+        }
+    }
+
+    /**
+     * A pushed {@code LIMIT} must return N <em>surviving</em> rows, not N source rows minus whatever {@code skip_row}
+     * dropped along the way. The unfiltered-LIMIT optimisation lets source row counts stand in for survivor counts —
+     * it prefix-clips the row group to {@code [0, remainingBudget)} via the OffsetIndex and stops opening later
+     * groups once their source rows cover the budget. Row-dropping breaks that substitution exactly the way a pushed
+     * filter does, which is why {@code ParquetFormatReader#unfilteredLimit} already refuses the late-materialisation
+     * and record-filter cases.
+     * <p>
+     * Fixture: {@code bad, good, good} with {@code LIMIT 2}. Clipped to the first two source rows, the bad one drops
+     * and the third row is never read — one row out instead of two. The rows are ordered bad-first so the clip
+     * window is the thing that decides the answer.
+     */
+    public void testSkipRowUnderRowLimitStillReturnsLimitRows() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("x")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group bad = factory.newGroup();
+            bad.add("x", "nope");
+            Group ok1 = factory.newGroup();
+            ok1.add("x", "42");
+            Group ok2 = factory.newGroup();
+            ok2.add("x", "43");
+            return List.of(bad, ok1, ok2);
+        });
+        List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
+        for (ParquetFormatReader r : List.of(declaredReader("x"), declaredReader("x").withBaselinePath())) {
+            List<Long> got = new ArrayList<>();
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    createStorageObject(parquetData),
+                    new RangeReadContext(
+                        List.of("x"),
+                        10,
+                        0,
+                        parquetData.length,
+                        plannerTypes,
+                        ErrorPolicy.LENIENT,
+                        null,
+                        /* rowLimit = */ 2
+                    )
+                )
+            ) {
+                while (it.hasNext()) {
+                    Page p = it.next();
+                    LongBlock longs = (LongBlock) p.getBlock(0);
+                    for (int i = 0; i < p.getPositionCount(); i++) {
+                        got.add(longs.getLong(longs.getFirstValueIndex(i)));
+                    }
+                    p.releaseBlocks();
+                }
+            }
+            assertEquals("LIMIT 2 must yield 2 surviving rows, not 2 source rows minus the dropped one", List.of(42L, 43L), got);
+            drainWarnings();
+        }
+    }
+
+    public void testSkipRowListColumnDropsRow() throws Exception {
+        // error_mode: skip_row on a LIST column must DROP the entire row when any element fails declared-type
+        // coercion — not null-fill the cell. Three rows: good/bad/good → 2 survivor rows. Previously the optimized
+        // path missed the failedPositionSink and null-filled instead of dropping.
+        Type listType = Types.optionalList()
+            .optionalElement(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("x");
+        MessageType schema = new MessageType("test_schema", listType);
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group ok1 = factory.newGroup();
+            Group list1 = ok1.addGroup("x");
+            list1.addGroup("list").append("element", Binary.fromString("41"));
+            list1.addGroup("list").append("element", Binary.fromString("43"));
+            Group bad = factory.newGroup();
+            Group listBad = bad.addGroup("x");
+            listBad.addGroup("list").append("element", Binary.fromString("hello"));
+            Group ok2 = factory.newGroup();
+            Group list2 = ok2.addGroup("x");
+            list2.addGroup("list").append("element", Binary.fromString("45"));
+            return List.of(ok1, bad, ok2);
+        });
+        List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
+        for (ParquetFormatReader r : List.of(declaredReader("x"), declaredReader("x").withBaselinePath())) {
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    createStorageObject(parquetData),
+                    new RangeReadContext(List.of("x"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.LENIENT)
+                )
+            ) {
+                Page page = it.next();
+                assertEquals("bad row must be dropped under skip_row", 2, page.getPositionCount());
+                LongBlock longs = (LongBlock) page.getBlock(0);
+                // Row 0: list with values [41, 43]
+                assertEquals(2, longs.getValueCount(0));
+                int start0 = longs.getFirstValueIndex(0);
+                assertEquals(41L, longs.getLong(start0));
+                assertEquals(43L, longs.getLong(start0 + 1));
+                // Row 1: list with value [45]
+                assertEquals(1, longs.getValueCount(1));
+                assertEquals(45L, longs.getLong(longs.getFirstValueIndex(1)));
+                page.releaseBlocks();
+            }
+            drainWarnings();
+        }
     }
 
     public void testInt64DeclaredDoubleCoerces() throws Exception {
@@ -4325,7 +4692,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
                     new RangeReadContext(List.of("ts"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.STRICT)
                 )
             ) {
-                expectThrows(IllegalArgumentException.class, () -> {
+                expectThrows(InvalidArgumentException.class, () -> {
                     while (it.hasNext()) {
                         it.next().releaseBlocks();
                     }
@@ -4429,7 +4796,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 new RangeReadContext(List.of("vals"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.STRICT)
             )
         ) {
-            expectThrows(IllegalArgumentException.class, () -> {
+            expectThrows(InvalidArgumentException.class, () -> {
                 while (it.hasNext()) {
                     it.next().releaseBlocks();
                 }
@@ -6569,7 +6936,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
             false,
             null,
             null,
-            threeColumnSchema()
+            threeColumnSchema(),
+            FormatReader.NO_LIMIT
         );
         assertNotNull("full scan must gate (non-null sets), not fall back to unrestricted", paths.columnIndexPaths());
         assertNotNull(paths.offsetIndexPaths());
@@ -6587,7 +6955,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
             true,
             Set.of("a"),
             null,
-            threeColumnSchema()
+            threeColumnSchema(),
+            FormatReader.NO_LIMIT
         );
         assertEquals("only the predicate column needs a column index", Set.of("a"), paths.columnIndexPaths());
         assertEquals(
@@ -6603,7 +6972,14 @@ public class ParquetFormatReaderTests extends ESTestCase {
      */
     public void testComputeIndexColumnPathsNonProjectedPredicateColumn() {
         MessageType projected = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("b").named("schema");
-        ParquetFormatReader.IndexColumnPaths paths = ParquetFormatReader.computeIndexColumnPaths(true, true, Set.of("a"), null, projected);
+        ParquetFormatReader.IndexColumnPaths paths = ParquetFormatReader.computeIndexColumnPaths(
+            true,
+            true,
+            Set.of("a"),
+            null,
+            projected,
+            FormatReader.NO_LIMIT
+        );
         assertEquals(Set.of("a"), paths.columnIndexPaths());
         assertEquals(
             "predicate column a (not projected) and projected column b both need offset index",
@@ -6622,7 +6998,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
             false,
             null,
             "a",
-            threeColumnSchema()
+            threeColumnSchema(),
+            FormatReader.NO_LIMIT
         );
         assertEquals(Set.of("a"), paths.columnIndexPaths());
         assertEquals(Set.of("a"), paths.offsetIndexPaths());
@@ -6638,7 +7015,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
             true,
             null,
             null,
-            threeColumnSchema()
+            threeColumnSchema(),
+            FormatReader.NO_LIMIT
         );
         assertNull("legacy filter path must not gate", paths.columnIndexPaths());
         assertNull("legacy filter path must not gate", paths.offsetIndexPaths());
@@ -6656,7 +7034,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
             false,
             Set.of("a"),
             null,
-            threeColumnSchema()
+            threeColumnSchema(),
+            FormatReader.NO_LIMIT
         );
         assertNotNull("must gate (non-null sets), not fall back to unrestricted", paths.columnIndexPaths());
         assertNotNull(paths.offsetIndexPaths());

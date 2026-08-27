@@ -24,6 +24,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * The declaration is load-bearing: the whole test set derives from it, so these pin the properties
@@ -348,6 +349,34 @@ public class FixtureDimensionsTests extends ESTestCase {
         FixtureDimensions d = FixtureDimensions.get();
         Exception e = expectThrows(IllegalArgumentException.class, () -> d.parseRendered("error_mode=explode"));
         assertThat(e.getMessage(), containsString("explode"));
+    }
+
+    /**
+     * A value needing a companion setting cannot be injected alone: the dataset registration is rejected
+     * outright. Generating such a vector produces a red test that says nothing about the product, so the
+     * selection has to drop it -- and the declaration has to be why, not a hard-coded name here.
+     */
+    public void testDirectiveExpressibleVectorsExcludeValuesThatNeedACompanion() {
+        FixtureDimensions d = FixtureDimensions.get();
+        for (Map<String, String> vector : d.directiveExpressibleVectors("csv")) {
+            for (Map.Entry<String, String> slot : vector.entrySet()) {
+                if (slot.getValue().equals(d.defaultValue(slot.getKey()))) {
+                    continue;
+                }
+                assertThat(
+                    "slot [" + slot.getKey() + "=" + slot.getValue() + "] needs a companion and cannot stand alone",
+                    d.derivedFromForValue(slot.getKey(), slot.getValue()),
+                    nullValue()
+                );
+            }
+        }
+    }
+
+    /** The specific case the generated suite found: template detection needs the path template with it. */
+    public void testTemplatePartitionDetectionIsDeclaredAsNeedingAPath() {
+        FixtureDimensions d = FixtureDimensions.get();
+        assertThat(d.derivedFromForValue("partition_detection", "template"), equalTo("partition_path"));
+        assertThat("the other values stand alone", d.derivedFromForValue("partition_detection", "hive"), nullValue());
     }
 
     /** Renders the derived set so a reader can see what the declaration produces without running it. */

@@ -75,6 +75,7 @@ public final class FixtureDimensions {
     private final Map<String, String> directiveKeyByName;
     private final Map<String, Map<String, String>> directiveValuesByName;
     private final Map<String, String> derivedByName;
+    private final Map<String, Map<String, String>> derivedValuesByName;
     private final Map<String, Verdict> verdicts;
 
     private FixtureDimensions(
@@ -86,6 +87,7 @@ public final class FixtureDimensions {
         Map<String, String> directiveKeyByName,
         Map<String, Map<String, String>> directiveValuesByName,
         Map<String, String> derivedByName,
+        Map<String, Map<String, String>> derivedValuesByName,
         Map<String, Verdict> verdicts
     ) {
         this.names = List.copyOf(names);
@@ -96,6 +98,7 @@ public final class FixtureDimensions {
         this.directiveKeyByName = Map.copyOf(directiveKeyByName);
         this.directiveValuesByName = Map.copyOf(directiveValuesByName);
         this.derivedByName = Map.copyOf(derivedByName);
+        this.derivedValuesByName = Map.copyOf(derivedValuesByName);
         this.verdicts = Map.copyOf(verdicts);
     }
 
@@ -115,6 +118,18 @@ public final class FixtureDimensions {
     /** What a dimension's value is derived from when no constant can express it, or null when one can. */
     public String derivedFrom(String dimension) {
         return derivedByName.get(dimension);
+    }
+
+    /**
+     * What one VALUE of a dimension needs beyond itself, or null when it stands alone.
+     *
+     * <p>Separate from {@link #derivedFrom} because the two are different claims. A dimension is derived
+     * when none of its values is a constant; a VALUE is derived when the rest of the dimension is fine and
+     * that one option needs a companion. {@code partition_detection} is the second kind -- auto, hive and
+     * none are constants, and template alone is rejected because it needs the path template with it.
+     */
+    public String derivedFromForValue(String dimension, String value) {
+        return derivedValuesByName.getOrDefault(dimension, Map.of()).get(value);
     }
 
     /**
@@ -170,6 +185,7 @@ public final class FixtureDimensions {
         Map<String, String> directiveKeys = new LinkedHashMap<>();
         Map<String, Map<String, String>> directiveValues = new LinkedHashMap<>();
         Map<String, String> derived = new LinkedHashMap<>();
+        Map<String, Map<String, String>> derivedValues = new LinkedHashMap<>();
         Map<String, Verdict> verdicts = new LinkedHashMap<>();
 
         for (String key : new TreeSet<>(props.stringPropertyNames())) {
@@ -182,6 +198,13 @@ public final class FixtureDimensions {
                 }
                 // `value.<v>` is the one two-part attribute, so it has to be split off before the
                 // lastIndexOf below -- which would otherwise read the value name as the attribute.
+                // Same reason as `value.<v>` below: a two-part attribute has to be split off first.
+                int derivedAt = rest.indexOf(".derived.");
+                if (derivedAt >= 0) {
+                    derivedValues.computeIfAbsent(rest.substring(0, derivedAt), k -> new LinkedHashMap<>())
+                        .put(rest.substring(derivedAt + ".derived.".length()), value);
+                    continue;
+                }
                 int valueAt = rest.indexOf(".value.");
                 if (valueAt >= 0) {
                     directiveValues.computeIfAbsent(rest.substring(0, valueAt), k -> new LinkedHashMap<>())
@@ -260,6 +283,18 @@ public final class FixtureDimensions {
                 );
             }
         }
+        for (Map.Entry<String, Map<String, String>> e : derivedValues.entrySet()) {
+            if (values.containsKey(e.getKey()) == false) {
+                throw new IllegalStateException("derived value declared for unknown dimension [" + e.getKey() + "]");
+            }
+            for (String v : e.getValue().keySet()) {
+                if (values.get(e.getKey()).contains(v) == false) {
+                    throw new IllegalStateException(
+                        "derived value [" + e.getKey() + ".derived." + v + "] names a value the dimension does not declare"
+                    );
+                }
+            }
+        }
         for (Map.Entry<String, Map<String, String>> e : directiveValues.entrySet()) {
             if (values.containsKey(e.getKey()) == false) {
                 throw new IllegalStateException("value mapping declared for unknown dimension [" + e.getKey() + "]");
@@ -272,7 +307,18 @@ public final class FixtureDimensions {
                 }
             }
         }
-        return new FixtureDimensions(names, values, defaults, appliesTo, binds, directiveKeys, directiveValues, derived, verdicts);
+        return new FixtureDimensions(
+            names,
+            values,
+            defaults,
+            appliesTo,
+            binds,
+            directiveKeys,
+            directiveValues,
+            derived,
+            derivedValues,
+            verdicts
+        );
     }
 
     private static Verdict parseVerdict(String key, String value) {
@@ -482,6 +528,9 @@ public final class FixtureDimensions {
                     continue;
                 }
                 if (directiveKeyByName.containsKey(dimension) == false) {
+                    return;
+                }
+                if (derivedFromForValue(dimension, slot.getValue()) != null) {
                     return;
                 }
             }

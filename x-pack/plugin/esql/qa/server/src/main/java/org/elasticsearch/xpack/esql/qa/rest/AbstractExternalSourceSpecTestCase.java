@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.datasources.GcsFixtureUtils.DataSourcesGcsHt
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.S3RequestLog;
+import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureDimensions;
 import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureExclusions;
 import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureMatrix;
 import org.junit.AfterClass;
@@ -222,6 +223,30 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     protected static List<Object[]> readExternalSpecTestsWithCodecsForSuite(List<String> codecs, String suiteToken) throws Exception {
         Set<String> excluded = MATRIX.excludedSpecs(suiteToken);
         List<Object[]> loaded = readExternalSpecTestsWithExtraParam(codecs, MATRIX.specPatterns(suiteToken).toArray(String[]::new));
+        return excluded.isEmpty() ? loaded : loaded.stream().filter(row -> excluded.contains(specNameOf(row)) == false).toList();
+    }
+
+    /**
+     * Cross-products the spec set with the generated vectors a directive can express for this format.
+     *
+     * <p>The extra column is the vector's rendered name, so a failure names the combination that broke.
+     * The suite turns it back into settings via {@link FixtureDimensions#parseRendered} and returns them
+     * from {@link #vectorSettings()}.
+     *
+     * <p>Only the directive-expressible subset appears here. Vectors that need a fixture built, a cluster
+     * configured, a pragma set or a backend stood up are not reachable through this seam, and
+     * {@link FixtureDimensions#directiveExpressibleVectors} is named so the call site says so.
+     */
+    protected static List<Object[]> readExternalSpecTestsWithVectorsForSuite(String format, String suiteToken) throws Exception {
+        FixtureDimensions dimensions = FixtureDimensions.get();
+        List<String> vectorNames = dimensions.directiveExpressibleVectors(format).stream().map(dimensions::render).toList();
+        if (vectorNames.isEmpty()) {
+            throw new IllegalStateException(
+                "no directive-expressible vectors for format [" + format + "]; this suite would register nothing"
+            );
+        }
+        Set<String> excluded = MATRIX.excludedSpecs(suiteToken);
+        List<Object[]> loaded = readExternalSpecTestsWithExtraParam(vectorNames, MATRIX.specPatterns(suiteToken).toArray(String[]::new));
         return excluded.isEmpty() ? loaded : loaded.stream().filter(row -> excluded.contains(specNameOf(row)) == false).toList();
     }
 
@@ -791,7 +816,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * The directive settings the running vector pins, keyed by their {@code WITH} key.
      *
      * <p>Empty by default, so a suite that has not been moved onto generated vectors behaves exactly as
-     * before. A suite driven by {@link org.elasticsearch.xpack.esql.datasources.fixtures.FixtureDimensions}
+     * before. A suite driven by {@link FixtureDimensions}
      * overrides this with the directive-bound slots of its vector that sit off their declared default.
      */
     protected Map<String, String> vectorSettings() {

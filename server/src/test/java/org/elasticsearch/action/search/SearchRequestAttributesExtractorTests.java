@@ -543,5 +543,14 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
         try (var ignored = SearchRequestAttributesExtractor.withTimeRangeFilterFrom(threadContext, null, nowInMillis)) {
             assertNull(threadContext.getTransient(SearchRequestAttributesExtractor.TIME_RANGE_FILTER_FROM_ATTRIBUTE));
         }
+
+        SearchRequestAttributesExtractor.putTimeRangeFilterFrom(
+            threadContext,
+            nowInMillis - TimeValue.timeValueMinutes(10).millis(),
+            nowInMillis
+        );
+        assertEquals("15_minutes", threadContext.getTransient(SearchRequestAttributesExtractor.TIME_RANGE_FILTER_FROM_ATTRIBUTE));
+        SearchRequestAttributesExtractor.putTimeRangeFilterFrom(threadContext, null, nowInMillis);
+        assertEquals("15_minutes", threadContext.getTransient(SearchRequestAttributesExtractor.TIME_RANGE_FILTER_FROM_ATTRIBUTE));
     }
 }

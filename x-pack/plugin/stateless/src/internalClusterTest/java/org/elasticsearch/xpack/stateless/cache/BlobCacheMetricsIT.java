@@ -29,6 +29,10 @@ import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.encryption.EncryptionPlugin;
+import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -88,6 +92,8 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
         plugins.add(SynchronousWarmingPlugin.class);
         plugins.add(MockRepository.Plugin.class);
         plugins.add(TestTelemetryPlugin.class);
+        plugins.add(EncryptionPlugin.class);
+        plugins.add(EsqlPlugin.class);
         return plugins;
     }
 
@@ -134,6 +140,33 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
     }
 
     public void testCacheReadMissMetricsAttributedByTimeRange() {
+        String indexName = createFlushedTimeRangeIndex();
+        final var searchNode = startSearchNodeForTimeRangeIndex(indexName);
+
+        safeGet(prepareSearch(indexName).setQuery(rangeQuery(DataStream.TIMESTAMP_FIELD_NAME).gte("now-15m")).setSize(10_000).execute())
+            .decRef();
+
+        assertBlobCacheAttributedToFifteenMinutes(searchNode);
+    }
+
+    /**
+     * Same attribution as {@link #testCacheReadMissMetricsAttributedByTimeRange}, but through ES|QL.
+     * ES|QL never runs Query/DFS/Fetch, so this fails unless {@code EsqlSearchExecutionContext}
+     * records {@code time_range_filter_from} when rewriting a Lucene-pushable {@code @timestamp} range.
+     */
+    public void testEsqlCacheReadMissMetricsAttributedByTimeRange() {
+        String indexName = createFlushedTimeRangeIndex();
+        final var searchNode = startSearchNodeForTimeRangeIndex(indexName);
+
+        String query = "FROM " + indexName + " | WHERE @timestamp >= NOW() - 15 minutes | LIMIT 10000";
+        try (var ignored = client().execute(EsqlQueryAction.INSTANCE, EsqlQueryRequest.syncEsqlQueryRequest(query)).actionGet()) {
+            // blob-cache attribution is recorded on the search node while this query runs
+        }
+
+        assertBlobCacheAttributedToFifteenMinutes(searchNode);
+    }
+
+    private String createFlushedTimeRangeIndex() {
         startMasterAndIndexNode();
 
         final String indexName = randomIdentifier("timerange");
@@ -162,19 +195,22 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
             refresh(indexName);
         }
         flush(indexName);
+        return indexName;
+    }
 
+    private String startSearchNodeForTimeRangeIndex(String indexName) {
         final var searchNode = startSearchNode();
         ensureStableCluster(2);
         setReplicaCount(1, indexName);
         ensureGreen(indexName);
 
         clearShardCache(findSearchShard(indexName));
+        getTestTelemetryPlugin(searchNode).resetMeter();
+        return searchNode;
+    }
+
+    private static void assertBlobCacheAttributedToFifteenMinutes(String searchNode) {
         TestTelemetryPlugin testTelemetryPlugin = getTestTelemetryPlugin(searchNode);
-        testTelemetryPlugin.resetMeter();
-
-        safeGet(prepareSearch(indexName).setQuery(rangeQuery(DataStream.TIMESTAMP_FIELD_NAME).gte("now-15m")).setSize(10_000).execute())
-            .decRef();
-
         testTelemetryPlugin.collect();
         List<Measurement> reads = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total");
         List<Measurement> misses = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total");

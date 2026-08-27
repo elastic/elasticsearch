@@ -374,6 +374,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         final LongSupplier directoryBytesRead = directoryBytesReadSupplier(indicesService);
         final List<Releasable> releasables = new ArrayList<>(6);
         boolean started = false;
+        var storedContext = transportService.getThreadPool().getThreadContext().newStoredContext();
         try {
             var projectState = projectResolver.getProjectState(clusterService.state());
             AliasFilter aliasFilter = indicesService.buildAliasFilter(
@@ -525,6 +526,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         } catch (Exception e) {
             listener.onFailure(e);
         } finally {
+            storedContext.close();
             if (started == false) {
                 Releasables.close(releasables);
             }
@@ -895,7 +897,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         public static LookupShardContext fromSearchContext(SearchContext searchContext) {
             EsqlSearchExecutionContext esqlCtx = new EsqlSearchExecutionContext(
                 searchContext.getSearchExecutionContext(),
-                QueryWarnings.NOOP
+                QueryWarnings.NOOP,
+                searchContext.indexShard().getThreadPool().getThreadContext()
             );
             // Queries built via the wrapper charge its own accounting pool, which nothing else drains.
             searchContext.addReleasable(esqlCtx::releaseQueryConstructionMemory);

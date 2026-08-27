@@ -427,10 +427,19 @@ public final class SearchRequestAttributesExtractor {
      */
     public static Releasable withTimeRangeFilterFrom(ThreadContext threadContext, @Nullable Long timeRangeFromMillis, long nowInMillis) {
         var stored = threadContext.newStoredContext();
+        putTimeRangeFilterFrom(threadContext, timeRangeFromMillis, nowInMillis);
+        return stored;
+    }
+
+    /**
+     * Records {@link #TIME_RANGE_FILTER_FROM_ATTRIBUTE} as a transient when {@code timeRangeFromMillis} is non-null.
+     * Does not stash or restore the thread context; callers that need isolation should wrap with
+     * {@link ThreadContext#newStoredContext()} or {@link #withTimeRangeFilterFrom}.
+     */
+    public static void putTimeRangeFilterFrom(ThreadContext threadContext, @Nullable Long timeRangeFromMillis, long nowInMillis) {
         if (timeRangeFromMillis != null) {
             threadContext.putTransient(TIME_RANGE_FILTER_FROM_ATTRIBUTE, introspectTimeRange(timeRangeFromMillis, nowInMillis));
         }
-        return stored;
     }
 
     static String introspectTimeRange(long timeRangeFromMillis, long nowInMillis) {

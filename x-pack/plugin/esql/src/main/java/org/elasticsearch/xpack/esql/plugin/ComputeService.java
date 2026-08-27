@@ -1378,6 +1378,9 @@ public class ComputeService {
             singleValueQueryWarnings
         );
 
+        // Stash so planning-time toQuery can record time_range_filter_from, driver submit
+        // snapshots it via preserveContext, and this SEARCH thread is restored afterward.
+        var storedContext = transportService.getThreadPool().getThreadContext().newStoredContext();
         try {
             var workerThreadPool = transportService.getThreadPool();
             var parallelWorkerExecutor = workerThreadPool.executor(EsqlPlugin.computePool());
@@ -1542,6 +1545,8 @@ public class ComputeService {
             }
             LOGGER.debug("Error in ComputeService.runCompute for : " + context.description());
             listener.onFailure(e);
+        } finally {
+            storedContext.close();
         }
     }
 

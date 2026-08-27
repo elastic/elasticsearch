@@ -100,7 +100,8 @@ class ComputeSearchContext implements Releasable {
         ensureNotTombstone();
         EsqlSearchExecutionContext searchExecutionContext = new EsqlSearchExecutionContext(
             searchContext.getSearchExecutionContext(),
-            queryWarnings
+            queryWarnings,
+            searchContext.indexShard().getThreadPool().getThreadContext()
         );
         // Registered unconditionally; for detached shard contexts this is a no-op since the remote fetch path does not construct
         // Lucene queries and the counter stays at zero.

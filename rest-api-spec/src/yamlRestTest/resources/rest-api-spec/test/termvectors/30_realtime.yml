@@ -3,15 +3,11 @@
  - do:
       indices.create:
         index:    test_1
+        wait_for_active_shards: all
         body:
           settings:
             index:
               refresh_interval: -1
-              number_of_replicas: 0
-
- - do:
-      cluster.health:
-          wait_for_status: green
 
  - do:
       index:

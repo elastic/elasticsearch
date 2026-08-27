@@ -47,9 +47,6 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/42_knn_search_int4_flat/Test bad parameters}
   issue: https://github.com/elastic/elasticsearch/issues/156975
-- class: org.elasticsearch.xpack.ccr.ChainIT
-  method: testFollowIndex {targetCluster=FOLLOWER}
-  issue: https://github.com/elastic/elasticsearch/issues/157152
 - class: org.elasticsearch.index.query.SearchExecutionContextTests
   method: testFielddataLookupSometimesLoop
   issue: https://github.com/elastic/elasticsearch/issues/157154
@@ -64,6 +61,15 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/157341
 - class: org.elasticsearch.index.reindex.remote.ReindexFromRemote7xIT
   issue: https://github.com/elastic/elasticsearch/issues/157454
+- class: org.elasticsearch.xpack.esql.heap_attack.ManyRequestsIT
+  method: testManyRequests
+  issue: https://github.com/elastic/elasticsearch/issues/151627
+- class: org.elasticsearch.xpack.inference.InferenceRestIT
+  method: test {p0=inference/30_semantic_text_inference/Calculates embeddings using the default ELSER 2 endpoint}
+  issue: https://github.com/elastic/elasticsearch/issues/157795
+- class: org.elasticsearch.xpack.ilm.actions.RolloverActionIT
+  method: testILMRolloverRetriesOnReadOnlyBlock
+  issue: https://github.com/elastic/elasticsearch/issues/157832
 
 # Examples:
 #

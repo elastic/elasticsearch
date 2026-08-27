@@ -1639,11 +1639,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         // Buffer null when not emitted. Each document's slots are appended as they are read and
         // the finished blob is handed to binaryDvs.setString, which copies it out immediately, so the
         // buffer is free to be rewritten.
-        final BytesRefBuilder docBlob = emitDvs ? new BytesRefBuilder() : null;
-        // A columnar field's slots start after room for the count vint, which is right-aligned into that
-        // reserve at flush; see ColumnarBinaryDocValuesField for why the codec needs the count in the blob.
-        final int slotStart = columnar ? StringBinaryPayload.COUNT_RESERVE : 0;
-        int pos = slotStart;
+        final BytesRefBuilder docBlob = emitDvs && columnar == false ? new BytesRefBuilder() : null;
+        // A columnar field's slots go through the payload builder, which carries the count for them; see
+        // ColumnarBinaryDocValuesField for why the codec needs it in the blob.
+        final StringBinaryPayload.Builder payload = emitDvs && columnar ? new StringBinaryPayload.Builder() : null;
+        int pos = 0;
         int docSlotCount = 0;
         int lastValueLength = 0;
         // True when the current doc has at least one non-null slot; gates binary dv blob emission.
@@ -1657,11 +1657,11 @@ public final class KeywordFieldMapper extends FieldMapper {
                 if (binaryDvs != null && docSlotCount > 0) {
                     // TODO: considering appending slots straight into the column builder's stream.
                     if (columnar) {
-                        // The count travels with the bytes, right-aligned against the reserve the slots were
-                        // written after, so nothing has to move to make room for it. An all-null document is
-                        // a payload like any other, which is why no companion count column is emitted.
-                        final int start = StringBinaryPayload.writeCountBefore(docBlob, docSlotCount);
-                        binaryDvs.setString(currentDoc, docBlob.bytes(), start, pos - start);
+                        // An all-null document is a payload like any other, which is why no companion count
+                        // column is emitted alongside.
+                        final BytesRef blob = payload.build();
+                        binaryDvs.setString(currentDoc, blob.bytes, blob.offset, blob.length);
+                        payload.reset();
                     } else {
                         dvCounts.setLong(currentDoc, docSlotCount);
                         if (hasNonNull) {
@@ -1670,7 +1670,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                             binaryDvs.setString(currentDoc, docBlob.bytes(), pos - length, length);
                         }
                     }
-                    pos = slotStart;
+                    pos = 0;
                     docSlotCount = 0;
                     hasNonNull = false;
                 }
@@ -1692,9 +1692,11 @@ public final class KeywordFieldMapper extends FieldMapper {
                     // Fall through to normal value processing below.
                 } else {
                     if (binaryDvs != null) {
-                        pos = columnar
-                            ? StringBinaryPayload.appendSlot(docBlob, pos, null)
-                            : MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, null);
+                        if (columnar) {
+                            payload.appendSlot(null);
+                        } else {
+                            pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, null);
+                        }
                         docSlotCount++;
                         // hasNonNull stays false: null slots do not produce a binary dv blob.
                     }
@@ -1733,9 +1735,11 @@ public final class KeywordFieldMapper extends FieldMapper {
                 terms.setString(currentDoc, binaryValue);
             }
             if (binaryDvs != null) {
-                pos = columnar
-                    ? StringBinaryPayload.appendSlot(docBlob, pos, binaryValue)
-                    : MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, binaryValue);
+                if (columnar) {
+                    payload.appendSlot(binaryValue);
+                } else {
+                    pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, binaryValue);
+                }
                 lastValueLength = binaryValue.length;
                 docSlotCount++;
                 hasNonNull = true;

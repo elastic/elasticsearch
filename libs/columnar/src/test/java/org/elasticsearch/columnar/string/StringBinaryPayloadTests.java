@@ -10,7 +10,6 @@
 package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -67,22 +66,44 @@ public class StringBinaryPayloadTests extends ESTestCase {
         }
     }
 
-    /** The slot-at-a-time path a caller uses when the count is only known once the document closes. */
-    public void testAppendSlotAgreesWithEncode() {
+    /**
+     * The slot-at-a-time path, where the count is only known once the document closes. A builder reused across
+     * documents has to produce exactly what encoding each of them on its own would.
+     */
+    public void testBuilderAgreesWithEncode() {
+        final StringBinaryPayload.Builder builder = new StringBinaryPayload.Builder();
         for (int iter = 0; iter < 200; iter++) {
             final List<BytesRef> slots = new ArrayList<>();
-            for (int i = 0; i < between(1, 30); i++) {
+            for (int i = 0; i < between(0, 30); i++) {
                 slots.add(randomBoolean() ? null : new BytesRef(randomAlphaOfLengthBetween(0, 100)));
             }
-            final BytesRefBuilder blob = new BytesRefBuilder();
-            int pos = StringBinaryPayload.COUNT_RESERVE;
+            builder.reset();
             for (BytesRef slot : slots) {
-                pos = StringBinaryPayload.appendSlot(blob, pos, slot);
+                builder.appendSlot(slot);
             }
-            final int start = StringBinaryPayload.writeCountBefore(blob, slots.size());
-            final BytesRef appended = new BytesRef(blob.bytes(), start, pos - start);
-            assertEquals("appended slot by slot", StringBinaryPayload.encode(slots), appended);
+            assertEquals("built slot by slot", StringBinaryPayload.encode(slots), builder.build());
         }
+    }
+
+    /** Building twice without appending anything in between must not carry the first document's slots over. */
+    public void testBuilderResets() {
+        final StringBinaryPayload.Builder builder = new StringBinaryPayload.Builder();
+        builder.appendSlot(new BytesRef("a"));
+        builder.appendSlot(null);
+        assertEquals(StringBinaryPayload.encode(Arrays.asList(new BytesRef("a"), null)), builder.build());
+        builder.reset();
+        assertEquals("nothing carried over", StringBinaryPayload.EMPTY, builder.build());
+        builder.appendSlot(new BytesRef("b"));
+        assertEquals(StringBinaryPayload.encode(List.of(new BytesRef("b"))), builder.build());
+    }
+
+    /** {@link StringBinaryPayload.Builder#build} may be called more than once for the same document. */
+    public void testBuildIsRepeatable() {
+        final StringBinaryPayload.Builder builder = new StringBinaryPayload.Builder();
+        builder.appendSlot(new BytesRef("a"));
+        builder.appendSlot(new BytesRef("bb"));
+        final BytesRef first = BytesRef.deepCopyOf(builder.build());
+        assertEquals(first, builder.build());
     }
 
     public void testNullSlotCount() throws IOException {

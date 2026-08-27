@@ -43,67 +43,79 @@ public final class StringBinaryPayload {
     /** Added to a slot's length before it is written, leaving {@code 0} free to mean {@code null}. */
     public static final int SLOT_LENGTH_BIAS = 1;
 
-    /**
-     * Bytes to leave in front of a document's first slot when the slots are appended before their count is
-     * known. {@link #writeCountBefore} right-aligns the count against this reserve, so the payload needs no
-     * shuffling at flush — it just starts at the offset that call returns.
-     */
-    public static final int COUNT_RESERVE = ByteArrayInts.MAX_VINT_BYTES;
-
     /** The payload of a document holding no slots at all: a count of zero and nothing after it. */
     public static final BytesRef EMPTY = new BytesRef(new byte[] { 0 });
 
     private StringBinaryPayload() {}
 
     /**
-     * Encodes {@code slots} in document order, a {@code null} element denoting a null slot. Used where the
-     * whole document is already in hand; callers that append slot by slot use {@link #appendSlot} and
-     * {@link #writeCountBefore} instead.
+     * Encodes {@code slots} in document order, a {@code null} element denoting a null slot, into a payload of
+     * its own. Callers encoding a document per iteration use a {@link Builder} instead — it reuses its buffer
+     * where this allocates one.
      */
     public static BytesRef encode(Collection<BytesRef> slots) {
-        int byteCount = 0;
+        final Builder builder = new Builder();
         for (BytesRef slot : slots) {
-            if (slot != null) {
-                byteCount += slot.length;
+            builder.appendSlot(slot);
+        }
+        return BytesRef.deepCopyOf(builder.build());
+    }
+
+    /**
+     * Builds one document's payload, a slot at a time. Reusable through {@link #reset}, so a caller encoding a
+     * whole segment allocates one buffer rather than one per document.
+     *
+     * <p>The count belongs in front of the slots but is only known once they have all arrived. Rather than
+     * buffer the slots elsewhere or shuffle them along afterwards, the builder leaves a vint's worth of room
+     * ahead of them and writes the count so that it ends exactly where the first slot begins. That is why
+     * {@link #build} hands back a {@link BytesRef} whose offset is not zero.
+     */
+    public static final class Builder {
+
+        /** Room left for the count, which {@link #build} writes back into once the slots have all arrived. */
+        private static final int COUNT_RESERVE = ByteArrayInts.MAX_VINT_BYTES;
+
+        private final BytesRefBuilder blob = new BytesRefBuilder();
+        private final BytesRef payload = new BytesRef();
+        private int pos = COUNT_RESERVE;
+        private int slotCount;
+
+        public Builder() {
+            blob.grow(COUNT_RESERVE);
+        }
+
+        /** Appends one slot to the document under construction; {@code null} denotes a null slot. */
+        public void appendSlot(BytesRef value) {
+            final int valueLength = value == null ? 0 : value.length;
+            // grow (not growNoCopy): the slots already appended have to survive.
+            blob.grow(pos + ByteArrayInts.MAX_VINT_BYTES + valueLength);
+            final byte[] buffer = blob.bytes();
+            pos += ByteArrayInts.writeVInt(value == null ? 0 : valueLength + SLOT_LENGTH_BIAS, buffer, pos);
+            if (value != null) {
+                System.arraycopy(value.bytes, value.offset, buffer, pos, valueLength);
+                pos += valueLength;
             }
+            slotCount++;
         }
-        BytesRefBuilder blob = new BytesRefBuilder();
-        blob.grow(byteCount + (slots.size() + 1) * ByteArrayInts.MAX_VINT_BYTES);
-        int pos = ByteArrayInts.writeVInt(slots.size(), blob.bytes(), 0);
-        for (BytesRef slot : slots) {
-            pos = appendSlot(blob, pos, slot);
-        }
-        blob.setLength(pos);
-        return BytesRef.deepCopyOf(blob.get());
-    }
 
-    /**
-     * Appends one slot to a document blob under construction in {@code blob}, growing it as needed, and
-     * returns the write position just past the slot. A {@code null} {@code value} denotes a null slot.
-     */
-    public static int appendSlot(BytesRefBuilder blob, int pos, BytesRef value) {
-        final int valueLength = value == null ? 0 : value.length;
-        // grow (not growNoCopy): earlier slots of this document must survive.
-        blob.grow(pos + ByteArrayInts.MAX_VINT_BYTES + valueLength);
-        final byte[] buffer = blob.bytes();
-        pos += ByteArrayInts.writeVInt(value == null ? 0 : valueLength + SLOT_LENGTH_BIAS, buffer, pos);
-        if (value != null) {
-            System.arraycopy(value.bytes, value.offset, buffer, pos, valueLength);
-            pos += valueLength;
+        /**
+         * The finished payload, count and all. Points into this builder's own buffer, so it is valid until the
+         * next {@link #reset}; a caller that needs to keep it must copy it out.
+         */
+        public BytesRef build() {
+            final int start = COUNT_RESERVE - ByteArrayInts.vIntLength(slotCount);
+            ByteArrayInts.writeVInt(slotCount, blob.bytes(), start);
+            payload.bytes = blob.bytes();
+            payload.offset = start;
+            payload.length = pos - start;
+            return payload;
         }
-        return pos;
-    }
 
-    /**
-     * Writes {@code slotCount} so that it ends exactly at {@link #COUNT_RESERVE}, and returns the offset the
-     * finished payload begins at. Lets a caller append slots from {@code COUNT_RESERVE} onwards while the
-     * count is still unknown and close the document without moving any of them.
-     */
-    public static int writeCountBefore(BytesRefBuilder blob, int slotCount) {
-        blob.grow(COUNT_RESERVE);
-        final int start = COUNT_RESERVE - ByteArrayInts.vIntLength(slotCount);
-        ByteArrayInts.writeVInt(slotCount, blob.bytes(), start);
-        return start;
+        /** Drops what has been appended and starts a new document, keeping the buffer. */
+        public void reset() {
+            pos = COUNT_RESERVE;
+            slotCount = 0;
+        }
     }
 
     /**
@@ -171,34 +183,6 @@ public final class StringBinaryPayload {
             }
             assert scanCursor[0] == end : "payload has " + (end - scanCursor[0]) + " trailing bytes";
             return nulls;
-        }
-    }
-
-    /**
-     * Builds a payload slot by slot when the count is known up front — the shape the column reads back in,
-     * where a document's slot count comes from its value-address range. Reusable across documents.
-     */
-    public static final class Encoder {
-
-        private final BytesRefBuilder blob = new BytesRefBuilder();
-        private int pos;
-
-        /** Starts a document holding {@code slotCount} slots. */
-        public void begin(int slotCount) {
-            blob.clear();
-            blob.grow(ByteArrayInts.MAX_VINT_BYTES);
-            pos = ByteArrayInts.writeVInt(slotCount, blob.bytes(), 0);
-        }
-
-        /** Appends one slot; {@code null} denotes a null slot. */
-        public void append(BytesRef value) {
-            pos = appendSlot(blob, pos, value);
-        }
-
-        /** The finished payload; valid until the next {@link #begin}. */
-        public BytesRef get() {
-            blob.setLength(pos);
-            return blob.get();
         }
     }
 

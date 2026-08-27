@@ -163,7 +163,18 @@ public final class ExternalFailures {
     }
 
     private static boolean isMalformedDataException(Throwable t) {
-        return MALFORMED_DATA_EXCEPTIONS.contains(t.getClass().getName());
+        Throwable current = t;
+        for (int depth = 0; depth < MAX_CAUSE_DEPTH; depth++) {
+            if (MALFORMED_DATA_EXCEPTIONS.contains(current.getClass().getName())) {
+                return true;
+            }
+            Throwable cause = current.getCause();
+            if (cause == null || cause == current) {
+                break;
+            }
+            current = cause;
+        }
+        return false;
     }
 
     /**

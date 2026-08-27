@@ -221,24 +221,17 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         bytes.truncateTo(lastOffset);
         if (intOffsets != null) {
             // Offset tables hold (oldSize + 1) entries; after truncation we need exactly (newSize + 1).
-            truncateOffsets(newSize + 1);
-        }
-    }
-
-    /**
-     * Discards offset entries beyond the first {@code entriesToKeep}, spilling over from {@link #intOffsets}
-     * into {@link #longOffsets} the same way {@link #appendOffset} fills them.
-     */
-    private void truncateOffsets(long entriesToKeep) {
-        final long intEntriesToKeep = Math.min(intOffsets.size, entriesToKeep);
-        intOffsets.truncateTo(intEntriesToKeep);
-        if (longOffsets != null) {
-            final long longEntriesToKeep = entriesToKeep - intEntriesToKeep;
-            if (longEntriesToKeep <= 0) {
-                longOffsets.close();
-                longOffsets = null;
-            } else {
-                longOffsets.truncateTo(longEntriesToKeep);
+            final long entriesToKeep = newSize + 1;
+            final long intEntriesToKeep = Math.min(intOffsets.size, entriesToKeep);
+            intOffsets.truncateTo(intEntriesToKeep);
+            if (longOffsets != null) {
+                final long longEntriesToKeep = entriesToKeep - intEntriesToKeep;
+                if (longEntriesToKeep <= 0) {
+                    longOffsets.close();
+                    longOffsets = null;
+                } else {
+                    longOffsets.truncateTo(longEntriesToKeep);
+                }
             }
         }
     }

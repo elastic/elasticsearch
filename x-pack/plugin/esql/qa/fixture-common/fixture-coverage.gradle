@@ -179,6 +179,9 @@ tasks.register('checkFixtureCoverage') {
       "GAP    = declared empty for this format, reason shown",
       "n/a    = layout not declared for this format",
       "",
+      "standalone is not listed: it is the base case every format carries, so the gate does not treat",
+      "it as a declarable cell. Its absence here is that rule, not a missing row.",
+      "",
       "Only suites in fixtureCoverageFormats appear here. The compressed suites route specs from the",
       "declaration but are not gated: their cells are owned by the primary suite for the same format."
     ] + report).join("\n") + "\n"

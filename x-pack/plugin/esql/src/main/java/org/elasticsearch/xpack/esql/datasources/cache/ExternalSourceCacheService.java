@@ -783,7 +783,16 @@ public class ExternalSourceCacheService implements Closeable {
      * record count under {@code FAIL_FAST}, which the producer licenses explicitly (see
      * {@link ExternalStats#ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY}) because a committed count there is the same number for
      * every way of reading the file. That licence is what keeps the strict warm {@code COUNT(*)} rail alive across
-     * differently-declared datasets, which is correct and deliberate.
+     * differently-declared datasets, and for a file every declaration can read to completion it is exactly right.
+     * <p>
+     * It carries one known exception, pre-existing and deliberately preserved: "the same number for every way of
+     * reading the file" assumes every way of reading it SUCCEEDS. A positionally bound read carries a row-width
+     * tripwire that a by-name declared read does not, so on a file whose later rows are wider than its inference
+     * sample the positional read aborts while the declared one completes and licenses its count. The licence then
+     * carries that count to the reader that cannot produce it, which answers where its own scan errors — a masked
+     * abort rather than a wrong number, flapping with cache state. Scoping the licence to the binding mode that
+     * produced the count would close it; withdrawing it entirely would stop every strict dataset warming. Disclosed
+     * at {@code ExternalSourceResolver#strictSingleFileMetadata}.
      * <p>
      * Two absent read configurations compare equal on purpose: a rail that stamps no read configuration enriches entries that carry none,
      * exactly as it did before read configurations existed. A known configuration never matches an absent one — "unknown" must not be

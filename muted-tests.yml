@@ -619,9 +619,6 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchErrorTraceIT
   method: testAsyncSearchFailingQueryErrorTraceFalseOnSubmitAndTrueOnGet
   issue: https://github.com/elastic/elasticsearch/issues/156435
-- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
-  method: testSearchShardShouldRecoverWhenWarmingFailsOnGetConnection
-  issue: https://github.com/elastic/elasticsearch/issues/156462
 - class: org.elasticsearch.xpack.stateless.recovery.PointInTimeRelocationIT
   method: testPointInTimeRelocationClosingSourceContexts
   issue: https://github.com/elastic/elasticsearch/issues/156463

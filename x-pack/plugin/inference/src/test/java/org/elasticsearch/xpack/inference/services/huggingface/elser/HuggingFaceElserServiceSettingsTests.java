@@ -114,13 +114,20 @@ public class HuggingFaceElserServiceSettingsTests extends AbstractWireSerializin
         assertThat(serviceSettings, is(new HuggingFaceElserServiceSettings(TEST_URI.toString())));
     }
 
-    public void testFromMap_ExplicitNullRateLimit_UsesDefault() {
+    /**
+     * An explicit {@code "rate_limit": null} was accepted by the old map-based parsing (it fell back to the default), but the
+     * {@code ObjectParser} rejects it, the same behavior as the other parser-based services (for example Groq).
+     */
+    public void testFromMap_ExplicitNullRateLimit_ThrowsException() {
         var settings = buildServiceSettingsMap(TEST_URI.toString(), null);
         settings.put(RateLimitSettings.FIELD_NAME, null);
 
-        var serviceSettings = HuggingFaceElserServiceSettings.fromMap(settings, randomFrom(ConfigurationParseContext.values()));
+        var thrownException = expectThrows(
+            XContentParseException.class,
+            () -> HuggingFaceElserServiceSettings.fromMap(settings, randomFrom(ConfigurationParseContext.values()))
+        );
 
-        assertThat(serviceSettings, is(new HuggingFaceElserServiceSettings(TEST_URI.toString())));
+        assertThat(thrownException.getMessage(), containsString(RateLimitSettings.FIELD_NAME));
     }
 
     public void testFromMap_EmptyUrl_ThrowsError() {

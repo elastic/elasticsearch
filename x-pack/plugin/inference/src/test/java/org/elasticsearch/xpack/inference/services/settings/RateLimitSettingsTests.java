@@ -448,17 +448,6 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
         assertThat(holder.rateLimitSettings, sameInstance(defaultValue));
     }
 
-    public void testDeclareRateLimitSettings_ExplicitNull_SetsDefaultValueNotNull() throws IOException {
-        var defaultValue = createRandom();
-        var holder = parseWithDeclare(Strings.format("""
-                {
-                    "%s": null
-                }
-            """, RateLimitSettings.FIELD_NAME), defaultValue, randomFrom(ConfigurationParseContext.values()));
-
-        assertThat(holder.rateLimitSettings, sameInstance(defaultValue));
-    }
-
     public void testDeclareRateLimitSettings_Absent_DoesNotInvokeSetter() throws IOException {
         var holder = parseWithDeclare("{}", createRandom(), randomFrom(ConfigurationParseContext.values()));
 

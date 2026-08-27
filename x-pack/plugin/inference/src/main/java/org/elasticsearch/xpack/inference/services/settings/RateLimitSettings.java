@@ -48,10 +48,8 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
 
     /**
      * Declares a {@link #FIELD_NAME} field on the given parser that produces a {@link RateLimitSettings} value.
-     * When the {@link #FIELD_NAME} object is present but empty (i.e. {@code "rate_limit": {}}) or explicitly {@code null}
-     * (i.e. {@code "rate_limit": null}), the setter receives {@code defaultValue} rather than {@code null}. The explicit-null
-     * leniency preserves the pre-{@link ObjectParser} behavior of {@link #of}, which could not distinguish a null value from
-     * an absent field.
+     * When the {@link #FIELD_NAME} object is present but empty (i.e. {@code "rate_limit": {}}), the setter receives
+     * {@code defaultValue} rather than {@code null}.
      *
      * @param parser       the parser on which to declare the field
      * @param setter       the consumer that stores the parsed {@link RateLimitSettings} on the target object
@@ -64,10 +62,11 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
     ) {
         var strictParser = RateLimitSettings.createParser(false, defaultValue);
         var lenientParser = RateLimitSettings.createParser(true, defaultValue);
-        parser.declareObjectOrNull(
+        parser.declareObject(
             setter,
+            // An explicitly empty rate_limit object ({}) resolves to the default rate limit rather than null, so the setter is never
+            // invoked with null.
             (p, c) -> (c == ConfigurationParseContext.PERSISTENT ? lenientParser : strictParser).apply(p, null),
-            defaultValue,
             new ParseField(RateLimitSettings.FIELD_NAME)
         );
     }

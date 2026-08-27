@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
+import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
 import java.util.ArrayList;
@@ -649,8 +650,54 @@ public final class SourceStatisticsSerializer {
             splits.add(s);
         }
         SplitStats folded = SplitStats.fold(splits, implicitNullsForAbsentColumn);
-        // Mutable copy: callers (e.g. ExternalSourceCacheService.foldFragments) re-attach the keying fields.
-        return folded == null ? null : new HashMap<>(folded.toMap());
+        if (folded == null) {
+            return null;
+        }
+        // Mutable copy: callers (e.g. ExternalSourceCacheService.mergeStripesAndRekey) re-attach the CACHE-identity
+        // keys (mtime, config fingerprint), whose correct fold is caller-specific -- stripes share one mtime, files
+        // do not. The SERVE-identity keys are folded here, so no caller can silently lose them.
+        Map<String, Object> merged = new HashMap<>(folded.toMap());
+        attachFoldedReadConfigIdentity(splitStats, merged);
+        return merged;
+    }
+
+    /**
+     * Folds the serve-identity keys the compact model does not carry, so an N&gt;1 merge cannot silently launder a
+     * configuration-dependent measurement into a configuration-less map (the N==1 short-circuit above already
+     * preserves them by returning the input). Three states for the read configuration: every input measured by the
+     * SAME configuration &rarr; the fold was too, re-attach it; NO input carries one (the columnar readers, which
+     * harvest without stamping) &rarr; leave absent, preserving {@link #restrictToReadConfig}'s deliberate
+     * pass-through; anything else (disagreeing, or mixed stamped/unstamped) &rarr; stamp
+     * {@link ReadConfigFingerprint#MIXED}, which no expected configuration ever equals, so the serve gate strips
+     * rather than serving a fold no single read produced. The count licence is an AND, matching
+     * {@code ExternalSourceCacheService.foldFragments}: a sum of configuration-independent counts is itself
+     * configuration-independent, but one unlicensed input makes the sum depend on how that file's rows were read.
+     */
+    private static void attachFoldedReadConfigIdentity(List<Map<String, Object>> splitStats, Map<String, Object> merged) {
+        String agreed = null;
+        boolean mixed = false;
+        boolean allLicensed = true;
+        boolean first = true;
+        for (Map<String, Object> stats : splitStats) {
+            String fingerprint = stats.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY) instanceof String s && s.isEmpty() == false
+                ? s
+                : null;
+            if (first) {
+                agreed = fingerprint;
+                first = false;
+            } else if (Objects.equals(agreed, fingerprint) == false) {
+                mixed = true;
+            }
+            allLicensed &= Boolean.TRUE.equals(stats.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
+        }
+        if (mixed) {
+            merged.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, ReadConfigFingerprint.MIXED);
+        } else if (agreed != null) {
+            merged.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, agreed);
+        }
+        if (allLicensed) {
+            merged.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+        }
     }
 
     @Nullable

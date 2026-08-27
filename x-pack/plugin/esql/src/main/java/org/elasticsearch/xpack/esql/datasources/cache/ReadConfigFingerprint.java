@@ -82,6 +82,15 @@ public final class ReadConfigFingerprint {
     public static final String UNKNOWN = "";
 
     /**
+     * The sentinel for a fold over reads of DIFFERING resolved configurations (a {@code union_by_name} glob whose
+     * files resolve to per-file-different read schemas, or a mixed stamped/unstamped input set). A real fingerprint
+     * is exactly 32 hex characters and {@link #UNKNOWN} is empty, so this value can never compare equal to either:
+     * the serve gate treats a MIXED-stamped map as known-and-never-matching and strips, where an ABSENT stamp would
+     * take the deliberate columnar pass-through and serve the fold to a read no constituent measured.
+     */
+    public static final String MIXED = "mixed";
+
+    /**
      * Computes the fingerprint of one file's resolved read configuration. {@code readSchema} is the per-file effective schema the
      * reader will bind, in <b>logical</b> names as the resolution produced them; renames are applied here so both
      * sides agree on a physical-name encoding. Returns {@link #UNKNOWN} when there is no schema to describe.

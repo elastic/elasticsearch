@@ -627,16 +627,16 @@ public class ExternalSourceCacheService implements Closeable {
             if (fingerprint != null) {
                 whole.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
             }
-            // The merge keeps only recognised _stats.* keys, so the read configuration has to be re-attached here like the mtime
-            // and the fingerprint. Losing it turns a folded whole-file result into a configuration-less contribution, which
-            // every identity gate downstream then treats as "unknown" — the stripe rail's counts stop matching the
-            // very entry they came from.
+            // Load-bearing on the stripes.size() == 1 branch, which bypasses mergeStatistics entirely; on the fold
+            // branch this is now an idempotent overwrite, since the merge folds the read configuration itself. The
+            // value written here is the entry's own, and stripes within one entry are same-configuration by the
+            // read-configuration gate in applyStripeDelta, so the two agree by construction.
             if (readConfig != null && readConfig.isEmpty() == false) {
                 whole.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, readConfig);
             }
-            // The licence too: the statistics merge emits only row/size/column families, so it is dropped here just
-            // like the mtime and the fingerprint. Losing it leaves a chunked FAIL_FAST read unable to license the
-            // crossing an unchunked one can — a safe-miss, but one with no reason behind it.
+            // The licence the same way: load-bearing on the single-stripe branch, an idempotent overwrite on the
+            // fold branch. Losing it would leave a chunked FAIL_FAST read unable to license the crossing an
+            // unchunked one can — a safe-miss, but one with no reason behind it.
             if (rowCountReadConfigIndependent) {
                 whole.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
             }

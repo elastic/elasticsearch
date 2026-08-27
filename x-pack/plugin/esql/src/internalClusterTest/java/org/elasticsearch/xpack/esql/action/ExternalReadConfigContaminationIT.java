@@ -144,6 +144,90 @@ public class ExternalReadConfigContaminationIT extends AbstractExternalDataSourc
         assertCount(victim, "STATS c = COUNT(*)", ROWS);
     }
 
+    /**
+     * The multi-file half of the same charter. A comma list folds its files' statistics through the shared merge,
+     * which models only row counts, sizes and column families -- so before this was fixed the fold arrived at the
+     * serve gate carrying no read configuration at all, took the pass-through meant for the columnar readers that
+     * stamp nothing, and handed the declared dataset a count the inferred dataset's read produced. The single-file
+     * rail was never affected: it does not fold, so it never lost the stamp.
+     * <p>
+     * Discrimination is on scan rows, not on the value. Both datasets count the same 400 records; what differs is
+     * whether the declared one is SERVED that number or has to go and read it. The dialect fixture is used because
+     * every value parses cleanly under both dialects, so no row drops and nothing else can explain a safe-miss.
+     */
+    public void testDeclaredMultiFileReadIsNotServedTheInferredFold() throws Exception {
+        String uris = writeTwoFileFixture(false);
+        String inferred = register("mf_inferred", uris, null);
+        String declared = register("mf_declared", uris, mappingTsWithDialect());
+
+        assertScanRows(inferred, 2L * ROWS); // cold: reads both files and warms the entry
+        assertScanRows(inferred, 0L);        // warm: served its own fold
+        assertScanRows(declared, 2L * ROWS); // must NOT be served the inferred fold -- it reads for itself
+        assertScanRows(inferred, 0L);        // and the inferred rail keeps its warmth
+    }
+
+    /**
+     * A union_by_name glob whose files resolve to DIFFERENT read configurations. The fold belongs to no single one,
+     * so re-attaching only when every file agrees would leave it unstamped -- indistinguishable from the columnar
+     * case, and served to everybody. This is the case the agreement rule alone does not cover, and the only one
+     * that exercises the mixed sentinel end to end.
+     */
+    public void testHeterogeneousMultiFileFoldIsNotServedAcrossConfigurations() throws Exception {
+        String uris = writeTwoFileFixture(true);
+        String inferred = register("het_inferred", uris, null);
+        String declared = register("het_declared", uris, mappingTsWithDialect());
+
+        assertScanRows(inferred, 2L * ROWS);
+        assertScanRows(inferred, 0L);
+        assertScanRows(declared, 2L * ROWS);
+    }
+
+    /**
+     * The other direction, so the fix cannot be an over-restriction. Under the default FAIL_FAST policy the physical
+     * record count is the same number for every declaration, and the producers stamp a licence saying so. That
+     * licence must survive the multi-file fold as an AND, and the declared read must still be served the count
+     * without re-reading. This one is NOT red on the parent -- it passes there through the unstamped pass-through --
+     * so read it as a guard against the fix taking too much, not as evidence the fix works.
+     */
+    public void testLicensedCountStillCrossesTheMultiFileFold() throws Exception {
+        String uris = writeTwoFileFixture(false);
+        String inferred = register("lic_inferred", uris, null, false);
+        String declared = register("lic_declared", uris, mappingTsWithDialect(), false);
+
+        assertScanRows(inferred, 2L * ROWS);
+        assertScanRows(inferred, 0L);
+        assertScanRows(declared, 0L); // the licensed count crosses; only the extrema are configuration-bound
+    }
+
+    /** Asserts how many records {@code COUNT(*)} actually had to read: 0 means it was served from the cache. */
+    private void assertScanRows(String dataset, long expectedScanRows) {
+        String query = "FROM " + dataset + " | STATS c = COUNT(*)";
+        try (var response = run(syncEsqlQueryRequest(query).profile(true), TIMEOUT)) {
+            assertThat(query + " scan rows", response.documentsFound(), equalTo(expectedScanRows));
+        }
+    }
+
+    /**
+     * Two files of the dialect fixture as a comma list. When {@code heterogeneous}, the second file adds a column the
+     * first does not have, so the two files resolve to different read configurations under union_by_name.
+     */
+    private String writeTwoFileFixture(boolean heterogeneous) throws Exception {
+        Path dir = createTempDir();
+        String[] dates = { "2024-03-02", "2024-01-05", "2024-12-01", "2024-07-08", "2024-05-11" };
+        StringBuilder a = new StringBuilder("id:integer,ts:datetime\n");
+        StringBuilder b = new StringBuilder(heterogeneous ? "id:integer,ts:datetime,extra:keyword\n" : "id:integer,ts:datetime\n");
+        for (int i = 0; i < ROWS; i++) {
+            String ts = dates[i % dates.length] + "T00:00:00";
+            a.append(i).append(',').append(ts).append('\n');
+            b.append(i).append(',').append(ts).append(heterogeneous ? ",x" : "").append('\n');
+        }
+        Path fileA = dir.resolve("part_a.csv");
+        Path fileB = dir.resolve("part_b.csv");
+        Files.writeString(fileA, a.toString());
+        Files.writeString(fileB, b.toString());
+        return StoragePath.fileUri(fileA) + "," + StoragePath.fileUri(fileB);
+    }
+
     private void assertCount(String dataset, String statsClause, long expected) {
         String query = "FROM " + dataset + " | " + statsClause;
         try (var response = run(syncEsqlQueryRequest(query).profile(true), TIMEOUT)) {

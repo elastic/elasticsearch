@@ -73,5 +73,17 @@ public class RepositoriesSetupPlugin implements Plugin<Project> {
                 exclusiveRepo.forRepositories(cuvsRepo);
             });
         }
+
+        String tikaVersion = VersionProperties.getVersions().get("tika");
+        if (tikaVersion != null && tikaVersion.contains("-SNAPSHOT")) {
+            MavenArtifactRepository tikaRepo = repos.maven(repo -> {
+                repo.setName("apache-snapshots");
+                repo.setUrl("https://repository.apache.org/content/repositories/snapshots/");
+            });
+            repos.exclusiveContent(exclusiveRepo -> {
+                exclusiveRepo.filter(descriptor -> descriptor.includeVersionByRegex("org\\.apache\\.tika", ".*", ".*-SNAPSHOT"));
+                exclusiveRepo.forRepositories(tikaRepo);
+            });
+        }
     }
 }

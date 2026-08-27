@@ -562,11 +562,6 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
                 return false;
             }
         }
-        for (var index : dataStream.getFailureIndices()) {
-            if (isIndexComplete(index.getName()) == false) {
-                return false;
-            }
-        }
         return true;
     }
 

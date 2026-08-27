@@ -156,6 +156,7 @@ public class OpenShiftAiServiceTests extends InferenceServiceTestCase {
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), ROLE_VALUE, null, null))),
+                true,
                 null,
                 listener
             );
@@ -194,6 +195,7 @@ public class OpenShiftAiServiceTests extends InferenceServiceTestCase {
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), ROLE_VALUE, null, null))),
+                true,
                 null,
                 ActionListener.runAfter(ActionTestUtils.assertNoSuccessListener(e -> {
                     try (var builder = XContentFactory.jsonBuilder()) {
@@ -276,6 +278,7 @@ public class OpenShiftAiServiceTests extends InferenceServiceTestCase {
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), ROLE_VALUE, null, null))),
+                true,
                 null,
                 listener
             );

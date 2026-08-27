@@ -48,7 +48,7 @@ import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatso
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModelCreator;
-import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiUnifiedChatCompletionResponseEntity;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -76,7 +76,7 @@ public class IbmWatsonxService extends SenderService<IbmWatsonxModel> implements
     );
     private static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new IbmWatsonUnifiedChatCompletionResponseHandler(
         "IBM watsonx chat completions",
-        OpenAiChatCompletionResponseEntity::fromResponse
+        OpenAiUnifiedChatCompletionResponseEntity::fromResponse
     );
     private static final IbmWatsonxChatCompletionModelCreator CHAT_COMPLETION_MODEL_CREATOR = new IbmWatsonxChatCompletionModelCreator();
     private static final Map<TaskType, ModelCreator<? extends IbmWatsonxModel>> MODEL_CREATORS = Map.of(
@@ -133,6 +133,11 @@ public class IbmWatsonxService extends SenderService<IbmWatsonxModel> implements
     @Override
     public Set<TaskType> supportedStreamingTasks() {
         return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
+    }
+
+    @Override
+    public boolean supportsNonStreamingChatCompletion() {
+        return true;
     }
 
     @Override

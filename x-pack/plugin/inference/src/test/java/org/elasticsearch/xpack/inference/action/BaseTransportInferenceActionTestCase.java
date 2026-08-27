@@ -417,14 +417,15 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
 
         when(service.canStream(any())).thenReturn(stream);
         when(service.supportedStreamingTasks()).thenReturn(supportedStreamingTasks);
+        when(service.supportsNonStreamingChatCompletion()).thenReturn(true);
         doAnswer(ans -> {
             listenerAction.accept(ans.getArgument(6));
             return null;
         }).when(service).infer(any(), any(), anyBoolean(), any(), any(), any(), any());
         doAnswer(ans -> {
-            listenerAction.accept(ans.getArgument(3));
+            listenerAction.accept(ans.getArgument(4));
             return null;
-        }).when(service).unifiedCompletionInfer(any(), any(), any(), any());
+        }).when(service).unifiedCompletionInfer(any(), any(), anyBoolean(), any(), any());
         doAnswer(ans -> {
             listenerAction.accept(ans.getArgument(3));
             return null;

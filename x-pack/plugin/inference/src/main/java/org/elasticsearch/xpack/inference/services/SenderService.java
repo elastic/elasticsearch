@@ -245,6 +245,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
     public void unifiedCompletionInfer(
         Model model,
         UnifiedCompletionRequest request,
+        boolean stream,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
@@ -253,7 +254,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
             if (supportsChatCompletionReasoning() == false && request.containsChatCompletionReasoning()) {
                 throwUnsupportedReasoningUnifiedCompletionOperation(name());
             }
-            doUnifiedCompletionInfer(model, new UnifiedChatInput(request, true), resolvedInferenceTimeout, listener);
+            doUnifiedCompletionInfer(model, new UnifiedChatInput(request, stream), resolvedInferenceTimeout, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }

@@ -31,7 +31,7 @@ import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInfere
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceRerankResponseEntity;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceSparseEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiUnifiedChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
@@ -187,8 +187,7 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
 
     private static final ResponseHandler CHAT_COMPLETIONS_HANDLER = new ElasticInferenceServiceUnifiedChatCompletionResponseHandler(
         "elastic inference service completion",
-        // ElasticInferenceServiceResponseEntity is a subset of OpenAiChatCompletionResponseEntity, so we reuse it here.
-        OpenAiChatCompletionResponseEntity::fromResponse
+        OpenAiUnifiedChatCompletionResponseEntity::fromResponse
     );
 
     private static final Strategy<ElasticInferenceServiceCompletionModel> CHAT_COMPLETIONS_STRATEGY = new Strategy<>() {

@@ -70,7 +70,7 @@ public class SimpleChatCompletionServiceIntegrationValidatorTests extends ESTest
 
     public void testValidate_ServiceThrowsException() {
         doThrow(ElasticsearchStatusException.class).when(mockInferenceService)
-            .unifiedCompletionInfer(eq(mockModel), eq(EXPECTED_REQUEST), eq(TIMEOUT), any());
+            .unifiedCompletionInfer(eq(mockModel), eq(EXPECTED_REQUEST), eq(true), eq(TIMEOUT), any());
 
         assertThrows(
             ElasticsearchStatusException.class,
@@ -120,10 +120,10 @@ public class SimpleChatCompletionServiceIntegrationValidatorTests extends ESTest
 
     private void mockSuccessfulCallToService(InferenceServiceResults result) {
         doAnswer(ans -> {
-            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(3);
+            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(4);
             responseListener.onResponse(result);
             return null;
-        }).when(mockInferenceService).unifiedCompletionInfer(eq(mockModel), eq(EXPECTED_REQUEST), eq(TIMEOUT), any());
+        }).when(mockInferenceService).unifiedCompletionInfer(eq(mockModel), eq(EXPECTED_REQUEST), eq(true), eq(TIMEOUT), any());
 
         underTest.validate(mockInferenceService, mockModel, TIMEOUT, mockActionListener);
     }
@@ -134,16 +134,16 @@ public class SimpleChatCompletionServiceIntegrationValidatorTests extends ESTest
 
     private void mockFailureResponseFromService(Exception exception) {
         doAnswer(ans -> {
-            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(3);
+            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(4);
             responseListener.onFailure(exception);
             return null;
-        }).when(mockInferenceService).unifiedCompletionInfer(eq(mockModel), eq(EXPECTED_REQUEST), eq(TIMEOUT), any());
+        }).when(mockInferenceService).unifiedCompletionInfer(eq(mockModel), eq(EXPECTED_REQUEST), eq(true), eq(TIMEOUT), any());
 
         underTest.validate(mockInferenceService, mockModel, TIMEOUT, mockActionListener);
     }
 
     private void verifyCallToService() {
-        verify(mockInferenceService).unifiedCompletionInfer(eq(mockModel), eq(EXPECTED_REQUEST), eq(TIMEOUT), any());
+        verify(mockInferenceService).unifiedCompletionInfer(eq(mockModel), eq(EXPECTED_REQUEST), eq(true), eq(TIMEOUT), any());
         verifyNoMoreInteractions(mockInferenceService, mockModel, mockActionListener, mockInferenceServiceResults);
     }
 }

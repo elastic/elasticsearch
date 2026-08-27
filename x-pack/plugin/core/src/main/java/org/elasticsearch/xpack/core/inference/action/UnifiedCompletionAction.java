@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.core.inference.InferenceContext;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_NON_STREAMING_ADDED;
+
 public class UnifiedCompletionAction extends ActionType<InferenceAction.Response> {
     public static final UnifiedCompletionAction INSTANCE = new UnifiedCompletionAction();
     public static final String NAME = "cluster:internal/xpack/inference/unified";
@@ -33,17 +35,19 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
         public static Request parseRequest(
             String inferenceEntityId,
             TaskType taskType,
+            boolean stream,
             TimeValue timeout,
             InferenceContext context,
             XContentParser parser
         ) throws IOException {
             var unifiedRequest = UnifiedCompletionRequest.PARSER.apply(parser, null);
-            return new Request(inferenceEntityId, taskType, unifiedRequest, context, timeout);
+            return new Request(inferenceEntityId, taskType, unifiedRequest, context, stream, timeout);
         }
 
         private final String inferenceEntityId;
         private final TaskType taskType;
         private final UnifiedCompletionRequest unifiedCompletionRequest;
+        private final boolean stream;
         private final TimeValue timeout;
 
         public Request(
@@ -52,7 +56,7 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
             UnifiedCompletionRequest unifiedCompletionRequest,
             @Nullable TimeValue timeout
         ) {
-            this(inferenceEntityId, taskType, unifiedCompletionRequest, InferenceContext.EMPTY_INSTANCE, timeout);
+            this(inferenceEntityId, taskType, unifiedCompletionRequest, InferenceContext.EMPTY_INSTANCE, true, timeout);
         }
 
         public Request(
@@ -60,12 +64,14 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
             TaskType taskType,
             UnifiedCompletionRequest unifiedCompletionRequest,
             InferenceContext context,
+            boolean stream,
             @Nullable TimeValue timeout
         ) {
             super(context);
             this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
             this.taskType = Objects.requireNonNull(taskType);
             this.unifiedCompletionRequest = Objects.requireNonNull(unifiedCompletionRequest);
+            this.stream = stream;
             this.timeout = Objects.requireNonNullElse(timeout, TIMEOUT_NOT_DETERMINED);
         }
 
@@ -75,6 +81,11 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
             this.taskType = TaskType.fromStream(in);
             this.unifiedCompletionRequest = new UnifiedCompletionRequest(in);
             this.timeout = in.readTimeValue();
+            if (in.getTransportVersion().supports(CHAT_COMPLETION_NON_STREAMING_ADDED)) {
+                this.stream = in.readBoolean();
+            } else {
+                this.stream = true;
+            }
         }
 
         public TaskType getTaskType() {
@@ -89,12 +100,8 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
             return unifiedCompletionRequest;
         }
 
-        /**
-         * The Unified API only supports streaming so we always return true here.
-         * @return true
-         */
         public boolean isStreaming() {
-            return true;
+            return stream;
         }
 
         public TimeValue getTimeout() {
@@ -136,13 +143,17 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
             } else {
                 out.writeTimeValue(timeout);
             }
+            if (out.getTransportVersion().supports(CHAT_COMPLETION_NON_STREAMING_ADDED)) {
+                out.writeBoolean(stream);
+            }
         }
 
         @Override
         public boolean equals(Object o) {
             if (o == null || getClass() != o.getClass()) return false;
-            Request request = (Request) o;
+            var request = (Request) o;
             return super.equals(o)
+                && stream == request.stream
                 && Objects.equals(inferenceEntityId, request.inferenceEntityId)
                 && taskType == request.taskType
                 && Objects.equals(unifiedCompletionRequest, request.unifiedCompletionRequest)
@@ -151,7 +162,7 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
 
         @Override
         public int hashCode() {
-            return Objects.hash(super.hashCode(), inferenceEntityId, taskType, unifiedCompletionRequest, timeout);
+            return Objects.hash(super.hashCode(), inferenceEntityId, taskType, unifiedCompletionRequest, stream, timeout);
         }
     }
 

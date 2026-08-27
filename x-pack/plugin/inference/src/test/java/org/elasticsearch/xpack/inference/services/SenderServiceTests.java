@@ -259,7 +259,7 @@ public class SenderServiceTests extends ESTestCase {
         try (service) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var request = new UnifiedCompletionRequest(messages, null, null, null, null, null, null, null);
-            service.unifiedCompletionInfer(mock(Model.class), request, TIMEOUT, listener);
+            service.unifiedCompletionInfer(mock(Model.class), request, true, TIMEOUT, listener);
 
             listener.actionGet(TIMEOUT);
         }

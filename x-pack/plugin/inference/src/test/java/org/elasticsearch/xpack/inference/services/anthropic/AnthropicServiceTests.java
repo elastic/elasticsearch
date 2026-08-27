@@ -604,6 +604,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(List.of(new Message(new ContentString("Hello"), "user", null, null))),
+                true,
                 TIMEOUT,
                 listener
             );

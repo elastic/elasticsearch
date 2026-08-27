@@ -31,6 +31,7 @@ public final class UnifiedCompletionUtils {
     public static final String CONTENT_FIELD = "content";
     public static final String CHOICES_FIELD = "choices";
     public static final String DELTA_FIELD = "delta";
+    public static final String MESSAGE_FIELD = "message";
     public static final String REFUSAL_FIELD = "refusal";
 
     public static final String TOOL_CALL_ID_FIELD = "tool_call_id";
@@ -94,6 +95,10 @@ public final class UnifiedCompletionUtils {
 
     public static final TransportVersion CHAT_COMPLETION_REASONING_MAX_TOKENS_REMOVED = TransportVersion.fromName(
         "inference_api_chat_completion_reasoning_max_tokens_removed"
+    );
+
+    public static final TransportVersion CHAT_COMPLETION_NON_STREAMING_ADDED = TransportVersion.fromName(
+        "inference_api_chat_completion_non_streaming_added"
     );
 
     public static <T> T extractRequiredFieldOfType(Map<String, Object> sourceMap, String key, Class<T> type, String containingObject) {

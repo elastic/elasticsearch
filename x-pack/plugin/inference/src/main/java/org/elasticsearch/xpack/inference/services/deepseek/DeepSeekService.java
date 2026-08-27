@@ -160,6 +160,11 @@ public class DeepSeekService extends SenderService<DeepSeekChatCompletionModel> 
         return SUPPORTED_TASK_TYPES_FOR_STREAMING;
     }
 
+    @Override
+    public boolean supportsNonStreamingChatCompletion() {
+        return true;
+    }
+
     private static class Configuration {
         public static InferenceServiceConfiguration get() {
             return CONFIGURATION.getOrCompute();

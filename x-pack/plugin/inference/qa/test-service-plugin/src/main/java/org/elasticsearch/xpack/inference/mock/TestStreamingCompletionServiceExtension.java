@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.inference.DequeUtils;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -159,6 +160,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
         public void unifiedCompletionInfer(
             Model model,
             UnifiedCompletionRequest request,
+            boolean stream,
             TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
         ) {
@@ -167,7 +169,9 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
                 return;
             }
             switch (model.getConfigurations().getTaskType()) {
-                case CHAT_COMPLETION -> listener.onResponse(makeUnifiedResults(request));
+                case CHAT_COMPLETION -> listener.onResponse(
+                    stream ? makeUnifiedResults(request) : makeNonStreamingUnifiedResults(request)
+                );
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
@@ -175,6 +179,11 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
                     )
                 );
             }
+        }
+
+        @Override
+        public boolean supportsNonStreamingChatCompletion() {
+            return true;
         }
 
         @Override
@@ -277,6 +286,23 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
                     public void cancel() {}
                 });
             });
+        }
+
+        private UnifiedChatCompletionResults makeNonStreamingUnifiedResults(UnifiedCompletionRequest request) {
+            var content = request.messages().get(0).content().toString().toUpperCase(Locale.ROOT);
+            return new UnifiedChatCompletionResults(
+                "test-id",
+                List.of(
+                    new UnifiedChatCompletionResults.Choice(
+                        0,
+                        new UnifiedChatCompletionResults.Message("assistant", content, null, null),
+                        "stop"
+                    )
+                ),
+                "test-model",
+                UnifiedChatCompletionResults.CHAT_COMPLETION_OBJECT,
+                new UnifiedChatCompletionResults.Usage(1, 1, 2)
+            );
         }
 
         /*

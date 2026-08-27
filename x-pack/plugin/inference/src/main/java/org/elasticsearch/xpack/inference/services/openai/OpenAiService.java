@@ -54,7 +54,7 @@ import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbedd
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.request.OpenAiUnifiedChatCompletionRequest;
-import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiUnifiedChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.secrets.OpenAiOAuth2SecretsSettings;
 import org.elasticsearch.xpack.inference.services.openai.secrets.OpenAiSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -96,7 +96,7 @@ public class OpenAiService extends SenderService<OpenAiModel> {
     private static final EnumSet<TaskType> SUPPORTED_INFERENCE_ACTION_TASK_TYPES = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
     private static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new OpenAiUnifiedChatCompletionResponseHandler(
         "openai completion",
-        OpenAiChatCompletionResponseEntity::fromResponse
+        OpenAiUnifiedChatCompletionResponseEntity::fromResponse
     );
 
     private static Map<TaskType, ModelCreator<? extends OpenAiModel>> initModelCreators(
@@ -402,6 +402,11 @@ public class OpenAiService extends SenderService<OpenAiModel> {
     @Override
     public Set<TaskType> supportedStreamingTasks() {
         return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
+    }
+
+    @Override
+    public boolean supportsNonStreamingChatCompletion() {
+        return true;
     }
 
     /**

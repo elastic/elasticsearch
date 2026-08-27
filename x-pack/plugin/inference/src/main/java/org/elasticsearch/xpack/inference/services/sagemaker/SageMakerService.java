@@ -238,6 +238,7 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
     public void unifiedCompletionInfer(
         Model model,
         UnifiedCompletionRequest request,
+        boolean stream,
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {

@@ -44,7 +44,7 @@ import org.elasticsearch.xpack.inference.services.fireworksai.embeddings.Firewor
 import org.elasticsearch.xpack.inference.services.fireworksai.embeddings.FireworksAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.fireworksai.request.FireworksAiUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
-import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiUnifiedChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -94,7 +94,7 @@ public class FireworksAiService extends SenderService<FireworksAiModel> {
 
     static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new OpenAiUnifiedChatCompletionResponseHandler(
         FireworksAiActionCreator.COMPLETION_REQUEST_TYPE,
-        OpenAiChatCompletionResponseEntity::fromResponse
+        OpenAiUnifiedChatCompletionResponseEntity::fromResponse
     );
 
     // FireworksAI embeddings max batch size - enforced by the embeddings server
@@ -126,6 +126,11 @@ public class FireworksAiService extends SenderService<FireworksAiModel> {
     @Override
     public Set<TaskType> supportedStreamingTasks() {
         return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
+    }
+
+    @Override
+    public boolean supportsNonStreamingChatCompletion() {
+        return true;
     }
 
     @Override

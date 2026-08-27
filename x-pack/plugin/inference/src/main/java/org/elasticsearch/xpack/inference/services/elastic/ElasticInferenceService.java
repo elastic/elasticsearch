@@ -205,6 +205,11 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
     }
 
     @Override
+    public boolean supportsNonStreamingChatCompletion() {
+        return true;
+    }
+
+    @Override
     protected void doUnifiedCompletionInfer(
         Model model,
         UnifiedChatInput inputs,

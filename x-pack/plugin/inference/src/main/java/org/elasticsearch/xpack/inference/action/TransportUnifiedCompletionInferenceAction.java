@@ -79,7 +79,17 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
         InferenceService service,
         ActionListener<InferenceServiceResults> listener
     ) {
-        service.unifiedCompletionInfer(model, request.getUnifiedCompletionRequest(), request.getTimeout(), listener);
+        if (request.isStreaming() == false && service.supportsNonStreamingChatCompletion() == false) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "The [{}] service does not support non-streaming chat_completion",
+                    RestStatus.BAD_REQUEST,
+                    service.name()
+                )
+            );
+            return;
+        }
+        service.unifiedCompletionInfer(model, request.getUnifiedCompletionRequest(), request.isStreaming(), request.getTimeout(), listener);
     }
 
     @Override

@@ -44,7 +44,7 @@ import org.elasticsearch.xpack.inference.services.huggingface.embeddings.Hugging
 import org.elasticsearch.xpack.inference.services.huggingface.request.completion.HuggingFaceUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankModel;
 import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankModelCreator;
-import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiUnifiedChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -75,7 +75,7 @@ public class HuggingFaceService extends HuggingFaceBaseService implements Rerank
     );
     private static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new HuggingFaceChatCompletionResponseHandler(
         "hugging face chat completion",
-        OpenAiChatCompletionResponseEntity::fromResponse
+        OpenAiUnifiedChatCompletionResponseEntity::fromResponse
     );
     private static final HuggingFaceChatCompletionModelCreator COMPLETION_MODEL_CREATOR = new HuggingFaceChatCompletionModelCreator();
     private static final Map<TaskType, ModelCreator<? extends HuggingFaceModel>> MODEL_CREATORS = Map.of(
@@ -195,6 +195,11 @@ public class HuggingFaceService extends HuggingFaceBaseService implements Rerank
     @Override
     public Set<TaskType> supportedStreamingTasks() {
         return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
+    }
+
+    @Override
+    public boolean supportsNonStreamingChatCompletion() {
+        return true;
     }
 
     @Override

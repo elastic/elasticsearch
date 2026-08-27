@@ -166,6 +166,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         public void unifiedCompletionInfer(
             Model model,
             UnifiedCompletionRequest request,
+            boolean stream,
             TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
         ) {

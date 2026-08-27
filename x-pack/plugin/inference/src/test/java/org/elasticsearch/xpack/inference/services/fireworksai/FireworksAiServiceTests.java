@@ -153,7 +153,7 @@ public class FireworksAiServiceTests extends InferenceServiceTestCase {
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             var request = UnifiedCompletionRequest.of(List.of(new Message(new ContentString("Hello"), "user", null, null)));
 
-            service.unifiedCompletionInfer(model, request, null, listener);
+            service.unifiedCompletionInfer(model, request, true, null, listener);
 
             var inferenceServiceResults = listener.actionGet(TEST_REQUEST_TIMEOUT);
 

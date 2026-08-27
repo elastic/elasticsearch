@@ -32,6 +32,7 @@ public class SimpleChatCompletionServiceIntegrationValidator implements ServiceI
         service.unifiedCompletionInfer(
             model,
             chatCompletionInput.getRequest(),
+            true,
             timeout,
             ServiceIntegrationValidator.wrapListenerForValidation(listener)
         );

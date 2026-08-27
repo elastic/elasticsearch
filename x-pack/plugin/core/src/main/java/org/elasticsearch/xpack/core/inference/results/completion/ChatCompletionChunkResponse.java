@@ -21,7 +21,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.fieldNullable;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.nullableField;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHOICES_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.DELTA_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.ID_FIELD;
@@ -112,7 +112,7 @@ public record ChatCompletionChunkResponse(
                 )
                 : Collections.emptyIterator(),
             chunk((b, p) -> b.field(MODEL_FIELD, model).field(OBJECT_FIELD, object)),
-            fieldNullable(USAGE_FIELD, usage, params)
+            nullableField(USAGE_FIELD, usage, params)
         );
     }
 }

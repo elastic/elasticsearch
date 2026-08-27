@@ -95,7 +95,7 @@ public enum ChunkedToXContentHelper {
      * @param params params to propagate for XContent serialization
      * @return Iterator composing field name and value serialization
      */
-    public static Iterator<ToXContent> fieldNullable(String name, @Nullable ChunkedToXContentObject value, ToXContent.Params params) {
+    public static Iterator<ToXContent> nullableField(String name, @Nullable ChunkedToXContentObject value, ToXContent.Params params) {
         if (value == null) {
             return Collections.emptyIterator();
         }

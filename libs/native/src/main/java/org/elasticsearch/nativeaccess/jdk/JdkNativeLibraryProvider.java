@@ -10,7 +10,6 @@
 package org.elasticsearch.nativeaccess.jdk;
 
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
-import org.elasticsearch.nativeaccess.lib.ParquetRsLibrary;
 
 import java.util.Map;
 

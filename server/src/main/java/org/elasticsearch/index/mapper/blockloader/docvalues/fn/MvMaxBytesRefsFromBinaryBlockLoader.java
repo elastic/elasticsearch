@@ -31,10 +31,6 @@ public class MvMaxBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.Do
     private final String fieldName;
     private final ArrayOrderSource arrayOrderSource;
 
-    public MvMaxBytesRefsFromBinaryBlockLoader(String fieldName) {
-        this(fieldName, ArrayOrderSource.NONE);
-    }
-
     public MvMaxBytesRefsFromBinaryBlockLoader(String fieldName, ArrayOrderSource arrayOrderSource) {
         this.fieldName = fieldName;
         this.arrayOrderSource = arrayOrderSource;

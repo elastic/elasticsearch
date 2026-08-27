@@ -69,6 +69,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
@@ -608,12 +609,13 @@ public class IpFieldMapper extends FieldMapper {
                         return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize(), readInArrayOrder);
                     }
                 }
+                ArrayOrderSource arrayOrderSource = useArrayOrderBinaryDocValues ? ArrayOrderSource.INLINE : ArrayOrderSource.NONE;
                 return switch (cfg.function()) {
                     case MV_MAX -> usesBinaryDocValues
-                        ? new MvMaxBytesRefsFromBinaryBlockLoader(name())
+                        ? new MvMaxBytesRefsFromBinaryBlockLoader(name(), arrayOrderSource)
                         : new MvMaxBytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                     case MV_MIN -> usesBinaryDocValues
-                        ? new MvMinBytesRefsFromBinaryBlockLoader(name())
+                        ? new MvMinBytesRefsFromBinaryBlockLoader(name(), arrayOrderSource)
                         : new MvMinBytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                     default -> throw new UnsupportedOperationException("unknown fusion config [" + cfg.function() + "]");
                 };
@@ -790,8 +792,8 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean isSingleValueEnforced() {
-        return docValuesParameters.multiValue() == false;
+    protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
+        return docValuesParameters.multiValue() == false && (token != XContentParser.Token.VALUE_NULL || nullValue != null);
     }
 
     @Override
@@ -1175,6 +1177,9 @@ public class IpFieldMapper extends FieldMapper {
 
                 if (ignoreMalformed) {
                     layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
+                }
+                if (onFailureColumnEnabled()) {
+                    layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
                 }
                 return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
             });

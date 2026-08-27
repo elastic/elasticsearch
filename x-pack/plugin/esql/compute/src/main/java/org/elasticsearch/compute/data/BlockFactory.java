@@ -98,7 +98,7 @@ public class BlockFactory {
      *
      * @deprecated Do not allocate storage-read buffers here. Those paths use heap {@code byte[]}
      *             charged to {@link #breaker()}. This allocator remains for wrapping Arrow vectors
-     *             (compute ArrowBuf blocks, parquet-rs, Flight).
+     *             (compute ArrowBuf blocks, Flight).
      */
     @Deprecated
     public BufferAllocator arrowAllocator() {

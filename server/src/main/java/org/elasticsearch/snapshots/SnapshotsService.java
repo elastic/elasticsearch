@@ -69,6 +69,7 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -198,7 +199,18 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         Setting.Property.Dynamic
     );
 
+    /**
+     * Normally we shouldn't touch this setting. It's an escape hatch. We plan to remove it after the code sees sufficient action.
+     */
+    public static final Setting<Boolean> SNAPSHOT_MONOTONIC_END_TIME_SETTING = Setting.boolSetting(
+        "snapshot.monotonic_end_time",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private volatile int maxConcurrentOperations;
+    private volatile boolean monotonicEndTime;
 
     public SnapshotsService(
         Settings settings,
@@ -224,6 +236,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             maxConcurrentOperations = MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING.get(settings);
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING, i -> maxConcurrentOperations = i);
+            monotonicEndTime = SNAPSHOT_MONOTONIC_END_TIME_SETTING.get(settings);
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(SNAPSHOT_MONOTONIC_END_TIME_SETTING, b -> monotonicEndTime = b);
         }
         this.systemIndices = systemIndices;
         this.serializeProjectMetadata = serializeProjectMetadata;
@@ -930,6 +944,31 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             assert currentlyFinalizing.contains(new ProjectRepo(snapshot.getProjectId(), snapshot.getRepository()));
             assert repositoryOperations.assertNotQueued(snapshot);
 
+            // Compute the snapshot end time. When SNAPSHOT_MONOTONIC_END_TIME_SETTING is enabled, the end time is guaranteed
+            // to be strictly greater than every previously recorded snapshot end time in the repository.
+            // Moreover, if the required end time is in the future, this task reschedules itself until the clock catches up.
+            final long endTimeMillis;
+            if (monotonicEndTime) {
+                final long prevMaxEndTime = repositoryData.getSnapshotIds()
+                    .stream()
+                    .map(repositoryData::getSnapshotDetails)
+                    .filter(d -> d != null)
+                    .mapToLong(RepositoryData.SnapshotDetails::getEndTimeMillis)
+                    .filter(t -> t >= 0)
+                    .max()
+                    .orElse(-1L);
+                final long wallClock = threadPool.absoluteTimeInMillis();
+                endTimeMillis = prevMaxEndTime < 0 ? wallClock : Math.max(wallClock, prevMaxEndTime + 1);
+                final long waitMillis = endTimeMillis - wallClock;
+                if (waitMillis > 0) {
+                    logger.debug("[{}] delaying snapshot finalization by [{} ms] for monotonic end time", snapshot, waitMillis);
+                    threadPool.schedule(this, TimeValue.timeValueMillis(waitMillis), threadPool.executor(ThreadPool.Names.SNAPSHOT));
+                    return;
+                }
+            } else {
+                endTimeMillis = threadPool.absoluteTimeInMillis();
+            }
+
             SnapshotsInProgress.Entry entry = SnapshotsInProgress.get(clusterService.state()).snapshot(snapshot);
             final String failure = entry.failure();
             logger.trace("[{}] finalizing snapshot in repository, state: [{}], failure[{}]", snapshot, entry.state(), failure);
@@ -1034,7 +1073,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     entry.dataStreams().stream().filter(metaForSnapshot.getProject(projectId).dataStreams()::containsKey).toList(),
                     entry.partial() ? SnapshotsServiceUtils.onlySuccessfulFeatureStates(entry, finalIndices) : entry.featureStates(),
                     failure,
-                    threadPool.absoluteTimeInMillis(),
+                    endTimeMillis,
                     entry.partial() ? updatedShardGensForLiveIndices.totalShards() : entry.shardSnapshotStatusByRepoShardId().size(),
                     shardFailures,
                     entry.includeGlobalState(),

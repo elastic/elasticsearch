@@ -1992,6 +1992,100 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testToTextAnalyzerOption() throws Exception {
+        // the values analyzer of a runtime text expression is declared on TO_TEXT; a registered analyzer is accepted
+        fullText().query("from test | eval t = to_text(concat(title, body), {\"analyzer\": \"whitespace\"}) | where match(t, \"cat\")");
+        fullText().query("from test | where match(to_text(concat(title, body), {\"analyzer\": \"whitespace\"}), \"cat\")");
+        fullText().query("row s = \"cat dog\" | eval t = to_text(s, {\"analyzer\": \"whitespace\"}) | where match(t, \"cat\")");
+    }
+
+    public void testToTextUnknownAnalyzerOption() throws Exception {
+        // "registered" means prebuilt or plugin-contributed; per-index custom analyzers only exist in index
+        // settings, which analyzer resolution never consults, so they take this same rejection path
+        fullText().error(
+            "from test | eval t = to_text(concat(title, body), {\"analyzer\": \"nonexistent\"})",
+            containsString("[nonexistent] is not a registered analyzer")
+        );
+    }
+
+    public void testToTextInvalidOption() throws Exception {
+        fullText().error(
+            "from test | eval t = to_text(concat(title, body), {\"similarity\": \"bm25\"})",
+            allOf(containsString("Invalid option [similarity]"), containsString("expected one of [analyzer]"))
+        );
+        fullText().error(
+            "from test | eval t = to_text(concat(title, body), {\"analyzer\": 42})",
+            containsString("[42] is not a registered analyzer")
+        );
+    }
+
+    private static final String TO_TEXT_ANALYZER_REJECTION_REASON =
+        ": it would require re-analyzing values row by row rather than searching the index,"
+            + " likely a major and unintended performance degradation";
+
+    public void testToTextAnalyzerOptionOnIndexMappedField() throws Exception {
+        String reason = TO_TEXT_ANALYZER_REJECTION_REASON;
+        // for an index-mapped field the mapping is the source of truth for how its values are analyzed
+        fullText().error(
+            "from test | eval t = to_text(title, {\"analyzer\": \"whitespace\"})",
+            containsString("[analyzer] option is not supported for [TO_TEXT] on index-mapped field [title]" + reason)
+        );
+        // also for fields the mapping declares as not analyzed: honoring the option would silently disable pushdown
+        fullText().error(
+            "from test | eval t = to_text(tags, {\"analyzer\": \"whitespace\"})",
+            containsString("[analyzer] option is not supported for [TO_TEXT] on index-mapped field [tags]" + reason)
+        );
+        // the field is found through rename/alias chains too
+        fullText().error(
+            "from test | rename title as t2 | eval t = to_text(t2, {\"analyzer\": \"whitespace\"})",
+            containsString("[analyzer] option is not supported for [TO_TEXT] on index-mapped field [t2]" + reason)
+        );
+        // an EVAL alias of a field is the same declaration as a RENAME: the optimizer rewrites it to a projection,
+        // so it must be rejected identically
+        fullText().error(
+            "from test | eval x = title | eval t = to_text(x, {\"analyzer\": \"whitespace\"})",
+            containsString("[analyzer] option is not supported for [TO_TEXT] on index-mapped field [x]" + reason)
+        );
+        fullText().error(
+            "from test | rename title as r | eval x = r | eval t = to_text(x, {\"analyzer\": \"whitespace\"})",
+            containsString("[analyzer] option is not supported for [TO_TEXT] on index-mapped field [x]" + reason)
+        );
+        // but an EVAL alias of a computed expression is a runtime column and remains a legitimate declaration site
+        fullText().query("from test | eval x = concat(title, body) | eval t = to_text(x, {\"analyzer\": \"whitespace\"})");
+    }
+
+    public void testToTextAnalyzerThroughForkOutputUnreachable() throws Exception {
+        // Full-text functions cannot be used after FORK at all, so a values analyzer declared in or below fork
+        // branches can never be consumed through the fork's merged output. If that restriction is ever relaxed,
+        // Fork's output minting must propagate valuesAnalyzer for agreeing branches and reject conflicting
+        // declarations across branches, like it rejects conflicting data types.
+        fullText().error("""
+            from test
+            | eval t = to_text(concat(title, body), {"analyzer": "whitespace"})
+            | fork (where true) (where true)
+            | where match(t, "cat")
+            """, containsString("[MATCH] function cannot be used after FORK"));
+    }
+
+    public void testToTextAnalyzerOptionOnUnionTypedField() throws Exception {
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put("keyword", Set.of("test1"));
+        typesToIndices.put("text", Set.of("test2"));
+        Map<String, EsField> mapping = Map.of("multi_typed", new InvalidMappedField("multi_typed", typesToIndices));
+        TestAnalyzer analyzer = analyzer().addIndex("test*", IndexResolution.valid(EsIndexGenerator.esIndex("test*", mapping)))
+            .stripErrorPrefix(true);
+        // the conversion function is the documented way to consume a union-typed string field
+        analyzer.query("from test* | eval t = to_text(multi_typed)");
+        // with an analyzer the field is still index-mapped; union-type resolution must reject rather than fuse the
+        // conversion into the field and silently swallow the option
+        analyzer.error(
+            "from test* | eval t = to_text(multi_typed, {\"analyzer\": \"whitespace\"})",
+            containsString(
+                "[analyzer] option is not supported for [TO_TEXT] on index-mapped field [multi_typed]" + TO_TEXT_ANALYZER_REJECTION_REASON
+            )
+        );
+    }
+
     public void testFullTextFunctionsRuntimeAnalyzerOptionOnNonTextExpression() throws Exception {
         // options (including analyzer) are still rejected on non-TEXT runtime expressions; concat returns keyword
         fullText().error(

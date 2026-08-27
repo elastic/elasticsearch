@@ -319,9 +319,9 @@ public class CsvSchemaInferrerTests extends ESTestCase {
     }
 
     /**
-     * The order-independence pin. Nanos-first works through the plain ladder; millis-first only works
-     * because the confirmed-DATETIME skip rule excepts the step to DATE_NANOS. Both must agree, or a
-     * file's column type would depend on which row the writer happened to emit first.
+     * The order-independence pin: a file's column type must not depend on which row its writer emitted
+     * first. Both orders reach DATE_NANOS because that is what the lattice says a millisecond and a
+     * nanosecond timestamp combine to, whichever one the ladder recognised first.
      */
     public void testMixedPrecisionWidensToDateNanosBothOrders() {
         assertEquals(DataType.DATE_NANOS, inferOne("2023-10-23T12:15:03.360103847Z", "2023-10-23T12:15:03.360Z"));
@@ -372,8 +372,9 @@ public class CsvSchemaInferrerTests extends ESTestCase {
     }
 
     /**
-     * The widening window runs every column as already-confirmed, so this is the path where the
-     * skip-rule exception is the only thing standing between a nanosecond value and KEYWORD.
+     * The widening window runs every column as already-confirmed, so this is the path where a
+     * nanosecond value arriving after the sample must still promote the column rather than collapse
+     * it to KEYWORD.
      */
     public void testWidenSchemaNanosOnlyInWideningWindow() {
         List<Attribute> schema = CsvSchemaInferrer.inferSchema(
@@ -465,16 +466,6 @@ public class CsvSchemaInferrerTests extends ESTestCase {
         DataType.KEYWORD
     );
 
-    /**
-     * Ordered type pairs where this rail does NOT yet agree with the shared lattice. Every entry is a
-     * numeric value followed by a timestamp, which the candidate ladder walks up to the temporal rung
-     * instead of asking what a number and a timestamp combine to; the bare number then decodes as an
-     * instant near the epoch. That is elastic/esql-planning#1807, and emptying this set is what fixing
-     * it looks like.
-     * <p>
-     * The set is stated rather than the assertion being skipped, so the divergence is visible and
-     * bounded: a pair that starts disagreeing for some other reason fails immediately.
-     */
     /**
      * Ordered type pairs where this rail does not agree with the shared lattice. Empty, and meant to
      * stay that way: it held the six numeric-then-timestamp pairs that made a column of numbers infer

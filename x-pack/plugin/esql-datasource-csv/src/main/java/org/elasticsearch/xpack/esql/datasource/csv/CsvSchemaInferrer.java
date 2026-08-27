@@ -42,12 +42,11 @@ import java.util.Locale;
  * </ol>
  * Null and empty values are compatible with every type. Columns with only null/empty values
  * default to KEYWORD. When a value doesn't fit the current candidate, the column widens to the
- * next candidate. Boolean and temporal columns that were confirmed by at least one value skip
- * directly to KEYWORD on mismatch (since a column with both "true" and "42" is most likely a
- * string column, not numeric) — with one exception: a confirmed DATETIME column that meets a
- * nanosecond timestamp steps to DATE_NANOS rather than collapsing to KEYWORD, because the two are
- * the same kind of thing and the column is simply more precise than its first value suggested.
- * Without that exception a mixed-precision column's type would depend on which row came first.
+ * next candidate. What a column becomes when a value does not fit its current type is not decided
+ * here at all: the ladder recognises which type accepts the value, and
+ * {@link org.elasticsearch.xpack.esql.datasources.spi.TypeWidening} says what the accepted type and
+ * that evidence combine to. So a column with "true" and "42" resolves KEYWORD, and one with
+ * millisecond and nanosecond timestamps resolves DATE_NANOS, without either being written here.
  * <p>
  * For files smaller than the sample size, all rows are used. The inference runs in a single
  * sequential pass over the sample.
@@ -227,6 +226,12 @@ public class CsvSchemaInferrer {
         if (confirmed == false) {
             return evidenceIdx;
         }
+        if (evidenceIdx == currentIdx) {
+            // The column's own type still fits, which is the common case for every settled column.
+            // Returning here is what keeps the lattice a per-commitment cost rather than a per-value
+            // one; join(t, t) is t, so this changes nothing but the work done to find that out.
+            return currentIdx;
+        }
         DataType accepted = TYPE_CANDIDATES[currentIdx];
         DataType evidence = TYPE_CANDIDATES[evidenceIdx];
         DataType committed = TypeWidening.join(accepted, evidence, TypeWidening.Policy.INFERENCE);
@@ -247,10 +252,14 @@ public class CsvSchemaInferrer {
      * KEYWORD when none does.
      * <p>
      * Starting at the column's own candidate rather than at the first rung is what keeps this cheap:
-     * a settled numeric column tries its own type first and stops. It costs nothing in accuracy,
-     * because evidence narrower than the accepted type joins back to the accepted type anyway &mdash;
-     * a {@code long} column meeting {@code 42} commits to {@code long} whether the evidence is read as
-     * {@code integer} or as {@code long}.
+     * a settled numeric column tries its own type first and stops. On the default ISO rail it also
+     * costs nothing in accuracy, because the rungs below any accepted type either cannot accept the
+     * value at all (their string forms are disjoint) or are narrower types that join back to it
+     * anyway &mdash; a {@code long} column meeting {@code 42} commits to {@code long} whether the
+     * evidence is read as {@code integer} or as {@code long}. A declared {@code datetime_format} can
+     * break that disjointness, since an alternation may accept a token a numeric rung would also
+     * accept; the outcome there is whatever it was before this became a lattice lookup, which is why
+     * the walk is not started from the first rung.
      * <p>
      * The value is classified as temporal at most once, however many rungs are walked, so the two
      * temporal rungs share one parse.

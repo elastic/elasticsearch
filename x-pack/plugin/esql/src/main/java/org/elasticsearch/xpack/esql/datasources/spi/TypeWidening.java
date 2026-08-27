@@ -62,15 +62,16 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
  * order and get the same answer, which is the property the text inferrers depend on.
  *
  * <h2>Cost</h2>
- * Static reference comparisons, no allocation and no dispatch. Callers are expected to consult this
- * when a column's type actually moves &mdash; a handful of times per column per file &mdash; never
- * per value.
+ * Static reference comparisons, no allocation and no dispatch. Callers consult it when a column's
+ * type may move, and are expected to short-circuit the identity case themselves so that a settled
+ * column does not reach it on every value.
  */
 public final class TypeWidening {
 
     /**
-     * Which side of the schema-cache boundary the caller is on. See the class javadoc: the two differ
-     * only in whether a diagnostic can reach the user, and therefore only on {@code LONG + DOUBLE}.
+     * Which of the two readings of the lattice the caller wants. They differ on {@code LONG + DOUBLE}
+     * and nothing else, and that difference is a known inconsistency rather than a design &mdash; see
+     * the class javadoc and esql-planning#1809 before changing either.
      */
     public enum Policy {
         /** Folding types observed within one file, whose result is cached and cannot warn. */

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
@@ -54,7 +55,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.ObjIntConsumer;
 import java.util.zip.GZIPOutputStream;
-import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.notNullValue;

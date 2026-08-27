@@ -492,3 +492,6 @@ tests:
 - class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=ml/bucket_count_ks_test_agg/Test bucket count ks test with empty alternatives}
   issue: https://github.com/elastic/elasticsearch/issues/157577
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecFuseIT
+  method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueScoreColumn}
+  issue: https://github.com/elastic/elasticsearch/issues/157905

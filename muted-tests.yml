@@ -764,8 +764,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotResiliencyWithReadFromObjectStoreTests
   method: testSuccessfulSnapshotWithConcurrentDynamicMappingUpdates
   issue: https://github.com/elastic/elasticsearch/issues/157733
-- class: org.elasticsearch.upgrades.DiskBBQVectorSearchIT
-  issue: https://github.com/elastic/elasticsearch/issues/157744
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=health/10_basic/cluster health basic test}
   issue: https://github.com/elastic/elasticsearch/issues/157740

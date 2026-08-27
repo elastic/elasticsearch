@@ -85,7 +85,10 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                         ? RoutingFieldMapper.NAME
                         : null;
                     IndexVersion indexVersionCreated = indexSettings.getIndexVersionCreated();
-                    if (Build.current().isSnapshot()) {
+                    boolean experimentalFeaturesEnabled = IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(
+                        indexSettings.getSettings()
+                    );
+                    if (Build.current().isSnapshot() && experimentalFeaturesEnabled) {
                         IvfMergeConfigResolver mergeConfigResolver = diskbbq.autoCalibrate()
                             ? IvfAutoCalibration.mergeConfigResolver(clusterSize)
                             : IvfMergeConfigResolver.useCodecDefault();

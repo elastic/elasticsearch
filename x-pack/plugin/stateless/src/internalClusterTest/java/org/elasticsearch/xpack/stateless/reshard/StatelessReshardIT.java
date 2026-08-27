@@ -5387,10 +5387,20 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
         // A shard of an index that is not in the cluster state, which is what the source node sees when the index is deleted
         // while a handoff is in flight.
-        final ShardId goneShard = new ShardId(new Index("gone", "gone-uuid"), 1);
+        final Index goneIndex = new Index("gone", "gone-uuid");
+        final ShardId goneSourceShard = new ShardId(goneIndex, 0);
+        final ShardId goneTargetShard = new ShardId(goneIndex, 1);
 
         final var handoff = new PlainActionFuture<ActionResponse>();
-        splitSourceService.waitForHandoffSuccessOrFailure(goneShard, 1L, 1L, new AtomicBoolean(true), permits, handoff);
+        splitSourceService.waitForHandoffSuccessOrFailure(
+            goneTargetShard,
+            goneSourceShard,
+            1L,
+            1L,
+            new AtomicBoolean(true),
+            permits,
+            handoff
+        );
 
         assertTrue("indexing permits were leaked when the index was gone", released.get());
         expectThrows(IndexNotFoundException.class, () -> handoff.actionGet(SAFE_AWAIT_TIMEOUT));

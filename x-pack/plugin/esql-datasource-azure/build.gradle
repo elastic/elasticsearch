@@ -63,7 +63,7 @@ dependencies {
   implementation 'net.minidev:json-smart:2.5.2'
   implementation "io.projectreactor.netty:reactor-netty-core:${versions.azureReactorNetty}"
   implementation "io.projectreactor.netty:reactor-netty-http:${versions.azureReactorNetty}"
-  implementation "io.projectreactor:reactor-core:3.4.38"
+  implementation "io.projectreactor:reactor-core:3.8.7"
   // Netty jars provided by esql-datasource-netty-commons via extendedPlugins classloader delegation
   compileOnly project(path: xpackModule('esql-datasource-netty-commons'))
   // Jackson must match the version bundled by the extended x-pack-esql plugin (see libs:arrow):
@@ -163,19 +163,12 @@ tasks.named("thirdPartyAudit").configure {
     'io.micrometer.core.instrument.composite.CompositeMeterRegistry',
     'io.micrometer.core.instrument.search.Search',
     'io.micrometer.context.ContextAccessor',
-
-    // from reactor-core kotlin extensions
-    'kotlin.collections.ArraysKt',
-    'kotlin.jvm.JvmClassMappingKt',
-    'kotlin.jvm.functions.Function0',
-    'kotlin.jvm.functions.Function1',
-    'kotlin.jvm.internal.FunctionReference',
-    'kotlin.jvm.internal.Intrinsics',
-    'kotlin.jvm.internal.Reflection',
-    'kotlin.jvm.internal.markers.KMappedMarker',
-    'kotlin.reflect.KClass',
-    'kotlin.reflect.KDeclarationContainer',
-    'kotlin.sequences.Sequence',
+    'io.micrometer.context.ContextRegistry',
+    'io.micrometer.context.ContextSnapshot',
+    'io.micrometer.context.ContextSnapshot$Scope',
+    'io.micrometer.context.ContextSnapshotFactory',
+    'io.micrometer.context.ContextSnapshotFactory$Builder',
+    'io.micrometer.context.ThreadLocalAccessor',
 
     // from io.netty.util.internal.Hidden (netty-common optional dependency, referenced by reactor-core)
     'reactor.blockhound.BlockHound$Builder',
@@ -289,6 +282,7 @@ tasks.named("thirdPartyAudit").configure {
   )
 
   ignoreViolations(
-    'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException',
+    'reactor.core.publisher.CallSiteSupplierFactory$SharedSecretsCallSiteSupplierFactory',
+    'reactor.core.publisher.CallSiteSupplierFactory$SharedSecretsCallSiteSupplierFactory$TracingException',
   )
 }

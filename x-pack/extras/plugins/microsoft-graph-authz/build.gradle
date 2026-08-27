@@ -55,7 +55,7 @@ dependencies {
   implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
   implementation "org.reactivestreams:reactive-streams:1.0.4"
-  implementation "io.projectreactor:reactor-core:3.7.5"
+  implementation "io.projectreactor:reactor-core:3.8.7"
   compileOnly "org.slf4j:slf4j-api:${versions.slf4j}"
   runtimeOnly "com.microsoft.azure:msal4j:1.19.1"
   runtimeOnly "com.microsoft.azure:msal4j-persistence-extension:1.3.0"

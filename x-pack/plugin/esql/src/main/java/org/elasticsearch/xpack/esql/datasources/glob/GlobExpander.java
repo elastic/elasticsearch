@@ -124,7 +124,7 @@ public final class GlobExpander {
     ) throws IOException {
         PartitionConfig partitionConfig = PartitionConfig.fromConfig(config);
         ExclusionConfig.NameFilter nameFilter = ExclusionConfig.fromConfig(config).compile();
-        return path.indexOf(',') >= 0
+        return hasTopLevelComma(path)
             ? doExpandCommaSeparated(path, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, nameFilter)
             : expandGlobWithRewriteFallback(path, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, nameFilter);
     }
@@ -216,7 +216,7 @@ public final class GlobExpander {
         if (path == null) {
             return false;
         }
-        if (path.indexOf(',') >= 0) {
+        if (hasTopLevelComma(path)) {
             return true;
         }
         // Only scan the path component for glob metacharacters, not the full URL string.
@@ -622,7 +622,7 @@ public final class GlobExpander {
         @Nullable List<PartitionFilterHint> hints,
         PartitionConfig partitionConfig
     ) {
-        if (path.indexOf(',') < 0) {
+        if (hasTopLevelComma(path) == false) {
             return effectivePattern(path, hints, partitionConfig);
         }
         List<String> segments = commaSegments(path);
@@ -643,15 +643,50 @@ public final class GlobExpander {
      * so the two cannot disagree on which segments a path has.
      */
     private static List<String> commaSegments(String pathList) {
-        String[] raw = pathList.split(",");
-        List<String> segments = new ArrayList<>(raw.length);
-        for (String segment : raw) {
-            String trimmed = segment.trim();
-            if (trimmed.isEmpty() == false) {
-                segments.add(trimmed);
+        List<String> segments = new ArrayList<>();
+        int depth = 0;
+        int start = 0;
+        for (int i = 0; i < pathList.length(); i++) {
+            char c = pathList.charAt(i);
+            if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth = Math.max(0, depth - 1);
+            } else if (c == ',' && depth == 0) {
+                addSegment(segments, pathList.substring(start, i));
+                start = i + 1;
             }
         }
+        addSegment(segments, pathList.substring(start));
         return segments;
+    }
+
+    private static void addSegment(List<String> segments, String segment) {
+        String trimmed = segment.trim();
+        if (trimmed.isEmpty() == false) {
+            segments.add(trimmed);
+        }
+    }
+
+    /**
+     * Whether a path holds a top-level comma, i.e. is a list of resources rather than one. A comma inside a brace
+     * group belongs to the glob, not to the list: splitting on it blindly tore {@code s3://b/x.{csv,tsv}} into
+     * {@code s3://b/x.{csv} and {@code tsv}}, and the second fragment failed for having no scheme — so brace
+     * alternation, which the matcher has always supported, was unusable through the entry point datasets take.
+     */
+    private static boolean hasTopLevelComma(String path) {
+        int depth = 0;
+        for (int i = 0; i < path.length(); i++) {
+            char c = path.charAt(i);
+            if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth = Math.max(0, depth - 1);
+            } else if (c == ',' && depth == 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -776,7 +811,11 @@ public final class GlobExpander {
             int segIdx = wildcardPositions.get(offset + t);
             List<Object> values = hint.values();
             if (hint.isSingleValue()) {
-                segments[segIdx] = escapeGlobMeta(String.valueOf(values.get(0)));
+                String value = String.valueOf(values.get(0));
+                if (globExpressible(value) == false) {
+                    continue; // leave the wildcard so the full set is listed (superset); the row filter narrows
+                }
+                segments[segIdx] = value;
             } else {
                 Set<String> spellings = partitionValueSpellings(values);
                 if (braceExpressible(spellings) == false) {
@@ -830,7 +869,8 @@ public final class GlobExpander {
 
         List<Object> values = hint.values();
         if (hint.isSingleValue()) {
-            return key + "=" + escapeGlobMeta(String.valueOf(values.get(0)));
+            String value = String.valueOf(values.get(0));
+            return globExpressible(value) ? key + "=" + value : segment;
         }
 
         // Multiple values: use glob brace syntax key={v1,v2,...}, each value in every on-disk spelling. If a value
@@ -917,18 +957,35 @@ public final class GlobExpander {
     }
 
     /**
-     * Whether a set of spellings can be expressed as glob brace alternatives. A value containing {@code ,} or
+     * Whether a set of spellings can be spliced into a glob as brace alternatives. A value containing {@code ,} or
      * {@code }} would be mis-split by the brace parser (into separate alternatives, or a truncated brace), turning
      * one value into several and dropping the folder that literally contains the delimiter — so when any spelling
      * holds one, the caller must skip the rewrite and list the full glob (a superset) rather than a wrong subset.
      */
     private static boolean braceExpressible(Set<String> spellings) {
         for (String spelling : spellings) {
-            if (spelling.indexOf(',') >= 0 || spelling.indexOf('}') >= 0) {
+            if (spelling.indexOf(',') >= 0 || spelling.indexOf('}') >= 0 || globExpressible(spelling) == false) {
                 return false;
             }
         }
         return true;
+    }
+
+    /**
+     * Whether a partition value can be spliced into a glob as itself. A value holding a glob metacharacter cannot:
+     * spliced raw it would be read as a wildcard and widen the listing, which is a wrong answer.
+     *
+     * <p>It used to be escaped instead, by wrapping each metacharacter in a one-character class — {@code a*b}
+     * became {@code a[*]b}. That made the rewrite depend on class support, and it emitted {@code [[]} for a literal
+     * bracket, which the matcher then refused to parse; a filter as ordinary as {@code WHERE dept == 'a[b'} on a
+     * Hive dataset produced an uncaught parse failure at query time.
+     *
+     * <p>Declining is simply better. The rewrite is an optimisation — it narrows which prefix is listed, and the
+     * row filter still runs — so skipping it lists a superset, which is always correct. There is no reason to
+     * carry an escaping mechanism to save a listing on a partition value nobody writes.
+     */
+    private static boolean globExpressible(String value) {
+        return value.indexOf('*') < 0 && value.indexOf('?') < 0 && value.indexOf('[') < 0 && value.indexOf('{') < 0;
     }
 
     /** Joins glob-escaped spellings into a brace alternation {@code {a,b,c}}. */
@@ -939,26 +996,10 @@ public final class GlobExpander {
             if (first == false) {
                 sb.append(',');
             }
-            sb.append(escapeGlobMeta(spelling));
+            sb.append(spelling);
             first = false;
         }
         return sb.append('}').toString();
-    }
-
-    private static String escapeGlobMeta(String value) {
-        if (value.indexOf('*') < 0 && value.indexOf('?') < 0 && value.indexOf('[') < 0 && value.indexOf('{') < 0) {
-            return value;
-        }
-        StringBuilder sb = new StringBuilder(value.length() + 4);
-        for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-            if (c == '*' || c == '?' || c == '[' || c == '{') {
-                sb.append('[').append(c).append(']');
-            } else {
-                sb.append(c);
-            }
-        }
-        return sb.toString();
     }
 
     public static List<StorageEntry> applyFileMetadataFilters(List<StorageEntry> entries, List<PartitionFilterHint> hints) {

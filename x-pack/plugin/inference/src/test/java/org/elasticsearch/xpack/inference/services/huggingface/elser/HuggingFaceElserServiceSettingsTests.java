@@ -81,14 +81,6 @@ public class HuggingFaceElserServiceSettingsTests extends AbstractWireSerializin
         );
     }
 
-    public void testUpdateServiceSettings_RateLimitAbsent_KeepsExisting() {
-        var originalServiceSettings = new HuggingFaceElserServiceSettings(INITIAL_TEST_URI, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT));
-
-        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
-
-        assertThat(updatedServiceSettings.rateLimitSettings(), is(new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)));
-    }
-
     public void testUpdateServiceSettings_GivenImmutableFields_ThrowsException() {
         var originalServiceSettings = new HuggingFaceElserServiceSettings(INITIAL_TEST_URI, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT));
 

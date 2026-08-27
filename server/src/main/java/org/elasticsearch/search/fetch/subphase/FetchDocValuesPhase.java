@@ -31,6 +31,8 @@ import java.util.List;
 public final class FetchDocValuesPhase implements FetchSubPhase {
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext context) {
+        final boolean omitEmptyFields = context.omitEmptyDocValueFields();
+
         FetchDocValuesContext dvContext = context.docValuesContext();
         if (dvContext == null) {
             return null;
@@ -75,9 +77,11 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
                     List<Object> values = f.fetcher.fetchValues(hit.source(), hit.docId(), ignoredValues);
                     // Doc value fetches should not return any ignored values
                     assert ignoredValues.isEmpty();
-                    if (values.isEmpty()) {
+                    if (values.isEmpty() && omitEmptyFields) {
                         // The document has no value for this field. Leave it out of the hit entirely rather than attaching an empty
                         // DocumentField, so that the doc values path matches the fields path (see ValueFetcher#fetchDocumentField).
+                        // When the flag is off we fall through and attach an empty DocumentField, which is the behavior older
+                        // coordinating nodes expect.
                         continue;
                     }
                     DocumentField hitField = hit.hit().field(f.field);

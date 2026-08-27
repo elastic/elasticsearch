@@ -249,7 +249,8 @@ public class CanMatchNodeRequest extends AbstractTransportRequest implements Ind
             false,
             r.splitShardCountSummary,
             null,
-            true
+            true,
+            false  // can_match never runs the fetch phase, so the docvalue_fields behavior is irrelevant here.
         );
         shardSearchRequest.setParentTask(getParentTask());
         return shardSearchRequest;

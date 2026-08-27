@@ -113,6 +113,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
     private final AtomicInteger internalCancelledShardCount = new AtomicInteger();
     private final int skippedCount;
     private final TransportVersion mintransportVersion;
+    private final boolean omitEmptyDocValueFields;
     protected final SearchResponseMetrics searchResponseMetrics;
     protected final Map<String, Object> searchRequestAttributes;
     private final boolean isPitRelocationEnabled;
@@ -175,6 +176,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
         this.concreteIndexBoosts = concreteIndexBoosts;
         this.clusterStateVersion = clusterState.version();
         this.mintransportVersion = clusterState.getMinTransportVersion();
+        this.omitEmptyDocValueFields = mintransportVersion.supports(ShardSearchRequest.OMIT_EMPTY_DOCVALUE_FIELDS);
         this.discoveryNodes = clusterState::nodes;
         this.aliasFilter = aliasFilter;
         this.results = resultConsumer;
@@ -929,8 +931,18 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
             shardIt.getSearchContextId(),
             shardIt.getSearchContextKeepAlive(),
             shardIt.getSplitShardCountSummary(),
-            ShardSearchRequest.SHARD_RESULTS_SKIP_SHARD_SEARCH_REQUEST_FEATURE_FLAG.isEnabled()
+            ShardSearchRequest.SHARD_RESULTS_SKIP_SHARD_SEARCH_REQUEST_FEATURE_FLAG.isEnabled(),
+            omitEmptyDocValueFields
         );
+    }
+
+    /**
+     * Whether every node in the cluster can handle a {@code docvalue_field} being left off a hit when the document has
+     * no value for it. Resolved once from the cluster's minimum transport version, so that a single search sees one
+     * consistent answer across all of its shards.
+     */
+    protected final boolean omitEmptyDocValueFields() {
+        return omitEmptyDocValueFields;
     }
 
     /**

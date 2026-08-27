@@ -150,6 +150,7 @@ public class FetchDocValuesPhaseTests extends ESTestCase {
         FetchDocValuesContext docValuesContext = new FetchDocValuesContext(sec, fieldAndFormats);
         when(fetchContext.docValuesContext()).thenReturn(docValuesContext);
         when(fetchContext.getSearchExecutionContext()).thenReturn(sec);
+        when(fetchContext.omitEmptyDocValueFields()).thenReturn(true);
 
         FetchSubPhaseProcessor processor = new FetchDocValuesPhase().getProcessor(fetchContext);
         assertNotNull(processor);

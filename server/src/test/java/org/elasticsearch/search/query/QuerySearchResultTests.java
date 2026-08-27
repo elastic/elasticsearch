@@ -256,7 +256,8 @@ public class QuerySearchResultTests extends ESTestCase {
             null,
             null,
             SplitShardCountSummary.UNSET,
-            true
+            true,
+            false
         );
         QuerySearchResult resultWithSkip = minimalResult(shardId, skipRequest, topDocs);
 
@@ -274,6 +275,7 @@ public class QuerySearchResultTests extends ESTestCase {
             null,
             null,
             SplitShardCountSummary.UNSET,
+            false,
             false
         );
         QuerySearchResult resultWithoutSkip = minimalResult(shardId, noSkipRequest, topDocs);

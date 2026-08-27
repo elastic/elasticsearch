@@ -361,9 +361,16 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         private final long absoluteStartMillis;
         private final String localClusterAlias;
         private final boolean enableShardResultsSkipRequest;
+        private final boolean omitEmptyDocValueFields;
 
         // package-private for testing
-        NodeQueryRequest(SearchRequest searchRequest, int totalShards, long absoluteStartMillis, String localClusterAlias) {
+        NodeQueryRequest(
+            SearchRequest searchRequest,
+            int totalShards,
+            long absoluteStartMillis,
+            String localClusterAlias,
+            boolean omitEmptyDocValueFields
+        ) {
             this.shards = new ArrayList<>();
             this.searchRequest = searchRequest;
             this.aliasFilters = new HashMap<>();
@@ -371,6 +378,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             this.absoluteStartMillis = absoluteStartMillis;
             this.localClusterAlias = localClusterAlias;
             this.enableShardResultsSkipRequest = ShardSearchRequest.SHARD_RESULTS_SKIP_SHARD_SEARCH_REQUEST_FEATURE_FLAG.isEnabled();
+            this.omitEmptyDocValueFields = omitEmptyDocValueFields;
         }
 
         private NodeQueryRequest(StreamInput in) throws IOException {
@@ -394,6 +402,11 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             } else {
                 this.enableShardResultsSkipRequest = false;
             }
+            if (in.getTransportVersion().supports(ShardSearchRequest.OMIT_EMPTY_DOCVALUE_FIELDS)) {
+                this.omitEmptyDocValueFields = in.readBoolean();
+            } else {
+                this.omitEmptyDocValueFields = false;
+            }
         }
 
         @Override
@@ -412,6 +425,9 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             out.writeOptionalString(localClusterAlias);
             if (out.getTransportVersion().supports(ShardSearchRequest.SHARD_RESULTS_SKIP_SHARD_SEARCH_REQUEST)) {
                 out.writeBoolean(enableShardResultsSkipRequest);
+            }
+            if (out.getTransportVersion().supports(ShardSearchRequest.OMIT_EMPTY_DOCVALUE_FIELDS)) {
+                out.writeBoolean(omitEmptyDocValueFields);
             }
         }
 
@@ -529,7 +545,13 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 } else {
                     var perNodeRequest = perNodeQueries.computeIfAbsent(
                         new CanMatchPreFilterSearchPhase.SendingTarget(routing.getClusterAlias(), nodeId),
-                        t -> new NodeQueryRequest(request, numberOfShardsTotal, timeProvider.absoluteStartMillis(), t.clusterAlias())
+                        t -> new NodeQueryRequest(
+                            request,
+                            numberOfShardsTotal,
+                            timeProvider.absoluteStartMillis(),
+                            t.clusterAlias(),
+                            omitEmptyDocValueFields()
+                        )
                     );
                     final String indexUUID = routing.getShardId().getIndex().getUUID();
                     perNodeRequest.shards.add(
@@ -788,7 +810,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         long absoluteStartMillis,
         boolean hasResponse,
         SplitShardCountSummary splitShardCountSummary,
-        boolean enableShardResultsSkipRequest
+        boolean enableShardResultsSkipRequest,
+        boolean omitEmptyDocValueFields
     ) {
         ShardSearchRequest shardRequest = new ShardSearchRequest(
             originalIndices,
@@ -803,7 +826,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             searchContextId,
             searchContextKeepAlive,
             splitShardCountSummary,
-            enableShardResultsSkipRequest
+            enableShardResultsSkipRequest,
+            omitEmptyDocValueFields
         );
         // if we already received a search result we can inform the shard that it
         // can return a null response if the request rewrites to match none rather
@@ -843,7 +867,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                             nodeQueryRequest.absoluteStartMillis,
                             state.hasResponse.getAcquire(),
                             shardToQuery.splitShardCountSummary,
-                            nodeQueryRequest.enableShardResultsSkipRequest
+                            nodeQueryRequest.enableShardResultsSkipRequest,
+                            nodeQueryRequest.omitEmptyDocValueFields
                         )
                     ),
                     state.task,

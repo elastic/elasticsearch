@@ -84,6 +84,10 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
     // from its own data, so data nodes should omit it in their shard results.
     // Required to handle CCS bw compatibility with proxy connections.
     private final boolean enableShardResultsSkipRequest;
+    // Set by the coordinator from the cluster's minimum transport version, to signal that every node in the cluster
+    // can cope with a docvalue_field being left off a hit when the document has no value for it. Until then data nodes
+    // keep attaching an empty DocumentField, so that an old coordinator never sees the new shape.
+    private final boolean omitEmptyDocValueFields;
 
     private boolean canReturnNullResponseIfMatchNoDocs;
     private SearchSortValuesAndFormats bottomSortValues;
@@ -119,6 +123,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
     public static final TransportVersion SHARD_RESULTS_SKIP_SHARD_SEARCH_REQUEST = TransportVersion.fromName(
         "shard_results_skip_shard_search_request"
     );
+    public static final TransportVersion OMIT_EMPTY_DOCVALUE_FIELDS = TransportVersion.fromName("omit_empty_docvalue_fields");
 
     /**
      * Feature flag controlling whether the coordinator omits the {@link ShardSearchRequest} from
@@ -157,7 +162,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             null,
             null,
             SplitShardCountSummary.UNSET,
-            true
+            true,
+            false
         );
     }
 
@@ -174,7 +180,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         ShardSearchContextId readerId,
         TimeValue keepAlive,
         SplitShardCountSummary splitShardCountSummary,
-        boolean enableShardResultsSkipRequest
+        boolean enableShardResultsSkipRequest,
+        boolean omitEmptyDocValueFields
     ) {
         this(
             originalIndices,
@@ -197,7 +204,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             searchRequest.isForceSyntheticSource(),
             splitShardCountSummary,
             searchRequest.searchSlice(),
-            enableShardResultsSkipRequest
+            enableShardResultsSkipRequest,
+            omitEmptyDocValueFields
         );
         // If allowPartialSearchResults is unset (ie null), the cluster-level default should have been substituted
         // at this stage. Any NPEs in the above are therefore an error in request preparation logic.
@@ -265,7 +273,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             false,
             splitShardCountSummary,
             sliceRouting,
-            true
+            true,
+            false  // These callers never run the fetch phase, so the docvalue_fields behavior is irrelevant to them.
         );
     }
 
@@ -291,7 +300,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         boolean forceSyntheticSource,
         SplitShardCountSummary splitShardCountSummary,
         @Nullable String sliceRouting,
-        boolean enableShardResultsSkipRequest
+        boolean enableShardResultsSkipRequest,
+        boolean omitEmptyDocValueFields
     ) {
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
@@ -316,6 +326,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         this.splitShardCountSummary = splitShardCountSummary;
         this.sliceRouting = sliceRouting;
         this.enableShardResultsSkipRequest = enableShardResultsSkipRequest;
+        this.omitEmptyDocValueFields = omitEmptyDocValueFields;
     }
 
     @SuppressWarnings("this-escape")
@@ -344,6 +355,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         this.splitShardCountSummary = clone.splitShardCountSummary;
         this.sliceRouting = clone.sliceRouting;
         this.enableShardResultsSkipRequest = clone.enableShardResultsSkipRequest;
+        this.omitEmptyDocValueFields = clone.omitEmptyDocValueFields;
     }
 
     public ShardSearchRequest(StreamInput in) throws IOException {
@@ -371,6 +383,13 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             enableShardResultsSkipRequest = in.readBoolean();
         } else {
             enableShardResultsSkipRequest = false;
+        }
+        if (in.getTransportVersion().supports(OMIT_EMPTY_DOCVALUE_FIELDS)) {
+            omitEmptyDocValueFields = in.readBoolean();
+        } else {
+            // An older coordinator may be running consumer code that assumes a requested docvalue_field is always
+            // present on the hit, so keep attaching an empty DocumentField for it.
+            omitEmptyDocValueFields = false;
         }
         bottomSortValues = in.readOptionalWriteable(SearchSortValuesAndFormats::new);
         readerId = in.readOptionalWriteable(ShardSearchContextId::new);
@@ -430,6 +449,11 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             out.writeBoolean(canReturnNullResponseIfMatchNoDocs);
             if (out.getTransportVersion().supports(SHARD_RESULTS_SKIP_SHARD_SEARCH_REQUEST)) {
                 out.writeBoolean(enableShardResultsSkipRequest);
+            }
+            // Deliberately inside the asKey == false block, so this stays out of the request cache key: the request cache
+            // stores query phase results, and docvalue_fields are produced by the fetch phase, so it cannot affect a cache entry.
+            if (out.getTransportVersion().supports(OMIT_EMPTY_DOCVALUE_FIELDS)) {
+                out.writeBoolean(omitEmptyDocValueFields);
             }
             out.writeOptionalWriteable(bottomSortValues);
             out.writeOptionalWriteable(readerId);
@@ -559,6 +583,14 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
 
     public boolean enableShardResultsSkipRequest() {
         return enableShardResultsSkipRequest;
+    }
+
+    /**
+     * Whether a requested {@code docvalue_fields} entry should be left off a hit entirely when the document has no
+     * value for it, rather than being attached as an empty {@link org.elasticsearch.common.document.DocumentField}.
+     */
+    public boolean omitEmptyDocValueFields() {
+        return omitEmptyDocValueFields;
     }
 
     private static final ThreadLocal<BytesStreamOutput> scratch = ThreadLocal.withInitial(BytesStreamOutput::new);

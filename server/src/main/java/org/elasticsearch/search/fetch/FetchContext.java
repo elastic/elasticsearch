@@ -182,6 +182,14 @@ public class FetchContext {
     }
 
     /**
+     * Whether a requested {@code docvalue_fields} entry should be left off a hit entirely when the document has no value
+     * for it, rather than being attached as an empty {@link org.elasticsearch.common.document.DocumentField}.
+     */
+    public boolean omitEmptyDocValueFields() {
+        return searchContext.request().omitEmptyDocValueFields();
+    }
+
+    /**
      * Configuration for fetching docValues fields
      */
     public FetchDocValuesContext docValuesContext() {

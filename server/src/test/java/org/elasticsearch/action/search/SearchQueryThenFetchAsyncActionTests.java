@@ -571,7 +571,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
 
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.source(new SearchSourceBuilder().size(0));
-            var nodeQueryRequest = new SearchQueryThenFetchAsyncAction.NodeQueryRequest(searchRequest, 2, 0L, null);
+            var nodeQueryRequest = new SearchQueryThenFetchAsyncAction.NodeQueryRequest(searchRequest, 2, 0L, null, false);
             nodeQueryRequest.shards.add(
                 new SearchQueryThenFetchAsyncAction.ShardToQuery(
                     1.0f,

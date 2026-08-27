@@ -122,6 +122,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
             shardSearchContextId,
             keepAlive,
             SplitShardCountSummary.fromInt(randomIntBetween(0, numberOfShards)),
+            randomBoolean(),
             randomBoolean()
         );
         req.canReturnNullResponseIfMatchNoDocs(randomBoolean());
@@ -200,6 +201,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         assertEquals(orig.allowPartialSearchResults(), copy.allowPartialSearchResults());
         assertEquals(orig.canReturnNullResponseIfMatchNoDocs(), copy.canReturnNullResponseIfMatchNoDocs());
         assertEquals(orig.enableShardResultsSkipRequest(), copy.enableShardResultsSkipRequest());
+        assertEquals(orig.omitEmptyDocValueFields(), copy.omitEmptyDocValueFields());
         assertEquals(orig.sliceRouting(), copy.sliceRouting());
     }
 
@@ -247,7 +249,8 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
             null,
             null,
             SplitShardCountSummary.UNSET,
-            true
+            true,
+            false
         );
         assertTrue(request.enableShardResultsSkipRequest());
 

@@ -72,6 +72,9 @@ public final class FixtureDimensions {
     private final Map<String, String> defaultByName;
     private final Map<String, Set<String>> appliesToByName;
     private final Map<String, String> bindsByName;
+    private final Map<String, String> directiveKeyByName;
+    private final Map<String, Map<String, String>> directiveValuesByName;
+    private final Map<String, String> derivedByName;
     private final Map<String, Verdict> verdicts;
 
     private FixtureDimensions(
@@ -80,6 +83,9 @@ public final class FixtureDimensions {
         Map<String, String> defaultByName,
         Map<String, Set<String>> appliesToByName,
         Map<String, String> bindsByName,
+        Map<String, String> directiveKeyByName,
+        Map<String, Map<String, String>> directiveValuesByName,
+        Map<String, String> derivedByName,
         Map<String, Verdict> verdicts
     ) {
         this.names = List.copyOf(names);
@@ -87,7 +93,50 @@ public final class FixtureDimensions {
         this.defaultByName = Map.copyOf(defaultByName);
         this.appliesToByName = Map.copyOf(appliesToByName);
         this.bindsByName = Map.copyOf(bindsByName);
+        this.directiveKeyByName = Map.copyOf(directiveKeyByName);
+        this.directiveValuesByName = Map.copyOf(directiveValuesByName);
+        this.derivedByName = Map.copyOf(derivedByName);
         this.verdicts = Map.copyOf(verdicts);
+    }
+
+    /** The {@code WITH} key a directive-bound dimension travels under, or null when its value is derived. */
+    public String directiveKey(String dimension) {
+        return directiveKeyByName.get(dimension);
+    }
+
+    /**
+     * What a dimension's value becomes in the {@code WITH} clause -- the value itself unless the
+     * declaration maps it to a different spelling.
+     */
+    public String directiveValue(String dimension, String value) {
+        return directiveValuesByName.getOrDefault(dimension, Map.of()).getOrDefault(value, value);
+    }
+
+    /** What a dimension's value is derived from when no constant can express it, or null when one can. */
+    public String derivedFrom(String dimension) {
+        return derivedByName.get(dimension);
+    }
+
+    /**
+     * The constant {@code WITH} settings a vector pins: every directive-bound slot sitting off its
+     * declared default and expressible as a constant.
+     *
+     * <p>Slots at their default are omitted -- omission IS the default, so an all-defaults vector
+     * produces no settings and reads byte-identically to a suite that never heard of vectors. Derived
+     * slots are absent too; a caller that wants those has to supply them from the dataset, and
+     * {@link #derivedFrom} names what it needs.
+     */
+    public Map<String, String> directiveSettings(Map<String, String> vector) {
+        Map<String, String> out = new LinkedHashMap<>();
+        for (Map.Entry<String, String> slot : vector.entrySet()) {
+            String dimension = slot.getKey();
+            String key = directiveKeyByName.get(dimension);
+            if (key == null || slot.getValue().equals(defaultValue(dimension))) {
+                continue;
+            }
+            out.put(key, directiveValue(dimension, slot.getValue()));
+        }
+        return out;
     }
 
     public static FixtureDimensions get() {
@@ -118,6 +167,9 @@ public final class FixtureDimensions {
         Map<String, String> defaults = new LinkedHashMap<>();
         Map<String, Set<String>> appliesTo = new LinkedHashMap<>();
         Map<String, String> binds = new LinkedHashMap<>();
+        Map<String, String> directiveKeys = new LinkedHashMap<>();
+        Map<String, Map<String, String>> directiveValues = new LinkedHashMap<>();
+        Map<String, String> derived = new LinkedHashMap<>();
         Map<String, Verdict> verdicts = new LinkedHashMap<>();
 
         for (String key : new TreeSet<>(props.stringPropertyNames())) {
@@ -128,12 +180,22 @@ public final class FixtureDimensions {
                 if (dot < 0) {
                     throw new IllegalStateException("malformed dimension key [" + key + "]");
                 }
+                // `value.<v>` is the one two-part attribute, so it has to be split off before the
+                // lastIndexOf below -- which would otherwise read the value name as the attribute.
+                int valueAt = rest.indexOf(".value.");
+                if (valueAt >= 0) {
+                    directiveValues.computeIfAbsent(rest.substring(0, valueAt), k -> new LinkedHashMap<>())
+                        .put(rest.substring(valueAt + ".value.".length()), value);
+                    continue;
+                }
                 String name = rest.substring(0, dot);
                 switch (rest.substring(dot + 1)) {
                     case "values" -> values.put(name, splitList(value));
                     case "default" -> defaults.put(name, value);
                     case "applies_to" -> appliesTo.put(name, new LinkedHashSet<>(splitList(value)));
                     case "binds" -> binds.put(name, value);
+                    case "key" -> directiveKeys.put(name, value);
+                    case "derived" -> derived.put(name, value);
                     default -> throw new IllegalStateException("unknown dimension attribute in [" + key + "]");
                 }
             } else if (key.startsWith("pair.")) {
@@ -178,8 +240,39 @@ public final class FixtureDimensions {
             if (binds.containsKey(name) == false) {
                 throw new IllegalStateException("dimension [" + name + "] declares no binds -- nothing knows how to make its value real");
             }
+            // `binds = directive` says the value travels in the WITH clause; it does not say what it
+            // becomes there. Without one of these a vector cannot be turned into a query, and the
+            // omission would show up as a suite that silently runs its default everywhere.
+            boolean isDirective = "directive".equals(binds.get(name));
+            boolean hasKey = directiveKeys.containsKey(name);
+            boolean isDerived = derived.containsKey(name);
+            if (isDirective && hasKey == false && isDerived == false) {
+                throw new IllegalStateException(
+                    "directive-bound dimension [" + name + "] declares neither a key nor derived -- nothing can express its value"
+                );
+            }
+            if (hasKey && isDerived) {
+                throw new IllegalStateException("dimension [" + name + "] declares both a key and derived; they are alternatives");
+            }
+            if (isDirective == false && (hasKey || isDerived)) {
+                throw new IllegalStateException(
+                    "dimension [" + name + "] binds as [" + binds.get(name) + "] but declares a directive key or derived"
+                );
+            }
         }
-        return new FixtureDimensions(names, values, defaults, appliesTo, binds, verdicts);
+        for (Map.Entry<String, Map<String, String>> e : directiveValues.entrySet()) {
+            if (values.containsKey(e.getKey()) == false) {
+                throw new IllegalStateException("value mapping declared for unknown dimension [" + e.getKey() + "]");
+            }
+            for (String v : e.getValue().keySet()) {
+                if (values.get(e.getKey()).contains(v) == false) {
+                    throw new IllegalStateException(
+                        "value mapping [" + e.getKey() + ".value." + v + "] names a value the dimension does not declare"
+                    );
+                }
+            }
+        }
+        return new FixtureDimensions(names, values, defaults, appliesTo, binds, directiveKeys, directiveValues, derived, verdicts);
     }
 
     private static Verdict parseVerdict(String key, String value) {

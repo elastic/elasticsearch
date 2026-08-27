@@ -788,6 +788,17 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     /**
+     * The directive settings the running vector pins, keyed by their {@code WITH} key.
+     *
+     * <p>Empty by default, so a suite that has not been moved onto generated vectors behaves exactly as
+     * before. A suite driven by {@link org.elasticsearch.xpack.esql.datasources.fixtures.FixtureDimensions}
+     * overrides this with the directive-bound slots of its vector that sit off their declared default.
+     */
+    protected Map<String, String> vectorSettings() {
+        return Map.of();
+    }
+
+    /**
      * The {@code WITH}-clause JSON applied to a dataset source, both when registering the dataset
      * ({@link #runDatasetMode()}) and when rebuilding an {@code EXTERNAL} query
      * ({@link #rebuildExternalFromDatasets}).
@@ -803,17 +814,6 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * tests; a directive that sets {@code trim_spaces} explicitly is left untouched (so a spec can still
      * exercise the no-trim default end to end).
      */
-    /**
-     * The directive settings the running vector pins, keyed by their {@code WITH} key.
-     *
-     * <p>Empty by default, so a suite that has not been moved onto generated vectors behaves exactly as
-     * before. A suite driven by {@link org.elasticsearch.xpack.esql.datasources.fixtures.FixtureDimensions}
-     * overrides this with the directive-bound slots of its vector that sit off their declared default.
-     */
-    protected Map<String, String> vectorSettings() {
-        return Map.of();
-    }
-
     private String withJsonForSource(DatasetSource source) {
         // Memoized per source: injectTrimSpaces parses the JSON to decide whether the directive already sets
         // trim_spaces, and this is asked once per registration and again when the query is built.
@@ -833,14 +833,6 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         });
     }
 
-    /**
-     * Adds {@code "trim_spaces": true} to a dataset directive's {@code WITH} JSON, unless the directive already sets
-     * that SETTING. Whether it does is decided by parsing rather than by matching the raw text: a directive may now
-     * carry a nested declared schema, and a same-named key inside {@code mappings} would otherwise suppress the
-     * injection and read the column-aligned fixtures untrimmed. Placement stays textual — {@code withJson} is
-     * parser-guaranteed to be a brace-delimited object or {@code null}, so {@code lastIndexOf('}')} is always the
-     * structural closer, outside any nested object.
-     */
     /**
      * Adds {@code "multi_value_syntax": "brackets"} for a source whose fixtures were WRITTEN with bracket
      * multi-values, unless the directive already sets it.
@@ -896,6 +888,14 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         return m.find() ? m.group(1) : null;
     }
 
+    /**
+     * Adds {@code "trim_spaces": true} to a dataset directive's {@code WITH} JSON, unless the directive already sets
+     * that SETTING. Whether it does is decided by parsing rather than by matching the raw text: a directive may now
+     * carry a nested declared schema, and a same-named key inside {@code mappings} would otherwise suppress the
+     * injection and read the column-aligned fixtures untrimmed. Placement stays textual — {@code withJson} is
+     * parser-guaranteed to be a brace-delimited object or {@code null}, so {@code lastIndexOf('}')} is always the
+     * structural closer, outside any nested object.
+     */
     static String injectTrimSpaces(String withJson) {
         if (DatasetRegistry.declaresSetting(withJson, "trim_spaces")) {
             return withJson;

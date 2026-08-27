@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources.fixtures;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -148,7 +149,9 @@ public class FixtureDimensionsTests extends ESTestCase {
             "dimension.error_mode.values = fail_fast, skip_row",
             "dimension.error_mode.default = fail_fast",
             "dimension.error_mode.binds = directive",
-            "pair.error_mode.format = interacting" };
+            "pair.error_mode.format = interacting",
+            // Appended last on purpose: the tests below edit this array by index.
+            "dimension.error_mode.key = error_mode" };
     }
 
     public void testAWellFormedDeclarationParses() {
@@ -180,6 +183,7 @@ public class FixtureDimensionsTests extends ESTestCase {
             "dimension.error_mode.values = fail_fast, skip_row",
             "dimension.error_mode.default = fail_fast",
             "dimension.error_mode.binds = directive",
+            "dimension.error_mode.key = error_mode",
             "pair.error_mode.format = interacting" };
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("binds"));
@@ -207,6 +211,66 @@ public class FixtureDimensionsTests extends ESTestCase {
         lines[6] = "pair.error_mode.format = probably";
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("probably"));
+    }
+
+    /**
+     * `binds = directive` says the value travels in the WITH clause, not what it becomes there. Without
+     * a key the vector cannot be turned into a query, and the suite would run its default everywhere
+     * while reporting the dimension as covered.
+     */
+    public void testADirectiveDimensionWithoutAKeyOrDerivedIsRejected() {
+        String[] lines = wellFormed().clone();
+        lines[7] = "dimension.error_mode.applies_to = csv, parquet";
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("neither a key nor derived"));
+    }
+
+    /** A key and derived are alternatives; declaring both leaves it ambiguous which one applies. */
+    public void testBothAKeyAndDerivedIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.error_mode.derived = dataset_schema");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("alternatives"));
+    }
+
+    /** A fixture-bound dimension with a directive key is a mis-declaration: no injector would read it. */
+    public void testANonDirectiveDimensionWithADirectiveKeyIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.format.key = format");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("binds as [fixture]"));
+    }
+
+    /** A value mapping naming a value the dimension does not declare is dead text that never fires. */
+    public void testAValueMappingForAnUndeclaredValueIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.error_mode.value.explode = boom");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("explode"));
+    }
+
+    /**
+     * Omission IS the default, so a slot at its default must inject nothing -- that is what lets a suite
+     * move onto vectors one dimension at a time without changing what it sent before.
+     */
+    public void testDirectiveSettingsOmitDefaultsAndDerivedSlots() {
+        FixtureDimensions d = FixtureDimensions.get();
+        Map<String, String> allDefaults = new LinkedHashMap<>();
+        for (String name : d.names()) {
+            allDefaults.put(name, d.defaultValue(name));
+        }
+        assertThat(d.directiveSettings(allDefaults), equalTo(Map.of()));
+
+        Map<String, String> varied = new LinkedHashMap<>(allDefaults);
+        varied.put("error_mode", "skip_row");
+        varied.put("schema_mode", "declared_closed");
+        Map<String, String> settings = d.directiveSettings(varied);
+        assertThat("a constant slot off its default is injected", settings, equalTo(Map.of("error_mode", "skip_row")));
+        assertThat("a derived slot cannot be a constant here", d.derivedFrom("schema_mode"), equalTo("dataset_schema"));
+    }
+
+    /** The declaration maps a value to a different spelling only where it says so. */
+    public void testAValueMappingIsAppliedAndOthersPassThrough() {
+        FixtureDimensions d = FixtureDimensions.get();
+        assertThat(d.directiveValue("datetime_format", "custom"), equalTo("strict_date_optional_time"));
+        assertThat(d.directiveValue("error_mode", "skip_row"), equalTo("skip_row"));
     }
 
     /** Renders the derived set so a reader can see what the declaration produces without running it. */

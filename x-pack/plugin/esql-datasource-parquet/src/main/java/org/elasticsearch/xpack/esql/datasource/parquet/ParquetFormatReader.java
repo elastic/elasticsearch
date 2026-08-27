@@ -84,6 +84,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
@@ -1251,6 +1252,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
     @Override
     public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
         long startNanos = System.nanoTime();
+        long startCpuNanos = ThreadCpuTimer.currentNanos();
         try {
             // The synthetic {@link ColumnExtractor#ROW_POSITION_COLUMN} flows through the regular
             // read path: {@link #buildProjectedAttributes} types it as LONG and {@link #buildColumnInfos}
@@ -1289,6 +1291,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             // ParquetColumnIterator / OptimizedParquetColumnIterator), accumulating into the same
             // counter so read_nanos covers the reader's full producer-thread lifecycle.
             counters.addTotalReadNanos(System.nanoTime() - startNanos);
+            if (startCpuNanos >= 0) {
+                counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
+            }
         }
     }
 
@@ -1578,6 +1583,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
     @Override
     public CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) throws IOException {
         long startNanos = System.nanoTime();
+        long startCpuNanos = ThreadCpuTimer.currentNanos();
         try {
             long rangeStart = context.rangeStart();
             long rangeEnd = context.rangeEnd();
@@ -1655,6 +1661,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             );
         } finally {
             counters.addTotalReadNanos(System.nanoTime() - startNanos);
+            if (startCpuNanos >= 0) {
+                counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
+            }
         }
     }
 
@@ -3092,6 +3101,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
 
         private boolean advanceRowGroup() throws IOException {
             long startNanos = System.nanoTime();
+            long startCpuNanos = ThreadCpuTimer.currentNanos();
             try {
                 if (rowGroup != null) {
                     rowGroup.close();
@@ -3169,6 +3179,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 return rowsRemainingInGroup > 0;
             } finally {
                 counters.addTotalReadNanos(System.nanoTime() - startNanos);
+                if (startCpuNanos >= 0) {
+                    counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
+                }
             }
         }
 
@@ -3178,6 +3191,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 throw new NoSuchElementException();
             }
             long startNanos = System.nanoTime();
+            long startCpuNanos = ThreadCpuTimer.currentNanos();
             try {
                 int effectiveBatch = batchSize;
                 if (rowBudget != FormatReader.NO_LIMIT) {
@@ -3284,6 +3298,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 return new Page(blocks);
             } finally {
                 counters.addTotalReadNanos(System.nanoTime() - startNanos);
+                if (startCpuNanos >= 0) {
+                    counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
+                }
             }
         }
 

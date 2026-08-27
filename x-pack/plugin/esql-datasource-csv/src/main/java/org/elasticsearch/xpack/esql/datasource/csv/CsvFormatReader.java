@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
+import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -1978,6 +1979,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     @Override
+    public void acceptReadCpuNanos(long nanos) {
+        counters.addReadCpuNanos(nanos);
+    }
+
+    @Override
     public RecordSplitter recordSplitter() {
         return recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES);
     }
@@ -2182,7 +2188,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             case "IP" -> DataType.IP;
             case "VERSION", "V" -> DataType.VERSION;
             case "NULL", "N" -> DataType.NULL;
-            default -> throw EsqlIllegalArgumentException.illegalDataType(typeName);
+            default -> throw new ParsingException("illegal data type [{}]", typeName);
         };
     }
 
@@ -3347,6 +3353,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 return true;
             }
             long startNanos = System.nanoTime();
+            long startCpuNanos = ThreadCpuTimer.currentNanos();
             long startTotal = totalRowCount;
             long startError = errorCount;
             try {
@@ -3364,6 +3371,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 counters.addRowsEmitted(deltaTotal - deltaErrors);
                 counters.addParseErrors(deltaErrors);
                 counters.addReadNanos(System.nanoTime() - startNanos);
+                if (startCpuNanos >= 0) {
+                    counters.addReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
+                }
             }
         }
 

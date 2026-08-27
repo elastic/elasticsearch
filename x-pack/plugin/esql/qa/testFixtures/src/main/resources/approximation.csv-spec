@@ -794,7 +794,7 @@ byte_vector:dense_vector | count:long | _approximation_confidence_interval(count
 ;
 
 
-Count by date bucket
+Count by date bucket on small data
 required_capability: approximation_v7
 request_stored: skip
 
@@ -812,6 +812,27 @@ c:long  | b:date                   | _approximation_confidence_interval(c):long 
 11      | 1986-01-01T00:00:00.000Z | [11,11]                                    | true
 15      | 1987-01-01T00:00:00.000Z | [15,15]                                    | true
 9       | 1988-01-01T00:00:00.000Z | [9,9]                                      | true
+;
+
+
+Count by date bucket on large data
+required_capability: approximation_v7
+request_stored: skip
+
+SET approximation = {"rows":10000}\;
+FROM many_numbers
+| STATS count=COUNT() BY bucket=BUCKET(@timestamp, 1m)
+| SORT bucket
+;
+
+documents_found: 1..30
+
+count:long | bucket:date              | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean
+60000      | 2026-01-01T00:00:00.000Z | [60000, 60000]                                 | true
+60000      | 2026-01-01T00:01:00.000Z | [60000, 60000]                                 | true
+60000      | 2026-01-01T00:02:00.000Z | [60000, 60000]                                 | true
+60000      | 2026-01-01T00:03:00.000Z | [60000, 60000]                                 | true
+5350       | 2026-01-01T00:04:00.000Z | [5350, 5350]                                   | true
 ;
 
 

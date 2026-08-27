@@ -16,14 +16,10 @@ import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.core.Strings.format;
-
 /**
  * Starts background warming of current search readers when an index enters an active split.
  */
 public final class ReshardSearchWarmer implements IndexEventListener {
-
-    private static final Logger logger = LogManager.getLogger(ReshardSearchWarmer.class);
 
     @Override
     public void afterIndexCreated(IndexService indexService) {
@@ -31,28 +27,18 @@ public final class ReshardSearchWarmer implements IndexEventListener {
         indexService.addMetadataListener(indexMetadata -> {
             final boolean active = hasActiveSplit(indexMetadata);
             if (splitActive.getAndSet(active) == false && active) {
-                scheduleCurrentReaders(indexService);
+                for (var indexShard : indexService) {
+                    indexShard.tryWithEngineOrNull(engine -> {
+                        if (engine != null) {
+                            if (engine instanceof SearchEngine) {
+                                ((SearchEngine) engine).warmReaderCacheAfterResharding();
+                            }
+                        }
+                        return null;
+                    });
+                }
             }
         });
-    }
-
-    private void scheduleCurrentReaders(IndexService indexService) {
-        for (var indexShard : indexService) {
-            try {
-                indexShard.tryWithEngineOrNull(engine -> {
-                    if (engine != null) {
-                        assert engine instanceof SearchEngine;
-                        ((SearchEngine) engine).warmReaderCacheAfterResharding();
-                    }
-                    return null;
-                });
-            } catch (Exception e) {
-                logger.debug(
-                    () -> format("failed to schedule resharding unowned-document bitset warming for shard [%s]", indexShard.shardId()),
-                    e
-                );
-            }
-        }
     }
 
     private static boolean hasActiveSplit(IndexMetadata indexMetadata) {

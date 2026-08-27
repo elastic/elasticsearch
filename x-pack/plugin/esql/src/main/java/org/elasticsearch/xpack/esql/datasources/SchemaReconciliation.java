@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -146,64 +147,36 @@ public final class SchemaReconciliation {
     }
 
     /**
-     * Safe type widening for schema reconciliation.
-     * Only lossless promotions are allowed; returns {@code null} if no safe supertype exists.
+     * Safe type widening for schema reconciliation: the common supertype when one exists without
+     * loss, else {@code null}.
      * <p>
-     * Widening rules:
-     * <ul>
-     *   <li>INTEGER + LONG → LONG (lossless: int32 ⊆ int64)</li>
-     *   <li>INTEGER + DOUBLE → DOUBLE (lossless: int32 ≤ 2^31 &lt; 2^53)</li>
-     *   <li>DATETIME + DATE_NANOS → DATE_NANOS (more precise type wins)</li>
-     * </ul>
-     * All other cross-type pairs return null (no lossless supertype). UBN reconciliation
-     * additionally falls back to {@link DataType#KEYWORD} for those — see
-     * {@link #widenToCommonOrKeyword} and {@link #reconcileUnionByName}. LONG + DOUBLE
-     * deliberately stays out of this table (precision loss above 2^53) and is therefore one of
-     * the pairs that goes to {@code KEYWORD} under UBN.
+     * The rules themselves live in {@link TypeWidening}, which is also what the text inferrers fold
+     * with, so "which type represents these two" has one answer across the subsystem rather than one
+     * per call site. {@link TypeWidening.Policy#RECONCILIATION} is the cross-file reading of that
+     * lattice; it differs from the inference reading on exactly one pair, and {@code TypeWidening}'s
+     * javadoc says why and where that is tracked.
      *
      * @return the widened type, or null if no safe supertype exists
      */
     @Nullable
     public static DataType schemaWiden(DataType a, DataType b) {
-        if (a == b) {
-            return a;
-        }
-        DataType wider = widenOrdered(a, b);
-        if (wider != null) {
-            return wider;
-        }
-        return widenOrdered(b, a);
-    }
-
-    @Nullable
-    private static DataType widenOrdered(DataType left, DataType right) {
-        if (left == DataType.INTEGER && right == DataType.LONG) {
-            return DataType.LONG;
-        }
-        if (left == DataType.INTEGER && right == DataType.DOUBLE) {
-            return DataType.DOUBLE;
-        }
-        if (left == DataType.DATETIME && right == DataType.DATE_NANOS) {
-            return DataType.DATE_NANOS;
-        }
-        return null;
+        return TypeWidening.widenLossless(a, b);
     }
 
     /**
-     * UNION_BY_NAME widening: returns {@link #schemaWiden}'s result when one exists, otherwise
-     * falls back to {@link DataType#KEYWORD} as the cross-type join (lossy for numerics — but
-     * the lossy path is the one that triggers a response {@code Warning} so users see when
-     * stringification happened). Never returns null: every cross-type pair has a defined UBN
-     * answer.
+     * UNION_BY_NAME widening: the total form, where {@link DataType#KEYWORD} is the answer for any
+     * pair with no closer supertype (lossy for numerics — but the lossy path is the one that triggers
+     * a response {@code Warning} so users see when stringification happened).
      * <p>
-     * This is the UBN-specific entry point; {@link #schemaWiden} is intentionally kept as a
-     * separate {@code @Nullable}-returning method so callers that want the strict lossless-only
-     * semantic still have it. The two stay aligned by construction — the KEYWORD branch here
-     * fires only on inputs where {@code schemaWiden} would have returned null.
+     * The keyword fallback is the lattice's own top rather than a local default here. That matters:
+     * a call site that invents its own "and otherwise, keyword" is how the subsystem ended up with
+     * four different answers to the same question. {@link #schemaWiden} stays as the separate
+     * {@code @Nullable} entry point for callers that need to tell "no lossless supertype" apart from
+     * "the answer is keyword"; the two agree wherever the strict one answers, which
+     * {@code TypeWideningTests} asserts rather than leaving to construction.
      */
     private static DataType widenToCommonOrKeyword(DataType a, DataType b) {
-        DataType widened = schemaWiden(a, b);
-        return widened != null ? widened : DataType.KEYWORD;
+        return TypeWidening.join(a, b, TypeWidening.Policy.RECONCILIATION);
     }
 
     /**

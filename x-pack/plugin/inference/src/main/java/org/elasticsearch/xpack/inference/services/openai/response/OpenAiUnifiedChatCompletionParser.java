@@ -17,7 +17,7 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessage;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessageResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCall;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage.CompletionTokenDetails;
@@ -196,12 +196,12 @@ public final class OpenAiUnifiedChatCompletionParser {
 
     private static ConstructingObjectParser<ChatCompletionChoiceResponse, Void> buildChoiceParser(
         String contentFieldName,
-        ConstructingObjectParser<ChatCompletionMessage, Void> messageParser
+        ConstructingObjectParser<ChatCompletionMessageResponse, Void> messageParser
     ) {
         var parser = new ConstructingObjectParser<ChatCompletionChoiceResponse, Void>(
             CHOICES_FIELD,
             true,
-            args -> new ChatCompletionChoiceResponse((ChatCompletionMessage) args[0], (String) args[1], (int) args[2])
+            args -> new ChatCompletionChoiceResponse((ChatCompletionMessageResponse) args[0], (String) args[1], (int) args[2])
         );
         parser.declareObject(constructorArg(), messageParser, new ParseField(contentFieldName));
         parser.declareStringOrNull(optionalConstructorArg(), new ParseField(FINISH_REASON_FIELD));
@@ -210,14 +210,14 @@ public final class OpenAiUnifiedChatCompletionParser {
     }
 
     @SuppressWarnings("unchecked")
-    private static ConstructingObjectParser<ChatCompletionMessage, Void> buildMessageParser(
+    private static ConstructingObjectParser<ChatCompletionMessageResponse, Void> buildMessageParser(
         ConstructingObjectParser<ChatCompletionToolCall, Void> toolCallParser,
         boolean indexRequired
     ) {
-        var parser = new ConstructingObjectParser<ChatCompletionMessage, Void>(
+        var parser = new ConstructingObjectParser<ChatCompletionMessageResponse, Void>(
             "message_delta",
             true,
-            args -> new ChatCompletionMessage(
+            args -> new ChatCompletionMessageResponse(
                 (String) args[0],
                 (String) args[1],
                 (String) args[2],

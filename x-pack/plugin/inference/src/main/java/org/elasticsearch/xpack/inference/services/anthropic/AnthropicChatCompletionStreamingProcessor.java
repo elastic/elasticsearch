@@ -17,7 +17,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessage;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessageResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCall;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
@@ -228,7 +228,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
         cacheReadTokens = Objects.requireNonNullElse(extractOptionalInteger(usageMap, CACHE_READ_INPUT_TOKENS_FIELD), 0);
         cacheCreationTokens = Objects.requireNonNullElse(extractOptionalInteger(usageMap, CACHE_CREATION_INPUT_TOKENS_FIELD), 0);
 
-        var delta = new ChatCompletionMessage(null, null, role, null);
+        var delta = new ChatCompletionMessageResponse(null, null, role, null);
         var choice = new ChatCompletionChoiceResponse(delta, finishReason, 0);
         return Stream.of(newChunk(List.of(choice), null));
     }
@@ -252,11 +252,11 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
         var contentBlockMap = extractInnerStringObjectMap(outerMap, CONTENT_BLOCK_FIELD);
         var type = extractMandatoryString(contentBlockMap, TYPE_FIELD);
 
-        ChatCompletionMessage delta;
+        ChatCompletionMessageResponse delta;
         switch (type) {
             case TEXT_TYPE -> {
                 var text = extractMandatoryString(contentBlockMap, TEXT_FIELD);
-                delta = new ChatCompletionMessage(text, null, null, null, null, null);
+                delta = new ChatCompletionMessageResponse(text, null, null, null, null, null);
             }
             case TOOL_USE_TYPE -> {
                 var id = extractMandatoryString(contentBlockMap, ID_FIELD);
@@ -267,7 +267,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
                 // as input_json_delta fragments, which clients concatenate onto the arguments, so seed them empty.
                 var function = new ChatCompletionToolCall.Function("", name);
                 var toolCall = new ChatCompletionToolCall(toolCallIndex, id, function, FUNCTION_TYPE);
-                delta = new ChatCompletionMessage(null, null, null, List.of(toolCall));
+                delta = new ChatCompletionMessageResponse(null, null, null, List.of(toolCall));
             }
             case THINKING_TYPE -> {
                 if (excludeReasoning) {
@@ -283,7 +283,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
                     thinking,
                     null
                 );
-                delta = new ChatCompletionMessage(null, null, null, null, thinking, List.of(reasoningDetail));
+                delta = new ChatCompletionMessageResponse(null, null, null, null, thinking, List.of(reasoningDetail));
             }
             case REDACTED_THINKING_TYPE -> {
                 // Anthropic only emits redacted_thinking when extended thinking was enabled on the request;
@@ -295,7 +295,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
                 var reasoningIdx = (long) reasoningBlockCount++;
                 contentBlockIndexToReasoningIndex.put(blockIndex, (int) reasoningIdx);
                 var reasoningDetail = new ReasoningDetail.EncryptedReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, reasoningIdx, data);
-                delta = new ChatCompletionMessage(null, null, null, null, null, List.of(reasoningDetail));
+                delta = new ChatCompletionMessageResponse(null, null, null, null, null, List.of(reasoningDetail));
             }
             default -> {
                 logger.debug("Unknown content block start type [{}].", type);
@@ -327,11 +327,11 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
         var deltaMap = extractInnerStringObjectMap(outerMap, DELTA_FIELD);
         var type = extractMandatoryString(deltaMap, TYPE_FIELD);
 
-        ChatCompletionMessage delta;
+        ChatCompletionMessageResponse delta;
         switch (type) {
             case TEXT_DELTA_TYPE -> {
                 var text = extractMandatoryString(deltaMap, TEXT_FIELD);
-                delta = new ChatCompletionMessage(text, null, null, null, null, null);
+                delta = new ChatCompletionMessageResponse(text, null, null, null, null, null);
             }
             case INPUT_JSON_DELTA_TYPE -> {
                 var partialJson = extractMandatoryString(deltaMap, PARTIAL_JSON_FIELD);
@@ -342,7 +342,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
                 }
                 var function = new ChatCompletionToolCall.Function(partialJson, null);
                 var toolCall = new ChatCompletionToolCall(toolCallIndex, null, function, null);
-                delta = new ChatCompletionMessage(null, null, null, List.of(toolCall), null, null);
+                delta = new ChatCompletionMessageResponse(null, null, null, List.of(toolCall), null, null);
             }
             case THINKING_DELTA_TYPE -> {
                 if (excludeReasoning) {
@@ -361,7 +361,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
                     thinking,
                     null
                 );
-                delta = new ChatCompletionMessage(null, null, null, null, thinking, List.of(reasoningDetail));
+                delta = new ChatCompletionMessageResponse(null, null, null, null, thinking, List.of(reasoningDetail));
             }
             case SIGNATURE_DELTA_TYPE -> {
                 if (excludeReasoning) {
@@ -380,7 +380,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
                     null,
                     signature
                 );
-                delta = new ChatCompletionMessage(null, null, null, null, null, List.of(reasoningDetail));
+                delta = new ChatCompletionMessageResponse(null, null, null, null, null, List.of(reasoningDetail));
             }
             default -> {
                 logger.debug("Unknown content block delta type [{}].", type);
@@ -432,7 +432,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
         }
 
         var finishReason = convertStopReason(stopReason);
-        var emptyDelta = new ChatCompletionMessage(null, null, null, null, null, null);
+        var emptyDelta = new ChatCompletionMessageResponse(null, null, null, null, null, null);
         var choice = new ChatCompletionChoiceResponse(emptyDelta, finishReason, 0);
         return Stream.of(newChunk(List.of(choice), null));
     }

@@ -35,7 +35,7 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOOL
  * <p>XContent is emitted as a named object under {@code messageFieldName} — either
  * {@code "message"} for non-streaming responses or {@code "delta"} for streaming SSE chunks.
  */
-public record ChatCompletionMessage(
+public record ChatCompletionMessageResponse(
     @Nullable String content,
     @Nullable String refusal,
     @Nullable String role,
@@ -44,7 +44,7 @@ public record ChatCompletionMessage(
     @Nullable List<ReasoningDetail> reasoningDetails
 ) implements Writeable {
 
-    public ChatCompletionMessage(
+    public ChatCompletionMessageResponse(
         @Nullable String content,
         @Nullable String refusal,
         @Nullable String role,
@@ -53,7 +53,7 @@ public record ChatCompletionMessage(
         this(content, refusal, role, toolCalls, null, null);
     }
 
-    public ChatCompletionMessage(StreamInput in) throws IOException {
+    public ChatCompletionMessageResponse(StreamInput in) throws IOException {
         this(
             in.readOptionalString(),
             in.readOptionalString(),

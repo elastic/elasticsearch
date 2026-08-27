@@ -22,7 +22,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessage;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessageResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCall;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
@@ -143,7 +143,7 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
 
             List<ChatCompletionToolCall> finalToolCalls = toolCalls.isEmpty() ? null : toolCalls;
 
-            var message = new ChatCompletionMessage(
+            var message = new ChatCompletionMessageResponse(
                 contentTextBuilder.isEmpty() ? null : contentTextBuilder.toString(),
                 null,
                 role,

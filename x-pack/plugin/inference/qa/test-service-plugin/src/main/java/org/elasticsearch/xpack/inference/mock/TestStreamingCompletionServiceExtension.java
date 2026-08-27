@@ -41,7 +41,7 @@ import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionRes
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessage;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessageResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -303,7 +303,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
                 DequeUtils.of(
                     new ChatCompletionChunkResponse(
                         "id",
-                        List.of(new ChatCompletionChoiceResponse(new ChatCompletionMessage(delta, null, null, null), null, 0)),
+                        List.of(new ChatCompletionChoiceResponse(new ChatCompletionMessageResponse(delta, null, null, null), null, 0)),
                         "gpt-4o-2024-08-06",
                         "chat.completion.chunk",
                         null

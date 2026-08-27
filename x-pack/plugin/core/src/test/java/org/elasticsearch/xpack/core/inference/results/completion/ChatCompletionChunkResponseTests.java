@@ -78,7 +78,7 @@ public class ChatCompletionChunkResponseTests extends AbstractBWCWireSerializati
                     1,
                     3,
                     () -> new ChatCompletionChoiceResponse(
-                        new ChatCompletionMessage(randomAlphanumericOfLength(5), null, null, null),
+                        new ChatCompletionMessageResponse(randomAlphanumericOfLength(5), null, null, null),
                         null,
                         0
                     )
@@ -120,7 +120,7 @@ public class ChatCompletionChunkResponseTests extends AbstractBWCWireSerializati
             "chatcmpl-123",
             List.of(
                 new ChatCompletionChoiceResponse(
-                    new ChatCompletionMessage(
+                    new ChatCompletionMessageResponse(
                         "Hello!",
                         null,
                         "assistant",
@@ -175,7 +175,7 @@ public class ChatCompletionChunkResponseTests extends AbstractBWCWireSerializati
     public void testToXContentChunked_MinimalResponse() throws IOException {
         var completion = new ChatCompletionChunkResponse(
             "chatcmpl-456",
-            List.of(new ChatCompletionChoiceResponse(new ChatCompletionMessage("Hi", null, "assistant", null), "stop", 0)),
+            List.of(new ChatCompletionChoiceResponse(new ChatCompletionMessageResponse("Hi", null, "assistant", null), "stop", 0)),
             "gpt-4o-mini",
             "chat.completion",
             null

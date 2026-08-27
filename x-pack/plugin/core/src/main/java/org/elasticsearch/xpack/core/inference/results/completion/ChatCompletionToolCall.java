@@ -29,7 +29,7 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.INDE
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TYPE_FIELD;
 
 /**
- * A tool call within a {@link ChatCompletionMessage}.
+ * A tool call within a {@link ChatCompletionMessageResponse}.
  */
 public record ChatCompletionToolCall(int index, @Nullable String id, @Nullable Function function, @Nullable String type)
     implements

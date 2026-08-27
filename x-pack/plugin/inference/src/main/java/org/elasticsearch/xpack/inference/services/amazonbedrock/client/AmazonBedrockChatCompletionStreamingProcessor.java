@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatComple
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessage;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessageResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCall;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage.PromptTokensDetails;
@@ -222,7 +222,7 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
      * @return a stream of ChatCompletionChunkResponse
      */
     private Stream<ChatCompletionChunkResponse> handleMessageStart(MessageStartEvent event) {
-        var message = new ChatCompletionMessage(null, null, getRole(event), null);
+        var message = new ChatCompletionMessageResponse(null, null, getRole(event), null);
         var choice = new ChatCompletionChoiceResponse(message, null, 0);
         var chunk = createChatCompletionChunkResponse(List.of(choice), null);
         return Stream.of(chunk);
@@ -249,7 +249,7 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
      */
     private Stream<ChatCompletionChunkResponse> handleMessageStop(MessageStopEvent event) {
         var finishReason = handleFinishReason(event.stopReason());
-        var message = new ChatCompletionMessage(null, null, null, null);
+        var message = new ChatCompletionMessageResponse(null, null, null, null);
         var choice = new ChatCompletionChoiceResponse(message, finishReason, 0);
         var chunk = createChatCompletionChunkResponse(List.of(choice), null);
         return Stream.of(chunk);
@@ -311,7 +311,7 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
 
         if (ContentBlockStart.Type.TOOL_USE == type) {
             var toolCall = handleToolUseStart(event.start());
-            var message = new ChatCompletionMessage(
+            var message = new ChatCompletionMessageResponse(
                 null,
                 null,
                 // The model is requesting a tool be executed, so we set the role to assistant. The "tool" role is reserved for actual
@@ -339,10 +339,10 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
         var content = event.delta().text();
 
         var message = switch (type) {
-            case ContentBlockDelta.Type.TEXT -> new ChatCompletionMessage(content, null, null, null, null, null);
+            case ContentBlockDelta.Type.TEXT -> new ChatCompletionMessageResponse(content, null, null, null, null, null);
             case ContentBlockDelta.Type.TOOL_USE -> {
                 var toolCall = handleToolUseDelta(event.delta());
-                yield new ChatCompletionMessage(content, null, null, List.of(toolCall), null, null);
+                yield new ChatCompletionMessageResponse(content, null, null, List.of(toolCall), null, null);
             }
             default -> {
                 logger.debug("unknown content block delta type [{}].", type);

@@ -26,7 +26,7 @@ public class ChatCompletionChoiceResponseTests extends AbstractBWCWireSerializat
 
     public static ChatCompletionChoiceResponse randomChatCompletionChoiceResponse() {
         return new ChatCompletionChoiceResponse(
-            ChatCompletionMessageTests.randomChatCompletionMessage(),
+            ChatCompletionMessageResponseTests.randomChatCompletionMessageResponse(),
             randomAlphaOfLengthOrNull(FIELD_LENGTH),
             randomInt(5)
         );
@@ -34,7 +34,7 @@ public class ChatCompletionChoiceResponseTests extends AbstractBWCWireSerializat
 
     public static ChatCompletionChoiceResponse downgrade(ChatCompletionChoiceResponse instance, TransportVersion version) {
         return new ChatCompletionChoiceResponse(
-            ChatCompletionMessageTests.downgrade(instance.message(), version),
+            ChatCompletionMessageResponseTests.downgrade(instance.message(), version),
             instance.finishReason(),
             instance.index()
         );
@@ -67,7 +67,7 @@ public class ChatCompletionChoiceResponseTests extends AbstractBWCWireSerializat
         var index = instance.index();
 
         switch (between(0, 2)) {
-            case 0 -> message = randomValueOtherThan(message, ChatCompletionMessageTests::randomChatCompletionMessage);
+            case 0 -> message = randomValueOtherThan(message, ChatCompletionMessageResponseTests::randomChatCompletionMessageResponse);
             case 1 -> finishReason = randomValueOtherThan(finishReason, () -> randomAlphaOfLengthOrNull(FIELD_LENGTH));
             case 2 -> index = randomValueOtherThan(index, () -> randomInt(5));
             default -> throw new AssertionError("Illegal randomisation branch");
@@ -76,7 +76,7 @@ public class ChatCompletionChoiceResponseTests extends AbstractBWCWireSerializat
     }
 
     public void testToXContentChunked_WithFinishReason_DeltaWrapper() throws IOException {
-        var choice = new ChatCompletionChoiceResponse(new ChatCompletionMessage("Hello!", null, "assistant", null, null, null), "stop", 0);
+        var choice = new ChatCompletionChoiceResponse(new ChatCompletionMessageResponse("Hello!", null, "assistant", null, null, null), "stop", 0);
 
         assertThat(toXContent(choice, "delta"), is(XContentHelper.stripWhitespace("""
             {
@@ -91,7 +91,7 @@ public class ChatCompletionChoiceResponseTests extends AbstractBWCWireSerializat
     }
 
     public void testToXContentChunked_NullFinishReason_FinishReasonOmitted() throws IOException {
-        var choice = new ChatCompletionChoiceResponse(new ChatCompletionMessage("Hi", null, null, null, null, null), null, 2);
+        var choice = new ChatCompletionChoiceResponse(new ChatCompletionMessageResponse("Hi", null, null, null, null, null), null, 2);
 
         assertThat(toXContent(choice, "delta"), is(XContentHelper.stripWhitespace("""
             {
@@ -104,7 +104,7 @@ public class ChatCompletionChoiceResponseTests extends AbstractBWCWireSerializat
     }
 
     public void testToXContentChunked_MessageWrapper() throws IOException {
-        var choice = new ChatCompletionChoiceResponse(new ChatCompletionMessage("Hi", null, "user", null, null, null), "stop", 1);
+        var choice = new ChatCompletionChoiceResponse(new ChatCompletionMessageResponse("Hi", null, "user", null, null, null), "stop", 1);
 
         assertThat(toXContent(choice, "message"), is(XContentHelper.stripWhitespace("""
             {

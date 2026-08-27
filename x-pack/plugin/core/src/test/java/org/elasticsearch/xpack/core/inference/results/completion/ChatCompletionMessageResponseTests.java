@@ -23,12 +23,12 @@ import java.util.List;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_REASONING_SUPPORT_ADDED;
 import static org.hamcrest.Matchers.is;
 
-public class ChatCompletionMessageTests extends AbstractBWCWireSerializationTestCase<ChatCompletionMessage> {
+public class ChatCompletionMessageResponseTests extends AbstractBWCWireSerializationTestCase<ChatCompletionMessageResponse> {
 
     private static final int FIELD_LENGTH = 5;
 
-    public static ChatCompletionMessage randomChatCompletionMessage() {
-        return new ChatCompletionMessage(
+    public static ChatCompletionMessageResponse randomChatCompletionMessageResponse() {
+        return new ChatCompletionMessageResponse(
             randomAlphaOfLengthOrNull(FIELD_LENGTH),
             randomAlphaOfLengthOrNull(FIELD_LENGTH),
             randomAlphaOfLengthOrNull(FIELD_LENGTH),
@@ -38,9 +38,9 @@ public class ChatCompletionMessageTests extends AbstractBWCWireSerializationTest
         );
     }
 
-    public static ChatCompletionMessage downgrade(ChatCompletionMessage instance, TransportVersion version) {
+    public static ChatCompletionMessageResponse downgrade(ChatCompletionMessageResponse instance, TransportVersion version) {
         if (version.supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED) == false) {
-            return new ChatCompletionMessage(instance.content(), instance.refusal(), instance.role(), instance.toolCalls());
+            return new ChatCompletionMessageResponse(instance.content(), instance.refusal(), instance.role(), instance.toolCalls());
         }
         return instance;
     }
@@ -51,22 +51,22 @@ public class ChatCompletionMessageTests extends AbstractBWCWireSerializationTest
     }
 
     @Override
-    protected Writeable.Reader<ChatCompletionMessage> instanceReader() {
-        return ChatCompletionMessage::new;
+    protected Writeable.Reader<ChatCompletionMessageResponse> instanceReader() {
+        return ChatCompletionMessageResponse::new;
     }
 
     @Override
-    protected ChatCompletionMessage createTestInstance() {
-        return randomChatCompletionMessage();
+    protected ChatCompletionMessageResponse createTestInstance() {
+        return randomChatCompletionMessageResponse();
     }
 
     @Override
-    protected ChatCompletionMessage mutateInstanceForVersion(ChatCompletionMessage instance, TransportVersion version) {
+    protected ChatCompletionMessageResponse mutateInstanceForVersion(ChatCompletionMessageResponse instance, TransportVersion version) {
         return downgrade(instance, version);
     }
 
     @Override
-    protected ChatCompletionMessage mutateInstance(ChatCompletionMessage instance) {
+    protected ChatCompletionMessageResponse mutateInstance(ChatCompletionMessageResponse instance) {
         var content = instance.content();
         var refusal = instance.refusal();
         var role = instance.role();
@@ -89,11 +89,11 @@ public class ChatCompletionMessageTests extends AbstractBWCWireSerializationTest
             );
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new ChatCompletionMessage(content, refusal, role, toolCalls, reasoning, reasoningDetails);
+        return new ChatCompletionMessageResponse(content, refusal, role, toolCalls, reasoning, reasoningDetails);
     }
 
     public void testToXContentChunked_AllFields_DeltaWrapper() throws IOException {
-        var message = new ChatCompletionMessage(
+        var message = new ChatCompletionMessageResponse(
             "Hello!",
             null,
             "assistant",
@@ -124,7 +124,7 @@ public class ChatCompletionMessageTests extends AbstractBWCWireSerializationTest
     }
 
     public void testToXContentChunked_MessageWrapper() throws IOException {
-        var message = new ChatCompletionMessage("Hi", null, "user", null, null, null);
+        var message = new ChatCompletionMessageResponse("Hi", null, "user", null, null, null);
 
         assertThat(toXContent(message, "message"), is(XContentHelper.stripWhitespace("""
             {
@@ -138,7 +138,7 @@ public class ChatCompletionMessageTests extends AbstractBWCWireSerializationTest
 
     public void testToXContentChunked_EmptyToolCalls_ToolCallsOmitted() throws IOException {
         // tool_calls is only emitted when the list is non-null AND non-empty
-        var message = new ChatCompletionMessage("Hi", null, null, List.of(), null, null);
+        var message = new ChatCompletionMessageResponse("Hi", null, null, List.of(), null, null);
 
         assertThat(toXContent(message, "delta"), is(XContentHelper.stripWhitespace("""
             {
@@ -151,7 +151,7 @@ public class ChatCompletionMessageTests extends AbstractBWCWireSerializationTest
 
     public void testToXContentChunked_EmptyReasoningDetails_ReasoningDetailsOmitted() throws IOException {
         // reasoning_details is only emitted when the list is non-null AND non-empty
-        var message = new ChatCompletionMessage("Hi", null, null, null, "thinking...", List.of());
+        var message = new ChatCompletionMessageResponse("Hi", null, null, null, "thinking...", List.of());
 
         assertThat(toXContent(message, "delta"), is(XContentHelper.stripWhitespace("""
             {
@@ -163,7 +163,7 @@ public class ChatCompletionMessageTests extends AbstractBWCWireSerializationTest
             """)));
     }
 
-    static String toXContent(ChatCompletionMessage message, String messageFieldName) throws IOException {
+    static String toXContent(ChatCompletionMessageResponse message, String messageFieldName) throws IOException {
         var builder = JsonXContent.contentBuilder();
         builder.startObject();
         message.toXContentChunked(null, messageFieldName).forEachRemaining(chunk -> {

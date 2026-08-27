@@ -19,13 +19,16 @@
 #
 # Environment:
 #   TOOLCHAIN_IMAGE      Docker image for cross-compilation
-#                        (default: docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:3)
+#                        (default: es-simdjson-cross-toolchain:local, built on demand;
+#                         or docker.elastic.co/elasticsearch-infra/es-simdjson-cross-toolchain:1)
 #   ARTIFACTORY_API_KEY  Required for upload (non --local, or --force-upload)
 
 set -euo pipefail
 
 VERSION="0.1.0"
-DEFAULT_TOOLCHAIN_IMAGE="docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:3"
+LOCAL_TOOLCHAIN_IMAGE="es-simdjson-cross-toolchain:local"
+REMOTE_TOOLCHAIN_IMAGE="docker.elastic.co/elasticsearch-infra/es-simdjson-cross-toolchain:1"
+DEFAULT_TOOLCHAIN_IMAGE="${LOCAL_TOOLCHAIN_IMAGE}"
 
 LOCAL=false
 FORCE_UPLOAD=false
@@ -65,6 +68,11 @@ ensure_toolchain_image() {
   if docker image inspect "$TOOLCHAIN_IMAGE" > /dev/null 2>&1; then
     return
   fi
+  if [ "$TOOLCHAIN_IMAGE" = "$LOCAL_TOOLCHAIN_IMAGE" ]; then
+    echo "Building local simdjson toolchain image ${LOCAL_TOOLCHAIN_IMAGE} ..."
+    "$(dirname "$0")/build_cross_toolchain_image.sh" --local
+    return
+  fi
   echo "Toolchain image not found locally; pulling ${TOOLCHAIN_IMAGE} ..."
   docker pull "$TOOLCHAIN_IMAGE"
 }
@@ -92,7 +100,7 @@ run_make_all_in_toolchain() {
         apt-get install -y --no-install-recommends curl xz-utils bzip2 ca-certificates
         rm -rf /var/lib/apt/lists/*
       fi
-      make all
+      make all verify-linux-abi
     '
 }
 

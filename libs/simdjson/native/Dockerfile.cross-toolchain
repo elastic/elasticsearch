@@ -1,0 +1,36 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the "Elastic License
+# 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+# Public License v 1"; you may not use this file except in compliance with, at
+# your election, the "Elastic License 2.0", the "GNU Affero General Public
+# License v3.0 only", or the "Server Side Public License, v 1".
+#
+
+# Cross-compilation toolchain for libes_simdjson.
+# Extends es-native-cross-toolchain:3 (clang-21) with GCC 8 libstdc++ cross
+# headers and libraries so Linux binaries only require GLIBCXX_3.4.25 and run on
+# RHEL 8 / Ubuntu 18.04+ (glibc 2.28).
+#
+# To build locally:
+#   ./build_cross_toolchain_image.sh --local
+#
+# To use:
+#   docker run --rm -v $(pwd):/workspace -w /workspace <image> make all
+
+FROM docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:3
+
+# GCC 8 libstdc++ cross packages are no longer in current Debian releases;
+# pull them from the archived buster suite.
+RUN echo "deb [check-valid-until=no] http://archive.debian.org/debian buster main" \
+        > /etc/apt/sources.list.d/buster-libstdcxx8-archive.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        curl \
+        xz-utils \
+        bzip2 \
+        libstdc++-8-dev-arm64-cross \
+        libstdc++-8-dev-amd64-cross \
+        linux-libc-dev-arm64-cross \
+        linux-libc-dev-amd64-cross \
+    && rm -rf /var/lib/apt/lists/*

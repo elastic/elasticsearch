@@ -121,6 +121,12 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     private final String readConfig;
     // Mutable reader-level counters surfaced as a Map<String, Object> via {@link #statusSnapshot()};
     // shared across the parallel {@link NdJsonPageDecoder} segments spawned by {@link #read}.
+    //
+    // Sharing these across a wither is scoped deliberately, because the chain's root is the node-lifetime
+    // singleton {@link org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry} hands out per format.
+    // Every wither ABOVE the per-query snapshot reader takes fresh counters ({@code null} here), or all concurrent
+    // queries on this node would accumulate into one set. Only {@link #withReadConfig}, which runs per file BELOW
+    // the reader the status envelope snapshots, shares its parent's.
     private final NdJsonReaderCounters counters;
 
     public NdJsonFormatReader(Settings settings, BlockFactory blockFactory, List<Attribute> resolvedSchema) {
@@ -167,7 +173,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             canonicalConfig,
             declaredDateFormats,
             readConfig,
-            counters
+            null
         );
     }
 
@@ -186,9 +192,9 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             canonicalConfig,
             declaredDateFormats,
             newReadConfig,
-            // Shares this reader's counters: the status envelope is snapshotted from the factory's shared reader,
-            // and this wither runs at the per-file seam, so a copy with fresh counters accumulates where nobody
-            // reads. The CSV twin had the same defect and it surfaced as a zero read time in query metrics.
+            // The one wither that shares (see the field): this runs at the per-file seam, so a copy with fresh
+            // counters would accumulate where nobody reads. The CSV twin had that defect and it surfaced as a
+            // zero read time in query metrics.
             counters
         );
     }
@@ -208,7 +214,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             canonicalConfig,
             physicalNameToPattern,
             readConfig,
-            counters
+            null
         );
     }
 
@@ -235,7 +241,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             canon,
             declaredDateFormats,
             readConfig,
-            counters
+            null
         );
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }

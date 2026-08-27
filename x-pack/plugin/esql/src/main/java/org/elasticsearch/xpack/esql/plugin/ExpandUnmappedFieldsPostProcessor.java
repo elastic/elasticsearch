@@ -267,10 +267,10 @@ class ExpandUnmappedFieldsPostProcessor {
         int unmappedIdx,
         Block[] destBlocks,
         int dest,
-        boolean approximationColumns
+        boolean addApproximationColumns
     ) {
         for (int i = 0; i < schema.size(); i++) {
-            if (i == unmappedIdx || ApproximationPlan.isApproximationColumn(schema.get(i).name()) != approximationColumns) {
+            if (i == unmappedIdx || ApproximationPlan.isApproximationColumn(schema.get(i).name()) != addApproximationColumns) {
                 continue;
             }
             Block block = page.getBlock(i);

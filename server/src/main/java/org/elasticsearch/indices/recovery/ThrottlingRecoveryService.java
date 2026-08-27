@@ -46,6 +46,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SEND;
+import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SILENT;
+
 /// Limit the number of concurrent recoveries. Slots are filled when dispatching a recovery task to the executor and
 /// released when the recovery's [RecoveryListener] completes.
 /// The max number of concurrent recovery slots is controlled by the [#INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING]
@@ -194,7 +197,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                                 recoveryState.getSourceNode(),
                                 recoveryState.getTargetNode()
                             ),
-                            true
+                            FAIL_SEND
                         );
                     schedulingListener.onRecoveryCancelledBeforeQueuingOnTarget(recoveryType);
                 });
@@ -239,7 +242,10 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
             logger.trace("cancelling recovery in queue: {}", state);
             RecoveryListener.wrapPreservingContext(pendingRecovery.listener, pendingRecovery.context)
-                .onRecoveryFailure(new RecoveryCancelledException(state.getShardId(), state.getSourceNode(), state.getTargetNode()), false);
+                .onRecoveryFailure(
+                    new RecoveryCancelledException(state.getShardId(), state.getSourceNode(), state.getTargetNode()),
+                    FAIL_SILENT
+                );
             schedulingListener.onQueuedRecoveryCancelledOnTarget(state.getRecoverySource().getType(), pendingRecovery.priorityGroup());
             cancelledInQueue.add(pendingRecovery.allocationId());
         }
@@ -290,7 +296,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                 stale.listener()
                     .onRecoveryFailure(
                         new RecoveryCancelledException(state.getShardId(), state.getSourceNode(), state.getTargetNode()),
-                        false
+                        FAIL_SILENT
                     );
                 schedulingListener.onQueuedRecoveryDiscardedOnTarget(state.getRecoverySource().getType(), stale.priorityGroup());
             });
@@ -343,15 +349,25 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         return lifecycle.stoppedOrClosed();
     }
 
+    private boolean isBlocked() {
+        return blockedState.get() != null;
+    }
+
     /// Evaluates the recovery gates and drains the pending queue up to the max slot capacity, forking to the generic executor so
     /// dispatch is not run on the cluster state applier thread. Called on every enqueue, slot release and recovery gate callback.
     private void fillSlots() {
+        if (isBlocked()) {
+            return;
+        }
         // generic thread pool is unbounded and does not reject
         executor.execute(this::doFillSlots);
     }
 
     private void doFillSlots() {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
+        if (isBlocked()) {
+            return;
+        }
         final RecoveryGate.Decision decision = recoveryGateMonitor.evaluate();
         if (decision.mayRun() == false) {
             onRecoveriesBlocked(decision);
@@ -575,7 +591,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
         @Override
         public void onFailure(Exception e) {
-            listener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), true);
+            listener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), FAIL_SEND);
         }
 
         @Override

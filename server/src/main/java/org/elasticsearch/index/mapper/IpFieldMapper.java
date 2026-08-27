@@ -69,6 +69,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
@@ -790,8 +791,8 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean isSingleValueEnforced() {
-        return docValuesParameters.multiValue() == false;
+    protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
+        return docValuesParameters.multiValue() == false && (token != XContentParser.Token.VALUE_NULL || nullValue != null);
     }
 
     @Override
@@ -812,17 +813,6 @@ public class IpFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return fieldType().typeName();
-    }
-
-    @Override
-    public boolean supportsBatchIndexing() {
-        // Plain ip mappers can be driven through parseCreateField by the bulk batch path.
-        // ignore_malformed and null_value are allowed. Dimensions, copy_to, multi-fields, and
-        // scripts pull in behavior that the batch path does not support.
-        return hasScript() == false
-            && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false
-            && fieldType().isDimension() == false;
     }
 
     @Override
@@ -1186,6 +1176,9 @@ public class IpFieldMapper extends FieldMapper {
 
                 if (ignoreMalformed) {
                     layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
+                }
+                if (onFailureColumnEnabled()) {
+                    layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
                 }
                 return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
             });

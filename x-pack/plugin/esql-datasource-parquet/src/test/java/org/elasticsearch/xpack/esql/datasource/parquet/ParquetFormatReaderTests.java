@@ -35,6 +35,7 @@ import org.apache.parquet.schema.MessageTypeParser;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -52,13 +53,16 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
@@ -66,6 +70,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
@@ -3239,7 +3244,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             .build();
         try (
             org.apache.parquet.hadoop.ParquetFileReader reader = org.apache.parquet.hadoop.ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(storageObject, blockFactory.arrowAllocator()),
+                new ParquetStorageObjectAdapter(storageObject, blockFactory.breaker()),
                 options
             )
         ) {
@@ -3510,7 +3515,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertTrue(ex.getMessage(), ex.getMessage().contains("https://host/obj.parquet"));
     }
 
-    public void testCorruptDataPageProducesIllegalArgumentException() throws Exception {
+    public void testCorruptDataPageIsClient400() throws Exception {
         MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
         byte[] parquetData = createParquetFile(schema, factory -> {
             List<Group> groups = new ArrayList<>();
@@ -3536,14 +3541,15 @@ public class ParquetFormatReaderTests extends ESTestCase {
         // metadata() should still succeed (footer is intact)
         SourceMetadata metadata = reader.metadata(storageObject);
         assertNotNull(metadata);
-        // read() should fail with IllegalArgumentException (not ElasticsearchException/500)
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
+        // read() should fail as a client-class 400 (I/O / malformed page), not a server 500
+        Exception ex = expectThrows(Exception.class, () -> {
             try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 100)) {
                 while (iterator.hasNext()) {
                     iterator.next().releaseBlocks();
                 }
             }
         });
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(ex)));
         assertThat(ex.getMessage(), containsString("id"));
     }
 
@@ -4100,7 +4106,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 new RangeReadContext(List.of("x"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.STRICT)
             )
         ) {
-            expectThrows(IllegalArgumentException.class, () -> {
+            expectThrows(InvalidArgumentException.class, () -> {
                 while (it.hasNext()) {
                     it.next().releaseBlocks();
                 }
@@ -4325,7 +4331,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
                     new RangeReadContext(List.of("ts"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.STRICT)
                 )
             ) {
-                expectThrows(IllegalArgumentException.class, () -> {
+                expectThrows(InvalidArgumentException.class, () -> {
                     while (it.hasNext()) {
                         it.next().releaseBlocks();
                     }
@@ -4429,7 +4435,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 new RangeReadContext(List.of("vals"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.STRICT)
             )
         ) {
-            expectThrows(IllegalArgumentException.class, () -> {
+            expectThrows(InvalidArgumentException.class, () -> {
                 while (it.hasNext()) {
                     it.next().releaseBlocks();
                 }
@@ -6569,7 +6575,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
             false,
             null,
             null,
-            threeColumnSchema()
+            threeColumnSchema(),
+            FormatReader.NO_LIMIT
         );
         assertNotNull("full scan must gate (non-null sets), not fall back to unrestricted", paths.columnIndexPaths());
         assertNotNull(paths.offsetIndexPaths());
@@ -6587,7 +6594,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
             true,
             Set.of("a"),
             null,
-            threeColumnSchema()
+            threeColumnSchema(),
+            FormatReader.NO_LIMIT
         );
         assertEquals("only the predicate column needs a column index", Set.of("a"), paths.columnIndexPaths());
         assertEquals(
@@ -6603,7 +6611,14 @@ public class ParquetFormatReaderTests extends ESTestCase {
      */
     public void testComputeIndexColumnPathsNonProjectedPredicateColumn() {
         MessageType projected = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("b").named("schema");
-        ParquetFormatReader.IndexColumnPaths paths = ParquetFormatReader.computeIndexColumnPaths(true, true, Set.of("a"), null, projected);
+        ParquetFormatReader.IndexColumnPaths paths = ParquetFormatReader.computeIndexColumnPaths(
+            true,
+            true,
+            Set.of("a"),
+            null,
+            projected,
+            FormatReader.NO_LIMIT
+        );
         assertEquals(Set.of("a"), paths.columnIndexPaths());
         assertEquals(
             "predicate column a (not projected) and projected column b both need offset index",
@@ -6622,7 +6637,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
             false,
             null,
             "a",
-            threeColumnSchema()
+            threeColumnSchema(),
+            FormatReader.NO_LIMIT
         );
         assertEquals(Set.of("a"), paths.columnIndexPaths());
         assertEquals(Set.of("a"), paths.offsetIndexPaths());
@@ -6638,7 +6654,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
             true,
             null,
             null,
-            threeColumnSchema()
+            threeColumnSchema(),
+            FormatReader.NO_LIMIT
         );
         assertNull("legacy filter path must not gate", paths.columnIndexPaths());
         assertNull("legacy filter path must not gate", paths.offsetIndexPaths());
@@ -6656,7 +6673,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
             false,
             Set.of("a"),
             null,
-            threeColumnSchema()
+            threeColumnSchema(),
+            FormatReader.NO_LIMIT
         );
         assertNotNull("must gate (non-null sets), not fall back to unrestricted", paths.columnIndexPaths());
         assertNotNull(paths.offsetIndexPaths());

@@ -552,6 +552,26 @@ centroid:geo_point                              | count:long | centroid_in_uk:bo
 POINT (-2.597342072712148 54.33551226578214)    | 17         | true                   | false                       | true                       | false                           | false                        | false
 ;
 
+centroidFromAirportsWithToStringDocValuesEval
+required_capability: st_centroid_agg
+required_capability: fix_spatial_doc_values_non_spatial_eval
+
+// Reproducer for https://github.com/elastic/elasticsearch/issues/141300
+// TO_STRING applied to a geo_point field should not cause a ClassCastException when the same field
+// is also consumed by ST_CENTROID_AGG, which can trigger the SpatialDocValuesExtraction optimization
+// that changes the field's block type from BytesRefBlock (WKB) to LongBlock (doc-values encoding).
+// All geo_point WKT strings start with "POINT", so SUBSTRING(TO_STRING(location), 1, 5) groups
+// all airports into a single "POINT" bucket, yielding the same centroid as ST_CENTROID_AGG(location).
+FROM airports
+| EVAL location_str = SUBSTRING(TO_STRING(location), 1, 5)
+| STATS centroid = ST_CENTROID_AGG(location) BY location_str
+| SORT location_str
+;
+
+centroid:geo_point                             | location_str:keyword
+POINT(-0.030548143003023033 24.37553649504829) | POINT
+;
+
 centroidFromAirportsAfterIntersectsEvalExpression
 required_capability: st_intersects
 

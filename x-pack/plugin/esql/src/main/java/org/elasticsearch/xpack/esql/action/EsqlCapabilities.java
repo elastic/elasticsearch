@@ -3757,6 +3757,17 @@ public class EsqlCapabilities {
          */
         PER_AGGREGATE_WINDOWS,
 
+        /**
+         * Fix for a bug where {@code TO_STRING} (and other non-spatial functions) applied to a spatial
+         * field like {@code geo_point} would throw a {@code ClassCastException} when the field was also
+         * consumed by a spatial aggregation or spatial function that triggered the doc-values extraction
+         * optimization in {@code SpatialDocValuesExtraction}. The optimization changed the field's block
+         * type from {@code BytesRefBlock} (WKB from source) to {@code LongBlock} (doc-values encoding),
+         * but did not inform non-spatial evaluators like {@code ToStringFromGeoPointEvaluator}.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/141300">#141300</a>.
+         */
+        FIX_SPATIAL_DOC_VALUES_NON_SPATIAL_EVAL,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

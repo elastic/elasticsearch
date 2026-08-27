@@ -89,6 +89,14 @@ public class ElasticInferenceServiceResponseHandlerTests extends ESTestCase {
                     ) },
                 {
                     new FailureTestCase(
+                        422,
+                        RestStatus.UNPROCESSABLE_ENTITY,
+                        "Received an input validation error response for request from inference entity id [id] status [422]",
+                        false,
+                        Map.of()
+                    ) },
+                {
+                    new FailureTestCase(
                         429,
                         RestStatus.TOO_MANY_REQUESTS,
                         "Received a rate limit status code for request from inference entity id [id] status [429]",

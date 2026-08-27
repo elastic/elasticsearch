@@ -77,6 +77,16 @@ public class JinaAIResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
+    public void testBuildFailureStatusCodeException_ReturnsFor422() {
+        var exception = callHandleFailureStatusCode(422, "id");
+        assertFalse(exception.shouldRetry());
+        assertThat(
+            exception.getCause().getMessage(),
+            containsString("Received an input validation error response for request from inference entity id [id] status [422]")
+        );
+        assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.UNPROCESSABLE_ENTITY));
+    }
+
     public void testBuildFailureStatusCodeException_ReturnsFor401() {
         var exception = callHandleFailureStatusCode(401, "inferenceEntityId");
         assertFalse(exception.shouldRetry());

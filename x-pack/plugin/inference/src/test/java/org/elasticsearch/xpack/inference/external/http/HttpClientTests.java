@@ -240,6 +240,7 @@ public class HttpClientTests extends ESTestCase {
     public void testStream_CancelAfterPauseReleasesConnection() throws Exception {
         var serverDone = new CountDownLatch(1);
         var chunkSent = new CountDownLatch(1);
+        var subscriberReady = new CountDownLatch(1);
         long serverThreadJoinTimeoutMillis = TimeUnit.SECONDS.toMillis(5);
         var serverSocket = new ServerSocket(0, 1, InetAddress.getLoopbackAddress());
         var serverThread = new Thread(() -> {
@@ -253,6 +254,12 @@ public class HttpClientTests extends ESTestCase {
                     Transfer-Encoding: chunked\r
                     \r
                     """.getBytes(StandardCharsets.US_ASCII));
+                // Flush headers so subcriber can subscribe before body is sent
+                out.flush();
+
+                // Wait until the subscriber has subscribed
+                subscriberReady.await(TEST_REQUEST_TIMEOUT.seconds(), TimeUnit.SECONDS);
+
                 byte[] chunk = randomAlphaOfLength(8192).getBytes(StandardCharsets.UTF_8);
                 out.write((Integer.toHexString(chunk.length) + "\r\n").getBytes(StandardCharsets.US_ASCII));
                 out.write(chunk);
@@ -318,6 +325,8 @@ public class HttpClientTests extends ESTestCase {
                     public void onComplete() {}
                 });
                 assertTrue("subscriber must be onSubscribe'd", subscribed.await(TEST_REQUEST_TIMEOUT.seconds(), TimeUnit.SECONDS));
+                // Subscriber is now registered
+                subscriberReady.countDown();
 
                 assertBusy(
                     () -> assertThat(connectionManager.getTotalStats().getLeased(), equalTo(1)),

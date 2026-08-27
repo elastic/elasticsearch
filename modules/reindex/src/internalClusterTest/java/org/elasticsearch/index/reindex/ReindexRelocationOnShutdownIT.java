@@ -869,7 +869,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
             : "We want to send a request every 500ms and we want the whole thing to take 60s, so we need at least 120 docs";
         final float documentsPerSecond = numDocuments / 60f;
         request.setRequestsPerSecond(documentsPerSecond);
-        request.getSearchRequest().source().size(numDocuments / 120);
+        request.getSearchRequest().source().size(Math.max(1, numDocuments / 120));
         return request;
     }
 }

@@ -2544,8 +2544,9 @@ public class ExternalSourceResolver {
      *       {@link #warmsRowCountSafely} keeps those off the warm path — they re-scan, still returning the correct
      *       count.</li>
      * </ul>
-     * The two guards make the served row-count not merely a correct NUMBER for every declaration but every
-     * declaration's OWN answer. An earlier revision of this javadoc disclosed a residual here: a strict dataset
+     * The two guards make the served row-count a correct NUMBER for every declaration, and for every DECLARED
+     * reader its own answer. One direction is not covered and is disclosed below. An earlier revision of this
+     * javadoc disclosed a different residual here, which does not exist: a strict dataset
      * declaring FEWER columns than the file was believed to ERROR on {@code COUNT(*)} under {@code FAIL_FAST}
      * (rows overflowing the declared width), which a foreign declaration's warm count would then mask. The premise
      * is false: a DECLARED schema binds by name and imposes no row-width limit — the CSV reader's
@@ -2556,6 +2557,15 @@ public class ExternalSourceResolver {
      * concept. So a narrower strict declaration's own {@code COUNT(*)} commits the physical record count — the same
      * number the shared entry serves — and the file+config-shared entry is exact for the one statistic it serves.
      * <p>
+     * The direction that IS open runs the other way, and is a pre-existing property of the {@code FAIL_FAST}
+     * licence rather than anything this identity introduces. A read bound POSITIONALLY — a pinned-inferred read —
+     * does carry the row-width tripwire, so a file whose later rows are wider than its inference sample aborts on
+     * {@code COUNT(*)} when read that way. A by-name declared read of the same file+config completes, commits the
+     * physical count, and stamps it read-configuration-independent; the entry matches on path, mtime and config
+     * fingerprint, so the licence carries that count back to the positional reader, which then answers where its
+     * own scan errors. A masked abort, not a wrong number, and it flaps with cache state. Withdrawing the licence
+     * would close it and stop every strict dataset warming; scoping it to the binding mode that produced the count
+     * would close it without that cost, and is the shape of the fix if this is ever worth closing.
      * File-typed (columnar) formats are excluded: they already warm via split-discovery per-split stats, and the strict
      * columnar coercibility check seeds a physical-schema entry under the inferred key. The non-cacheable branch (e.g.
      * HTTP, no stable mtime) keeps the stat-less metadata: there is nothing to warm from. Warming MIN/MAX and the

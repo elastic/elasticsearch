@@ -125,9 +125,11 @@ public abstract class AbstractExternalReadConfigParityIT extends AbstractExterna
         String uri = StoragePath.fileUri(file);
         String dataset = register("dupes", uri + "," + uri, null);
 
-        long cold = count(dataset);
-        assertThat("a file listed twice is read twice", cold, equalTo(2L * ROWS));
-        assertThat("warm must agree with cold — the same query cannot depend on cache state", count(dataset), equalTo(cold));
+        assertCount(dataset, 2L * ROWS, 2L * ROWS); // cold: a file listed twice is read twice
+        // Warm must agree with cold — the same query cannot depend on cache state. The scanned-rows assertion is
+        // what makes this a fold test: without it, a dead warm rail leaves both passes cold, they agree trivially,
+        // and the positional-fold property this exists to pin evaporates while the test stays green.
+        assertCount(dataset, 2L * ROWS, 0L);
     }
 
     /**

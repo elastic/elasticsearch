@@ -140,10 +140,22 @@ public record SchemaCacheKey(
      * Under a lenient error policy ({@code skip_row}/{@code null_field}) a harvested row count IS
      * declaration-dependent, which is why the resolved read configuration now participates in the stats identity
      * ({@link ReadConfigFingerprint}): a harvest may only enrich, and an entry may only serve, a read of the
-     * same read configuration. The dataset aggregate memoizes exactly what the per-file rail serves, so it inherits that
-     * gate rather than needing one of its own. What still crosses read configurations is the physical record count under
+     * same read configuration. What still crosses read configurations is the physical record count under
      * {@code FAIL_FAST}, licensed by the producer because there the count is the same number for every
      * declaration.
+     * <p>
+     * <b>The dataset aggregate does NOT inherit that gate</b>, and an earlier revision of this javadoc claimed it
+     * did. The aggregate entry stores a bare row count with no read-configuration stamp and no licence, so the
+     * serve path's unstamped pass-through — which exists for the columnar readers, that harvest without stamping —
+     * fires on it. Nothing compares the configuration that produced the aggregate against the one consuming it.
+     * <p>
+     * It is not a wrong answer today, and each reason is an accident rather than a guard. The strict multi-file
+     * rail never reaches the aggregate at all. A non-strict overlay only retypes and renames in place, never
+     * appends, so a projection-less {@code COUNT(*)} sees the same survivor set under every read configuration
+     * this rail can reach. And a projection-decided drop suppresses its publish at the producer, so a
+     * survivor-count-dependent aggregate is never built. Change any one of those and this becomes a silent wrong
+     * count with no failing test. The fix, if it is ever worth doing, is to stamp the aggregate with the fold's
+     * read configuration and licence and gate the serve, exactly as the per-file rail does.
      */
     public static SchemaCacheKey forDatasetAggregate(
         String pattern,

@@ -12,9 +12,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 public class CsvSchemaInferrerTests extends ESTestCase {
 
@@ -434,6 +436,75 @@ public class CsvSchemaInferrerTests extends ESTestCase {
             null
         );
         assertSame("absence is not evidence, so nothing should widen", schema, widened);
+    }
+
+    /**
+     * A canonical value for each type this rail can infer, so a pair of types can be turned into a
+     * two-row column and put through real inference.
+     */
+    private static String canonicalValueFor(DataType type) {
+        return switch (type) {
+            case BOOLEAN -> "true";
+            case INTEGER -> "42";
+            case LONG -> "9999999999";
+            case DOUBLE -> "3.14";
+            case DATETIME -> "2024-05-01T10:00:00Z";
+            case DATE_NANOS -> "2024-05-01T10:00:00.000000001Z";
+            case KEYWORD -> "hello";
+            default -> throw new AssertionError("no canonical value for " + type);
+        };
+    }
+
+    private static final List<DataType> INFERABLE = List.of(
+        DataType.BOOLEAN,
+        DataType.INTEGER,
+        DataType.LONG,
+        DataType.DOUBLE,
+        DataType.DATETIME,
+        DataType.DATE_NANOS,
+        DataType.KEYWORD
+    );
+
+    /**
+     * Ordered type pairs where this rail does NOT yet agree with the shared lattice. Every entry is a
+     * numeric value followed by a timestamp, which the candidate ladder walks up to the temporal rung
+     * instead of asking what a number and a timestamp combine to; the bare number then decodes as an
+     * instant near the epoch. That is elastic/esql-planning#1807, and emptying this set is what fixing
+     * it looks like.
+     * <p>
+     * The set is stated rather than the assertion being skipped, so the divergence is visible and
+     * bounded: a pair that starts disagreeing for some other reason fails immediately.
+     */
+    private static final Set<String> KNOWN_DIVERGENT_CELLS = Set.of(
+        "INTEGER,DATETIME",
+        "LONG,DATETIME",
+        "DOUBLE,DATETIME",
+        "INTEGER,DATE_NANOS",
+        "LONG,DATE_NANOS",
+        "DOUBLE,DATE_NANOS"
+    );
+
+    /**
+     * Inference over a two-value column must land where {@link TypeWidening} says those two types
+     * combine, whichever order the rows arrive in. This is the guard that makes the four scattered
+     * answers stay one answer: a type added to the ladder but not the lattice, or a promotion added to
+     * one and not the other, fails here.
+     */
+    public void testEveryOrderedTypePairAgreesWithTheLattice() {
+        List<String> unexpected = new ArrayList<>();
+        for (DataType first : INFERABLE) {
+            for (DataType second : INFERABLE) {
+                DataType inferred = inferOne(canonicalValueFor(first), canonicalValueFor(second));
+                DataType expected = TypeWidening.join(first, second, TypeWidening.Policy.INFERENCE);
+                boolean known = KNOWN_DIVERGENT_CELLS.contains(first + "," + second);
+                if (inferred == expected && known) {
+                    unexpected.add(first + "," + second + " now agrees (" + inferred + ") — remove it from the known set");
+                } else if (inferred != expected && known == false) {
+                    unexpected.add(first + "," + second + " inferred " + inferred + ", lattice says " + expected);
+                }
+            }
+        }
+        assertTrue(String.join("\n", unexpected), unexpected.isEmpty());
     }
 
     public void testSynthesizeColumnNames() {

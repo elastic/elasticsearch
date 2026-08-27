@@ -814,3 +814,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.cluster.FloatLloydKMeansLocalTests
   method: testComputeNeighbours
   issue: https://github.com/elastic/elasticsearch/issues/157870
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecDenseVectorIT
+  method: test {csv-spec:dense_vector.limitByDenseVectorN2}
+  issue: https://github.com/elastic/elasticsearch/issues/157875

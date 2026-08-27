@@ -1,0 +1,135 @@
+# Tests for the shards_availability indicator on stateless clusters only
+---
+setup:
+  - requires:
+      cluster_features: "health.stateless_shards_availability"
+      reason: "Must run these tests on the stateless shards_availability indicator only since it differs to stateful"
+
+---
+"Red when index allocation is disabled on a stateless cluster":
+  - requires:
+      cluster_features: "gte_v8.7.0"
+      reason: "the API path changed in 8.7"
+
+  - do:
+      indices.create:
+        index: red_index
+        master_timeout: 1s
+        timeout: 1s
+        wait_for_active_shards: 0
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            index.routing.allocation.enable: none
+
+  - do:
+      health_report:
+        feature: shards_availability
+
+  - is_true: cluster_name
+  - match: { indicators.shards_availability.status: "red" }
+  - match: { indicators.shards_availability.symptom: "This cluster has 1 unavailable primary shard." }
+
+  - match: { indicators.shards_availability.details.unassigned_primaries: 1 }
+  - match: { indicators.shards_availability.details.unassigned_replicas: 0 }
+  - match: { indicators.shards_availability.details.initializing_primaries: 0 }
+  - match: { indicators.shards_availability.details.creating_primaries: 0 }
+  - match: { indicators.shards_availability.details.restarting_primaries: 0 }
+  - match: { indicators.shards_availability.details.initializing_replicas: 0 }
+  - match: { indicators.shards_availability.details.creating_replicas: 0 }
+  - match: { indicators.shards_availability.details.restarting_replicas: 0 }
+  - exists: indicators.shards_availability.details.started_primaries
+  - exists: indicators.shards_availability.details.started_replicas
+    # These are stateless only fields
+  - match: { indicators.shards_availability.details.indices_with_unavailable_primaries: "${_project_id_prefix_}red_index" }
+  - is_false: indicators.shards_availability.details.indices_with_unavailable_replicas
+  - is_false: indicators.shards_availability.details.indices_with_provisionally_unavailable_primaries
+  - is_false: indicators.shards_availability.details.indices_with_provisionally_unavailable_replicas
+
+  - length: { indicators.shards_availability.impacts: 1 }
+  - match: { indicators.shards_availability.impacts.0.id: "elasticsearch:health:shards_availability:impact:primary_unassigned" }
+  - match: { indicators.shards_availability.impacts.0.severity: 1 }
+  - match: { indicators.shards_availability.impacts.0.impact_areas.0: "ingest" }
+  - match: { indicators.shards_availability.impacts.0.impact_areas.1: "search" }
+  - match: { indicators.shards_availability.impacts.0.description: "Cannot add data to 1 index [${_project_id_prefix_}red_index]. Searches might return incomplete results." }
+
+  - length: { indicators.shards_availability.diagnosis: 1 }
+  - match: { indicators.shards_availability.diagnosis.0.id: "elasticsearch:health:shards_availability:diagnosis:enable_index_allocations" }
+  - match: { indicators.shards_availability.diagnosis.0.cause: "Elasticsearch isn't allowed to allocate some shards from these indices because allocation for those shards has been disabled at the index level." }
+  - match: { indicators.shards_availability.diagnosis.0.action: "Check that the [index.routing.allocation.enable] index settings are set to [all]." }
+  - match: { indicators.shards_availability.diagnosis.0.help_url: "https://ela.st/fix-index-allocation" }
+  - match: { indicators.shards_availability.diagnosis.0.affected_resources.indices.0: "${_project_id_prefix_}red_index" }
+
+---
+# Stateless reports red (stateful is yellow) when every replica copy is unavailable
+"Red when all replicas are unassigned on a stateless cluster":
+  - requires:
+      cluster_features: "gte_v8.7.0"
+      test_runner_features: contains
+      reason: "the API path changed in 8.7"
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            # By default, replicas have a 25s grace window before the indicator turns yellow
+            health.shards_availability.replica_unassigned_buffer_time: 0s
+
+  - do:
+      indices.create:
+        index: red_replica_index
+        master_timeout: 1s
+        timeout: 1s
+        wait_for_active_shards: 1
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 1
+            index.routing.allocation.enable: primaries
+
+  - do:
+      cluster.health:
+        index: red_replica_index
+        wait_for_status: yellow
+        wait_for_active_shards: 1
+        wait_for_no_initializing_shards: true
+        timeout: 30s
+
+  - do:
+      health_report:
+        feature: shards_availability
+
+  - is_true: cluster_name
+  - match: { indicators.shards_availability.status: "red" }
+  - match: { indicators.shards_availability.symptom: "This cluster has 1 unavailable replica shard." }
+
+  - match: { indicators.shards_availability.details.unassigned_primaries: 0 }
+  - match: { indicators.shards_availability.details.unassigned_replicas: 1 }
+  - match: { indicators.shards_availability.details.initializing_primaries: 0 }
+  - match: { indicators.shards_availability.details.creating_primaries: 0 }
+  - match: { indicators.shards_availability.details.restarting_primaries: 0 }
+  - match: { indicators.shards_availability.details.initializing_replicas: 0 }
+  - match: { indicators.shards_availability.details.creating_replicas: 0 }
+  - match: { indicators.shards_availability.details.restarting_replicas: 0 }
+  - exists: indicators.shards_availability.details.started_primaries
+  - exists: indicators.shards_availability.details.started_replicas
+  - is_false: indicators.shards_availability.details.indices_with_unavailable_primaries
+  - match: { indicators.shards_availability.details.indices_with_unavailable_replicas: "${_project_id_prefix_}red_replica_index" }
+  - is_false: indicators.shards_availability.details.indices_with_provisionally_unavailable_primaries
+  - is_false: indicators.shards_availability.details.indices_with_provisionally_unavailable_replicas
+
+  - length: { indicators.shards_availability.impacts: 1 }
+  - match: { indicators.shards_availability.impacts.0.id: "elasticsearch:health:shards_availability:impact:all_replicas_unassigned" }
+  - match: { indicators.shards_availability.impacts.0.severity: 1 }
+  - match: { indicators.shards_availability.impacts.0.impact_areas.0: "search" }
+  - match: { indicators.shards_availability.impacts.0.description: "Not all data is searchable. No searchable copies of the data exist on 1 index [${_project_id_prefix_}red_replica_index]." }
+
+  - is_true: indicators.shards_availability.diagnosis
+  - contains: { indicators.shards_availability.diagnosis: { id: "elasticsearch:health:shards_availability:diagnosis:enable_index_allocations" } }
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            health.shards_availability.replica_unassigned_buffer_time: null

@@ -774,7 +774,7 @@ public final class DocumentParser {
                 context.getOffSetContext().maybeRecordEmptyArray(mapper.getOffsetFieldName());
             } else if (mapper.storesArrayValuesInOrder()) {
                 // In-order values live in the field's own binary doc-values column, so the field name is just its full path.
-                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordEmptyArray(context.doc(), mapper.fullPath());
+                mapper.recordEmptyArrayInOrder(context.doc());
             }
         }
         postProcessDynamicArrayMapping(context, lastFieldName, valueElements);

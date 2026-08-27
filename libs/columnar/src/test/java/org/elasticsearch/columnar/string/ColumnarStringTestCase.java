@@ -30,7 +30,12 @@ import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
 /**
  * Base class for tests that need a string column on disk. It owns the whole lifecycle — the data and meta files,
  * their headers and footers, the metadata round trip, and closing the directory and input afterwards — so a test
- * describes a column as an array of per-document values and asserts against a reader over it.
+ * describes a column as an array of per-document slots and asserts against a reader over it.
+ *
+ * <p>A column is described as {@code BytesRef[][]}: a {@code null} row is a document with no value at all, and a
+ * {@code null} element within a row is a null slot. A row must hold at least one non-null slot, matching the
+ * mapper's rule that a document with no non-null value writes no binary field — the shape the codec therefore
+ * never sees.
  *
  * <p>The files are fixtures rather than real segments — this class writes and reads them both — so they carry
  * their own codec names. Nothing here has to track the names the format itself uses.
@@ -55,15 +60,15 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
      * <p>The block size, the chunk codec and the bytes a chunk holds are all random, so repeated runs land the
      * values on different block boundaries and different chunk boundaries, and read them back both verbatim
      * and compressed. A test that needs particular boundaries fixes them with
-     * {@link #withColumn(BytesRef[], int, ChunkCodec, int, ColumnCheck)}.
+     * {@link #withColumn(BytesRef[][], StringBinaryPayload.Framing, int, ChunkCodec, int, ColumnCheck)}.
      */
     protected void withColumn(final BytesRef[] docValues, final ColumnCheck check) throws IOException {
-        withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), check);
+        withColumn(singleValued(docValues), check);
     }
 
     /** As {@link #withColumn(BytesRef[], ColumnCheck)}, with the block size fixed. */
     protected void withColumn(final BytesRef[] docValues, final int blockSize, final ColumnCheck check) throws IOException {
-        withColumn(docValues, blockSize, randomChunkCodec(), randomTargetChunkBytes(), check);
+        withColumn(singleValued(docValues), blockSize, check);
     }
 
     /** As {@link #withColumn(BytesRef[], ColumnCheck)}, with every layout choice fixed. */
@@ -74,14 +79,65 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         final int targetChunkBytes,
         final ColumnCheck check
     ) throws IOException {
+        final BytesRef[][] docSlots = singleValued(docValues);
+        withColumn(docSlots, framingFor(docSlots), blockSize, chunkCodec, targetChunkBytes, check);
+    }
+
+    /** As {@link #withColumn(BytesRef[], ColumnCheck)}, over a column whose documents may hold several slots. */
+    protected void withColumn(final BytesRef[][] docSlots, final ColumnCheck check) throws IOException {
+        withColumn(docSlots, framingFor(docSlots), randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), check);
+    }
+
+    /** As {@link #withColumn(BytesRef[][], ColumnCheck)}, with the block size fixed. */
+    protected void withColumn(final BytesRef[][] docSlots, final int blockSize, final ColumnCheck check) throws IOException {
+        withColumn(docSlots, framingFor(docSlots), blockSize, randomChunkCodec(), randomTargetChunkBytes(), check);
+    }
+
+    /** As {@link #withColumn(BytesRef[][], ColumnCheck)}, with every layout choice fixed. */
+    protected void withColumn(
+        final BytesRef[][] docSlots,
+        final StringBinaryPayload.Framing framing,
+        final int blockSize,
+        final ChunkCodec chunkCodec,
+        final int targetChunkBytes,
+        final ColumnCheck check
+    ) throws IOException {
         final byte[] segmentId = new byte[16];
         random().nextBytes(segmentId);
         try (Directory dir = newDirectory()) {
-            final StringColumnMetadata metadata = writeColumn(dir, segmentId, docValues, blockSize, chunkCodec, targetChunkBytes);
+            final StringColumnMetadata metadata = writeColumn(dir, segmentId, docSlots, framing, blockSize, chunkCodec, targetChunkBytes);
             try (IndexInput data = openData(dir, segmentId)) {
                 check.check(metadata, new StringColumnReader(metadata, data));
             }
         }
+    }
+
+    /**
+     * Random per-document slots. {@code sparse} leaves some documents without a value at all; {@code nulls}
+     * puts null slots among the values, always leaving a document at least one non-null slot so the result
+     * is a column the mapper could really have produced.
+     */
+    protected static BytesRef[][] randomDocSlots(final int maxDoc, final int maxSlots, final boolean sparse, final boolean nulls) {
+        final BytesRef[][] docSlots = new BytesRef[maxDoc][];
+        for (int doc = 0; doc < maxDoc; doc++) {
+            if (sparse && randomBoolean()) {
+                continue;
+            }
+            final BytesRef[] slots = new BytesRef[between(1, maxSlots)];
+            int nonNull = 0;
+            for (int slot = 0; slot < slots.length; slot++) {
+                if (nulls && randomBoolean()) {
+                    continue;
+                }
+                slots[slot] = new BytesRef(randomAlphaOfLengthBetween(0, 40));
+                nonNull++;
+            }
+            if (nonNull == 0) {
+                slots[between(0, slots.length - 1)] = new BytesRef(randomAlphaOfLengthBetween(0, 40));
+            }
+            docSlots[doc] = slots;
+        }
+        return docSlots;
     }
 
     /** Verbatim or compressed; a value must read back the same either way. */
@@ -97,6 +153,44 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         return randomFrom(64, 512, 4096, 64 * 1024);
     }
 
+    /** One slot per document, so a {@code BytesRef[]} column reads as the degenerate {@code BytesRef[][]} one. */
+    protected static BytesRef[][] singleValued(final BytesRef[] docValues) {
+        final BytesRef[][] docSlots = new BytesRef[docValues.length][];
+        for (int doc = 0; doc < docValues.length; doc++) {
+            docSlots[doc] = docValues[doc] == null ? null : new BytesRef[] { docValues[doc] };
+        }
+        return docSlots;
+    }
+
+    /**
+     * A framing the column can actually express: only {@code ARRAY_ORDER} biases a length, so only it can carry
+     * a null slot, and only {@code PLAIN} needs every document to hold exactly one. Where several would do, all
+     * of them are exercised across runs.
+     */
+    protected static StringBinaryPayload.Framing framingFor(final BytesRef[][] docSlots) {
+        if (hasNullSlot(docSlots)) {
+            return StringBinaryPayload.Framing.ARRAY_ORDER;
+        }
+        if (numValues(docSlots) > numDocsWithField(docSlots)) {
+            // PLAIN has nowhere to put a count, so it only describes a column of one slot per document.
+            return randomFrom(StringBinaryPayload.Framing.SEPARATE_COUNT, StringBinaryPayload.Framing.ARRAY_ORDER);
+        }
+        return randomFrom(StringBinaryPayload.Framing.values());
+    }
+
+    private static boolean hasNullSlot(final BytesRef[][] docSlots) {
+        for (BytesRef[] slots : docSlots) {
+            if (slots != null) {
+                for (BytesRef slot : slots) {
+                    if (slot == null) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     /** The number of documents in {@code docValues} that have a value. */
     protected static int numDocsWithField(final BytesRef[] docValues) {
         int numDocsWithField = 0;
@@ -108,23 +202,62 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         return numDocsWithField;
     }
 
+    /** The number of documents in {@code docSlots} that have at least one slot. */
+    protected static int numDocsWithField(final BytesRef[][] docSlots) {
+        int numDocsWithField = 0;
+        for (BytesRef[] slots : docSlots) {
+            if (slots != null) {
+                numDocsWithField++;
+            }
+        }
+        return numDocsWithField;
+    }
+
+    /** The total number of slots across every document, null slots included. */
+    protected static long numValues(final BytesRef[][] docSlots) {
+        long numValues = 0;
+        for (BytesRef[] slots : docSlots) {
+            if (slots != null) {
+                numValues += slots.length;
+            }
+        }
+        return numValues;
+    }
+
+    /** The total number of null slots across every document. */
+    protected static long numNullSlots(final BytesRef[][] docSlots) {
+        long numNullSlots = 0;
+        for (BytesRef[] slots : docSlots) {
+            if (slots != null) {
+                for (BytesRef slot : slots) {
+                    if (slot == null) {
+                        numNullSlots++;
+                    }
+                }
+            }
+        }
+        return numNullSlots;
+    }
+
     private static StringColumnMetadata writeColumn(
         final Directory dir,
         final byte[] segmentId,
-        final BytesRef[] docValues,
+        final BytesRef[][] docSlots,
+        final StringBinaryPayload.Framing framing,
         final int blockSize,
         final ChunkCodec chunkCodec,
         final int targetChunkBytes
     ) throws IOException {
-        final int numDocsWithField = numDocsWithField(docValues);
         final StringColumnMetadata written;
         try (IndexOutput out = dir.createOutput(DATA_FILE, IOContext.DEFAULT)) {
             ColumnarCodecUtil.writeHeader(out, DATA_CODEC, FormatVersion.CURRENT, segmentId, "");
             written = StringColumnWriter.write(
-                docValues.length,
-                numDocsWithField,
-                numDocsWithField,
-                () -> cursor(docValues),
+                docSlots.length,
+                numDocsWithField(docSlots),
+                numValues(docSlots),
+                numNullSlots(docSlots),
+                framing,
+                () -> cursor(docSlots),
                 blockSize,
                 chunkCodec,
                 targetChunkBytes,
@@ -141,7 +274,7 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         }
         try (ChecksumIndexInput in = dir.openChecksumInput(META_FILE)) {
             final FormatVersion version = ColumnarCodecUtil.checkHeader(in, META_CODEC, segmentId, "");
-            final StringColumnMetadata read = StringColumnMetadata.readFrom(in, docValues.length, version);
+            final StringColumnMetadata read = StringColumnMetadata.readFrom(in, docSlots.length, version);
             ColumnarCodecUtil.checkFooter(in);
             return read;
         }
@@ -162,19 +295,31 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         }
     }
 
-    /** A fresh single-valued cursor over {@code docValues}; {@code advance} is unsupported, as the writer never calls it. */
-    private static StringColumnValues cursor(final BytesRef[] docValues) {
+    /** A fresh cursor over {@code docSlots}; {@code advance} is unsupported, as the writer never calls it. */
+    private static StringColumnValues cursor(final BytesRef[][] docSlots) {
         return new StringColumnValues() {
             private int doc = -1;
+            private int upto;
 
             @Override
             public int valueCount() {
-                return 1;
+                return docSlots[doc].length;
+            }
+
+            @Override
+            public int nullCount() {
+                int nulls = 0;
+                for (BytesRef slot : docSlots[doc]) {
+                    if (slot == null) {
+                        nulls++;
+                    }
+                }
+                return nulls;
             }
 
             @Override
             public BytesRef nextValue() {
-                return docValues[doc];
+                return docSlots[doc][upto++];
             }
 
             @Override
@@ -184,8 +329,9 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
 
             @Override
             public int nextDoc() {
-                for (doc = doc + 1; doc < docValues.length; doc++) {
-                    if (docValues[doc] != null) {
+                for (doc = doc + 1; doc < docSlots.length; doc++) {
+                    if (docSlots[doc] != null) {
+                        upto = 0;
                         return doc;
                     }
                 }
@@ -199,7 +345,7 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
 
             @Override
             public long cost() {
-                return docValues.length;
+                return docSlots.length;
             }
         };
     }

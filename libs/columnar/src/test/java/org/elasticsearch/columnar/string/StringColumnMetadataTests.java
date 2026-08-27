@@ -16,6 +16,8 @@ import org.elasticsearch.columnar.FormatVersion;
 
 import java.io.IOException;
 
+import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
+
 /** What a string column records about itself, written and read back on its own. */
 public class StringColumnMetadataTests extends ColumnarStringTestCase {
 
@@ -25,15 +27,36 @@ public class StringColumnMetadataTests extends ColumnarStringTestCase {
         for (int d = 0; d < docValues.length; d++) {
             docValues[d] = randomBoolean() ? null : new BytesRef(randomAlphaOfLengthBetween(1, 40));
         }
-        withColumn(docValues, (metadata, reader) -> {
-            final StringColumnMetadata read = roundTrip(metadata, docValues.length);
-            assertEquals("numDocsWithField", metadata.numDocsWithField(), read.numDocsWithField());
-            assertEquals("numValues", metadata.numValues(), read.numValues());
-            assertEquals("layout", metadata.layout(), read.layout());
-            assertEquals("stream values", metadata.values().numValues(), read.values().numValues());
-            assertEquals("values per block", metadata.values().valuesPerBlock(), read.values().valuesPerBlock());
-            assertEquals("multi-valued", metadata.multiValued(), read.multiValued());
-        });
+        withColumn(docValues, (metadata, reader) -> assertRoundTrips(metadata, docValues.length));
+    }
+
+    /**
+     * Two trailing tables, each written only when a count already on the wire says so, so all four
+     * combinations of present and absent have to parse back to the same record.
+     */
+    public void testRoundTripAcrossBothTables() throws IOException {
+        for (boolean multiValued : new boolean[] { false, true }) {
+            for (boolean nulls : new boolean[] { false, true }) {
+                final BytesRef[][] docSlots = randomDocSlots(between(20, 400), multiValued ? 6 : 1, randomBoolean(), nulls);
+                withColumn(docSlots, (metadata, reader) -> {
+                    // A single-slot document always holds a value, so asking for nulls does not always get any.
+                    assertEquals("null table present", numNullSlots(docSlots) > 0, metadata.hasNullSlots());
+                    assertRoundTrips(metadata, docSlots.length);
+                });
+            }
+        }
+    }
+
+    /** The framing is recorded, not inferred, so a column re-encodes into the one its field was written with. */
+    public void testFramingSurvivesTheRoundTrip() throws IOException {
+        for (StringBinaryPayload.Framing framing : StringBinaryPayload.Framing.values()) {
+            final BytesRef[][] docSlots = randomDocSlots(between(20, 200), 4, false, false);
+            withColumn(docSlots, framing, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), (metadata, reader) -> {
+                assertEquals("recorded framing", framing, metadata.framing());
+                assertEquals("framing survives", framing, roundTrip(metadata, docSlots.length).framing());
+                assertEquals("reader agrees", framing, reader.framing());
+            });
+        }
     }
 
     /**
@@ -47,31 +70,40 @@ public class StringColumnMetadataTests extends ColumnarStringTestCase {
             final StringColumnMetadata read = roundTrip(metadata, docValues.length);
             assertEquals("numDocsWithField", 0, read.numDocsWithField());
             assertEquals("numValues", 0L, read.numValues());
+            assertEquals("numNullSlots", 0L, read.numNullSlots());
             assertFalse("single-valued", read.multiValued());
+            assertFalse("no null slots", read.hasNullSlots());
         });
     }
 
-    /**
-     * A column holds more values than it has documents exactly when a document holds more than one. The
-     * writer builds no such column today, so the true case is pinned from a record built directly, using a
-     * real column's iterator so nothing else about it is made up.
-     */
+    /** A column holds more slots than it has documents exactly when a document holds more than one. */
     public void testMultiValuedFollowsFromTheCounts() throws IOException {
-        final BytesRef[] docValues = new BytesRef[between(2, 50)];
-        for (int d = 0; d < docValues.length; d++) {
-            docValues[d] = new BytesRef(randomAlphaOfLengthBetween(1, 10));
-        }
-        withColumn(docValues, (metadata, reader) -> {
-            assertFalse("as many values as documents", metadata.multiValued());
-            final StringColumnMetadata several = new StringColumnMetadata(
-                metadata.iterator(),
-                metadata.numDocsWithField(),
-                metadata.numValues() + 1,
-                metadata.layout(),
-                metadata.values()
-            );
-            assertTrue("more values than documents", several.multiValued());
+        final BytesRef[][] docSlots = randomDocSlots(between(2, 50), 1, false, false);
+        withColumn(docSlots, (metadata, reader) -> assertFalse("as many slots as documents", metadata.multiValued()));
+
+        final BytesRef[][] several = randomDocSlots(between(2, 50), 1, false, false);
+        several[between(0, several.length - 1)] = new BytesRef[] { new BytesRef("a"), new BytesRef("b") };
+        withColumn(several, (metadata, reader) -> {
+            assertTrue("more slots than documents", metadata.multiValued());
+            assertEquals("numValues counts slots", numValues(several), metadata.numValues());
         });
+    }
+
+    private static void assertRoundTrips(StringColumnMetadata metadata, int maxDoc) throws IOException {
+        final StringColumnMetadata read = roundTrip(metadata, maxDoc);
+        assertEquals("numDocsWithField", metadata.numDocsWithField(), read.numDocsWithField());
+        assertEquals("numValues", metadata.numValues(), read.numValues());
+        assertEquals("numNullSlots", metadata.numNullSlots(), read.numNullSlots());
+        assertEquals("layout", metadata.layout(), read.layout());
+        assertEquals("framing", metadata.framing(), read.framing());
+        assertEquals("stream values", metadata.values().numValues(), read.values().numValues());
+        assertEquals("values per block", metadata.values().valuesPerBlock(), read.values().valuesPerBlock());
+        assertEquals("multi-valued", metadata.multiValued(), read.multiValued());
+        assertEquals("has null slots", metadata.hasNullSlots(), read.hasNullSlots());
+        assertEquals("value addresses", metadata.valueAddressesDataLength(), read.valueAddressesDataLength());
+        assertArrayEquals("value address meta", metadata.valueAddressesMeta(), read.valueAddressesMeta());
+        assertEquals("null slots", metadata.nullSlotsDataLength(), read.nullSlotsDataLength());
+        assertArrayEquals("null slot meta", metadata.nullSlotsMeta(), read.nullSlotsMeta());
     }
 
     private static StringColumnMetadata roundTrip(StringColumnMetadata metadata, int maxDoc) throws IOException {

@@ -34,6 +34,15 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
     /** {@link org.apache.lucene.index.FieldInfo} attribute naming a field's {@link ColumnarFieldType}. The mapper sets it. */
     public static final String TYPE_ATTRIBUTE = "columnar.type";
 
+    /**
+     * {@link org.apache.lucene.index.FieldInfo} attribute naming a string field's
+     * {@link org.elasticsearch.columnar.string.StringBinaryPayload.Framing} — which framing a column
+     * re-encodes into at the {@code BinaryDocValues} surface, so readers that still consult the
+     * {@code <field>.counts} companion see the bytes they expect. The mapper sets it; a field that does not
+     * defaults to {@code SEPARATE_COUNT}, the framing with no length bias.
+     */
+    public static final String STRING_FRAMING_ATTRIBUTE = "columnar.string.framing";
+
     /** Smallest allowed block size. Must be a power of 2. */
     public static final int MIN_BLOCK_SIZE = 128;
 

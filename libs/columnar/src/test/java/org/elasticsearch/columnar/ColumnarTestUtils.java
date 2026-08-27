@@ -21,6 +21,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
 import org.elasticsearch.columnar.numeric.NumericColumnValues;
+import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 
 import java.io.IOException;
@@ -155,6 +156,16 @@ public final class ColumnarTestUtils {
         final FieldType type = new FieldType();
         type.setDocValuesType(DocValuesType.BINARY);
         type.putAttribute(ColumNARDocValuesFormat.TYPE_ATTRIBUTE, fieldType.name());
+        type.freeze();
+        return type;
+    }
+
+    /** As {@link #columnarBinaryFieldType(ColumnarFieldType)}, declaring the framing a string column re-encodes into. */
+    public static FieldType columnarStringFieldType(final StringBinaryPayload.Framing framing) {
+        final FieldType type = new FieldType();
+        type.setDocValuesType(DocValuesType.BINARY);
+        type.putAttribute(ColumNARDocValuesFormat.TYPE_ATTRIBUTE, ColumnarFieldType.STRING.name());
+        type.putAttribute(ColumNARDocValuesFormat.STRING_FRAMING_ATTRIBUTE, framing.name());
         type.freeze();
         return type;
     }

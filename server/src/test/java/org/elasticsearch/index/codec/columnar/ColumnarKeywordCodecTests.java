@@ -23,9 +23,12 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
@@ -74,6 +77,47 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
         assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.termQuery("kw", "green")), 1);
         assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.termQuery("kw", "blue")), 1);
         assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.termQuery("kw", "yellow")), 0);
+    }
+
+    /**
+     * The codec stores a document's values separately and puts them back together on the way out, so an array
+     * with an inline null has to come back through {@code _source} exactly as it went in — position and all.
+     */
+    public void testMultiValuedKeywordWithNullsRoundTripsThroughSource() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
+
+        final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        createIndex(INDEX, columnarSettings(mode), "@timestamp", "type=date", "kw", "type=keyword");
+        final List<String> arrays = List.of(
+            "[\"red\", null, \"blue\"]",
+            "[null, \"green\"]",
+            "[\"solo\"]",
+            "[\"\", null, \"\"]",
+            "[\"dup\", \"dup\"]"
+        );
+        for (int i = 0; i < arrays.size(); i++) {
+            prepareIndex(INDEX).setId(Integer.toString(i))
+                .setSource("{\"@timestamp\":\"2024-01-01T00:00:0" + i + "Z\",\"kw\":" + arrays.get(i) + "}", XContentType.JSON)
+                .get();
+        }
+        indicesAdmin().prepareRefresh(INDEX).get();
+
+        assertKeywordFieldUsesColumnarFormat();
+
+        for (int i = 0; i < arrays.size(); i++) {
+            final Map<String, Object> source = client().prepareGet(INDEX, Integer.toString(i)).get().getSourceAsMap();
+            assertEquals("doc " + i, expectedValues(arrays.get(i)), source.get("kw"));
+        }
+    }
+
+    /** The values of {@code array}, as {@code _source} renders them: a lone value is not wrapped in a list. */
+    private static Object expectedValues(String array) {
+        final List<Object> values = new ArrayList<>();
+        for (String element : array.substring(1, array.length() - 1).split(",")) {
+            final String trimmed = element.trim();
+            values.add(trimmed.equals("null") ? null : trimmed.substring(1, trimmed.length() - 1));
+        }
+        return values.size() == 1 ? values.get(0) : values;
     }
 
     private static Settings columnarSettings(IndexMode mode) {

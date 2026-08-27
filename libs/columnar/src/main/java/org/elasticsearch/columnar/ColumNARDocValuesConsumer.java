@@ -34,6 +34,7 @@ import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.numeric.NumericPipelineSelector;
 import org.elasticsearch.columnar.numeric.SkipIndexCodec;
 import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
+import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringColumnMetadata;
 import org.elasticsearch.columnar.string.StringColumnValues;
 import org.elasticsearch.columnar.string.StringColumnWriter;
@@ -149,7 +150,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             case STRING -> writeStringColumn(
                 field,
                 type,
-                () -> ColumnarStringBinaryDocValues.singleValues(valuesProducer.getBinary(field))
+                () -> ColumnarStringBinaryDocValues.decodePayloads(valuesProducer.getBinary(field), framingOf(field))
             );
         }
     }
@@ -275,7 +276,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             // Read decoded values directly for our own columns; fall back to the payload for anything else.
             StringColumnValues values = binary instanceof ColumnarStringBinaryDocValues columnar
                 ? columnar.directValues()
-                : ColumnarStringBinaryDocValues.singleValues(binary);
+                : ColumnarStringBinaryDocValues.decodePayloads(binary, framingOf(readerField));
             cost += values.cost();
             subs.add(new ColumnMergeSub<>(mergeState.docMaps[i], values));
         }
@@ -301,6 +302,11 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             @Override
             public int valueCount() {
                 return current.values.valueCount();
+            }
+
+            @Override
+            public int nullCount() throws IOException {
+                return current.values.nullCount();
             }
 
             @Override
@@ -353,25 +359,28 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     }
 
     /**
-     * Counts the column in one pass, then streams the values block by block from fresh cursors — never
-     * buffering the whole field on-heap.
+     * Counts the column in one pass, then streams the slots block by block from fresh cursors — never
+     * buffering the whole field on-heap. Both totals the pass collects are needed up front: the value
+     * addresses and the null slots are {@code DirectMonotonic} tables, which are built against a known
+     * entry count.
      */
     private void writeStringColumn(FieldInfo field, ColumnarFieldType type, IOSupplier<StringColumnValues> cursors) throws IOException {
         int numDocsWithField = 0;
         long numValues = 0;
+        long numNullSlots = 0;
         StringColumnValues counter = cursors.get();
         for (int doc = counter.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = counter.nextDoc()) {
             numDocsWithField++;
-            // One value per document: that is what this surface carries, and what lets the reader take a
-            // document's rank as its value's address rather than keeping one for every document.
-            assert counter.valueCount() == 1 : "document [" + doc + "] of field [" + field.name + "] has " + counter.valueCount();
-            numValues++;
+            numValues += counter.valueCount();
+            numNullSlots += counter.nullCount();
         }
 
         StringColumnMetadata metadata = StringColumnWriter.write(
             maxDoc,
             numDocsWithField,
             numValues,
+            numNullSlots,
+            framingOf(field),
             cursors,
             ValueStream.VALUES_PER_BLOCK,
             ChunkCodec.ZSTD,
@@ -381,6 +390,16 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             data
         );
         fields.add(new FieldEntry(field.number, type.id(), metadata));
+    }
+
+    /**
+     * The framing {@code field}'s column re-encodes into on read. Absent the attribute a field takes
+     * {@code SEPARATE_COUNT}, the framing with no length bias — the shape a caller that has no inline nulls
+     * to express would have written anyway.
+     */
+    private static StringBinaryPayload.Framing framingOf(FieldInfo field) {
+        String value = field.getAttribute(ColumNARDocValuesFormat.STRING_FRAMING_ATTRIBUTE);
+        return value == null ? StringBinaryPayload.Framing.SEPARATE_COUNT : StringBinaryPayload.Framing.valueOf(value);
     }
 
     @Override

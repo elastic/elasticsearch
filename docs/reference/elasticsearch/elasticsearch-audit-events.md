@@ -185,7 +185,7 @@ $$$event-change-password$$$
 $$$event-create-service-token$$$
 
 `create_service_token`
-:   Logged when the [create service account token API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-service-token) is invoked to create a new index-based token for a service account.
+:   Logged when the [create service account token API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-service-token) is invoked to create a new index-based token for a built-in or user-managed service account.
 
     You must include the `security_config_change` event type to audit the related event action.
 
@@ -374,7 +374,7 @@ $$$event-delete-role-mapping$$$
 $$$event-delete-service-token$$$
 
 `delete_service_token`
-:   Logged when the [delete service account token API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-delete-service-token) is invoked to delete an index-based token for a service account.
+:   Logged when the [delete service account token API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-delete-service-token) is invoked to delete an index-based token for a built-in or user-managed service account.
 
     You must include the `security_config_change` event type to audit the related event action.
 
@@ -403,6 +403,25 @@ $$$event-delete-user$$$
     "0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change",
     "event.action":"delete_user", "request.id":"au5a1Cc3RrebDMitMGGNCw",
     "delete":{"user":{"name":"jacknich"}}}
+    ```
+    % NOTCONSOLE
+
+    ::::
+
+
+$$$event-delete-user-managed-service-account$$$
+
+`delete_user_managed_service_account`
+:   Logged when the delete user-managed service account API is invoked to delete a user-managed service account at `/_security/service/{namespace}/{service}`.
+
+    You must include the `security_config_change` event type to audit the related event action.
+
+    ::::{dropdown} Example
+    ```js
+    {"type":"audit", "timestamp":"2021-04-30T23:17:42,952+0200", "node.id":
+    "0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+    action":"delete_user_managed_service_account", "request.id":"az9a1Db5QrebDMacQ8yGKc",
+    "delete":{"user_managed_service_account":{"namespace":"my-app","service":"worker","force":false}}}
     ```
     % NOTCONSOLE
 
@@ -507,6 +526,26 @@ $$$event-put-user$$$
     "put":{"user":{"name":"user1","enabled":false,"roles":["admin","other_role1"],
     "full_name":"Jack Sparrow","email":"jack@blackpearl.com",
     "has_password":true,"metadata":{"cunning":10}}}}
+    ```
+    % NOTCONSOLE
+
+    ::::
+
+
+$$$event-put-user-managed-service-account$$$
+
+`put_user_managed_service_account`
+:   Logged when the create or update user-managed service account API is invoked to create or update a user-managed service account at `/_security/service/{namespace}/{service}`.
+
+    You must include the `security_config_change` event type to audit the related event action.
+
+    ::::{dropdown} Example
+    ```js
+    {"type":"audit", "timestamp":"2021-04-30T23:17:42,952+0200", "node.id":
+    "0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+    action":"put_user_managed_service_account", "request.id":"az9a1Db5QrebDMacQ8yGKc",
+    "put":{"user_managed_service_account":{"namespace":"my-app","service":"worker",
+    "roles":["role1","role2"],"enabled":true}}}
     ```
     % NOTCONSOLE
 
@@ -628,7 +667,7 @@ The following list shows attributes that are common to all audit event types:
 `event.action`
 :   The type of event that occurred: `anonymous_access_denied`, `authentication_failed`, `authentication_success`, `realm_authentication_failed`, `access_denied`, `access_granted`, `connection_denied`, `connection_granted`, `tampered_request`, `run_as_denied`, or `run_as_granted`.
 
-    In addition, if `event.type` equals [`security_config_change`](#security-config-change), the `event.action` attribute takes one of the following values: `put_user`, `change_password`, `put_role`, `put_role_mapping`, `change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `delete_user`, `delete_role`, `delete_role_mapping`, `invalidate_apikeys`, `delete_privileges`, `change_apikey`, or `change_apikeys`.
+    In addition, if `event.type` equals [`security_config_change`](#security-config-change), the `event.action` attribute takes one of the following values: `put_user`, `change_password`, `put_role`, `put_role_mapping`, `change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `create_service_token`, `put_user_managed_service_account`, `delete_user`, `delete_role`, `delete_role_mapping`, `delete_service_token`, `delete_user_managed_service_account`, `invalidate_apikeys`, `delete_privileges`, `change_apikey`, or `change_apikeys`.
 
 
 `request.id`
@@ -695,21 +734,21 @@ The events with `event.type` equal to `ip_filter` have one of the following `eve
 
 ### Audit event attributes of the `security_config_change` event type [security-config-change]
 
-The events with the `event.type` attribute equal to `security_config_change` have one of the following `event.action` attribute values: `put_user`, `change_password`, `put_role`, `put_role_mapping`, `change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `delete_user`, `delete_role`, `delete_role_mapping`, `invalidate_apikeys`, `delete_privileges`, `change_apikey`, or `change_apikeys`.
+The events with the `event.type` attribute equal to `security_config_change` have one of the following `event.action` attribute values: `put_user`, `change_password`, `put_role`, `put_role_mapping`, `change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `create_service_token`, `put_user_managed_service_account`, `delete_user`, `delete_role`, `delete_role_mapping`, `delete_service_token`, `delete_user_managed_service_account`, `invalidate_apikeys`, `delete_privileges`, `change_apikey`, or `change_apikeys`.
 
 These events also have **one** of the following extra attributes (in addition to the common ones), which is specific to the `event.type` attribute. The attribute’s value is a nested JSON object:
 
 `put`
-:   The object representation of the security config that is being created, or the overwrite of an existing config. It contains the config for a `user`, `role`, `role_mapping`, or for application `privileges`.
+:   The object representation of the security config that is being created, or the overwrite of an existing config. It contains the config for a `user`, `role`, `role_mapping`, `user_managed_service_account`, or for application `privileges`.
 
 `delete`
-:   The object representation of the security config that is being deleted. It can be the config for a `user`, `role`, `role_mapping` or for application `privileges`.
+:   The object representation of the security config that is being deleted. It can be the config for a `user`, `role`, `role_mapping`, `user_managed_service_account`, or for application `privileges`.
 
 `change`
 :   The object representation of the security config that is being changed. It can be the `password`, `enable` or `disable`, config object for native or built-in users. If an API key is updated, the config object will be an `apikey`.
 
 `create`
-:   The object representation of the new security config that is being created. This is currently only used for API keys auditing. If the API key is created using the [create API key API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-api-key) it only contains an `apikey` config object. If the API key is created using the [grant API key API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-grant-api-key) it also contains a `grant` config object.
+:   The object representation of the new security config that is being created. This is used for API keys and service account token auditing. If the API key is created using the [create API key API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-api-key) it only contains an `apikey` config object. If the API key is created using the [grant API key API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-grant-api-key) it also contains a `grant` config object. If a service account token is created, it contains a `service_token` config object.
 
 `invalidate`
 :   The object representation of the security configuration that is being invalidated. The only config that currently supports invalidation is `apikeys`, through the [invalidate API key API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-invalidate-api-key).
@@ -832,7 +871,18 @@ The object for an API key update will differ in that it will not include a `name
     `{"namespace":<string>,"service":<string>,"name":<string>}`
     ```
     % NOTCONSOLE
-    
+
+
+`user_managed_service_account`
+:   An object like:
+
+    ```js
+    `{"namespace":<string>,"service":<string>,"roles":<string_list>,"enabled":<boolean>}`
+    ```
+    % NOTCONSOLE
+
+    On delete, the object contains `namespace`, `service`, and `force` instead of `roles` and `enabled`.
+ 
 ### Extra audit event attributes for specific events [_extra_audit_event_attributes_for_specific_events]
 
 There are a few events that have some more attributes in addition to those that have been previously described:

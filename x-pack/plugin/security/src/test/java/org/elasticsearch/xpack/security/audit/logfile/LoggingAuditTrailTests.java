@@ -92,8 +92,14 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAc
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.action.service.CreateUserManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountRequest;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
@@ -1569,34 +1575,32 @@ public class LoggingAuditTrailTests extends ESTestCase {
             tokenName
         );
 
-        auditTrail.accessGranted(
-            requestId,
-            authentication,
-            CreateServiceAccountTokenAction.NAME,
-            createServiceAccountTokenRequest,
-            authorizationInfo
-        );
-        List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
-        assertThat(output.size(), is(2));
-        String generatedCreateServiceAccountTokenAuditEventString = output.get(1);
+        for (String actionName : List.of(CreateServiceAccountTokenAction.NAME, CreateUserManagedServiceAccountTokenAction.NAME)) {
+            auditTrail.accessGranted(requestId, authentication, actionName, createServiceAccountTokenRequest, authorizationInfo);
+            List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
+            assertThat(output.size(), is(2));
+            String generatedCreateServiceAccountTokenAuditEventString = output.get(1);
 
-        final String expectedCreateServiceAccountTokenAuditEventString = Strings.format("""
-            "create":{"service_token":{"namespace":"%s","service":"%s","name":"%s"}}""", namespace, serviceName, tokenName);
-        assertThat(generatedCreateServiceAccountTokenAuditEventString, containsString(expectedCreateServiceAccountTokenAuditEventString));
-        generatedCreateServiceAccountTokenAuditEventString = generatedCreateServiceAccountTokenAuditEventString.replace(
-            ", " + expectedCreateServiceAccountTokenAuditEventString,
-            ""
-        );
-        Map<String, String> checkedFields = new HashMap<>(commonFields);
-        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
-        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
-        checkedFields.put("type", "audit");
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change");
-        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "create_service_token");
-        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
-        assertMsg(generatedCreateServiceAccountTokenAuditEventString, checkedFields);
-        // clear log
-        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+            final String expectedCreateServiceAccountTokenAuditEventString = Strings.format("""
+                "create":{"service_token":{"namespace":"%s","service":"%s","name":"%s"}}""", namespace, serviceName, tokenName);
+            assertThat(
+                generatedCreateServiceAccountTokenAuditEventString,
+                containsString(expectedCreateServiceAccountTokenAuditEventString)
+            );
+            generatedCreateServiceAccountTokenAuditEventString = generatedCreateServiceAccountTokenAuditEventString.replace(
+                ", " + expectedCreateServiceAccountTokenAuditEventString,
+                ""
+            );
+            Map<String, String> checkedFields = new HashMap<>(commonFields);
+            checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+            checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+            checkedFields.put("type", "audit");
+            checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change");
+            checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "create_service_token");
+            checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+            assertMsg(generatedCreateServiceAccountTokenAuditEventString, checkedFields);
+            CapturingLogger.output(logger.getName(), Level.INFO).clear();
+        }
 
         final DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest = new DeleteServiceAccountTokenRequest(
             namespace,
@@ -1604,22 +1608,117 @@ public class LoggingAuditTrailTests extends ESTestCase {
             tokenName
         );
 
+        for (String actionName : List.of(DeleteServiceAccountTokenAction.NAME, DeleteUserManagedServiceAccountTokenAction.NAME)) {
+            auditTrail.accessGranted(requestId, authentication, actionName, deleteServiceAccountTokenRequest, authorizationInfo);
+            List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
+            assertThat(output.size(), is(2));
+            String generatedDeleteServiceAccountTokenAuditEventString = output.get(1);
+
+            final String expectedDeleteServiceAccountTokenAuditEventString = Strings.format("""
+                "delete":{"service_token":{"namespace":"%s","service":"%s","name":"%s"}}""", namespace, serviceName, tokenName);
+            assertThat(
+                generatedDeleteServiceAccountTokenAuditEventString,
+                containsString(expectedDeleteServiceAccountTokenAuditEventString)
+            );
+            generatedDeleteServiceAccountTokenAuditEventString = generatedDeleteServiceAccountTokenAuditEventString.replace(
+                ", " + expectedDeleteServiceAccountTokenAuditEventString,
+                ""
+            );
+            Map<String, String> checkedFields = new HashMap<>(commonFields);
+            checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+            checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+            checkedFields.put("type", "audit");
+            checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change");
+            checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "delete_service_token");
+            checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+            assertMsg(generatedDeleteServiceAccountTokenAuditEventString, checkedFields);
+            CapturingLogger.output(logger.getName(), Level.INFO).clear();
+        }
+    }
+
+    public void testSecurityConfigChangeEventFormattingForUserManagedServiceAccount() {
+        final String requestId = randomRequestId();
+        final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
+        final Authentication authentication = createAuthentication();
+
+        final String namespace = randomAlphaOfLengthBetween(3, 8);
+        final String serviceName = randomAlphaOfLengthBetween(3, 8);
+        final List<String> accountRoles = randomList(1, 3, () -> randomAlphaOfLengthBetween(3, 8));
+        final boolean enabled = randomBoolean();
+        final String expectedAccountRolesJson = accountRoles.stream()
+            .map(role -> "\"" + role + "\"")
+            .collect(Collectors.joining(",", "[", "]"));
+        final PutUserManagedServiceAccountRequest putUserManagedServiceAccountRequest = new PutUserManagedServiceAccountRequest(
+            namespace,
+            serviceName,
+            accountRoles,
+            enabled
+        );
+
         auditTrail.accessGranted(
             requestId,
             authentication,
-            DeleteServiceAccountTokenAction.NAME,
-            deleteServiceAccountTokenRequest,
+            PutUserManagedServiceAccountAction.NAME,
+            putUserManagedServiceAccountRequest,
+            authorizationInfo
+        );
+        List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        String generatedPutUserManagedServiceAccountAuditEventString = output.get(1);
+
+        final String expectedPutUserManagedServiceAccountAuditEventString = Strings.format(
+            """
+                "put":{"user_managed_service_account":{"namespace":"%s","service":"%s","roles":%s,"enabled":%s}}""",
+            namespace,
+            serviceName,
+            expectedAccountRolesJson,
+            enabled
+        );
+        assertThat(
+            generatedPutUserManagedServiceAccountAuditEventString,
+            containsString(expectedPutUserManagedServiceAccountAuditEventString)
+        );
+        generatedPutUserManagedServiceAccountAuditEventString = generatedPutUserManagedServiceAccountAuditEventString.replace(
+            ", " + expectedPutUserManagedServiceAccountAuditEventString,
+            ""
+        );
+        Map<String, String> checkedFields = new HashMap<>(commonFields);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+        checkedFields.put("type", "audit");
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change");
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "put_user_managed_service_account");
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        assertMsg(generatedPutUserManagedServiceAccountAuditEventString, checkedFields);
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+
+        final DeleteUserManagedServiceAccountRequest deleteUserManagedServiceAccountRequest = new DeleteUserManagedServiceAccountRequest(
+            namespace,
+            serviceName
+        );
+        final boolean force = randomBoolean();
+        deleteUserManagedServiceAccountRequest.setForce(force);
+
+        auditTrail.accessGranted(
+            requestId,
+            authentication,
+            DeleteUserManagedServiceAccountAction.NAME,
+            deleteUserManagedServiceAccountRequest,
             authorizationInfo
         );
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
-        String generatedDeleteServiceAccountTokenAuditEventString = output.get(1);
+        String generatedDeleteUserManagedServiceAccountAuditEventString = output.get(1);
 
-        final String expectedDeleteServiceAccountTokenAuditEventString = Strings.format("""
-            "delete":{"service_token":{"namespace":"%s","service":"%s","name":"%s"}}""", namespace, serviceName, tokenName);
-        assertThat(generatedDeleteServiceAccountTokenAuditEventString, containsString(expectedDeleteServiceAccountTokenAuditEventString));
-        generatedDeleteServiceAccountTokenAuditEventString = generatedDeleteServiceAccountTokenAuditEventString.replace(
-            ", " + expectedDeleteServiceAccountTokenAuditEventString,
+        final String expectedDeleteUserManagedServiceAccountAuditEventString = Strings.format("""
+            "delete":{"user_managed_service_account":{"namespace":"%s","service":"%s","force":%s}}""", namespace, serviceName, force);
+        assertThat(
+            generatedDeleteUserManagedServiceAccountAuditEventString,
+            containsString(expectedDeleteUserManagedServiceAccountAuditEventString)
+        );
+        generatedDeleteUserManagedServiceAccountAuditEventString = generatedDeleteUserManagedServiceAccountAuditEventString.replace(
+            ", " + expectedDeleteUserManagedServiceAccountAuditEventString,
             ""
         );
         checkedFields = new HashMap<>(commonFields);
@@ -1627,10 +1726,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
         checkedFields.put("type", "audit");
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change");
-        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "delete_service_token");
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "delete_user_managed_service_account");
         checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
-        assertMsg(generatedDeleteServiceAccountTokenAuditEventString, checkedFields);
-        // clear log
+        assertMsg(generatedDeleteUserManagedServiceAccountAuditEventString, checkedFields);
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
     }
 
@@ -2275,7 +2373,20 @@ public class LoggingAuditTrailTests extends ESTestCase {
             new Tuple<>(InvalidateApiKeyAction.NAME, new InvalidateApiKeyRequest()),
             new Tuple<>(DeletePrivilegesAction.NAME, new DeletePrivilegesRequest()),
             new Tuple<>(CreateServiceAccountTokenAction.NAME, new CreateServiceAccountTokenRequest(namespace, serviceName, tokenName)),
+            new Tuple<>(
+                CreateUserManagedServiceAccountTokenAction.NAME,
+                new CreateServiceAccountTokenRequest(namespace, serviceName, tokenName)
+            ),
             new Tuple<>(DeleteServiceAccountTokenAction.NAME, new DeleteServiceAccountTokenRequest(namespace, serviceName, tokenName)),
+            new Tuple<>(
+                DeleteUserManagedServiceAccountTokenAction.NAME,
+                new DeleteServiceAccountTokenRequest(namespace, serviceName, tokenName)
+            ),
+            new Tuple<>(
+                PutUserManagedServiceAccountAction.NAME,
+                new PutUserManagedServiceAccountRequest(namespace, serviceName, List.of(randomAlphaOfLengthBetween(3, 8)), randomBoolean())
+            ),
+            new Tuple<>(DeleteUserManagedServiceAccountAction.NAME, new DeleteUserManagedServiceAccountRequest(namespace, serviceName)),
             new Tuple<>(ActivateProfileAction.NAME, new ActivateProfileRequest()),
             new Tuple<>(
                 UpdateProfileDataAction.NAME,

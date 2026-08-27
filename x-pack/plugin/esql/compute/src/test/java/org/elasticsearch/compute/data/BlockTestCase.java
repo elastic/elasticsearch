@@ -300,7 +300,9 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
     }
 
     /**
-     * Even if single-valued positions are written using {@code beginPositionEntry}/{@code endPositionEntry}, a dense block with no nulls should still build a vector.
+     * Even if single-valued positions are written using
+     * {@code beginPositionEntry}/{@code endPositionEntry}, a dense block with no nulls
+     * should still build a vector.
      */
     public final void testSingleNonNullValues() throws IOException {
         assumeTrue("type does not support dense vectors", supportsDenseVector());

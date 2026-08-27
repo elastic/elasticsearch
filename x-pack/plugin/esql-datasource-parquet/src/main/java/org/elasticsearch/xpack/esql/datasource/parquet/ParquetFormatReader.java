@@ -64,7 +64,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
-import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -74,6 +73,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
@@ -120,7 +120,7 @@ import java.util.function.Consumer;
  *   <li>Direct conversion from Parquet to ESQL blocks</li>
  * </ul>
  */
-public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtractorAware, DynamicThresholdAware {
+public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigFormatReader, ColumnExtractorAware, DynamicThresholdAware {
 
     private static final Logger logger = LogManager.getLogger(ParquetFormatReader.class);
 
@@ -167,12 +167,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
     /** Length of the Parquet trailer: 4-byte footer length + 4-byte magic. */
     private static final int PARQUET_TRAILER_BYTES = 8;
-
-    static final String CONFIG_OPTIMIZED_READER = "optimized_reader";
-    static final String CONFIG_LATE_MATERIALIZATION = "late_materialization";
-
-    /** Keys recognised by {@link #withConfigTrackingConsumedKeys(Map)}. */
-    static final Set<String> RECOGNIZED_KEYS = Set.of(CONFIG_OPTIMIZED_READER, CONFIG_LATE_MATERIALIZATION);
 
     /** Clears the parsed-footer cache. Intended for test isolation only. */
     static void clearParsedFooterCacheForTests() {
@@ -275,6 +269,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         this(blockFactory, FilterCompat.NOOP, null, false, true, true, null, Map.of(), Set.of());
     }
 
+    // Test oracle: false selects the baseline iterator. Production uses the public ctor (always optimized).
     ParquetFormatReader(BlockFactory blockFactory, boolean optimizedReader) {
         this(blockFactory, FilterCompat.NOOP, null, false, optimizedReader, true, null, Map.of(), Set.of());
     }
@@ -314,6 +309,25 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             true,
             optimizedReader,
             lateMaterializationEnabled,
+            dynamicThreshold,
+            declaredDateFormats,
+            declaredTypeColumns
+        );
+    }
+
+    /**
+     * Returns a reader with late materialization forced on or off. Package-private; intended
+     * for tests that contrast the always-on production path against the no-late-mat oracle.
+     * Production reads always leave late materialization enabled.
+     */
+    ParquetFormatReader withLateMaterialization(boolean enabled) {
+        return new ParquetFormatReader(
+            blockFactory,
+            pushedFilter,
+            pushedExpressions,
+            forceBaselinePath,
+            optimizedReader,
+            enabled,
             dynamicThreshold,
             declaredDateFormats,
             declaredTypeColumns
@@ -415,40 +429,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             declaredDateFormats,
             Set.copyOf(physicalDeclaredColumns)
         );
-    }
-
-    @Override
-    public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-        if (config == null || config.isEmpty()) {
-            return Configured.empty(this);
-        }
-        boolean newOptimized = parseBooleanConfig(config, CONFIG_OPTIMIZED_READER, optimizedReader);
-        boolean newLateMat = parseBooleanConfig(config, CONFIG_LATE_MATERIALIZATION, lateMaterializationEnabled);
-        FormatReader result = (newOptimized == optimizedReader && newLateMat == lateMaterializationEnabled)
-            ? this
-            : new ParquetFormatReader(
-                blockFactory,
-                pushedFilter,
-                pushedExpressions,
-                forceBaselinePath,
-                newOptimized,
-                newLateMat,
-                dynamicThreshold,
-                declaredDateFormats,
-                declaredTypeColumns
-            );
-        return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
-    }
-
-    private static boolean parseBooleanConfig(Map<String, Object> config, String key, boolean defaultValue) {
-        Object value = config.get(key);
-        if (value == null) {
-            return defaultValue;
-        }
-        if (value instanceof Boolean b) {
-            return b;
-        }
-        return org.elasticsearch.core.Booleans.parseBoolean(value.toString());
     }
 
     @Override
@@ -1850,7 +1830,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     ) {
         if (inputFile instanceof ParquetStorageObjectAdapter == false) {
             throw new ElasticsearchException(
-                "optimized_reader requires ParquetStorageObjectAdapter but got [" + inputFile.getClass().getName() + "]"
+                "optimized Parquet scan requires ParquetStorageObjectAdapter but got [" + inputFile.getClass().getName() + "]"
             );
         }
         ParquetStorageObjectAdapter adapter = (ParquetStorageObjectAdapter) inputFile;

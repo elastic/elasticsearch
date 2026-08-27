@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.s3;
 
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.xpack.esql.datasources.RemovedParquetDatasetSettings;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractDataSourceValidatorTests;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
@@ -103,6 +104,17 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         S3Configuration::fromMap,
         Set.of("s3", "s3a", "s3n")
     ).withFormatConfigKeyResolver(CSV_RESOLVER, Set.of(".gz"));
+
+    // Parquet FormatSpec advertises no format-specific config keys. Direct plugin reference is not
+    // possible due to cross-plugin test dependency constraints; empty configKeys matches FormatSpec.
+    private static final FileDataSourceValidator.FormatConfigKeyResolver PARQUET_RESOLVER = FileDataSourceValidator.FormatConfigKeyResolver
+        .of(Map.of("parquet", Set.of()), Map.of(".parquet", "parquet"));
+
+    private final DataSourceValidator parquetFormatAwareValidator = new FileDataSourceValidator(
+        "s3",
+        S3Configuration::fromMap,
+        Set.of("s3", "s3a", "s3n")
+    ).withFormatConfigKeyResolver(PARQUET_RESOLVER, Set.of(".gz"));
 
     public void testValidateDatasourceWithCredentials() {
         var result = validator.validateDatasource(Map.of("access_key", "AKIA123", "secret_key", "secret", "region", "us-east-1"));
@@ -730,5 +742,15 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("format", "auto", "delimiter", "|"))
         );
+    }
+
+    public void testParquetKillSwitchSettingsRejectedAsUnknown() {
+        for (String key : RemovedParquetDatasetSettings.KEYS) {
+            var e = expectThrows(
+                ValidationException.class,
+                () -> parquetFormatAwareValidator.validateDataset(Map.of(), "s3://bucket/path/*.parquet", Map.of(key, false))
+            );
+            assertThat(e.validationErrors(), hasItem(containsString("unknown setting [" + key + "]")));
+        }
     }
 }

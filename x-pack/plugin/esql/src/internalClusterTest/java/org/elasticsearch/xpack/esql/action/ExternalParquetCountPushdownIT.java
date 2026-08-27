@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.RemovedParquetDatasetSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -145,6 +146,32 @@ public class ExternalParquetCountPushdownIT extends AbstractExternalDataSourceIT
                 assertThat(count, equalTo((long) totalRows));
 
                 assertNoPushdownBypass(response);
+            }
+        } finally {
+            Files.deleteIfExists(parquetFile);
+        }
+    }
+
+    /**
+     * Stored {@code optimized_reader} / {@code late_materialization} keys must not fail
+     * {@code FROM}: {@code DatasetRewriter} strips them before {@code ConfigKeyValidator}.
+     * TestValidator stores raw settings, so this is the tolerated-legacy window after an upgrade.
+     */
+    public void testStoredRemovedParquetDatasetSettingsAreToleratedOnFrom() throws Exception {
+        int totalRows = 50;
+        Path parquetFile = writeParquetFile(totalRows, 100);
+        try {
+            String dataset = registerDataset(
+                "legacy_kill_switches",
+                StoragePath.fileUri(parquetFile),
+                Map.of(RemovedParquetDatasetSettings.OPTIMIZED_READER, false, RemovedParquetDatasetSettings.LATE_MATERIALIZATION, false)
+            );
+            String query = "FROM " + dataset + " | STATS c = COUNT(*)";
+            var request = syncEsqlQueryRequest(query);
+
+            try (var response = run(request)) {
+                List<List<Object>> rows = getValuesList(response);
+                assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo((long) totalRows));
             }
         } finally {
             Files.deleteIfExists(parquetFile);

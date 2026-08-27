@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.RemovedParquetDatasetSettings;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
@@ -5529,22 +5530,12 @@ public class ParquetFormatReaderTests extends ESTestCase {
         );
     }
 
-    public void testWithConfigOptimizedReaderTrue() {
+    public void testWithConfigRemovedKeysIsNoOp() {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", true));
-        assertSame(reader, configured);
-    }
-
-    public void testWithConfigOptimizedReaderFalse() {
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", false));
-        assertNotSame(reader, configured);
-    }
-
-    public void testWithConfigOptimizedReaderStringTrue() {
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", "true"));
-        assertSame(reader, configured);
+        assertSame(reader, reader.withConfig(Map.of(RemovedParquetDatasetSettings.OPTIMIZED_READER, true)));
+        assertSame(reader, reader.withConfig(Map.of(RemovedParquetDatasetSettings.OPTIMIZED_READER, false)));
+        assertSame(reader, reader.withConfig(Map.of(RemovedParquetDatasetSettings.OPTIMIZED_READER, "true")));
+        assertSame(reader, reader.withConfig(Map.of(RemovedParquetDatasetSettings.LATE_MATERIALIZATION, false)));
     }
 
     public void testWithConfigDefaults() {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.stateless.reshard;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
@@ -206,6 +207,15 @@ public final class ReshardUnownedBitsetCache implements IndexReader.ClosedListen
             return null;
         } else {
             return bitSet;
+        }
+    }
+
+    /**
+     * Populates this cache for every leaf in {@code reader} using {@code query}.
+     */
+    void warmBitSets(Query query, DirectoryReader reader) throws ExecutionException {
+        for (LeafReaderContext leaf : reader.leaves()) {
+            getBitSet(query, leaf);
         }
     }
 

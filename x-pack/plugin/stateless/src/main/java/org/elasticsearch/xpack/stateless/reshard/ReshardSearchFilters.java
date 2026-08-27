@@ -61,6 +61,19 @@ public final class ReshardSearchFilters implements Closeable {
         return unownedBitsetCache;
     }
 
+    /**
+     * Warms unowned-document bitsets for all leaves in {@code reader} when the shard may still contain unowned documents.
+     */
+    public void maybeWarm(DirectoryReader reader, ShardId shardId, IndexMetadata indexMetadata, MapperService mapperService)
+        throws ExecutionException {
+        if (shouldWarm(shardId, indexMetadata.getReshardingMetadata()) == false) {
+            return;
+        }
+
+        final var query = new ShardSplittingQuery(indexMetadata, shardId.id(), mapperService.hasNested());
+        unownedBitsetCache.warmBitSets(query, reader);
+    }
+
     public DirectoryReader maybeWrapDirectoryReaderForPitRelocation(
         DirectoryReader reader,
         ShardId shardId,
@@ -201,21 +214,30 @@ public final class ReshardSearchFilters implements Closeable {
                     yield false;
                 }
 
-                assert reshardingMetadata.isSplit();
-                IndexReshardingState.Split split = reshardingMetadata.getSplit();
-
-                if (split.isTargetShard(shardId.id())) {
-                    /// We ensure that refresh happens between unowned data being deleted and target shard moving to DONE.
-                    /// So at this point we know that there is no unowned data and we can skip filters as an optimization.
-                    yield split.targetStateAtLeast(shardId.id(), IndexReshardingState.Split.TargetShardState.DONE) == false;
-                } else {
-                    /// Similarly since we ensure the refresh is done after deleting unowned data we can skip filtering
-                    /// if the shard is DONE as an optimization.
-                    yield split.sourceStateAtLeast(shardId.id(), IndexReshardingState.Split.SourceShardState.DONE) == false;
-                }
+                yield shouldWarm(shardId, reshardingMetadata);
             }
             case INVALID -> throw new StaleRequestException(shardId, summary);
         };
+    }
+
+    /**
+     * Returns whether the shard may still contain unowned documents that require search filtering.
+     */
+    public static boolean shouldWarm(ShardId shardId, IndexReshardingMetadata reshardingMetadata) {
+        if (reshardingMetadata == null || reshardingMetadata.isSplit() == false) {
+            return false;
+        }
+
+        IndexReshardingState.Split split = reshardingMetadata.getSplit();
+        if (split.isTargetShard(shardId.id())) {
+            /// We ensure that refresh happens between unowned data being deleted and target shard moving to DONE.
+            /// So at this point we know that there is no unowned data and we can skip filtering and warming.
+            return split.targetStateAtLeast(shardId.id(), IndexReshardingState.Split.TargetShardState.DONE) == false;
+        } else {
+            /// Similarly since we ensure the refresh is done after deleting unowned data we can skip filtering and warming
+            /// if the shard is DONE.
+            return split.sourceStateAtLeast(shardId.id(), IndexReshardingState.Split.SourceShardState.DONE) == false;
+        }
     }
 
     /**

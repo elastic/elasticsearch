@@ -294,34 +294,36 @@ public final class GlobExpander {
         StoragePath prefix = storagePath.patternPrefix();
         String glob = storagePath.globPart();
 
-        // Brace-only fast path: use exists()+newObject() instead of listing
-        if (BraceExpander.isBraceOnly(glob)) {
-            List<String> candidates = BraceExpander.expand(glob, maxGlobExpansion);
-            if (candidates != null) {
-                List<StorageEntry> matched = new ArrayList<>();
-                String prefixStr = prefix.toString();
-                for (String candidate : candidates) {
-                    StoragePath fullPath = StoragePath.of(prefixStr + candidate);
-                    var obj = provider.newObject(fullPath);
-                    if (obj.exists()) {
-                        matched.add(new StorageEntry(fullPath, obj.length(), obj.lastModified()));
-                    }
-                    checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles);
+        // One reader of the pattern. The matcher is built first, and it answers whether the pattern names a finite
+        // set of keys — which is a property of the parse, not something to rediscover by scanning the characters
+        // again. A second scan was a second opinion that had to agree with the matcher by hand; when the two drifted
+        // the only symptom was silently choosing the wrong strategy.
+        GlobMatcher matcher = new GlobMatcher(glob);
+
+        // Enumerable pattern: probe each key with exists() instead of listing a prefix that may hold millions.
+        List<String> candidates = matcher.enumerateKeys(maxGlobExpansion);
+        if (candidates != null) {
+            List<StorageEntry> matched = new ArrayList<>();
+            String prefixStr = prefix.toString();
+            for (String candidate : candidates) {
+                StoragePath fullPath = StoragePath.of(prefixStr + candidate);
+                var obj = provider.newObject(fullPath);
+                if (obj.exists()) {
+                    matched.add(new StorageEntry(fullPath, obj.length(), obj.lastModified()));
                 }
-                if (hints != null && hints.isEmpty() == false) {
-                    matched = applyFileFiltersRetainingAnchor(matched, hints);
-                }
-                if (matched.isEmpty()) {
-                    return FileList.EMPTY;
-                }
-                matched.sort(Comparator.comparing(e -> e.path().toString()));
-                PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig);
-                return new GenericFileList(matched, pattern, partitionMetadata);
+                checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles);
             }
-            // candidates == null means expansion exceeded cap; fall through to listing
+            if (hints != null && hints.isEmpty() == false) {
+                matched = applyFileFiltersRetainingAnchor(matched, hints);
+            }
+            if (matched.isEmpty()) {
+                return FileList.EMPTY;
+            }
+            matched.sort(Comparator.comparing(e -> e.path().toString()));
+            PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig);
+            return new GenericFileList(matched, pattern, partitionMetadata);
         }
 
-        GlobMatcher matcher = new GlobMatcher(glob);
         boolean recursive = matcher.needsRecursion();
 
         List<StorageEntry> matched = new ArrayList<>();

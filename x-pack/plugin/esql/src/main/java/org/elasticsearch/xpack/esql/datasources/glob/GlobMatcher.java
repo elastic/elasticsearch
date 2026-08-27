@@ -70,9 +70,9 @@ final class GlobMatcher {
      */
     private record CharClass(boolean negated, String chars, char[] rangeLow, char[] rangeHigh) implements Token {
         boolean matches(char c) {
-            if (c == PATH_SEP) {
-                return false;
-            }
+            // No separator check is needed: both the pattern and the path are split on '/' before a class is
+            // consulted, so a class is only ever asked about a character from inside one segment. That split is
+            // what keeps a negated class from spanning a segment, which the previous implementation allowed.
             boolean hit = chars.indexOf(c) >= 0;
             for (int i = 0; hit == false && i < rangeLow.length; i++) {
                 hit = c >= rangeLow[i] && c <= rangeHigh[i];
@@ -116,6 +116,78 @@ final class GlobMatcher {
     @Override
     public String toString() {
         return "GlobMatcher[" + glob + "]";
+    }
+
+    /**
+     * The concrete keys this pattern can only match, or {@code null} when it matches an open-ended set.
+     *
+     * <p>A pattern whose every token is a literal or an alternation of literals — {@code data/{a,b}.csv} — names a
+     * finite list of keys, so the caller can probe each with {@code exists()} instead of listing a prefix that may
+     * hold millions of objects. Anything containing {@code *}, {@code ?}, {@code **} or a character class cannot be
+     * enumerated and must be listed.
+     *
+     * <p>This is answered from the parsed pattern rather than by re-scanning the characters. A separate scan was a
+     * second opinion about what the pattern says, and it had to agree with this class by hand: the two could drift
+     * and the only symptom would be the wrong strategy, silently. Deriving it here means one reader of the string.
+     *
+     * @param limit refuse to enumerate beyond this many keys, so a wide range degrades to listing rather than
+     *              materialising a huge candidate list
+     */
+    List<String> enumerateKeys(int limit) {
+        List<String> keys = new ArrayList<>();
+        keys.add("");
+        for (int i = 0; i < segments.size(); i++) {
+            Segment segment = segments.get(i);
+            if (segment.globstar()) {
+                return null;
+            }
+            List<String> spellings = literalSpellings(segment.tokens());
+            if (spellings == null) {
+                return null;
+            }
+            if ((long) keys.size() * spellings.size() > limit) {
+                return null;
+            }
+            List<String> next = new ArrayList<>(keys.size() * spellings.size());
+            for (String prefix : keys) {
+                for (String spelling : spellings) {
+                    next.add(i == 0 ? spelling : prefix + PATH_SEP + spelling);
+                }
+            }
+            keys = next;
+        }
+        return keys;
+    }
+
+    /** Every literal spelling one segment can take, or {@code null} if it holds a wildcard and so has infinitely many. */
+    private static List<String> literalSpellings(List<Token> tokens) {
+        List<String> spellings = new ArrayList<>();
+        spellings.add("");
+        for (Token token : tokens) {
+            List<String> pieces;
+            if (token instanceof Literal literal) {
+                pieces = List.of(literal.text());
+            } else if (token instanceof Alternation alternation) {
+                pieces = new ArrayList<>(alternation.alternatives().size());
+                for (List<Token> alternative : alternation.alternatives()) {
+                    List<String> nested = literalSpellings(alternative);
+                    if (nested == null) {
+                        return null;
+                    }
+                    pieces.addAll(nested);
+                }
+            } else {
+                return null;
+            }
+            List<String> next = new ArrayList<>(spellings.size() * pieces.size());
+            for (String head : spellings) {
+                for (String piece : pieces) {
+                    next.add(head + piece);
+                }
+            }
+            spellings = next;
+        }
+        return spellings;
     }
 
     private static List<String> split(String path) {
@@ -167,7 +239,7 @@ final class GlobMatcher {
             return name.startsWith(literal.text(), ni) && matchName(tokens, ti + 1, name, ni + literal.text().length());
         }
         if (token instanceof AnyChar) {
-            return ni < name.length() && name.charAt(ni) != PATH_SEP && matchName(tokens, ti + 1, name, ni + 1);
+            return ni < name.length() && matchName(tokens, ti + 1, name, ni + 1);
         }
         if (token instanceof CharClass charClass) {
             return ni < name.length() && charClass.matches(name.charAt(ni)) && matchName(tokens, ti + 1, name, ni + 1);
@@ -205,7 +277,7 @@ final class GlobMatcher {
                 ends.or(reachableEnds(tokens, ti + 1, name, ni + literal.text().length()));
             }
         } else if (token instanceof AnyChar) {
-            if (ni < name.length() && name.charAt(ni) != PATH_SEP) {
+            if (ni < name.length()) {
                 ends.or(reachableEnds(tokens, ti + 1, name, ni + 1));
             }
         } else if (token instanceof CharClass charClass) {
@@ -216,6 +288,10 @@ final class GlobMatcher {
             for (int k = ni; k <= name.length(); k++) {
                 ends.or(reachableEnds(tokens, ti + 1, name, k));
             }
+        } else {
+            // Unreachable while nested brace groups are refused at parse time. Kept total rather than open so a
+            // future change surfaces as an error instead of an alternative that silently matches nothing.
+            throw new IllegalStateException("unexpected token inside a brace alternative: " + token);
         }
         return ends;
     }
@@ -303,7 +379,15 @@ final class GlobMatcher {
             }
         }
         if (i >= name.length()) {
-            throw new IllegalArgumentException("Invalid glob pattern [" + whole + "]: unterminated character class, missing ']'");
+            // A class is a single-character construct, so it cannot hold or span a separator. Segments are split
+            // on '/' before this runs, which means `a[/]b` arrives here as the unterminated segment `a[` — say so
+            // rather than blaming a missing bracket the user can see is present.
+            throw new IllegalArgumentException(
+                "Invalid glob pattern ["
+                    + whole
+                    + "]: unterminated character class, missing ']' — note that a character class cannot contain "
+                    + "or span a path separator"
+            );
         }
         char[] lo = new char[low.size()];
         char[] hi = new char[high.size()];

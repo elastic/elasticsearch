@@ -192,32 +192,39 @@ public class GlobLanguageCharacterizationTests extends ESTestCase {
         assertFalse(m.matches("c"));
     }
 
-    // -- the two engines. A brace-only pattern takes BraceExpander's exists()-based fast path instead of the
-    // matcher, so the language a dataset actually speaks depends on which path its pattern happens to take.
-    // Any disagreement here is a defect by definition: one pattern, two meanings.
+    // -- enumeration and matching must agree. A pattern naming a finite set of keys is resolved by probing those
+    // keys with exists() rather than by listing; matching then never runs on them. So the two answers have to be
+    // the same answer, or the strategy silently decides what a pattern means.
 
-    public void testTheTwoEnginesAgreeOnPlainAlternation() {
-        assertTrue(BraceExpander.isBraceOnly("{a,b}.csv"));
-        List<String> expanded = BraceExpander.expand("{a,b}.csv", 100);
-        assertNotNull("brace-only patterns must expand", expanded);
-        for (String candidate : expanded) {
-            assertTrue("the matcher must accept what the expander produced: " + candidate, new GlobMatcher("{a,b}.csv").matches(candidate));
+    public void testEveryEnumeratedKeyMatchesThePatternThatProducedIt() {
+        for (String glob : List.of(
+            "{a,b}.csv",
+            "data/{a,b}.csv",
+            "{a,b}/{x,y}.csv",
+            "file-{1..5}.parquet",
+            "file-{000..003}.parquet",
+            "plain.csv",
+            "{a,b}{c,d}.csv"
+        )) {
+            List<String> keys = new GlobMatcher(glob).enumerateKeys(100);
+            assertNotNull(glob + " should enumerate", keys);
+            GlobMatcher matcher = new GlobMatcher(glob);
+            for (String key : keys) {
+                assertTrue("enumerated [" + key + "] but the same pattern does not match it: " + glob, matcher.matches(key));
+            }
         }
     }
 
-    /**
-     * They used to disagree: the expander produced 1.csv, 2.csv and 3.csv while the matcher read the literal text
-     * "1..3", so {@code {1..3}.csv} and {@code {1..3}*.csv} meant different things purely because the second is not
-     * brace-only and takes the other engine. Both now parse brace bodies with the same code.
-     */
-    public void testTheTwoEnginesNowAgreeOnNumericRanges() {
-        List<String> expanded = BraceExpander.expand("{1..3}.csv", 100);
-        assertEquals(List.of("1.csv", "2.csv", "3.csv"), expanded);
-        GlobMatcher matcher = new GlobMatcher("{1..3}.csv");
-        for (String candidate : expanded) {
-            assertTrue("the matcher accepts what the expander produced: " + candidate, matcher.matches(candidate));
+    public void testPatternsHoldingAWildcardRefuseToEnumerate() {
+        for (String glob : List.of("*.csv", "a?.csv", "[ab].csv", "{a*,b}.csv", "**", "a/**" + "/b", "{a,b}*.csv")) {
+            assertNull("must be listed rather than probed: " + glob, new GlobMatcher(glob).enumerateKeys(100));
         }
-        assertFalse("and no longer matches the literal text instead", matcher.matches("1..3.csv"));
+    }
+
+    /** A range wide enough to be worth listing instead degrades rather than materialising a huge candidate list. */
+    public void testAnOverWideEnumerationDegradesToListing() {
+        assertNotNull(new GlobMatcher("f{1..8}.csv").enumerateKeys(10));
+        assertNull(new GlobMatcher("f{1..500}.csv").enumerateKeys(10));
     }
 
     // -- fuzz. A fixed alphabet over the characters the language actually branches on, so the rewrite has a

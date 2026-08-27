@@ -9,9 +9,6 @@ package org.elasticsearch.xpack.esql.datasources.glob;
 
 import org.elasticsearch.core.Nullable;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
  * Expands brace groups ({@code {a,b,c}}) in glob patterns into concrete path candidates.
  * Also detects whether a glob is "brace-only" — meaning the pattern contains {@code {...}}
@@ -27,84 +24,6 @@ final class BraceExpander {
 
     private BraceExpander() {}
 
-    /**
-     * Returns {@code true} if the glob contains only brace-group metacharacters.
-     * A pattern with no metacharacters at all returns {@code false} (it's a literal, not a brace pattern).
-     */
-    static boolean isBraceOnly(String glob) {
-        boolean hasBrace = false;
-        boolean inBrace = false;
-        for (int i = 0; i < glob.length(); i++) {
-            char c = glob.charAt(i);
-            if (c == '*' || c == '?' || c == '[') {
-                return false;
-            }
-            if (inBrace) {
-                if (c == '}') {
-                    inBrace = false;
-                } else if (c == '{') {
-                    return false;
-                }
-            } else if (c == '{') {
-                inBrace = true;
-                hasBrace = true;
-            }
-        }
-        return hasBrace && inBrace == false;
-    }
-
-    /**
-     * Expands all brace groups in the glob into a list of concrete path candidates.
-     * Supports both comma-separated alternatives ({@code {a,b,c}}) and numeric
-     * range expressions ({@code {N..M}}) with leading-zero preservation.
-     * Returns {@code null} if the Cartesian product exceeds {@code maxExpansion},
-     * signaling that the caller should fall back to listing.
-     * Returns a single-element list containing the input if no braces are found.
-     */
-    @Nullable
-    static List<String> expand(String glob, int maxExpansion) {
-        int braceStart = glob.indexOf('{');
-        if (braceStart < 0) {
-            return List.of(glob);
-        }
-        int braceEnd = glob.indexOf('}', braceStart + 1);
-        if (braceEnd < 0) {
-            return List.of(glob);
-        }
-
-        String prefix = glob.substring(0, braceStart);
-        String braceContent = glob.substring(braceStart + 1, braceEnd);
-        String suffix = glob.substring(braceEnd + 1);
-
-        String[] alternatives = expandBraceContent(braceContent, maxExpansion);
-        if (alternatives == null || alternatives.length > maxExpansion) {
-            return null;
-        }
-
-        List<String> result = new ArrayList<>();
-        for (String alt : alternatives) {
-            String expanded = prefix + alt + suffix;
-            List<String> subExpanded = expand(expanded, maxExpansion);
-            if (subExpanded == null) {
-                return null;
-            }
-            for (String s : subExpanded) {
-                result.add(s);
-                if (result.size() > maxExpansion) {
-                    return null;
-                }
-            }
-        }
-        return result;
-    }
-
-    /**
-     * Interprets brace content as either a numeric range ({@code N..M}) or
-     * comma-separated alternatives. For ranges, both ascending and descending
-     * sequences are supported, and leading zeros are preserved when either operand
-     * has a leading zero (matching bash semantics: {@code {01..03}} pads, {@code {1..3}} does not).
-     * Returns {@code null} if the range exceeds {@code maxExpansion}.
-     */
     /**
      * Package-private so {@link GlobMatcher} parses brace bodies with the very same code the brace-only fast path
      * uses. The two used to disagree: this expanded {@code {1..3}} numerically while the matcher read the literal

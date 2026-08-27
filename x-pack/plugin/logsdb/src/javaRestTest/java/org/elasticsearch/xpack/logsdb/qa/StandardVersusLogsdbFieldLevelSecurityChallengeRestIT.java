@@ -69,7 +69,9 @@ public class StandardVersusLogsdbFieldLevelSecurityChallengeRestIT extends BulkC
         return cluster.getHttpAddresses();
     }
 
-    public StandardVersusLogsdbFieldLevelSecurityChallengeRestIT() {}
+    public StandardVersusLogsdbFieldLevelSecurityChallengeRestIT() {
+        super(new DataGenerationHelper(builder -> builder.withMaxFieldCountPerLevel(30), false));
+    }
 
     public void testFieldLevelSecuritySourceEquivalence() throws IOException {
         final int numberOfDocuments = ESTestCase.randomIntBetween(20, 80);

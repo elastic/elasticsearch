@@ -172,8 +172,9 @@ class TrainedModelAssignmentRebalancer {
                 // In mixed-version clusters the observed value is absent (null) and we fall back to the task params to keep
                 // plans stable.
                 long perAllocationMemoryBytes = assignment.getObservedPerAllocationMemoryBytes() != null
-                    ? assignment.getObservedPerAllocationMemoryBytes()
-                    : assignment.getTaskParams().getPerAllocationMemoryBytes();
+                    && assignment.getObservedPerAllocationMemoryBytes() > 0
+                        ? assignment.getObservedPerAllocationMemoryBytes()
+                        : assignment.getTaskParams().getPerAllocationMemoryBytes();
                 return new AssignmentPlan.Deployment(
                     assignment.getDeploymentId(),
                     assignment.getModelId(),

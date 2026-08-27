@@ -350,7 +350,7 @@ total:long | nonNull:long
 ;
 
 gridGeohashCountDistinct
-required_capability: spatial_grid_types
+required_capability: fn_count_distinct_spatial_grid_types
 
 FROM airports
 | EVAL geohash = ST_GEOHASH(location, 2)
@@ -362,7 +362,7 @@ total:long | distinct:long
 ;
 
 gridGeotileCountDistinct
-required_capability: spatial_grid_types
+required_capability: fn_count_distinct_spatial_grid_types
 
 FROM airports
 | EVAL geotile = ST_GEOTILE(location, 3)
@@ -374,7 +374,7 @@ total:long | distinct:long
 ;
 
 gridGeohexCountDistinct
-required_capability: spatial_grid_types
+required_capability: fn_count_distinct_spatial_grid_types
 
 FROM airports
 | EVAL geohex = ST_GEOHEX(location, 1)

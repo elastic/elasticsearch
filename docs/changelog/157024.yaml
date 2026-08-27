@@ -1,6 +1,0 @@
-area: Vector search
-issues:
- - 156942
-pr: 157024
-summary: Fetch `dense_vector` embeddings from doc values in the diversify retriever
-type: bug

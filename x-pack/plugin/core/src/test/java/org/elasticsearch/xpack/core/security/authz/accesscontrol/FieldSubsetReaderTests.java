@@ -47,6 +47,8 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.TermsEnum.SeekStatus;
 import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
@@ -1499,6 +1501,34 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
+    }
+
+    public void testFieldNamesTermStateRespectsFilteredFields() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(null));
+
+        Document doc = new Document();
+        doc.add(new StringField("fieldA", "test", Field.Store.NO));
+        doc.add(new StringField("fieldB", "test", Field.Store.NO));
+        doc.add(new StringField(FieldNamesFieldMapper.NAME, "fieldA", Field.Store.NO));
+        doc.add(new StringField(FieldNamesFieldMapper.NAME, "fieldB", Field.Store.NO));
+        iw.addDocument(doc);
+
+        Automaton automaton = Automatons.patterns(List.of("fieldA", FieldNamesFieldMapper.NAME));
+        DirectoryReader reader = FieldSubsetReader.wrap(
+            DirectoryReader.open(iw),
+            new CharacterRunAutomaton(automaton),
+            IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
+            fieldName -> false
+        );
+        IndexSearcher searcher = new IndexSearcher(reader);
+
+        assertEquals(1, searcher.count(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "fieldA"))));
+        assertEquals(0, searcher.count(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "fieldB"))));
+        assertEquals(0L, searcher.search(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "fieldB")), 10).totalHits.value());
+
+        TestUtil.checkReader(reader);
+        IOUtils.close(reader, iw, dir);
     }
 
     /**

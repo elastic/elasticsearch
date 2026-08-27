@@ -19,7 +19,6 @@ import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.index.DocValuesType;
@@ -2742,6 +2741,8 @@ public class NumberFieldMapper extends FieldMapper {
     private final boolean indexed;
     private final DocValuesParameter.Values docValuesParameters;
     private final boolean stored;
+    private final LuceneLongColumn.Spec columnSpec;
+    private final LuceneLongColumn.Spec storedSpec;
     private final Explicit<Boolean> ignoreMalformed;
     private final Explicit<Boolean> coerce;
     private final Number nullValue;
@@ -2774,7 +2775,6 @@ public class NumberFieldMapper extends FieldMapper {
         super(simpleName, mappedFieldType, builderParams);
         this.type = builder.type;
         this.indexed = builder.indexed.getValue();
-        this.docValuesParameters = builder.docValuesParameters.getValue();
         this.stored = builder.stored.getValue();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.coerce = builder.coerce.getValue();
@@ -2795,6 +2795,16 @@ public class NumberFieldMapper extends FieldMapper {
 
         // this is basically just an inlined version of `(NumberFieldType) super.fieldType()`
         this.fieldType = (NumberFieldType) mappedFieldType;
+        // half_float uses a separate HalfFloatPoint column for BKD; the main column is always DV-only
+        final LongColumn.NumericKind kind = numericKind(this.type);
+        this.columnSpec = LuceneLongColumn.builder()
+            .name(mappedFieldType.name())
+            .indexType(mappedFieldType.indexType())
+            .numericKind(kind)
+            .indexed(this.indexed && this.type != NumberType.HALF_FLOAT)
+            .build();
+        this.storedSpec = LuceneLongColumn.builder().name(mappedFieldType.name()).numericKind(kind).stored(true).build();
+        this.docValuesParameters = builder.docValuesParameters.getValue();
         this.dvFactory = new DocValuesFieldFactory(
             docValuesParameters.multiValue(),
             fieldType.indexType.hasDocValuesSkipper(),
@@ -2856,25 +2866,8 @@ public class NumberFieldMapper extends FieldMapper {
         return fieldType.type.typeName();
     }
 
-    // FieldType constants for the Lucene field variants emitted by the columnar parse path.
-    // The compat harness compares frozen FieldType, so the column must carry exactly the same type
-    // as the corresponding field produced by the row-major path.
-    private static final IndexableFieldType SORTED_NUMERIC_DV_FIELD_TYPE = SortedNumericDocValuesField.TYPE;
-    private static final IndexableFieldType SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE = SortedNumericDocValuesField.indexedField("_sentinel", 0L)
-        .fieldType();
-    // Match the field types produced by the indexed+DV branches in addLongFields / NumberType.addFields.
-    private static final IndexableFieldType LONG_FIELD_TYPE = new LongField("_sentinel", 0L, Field.Store.NO).fieldType();
-    private static final IndexableFieldType INT_FIELD_TYPE = new IntField("_sentinel", 0, Field.Store.NO).fieldType();
-    private static final IndexableFieldType FLOAT_FIELD_TYPE = new FloatField("_sentinel", 0f, Field.Store.NO).fieldType();
-    private static final IndexableFieldType DOUBLE_FIELD_TYPE = new DoubleField("_sentinel", 0.0, Field.Store.NO).fieldType();
-    // half_float uses a separate HalfFloatPoint (2-byte BKD points) alongside its doc-values column;
-    // LuceneHalfFloatPointColumn emits this type for the points column.
+    // half_float uses a separate HalfFloatPoint (2-byte BKD points) alongside its doc-values column.
     private static final IndexableFieldType HALF_FLOAT_POINT_FIELD_TYPE = new HalfFloatPoint("_sentinel", 0f).fieldType();
-    // Stored-only variants: match the separate StoredField(name, value) emitted by the row path.
-    private static final IndexableFieldType INT_STORED_ONLY_FIELD_TYPE = new StoredField("_sentinel", 0).fieldType();
-    private static final IndexableFieldType LONG_STORED_ONLY_FIELD_TYPE = new StoredField("_sentinel", 0L).fieldType();
-    private static final IndexableFieldType FLOAT_STORED_ONLY_FIELD_TYPE = new StoredField("_sentinel", 0f).fieldType();
-    private static final IndexableFieldType DOUBLE_STORED_ONLY_FIELD_TYPE = new StoredField("_sentinel", 0.0).fieldType();
 
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
@@ -2904,59 +2897,32 @@ public class NumberFieldMapper extends FieldMapper {
                 )
             );
         }
+
         Long nullSortableLong = nullValue != null ? type.toSortableLong(nullValue) : null;
         EscfColumnData outData = NumberColumnTransform.toSortableLongColumn(source, type, coerce(), ctx.recycler(), nullSortableLong);
-        if (fieldType().indexType().hasDocValuesSkipper()) {
-            ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE, numericKind(type)));
-        } else if (indexed) {
-            if (type == NumberType.HALF_FLOAT) {
-                // half_float's BKD index uses a separate 2-byte HalfFloatPoint; other numeric types combine DV and BKD into one field.
-                ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, LongColumn.NumericKind.FLOAT));
+        ctx.addColumn(columnSpec.build(outData));
+
+        if (type == NumberType.HALF_FLOAT) {
+            if (indexed) {
+                // half_float uses separate HalfFloatPoint (2-byte BKD) and SortedNumericDocValuesField,
+                // unlike other numeric types which use a combined field. Send one column for each.
                 EscfColumnData halfFloatPointData = NumberColumnTransform.toHalfFloatPointBinaryColumn(
                     EscfColumn.from(outData),
                     ctx.recycler()
                 );
                 ctx.addColumn(LuceneBinaryColumn.of(halfFloatPointData, fieldType().name(), HALF_FLOAT_POINT_FIELD_TYPE));
-            } else {
-                ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), indexableFieldType(type), numericKind(type)));
             }
-        } else {
-            ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, numericKind(type)));
-        }
-        if (stored) {
-            if (type == NumberType.HALF_FLOAT) {
+            if (stored) {
                 // half_float DV encodes as sortable shorts, but stored fields need sortable float ints for FLOAT-kind decoding.
                 EscfColumnData halfFloatStoredData = NumberColumnTransform.toHalfFloatStoredLongColumn(
                     EscfColumn.from(outData),
                     ctx.recycler()
                 );
-                ctx.addColumn(
-                    LuceneLongColumn.of(halfFloatStoredData, fieldType().name(), FLOAT_STORED_ONLY_FIELD_TYPE, LongColumn.NumericKind.FLOAT)
-                );
-            } else {
-                ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), storedOnlyFieldType(type), numericKind(type)));
+                ctx.addColumn(storedSpec.build(halfFloatStoredData));
             }
+        } else if (stored) {
+            ctx.addColumn(storedSpec.build(outData));
         }
-    }
-
-    private static IndexableFieldType storedOnlyFieldType(NumberType type) {
-        return switch (type) {
-            case BYTE, SHORT, INTEGER -> INT_STORED_ONLY_FIELD_TYPE;
-            case FLOAT -> FLOAT_STORED_ONLY_FIELD_TYPE;
-            case LONG -> LONG_STORED_ONLY_FIELD_TYPE;
-            case DOUBLE -> DOUBLE_STORED_ONLY_FIELD_TYPE;
-            case HALF_FLOAT -> throw new AssertionError("unreachable: indexed half_float is handled separately");
-        };
-    }
-
-    private static IndexableFieldType indexableFieldType(NumberType type) {
-        return switch (type) {
-            case BYTE, SHORT, INTEGER -> INT_FIELD_TYPE;
-            case FLOAT -> FLOAT_FIELD_TYPE;
-            case LONG -> LONG_FIELD_TYPE;
-            case DOUBLE -> DOUBLE_FIELD_TYPE;
-            case HALF_FLOAT -> throw new AssertionError("unreachable: indexed half_float is handled separately");
-        };
     }
 
     private static LongColumn.NumericKind numericKind(NumberType type) {

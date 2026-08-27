@@ -36,11 +36,11 @@ import java.util.Map;
 final class BatchModeRouter implements Releasable {
 
     // provided-batch mode state (null in x-content mode)
+    // TODO: As a first pass we are restricting to a single concrete index. We will expand to multi index support.
     @Nullable
-    private final String batchName;
+    private final String indexAbstractionName;
     @Nullable
     private final EscfBatch source;
-    /** row → shardId; set by {@link #recordRoutedShard}, read by {@link #shardBatches}. */
     @Nullable
     private final int[] partitionIds;
     @Nullable
@@ -48,7 +48,6 @@ final class BatchModeRouter implements Releasable {
     @Nullable
     private Index concreteIndex;
     private int shardCount;
-    /** True when the index routes on {@code _tsid}: every item must carry a pre-computed one. */
     private boolean requiresPrecomputedTsid;
     private int lastRow = -1;
     private int routedCount;
@@ -58,8 +57,8 @@ final class BatchModeRouter implements Releasable {
     @Nullable
     private final BulkBatchEncoders encoders;
 
-    private BatchModeRouter(String batchName, EscfBatch source) {
-        this.batchName = batchName;
+    private BatchModeRouter(String indexAbstractionName, EscfBatch source) {
+        this.indexAbstractionName = indexAbstractionName;
         this.source = source;
         this.partitionIds = new int[source.docCount()];
         this.items = new IndexRequest[source.docCount()];
@@ -67,7 +66,7 @@ final class BatchModeRouter implements Releasable {
     }
 
     private BatchModeRouter(BulkBatchEncoders encoders) {
-        this.batchName = null;
+        this.indexAbstractionName = null;
         this.source = null;
         this.partitionIds = null;
         this.items = null;
@@ -78,7 +77,9 @@ final class BatchModeRouter implements Releasable {
     @Nullable
     static BatchModeRouter create(BulkRequest bulkRequest, boolean batchIndexingSupported) {
         Map<String, SourceBatch> provided = bulkRequest.getPreBuiltBatches();
-        if (provided != null && provided.isEmpty() == false) {
+        boolean hasProvidedBatch = provided != null && provided.isEmpty() == false;
+
+        if (hasProvidedBatch) {
             if (batchIndexingSupported == false) {
                 throw new IllegalStateException(
                     "pre-built source batch submitted but batch indexing is not supported"
@@ -92,6 +93,42 @@ final class BatchModeRouter implements Releasable {
                         + " batches, but at most one is supported in step 1; multi-batch support will be added in a follow-up"
                 );
             }
+        } else if (batchIndexingSupported == false || bulkRequest.isSimulated() || bulkRequest.requests().isEmpty()) {
+            return null;
+        }
+
+        // Single scan: both paths require all items to be IndexRequests; the provided-batch path
+        // additionally requires every item to carry a source-row reference; the x-content path
+        // requires each item to carry inline source with a known content type.
+        for (DocWriteRequest<?> request : bulkRequest.requests()) {
+            if (request instanceof IndexRequest indexRequest) {
+                if (hasProvidedBatch) {
+                    if (indexRequest.indexSource().hasSourceRow() == false) {
+                        throw new IllegalArgumentException(
+                            "item targeting index ["
+                                + request.index()
+                                + "] must carry a source-row reference when a pre-built batch is attached"
+                        );
+                    }
+                } else if (BulkBatchEncoders.isItemBatchEligible(indexRequest) == false) {
+                    return null;
+                }
+            } else {
+                if (hasProvidedBatch) {
+                    throw new IllegalArgumentException(
+                        "["
+                            + request.opType()
+                            + "] operation on index ["
+                            + request.index()
+                            + "] cannot be mixed with pre-built source batches; every item of such a bulk must be an index"
+                            + " request carrying a source-row reference"
+                    );
+                }
+                return null;
+            }
+        }
+
+        if (hasProvidedBatch) {
             Map.Entry<String, SourceBatch> only = provided.entrySet().iterator().next();
             String name = only.getKey();
             SourceBatch batch = only.getValue();
@@ -102,11 +139,8 @@ final class BatchModeRouter implements Releasable {
                 "pre-built batch for index [" + name + "] must be an EscfBatch but was [" + batch.getClass().getName() + "]"
             );
         }
-        // Mixed bulks take the inline-source path end-to-end: there is no per-shard fallback that
-        // would batch only the all-IndexRequest shards.
-        return batchIndexingSupported && BulkBatchEncoders.isBulkBatchEligible(bulkRequest)
-            ? new BatchModeRouter(new BulkBatchEncoders())
-            : null;
+
+        return new BatchModeRouter(new BulkBatchEncoders());
     }
 
     /**
@@ -130,28 +164,14 @@ final class BatchModeRouter implements Releasable {
             request.postRoutingProcess(routing);
             return shardId;
         } else {
-            IndexRequest batchItem = requireBatchItem(request);
+            IndexRequest batchItem = (IndexRequest) request;
             prepareRouting(batchItem, abstraction, concreteIndex, routing, project);
             request.preRoutingProcess(routing);
             int shardId = request.route(routing);
             request.postRoutingProcess(routing);
-            recordRoutedShard(batchItem, shardId);
+            markRoutedShard(batchItem, shardId);
             return shardId;
         }
-    }
-
-    static IndexRequest requireBatchItem(DocWriteRequest<?> request) {
-        if (request instanceof IndexRequest indexRequest) {
-            return indexRequest;
-        }
-        throw new IllegalArgumentException(
-            "["
-                + request.opType()
-                + "] operation on index ["
-                + request.index()
-                + "] cannot be mixed with pre-built source batches; every item of such a bulk must be an index"
-                + " request carrying a source-row reference"
-        );
     }
 
     /**
@@ -165,32 +185,20 @@ final class BatchModeRouter implements Releasable {
         IndexRouting routing,
         ProjectMetadata project
     ) {
-        if (batchName.equals(abstraction.getName()) == false) {
-            if (request.indexSource().hasSourceRow()) {
-                throw new IllegalArgumentException(
-                    "item targeting index ["
-                        + request.index()
-                        + "] carries a source-row reference but no pre-built batch was supplied under that name;"
-                        + " batches must be keyed by the name set on the requests whose rows they hold"
-                );
-            }
+        if (indexAbstractionName.equals(abstraction.getName()) == false) {
             throw new IllegalArgumentException(
                 "item targeting index ["
                     + request.index()
-                    + "] carries inline source, but this bulk supplies a pre-built batch; the two cannot be mixed"
-            );
-        }
-        if (request.indexSource().hasSourceRow() == false) {
-            throw new IllegalArgumentException(
-                "item targeting index [" + request.index() + "] must carry a source-row reference when a pre-built batch is attached"
+                    + "] carries a source-row reference but no pre-built batch was supplied under that name;"
+                    + " batches must be keyed by the name set on the requests whose rows they hold"
             );
         }
         if (this.concreteIndex == null) {
-            bind(concreteIndex, routing, project);
+            assignConcrete(concreteIndex, routing, project);
         } else if (this.concreteIndex.equals(concreteIndex) == false) {
             throw new IllegalArgumentException(
                 "pre-built batch for ["
-                    + batchName
+                    + indexAbstractionName
                     + "] resolved to concrete index ["
                     + concreteIndex.getName()
                     + "] in addition to ["
@@ -209,7 +217,7 @@ final class BatchModeRouter implements Releasable {
         }
     }
 
-    private void bind(Index index, IndexRouting routing, ProjectMetadata project) {
+    private void assignConcrete(Index index, IndexRouting routing, ProjectMetadata project) {
         if (routing instanceof IndexRouting.ExtractFromSource) {
             if (routing instanceof IndexRouting.ExtractFromSource.ForIndexDimensions == false) {
                 throw new IllegalArgumentException(
@@ -227,11 +235,7 @@ final class BatchModeRouter implements Releasable {
         concreteIndex = index;
     }
 
-    /**
-     * Records one item's shard. Must run after {@code postRoutingProcess} so tsid/hash side effects
-     * are visible before the request is stored.
-     */
-    void recordRoutedShard(IndexRequest request, int shardId) {
+    void markRoutedShard(IndexRequest request, int shardId) {
         if (shardId < 0 || shardId >= shardCount) {
             throw new IllegalStateException(
                 "shard [" + shardId + "] is outside the shard count [" + shardCount + "] of index [" + concreteIndex.getName() + "]"
@@ -283,7 +287,7 @@ final class BatchModeRouter implements Releasable {
         if (routedCount != source.docCount()) {
             throw new IllegalStateException(
                 "pre-built batch ["
-                    + batchName
+                    + indexAbstractionName
                     + "] had "
                     + source.docCount()
                     + " rows but only "
@@ -354,6 +358,5 @@ final class BatchModeRouter implements Releasable {
         if (encoders != null) {
             encoders.close();
         }
-        // Provided sources are owned by the caller; scattered sub-batches are GC-reclaimed.
     }
 }

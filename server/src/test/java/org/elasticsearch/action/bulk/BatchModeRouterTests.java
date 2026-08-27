@@ -53,7 +53,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class BatchModeRouterTests extends ESTestCase {
 
@@ -402,21 +401,13 @@ public class BatchModeRouterTests extends ESTestCase {
 
     public void testRejectsItemWithoutSourceRow() throws IOException {
         EscfBatch batch = buildBatch(1);
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.setPreBuiltBatches(Map.of("myindex", batch));
-        IndexMetadata md = plainMetadata("myindex", 1);
-        ProjectMetadata project = project(md);
-        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
-
         // Item has inline source — no source-row reference.
         IndexRequest request = new IndexRequest("myindex").id("doc-0").source(new HashMap<>());
-        IndexAbstraction ia = project.getIndicesLookup().get(request.index());
-        var e = expectThrows(
-            IllegalArgumentException.class,
-            () -> router.prepareRouting(request, ia, md.getIndex(), IndexRouting.fromIndexMetadata(md), project)
-        );
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(request);
+        bulkRequest.setPreBuiltBatches(Map.of("myindex", batch));
+        var e = expectThrows(IllegalArgumentException.class, () -> BatchModeRouter.create(bulkRequest, true));
         assertThat(e.getMessage(), containsString("must carry a source-row reference"));
-        router.close();
     }
 
     public void testRejectsRowBearingItemWithNoBatchForItsName() throws IOException {
@@ -440,32 +431,22 @@ public class BatchModeRouterTests extends ESTestCase {
 
     public void testRejectsInlineItemForAnUnbatchedName() throws IOException {
         EscfBatch batch = buildBatch(1);
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.setPreBuiltBatches(Map.of("myindex", batch));
-        IndexMetadata other = plainMetadata("otherindex", 1);
-        ProjectMetadata project = project(plainMetadata("myindex", 1), other);
-        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
-
         // Inline source in a bulk that carries batches: its shard's rows could not line up with its items.
         IndexRequest request = new IndexRequest("otherindex").id("doc-0").source(new HashMap<>());
-        IndexAbstraction ia = project.getIndicesLookup().get(request.index());
-        var e = expectThrows(
-            IllegalArgumentException.class,
-            () -> router.prepareRouting(request, ia, other.getIndex(), IndexRouting.fromIndexMetadata(other), project)
-        );
-        assertThat(e.getMessage(), containsString("the two cannot be mixed"));
-        router.close();
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(request);
+        bulkRequest.setPreBuiltBatches(Map.of("myindex", batch));
+        var e = expectThrows(IllegalArgumentException.class, () -> BatchModeRouter.create(bulkRequest, true));
+        assertThat(e.getMessage(), containsString("must carry a source-row reference"));
     }
 
-    public void testRejectsNonIndexRequestItem() {
-        var e = expectThrows(IllegalArgumentException.class, () -> BatchModeRouter.requireBatchItem(new DeleteRequest("myindex", "doc-0")));
-        assertThat(e.getMessage(), containsString("cannot be mixed with pre-built source batches"));
-    }
-
-    public void testRequireBatchItemPassesThroughIndexRequests() throws IOException {
+    public void testRejectsNonIndexRequestItem() throws IOException {
         EscfBatch batch = buildBatch(1);
-        IndexRequest request = rowRequest("myindex", batch, 0);
-        assertThat(BatchModeRouter.requireBatchItem(request), sameInstance(request));
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new DeleteRequest("myindex", "doc-0"));
+        bulkRequest.setPreBuiltBatches(Map.of("myindex", batch));
+        var e = expectThrows(IllegalArgumentException.class, () -> BatchModeRouter.create(bulkRequest, true));
+        assertThat(e.getMessage(), containsString("cannot be mixed with pre-built source batches"));
     }
 
     /**
@@ -497,7 +478,7 @@ public class BatchModeRouterTests extends ESTestCase {
         IndexAbstraction ia = project.getIndicesLookup().get("myindex");
         IndexRequest first = (IndexRequest) bulkRequest.requests.get(0);
         router.prepareRouting(first, ia, concreteA, routingA, project);
-        router.recordRoutedShard(first, 0);
+        router.markRoutedShard(first, 0);
 
         // The second item is artificially routed to a different concrete index — must be rejected.
         IndexRequest second = (IndexRequest) bulkRequest.requests.get(1);
@@ -524,11 +505,11 @@ public class BatchModeRouterTests extends ESTestCase {
 
         IndexRequest first = (IndexRequest) bulkRequest.requests.get(0);
         router.prepareRouting(first, ia, md.getIndex(), routing, project);
-        router.recordRoutedShard(first, 0);
+        router.markRoutedShard(first, 0);
 
         IndexRequest second = (IndexRequest) bulkRequest.requests.get(1);
         router.prepareRouting(second, ia, md.getIndex(), routing, project);
-        var e = expectThrows(IllegalArgumentException.class, () -> router.recordRoutedShard(second, 0));
+        var e = expectThrows(IllegalArgumentException.class, () -> router.markRoutedShard(second, 0));
         assertThat(e.getMessage(), containsString("not strictly greater"));
         router.close();
     }
@@ -543,7 +524,7 @@ public class BatchModeRouterTests extends ESTestCase {
         IndexRequest request = (IndexRequest) bulkRequest.requests.get(0);
         IndexAbstraction ia = project.getIndicesLookup().get(request.index());
         router.prepareRouting(request, ia, md.getIndex(), IndexRouting.fromIndexMetadata(md), project);
-        var e = expectThrows(IllegalStateException.class, () -> router.recordRoutedShard(request, 2));
+        var e = expectThrows(IllegalStateException.class, () -> router.markRoutedShard(request, 2));
         assertThat(e.getMessage(), containsString("outside the shard count"));
         router.close();
     }
@@ -686,7 +667,7 @@ public class BatchModeRouterTests extends ESTestCase {
         IndexRouting routing = IndexRouting.fromIndexMetadata(md);
         IndexAbstraction iaFirst = project.getIndicesLookup().get(first.index());
         router.prepareRouting(first, iaFirst, md.getIndex(), routing, project);
-        router.recordRoutedShard(first, first.route(routing));
+        router.markRoutedShard(first, first.route(routing));
 
         IndexRequest rewritten = rowRequest("otherindex", batch, 1);
         IndexAbstraction iaOther = project.getIndicesLookup().get(rewritten.index());

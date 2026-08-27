@@ -359,6 +359,27 @@ public interface FormatReader extends Closeable {
         return null;
     }
 
+    /**
+     * Whether this reader still drops rows for {@link ErrorPolicy.Mode#SKIP_ROW} on the decode path it
+     * takes once a filter has been pushed into it.
+     * <p>
+     * A columnar reader honours {@code skip_row} by accumulating the positions that failed a declared-type
+     * coercion across the batch and compacting every block at the page emit point. A reader that evaluates
+     * a pushed predicate on a <em>separate</em> decode path (late materialization, two-phase decode) may
+     * never reach that emit point, in which case the failed cell is merely nulled and the row survives —
+     * silently serving {@code null_field} semantics for a {@code skip_row} read. Such readers must return
+     * {@code false} so {@code PushFiltersToSource} withholds the pushdown and leaves the predicate in a
+     * {@code FilterExec} above the source; results stay correct (the filter still runs, just one level up)
+     * and every batch stays on the path that drops rows.
+     * <p>
+     * Only consulted when the read actually combines {@code skip_row} with declared-type columns — see
+     * {@code DeclaredReadSpec#dropsRowsOnCoercionFailure}. With no declared types there is nothing to
+     * coerce, hence no row to drop, and pushdown is always allowed.
+     */
+    default boolean dropsRowsUnderPushedFilter() {
+        return true;
+    }
+
     default boolean supportsNativeAsync() {
         return false;
     }
@@ -389,7 +410,7 @@ public interface FormatReader extends Closeable {
      * {@code _rowPosition} slot populated. Every reader must explicitly declare a strategy:
      * a {@link PassThroughRowPositionStrategy} when the reader natively fills the slot in its own
      * iterator (parquet-mr, ORC, CSV, NDJSON), a {@link NullSpliceRowPositionStrategy} when the
-     * reader has no row-position channel and the slot must surface NULL (parquet-rs), or a future
+     * reader has no row-position channel and the slot must surface NULL, or a future
      * strategy that injects the column from per-page reader state. There is no default — readers
      * that "don't care" still participate, by returning {@link PassThroughRowPositionStrategy}.
      */

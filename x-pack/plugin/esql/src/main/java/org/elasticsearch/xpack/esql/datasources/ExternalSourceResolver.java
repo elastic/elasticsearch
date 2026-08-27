@@ -2740,8 +2740,6 @@ public class ExternalSourceResolver {
      * physical type into the declared one at decode time ({@link DeclaredTypeCoercions#supports}); any other pair
      * would fail deep in the engine with a block type mismatch — or worse, silently read as {@code null} — so it is
      * rejected at resolution instead. Text formats (CSV/TSV/NDJSON) parse into the declared type, so they are absent.
-     * {@code parquet-rs} is the native parquet reader (feature-flagged) — columnar like {@code parquet}, so it belongs
-     * here too.
      * <p>
      * Two checks gate on this set: {@link #rejectStrictColumnarUncoercibleTypes} and the non-strict
      * {@link #rejectUncoercibleFileTypedRetypes}. Removing an entry silently disables both for that format; adding a
@@ -2749,16 +2747,13 @@ public class ExternalSourceResolver {
      * {@code ExternalSourceResolverTests#testFileTypedFormatsGatesColumnarRejects} pins the membership so either drift
      * is a test failure.
      * TODO: this classification belongs on the {@code FormatReader} SPI (a capability method) — move it there with the
-     * typed DeclaredReadSpec carrier; a single documented constant beats threading a new SPI method for three formats.
+     * typed DeclaredReadSpec carrier; a single documented constant beats threading a new SPI method for two formats.
      */
-    static final Set<String> FILE_TYPED_FORMATS = Set.of("parquet", "orc", FormatNameResolver.FORMAT_PARQUET_RS);
+    static final Set<String> FILE_TYPED_FORMATS = Set.of("parquet", "orc");
 
     /**
      * The file-typed formats whose readers implement declared-type coercion in their decode paths
-     * ({@link DeclaredTypeCoercions}). {@code parquet-rs} is deliberately absent: its zero-copy Arrow-buffer blocks
-     * are produced by the Arrow type alone (see {@code ArrowToEsql}) with no per-column coercion hook yet, so it keeps
-     * the strict declared-type-must-equal-file-type check — the pre-coercion behavior — until its conversion layer
-     * grows the same {@link DeclaredTypeCoercions} calls. Pinned alongside {@link #FILE_TYPED_FORMATS} by
+     * ({@link DeclaredTypeCoercions}). Pinned alongside {@link #FILE_TYPED_FORMATS} by
      * {@code ExternalSourceResolverTests#testFileTypedFormatsGatesColumnarRejects}.
      */
     static final Set<String> COERCING_FILE_TYPED_FORMATS = Set.of("parquet", "orc");
@@ -2848,9 +2843,6 @@ public class ExternalSourceResolver {
      * already-temporal physical (an annotated timestamp declared with a format) — which passes the type check as an
      * identity coercion — is caught here. (On text formats the format is always honored — the parse IS the coercion —
      * so text never reaches this check.)
-     * <p>
-     * {@code parquet-rs} (in {@link #FILE_TYPED_FORMATS} but not {@link #COERCING_FILE_TYPED_FORMATS}) keeps the
-     * strict equality check: its Arrow conversion layer has no coercion hook yet.
      */
     private static void rejectUncoercibleFileTypedRetypes(
         List<Attribute> inferredSchema,

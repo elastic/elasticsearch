@@ -1627,16 +1627,13 @@ public class VerifierTests extends ESTestCase {
             .error("FROM decades | SORT date_range", equalTo("1:21: cannot sort on date_range"));
     }
 
-    public void testDoubleRangeUnsupportedOperations() {
+    public void testDoubleRangeOperations() {
+        assumeTrue("requires GROUP_BY_DOUBLE_RANGE capability", EsqlCapabilities.Cap.GROUP_BY_DOUBLE_RANGE.isEnabled());
         analyzer().addIndex("heights", "mapping-heights.json")
             .stripErrorPrefix(true)
             .error("FROM heights | SORT height_range", containsString("cannot sort on double_range"));
-        analyzer().addIndex("heights", "mapping-heights.json")
-            .stripErrorPrefix(true)
-            .error(
-                "FROM heights | STATS count(*) BY height_range",
-                containsString("cannot group by on [double_range] type for grouping [height_range]")
-            );
+        analyzer().addIndex("heights", "mapping-heights.json").query("FROM heights | STATS count(*) BY height_range");
+        analyzer().addIndex("heights", "mapping-heights.json").query("FROM heights | LIMIT 1 BY height_range");
         analyzer().addIndex("heights", "mapping-heights.json")
             .addLookupIndex("heights_lookup", "mapping-heights.json")
             .stripErrorPrefix(true)
@@ -3057,6 +3054,40 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().error("FROM test | WHERE mv_in_range(salary, 1, 2, 5)", containsString("must be a map expression"));
     }
 
+    public void testMvGreaterInvalidOptions() {
+        defaultAnalyzer().query("FROM test | WHERE mv_greater(salary, 1, { \"include_bound\": true })");
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_greater(salary, 1, { \"include_bnd\": true })",
+            containsString("Invalid option [include_bnd]")
+        );
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_greater(salary, 1, { \"include_bound\": \"banana\" })",
+            containsString("Invalid option [include_bound]")
+        );
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_greater(salary, 1, { \"include_bound\": null })",
+            containsString("Invalid option [include_bound]")
+        );
+        defaultAnalyzer().error("FROM test | WHERE mv_greater(salary, 1, 5)", containsString("must be a map expression"));
+    }
+
+    public void testMvLessInvalidOptions() {
+        defaultAnalyzer().query("FROM test | WHERE mv_less(salary, 1, { \"include_bound\": true })");
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_less(salary, 1, { \"include_bnd\": true })",
+            containsString("Invalid option [include_bnd]")
+        );
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_less(salary, 1, { \"include_bound\": \"banana\" })",
+            containsString("Invalid option [include_bound]")
+        );
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_less(salary, 1, { \"include_bound\": null })",
+            containsString("Invalid option [include_bound]")
+        );
+        defaultAnalyzer().error("FROM test | WHERE mv_less(salary, 1, 5)", containsString("must be a map expression"));
+    }
+
     public void testMvLikePattern() {
         defaultAnalyzer().query("FROM test | WHERE mv_like(first_name, \"Ann*\")");
         // A non-string literal pattern is a type error at analysis. The constant/null/malformed/multivalue checks run
@@ -3999,6 +4030,23 @@ public class VerifierTests extends ESTestCase {
             and the first aggregation [STATS avg(network.connections)] is not allowed"""));
     }
 
+    public void testTimeSeriesStatsUnresolvedChildColumnReturnsError() {
+        k8s().error(
+            "TS k8s | RENAME nonexistent_src AS dummy | STATS avg(nonexistent_agg) BY tbucket = bucket(@timestamp, 1hour)",
+            containsString("Unknown column [nonexistent_src]")
+        );
+    }
+
+    public void testTimeSeriesStatsEnrichWithMissingPolicyFieldReturnsError() {
+        analyzer().addK8s()
+            .addEnrichPolicy(EnrichPolicy.MATCH_TYPE, "my_policy", "language_code", "test_idx", "mapping-languages.json")
+            .stripErrorPrefix(true)
+            .error(
+                "TS k8s | ENRICH my_policy ON pod WITH @timestamp = nonexistent_enrich_field | STATS avg(nonexistent_agg)",
+                containsString("Enrich field [nonexistent_enrich_field] not found in enrich policy [my_policy]")
+            );
+    }
+
     public void testTextEmbeddingFunctionInvalidQuery() {
         assertInvalidEmbeddingFirstArgument("TEXT_EMBEDDING", TEXT_EMBEDDING_INFERENCE_ID, TaskType.TEXT_EMBEDDING);
     }
@@ -4875,6 +4923,28 @@ public class VerifierTests extends ESTestCase {
         fullText().error(
             "FROM test | HIGHLIGHT QSTR(\"fox\", {\"default_field\": \"title\"}) ON body",
             containsString("HIGHLIGHT query field [title] is not in ON fields [body]")
+        );
+        // Reject field references outside ON while translating the query.
+        fullText().error(
+            "FROM test | HIGHLIGHT \"title:fox\" ON body",
+            allOf(containsString("in HIGHLIGHT:"), containsString("field [title] is not one of the searchable fields [body]"))
+        );
+        fullText().error(
+            "FROM test | HIGHLIGHT QSTR(\"title:fox\") ON body",
+            allOf(containsString("in HIGHLIGHT:"), containsString("field [title] is not one of the searchable fields [body]"))
+        );
+        fullText().error(
+            "FROM test | HIGHLIGHT KQL(\"title: fox\") ON body",
+            allOf(containsString("in HIGHLIGHT:"), containsString("field [title] is not one of the searchable fields [body]"))
+        );
+        // Report the first field outside ON.
+        fullText().error(
+            "FROM test | HIGHLIGHT \"body:fox OR tags:dog\" ON title",
+            allOf(containsString("in HIGHLIGHT:"), containsString("field [body] is not one of the searchable fields [title]"))
+        );
+        fullText().error(
+            "FROM test | HIGHLIGHT QSTR(\"body:fox OR tags:dog\") ON title",
+            allOf(containsString("in HIGHLIGHT:"), containsString("field [body] is not one of the searchable fields [title]"))
         );
         // KQL syntax is checked while building the query.
         fullText().error("FROM test | HIGHLIGHT KQL(\"title: (fox\") ON title", containsString("in HIGHLIGHT:"));

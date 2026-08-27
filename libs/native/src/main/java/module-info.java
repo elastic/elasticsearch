@@ -21,9 +21,10 @@ module org.elasticsearch.nativeaccess {
         to
             org.elasticsearch.server,
             org.elasticsearch.blobcache,
-            org.elasticsearch.parquetrs,
+            // ColumNAR doc-values format: routes chunk compression through the native Zstd binding
+            // rather than a Java implementation.
+            org.elasticsearch.columnar,
             org.elasticsearch.searchablesnapshots,
-            org.elasticsearch.simdvec,
             org.elasticsearch.systemd,
             org.elasticsearch.xpack.stateless,
             // ESQL data source compression-libs plugin: hosts PanamaZstd, the thin Panama

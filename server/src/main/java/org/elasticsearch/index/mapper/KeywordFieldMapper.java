@@ -17,16 +17,13 @@ import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.InvertableType;
-import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Term;
@@ -91,10 +88,12 @@ import org.elasticsearch.index.query.AutomatonQueryWithDescription;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRangeQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesWildcardQuery;
+import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
@@ -107,7 +106,6 @@ import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.StringScriptFieldFuzzyQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
-import org.elasticsearch.search.runtime.StringScriptFieldRangeQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -148,12 +146,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     public static class Defaults {
         public static final FieldType FIELD_TYPE;
         public static final FieldType FIELD_TYPE_WITH_SKIP_DOC_VALUES;
-
-        /**
-         * The field type produced by {@link NumericDocValuesField#indexedField} — used for the
-         * {@code <name>.counts} columnar output column.
-         */
-        static final IndexableFieldType COUNTS_FIELD_TYPE = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_TYPE;
 
         static {
             FieldType ft = new FieldType();
@@ -780,6 +772,15 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         /**
+         * Returns true when this field stores keyword values through binary doc values and can store
+         * more than one value for a document. Lucene term statistics do not describe value counts
+         * for this representation, so callers must load the field to count values.
+         */
+        public boolean usesMultivaluedBinaryDocValues() {
+            return usesBinaryDocValues && docValuesParams != null && docValuesParams.multiValue();
+        }
+
+        /**
          * Whether this field stores its (high-cardinality) binary doc values in document order with inline nulls
          * ({@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull}) rather than via a sidecar offsets field.
          */
@@ -804,7 +805,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             } else if (usesBinaryDocValues) {
                 return new ScanningBinaryDocValuesTermQuery(name(), indexedValueForSearch(value), useArrayOrderBinaryDocValues);
             } else {
-                return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
+                return XSortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
             }
         }
 
@@ -834,17 +835,16 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (indexType.hasTerms()) {
                 return super.rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, context);
             } else if (usesBinaryDocValues) {
-                return new StringScriptFieldRangeQuery(
-                    new Script(""),
-                    ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx, indexVersion),
+                return new ScanningBinaryDocValuesRangeQuery(
                     name(),
-                    lowerTerm == null ? null : indexedValueForSearch(lowerTerm).utf8ToString(),
-                    upperTerm == null ? null : indexedValueForSearch(upperTerm).utf8ToString(),
+                    lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
+                    upperTerm == null ? null : indexedValueForSearch(upperTerm),
                     includeLower,
-                    includeUpper
+                    includeUpper,
+                    useArrayOrderBinaryDocValues
                 );
             } else {
-                return SortedSetDocValuesField.newSlowRangeQuery(
+                return XSortedSetDocValuesRangeQuery.newSlowRangeQuery(
                     name(),
                     lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
                     upperTerm == null ? null : indexedValueForSearch(upperTerm),
@@ -1484,8 +1484,8 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean isSingleValueEnforced() {
-        return docValuesParameters.multiValue() == false;
+    protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
+        return docValuesParameters.multiValue() == false && (token != XContentParser.Token.VALUE_NULL || fieldType().nullValue != null);
     }
 
     @Override
@@ -1496,20 +1496,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     @Override
     public boolean isNullable() {
         return docValuesParameters.nullability() || fieldType().nullValue != null;
-    }
-
-    @Override
-    public boolean supportsBatchIndexing() {
-        // Plain keyword mappers can be driven through parseCreateField by the bulk batch path.
-        // ignore_above is allowed — it's handled by indexValue and only needs addIgnoredField on
-        // the context, which BatchDocumentParserContext records. Dimensions, non-default
-        // normalizers, copy_to, multi-fields, and scripts all pull in behavior that the v1 batch
-        // path does not support.
-        return hasScript() == false
-            && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false
-            && normalizerName == null
-            && fieldType().isDimension() == false;
     }
 
     @Override
@@ -1702,26 +1688,12 @@ public final class KeywordFieldMapper extends FieldMapper {
             ctx.addColumn(LuceneBinaryColumn.of(binaryDvs.finish(docCount), fieldType().name(), CustomDocValuesField.TYPE));
         }
         if (dvCounts != null && dvCounts.isEmpty() == false) {
-            ctx.addColumn(
-                LuceneLongColumn.of(
-                    dvCounts.finish(docCount),
-                    fieldType().name() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX,
-                    Defaults.COUNTS_FIELD_TYPE,
-                    LongColumn.NumericKind.LONG
-                )
-            );
+            ctx.addColumn(LuceneLongColumn.counts(dvCounts.finish(docCount), fieldType().name()));
         }
         if (emitFallback && fallback != null && fallback.isEmpty() == false) {
             final String fallbackFieldName = fieldType().syntheticSourceFallbackFieldName();
             ctx.addColumn(LuceneBinaryColumn.of(fallback.finish(docCount), fallbackFieldName, CustomDocValuesField.TYPE));
-            ctx.addColumn(
-                LuceneLongColumn.of(
-                    fallbackCounts.finish(docCount),
-                    fallbackFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX,
-                    Defaults.COUNTS_FIELD_TYPE,
-                    LongColumn.NumericKind.LONG
-                )
-            );
+            ctx.addColumn(LuceneLongColumn.counts(fallbackCounts.finish(docCount), fallbackFieldName));
         }
     }
 
@@ -2132,6 +2104,10 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     public CompositeSyntheticFieldLoader syntheticFieldLoader(String fullFieldName, String leafFieldName) {
-        return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, syntheticFieldLoaderLayers());
+        var layers = syntheticFieldLoaderLayers();
+        if (onFailureColumnEnabled()) {
+            layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexCreatedVersion));
+        }
+        return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, layers);
     }
 }

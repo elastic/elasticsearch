@@ -7,7 +7,6 @@
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
-apply plugin: 'elasticsearch.internal-test-artifact-base'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.fwc-test'
 apply plugin: 'elasticsearch.bc-upgrade-test'
@@ -19,7 +18,6 @@ smartRetry.pruneIndividualTests.set(false)
 dependencies {
   javaRestTestImplementation project(xpackModule('logsdb'))
   javaRestTestImplementation project(':test:test-clusters')
-  javaRestTestImplementation testArtifact(project(':qa:rolling-upgrade'), 'javaRestTest')
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
 }

@@ -130,10 +130,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * added here. A change to this set is a deliberate, reviewed test diff — not a silent drift.
      */
     public void testFileTypedFormatsGatesColumnarRejects() {
-        assertEquals(
-            Set.of(FormatNameResolver.FORMAT_PARQUET, "orc", FormatNameResolver.FORMAT_PARQUET_RS),
-            ExternalSourceResolver.FILE_TYPED_FORMATS
-        );
+        assertEquals(Set.of(FormatNameResolver.FORMAT_PARQUET, "orc"), ExternalSourceResolver.FILE_TYPED_FORMATS);
         // Text formats parse into the declared type, so a declared format/retype IS honored — they must NOT be here.
         assertFalse(ExternalSourceResolver.FILE_TYPED_FORMATS.contains("csv"));
         assertFalse(ExternalSourceResolver.FILE_TYPED_FORMATS.contains("tsv"));
@@ -142,15 +139,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * Pins {@link ExternalSourceResolver#COERCING_FILE_TYPED_FORMATS} — the columnar formats whose readers coerce a
-     * declared type from the file's physical type (vs strict equality). It must be a subset of the file-typed set, and
-     * {@code parquet-rs} must stay OUT of it (it is file-typed but does not implement coercion yet), so a declared
-     * retype on parquet-rs still requires strict equality rather than silently coercing.
+     * declared type from the file's physical type (vs strict equality). It must be a subset of the file-typed set.
      */
     public void testCoercingFileTypedFormatsPinned() {
         assertEquals(Set.of(FormatNameResolver.FORMAT_PARQUET, "orc"), ExternalSourceResolver.COERCING_FILE_TYPED_FORMATS);
         assertTrue(ExternalSourceResolver.FILE_TYPED_FORMATS.containsAll(ExternalSourceResolver.COERCING_FILE_TYPED_FORMATS));
-        assertTrue(ExternalSourceResolver.FILE_TYPED_FORMATS.contains(FormatNameResolver.FORMAT_PARQUET_RS));
-        assertFalse(ExternalSourceResolver.COERCING_FILE_TYPED_FORMATS.contains(FormatNameResolver.FORMAT_PARQUET_RS));
     }
 
     // ===== Declared date `format` on a columnar column (rejectUncoercibleFileTypedRetypes) =====
@@ -2436,11 +2429,30 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * The extensionless branch of the same failure — the shape produced by data-lake litter that carries no extension
-     * at all ({@code _SUCCESS} markers, {@code folder/} placeholders, bare prefixes), which the listing does not
-     * filter out.
+     * The extensionless branch of the same failure — the shape produced by a non-hidden file that carries no extension
+     * at all (e.g. a bare prefix file). Hidden litter like {@code _SUCCESS} is now filtered before reaching schema
+     * resolution, so this test uses a non-hidden extensionless name to exercise the same error path.
      */
     public void testMultiFileGlobWithoutFormatReportsMissingExtension() {
+        Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/vpcflow/bare_prefix", List.of(attr("a", DataType.KEYWORD)));
+        List<StorageEntry> listing = List.of(entry("s3://bucket/vpcflow/bare_prefix", 0));
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> resolveMultiFileWithConfig("s3://bucket/vpcflow/*", schemasByPath, listing, Map.of())
+        );
+
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+        assertThat(e.getMessage(), containsString("s3://bucket/vpcflow/bare_prefix"));
+        assertThat(e.getMessage(), containsString("no file extension"));
+        assertThat(e.getMessage(), containsString("[format]"));
+    }
+
+    /**
+     * When the listing contains only non-data objects (e.g. {@code _SUCCESS} markers), the glob expansion filter
+     * removes them all and the resolver reports that no files matched rather than failing on an unreadable extension.
+     */
+    public void testMultiFileGlobWithOnlyLitterReportsNoFiles() {
         Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/vpcflow/_SUCCESS", List.of(attr("a", DataType.KEYWORD)));
         List<StorageEntry> listing = List.of(entry("s3://bucket/vpcflow/_SUCCESS", 0));
 
@@ -2449,10 +2461,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             () -> resolveMultiFileWithConfig("s3://bucket/vpcflow/*", schemasByPath, listing, Map.of())
         );
 
-        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
-        assertThat(e.getMessage(), containsString("s3://bucket/vpcflow/_SUCCESS"));
-        assertThat(e.getMessage(), containsString("no file extension"));
-        assertThat(e.getMessage(), containsString("[format]"));
+        assertThat(e.getMessage(), containsString("Glob pattern matched no files"));
+        assertThat(e.getMessage(), containsString("s3://bucket/vpcflow/*"));
     }
 
     /**
@@ -2471,6 +2481,29 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(mapped));
         assertSame("the original client error must be surfaced, not a re-wrap", original, mapped);
+    }
+
+    /**
+     * An IOException buried in the cache's {@code ExecutionException} must be a 400: a missing object or
+     * access-denied is the caller's fault regardless of which rail (cacheable vs non-cacheable) the resolution
+     * ran on.
+     */
+    public void testAnIoErrorKeepsIts400ThroughAWrapper() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        IOException original = new IOException("Object not found: s3://b/x.parquet");
+        // Cache#computeIfAbsent wraps loader failures with new ExecutionException(cause), which uses
+        // cause.toString() as its message — so rootDetail() can see through it to the IOException message.
+        ExecutionException wrapper = new ExecutionException(original);
+
+        RuntimeException mapped = resolver.mapResolveFailure("s3://b/x.parquet", wrapper);
+
+        assertEquals(
+            "a missing object is a client error on the cacheable path too",
+            RestStatus.BAD_REQUEST,
+            ExceptionsHelper.status(mapped)
+        );
+        assertThat(mapped.getMessage(), containsString("s3://b/x.parquet"));
+        assertThat(mapped.getMessage(), containsString("Object not found"));
     }
 
     /**
@@ -4732,12 +4765,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * {@code mapResolveFailure} is where a resolution failure's status is decided, and it decides by TYPE: an
-     * {@link IllegalArgumentException} (or {@link UnsupportedOperationException}) is returned untouched, and
-     * everything else is re-wrapped in a bare {@link org.elasticsearch.ElasticsearchException} -- a 500. So a glob
-     * that trips the discovery cap, which is the user having asked for too much, came back as a server fault for as
-     * long as the cap threw a {@code QlIllegalArgumentException}: not an {@code IllegalArgumentException}, therefore
-     * the default arm, therefore 500.
+     * {@code mapResolveFailure} is where a resolution failure's status is decided: a buried
+     * {@link IllegalArgumentException} is recovered and returned untouched (400); everything else is delegated to
+     * {@link ExternalFailures#classify} (IOExceptions become 400, invariant breaks stay 500). So a glob that trips the
+     * discovery cap, which is the user having asked for too much, came back as a server fault for as long as the cap
+     * threw a {@code QlIllegalArgumentException}: not an {@code IllegalArgumentException}, therefore the default arm,
+     * therefore 500.
      *
      * <p>The assertion is at {@code resolve}, not at {@code GlobExpander}: the throw site was already covered by
      * {@code GlobExpanderTests} while this frame -- the one that actually picks the status -- was not, and a test

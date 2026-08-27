@@ -182,6 +182,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
@@ -1126,6 +1127,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
                 case Row row -> resolveRow(row);
                 case MMR mmr -> resolveMMR(mmr, childrenOutput);
+                case DenseVector e -> resolveDenseVector(e, childrenOutput);
                 default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             };
 
@@ -1249,6 +1251,38 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return new Completion(p.source(), p.child(), p.inferenceId(), p.rowLimit(), prompt, targetField, p.taskSettings());
+        }
+
+        private LogicalPlan resolveDenseVector(DenseVector p, List<Attribute> childrenOutput) {
+            // Resolve the input fields once. Re-running is a no-op and the plan converges: after the first pass
+            // generatedFields is populated (or the field list is empty), so later analyzer iterations return the same instance.
+            if (p.generatedAttributes().isEmpty() == false || p.fields().isEmpty()) {
+                return p;
+            }
+
+            List<NamedExpression> resolvedFields = new ArrayList<>();
+            // Dedupe on NameId: `title, title` resolves to the same attribute; embedding it twice would double the inference
+            // cost and generate shadowing duplicate output columns.
+            Set<NameId> seen = new HashSet<>();
+            for (NamedExpression field : p.fields()) {
+                if (field instanceof UnresolvedAttribute ua) {
+                    // explicitly-named field -> keep all matches; an unknown column or a non-text type fails verification
+                    for (Attribute resolved : resolveAgainstList(ua, childrenOutput)) {
+                        if (resolved.resolved()) {
+                            if (seen.add(resolved.id())) {
+                                resolvedFields.add(resolved);
+                            }
+                        } else {
+                            // keep unresolved results so verification can report the unknown column
+                            resolvedFields.add(resolved);
+                        }
+                    }
+                } else {
+                    resolvedFields.add(field);
+                }
+            }
+
+            return p.withResolvedFields(resolvedFields, DenseVector.generatedAttributesFor(p.source(), resolvedFields));
         }
 
         private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {
@@ -2533,7 +2567,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Set<String> names = new HashSet<>(attrList.size());
             for (var a : attrList) {
                 String nameCandidate = a.name();
-                if (DataType.isPrimitive(a.dataType())) {
+                if (a instanceof UnresolvedAttribute == false && DataType.isPrimitive(a.dataType())) {
                     names.add(nameCandidate);
                 }
             }
@@ -3491,13 +3525,58 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // unsupported / unresolved fields can be explicitly retained
             return cleanPlan.transformUp(
                 LogicalPlan.class,
-                p -> p.transformExpressionsOnly(
-                    FieldAttribute.class,
-                    fa -> fa.field() instanceof PotentiallyUnmappedSingleTypeEsField punk
-                        ? fallbackToMappedType(fa, punk)
-                        : fa.flagTypeConflicts()
-                )
+                p -> p.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::cleanTypeConflicts)
             );
+        }
+
+        private static Attribute cleanTypeConflicts(FieldAttribute fa) {
+            EsField field = fa.field();
+            FieldAttribute shipped;
+            if (field instanceof PotentiallyUnmappedSingleTypeEsField punk) {
+                // Falls back to its single mapped type; that mapped field may still carry a nested conflict to neutralize.
+                shipped = fallbackToMappedType(fa, punk);
+            } else if (field instanceof TypeConflictedField) {
+                // A top-level conflict is representable as an UnsupportedAttribute; its properties never ship.
+                return fa.flagTypeConflicts();
+            } else {
+                shipped = fa;
+            }
+            EsField cleaned = stripNestedConflicts(shipped.field());
+            return cleaned == shipped.field() ? shipped : shipped.withField(cleaned);
+        }
+
+        /**
+         * A conflict object nested in a healthy parent's {@code properties} throws when the parent serializes, so swap it for a
+         * transportable {@link UnsupportedEsField} instead of stripping the properties: a text parent resolves its exact keyword
+         * sub-field from this map on the data node ({@code TextEsField#getExactInfo}, used by Lucene pushdown), and the unsupported
+         * replacement keeps the conflict's original types for error messages. Healthy sub-fields are kept as-is (rebuilding the
+         * parent would downgrade an unsupported one and lose its original types), so the parent is rebuilt only when a nested
+         * conflict was actually replaced.
+         */
+        private static EsField stripNestedConflicts(EsField field) {
+            Map<String, EsField> properties = field.getProperties();
+            if (properties == null || properties.isEmpty()) {
+                return field;
+            }
+            Map<String, EsField> rewritten = new LinkedHashMap<>(properties.size());
+            boolean changed = false;
+            for (Map.Entry<String, EsField> entry : properties.entrySet()) {
+                EsField child = entry.getValue();
+                EsField cleanedChild = asTransportable(child);
+                rewritten.put(entry.getKey(), cleanedChild);
+                changed |= cleanedChild != child;
+            }
+            return changed ? field.withProperties(rewritten) : field;
+        }
+
+        private static EsField asTransportable(EsField field) {
+            if (field instanceof TypeConflictedField tcf) {
+                return new UnsupportedEsField(tcf.getName(), tcf.getTypesToIndices().keySet().stream().toList());
+            }
+            if (field instanceof InvalidMappedTsField imtf) {
+                return new UnsupportedEsField(imtf.getName(), List.of());
+            }
+            return stripNestedConflicts(field);
         }
 
         private static void warnObservedNonLoadablePunks(LogicalPlan plan, AnalyzerContext context) {

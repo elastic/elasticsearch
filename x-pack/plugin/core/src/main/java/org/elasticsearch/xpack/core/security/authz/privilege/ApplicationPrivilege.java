@@ -59,9 +59,17 @@ public final class ApplicationPrivilege extends Privilege {
         return application;
     }
 
-    // Package level for testing
-    String[] getPatterns() {
-        return patterns;
+    /**
+     * Returns the resolved action patterns for this privilege. For a privilege resolved from a stored
+     * {@link ApplicationPrivilegeDescriptor}, this includes the descriptor's action strings. For a raw
+     * action pattern written directly under {@code privileges[]}, this includes that pattern itself.
+     * <p>
+     * Used by {@link ImplicitPrivilegesProvider} implementations to enumerate the concrete actions a
+     * grant authorizes, e.g. for building {@code terms_set} DLS queries against document-level
+     * permission fields.
+     */
+    public String[] getPatterns() {
+        return patterns.clone();
     }
 
     /**

@@ -1,6 +1,0 @@
-area: Distributed
-issues:
- - 155449
-pr: 155962
-summary: Allocation explain no longer starts gateway shard data fetches
-type: bug

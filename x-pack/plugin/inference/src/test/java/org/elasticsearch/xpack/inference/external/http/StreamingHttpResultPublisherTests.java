@@ -982,6 +982,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
                 // Stand in for Apache's I/O thread: enqueue body bytes then close the stream —
                 // these two calls race with the utility-pool drain dispatched above
                 testPublisher.consumeContent(contentDecoder(body), mock(IOControl.class));
+                testPublisher.responseCompleted(mock(HttpContext.class));
                 testPublisher.close();
 
                 var result = future.actionGet(TEST_REQUEST_TIMEOUT);

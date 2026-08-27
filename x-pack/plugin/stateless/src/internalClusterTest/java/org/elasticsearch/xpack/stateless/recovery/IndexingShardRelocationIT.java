@@ -109,6 +109,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
@@ -1097,7 +1098,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         ensureGreen(indexName);
     }
 
-    public void testPrewarmIdLookupsOnRelocation() throws Exception {
+    public void testPrewarmIdLookupsOnRelocation() {
         TimeValue recentIdLookupThreshold = TimeValue.timeValueMinutes(5);
         final var nodeSettings = Settings.builder()
             .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false)
@@ -1111,13 +1112,32 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         final var indexWithLookups = "index-with-lookups";
         createIndex(indexWithLookups, indexSettings(1, 0).put("index.routing.allocation.require._name", sourceNode).build());
         ensureGreen(indexWithLookups);
-        indexDocs(indexWithLookups, randomIntBetween(10, 50), ESTestCase::randomUUID);
+        // Index a single document sometimes so min==max
+        var bulkResponse = indexDocs(indexWithLookups, randomIntBetween(1, 25), ESTestCase::randomUUID);
+        var indexedIds = new TreeSet<String>();
+        for (BulkItemResponse bulkItemResponse : bulkResponse) {
+            indexedIds.add(bulkItemResponse.getId());
+        }
         flush(indexWithLookups);
         assertTrue(getShardEngine(findIndexShard(indexWithLookups), IndexEngine.class).hasRecentIdLookup(recentIdLookupThreshold));
         long prefetchCountBeforeRelocation = StatelessTestPlugin.timFilePrefetchCount.longValue();
         updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", targetNode), indexWithLookups);
         ensureGreen(indexWithLookups);
         assertThat(StatelessTestPlugin.timFilePrefetchCount.longValue(), greaterThan(prefetchCountBeforeRelocation));
+        var cacheService = internalCluster().getInstance(StatelessPlugin.SharedBlobCacheServiceSupplier.class, targetNode).get();
+        long missCountBeforeIdLookups = cacheService.getStats().missCount();
+        // Ensure that the min and max _id's do not hit cache misses
+        try {
+            client().prepareIndex(indexWithLookups).setId(indexedIds.first()).setCreate(true).setSource(Map.of("key", "value")).get();
+        } catch (Exception e) {
+            // expected: document already exists
+        }
+        try {
+            client().prepareIndex(indexWithLookups).setId(indexedIds.last()).setCreate(true).setSource(Map.of("key", "value")).get();
+        } catch (Exception e) {
+            // expected: document already exists
+        }
+        assertThat(cacheService.getStats().missCount(), equalTo(missCountBeforeIdLookups));
 
         // Without recent ID lookups: prewarmIdLookups should be false on the target engine after relocation.
         final var indexWithoutLookups = "index-without-lookups";

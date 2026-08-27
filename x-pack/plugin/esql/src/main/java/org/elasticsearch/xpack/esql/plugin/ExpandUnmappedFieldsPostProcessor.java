@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -44,6 +45,8 @@ import java.util.TreeSet;
  * (a JSON-object keyword column) to discover the full set of unique field names across
  * all rows, then replaces that column with one dedicated {@code keyword} column per
  * unique field name. Rows that do not carry a given field get {@code null} in that column.
+ * Query columns following {@code $$unmapped_fields} ({@code INLINE STATS} aggregates, {@code EVAL} aliases)
+ * stay before the expansion. Approximation confidence-interval columns stay after it.
  * <p>
  * TODO every row's {@code _source} ends up parsed three times: the data node parses it to filter the column, then the
  *  coordinator parses the column once to collect field names and once more to expand them. A columnar shape — one block of
@@ -73,7 +76,7 @@ class ExpandUnmappedFieldsPostProcessor {
             // TODO account for newSchema's field names against the circuit breaker. A wide _source turns into a wide schema, and
             // unlike the pages, the response schema has no breaker-tracked lifetime to release it against today.
             List<Attribute> newSchema = buildSchema(schema, unmappedIdx, sortedFieldNames);
-            List<Page> newPages = rewritePages(result, unmappedIdx, sortedFieldNames, blockFactory, reservationFactor);
+            List<Page> newPages = rewritePages(result, unmappedIdx, schema, sortedFieldNames, blockFactory, reservationFactor);
 
             Result expanded = new Result(
                 newSchema,
@@ -135,17 +138,28 @@ class ExpandUnmappedFieldsPostProcessor {
         return reservation;
     }
 
-    /** Builds the expanded schema: every column except {@code _unmapped_fields}, then one keyword column per unmapped field name. */
+    /**
+     * Builds the expanded schema: Query data columns (everything except {@code _unmapped_fields} and approximation extras), then one
+     * keyword column per expanded field, then approximation columns. {@code INLINE STATS} and {@code EVAL} append fields after
+     * {@code $$unmapped_fields}; expansion still belongs after those data columns and before {@code _approximation_*} extras.
+     */
     private static List<Attribute> buildSchema(List<Attribute> schema, int unmappedIdx, List<String> fieldNames) {
-        List<Attribute> newSchema = new ArrayList<>(schema.size() - 1 + fieldNames.size());
+        List<Attribute> data = new ArrayList<>();
+        List<Attribute> approximation = new ArrayList<>();
         Set<String> existingNames = new HashSet<>();
         for (int i = 0; i < schema.size(); i++) {
-            if (i != unmappedIdx) {
-                Attribute attribute = schema.get(i);
-                newSchema.add(attribute);
-                existingNames.add(attribute.name());
+            if (i == unmappedIdx) {
+                continue;
+            }
+            Attribute attribute = schema.get(i);
+            existingNames.add(attribute.name());
+            if (ApproximationPlan.isApproximationColumn(attribute.name())) {
+                approximation.add(attribute);
+            } else {
+                data.add(attribute);
             }
         }
+        List<Attribute> expanded = new ArrayList<>(fieldNames.size());
         for (String name : fieldNames) {
             if (existingNames.contains(name)) {
                 // Unreachable: the pattern excludes every name in the plan's output, so a key that made it into this column cannot
@@ -158,8 +172,12 @@ class ExpandUnmappedFieldsPostProcessor {
                     )
                 );
             }
-            newSchema.add(new ReferenceAttribute(Source.EMPTY, null, name, DataType.KEYWORD));
+            expanded.add(new ReferenceAttribute(Source.EMPTY, null, name, DataType.KEYWORD));
         }
+        List<Attribute> newSchema = new ArrayList<>(data.size() + expanded.size() + approximation.size());
+        newSchema.addAll(data);
+        newSchema.addAll(expanded);
+        newSchema.addAll(approximation);
         return newSchema;
     }
 
@@ -167,16 +185,16 @@ class ExpandUnmappedFieldsPostProcessor {
     private static List<Page> rewritePages(
         Result result,
         int unmappedIdx,
+        List<Attribute> schema,
         List<String> fieldNames,
         BlockFactory factory,
         double reservationFactor
     ) {
-        int originalColumnCount = result.schema().size();
         var newPages = new ArrayList<Page>(result.pages().size());
         var success = false;
         try {
             for (Page p : result.pages()) {
-                newPages.add(rewritePage(unmappedIdx, fieldNames, factory, p, originalColumnCount, reservationFactor));
+                newPages.add(rewritePage(unmappedIdx, schema, fieldNames, factory, p, reservationFactor));
             }
             success = true;
             return newPages;
@@ -189,26 +207,18 @@ class ExpandUnmappedFieldsPostProcessor {
 
     private static Page rewritePage(
         int unmappedIdx,
+        List<Attribute> schema,
         List<String> fieldNames,
         BlockFactory blockFactory,
         Page page,
-        int originalColumnCount,
         double reservationFactor
     ) {
-        // Output blocks are the retained columns (all but _unmapped_fields) followed by one expanded column per field name
-        // collectFieldNames found, so fieldNames.size() is the single source for the expansion width.
-        int retainedBlockCount = originalColumnCount - 1;
+        int originalColumnCount = schema.size();
         int expandedBlockCount = fieldNames.size();
-        Block[] allBlocks = new Block[retainedBlockCount + expandedBlockCount];
+        Block[] allBlocks = new Block[originalColumnCount - 1 + expandedBlockCount];
 
-        int dest = 0;
-        for (int i = 0; i < originalColumnCount; i++) {
-            if (i != unmappedIdx) {
-                var block = page.getBlock(i);
-                block.incRef();
-                allBlocks[dest++] = block;
-            }
-        }
+        int dest = copyRetainedBlocks(page, schema, unmappedIdx, allBlocks, 0, false);
+        copyRetainedBlocks(page, schema, unmappedIdx, allBlocks, dest + expandedBlockCount, true);
 
         var success = false;
         BytesRefBlock.Builder[] builders = new BytesRefBlock.Builder[expandedBlockCount];
@@ -236,7 +246,7 @@ class ExpandUnmappedFieldsPostProcessor {
                     }
                 }
                 for (int i = 0; i < builders.length; i++) {
-                    allBlocks[retainedBlockCount + i] = builders[i].build();
+                    allBlocks[dest + i] = builders[i].build();
                 }
             }
             var result = new Page(page.getPositionCount(), allBlocks);
@@ -249,6 +259,25 @@ class ExpandUnmappedFieldsPostProcessor {
                 Releasables.closeExpectNoException(allBlocks);
             }
         }
+    }
+
+    private static int copyRetainedBlocks(
+        Page page,
+        List<Attribute> schema,
+        int unmappedIdx,
+        Block[] destBlocks,
+        int dest,
+        boolean approximationColumns
+    ) {
+        for (int i = 0; i < schema.size(); i++) {
+            if (i == unmappedIdx || ApproximationPlan.isApproximationColumn(schema.get(i).name()) != approximationColumns) {
+                continue;
+            }
+            Block block = page.getBlock(i);
+            block.incRef();
+            destBlocks[dest++] = block;
+        }
+        return dest;
     }
 
     /**

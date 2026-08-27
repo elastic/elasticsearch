@@ -89,8 +89,7 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
                     .subList(expectedOutputAttributes.size(), optimizedPlan.output().size())
                     .stream()
                     .allMatch(
-                        a -> a.name().startsWith(ApproximationPlan.CONFIDENCE_INTERVAL_COLUMN_PREFIX)
-                            || a.name().startsWith(ApproximationPlan.CERTIFIED_COLUMN_PREFIX)
+                        a -> ApproximationPlan.isApproximationColumn(a.name())
                     );
 
             boolean ignoreError = hasProjectAwayColumns

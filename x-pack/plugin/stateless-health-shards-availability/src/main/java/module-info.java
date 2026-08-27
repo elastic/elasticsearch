@@ -9,6 +9,4 @@ module org.elasticsearch.xpack.stateless.shardhealth {
     requires org.elasticsearch.server;
     requires org.apache.lucene.core;
     requires org.elasticsearch.base;
-
-    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.stateless.health.StatelessHealthFeatures;
 }

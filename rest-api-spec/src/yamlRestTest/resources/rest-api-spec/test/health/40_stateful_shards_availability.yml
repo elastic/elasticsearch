@@ -1,10 +1,4 @@
-# Tests for the shards_availability indicator on stateful clusters only
----
-setup:
-  - skip:
-      cluster_features: "health.stateless_shards_availability"
-      reason: "The stateless shards_availability indicator differs to stateful"
-
+# Tests for the shards_availability indicator on stateful clusters only.
 ---
 teardown:
   - do:

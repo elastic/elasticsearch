@@ -28,6 +28,8 @@ tasks.named("yamlRestTest").configure {
     'cat.templates/10_basic/No templates',
     'cat.templates/10_basic/Sort templates',
     'cat.templates/10_basic/Multiple template',
+    // Stateless-only shards_availability assertions
+    'health/50_stateless_shards_availability/*',
   ]
   systemProperty 'tests.rest.blacklist', blacklist.join(',')
 }

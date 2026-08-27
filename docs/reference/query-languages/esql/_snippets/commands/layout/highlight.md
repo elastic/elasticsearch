@@ -33,7 +33,7 @@ HIGHLIGHT [prefix = "<prefix>"] query ON field [, field, ...] [WITH { "option": 
     [`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md),
     [`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md),
     [`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md),
-    or the [match operator `:` ](/reference/query-languages/esql/functions-operators/operators.md#esql-match-operator).
+    or the [match operator `:`](/reference/query-languages/esql/functions-operators/operators.md#esql-match-operator).
     You can combine full-text functions using `AND`, `OR`, and `NOT`. Unqualified
     strings and `QSTR` expressions are evaluated against all fields listed in `ON`.
     All fields referenced in the query must also be listed in `ON`. If an unlisted field
@@ -110,11 +110,10 @@ resolve to a literal are accepted; column references are not.
 
 `max_analyzed_offset`
 :   (Optional) Maximum number of characters to analyze per field value. Accepts a
-    positive integer, or `-1` for no explicit limit. Defaults to `-1`. Because
-    `HIGHLIGHT` runs on the coordinating node, it cannot read index settings: the
-    effective limit is always capped at 1 million characters and the index's
-    `index.highlight.max_analyzed_offset` setting is ignored. Text beyond the effective
-    offset is ignored during highlighting.
+    positive integer, or `-1` to leave the limit unset. Defaults to `-1`.
+    `HIGHLIGHT` analyzes at most 1 million characters per field value regardless of
+    this setting, and the index's `index.highlight.max_analyzed_offset` setting does
+    not apply. Text beyond the effective offset is not highlighted.
 
 ## Description
 
@@ -136,15 +135,17 @@ For multivalued fields, each value is highlighted independently:
 * When a field produces multiple fragments, the output column contains a multivalued list of snippets.
 * Multivalued `keyword` fields loaded from doc values are sorted and deduplicated before highlighting, which can result in a different snippet order compared to the `_search` API.
 
-::::{warning}
-`HIGHLIGHT` is currently in preview. Note the following limitations:
+:::{tip}
+Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+:::
+
+## Limitations
 
 * `HIGHLIGHT` re-analyzes text with the `standard` analyzer by default, rather than the analyzer configured in the index mapping. If your field uses a custom or language analyzer, specify it with the `analyzer` option in the `WITH` clause.
 * The `analyzer` option only supports built-in and node-level plugin analyzers. Analyzers configured in index settings are not supported.
 * On `keyword` fields, `HIGHLIGHT` tokenizes text and breaks it into snippets like a text field, rather than treating the value as a single term.
 * On `semantic_text` fields, `HIGHLIGHT` performs lexical matching against the underlying text. Semantic vector matches without literal keyword overlap are not highlighted.
-* Fields are analyzed up to a maximum of 1,000,000 characters. Text beyond this limit is not analyzed or highlighted.
-::::
+* Fields are analyzed up to a maximum of 1 million characters. Text beyond this limit is not analyzed or highlighted.
 
 ## Examples
 

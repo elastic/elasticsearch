@@ -23,5 +23,8 @@ public final class EsqlDataSourcesCapabilities {
      */
     public static final String DATA_SOURCES_SERVERLESS_SCOPE = "data_sources_serverless_scope";
 
+    /** Advertises that this node exposes {@code POST /_query/data_source/{name}/_test_connection}. */
+    public static final String DATA_SOURCE_TEST_CONNECTION = "data_source_test_connection";
+
     private EsqlDataSourcesCapabilities() {}
 }

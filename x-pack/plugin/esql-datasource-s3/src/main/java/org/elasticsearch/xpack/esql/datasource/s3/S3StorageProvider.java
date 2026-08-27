@@ -538,6 +538,29 @@ public class S3StorageProvider implements StorageProvider {
         return key;
     }
 
+    /**
+     * Tests connectivity by attempting {@code ListBuckets}. No bucket name is needed for this call,
+     * which makes it the only available account-level S3 probe given that {@link S3Configuration}
+     * carries only credentials and endpoint (the bucket lives in the data source URI).
+     * <p>
+     * A {@code 403 AccessDenied} response is treated as success: it proves the credentials were
+     * valid enough to sign and deliver the request to S3 — the IAM policy is simply bucket-scoped
+     * and does not grant {@code s3:ListAllMyBuckets}. Invalid credentials return
+     * {@code InvalidClientTokenId} or {@code SignatureDoesNotMatch} instead, which are re-thrown.
+     * Called from the factory's {@code testConnection} on a GENERIC thread — blocking I/O is expected.
+     */
+    public void testConnection() {
+        try {
+            s3Client.listBuckets();
+        } catch (S3Exception e) {
+            if (e.statusCode() == 403 && e.awsErrorDetails() != null && "AccessDenied".equals(e.awsErrorDetails().errorCode())) {
+                // Credentials are valid; IAM policy is bucket-scoped. Connectivity confirmed.
+                return;
+            }
+            throw e;
+        }
+    }
+
     public S3Client s3Client() {
         return s3Client;
     }

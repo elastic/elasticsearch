@@ -195,6 +195,23 @@ public final class AzureStorageProvider implements StorageProvider {
     }
 
     /**
+     * Tests connectivity by fetching account information from the configured account.
+     * Uses {@code Get Account Information} ({@code ?restype=account&comp=properties}), a data-plane
+     * operation that succeeds with any data-plane credential (account key, SAS token, or
+     * {@code Storage Blob Data Reader} RBAC). Unlike {@code getProperties()} (which is a
+     * management-plane call requiring {@code Storage Account Contributor}), this probe works with
+     * the same permissions the data source needs to read blobs. No container name is required.
+     * Called from the factory's {@code testConnection} on a GENERIC thread — blocking I/O is expected.
+     *
+     * <p>If the Azure client cannot be constructed from the data source settings alone (e.g. the
+     * account endpoint is only resolvable from a {@code wasbs://account…} URI, not from the settings),
+     * an {@link IllegalStateException} is thrown and surfaces as a {@code {status: "failure"}} response.
+     */
+    public void testConnection() {
+        clients(null).sync().getAccountInfo();
+    }
+
+    /**
      * Builds an AKS Workload Identity credential when all three preconditions hold:
      * <ol>
      *   <li>{@link Environment} is available (i.e. the plugin's {@code createComponents} ran),</li>

@@ -107,6 +107,38 @@ setup:
   - match: { data_sources: [] }
 
 ---
+"test-connection-unknown-type":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query/data_source/_test_connection
+          capabilities: [data_source_test_connection]
+      test_runner_features: capabilities
+      reason: "ES|QL data source test-connection API"
+  - do:
+      catch: bad_request
+      esql.test_data_source_connection:
+        body:
+          type: "unknown-type-xyz"
+          settings: {}
+
+---
+"test-connection-untestable-type":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query/data_source/_test_connection
+          capabilities: [data_source_test_connection]
+      test_runner_features: capabilities
+      reason: "ES|QL data source test-connection API — untestable type"
+  - do:
+      esql.test_data_source_connection:
+        body:
+          type: "file"
+          settings: {}
+  - match: { status: "untestable" }
+
+---
 "cluster-state-visibility":
   # DataSourceMetadata.context() excludes the API XContent context, so even if a data source existed
   # (can't create one here without a loaded validator plugin), the custom should never surface via

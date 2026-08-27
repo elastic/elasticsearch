@@ -2624,8 +2624,8 @@ public class ExternalSourceResolver {
 
         // Partition columns are path-derived (no file I/O), so strict mode surfaces them exactly like the inferred
         // path does. One divergence: the inferred path SHADOWS a physical column that collides with a partition key
-        // (partition wins, Spark/DuckDB semantics), but under strict the declaration drives the reader's file schema
-        // — text formats bind positionally — so silently dropping a declared column would silently re-bind the rest.
+        // (partition wins, Spark/DuckDB semantics), but under strict the declaration drives the reader's file schema,
+        // so silently dropping a declared column could silently mis-bind reads.
         // A declared column colliding with a partition key is rejected instead: partition columns need no declaring.
         // Cheap no-I/O guard first (partition collision); strict skips only rejectUncoercibleFileTypedRetypes against
         // the unified schema, which needs an inferred schema strict never reads — the anchor-footer check below covers it.
@@ -2665,8 +2665,6 @@ public class ExternalSourceResolver {
      * physical type into the declared one at decode time ({@link DeclaredTypeCoercions#supports}); any other pair
      * would fail deep in the engine with a block type mismatch — or worse, silently read as {@code null} — so it is
      * rejected at resolution instead. Text formats (CSV/TSV/NDJSON) parse into the declared type, so they are absent.
-     * {@code parquet-rs} is the native parquet reader (feature-flagged) — columnar like {@code parquet}, so it belongs
-     * here too.
      * <p>
      * Two checks gate on this set: {@link #rejectStrictColumnarUncoercibleTypes} and the non-strict
      * {@link #rejectUncoercibleFileTypedRetypes}. Removing an entry silently disables both for that format; adding a
@@ -2674,16 +2672,13 @@ public class ExternalSourceResolver {
      * {@code ExternalSourceResolverTests#testFileTypedFormatsGatesColumnarRejects} pins the membership so either drift
      * is a test failure.
      * TODO: this classification belongs on the {@code FormatReader} SPI (a capability method) — move it there with the
-     * typed DeclaredReadSpec carrier; a single documented constant beats threading a new SPI method for three formats.
+     * typed DeclaredReadSpec carrier; a single documented constant beats threading a new SPI method for two formats.
      */
-    static final Set<String> FILE_TYPED_FORMATS = Set.of("parquet", "orc", FormatNameResolver.FORMAT_PARQUET_RS);
+    static final Set<String> FILE_TYPED_FORMATS = Set.of("parquet", "orc");
 
     /**
      * The file-typed formats whose readers implement declared-type coercion in their decode paths
-     * ({@link DeclaredTypeCoercions}). {@code parquet-rs} is deliberately absent: its zero-copy Arrow-buffer blocks
-     * are produced by the Arrow type alone (see {@code ArrowToEsql}) with no per-column coercion hook yet, so it keeps
-     * the strict declared-type-must-equal-file-type check — the pre-coercion behavior — until its conversion layer
-     * grows the same {@link DeclaredTypeCoercions} calls. Pinned alongside {@link #FILE_TYPED_FORMATS} by
+     * ({@link DeclaredTypeCoercions}). Pinned alongside {@link #FILE_TYPED_FORMATS} by
      * {@code ExternalSourceResolverTests#testFileTypedFormatsGatesColumnarRejects}.
      */
     static final Set<String> COERCING_FILE_TYPED_FORMATS = Set.of("parquet", "orc");
@@ -2702,7 +2697,7 @@ public class ExternalSourceResolver {
     /**
      * Rejects a declared column that collides with a hive partition key, for BOTH strict and non-strict declarations. A
      * partition column is path-derived (the partition value is the same for every row of a file) and needs no declaring;
-     * declaring one either silently re-binds the positional text columns (strict) or overlays/retypes the partition
+     * declaring one either conflicts with the declared schema's by-name binding (strict) or overlays/retypes the partition
      * attribute against the value the injector stamps with the partition's own type (non-strict) — a silent misbind
      * either way. Checks both the declared logical name and its {@code path} physical, since the shadowed physical
      * column is the partition value too. No-op when the dataset is not partitioned.
@@ -2773,9 +2768,6 @@ public class ExternalSourceResolver {
      * already-temporal physical (an annotated timestamp declared with a format) — which passes the type check as an
      * identity coercion — is caught here. (On text formats the format is always honored — the parse IS the coercion —
      * so text never reaches this check.)
-     * <p>
-     * {@code parquet-rs} (in {@link #FILE_TYPED_FORMATS} but not {@link #COERCING_FILE_TYPED_FORMATS}) keeps the
-     * strict equality check: its Arrow conversion layer has no coercion hook yet.
      */
     private static void rejectUncoercibleFileTypedRetypes(
         List<Attribute> inferredSchema,

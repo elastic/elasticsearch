@@ -130,10 +130,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * added here. A change to this set is a deliberate, reviewed test diff — not a silent drift.
      */
     public void testFileTypedFormatsGatesColumnarRejects() {
-        assertEquals(
-            Set.of(FormatNameResolver.FORMAT_PARQUET, "orc", FormatNameResolver.FORMAT_PARQUET_RS),
-            ExternalSourceResolver.FILE_TYPED_FORMATS
-        );
+        assertEquals(Set.of(FormatNameResolver.FORMAT_PARQUET, "orc"), ExternalSourceResolver.FILE_TYPED_FORMATS);
         // Text formats parse into the declared type, so a declared format/retype IS honored — they must NOT be here.
         assertFalse(ExternalSourceResolver.FILE_TYPED_FORMATS.contains("csv"));
         assertFalse(ExternalSourceResolver.FILE_TYPED_FORMATS.contains("tsv"));
@@ -142,15 +139,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * Pins {@link ExternalSourceResolver#COERCING_FILE_TYPED_FORMATS} — the columnar formats whose readers coerce a
-     * declared type from the file's physical type (vs strict equality). It must be a subset of the file-typed set, and
-     * {@code parquet-rs} must stay OUT of it (it is file-typed but does not implement coercion yet), so a declared
-     * retype on parquet-rs still requires strict equality rather than silently coercing.
+     * declared type from the file's physical type (vs strict equality). It must be a subset of the file-typed set.
      */
     public void testCoercingFileTypedFormatsPinned() {
         assertEquals(Set.of(FormatNameResolver.FORMAT_PARQUET, "orc"), ExternalSourceResolver.COERCING_FILE_TYPED_FORMATS);
         assertTrue(ExternalSourceResolver.FILE_TYPED_FORMATS.containsAll(ExternalSourceResolver.COERCING_FILE_TYPED_FORMATS));
-        assertTrue(ExternalSourceResolver.FILE_TYPED_FORMATS.contains(FormatNameResolver.FORMAT_PARQUET_RS));
-        assertFalse(ExternalSourceResolver.COERCING_FILE_TYPED_FORMATS.contains(FormatNameResolver.FORMAT_PARQUET_RS));
     }
 
     // ===== Declared date `format` on a columnar column (rejectUncoercibleFileTypedRetypes) =====

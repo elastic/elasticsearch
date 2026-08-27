@@ -35,6 +35,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.node.HealthInfo;
+import org.elasticsearch.health.node.ProjectIndexName;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndices;
@@ -55,6 +56,7 @@ import static org.elasticsearch.cluster.routing.ShardRouting.newUnassigned;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.getTruncatedProjectIndices;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -150,12 +152,12 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
         } else if (expectedReplicasBeyondGrace == 0) {
             assertThat(result.status(), equalTo(HealthStatus.GREEN));
             assertThat(details.get("indices_with_unavailable_replicas"), nullValue());
-            assertThat(details.get("indices_with_provisionally_unavailable_replicas"), equalTo(indexNames()));
+            assertThat(details.get("indices_with_provisionally_unavailable_replicas"), equalTo(indexNames(state)));
         } else {
             assertThat(result.status(), equalTo(HealthStatus.YELLOW));
-            assertThat(details.get("indices_with_unavailable_replicas"), equalTo(indexNames()));
+            assertThat(details.get("indices_with_unavailable_replicas"), equalTo(indexNames(state)));
             if (expectedReplicasBeyondGrace < inactiveReplicas.size()) {
-                assertThat(details.get("indices_with_provisionally_unavailable_replicas"), equalTo(indexNames()));
+                assertThat(details.get("indices_with_provisionally_unavailable_replicas"), equalTo(indexNames(state)));
             } else {
                 assertThat(details.get("indices_with_provisionally_unavailable_replicas"), nullValue());
             }
@@ -194,7 +196,7 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
                 assertThat(details.get("initializing_primaries"), equalTo(0));
             }
             assertThat(details.get("unassigned_primaries"), equalTo(0));
-            assertThat(details.get("indices_with_provisionally_unavailable_primaries"), equalTo(indexNames()));
+            assertThat(details.get("indices_with_provisionally_unavailable_primaries"), equalTo(indexNames(state)));
             assertThat(details.get("indices_with_unavailable_primaries"), nullValue());
         } else {
             assertThat(result.status(), equalTo(HealthStatus.RED));
@@ -207,7 +209,7 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
                 assertThat(details.get("initializing_primaries"), equalTo(0));
                 assertThat(details.get("unassigned_primaries"), equalTo(projectIds.size()));
             }
-            assertThat(details.get("indices_with_unavailable_primaries"), equalTo(indexNames()));
+            assertThat(details.get("indices_with_unavailable_primaries"), equalTo(indexNames(state)));
             assertThat(details.get("indices_with_provisionally_unavailable_primaries"), nullValue());
         }
     }
@@ -250,7 +252,7 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
                 assertThat(details.get("initializing_primaries"), equalTo(0));
             }
             assertThat(details.get("unassigned_primaries"), equalTo(0));
-            assertThat(details.get("indices_with_provisionally_unavailable_primaries"), equalTo(indexNames()));
+            assertThat(details.get("indices_with_provisionally_unavailable_primaries"), equalTo(indexNames(state)));
             assertThat(details.get("indices_with_unavailable_primaries"), nullValue());
         } else {
             if (primaryInactive.state() == INITIALIZING) {
@@ -262,7 +264,7 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
                 assertThat(details.get("initializing_primaries"), equalTo(0));
                 assertThat(details.get("unassigned_primaries"), equalTo(projectIds.size()));
             }
-            assertThat(details.get("indices_with_unavailable_primaries"), equalTo(indexNames()));
+            assertThat(details.get("indices_with_unavailable_primaries"), equalTo(indexNames(state)));
             assertThat(details.get("indices_with_provisionally_unavailable_primaries"), nullValue());
         }
         if (replicaProvisional) {
@@ -270,7 +272,7 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
             assertThat(details.get("creating_replicas"), equalTo(projectIds.size()));
             assertThat(details.get("initializing_replicas"), equalTo(0));
             assertThat(details.get("unassigned_replicas"), equalTo(0));
-            assertThat(details.get("indices_with_provisionally_unavailable_replicas"), equalTo(indexNames()));
+            assertThat(details.get("indices_with_provisionally_unavailable_replicas"), equalTo(indexNames(state)));
             assertThat(details.get("indices_with_unavailable_replicas"), nullValue());
         } else {
             assertThat(details.get("started_replicas"), equalTo(0));
@@ -278,7 +280,7 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
             assertThat(details.get("initializing_replicas"), equalTo(0));
             assertThat(details.get("unassigned_replicas"), equalTo(projectIds.size()));
             assertThat(details.get("indices_with_provisionally_unavailable_replicas"), nullValue());
-            assertThat(details.get("indices_with_unavailable_replicas"), equalTo(indexNames()));
+            assertThat(details.get("indices_with_unavailable_replicas"), equalTo(indexNames(state)));
         }
     }
 
@@ -301,9 +303,9 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
         final var details = ((SimpleHealthIndicatorDetails) result.details()).details();
 
         assertThat(result.status(), equalTo(HealthStatus.GREEN));
-        assertThat(details.get("indices_with_provisionally_unavailable_primaries"), equalTo(indexNames()));
+        assertThat(details.get("indices_with_provisionally_unavailable_primaries"), equalTo(indexNames(state)));
         assertThat(details.get("indices_with_unavailable_primaries"), nullValue());
-        assertThat(details.get("indices_with_provisionally_unavailable_replicas"), equalTo(indexNames()));
+        assertThat(details.get("indices_with_provisionally_unavailable_replicas"), equalTo(indexNames(state)));
         assertThat(details.get("indices_with_unavailable_replicas"), nullValue());
     }
 
@@ -376,12 +378,12 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
         return perProject * projectIds.size();
     }
 
-    /// Single-project keeps bare index names. Multi-project prefixes every id, including when there is only one project.
-    private String indexNames() {
-        if (multiProject == false) {
-            return INDEX_NAME;
+    private String indexNames(ClusterState state) {
+        final Set<ProjectIndexName> indices = new HashSet<>();
+        for (ProjectId projectId : projectIds) {
+            indices.add(new ProjectIndexName(projectId, INDEX_NAME));
         }
-        return String.join(", ", projectIds.stream().map(id -> id.id() + "/" + INDEX_NAME).sorted().toList());
+        return getTruncatedProjectIndices(indices, state.metadata(), projectResolver().supportsMultipleProjects());
     }
 
     private ProjectResolver projectResolver() {

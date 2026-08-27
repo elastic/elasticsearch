@@ -197,12 +197,23 @@ public record ExclusionConfig(List<String> fileExclusions) {
          * pattern that selected it was matched — one language, one semantics, one string.
          */
         public boolean keeps(String relativePath) {
+            return excludedBy(relativePath) == null;
+        }
+
+        /**
+         * The first entry that drops this object, or {@code null} when it survives. Callers that report an
+         * exclusion to the user need the rule responsible, not just the verdict: "excluded" on its own leaves
+         * the user to guess which of their patterns did it.
+         */
+        @Nullable
+        public String excludedBy(String relativePath) {
             for (int i = 0; i < exclusions.size(); i++) {
-                if (exclusions.get(i).matches(relativePath)) {
-                    return false;
+                GlobMatcher exclusion = exclusions.get(i);
+                if (exclusion.matches(relativePath)) {
+                    return exclusion.glob();
                 }
             }
-            return true;
+            return null;
         }
     }
 }

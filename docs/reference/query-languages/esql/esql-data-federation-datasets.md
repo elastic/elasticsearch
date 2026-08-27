@@ -330,6 +330,18 @@ The added entry is matched against paths relative to the listing prefix `s3://lo
 `backup_2024/**` drops everything under that one directory. To drop directories of that name at any depth,
 write `**/backup_2024/**` instead.
 
+Whenever exclusion drops something, the response carries a warning saying how many of the objects your
+`resource` selected were excluded, naming one of them and the entry that matched it:
+
+```
+2 of 4 objects matching the resource under [s3://logs-bucket/access/] were excluded by the
+[file_exclusions] dataset setting, for example [_SUCCESS] which matched entry [**/_*]
+```
+
+The warning is emitted for the default list as well as for one you set, because a dataset that never
+configured exclusion is exactly the one where a missing file is hardest to explain. It is a single warning per
+listing however many objects were dropped, so it does not grow with the size of the prefix.
+
 To turn exclusion off entirely, set `"file_exclusions": []`. Directory placeholder keys are still skipped
 (see below), so this reads every object the resource pattern matches except those.
 
@@ -340,8 +352,8 @@ request to read it, whether the resource carries no wildcard at all, names the o
 comma-separated resource, or names it through a finite brace pattern such as `data/{a,b}.csv`.
 
 Objects whose key ends in `/` are directory placeholders rather than files, the empty markers an object-store
-console creates for a folder. They are always skipped, and no setting reads them, because a pattern segment
-never carries a trailing slash and so no pattern could name one.
+console creates for a folder. They are skipped before any pattern is consulted, so no
+setting can bring them back.
 
 ### CSV and TSV settings
 

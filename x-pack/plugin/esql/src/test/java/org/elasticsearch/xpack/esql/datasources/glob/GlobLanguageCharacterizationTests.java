@@ -305,6 +305,30 @@ public class GlobLanguageCharacterizationTests extends ESTestCase {
         assertTrue("40 globstars took " + millis + "ms; this used to not terminate", millis < 1_000);
     }
 
+    /**
+     * The same exponential shape one level down, and the reason the globstar guard above is not the whole story.
+     * Several {@code *} tokens WITHIN one segment each choose an end position, so an unmemoised name match
+     * re-explores the same (token, offset) pair exponentially: {@code *a} repeated nine times against a
+     * sixty-character name of {@code a}s took the better part of a minute, and ten did not finish, on a matcher
+     * that already handled forty globstars instantly. A segment name is short in practice but is not bounded by
+     * anything, and this runs once per listed object on the coordinator thread, so it is memoised on the same
+     * grid as the segment walk rather than left to practice.
+     */
+    public void testRepeatedStarsWithinOneSegmentDoNotBlowUp() {
+        StringBuilder glob = new StringBuilder();
+        for (int i = 0; i < 12; i++) {
+            glob.append("*a");
+        }
+        glob.append("*z");
+        String name = "a".repeat(60);
+
+        GlobMatcher matcher = new GlobMatcher(glob.toString());
+        long start = System.nanoTime();
+        assertFalse("the name genuinely does not match, which is the expensive case", matcher.matches(name));
+        long millis = (System.nanoTime() - start) / 1_000_000;
+        assertTrue("12 in-segment stars took " + millis + "ms; this used to not terminate", millis < 1_000);
+    }
+
     /** {@code needsRecursion} drives whether the listing is recursive, so it is part of the contract. */
     public void testNeedsRecursionIsDrivenByTheDoubleStar() {
         assertTrue(new GlobMatcher("**/*.parquet").needsRecursion());

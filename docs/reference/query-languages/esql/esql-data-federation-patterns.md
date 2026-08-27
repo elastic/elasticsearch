@@ -176,8 +176,9 @@ A brace body with `..` that is not two bare integers is not a range. It falls ba
 `{-1..3}` matches only `-1..3`. Likewise, when a comma is present the body is alternation: `{1..3,5}`
 matches `1..3` or `5`, not `2`.
 
-One brace group can produce at most 1024 alternatives. A wider range, such as `{1..100000}`, is rejected as
-invalid rather than silently truncated.
+A numeric range can produce at most 1024 values. A wider one, such as `{1..100000}`, is rejected as invalid
+rather than silently truncated. The cap is on ranges because a range turns a dozen characters into any number
+of values; a comma list is limited by how much of it you type, and is not capped.
 
 ## Invalid patterns
 
@@ -188,8 +189,8 @@ one of:
 
 | Pattern shape | Example | Error |
 |---|---|---|
-| Unclosed character class | `file[abc` | `unterminated character class, missing ']'` |
-| Character class containing `/` | `a[/]b` | same as above; a class cannot contain or span a path separator |
+| Unclosed character class | `file[abc` | `unterminated character class, missing ']' — note that a character class cannot contain or span a path separator` |
+| Character class containing `/` | `a[/]b` | same as above: an unclosed class and a class holding a `/` are the same error, because a `/` ends the class it appears in |
 | POSIX class syntax | `[[:digit:]]` | `POSIX character classes such as [[:digit:]] are not supported` |
 | Reversed range in a class | `[z-a]` | `reversed range [z-a]` |
 | Unclosed brace group | `file{a,b` | `unterminated brace group, missing '}'` |
@@ -221,7 +222,7 @@ Four smaller differences:
   path component, rather than its behaviour.
 - Zero-padding of a numeric range differs at the edges. Here a range pads when either endpoint is written
   padded, so `{1..05}` pads; ClickHouse pads from one endpoint only.
-- A brace group here expands to at most 1024 alternatives. ClickHouse has no such cap.
+- A numeric range here expands to at most 1024 values. ClickHouse has no such cap.
 
 ## Brace groups and partition placeholders
 

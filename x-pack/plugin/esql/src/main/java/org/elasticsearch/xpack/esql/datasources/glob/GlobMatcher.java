@@ -227,77 +227,105 @@ final class GlobMatcher {
                     result = matchSegments(pi + 1, k, path, memo);
                 }
             } else {
-                result = si < path.size() && matchName(segment.tokens(), 0, path.get(si), 0) && matchSegments(pi + 1, si + 1, path, memo);
+                result = si < path.size() && matchName(segment.tokens(), path.get(si)) && matchSegments(pi + 1, si + 1, path, memo);
             }
         }
         memo[pi][si] = (byte) (result ? 1 : 0);
         return result;
     }
 
-    /** Matches one segment's tokens against one name. Names are short; the recursion is bounded by their product. */
-    private static boolean matchName(List<Token> tokens, int ti, String name, int ni) {
-        if (ti == tokens.size()) {
-            return ni == name.length();
-        }
-        Token token = tokens.get(ti);
-        if (token instanceof Literal literal) {
-            return name.startsWith(literal.text(), ni) && matchName(tokens, ti + 1, name, ni + literal.text().length());
-        }
-        if (token instanceof AnyChar) {
-            return ni < name.length() && matchName(tokens, ti + 1, name, ni + 1);
-        }
-        if (token instanceof CharClass charClass) {
-            return ni < name.length() && charClass.matches(name.charAt(ni)) && matchName(tokens, ti + 1, name, ni + 1);
-        }
-        if (token instanceof Star) {
-            for (int k = ni; k <= name.length(); k++) {
-                if (matchName(tokens, ti + 1, name, k)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-        Alternation alternation = (Alternation) token;
-        for (List<Token> alternative : alternation.alternatives()) {
-            BitSet ends = reachableEnds(alternative, 0, name, ni);
-            for (int end = ends.nextSetBit(0); end >= 0; end = ends.nextSetBit(end + 1)) {
-                if (matchName(tokens, ti + 1, name, end)) {
-                    return true;
-                }
-            }
-        }
-        return false;
+    /** Matches one segment's tokens against one name, memoised on (token index, name offset). */
+    private static boolean matchName(List<Token> tokens, String name) {
+        return matchName(tokens, 0, name, 0, new Byte[tokens.size() + 1][name.length() + 1]);
     }
 
-    /** Every position one alternative could end at, so the tokens after the group can be tried from each. */
-    private static BitSet reachableEnds(List<Token> tokens, int ti, String name, int ni) {
+    /**
+     * Matches one segment's tokens against one name from a given position.
+     *
+     * <p>Memoised on the same grid as {@link #matchSegments}, and for the same reason: several {@code *} tokens in
+     * one segment each choose an end position, so a plain recursion re-explores the same (token, offset) pair
+     * exponentially many times. {@code *a*a*a*a*a*a*a*a*z} against a sixty-character name of {@code a}s took the
+     * better part of a minute unmemoised. Names are short but not bounded, and the pattern is user-supplied on a
+     * path that runs once per listed object on the coordinator thread, so "short in practice" is not a bound.
+     */
+    private static boolean matchName(List<Token> tokens, int ti, String name, int ni, Byte[][] memo) {
+        Byte cached = memo[ti][ni];
+        if (cached != null) {
+            return cached == 1;
+        }
+        boolean result;
+        if (ti == tokens.size()) {
+            result = ni == name.length();
+        } else {
+            Token token = tokens.get(ti);
+            if (token instanceof Literal literal) {
+                result = name.startsWith(literal.text(), ni) && matchName(tokens, ti + 1, name, ni + literal.text().length(), memo);
+            } else if (token instanceof AnyChar) {
+                result = ni < name.length() && matchName(tokens, ti + 1, name, ni + 1, memo);
+            } else if (token instanceof CharClass charClass) {
+                result = ni < name.length() && charClass.matches(name.charAt(ni)) && matchName(tokens, ti + 1, name, ni + 1, memo);
+            } else if (token instanceof Star) {
+                result = false;
+                for (int k = ni; k <= name.length() && result == false; k++) {
+                    result = matchName(tokens, ti + 1, name, k, memo);
+                }
+            } else {
+                Alternation alternation = (Alternation) token;
+                result = false;
+                for (List<Token> alternative : alternation.alternatives()) {
+                    BitSet ends = reachableEnds(alternative, 0, name, ni, new BitSet[alternative.size() + 1][name.length() + 1]);
+                    for (int end = ends.nextSetBit(0); end >= 0 && result == false; end = ends.nextSetBit(end + 1)) {
+                        result = matchName(tokens, ti + 1, name, end, memo);
+                    }
+                    if (result) {
+                        break;
+                    }
+                }
+            }
+        }
+        memo[ti][ni] = (byte) (result ? 1 : 0);
+        return result;
+    }
+
+    /**
+     * Every position one alternative could end at, so the tokens after the group can be tried from each. Memoised
+     * for the same reason as {@link #matchName}: an alternative is itself a token sequence and can hold several
+     * {@code *}. The returned set is shared with the cache, so callers must treat it as read-only.
+     */
+    private static BitSet reachableEnds(List<Token> tokens, int ti, String name, int ni, BitSet[][] memo) {
+        BitSet cachedEnds = memo[ti][ni];
+        if (cachedEnds != null) {
+            return cachedEnds;
+        }
         BitSet ends = new BitSet(name.length() + 1);
         if (ti == tokens.size()) {
             ends.set(ni);
+            memo[ti][ni] = ends;
             return ends;
         }
         Token token = tokens.get(ti);
         if (token instanceof Literal literal) {
             if (name.startsWith(literal.text(), ni)) {
-                ends.or(reachableEnds(tokens, ti + 1, name, ni + literal.text().length()));
+                ends.or(reachableEnds(tokens, ti + 1, name, ni + literal.text().length(), memo));
             }
         } else if (token instanceof AnyChar) {
             if (ni < name.length()) {
-                ends.or(reachableEnds(tokens, ti + 1, name, ni + 1));
+                ends.or(reachableEnds(tokens, ti + 1, name, ni + 1, memo));
             }
         } else if (token instanceof CharClass charClass) {
             if (ni < name.length() && charClass.matches(name.charAt(ni))) {
-                ends.or(reachableEnds(tokens, ti + 1, name, ni + 1));
+                ends.or(reachableEnds(tokens, ti + 1, name, ni + 1, memo));
             }
         } else if (token instanceof Star) {
             for (int k = ni; k <= name.length(); k++) {
-                ends.or(reachableEnds(tokens, ti + 1, name, k));
+                ends.or(reachableEnds(tokens, ti + 1, name, k, memo));
             }
         } else {
             // Unreachable while nested brace groups are refused at parse time. Kept total rather than open so a
             // future change surfaces as an error instead of an alternative that silently matches nothing.
             throw new IllegalStateException("unexpected token inside a brace alternative: " + token);
         }
+        memo[ti][ni] = ends;
         return ends;
     }
 

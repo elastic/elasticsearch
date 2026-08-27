@@ -2470,6 +2470,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         assertThat(e.getMessage(), containsString("Glob pattern matched no files"));
         assertThat(e.getMessage(), containsString("s3://bucket/vpcflow/*"));
+        // "matched no files" on a prefix that visibly holds a file is the least actionable error this path can
+        // produce. The exclusion warning is what turns it into something the user can act on: the object was found
+        // and then dropped, and here is the rule that dropped it.
+        assertWarnings(
+            "1 of 1 objects matching the resource under [s3://bucket/vpcflow/] was excluded by the "
+                + "[file_exclusions] dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+        );
     }
 
     /**

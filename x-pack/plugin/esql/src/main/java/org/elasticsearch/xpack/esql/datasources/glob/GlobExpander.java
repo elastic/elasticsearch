@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.glob;
 
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
@@ -328,6 +329,12 @@ public final class GlobExpander {
 
         List<StorageEntry> matched = new ArrayList<>();
         String prefixStr = prefix.toString();
+        // One warning per listing, however many objects it drops. The counts are the useful part: how many of the
+        // objects the resource selected were then dropped tells the user whether they are missing a stray marker or
+        // most of their data. Enumerating them would emit a header per partition on a prefix with a marker in each.
+        int excludedCount = 0;
+        String excludedExample = null;
+        String excludedExampleEntry = null;
 
         try (StorageIterator iterator = provider.listObjects(prefix, recursive)) {
             while (iterator.hasNext()) {
@@ -354,11 +361,43 @@ public final class GlobExpander {
                     // reaches the reader and fails the query naming an object the user never referenced.
                     continue;
                 }
-                if (matcher.matches(relativePath) && nameFilter.keeps(relativePath)) {
-                    matched.add(entry);
-                    checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles);
+                if (matcher.matches(relativePath)) {
+                    String excludedBy = nameFilter.excludedBy(relativePath);
+                    if (excludedBy == null) {
+                        matched.add(entry);
+                        checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles);
+                    } else {
+                        // Matched what the user asked for and was dropped anyway. Keep the first one so the warning
+                        // can name a concrete file and the entry responsible; "some files were excluded" on its own
+                        // leaves the user with nothing to act on.
+                        excludedCount++;
+                        if (excludedExample == null) {
+                            excludedExample = relativePath;
+                            excludedExampleEntry = excludedBy;
+                        }
+                    }
                 }
             }
+        }
+
+        if (excludedCount > 0) {
+            // Fires for the default list too: a user who never configured exclusion is precisely the one who cannot
+            // guess why a file they can see in the bucket is missing from their results. Counted against everything
+            // the resource pattern selected, which is the kept objects plus the dropped ones.
+            HeaderWarning.addWarning(
+                excludedCount
+                    + " of "
+                    + (matched.size() + excludedCount)
+                    + " objects matching the resource under ["
+                    + prefixStr
+                    + (excludedCount == 1 ? "] was excluded by the [" : "] were excluded by the [")
+                    + ExclusionConfig.CONFIG_FILE_EXCLUSIONS
+                    + "] dataset setting, for example ["
+                    + excludedExample
+                    + "] which matched entry ["
+                    + excludedExampleEntry
+                    + "]"
+            );
         }
 
         // Apply file metadata filters from WHERE clause hints (e.g., _file.modified > X, _file.size > Y).

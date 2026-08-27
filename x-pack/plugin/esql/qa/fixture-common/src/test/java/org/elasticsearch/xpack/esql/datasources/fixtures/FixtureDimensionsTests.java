@@ -7,13 +7,16 @@
 
 package org.elasticsearch.xpack.esql.datasources.fixtures;
 
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
@@ -125,6 +128,85 @@ public class FixtureDimensionsTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    private static Properties declaration(String... lines) {
+        Properties props = new Properties();
+        for (String line : lines) {
+            int eq = line.indexOf('=');
+            props.setProperty(line.substring(0, eq).trim(), line.substring(eq + 1).trim());
+        }
+        return props;
+    }
+
+    /** A minimal well-formed declaration, so each test below alters exactly one thing. */
+    private static String[] wellFormed() {
+        return new String[] {
+            "dimension.format.values = csv, parquet",
+            "dimension.format.default = csv",
+            "dimension.format.binds = fixture",
+            "dimension.error_mode.values = fail_fast, skip_row",
+            "dimension.error_mode.default = fail_fast",
+            "dimension.error_mode.binds = directive",
+            "pair.error_mode.format = interacting" };
+    }
+
+    public void testAWellFormedDeclarationParses() {
+        FixtureDimensions parsed = FixtureDimensions.parse(declaration(wellFormed()));
+        assertThat(parsed.names(), equalTo(List.of("error_mode", "format")));
+        assertThat(parsed.binds("format"), equalTo("fixture"));
+    }
+
+    /** An unrecognised key is a typo or an invented attribute; either way it would do nothing silently. */
+    public void testUnknownKeyIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.format.colour = blue");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("colour"));
+    }
+
+    /** The default anchors every generated vector, so one outside its own values makes the baseline a fiction. */
+    public void testADefaultOutsideItsOwnValuesIsRejected() {
+        String[] lines = wellFormed().clone();
+        lines[1] = "dimension.format.default = orc";
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("orc"));
+    }
+
+    /** A dimension nothing knows how to apply would generate vectors that cannot be run. */
+    public void testAMissingBindsIsRejected() {
+        String[] lines = new String[] {
+            "dimension.format.values = csv, parquet",
+            "dimension.format.default = csv",
+            "dimension.error_mode.values = fail_fast, skip_row",
+            "dimension.error_mode.default = fail_fast",
+            "dimension.error_mode.binds = directive",
+            "pair.error_mode.format = interacting" };
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("binds"));
+    }
+
+    /**
+     * The gate that makes this a mechanism: a dimension added without saying how it relates to the
+     * existing ones leaves the build red rather than silently generating nothing for those pairs.
+     */
+    public void testAnIncompletePairTableIsRejected() {
+        String[] lines = new String[] {
+            "dimension.format.values = csv, parquet",
+            "dimension.format.default = csv",
+            "dimension.format.binds = fixture",
+            "dimension.error_mode.values = fail_fast, skip_row",
+            "dimension.error_mode.default = fail_fast",
+            "dimension.error_mode.binds = directive" };
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("error_mode.format"));
+    }
+
+    /** An unknown verdict is not a fourth state to be guessed at; it is a typo. */
+    public void testAnUnknownVerdictIsRejected() {
+        String[] lines = wellFormed().clone();
+        lines[6] = "pair.error_mode.format = probably";
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("probably"));
     }
 
     /** Renders the derived set so a reader can see what the declaration produces without running it. */

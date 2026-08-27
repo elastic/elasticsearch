@@ -78,7 +78,7 @@ tasks.register('syncIcebergFixtures', Sync) {
   dependsOn testFixturesProject.tasks.named('processResources')
   duplicatesStrategy = DuplicatesStrategy.FAIL
   from(testFixturesDataDir) {
-    include csvToParquetFixtures.collect { "${it}.csv" }
+    include csvToParquetFixtures.collect { it + '.csv' }
   }
   into parquetFixtureDir
 }

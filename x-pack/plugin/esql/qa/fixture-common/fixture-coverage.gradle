@@ -32,12 +32,16 @@
  *                            so a single-format gate leaves the tsv column structurally unowned.
  *   fixtureCoverageSpecDirs  directories holding the spec files this module's suites can load.
  *
- * KNOWN LIMITATION, deliberately recorded rather than hidden: directory granularity over-approximates.
- * A suite selects specs by filename list or by glob, so a spec sitting in a scanned directory that no
- * suite actually loads still counts as a consumer here. That produces one live false green today --
- * ndjson x multifile_temporal, declared and generated and read by neither NDJSON suite, because the shared
- * directory holds the spec. Closing it needs the per-format spec list single-sourced and read by both
- * readScriptSpec and this gate; until then this gate is a floor, not a ceiling.
+ * The directory-granularity limitation this comment used to record is closed: templatesFor resolves
+ * specs from suite.<token>.specs, the same declaration readScriptSpec reads, so a spec sitting in a
+ * scanned directory that the suite does not route no longer counts as a consumer. The false green it
+ * named -- ndjson x multifile_temporal -- went with it; ndjson routes that spec and declares exclusions
+ * against it.
+ *
+ * What remains a floor rather than a ceiling: this gate sees only the tokens a module claims in
+ * fixtureCoverageFormats. Seven declared suite tokens are claimed by nobody, so their routing and their
+ * exclusions are validated by nothing. That is recorded here rather than in a commit message because it
+ * is the next thing to close, not a property of the design.
  */
 
 def declarationFile = project(xpackModule('esql:qa:fixture-common'))

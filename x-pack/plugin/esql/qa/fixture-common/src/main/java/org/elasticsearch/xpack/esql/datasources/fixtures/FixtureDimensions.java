@@ -57,7 +57,15 @@ public final class FixtureDimensions {
         UNVERIFIED
     }
 
-    private static final FixtureDimensions INSTANCE = load();
+    /**
+     * Lazy, deliberately. An eager static field runs {@link #load()} the moment anything on the
+     * classpath touches this class -- including code that never asks for a dimension -- so a missing or
+     * malformed resource becomes an ExceptionInInitializerError in an unrelated suite. Deferring it means
+     * the declaration is read when it is wanted, and the failure names the caller that wanted it.
+     */
+    private static final class Holder {
+        private static final FixtureDimensions INSTANCE = load();
+    }
 
     private final List<String> names;
     private final Map<String, List<String>> valuesByName;
@@ -83,7 +91,7 @@ public final class FixtureDimensions {
     }
 
     public static FixtureDimensions get() {
-        return INSTANCE;
+        return Holder.INSTANCE;
     }
 
     private static FixtureDimensions load() {
@@ -96,6 +104,15 @@ public final class FixtureDimensions {
         } catch (IOException e) {
             throw new UncheckedIOException("could not read [" + RESOURCE + "]", e);
         }
+        return parse(props);
+    }
+
+    /**
+     * Parses a declaration. Separate from {@link #load()} so the validation below -- unknown keys, a
+     * default outside its own values, a missing binds, an incomplete pair table -- can be tested against
+     * a constructed Properties rather than only against the real resource, which no test can make wrong.
+     */
+    static FixtureDimensions parse(Properties props) {
 
         Map<String, List<String>> values = new LinkedHashMap<>();
         Map<String, String> defaults = new LinkedHashMap<>();

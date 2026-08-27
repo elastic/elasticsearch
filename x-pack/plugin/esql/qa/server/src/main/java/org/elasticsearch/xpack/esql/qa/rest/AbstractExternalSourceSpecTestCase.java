@@ -72,6 +72,11 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     private static final Logger logger = LogManager.getLogger(AbstractExternalSourceSpecTestCase.class);
 
     /** Pattern to match template placeholders like {{employees}} */
+    /**
+     * The one {@code {{template}}} grammar. There were two regexes for this, disagreeing on case --
+     * {@code \\w+} accepted uppercase and {@code [a-z0-9_]+} did not -- so a template name would
+     * eventually have resolved on one path and silently not on the other.
+     */
     private static final Pattern TEMPLATE_PATTERN = Pattern.compile("\\{\\{(\\w+)}}");
 
     /** Default base path for fixtures within the resource directory */
@@ -462,9 +467,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         // One skip path for every external-source suite, reading the single declaration. The message is the
         // declared reason, so a skip explains itself in the log rather than asserting a hard-coded cause.
         FixtureExclusions.Exclusion exclusion = FixtureExclusions.get().find(exclusionSuiteToken(), specName, testName);
-        if (exclusion != null) {
-            assumeTrue(testName + ": " + exclusion.reason(), false);
-        }
+        assumeTrue(exclusion == null ? "" : testName + ": " + exclusion.reason(), exclusion == null);
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
     }
@@ -889,11 +892,9 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         if (resource == null) {
             return null;
         }
-        Matcher m = TEMPLATE_REFERENCE.matcher(resource);
+        Matcher m = TEMPLATE_PATTERN.matcher(resource);
         return m.find() ? m.group(1) : null;
     }
-
-    private static final Pattern TEMPLATE_REFERENCE = Pattern.compile("\\{\\{([a-z0-9_]+)\\}\\}");
 
     static String injectTrimSpaces(String withJson) {
         if (DatasetRegistry.declaresSetting(withJson, "trim_spaces")) {
@@ -1037,8 +1038,14 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         FixtureMatrix.Layout layout = MATRIX.layoutFor(templateName);
         String relativePath;
         if (layout.isStandalone()) {
-            // A single file named after the dataset. This is the one layout that is per-dataset,
-            // so it is also the only one where a spec can name a cell that was never generated.
+            // A single file named after the dataset -- the one layout that is per-dataset, so the only
+            // one whose absence is checkable HERE, from the template name alone.
+            //
+            // Not the only way a cell can be absent, though: a glob layout can be declared empty for a
+            // format (layout.<name>.sources.<format> = , with a reason), and a suite can route a spec
+            // naming a layout its format never generates. Those are caught by checkFixtureCoverage
+            // against the declaration rather than at resolve time, because the template alone does not
+            // say which format is reading it.
             requireDeclaredCell(templateName);
             relativePath = fixturesBase() + "/" + templateName + "." + format;
         } else {

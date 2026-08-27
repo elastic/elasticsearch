@@ -96,6 +96,22 @@ public class CsvFixtureParserTests extends ESTestCase {
     }
 
     /**
+     * Outside the date_nanos window a nanosecond count does not fit a long. The multiplication this
+     * method used to do wrapped silently and produced a plausible wrong instant -- the same shape as the
+     * bug the method exists to fix. Unrepresentable must read as absent.
+     */
+    public void testDateNanosOutsideTheRepresentableWindowIsNullNotWrapped() throws IOException {
+        CsvFixtureParser.CsvFixtureResult result = CsvFixtureParser.parseCsvFile(csv("""
+            ts:date_nanos
+            2263-01-01T00:00:00.123456789Z
+            1600-01-01T00:00:00.000000001Z
+            """));
+
+        assertThat("beyond 2262 has no nanosecond representation", cell(result, 0, 0), nullValue());
+        assertThat("before 1678 has no nanosecond representation", cell(result, 1, 0), nullValue());
+    }
+
+    /**
      * The aliases canonicalType folds. No fixture in the corpus uses them, so without this test the fold
      * is asserted by nothing at all.
      */

@@ -62,7 +62,7 @@ tasks.register('syncCsvIcebergFixtures', Sync) {
   dependsOn testFixturesProject.tasks.named('processResources')
   duplicatesStrategy = DuplicatesStrategy.FAIL
   from(testFixturesProject.file('src/main/resources/data')) {
-    include fixtureMatrix.datasetsFor('csv').collect { "${it}.csv" }
+    include fixtureMatrix.datasetsFor('csv').collect { it + '.csv' }
   }
   into file("${csvIcebergFixtureRoot}/iceberg-fixtures/standalone")
 }
@@ -73,7 +73,7 @@ tasks.register('syncCsvIcebergMultifileFixtures', Sync) {
   dependsOn testFixturesProject.tasks.named('processResources')
   duplicatesStrategy = DuplicatesStrategy.FAIL
   from(testFixturesProject.file('src/main/resources/data')) {
-    include fixtureMatrix.layoutSources('multifile', 'csv').collect { "${it}.csv" }
+    include fixtureMatrix.layoutSources('multifile', 'csv').collect { it + '.csv' }
   }
   into file("${csvIcebergFixtureRoot}/iceberg-fixtures/multifile")
 }
@@ -85,7 +85,7 @@ tasks.register('syncCsvIcebergMultifileUbnFixtures', Sync) {
   dependsOn testFixturesProject.tasks.named('processResources')
   duplicatesStrategy = DuplicatesStrategy.FAIL
   from(testFixturesProject.file('src/main/resources/data')) {
-    include fixtureMatrix.layoutSources('multifile_ubn', 'csv').collect { "${it}.csv" }
+    include fixtureMatrix.layoutSources('multifile_ubn', 'csv').collect { it + '.csv' }
   }
   into file("${csvIcebergFixtureRoot}/iceberg-fixtures/multifile_ubn")
 }
@@ -98,7 +98,7 @@ tasks.register('syncCsvIcebergMultifileTypeDriftFixtures', Sync) {
   dependsOn testFixturesProject.tasks.named('processResources')
   duplicatesStrategy = DuplicatesStrategy.FAIL
   from(testFixturesProject.file('src/main/resources/data')) {
-    include fixtureMatrix.layoutSources('multifile_type_drift', 'csv').collect { "${it}.csv" }
+    include fixtureMatrix.layoutSources('multifile_type_drift', 'csv').collect { it + '.csv' }
   }
   into file("${csvIcebergFixtureRoot}/iceberg-fixtures/multifile_type_drift")
 }
@@ -109,7 +109,7 @@ tasks.register('syncCsvIcebergMultifileTemporalFixtures', Sync) {
   dependsOn testFixturesProject.tasks.named('processResources')
   duplicatesStrategy = DuplicatesStrategy.FAIL
   from(testFixturesProject.file('src/main/resources/data')) {
-    include fixtureMatrix.layoutSources('multifile_temporal', 'csv').collect { "${it}.csv" }
+    include fixtureMatrix.layoutSources('multifile_temporal', 'csv').collect { it + '.csv' }
   }
   into file("${csvIcebergFixtureRoot}/iceberg-fixtures/${fixtureMatrix.layoutDir('multifile_temporal')}")
 }
@@ -120,7 +120,7 @@ tasks.register('syncCsvIcebergMultifilePermFixtures', Sync) {
   dependsOn testFixturesProject.tasks.named('processResources')
   duplicatesStrategy = DuplicatesStrategy.FAIL
   from(testFixturesProject.file('src/main/resources/data')) {
-    include fixtureMatrix.layoutSources('multifile_perm', 'csv').collect { "${it}.csv" }
+    include fixtureMatrix.layoutSources('multifile_perm', 'csv').collect { it + '.csv' }
   }
   into file("${csvIcebergFixtureRoot}/iceberg-fixtures/${fixtureMatrix.layoutDir('multifile_perm')}")
 }

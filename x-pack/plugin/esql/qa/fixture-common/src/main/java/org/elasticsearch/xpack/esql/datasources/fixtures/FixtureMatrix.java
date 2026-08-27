@@ -266,16 +266,6 @@ public final class FixtureMatrix {
         return restrictionReasons.get(dataset);
     }
 
-    /** Layouts, longest name first. */
-    /**
-     * The csv-spec patterns a suite loads, as declared in {@code suite.<token>.specs}.
-     *
-     * <p>Declared once because there are two consumers: the suite's {@code ParametersFactory}, and the
-     * coverage gate that asks whether a declared cell has a reader. While the lists lived in the suites,
-     * the gate could only approximate them by scanning directories, and a spec sitting in a scanned
-     * directory that no suite loaded still counted as a consumer -- which reported the csv column covered
-     * for hive_shadow while zero shadow cases ran on any CSV suite.
-     */
     /**
      * The multi-value dialect the fixtures behind a template were WRITTEN in.
      *
@@ -375,6 +365,15 @@ public final class FixtureMatrix {
         return Arrays.stream(value.split(",")).map(String::trim).filter(t -> t.isEmpty() == false).collect(Collectors.toUnmodifiableSet());
     }
 
+    /**
+     * The csv-spec patterns a suite loads, as declared in {@code suite.<token>.specs}.
+     *
+     * <p>Declared once because there are two consumers: the suite's {@code ParametersFactory}, and the
+     * coverage gate that asks whether a declared cell has a reader. While the lists lived in the suites,
+     * the gate could only approximate them by scanning directories, and a spec sitting in a scanned
+     * directory that no suite loaded still counted as a consumer -- which reported the csv column covered
+     * for hive_shadow while zero shadow cases ran on any CSV suite.
+     */
     public List<String> specPatterns(String suiteToken) {
         List<String> patterns = specPatterns.get(suiteToken);
         if (patterns == null) {
@@ -389,6 +388,10 @@ public final class FixtureMatrix {
         return patterns;
     }
 
+    /**
+     * Every declared layout, longest name first, so a suffix match finds {@code _hive_shadow} before
+     * {@code _hive} rather than resolving a template to the shorter sibling it happens to end with.
+     */
     public List<Layout> layouts() {
         return layouts;
     }

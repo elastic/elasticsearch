@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -460,8 +461,11 @@ public final class CsvFixtureParser {
             }
         }
         try {
-            Instant instant = Instant.parse(value);
-            return instant.getEpochSecond() * 1_000_000_000L + instant.getNano();
+            // ChronoUnit.NANOS.between rather than getEpochSecond() * 1_000_000_000L: the multiplication
+            // overflows silently outside roughly 1678..2262 and yields a plausible wrong instant, which is
+            // the same failure shape as the millis-vs-nanos bug this method exists to fix. between throws
+            // ArithmeticException on overflow, and an unrepresentable value must read as absent, not wrong.
+            return ChronoUnit.NANOS.between(Instant.EPOCH, Instant.parse(value));
         } catch (Exception e) {
             return null;
         }

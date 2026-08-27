@@ -398,9 +398,9 @@ public class TsidBuilder {
 
     /**
      * Adds a dimension from already-computed hashes. <b>Test-only</b>: it drives this builder from the
-     * same tuples {@link ColumnarTsidAccumulator} consumes, so a parity failure points at the
-     * accumulator rather than at the hashing. {@code path} is still used for the prefix-byte
-     * special-case and the array-dedup guard, so pass its {@link #hashPath}.
+     * same tuples the columnar accumulator consumes, so a parity failure points at the accumulator
+     * rather than at the hashing. {@code path} is still used for the prefix-byte special-case and the
+     * array-dedup guard, so pass its {@link #hashPath}.
      */
     TsidBuilder addPrehashedDimension(String path, long pathH1, long pathH2, long valueH1, long valueH2) {
         dimensions.add(

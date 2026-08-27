@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -26,6 +25,7 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.inference.EmbeddingRequest.JINA_AI_EMBEDDING_TASK_ADDED;
 import static org.elasticsearch.xpack.inference.common.parser.NumberParser.validatePositiveInteger;
@@ -49,14 +49,17 @@ public abstract class BaseJinaAIEmbeddingsServiceSettings extends JinaAIServiceS
     );
 
     /**
-     * Registers the embeddings-specific fields (similarity, dimensions, max_input_tokens, embedding_type) onto the given parser. The
-     * internal {@code dimensions_set_by_user} field is only declared for {@link ConfigurationParseContext#PERSISTENT} parsing; in a
-     * request it is derived from whether {@code dimensions} was supplied.
+     * Builds an {@link ObjectParser} for JinaAI embeddings service settings, delegating the common fields to
+     * {@link JinaAIServiceSettings#buildCommonParser} and adding the embeddings-specific fields (similarity, dimensions,
+     * max_input_tokens, embedding_type). The internal {@code dimensions_set_by_user} field is only declared for
+     * {@link ConfigurationParseContext#PERSISTENT} parsing; in a request it is derived from whether {@code dimensions} was supplied.
      */
-    public static <B extends Builder<?>> void declareEmbeddingFields(
-        AbstractObjectParser<B, ConfigurationParseContext> parser,
-        ConfigurationParseContext context
+    public static <B extends Builder<?>> ObjectParser<B, ConfigurationParseContext> buildEmbeddingsParser(
+        boolean ignoreUnknownFields,
+        ConfigurationParseContext context,
+        Supplier<B> builderSupplier
     ) {
+        var parser = JinaAIServiceSettings.buildCommonParser(ignoreUnknownFields, context, builderSupplier);
         parser.declareString(Builder::setSimilarity, EnumParser::parseSimilarity, new ParseField(SIMILARITY));
         parser.declareInt(Builder::setDimensions, new ParseField(DIMENSIONS));
         parser.declareInt(Builder::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
@@ -68,6 +71,21 @@ public abstract class BaseJinaAIEmbeddingsServiceSettings extends JinaAIServiceS
         if (context == ConfigurationParseContext.PERSISTENT) {
             parser.declareBoolean(Builder::setDimensionsSetByUser, new ParseField(DIMENSIONS_SET_BY_USER));
         }
+        return parser;
+    }
+
+    /**
+     * Builds an {@link ObjectParser} for JinaAI embeddings update requests, delegating to
+     * {@link JinaAIServiceSettings#buildCommonUpdateParser} and adding the mutable {@code max_input_tokens} field.
+     */
+    public static <U extends EmbeddingsUpdate> ObjectParser<U, Void> buildEmbeddingsUpdateParser(Supplier<U> updateSupplier) {
+        var parser = JinaAIServiceSettings.buildCommonUpdateParser(updateSupplier);
+        StatefulValue.declareNullable(parser, (update, value) -> update.maxInputTokens = value, p -> {
+            var value = p.intValue();
+            validatePositiveInteger(value, MAX_INPUT_TOKENS);
+            return value;
+        }, new ParseField(MAX_INPUT_TOKENS), ObjectParser.ValueType.INT_OR_NULL);
+        return parser;
     }
 
     static JinaAIEmbeddingType parseEmbeddingType(String value) {
@@ -336,18 +354,5 @@ public abstract class BaseJinaAIEmbeddingsServiceSettings extends JinaAIServiceS
     public static class EmbeddingsUpdate extends JinaAIServiceSettings.CommonUpdate {
 
         protected StatefulValue<Integer> maxInputTokens = StatefulValue.undefined();
-    }
-
-    /**
-     * Registers the embeddings fields that may be changed by an update request ({@code rate_limit} and {@code max_input_tokens}).
-     * All other fields are intentionally not declared so that a strict update parser rejects attempts to change them.
-     */
-    public static void declareEmbeddingsUpdatableFields(AbstractObjectParser<? extends EmbeddingsUpdate, Void> parser) {
-        JinaAIServiceSettings.declareCommonUpdatableFields(parser);
-        StatefulValue.declareNullable(parser, (update, value) -> update.maxInputTokens = value, p -> {
-            var value = p.intValue();
-            validatePositiveInteger(value, MAX_INPUT_TOKENS);
-            return value;
-        }, new ParseField(MAX_INPUT_TOKENS), ObjectParser.ValueType.INT_OR_NULL);
     }
 }

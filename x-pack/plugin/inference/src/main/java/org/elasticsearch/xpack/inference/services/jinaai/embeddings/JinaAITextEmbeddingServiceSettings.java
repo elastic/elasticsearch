@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
-import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 public class JinaAITextEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServiceSettings {
     /**
@@ -43,16 +42,9 @@ public class JinaAITextEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServ
     );
 
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields, ConfigurationParseContext context) {
-        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
-            SERVICE_SETTINGS.toString(),
-            ignoreUnknownFields,
-            () -> new Builder(context)
-        );
-        JinaAIServiceSettings.declareCommonFields(parser);
-        BaseJinaAIEmbeddingsServiceSettings.declareEmbeddingFields(parser, context);
         // text_embedding is always non-multimodal, so multimodal_model is not a valid field: the strict REQUEST parser rejects it, and
         // the lenient PERSISTENT parser ignores it (a persisted text embedding config never carries this field).
-        return parser;
+        return BaseJinaAIEmbeddingsServiceSettings.buildEmbeddingsParser(ignoreUnknownFields, context, () -> new Builder(context));
     }
 
     public static JinaAITextEmbeddingServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
@@ -154,11 +146,7 @@ public class JinaAITextEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServ
      */
     private static class Update extends EmbeddingsUpdate {
 
-        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(SERVICE_SETTINGS.toString(), Update::new);
-
-        static {
-            declareEmbeddingsUpdatableFields(PARSER);
-        }
+        private static final ObjectParser<Update, Void> PARSER = buildEmbeddingsUpdateParser(Update::new);
 
         public JinaAITextEmbeddingServiceSettings mergeInto(JinaAITextEmbeddingServiceSettings existing) {
             return new JinaAITextEmbeddingServiceSettings(

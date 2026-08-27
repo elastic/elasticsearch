@@ -20,8 +20,6 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
-
 /**
  * Service settings for the JinaAI rerank task. Rerank adds no settings of its own beyond the common {@link JinaAIServiceSettings}
  * fields (model identity and rate limiting).
@@ -39,13 +37,7 @@ public class JinaAIRerankServiceSettings extends JinaAIServiceSettings {
     );
 
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields, ConfigurationParseContext context) {
-        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
-            SERVICE_SETTINGS.toString(),
-            ignoreUnknownFields,
-            () -> new Builder(context)
-        );
-        JinaAIServiceSettings.declareCommonFields(parser);
-        return parser;
+        return JinaAIServiceSettings.buildCommonParser(ignoreUnknownFields, context, () -> new Builder(context));
     }
 
     public static JinaAIRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
@@ -96,11 +88,7 @@ public class JinaAIRerankServiceSettings extends JinaAIServiceSettings {
      */
     private static class Update extends JinaAIServiceSettings.CommonUpdate {
 
-        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(SERVICE_SETTINGS.toString(), Update::new);
-
-        static {
-            JinaAIServiceSettings.declareCommonUpdatableFields(PARSER);
-        }
+        private static final ObjectParser<Update, Void> PARSER = buildCommonUpdateParser(Update::new);
 
         public JinaAIRerankServiceSettings mergeInto(JinaAIRerankServiceSettings existing) {
             return new JinaAIRerankServiceSettings(existing.modelId(), mergedRateLimitSettings(existing));

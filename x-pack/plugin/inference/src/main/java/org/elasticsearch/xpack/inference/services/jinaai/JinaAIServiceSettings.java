@@ -16,20 +16,21 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.ServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
+import org.elasticsearch.xpack.inference.common.parser.UpdateServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
 import static org.elasticsearch.xpack.inference.common.parser.StringParser.validateStringIsNotNullOrEmpty;
@@ -47,16 +48,31 @@ public abstract class JinaAIServiceSettings extends FilteredXContentObject imple
     public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(2_000);
 
     /**
-     * Registers the common JinaAI service-settings fields (model_id, rate_limit) onto the given parser.
+     * Builds an {@link ObjectParser} for JinaAI service settings, wiring the common fields (model_id, rate_limit) and the
+     * {@code api_key} no-op.
      */
-    public static <B extends Builder<? extends JinaAIServiceSettings>> void declareCommonFields(
-        AbstractObjectParser<B, ConfigurationParseContext> parser
+    public static <B extends Builder<? extends JinaAIServiceSettings>> ObjectParser<B, ConfigurationParseContext> buildCommonParser(
+        boolean ignoreUnknownFields,
+        ConfigurationParseContext context,
+        Supplier<B> builderSupplier
     ) {
+        var parser = ServiceSettingsOPBuilder.of(
+            ignoreUnknownFields,
+            builderSupplier,
+            DEFAULT_RATE_LIMIT_SETTINGS,
+            Builder::setRateLimitSettings
+        ).build();
         parser.declareString(Builder::setModelId, new ParseField(MODEL_ID));
-        RateLimitSettings.declareRateLimitSettings(parser, Builder::setRateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
-        // api_key appears in the same JSON block as service settings in REST requests; DefaultSecretSettings extracts it separately.
-        // Declare it here as a no-op so the strict REQUEST parser does not reject it as an unknown field.
-        parser.declareString((b, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));
+        return parser;
+    }
+
+    /**
+     * Builds an {@link ObjectParser} for JinaAI update requests, wiring the {@code rate_limit} tri-state field and the
+     * {@code api_key} no-op. Immutable fields (such as {@code model_id}) are intentionally not declared so that a strict update parser
+     * rejects attempts to change them.
+     */
+    public static <U extends CommonUpdate> ObjectParser<U, Void> buildCommonUpdateParser(Supplier<U> updateSupplier) {
+        return UpdateServiceSettingsOPBuilder.of(updateSupplier, CommonUpdate::setRateLimitSettings).build();
     }
 
     private final String modelId;
@@ -194,23 +210,16 @@ public abstract class JinaAIServiceSettings extends FilteredXContentObject imple
     }
 
     /**
-     * Registers the common JinaAI fields that may be changed by an update request. Only {@code rate_limit} is mutable; the immutable
-     * fields (such as {@code model_id}) are intentionally not declared so that a strict update parser rejects attempts to change them.
-     */
-    public static void declareCommonUpdatableFields(AbstractObjectParser<? extends CommonUpdate, Void> parser) {
-        RateLimitSettings.declareUpdatableRateLimitSettings(parser, (update, value) -> update.rateLimitSettings = value);
-        // api_key appears in the same JSON block as service settings in update requests; DefaultSecretSettings extracts it separately.
-        // Declare it here as a no-op so the strict update parser does not reject it as an unknown field.
-        parser.declareString((u, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));
-    }
-
-    /**
      * Common fields parsed from an update request. Because settings are immutable, each subclass builds the new instance itself,
      * calling {@link #mergedRateLimitSettings(JinaAIServiceSettings)} to resolve the shared fields.
      */
     public static class CommonUpdate {
 
         protected StatefulValue<RateLimitSettings> rateLimitSettings = StatefulValue.undefined();
+
+        protected void setRateLimitSettings(StatefulValue<RateLimitSettings> rateLimitSettings) {
+            this.rateLimitSettings = rateLimitSettings;
+        }
 
         /**
          * Resolves the rate limit settings to use after applying the update following the tri-state convention: an omitted field keeps

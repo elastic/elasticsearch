@@ -25,7 +25,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MULTIMODAL_MODEL;
-import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 public class JinaAIEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServiceSettings {
     public static final String NAME = "jinaai_multimodal_embedding_service_settings";
@@ -41,13 +40,7 @@ public class JinaAIEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServiceS
     );
 
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields, ConfigurationParseContext context) {
-        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
-            SERVICE_SETTINGS.toString(),
-            ignoreUnknownFields,
-            () -> new Builder(context)
-        );
-        JinaAIServiceSettings.declareCommonFields(parser);
-        BaseJinaAIEmbeddingsServiceSettings.declareEmbeddingFields(parser, context);
+        var parser = BaseJinaAIEmbeddingsServiceSettings.buildEmbeddingsParser(ignoreUnknownFields, context, () -> new Builder(context));
         parser.declareBoolean(Builder::setMultimodalModel, new ParseField(MULTIMODAL_MODEL));
         return parser;
     }
@@ -147,11 +140,7 @@ public class JinaAIEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServiceS
      */
     private static class Update extends EmbeddingsUpdate {
 
-        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(SERVICE_SETTINGS.toString(), Update::new);
-
-        static {
-            declareEmbeddingsUpdatableFields(PARSER);
-        }
+        private static final ObjectParser<Update, Void> PARSER = buildEmbeddingsUpdateParser(Update::new);
 
         public JinaAIEmbeddingServiceSettings mergeInto(JinaAIEmbeddingServiceSettings existing) {
             return new JinaAIEmbeddingServiceSettings(

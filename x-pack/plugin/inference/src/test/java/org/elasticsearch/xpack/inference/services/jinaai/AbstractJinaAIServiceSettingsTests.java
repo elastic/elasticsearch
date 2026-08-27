@@ -77,6 +77,16 @@ public abstract class AbstractJinaAIServiceSettingsTests<T extends ServiceSettin
         return List.of();
     }
 
+    public void testFromMap_RequestContext_IgnoresApiKey() {
+        var map = buildCommonServiceSettingsMap(TEST_MODEL_ID, TEST_RATE_LIMIT);
+        map.put(DefaultSecretSettings.API_KEY, "my-api-key");
+
+        // The api_key field is declared as a no-op in the request parser; must not throw.
+        var serviceSettings = fromMap(map, ConfigurationParseContext.REQUEST);
+
+        assertThat(serviceSettings, is(createServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))));
+    }
+
     public void testFromMap_OnlyMandatoryFields_UsesDefaultValues_Success() {
         var serviceSettings = fromMap(buildCommonServiceSettingsMap(TEST_MODEL_ID, null), randomFrom(ConfigurationParseContext.values()));
 

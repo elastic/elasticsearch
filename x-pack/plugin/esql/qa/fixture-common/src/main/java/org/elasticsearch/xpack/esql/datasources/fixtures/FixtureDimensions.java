@@ -809,16 +809,33 @@ public final class FixtureDimensions {
     }
 
     /**
-     * The vectors for one format that a directive alone can express: every off-default slot binds as a
-     * directive AND declares a constant key.
+     * How a vector's off-default slots are allowed to become real.
      *
-     * <p>This is deliberately a small subset of {@link #vectors()}. A slot bound to a fixture, a cluster
-     * setting, a pragma or a backend needs something built before it can be run, and a derived slot needs
-     * the dataset. Those are not skipped quietly -- they are simply not expressible through this seam, and
-     * naming the seam in the method is what keeps that visible at the call site.
+     * <p>A suite names the seams it can serve, so a vector needing something the suite cannot do is not
+     * selected rather than selected and quietly run at its default.
      */
-    public List<Map<String, String>> directiveExpressibleVectors(String format) {
+    public enum Seam {
+        DIRECTIVE,
+        FIXTURE,
+        RESOLVER,
+        BACKEND,
+        PRAGMA,
+        CLUSTER
+    }
+
+    /**
+     * The vectors for one format whose every off-default slot travels through one of the given seams.
+     *
+     * <p>The format slot is excluded from the per-slot check on purpose: it selects WHICH suite runs, it
+     * is not a setting varied within one. Whether a format is consumed at all is a separate question,
+     * answered once by {@link FixtureCapabilities#formatIsConsumed} -- which is how ORC yields nothing
+     * despite having a complete fixture tree.
+     */
+    public List<Map<String, String>> expressibleVectors(String format, Set<Seam> seams) {
         List<Map<String, String>> out = new ArrayList<>();
+        if (FixtureCapabilities.formatIsConsumed(this, format) == false) {
+            return out;
+        }
         Set<String> rendered = new LinkedHashSet<>();
         forEachVector(vector -> {
             if (format.equals(vector.get("format")) == false) {
@@ -829,10 +846,7 @@ public final class FixtureDimensions {
                 if (dimension.equals("format") || slot.getValue().equals(defaultValue(dimension, format))) {
                     continue;
                 }
-                if (directiveKeyByName.containsKey(dimension) == false) {
-                    return;
-                }
-                if (derivedFromForValue(dimension, slot.getValue()) != null) {
+                if (seamServes(dimension, slot.getValue(), format, seams) == false) {
                     return;
                 }
             }
@@ -841,6 +855,36 @@ public final class FixtureDimensions {
             }
         });
         return out;
+    }
+
+    /** Whether one off-default slot can be made real by any of the seams on offer. */
+    private boolean seamServes(String dimension, String value, String format, Set<Seam> seams) {
+        return switch (binds(dimension)) {
+            case "directive" -> seams.contains(Seam.DIRECTIVE)
+                && directiveKeyByName.containsKey(dimension)
+                && derivedFromForValue(dimension, value) == null;
+            case "fixture" -> seams.contains(Seam.FIXTURE) && FixtureCapabilities.renders(dimension, value, format);
+            // The remaining seams reject until their own wiring lands; the contract already carries a
+            // typed reason for every cell they would otherwise have to serve.
+            case "resolver", "backend", "pragma", "cluster" -> false;
+            default -> throw new IllegalStateException("unhandled binds [" + binds(dimension) + "]");
+        };
+    }
+
+    /**
+     * The vectors for one format that a directive alone can express: every off-default slot binds as a
+     * directive AND declares a constant key.
+     *
+     * <p>This is deliberately a small subset of {@link #vectors()}. A slot bound to a fixture, a cluster
+     * setting, a pragma or a backend needs something built before it can be run, and a derived slot needs
+     * the dataset. Those are not skipped quietly -- they are simply not expressible through this seam, and
+     * naming the seam in the method is what keeps that visible at the call site.
+     */
+    public List<Map<String, String>> directiveExpressibleVectors(String format) {
+        // Delegates rather than enumerating again: two enumeration paths would agree until they did not.
+        // FIXTURE rides along because a non-default format IS a fixture cell -- tsv vectors are selected
+        // by the tsv suite reading tsv bytes, which is what its capability row records.
+        return expressibleVectors(format, Set.of(Seam.DIRECTIVE, Seam.FIXTURE));
     }
 
     /**

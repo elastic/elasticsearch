@@ -567,6 +567,45 @@ public class FixtureDimensionsTests extends ESTestCase {
         assertThat("a value with no absence is not licensed", d.absenceReason("error_mode", "fail_fast", "csv"), nullValue());
     }
 
+    /**
+     * ORC yields nothing although its fixtures are generated for every layout. That is the point: no ORC
+     * vector suite consumes them, so the vectors cannot run, and calling them covered because the
+     * directory is full is the mistake this whole contract exists to prevent. The absence is declared by
+     * format.rule.orc rather than inferred.
+     */
+    public void testAFormatNoSuiteConsumesYieldsNoVectors() {
+        FixtureDimensions d = FixtureDimensions.get();
+        assertThat(d.expressibleVectors("orc", Set.of(FixtureDimensions.Seam.DIRECTIVE, FixtureDimensions.Seam.FIXTURE)), empty());
+        assertThat("and the contract says why", d.absenceReason("format", "orc", "orc"), containsString("rule:"));
+    }
+
+    /**
+     * Today the fixture seam adds nothing: no capability row exists for any cell a vector could vary, so
+     * every selectable vector needs the directive seam alone. This is the measurement that makes the
+     * fixture seam's arrival visible -- when a generator starts rendering a dialect or a codec and earns
+     * its row, these two numbers separate, and that separation IS the seam landing.
+     */
+    public void testTheFixtureSeamAddsNothingUntilACellCanBeRendered() {
+        FixtureDimensions d = FixtureDimensions.get();
+        Set<FixtureDimensions.Seam> directiveOnly = Set.of(FixtureDimensions.Seam.DIRECTIVE);
+        Set<FixtureDimensions.Seam> both = Set.of(FixtureDimensions.Seam.DIRECTIVE, FixtureDimensions.Seam.FIXTURE);
+        for (String format : List.of("csv", "tsv", "ndjson", "parquet")) {
+            assertThat(
+                "adding FIXTURE must change nothing while no varied cell renders",
+                d.expressibleVectors(format, directiveOnly).size(),
+                equalTo(d.expressibleVectors(format, both).size())
+            );
+        }
+        assertThat("the only fixture cells that render are format cells", FixtureCapabilities.cells().size(), equalTo(3));
+    }
+
+    /** csv needs no capability row: it is the default format, so its vectors never carry the slot off default. */
+    public void testTheDefaultFormatNeedsNoCapabilityRow() {
+        FixtureDimensions d = FixtureDimensions.get();
+        assertThat(FixtureCapabilities.renders("format", "csv", "csv"), equalTo(false));
+        assertThat(d.expressibleVectors("csv", Set.of(FixtureDimensions.Seam.DIRECTIVE)).size(), equalTo(24));
+    }
+
     /** Renders the derived set so a reader can see what the declaration produces without running it. */
     public void testRenderDerivedSet() {
         List<Set<String>> groups = dimensions.groups();

@@ -407,6 +407,60 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         cleanDocsAndHits(docs, hitsWithNoValues);
     }
 
+    public void testMmrResultDiversificationWithHexEncodedSourceVectors() {
+        var queryRewriteContext = getQueryRewriteContext();
+        var retriever = new DiversifyRetrieverBuilder(
+            getInnerRetriever(),
+            ResultDiversificationType.MMR,
+            "dense_vector_field",
+            10,
+            3,
+            null,
+            null,
+            0.7f
+        );
+
+        retriever.doRewrite(queryRewriteContext);
+
+        List<ScoreDoc[]> docs = new ArrayList<>();
+        ScoreDoc[] hits = getTestHexEncodedSearchHits();
+        docs.add(hits);
+
+        try {
+            RankDoc[] results = retriever.combineInnerRetrieverResults(docs, false);
+            assertEquals(3, results.length);
+        } finally {
+            cleanDocsAndHits(docs, hits);
+        }
+    }
+
+    public void testMmrResultDiversificationWithBase64EncodedSourceVectors() {
+        var queryRewriteContext = getQueryRewriteContext();
+        var retriever = new DiversifyRetrieverBuilder(
+            getInnerRetriever(),
+            ResultDiversificationType.MMR,
+            "dense_vector_field",
+            10,
+            3,
+            null,
+            null,
+            0.7f
+        );
+
+        retriever.doRewrite(queryRewriteContext);
+
+        List<ScoreDoc[]> docs = new ArrayList<>();
+        ScoreDoc[] hits = getTestBase64EncodedSearchHits();
+        docs.add(hits);
+
+        try {
+            RankDoc[] results = retriever.combineInnerRetrieverResults(docs, false);
+            assertEquals(3, results.length);
+        } finally {
+            cleanDocsAndHits(docs, hits);
+        }
+    }
+
     public void testCombineInnerRetrieverResultsWithAllMissingVectors() {
         var queryRewriteContext = getQueryRewriteContext();
         var retriever = new DiversifyRetrieverBuilder(
@@ -481,6 +535,24 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             getTestSearchHit(6, 1, 0.8f, new float[] { 0.05f, 0.05f, 0.05f, 0.05f }) };
     }
 
+    private ScoreDoc[] getTestHexEncodedSearchHits() {
+        return new DiversifyRetrieverBuilder.RankDocWithSearchHit[] {
+            getTestEncodedSearchHit(1, 1, 2.0f, "0BB8"),
+            getTestEncodedSearchHit(2, 2, 1.8f, "94A2"),
+            getTestEncodedSearchHit(3, 3, 1.8f, "0560"),
+            getTestEncodedSearchHit(4, 4, 1.0f, "2112"),
+            getTestEncodedSearchHit(5, 5, 0.8f, "5051") };
+    }
+
+    private ScoreDoc[] getTestBase64EncodedSearchHits() {
+        return new DiversifyRetrieverBuilder.RankDocWithSearchHit[] {
+            getTestEncodedSearchHit(1, 1, 2.0f, "C7g="),
+            getTestEncodedSearchHit(2, 2, 1.8f, "lKI="),
+            getTestEncodedSearchHit(3, 3, 1.8f, "BWA="),
+            getTestEncodedSearchHit(4, 4, 1.0f, "IRI="),
+            getTestEncodedSearchHit(5, 5, 0.8f, "UFE=") };
+    }
+
     private ScoreDoc[] getTestNonVectorSearchHits() {
         return new DiversifyRetrieverBuilder.RankDocWithSearchHit[] {
             getTestNonVectorSearchHit(1, 1, 2.0f),
@@ -503,8 +575,17 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         return doc;
     }
 
+    private DiversifyRetrieverBuilder.RankDocWithSearchHit getTestEncodedSearchHit(int rank, int docId, float score, String encodedVector) {
+        SearchHit hit = new SearchHit(docId);
+        hit.setDocumentField(new DocumentField("dense_vector_field", List.of(encodedVector)));
+        DiversifyRetrieverBuilder.RankDocWithSearchHit doc = new DiversifyRetrieverBuilder.RankDocWithSearchHit(docId, score, 1, hit);
+        doc.rank = rank;
+        return doc;
+    }
+
     private DiversifyRetrieverBuilder.RankDocWithSearchHit getTestNonVectorSearchHit(int rank, int docId, float score) {
         SearchHit hit = new SearchHit(docId);
+        // Must not be valid hex or base64, or it would be decoded as a dense vector
         Object value = randomBoolean() ? "not a dense vector!" : new String[] { "not a dense vector!", "also not a vector!" };
         hit.setDocumentField(new DocumentField("dense_vector_field", List.of(value)));
         DiversifyRetrieverBuilder.RankDocWithSearchHit doc = new DiversifyRetrieverBuilder.RankDocWithSearchHit(docId, score, 1, hit);

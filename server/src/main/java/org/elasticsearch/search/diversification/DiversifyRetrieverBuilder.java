@@ -481,14 +481,13 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
      *
      * <p>Three layouts are handled, dispatched on the type of the first element:
      * <ul>
-     *   <li><em>Flat scalar list</em> ({@code List<Number>}): treated as a single vector and returned as a singleton list.
-     *       Throws if any element is not a {@link Number}.</li>
-     *   <li><em>List of {@code float[]} vectors</em> (float {@code dense_vector} doc values, or one entry per chunk for
-     *       chunked {@code semantic_text} fields): each element is converted to a {@link VectorData} independently.</li>
-     *   <li><em>{@code Byte[]} / {@code Object[]} of bytes</em> (byte/bit {@code dense_vector} doc values): treated as a
-     *       single byte vector.</li>
+     *   <li><em>Flat scalar list</em> ({@code List<Number>} — {@code dense_vector} source shape): treated as a single
+     *       vector and returned as a singleton list. Throws if any element is not a {@link Number}.</li>
+     *   <li><em>List of {@code float[]} vectors</em> (one entry per chunk for chunked {@code semantic_text} fields):
+     *       each element is converted to a {@link VectorData} independently.</li>
+     *   <li><em>Single hex or base64 string</em> ({@code dense_vector} stored in {@code _source} as an encoded string
+     *       when {@code index.mapping.exclude_source_vectors} is false): decoded to a byte vector.</li>
      * </ul>
-     * {@code dense_vector} embeddings are loaded from doc values, so encoded strings in {@code _source} are not seen here.
      * Returns an empty list when the values are absent, null, or of an unrecognized type.
      *
      * @throws IllegalArgumentException if the field contains malformed dense vectors
@@ -499,10 +498,15 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         }
 
         return switch (values.getFirst()) {
-            case Number ignored -> parseDenseVectorValue(values);
-            case float[] ignored -> parseInferenceFieldValue(values);
-            case Byte[] bytes -> parseByteArrayEmbedding(bytes);
-            case Object[] arr -> parseObjectArrayEmbedding(arr);
+            case Number ignored ->
+                // Flat scalar list — the entire values list is one vector (the dense_vector source shape).
+                parseDenseVectorValue(values);
+            case float[] ignored ->
+                // Each element is a separate dense embedding (e.g. one float[] per chunk for semantic_text).
+                parseInferenceFieldValue(values);
+            case String encoded ->
+                // Hex/base64 string from stored _source (byte/bit dense_vector with exclude_source_vectors false).
+                parseEncodedVectorValue(encoded);
             default ->
                 // Silently return an empty list for any other value type. This handles the BwC path where an older node serializes the
                 // embeddings field request as a plain fields entry (without the embeddings format), and the field values arrive in an
@@ -512,41 +516,9 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         };
     }
 
-    private List<VectorData> parseByteArrayEmbedding(Byte[] bytes) {
-        byte[] raw = new byte[bytes.length];
-        for (int i = 0; i < bytes.length; i++) {
-            raw[i] = bytes[i];
-        }
-        return List.of(VectorData.fromBytes(raw));
-    }
-
-    private List<VectorData> parseObjectArrayEmbedding(Object[] arr) {
-        if (arr.length == 0) {
-            return List.of();
-        }
-        if (arr[0] instanceof Byte) {
-            byte[] raw = new byte[arr.length];
-            for (int i = 0; i < arr.length; i++) {
-                if (arr[i] instanceof Byte b) {
-                    raw[i] = b;
-                } else {
-                    return List.of();
-                }
-            }
-            return List.of(VectorData.fromBytes(raw));
-        }
-        if (arr[0] instanceof Number) {
-            float[] vec = new float[arr.length];
-            for (int i = 0; i < arr.length; i++) {
-                if (arr[i] instanceof Number n) {
-                    vec[i] = n.floatValue();
-                } else {
-                    return List.of();
-                }
-            }
-            return List.of(new VectorData(vec));
-        }
-        return List.of();
+    private List<VectorData> parseEncodedVectorValue(String encoded) {
+        VectorData decoded = VectorData.tryDecodeEncodedVector(encoded);
+        return decoded == null ? List.of() : List.of(decoded);
     }
 
     private List<VectorData> parseDenseVectorValue(List<Object> values) {

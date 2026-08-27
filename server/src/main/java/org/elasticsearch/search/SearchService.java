@@ -65,7 +65,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.EmbeddingsFieldAndFormat;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
@@ -2232,38 +2231,27 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.fetchFieldsContext(fetchFieldsContext);
         }
         if (source.fetchEmbeddingsFields().isEmpty() == false) {
-            List<FieldAndFormat> fieldsApiEmbeddings = new ArrayList<>();
-            List<FieldAndFormat> docValueEmbeddings = new ArrayList<>();
+            List<FieldAndFormat> fields = new ArrayList<>();
             for (Map.Entry<String, VectorType> embeddingsField : source.fetchEmbeddingsFields().entrySet()) {
                 MappedFieldType fieldType = searchExecutionContext.getFieldType(embeddingsField.getKey());
                 if (fieldType == null) {
                     // Unmapped on this shard — skip, consistent with how the `fields` option treats unmapped fields.
                     continue;
                 }
-                EmbeddingsFieldAndFormat embeddings = fieldType.embeddingsFieldAndFormat(embeddingsField.getValue());
-                if (embeddings == null) {
+                FieldAndFormat fieldAndFormat = fieldType.embeddingsFieldAndFormat(embeddingsField.getValue());
+                if (fieldAndFormat == null) {
                     // The field cannot produce embeddings of the requested type — skip, as with an unmapped field.
                     continue;
                 }
-                if (embeddings.useDocValues()) {
-                    docValueEmbeddings.add(embeddings.fieldAndFormat());
-                } else {
-                    fieldsApiEmbeddings.add(embeddings.fieldAndFormat());
-                }
+                fields.add(fieldAndFormat);
             }
 
-            if (fieldsApiEmbeddings.isEmpty() == false) {
+            if (fields.isEmpty() == false) {
                 FetchFieldsContext existingFetchFieldsContext = context.fetchFieldsContext();
                 if (existingFetchFieldsContext != null && existingFetchFieldsContext.fields() != null) {
-                    fieldsApiEmbeddings.addAll(existingFetchFieldsContext.fields());
+                    fields.addAll(existingFetchFieldsContext.fields());
                 }
-                context.fetchFieldsContext(new FetchFieldsContext(fieldsApiEmbeddings));
-            }
-            if (docValueEmbeddings.isEmpty() == false) {
-                if (source.docValueFields() != null) {
-                    docValueEmbeddings.addAll(source.docValueFields());
-                }
-                context.docValuesContext(new FetchDocValuesContext(searchExecutionContext, docValueEmbeddings));
+                context.fetchFieldsContext(new FetchFieldsContext(fields));
             }
         }
         if (source.highlighter() != null) {

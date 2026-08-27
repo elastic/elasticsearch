@@ -41,7 +41,6 @@ import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectors
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
-import org.elasticsearch.index.mapper.EmbeddingsFieldAndFormat;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -57,6 +56,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimil
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.VectorType;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.vectors.VectorData;
@@ -130,8 +130,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     public void testEmbeddingsFieldAndFormat() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         MappedFieldType fieldType = mapperService.fieldType("field");
-        assertEquals(EmbeddingsFieldAndFormat.docValues("field", "array"), fieldType.embeddingsFieldAndFormat(null));
-        assertEquals(EmbeddingsFieldAndFormat.docValues("field", "array"), fieldType.embeddingsFieldAndFormat(VectorType.DENSE_VECTOR));
+        assertEquals(new FieldAndFormat("field", null), fieldType.embeddingsFieldAndFormat(null));
+        assertEquals(new FieldAndFormat("field", null), fieldType.embeddingsFieldAndFormat(VectorType.DENSE_VECTOR));
         assertNull(fieldType.embeddingsFieldAndFormat(VectorType.SPARSE_VECTOR));
         assertParseMinimalWarnings();
     }

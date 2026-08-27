@@ -3,4 +3,4 @@ issues:
  - 156403
 pr: 156539
 summary: Support INLINE STATS in SET_UNMAPPED_FIELDS="LOAD_ALL"
-type: feature
+type: non-issue

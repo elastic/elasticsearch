@@ -491,7 +491,7 @@ n:integer
 # INLINE STATS #
 ################
 
-doesNotLoadUnmappedFieldsInlineStats
+inlineStatsByMappedFieldWithExpansion
 required_capability: optional_fields_load_all_inline_stats
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -507,7 +507,7 @@ FROM partial_mapping_sample_data
 2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | 3          | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
 ;
 
-doesNotLoadUnmappedFieldsInlineStatsNoGrouping
+inlineStatsNoGroupingWithExpansion
 required_capability: optional_fields_load_all_inline_stats
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -707,6 +707,66 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | a                       | 1756468
 2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | Disconnection error        | b                       | 5033756
 2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | Disconnection error        | c                       | 8268154
+;
+
+inlineStatsByUnmappedAfterRenameOtherUnmapped
+required_capability: optional_fields_load_all_inline_stats
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| RENAME unmapped_message AS x
+| INLINE STATS c = COUNT(*) BY unmapped.nested
+| SORT @timestamp DESC
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | x:keyword                   | c:long | unmapped.nested:keyword | language_code:keyword | unmapped_event_duration:keyword
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | Disconnected from 10.1.0.1  | 1      | a                       | 1                     | 1756468
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | Disconnection error         | 1      | b                       | 2                     | 5033756
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | Disconnection error         | 1      | c                       | 3                     | 8268154
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | Disconnection error         | 1      | d                       | 1                     | 725449
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 43                          | 1      | e                       | 2                     | 1232383
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | Disconnected from 10.1.0.2  | 1      | f                       | 3                     | 2764890
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | Disconnected from 10.1.0.3  | 1      | g                       | 4                     | 3450234
+;
+
+inlineStatsByRenamedUnmapped
+required_capability: optional_fields_load_all_inline_stats
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| RENAME unmapped_message AS x
+| INLINE STATS c = COUNT(*) BY x
+| SORT @timestamp DESC
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | c:long | x:keyword                   | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1      | Disconnected from 10.1.0.1  | 1                     | a                       | 1756468
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 3      | Disconnection error         | 2                     | b                       | 5033756
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3      | Disconnection error         | 3                     | c                       | 8268154
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 3      | Disconnection error         | 1                     | d                       | 725449
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 1      | 43                          | 2                     | e                       | 1232383
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 1      | Disconnected from 10.1.0.2  | 3                     | f                       | 2764890
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 1      | Disconnected from 10.1.0.3  | 4                     | g                       | 3450234
+;
+
+inlineStatsAfterSortOnUnmapped
+required_capability: optional_fields_load_all_inline_stats
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| SORT unmapped.nested DESC
+| INLINE STATS c = COUNT(*)
+| SORT @timestamp DESC
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | unmapped.nested:keyword | c:long | language_code:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | a                       | 7      | 1                     | 1756468                         | Disconnected from 10.1.0.1
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | b                       | 7      | 2                     | 5033756                         | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | c                       | 7      | 3                     | 8268154                         | Disconnection error
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | d                       | 7      | 1                     | 725449                          | Disconnection error
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | e                       | 7      | 2                     | 1232383                         | 43
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | f                       | 7      | 3                     | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | g                       | 7      | 4                     | 3450234                         | Disconnected from 10.1.0.3
 ;
 
 #########

@@ -34,10 +34,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.continuous.TransformContinuousIT
   method: testContinuousEvents
   issue: https://github.com/elastic/elasticsearch/issues/153782
-- class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
-  issue: https://github.com/elastic/elasticsearch/issues/156233
-- class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/156234
 - class: org.elasticsearch.search.SearchWithRejectionsIT
   method: testOpenContextsAfterRejections
   issue: https://github.com/elastic/elasticsearch/issues/156244

@@ -85,6 +85,10 @@ public class CsvSpecOrderingValidator {
                     // See SpecReader#makeTestCase: { fileName, groupName, testName, lineNumber, result, instructions }
                     String testName = (String) parsed[2];
                     int lineNumber = (Integer) parsed[3];
+                    // Mirrors CsvTestUtils#isEnabled: a "-Ignore" suffix disables the test everywhere.
+                    if (testName.endsWith("-Ignore")) {
+                        continue;
+                    }
                     testCases++;
                     String violation = validate((CsvTestCase) parsed[4]);
                     if (violation != null) {
@@ -138,8 +142,12 @@ public class CsvSpecOrderingValidator {
         if (allIdentical(dataRows)) {
             return null;
         }
-        EsqlBaseParser.SortCommandContext sort = topLevelSort(query);
-        return sort == null ? dataRows.size() + " expected rows but no top-level SORT" : tiedSortKeys(sort, rows);
+        RowOrder order = rowOrder(query);
+        if (order.determined() == false) {
+            return dataRows.size() + " expected rows but nothing determines their order";
+        }
+        // Only a SORT can be checked for ties; a command supplying its own order has no keys to inspect.
+        return order.sort() == null ? null : tiedSortKeys(order.sort(), rows);
     }
 
     /**
@@ -274,45 +282,100 @@ public class CsvSpecOrderingValidator {
     }
 
     /**
-     * Returns the {@code SORT} that survives to the end of the pipeline, peeling through commands that
-     * preserve row order and stopping at the first one that does not, or {@code null} if there is
-     * none.
+     * What fixes the order of the final result.
+     *
+     * @param determined whether the row order is pinned down at all
+     * @param sort       the {@code SORT} responsible, or {@code null} when the order comes from a
+     *                   command that supplies its own
      */
-    private static EsqlBaseParser.SortCommandContext topLevelSort(EsqlBaseParser.QueryContext query) {
+    private record RowOrder(boolean determined, EsqlBaseParser.SortCommandContext sort) {
+        static final RowOrder UNDETERMINED = new RowOrder(false, null);
+        static final RowOrder OWN_ORDER = new RowOrder(true, null);
+    }
+
+    /**
+     * Walks the pipeline from the outermost command inwards, asking of each command in turn whether it
+     * establishes the output order, destroys whatever order preceded it, or passes that order through.
+     * The first command to answer either of the first two settles the question; otherwise the walk
+     * reaches the source command.
+     * <p>
+     * Distinguishing "establishes an order" from "passes one through" matters: treating an
+     * order-establishing command such as {@code CHANGE_POINT} as merely order-destroying would report
+     * a deterministic query as unordered.
+     */
+    private static RowOrder rowOrder(EsqlBaseParser.QueryContext query) {
         EsqlBaseParser.QueryContext current = query;
         while (current instanceof EsqlBaseParser.CompositeQueryContext composite) {
             EsqlBaseParser.ProcessingCommandContext command = composite.processingCommand();
             if (command.sortCommand() != null) {
-                return command.sortCommand();
+                return new RowOrder(true, command.sortCommand());
             }
-            if (isSortDisrupting(command)) {
-                return null;
+            if (establishesOrder(command)) {
+                return RowOrder.OWN_ORDER;
+            }
+            if (destroysOrder(command)) {
+                return RowOrder.UNDETERMINED;
             }
             current = composite.query();
         }
-        return null;
+        return sourceEstablishesOrder(current) ? RowOrder.OWN_ORDER : RowOrder.UNDETERMINED;
+    }
+
+    /**
+     * Returns whether the command imposes its own order on the rows it emits, making any earlier
+     * ordering irrelevant.
+     * <ul>
+     *   <li>{@code CHANGE_POINT} sorts by its {@code BY} groupings then its {@code ON} key: its
+     *       surrogate plan wraps the child in an {@code OrderBy}.</li>
+     *   <li>{@code STATS} grouped by an {@code include_empty_buckets} {@code BUCKET} sorts by group
+     *       and bucket keys in order to interleave the generated empty buckets.</li>
+     * </ul>
+     */
+    private static boolean establishesOrder(EsqlBaseParser.ProcessingCommandContext command) {
+        if (command.changePointCommand() != null) {
+            return true;
+        }
+        // The option lives in a map literal inside the BUCKET call, so there is no grammar rule to test
+        // against; matching the option name over the command's text is enough for a build-time check.
+        return command.statsCommand() != null
+            && command.statsCommand().getText().toLowerCase(Locale.ROOT).contains("include_empty_buckets");
     }
 
     /**
      * Returns whether the command destroys the row order established before it. Anything not listed is
      * assumed to preserve order.
      * <p>
-     * {@code LOOKUP JOIN} does not itself reorder rows, but the join's right-hand side is not part of
-     * the sort walk, so it is treated as disrupting to skip the check rather than report a false
-     * negative.
+     * {@code LOOKUP JOIN} is included on the authority of ES|QL itself, which warns "SORT is followed
+     * by a LOOKUP JOIN which does not preserve order". {@code MMR} is deliberately absent: it selects
+     * a subset but emits it in input order.
      */
-    private static boolean isSortDisrupting(EsqlBaseParser.ProcessingCommandContext command) {
+    private static boolean destroysOrder(EsqlBaseParser.ProcessingCommandContext command) {
         return command.statsCommand() != null
             || command.mvExpandCommand() != null
             || command.forkCommand() != null
             || command.sampleCommand() != null
             || command.fuseCommand() != null
             || command.dedupCommand() != null
-            || command.mmrCommand() != null
             || command.tsCollapseCommand() != null
             || command.highlightCommand() != null
             || command.metricsInfoCommand() != null
             || command.tsInfoCommand() != null
             || command.joinCommand() != null;
+    }
+
+    /**
+     * Returns whether the source command orders its own output. {@code TS} does: the analyzer injects
+     * an implicit {@code @timestamp DESC} sort when no explicit {@code SORT} or {@code STATS} appears
+     * below the limit, and the walk in {@link #rowOrder} only reaches the source when neither does.
+     * <p>
+     * {@code PROMQL} does not: it lowers to a hash aggregation whose group emission order is
+     * unspecified, except for ranking shapes such as {@code topk}.
+     */
+    private static boolean sourceEstablishesOrder(EsqlBaseParser.QueryContext query) {
+        EsqlBaseParser.QueryContext source = query;
+        while (source instanceof EsqlBaseParser.CompositeQueryContext composite) {
+            source = composite.query();
+        }
+        return source instanceof EsqlBaseParser.SingleCommandQueryContext single && single.sourceCommand().timeSeriesCommand() != null;
     }
 }

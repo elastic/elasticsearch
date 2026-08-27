@@ -216,12 +216,12 @@ public class ProfileScorerTests extends ESTestCase {
         DocIdSetIterator it = profileScorer.iterator();
         it.nextDoc();
         // call to nextDoc initializes iterator
-        assertEquals(1L, (long) profile.toBreakdownMap().get(QueryTimingType.NEXT_DOC.name().toLowerCase() + "_count"));
+        assertEquals(1L, (long) profile.toBreakdownMap().get(QueryTimingType.NEXT_DOC + "_count"));
 
         it.intoBitSet(maxDoc, bitSet, 0);
         assertEquals(maxDoc, bitSet.cardinality());
-        assertEquals(1L, (long) profile.toBreakdownMap().get(QueryTimingType.INTO_BIT_SET.name().toLowerCase() + "_count"));
-        assertEquals(1L, (long) profile.toBreakdownMap().get(QueryTimingType.NEXT_DOC.name().toLowerCase() + "_count"));
+        assertEquals(1L, (long) profile.toBreakdownMap().get(QueryTimingType.INTO_BIT_SET + "_count"));
+        assertEquals(1L, (long) profile.toBreakdownMap().get(QueryTimingType.NEXT_DOC + "_count"));
     }
 
     public void testPropagateTopLevelScoringClause() throws IOException {

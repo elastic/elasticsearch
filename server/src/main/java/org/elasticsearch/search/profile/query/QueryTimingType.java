@@ -16,13 +16,13 @@ public enum QueryTimingType {
     COUNT_WEIGHT,
     BUILD_SCORER,
     NEXT_DOC,
-    INTO_BIT_SET,
     ADVANCE,
     MATCH,
     SCORE,
     SHALLOW_ADVANCE,
     COMPUTE_MAX_SCORE,
-    SET_MIN_COMPETITIVE_SCORE;
+    SET_MIN_COMPETITIVE_SCORE,
+    INTO_BIT_SET;
 
     @Override
     public String toString() {

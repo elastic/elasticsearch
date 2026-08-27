@@ -138,10 +138,12 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             // As soon as we know the per-allocation memory (whether from model metadata or from observed runtime memory)
             // we can bound the number of allocations by the memory available on the node. A zero per-deployment base is fine.
             if (perAllocationMemoryBytes > 0) {
-                // Subtract the fixed per-deployment overhead (present once any allocations are running) before
-                // dividing by the per-allocation cost. estimateMemoryUsageBytes(0) is always 0 because a deployment
-                // with zero allocations uses no memory, so use perDeploymentMemoryBytes + memoryBytes directly
-                // (the model definition must stay in memory for the lifetime of the deployment).
+                // Guard first: if the node cannot afford even a single allocation (including MEMORY_OVERHEAD and the
+                // model-zip transient), the division below would over-count because fixedCostBytes only covers
+                // perDeploymentMemoryBytes + memoryBytes and omits MEMORY_OVERHEAD.
+                if (availableMemoryBytes < minimumMemoryRequiredBytes()) {
+                    return 0;
+                }
                 long fixedCostBytes = perDeploymentMemoryBytes + memoryBytes;
                 return (int) Math.max(
                     Math.min(maxAllocations, Math.floorDiv(availableMemoryBytes - fixedCostBytes, perAllocationMemoryBytes)),

@@ -183,6 +183,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
     @Override
     public void close() {
+        clusterService.removeListener(this);
         Scheduler.Cancellable task = observedMemoryTask;
         if (task != null && task.isCancelled() == false) {
             task.cancel();

@@ -185,7 +185,14 @@ public class SplitSourceService {
 
         var indexMetadata = clusterService.state().metadata().projectFor(index).getIndexSafe(index);
         var reshardingMetadata = indexMetadata.getReshardingMetadata();
-        assert reshardingMetadata != null && reshardingMetadata.isSplit() : "Unexpected resharding state";
+        if (reshardingMetadata == null || reshardingMetadata.isSplit() == false) {
+            // A start split request can arrive after the split has completed and the resharding metadata was removed from cluster
+            // state, for example when a target shard whose node was isolated mid-split retries the request after rejoining.
+            String message = String.format(Locale.ROOT, "Split target [%s]. No split is in progress. Failing the request.", targetShardId);
+            logger.info(message);
+
+            throw new StaleSplitRequestException(message);
+        }
         int sourceShardIndex = reshardingMetadata.getSplit().sourceShard(targetShardId.getId());
         var sourceShardId = new ShardId(index, sourceShardIndex);
 

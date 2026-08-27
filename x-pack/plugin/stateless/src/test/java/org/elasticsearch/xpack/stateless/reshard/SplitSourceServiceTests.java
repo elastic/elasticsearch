@@ -10,15 +10,21 @@ package org.elasticsearch.xpack.stateless.reshard;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -27,7 +33,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SplitSourceServiceTests extends ESTestCase {
     AtomicLong nowInMillis = new AtomicLong();
@@ -206,6 +215,34 @@ public class SplitSourceServiceTests extends ESTestCase {
         assertEquals(acquired.get(), 2);
         // never actually obtained the resource
         assertEquals(withResource.get(), 0);
+    }
+
+    public void testSetupTargetShardFailsWhenSplitIsNoLongerInProgress() {
+        var indexMetadata = IndexMetadata.builder("test-index").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true).build())
+            .build();
+
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(clusterState);
+
+        // The null args are not reached before the request is rejected.
+        var splitSourceService = new SplitSourceService(
+            null,
+            clusterService,
+            null,
+            mock(StatelessCommitService.class),
+            null,
+            null,
+            null,
+            Settings.EMPTY
+        );
+
+        var exception = expectThrows(
+            StaleSplitRequestException.class,
+            () -> splitSourceService.setupTargetShard(null, new ShardId(indexMetadata.getIndex(), 0), 1L, 1L, ActionListener.noop())
+        );
+        assertThat(exception.getMessage(), containsString("No split is in progress"));
     }
 
     private ActionListener<Releasable> runAndRelease(Runnable runnable) {

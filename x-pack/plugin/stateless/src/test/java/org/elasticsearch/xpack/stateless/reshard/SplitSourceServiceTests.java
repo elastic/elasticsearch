@@ -8,11 +8,21 @@
 package org.elasticsearch.xpack.stateless.reshard;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -21,6 +31,28 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SplitSourceServiceTests extends ESTestCase {
     AtomicLong nowInMillis = new AtomicLong();
+
+    public void testHandoffReleasesPermitsWhenIndexIsGone() throws Exception {
+        final var permitsClosed = new AtomicInteger();
+        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool())) {
+            final var splitSourceService = new SplitSourceService(null, clusterService, null, null, null, null, null, Settings.EMPTY);
+            final var goneIndex = new Index("gone", "gone-uuid");
+            final var handoff = new PlainActionFuture<ActionResponse>();
+
+            splitSourceService.waitForHandoffSuccessOrFailure(
+                new ShardId(goneIndex, 1),
+                new ShardId(goneIndex, 0),
+                1L,
+                1L,
+                new AtomicBoolean(true),
+                permitsClosed::incrementAndGet,
+                handoff
+            );
+
+            expectThrows(IndexNotFoundException.class, handoff::actionGet);
+        }
+        assertEquals(1, permitsClosed.get());
+    }
 
     // test that a RefCountingAcquirer will only acquire the resource once if multiple acquirers arrive while the resource is held
     public void testRefCountedAcquirerAcquiresAndReleasesOnce() throws Exception {

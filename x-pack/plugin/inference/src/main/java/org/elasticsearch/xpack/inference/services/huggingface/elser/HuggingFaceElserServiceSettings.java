@@ -51,7 +51,7 @@ public class HuggingFaceElserServiceSettings extends FilteredXContentObject
     private static final int ELSER_TOKEN_LIMIT = 512;
     // At the time of writing HuggingFace hasn't posted the default rate limit for inference endpoints so this value is only a guess.
     // 3000 requests per minute.
-    static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(3000);
+    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(3000);
 
     private static final ObjectParser<Builder, ConfigurationParseContext> REQUEST_PARSER = createParser(false);
     private static final ObjectParser<Builder, ConfigurationParseContext> PERSISTENT_PARSER = createParser(true);

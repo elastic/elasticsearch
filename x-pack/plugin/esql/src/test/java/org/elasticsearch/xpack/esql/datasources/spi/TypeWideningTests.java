@@ -23,7 +23,9 @@ public class TypeWideningTests extends ESTestCase {
 
     /**
      * Every type reachable on an external-dataset schema path: what the text inferrers produce, plus
-     * what a typed CSV header or a columnar footer can declare on top.
+     * what a typed CSV header can declare, plus what a columnar footer can carry &mdash; including
+     * {@code UNSUPPORTED} and {@code NULL}, which the Parquet and Arrow readers put into a file schema
+     * for map and depth-capped struct columns and which therefore reach reconciliation.
      */
     private static final List<DataType> UNIVERSE = List.of(
         DataType.BOOLEAN,
@@ -36,6 +38,7 @@ public class TypeWideningTests extends ESTestCase {
         DataType.IP,
         DataType.VERSION,
         DataType.NULL,
+        DataType.UNSUPPORTED,
         DataType.KEYWORD
     );
 
@@ -47,6 +50,40 @@ public class TypeWideningTests extends ESTestCase {
                 for (Policy policy : Policy.values()) {
                     assertNotNull(a + " join " + b + " [" + policy + "]", TypeWidening.join(a, b, policy));
                 }
+            }
+        }
+    }
+
+    /**
+     * The join never invents a type: its answer is one of its inputs or the top. This is what makes
+     * full-enum associativity hold without enumerating the full enum, and it would catch a future
+     * promotion that routed two types to some third type nobody asked for.
+     */
+    public void testJoinNeverInventsAThirdType() {
+        for (DataType a : DataType.values()) {
+            for (DataType b : DataType.values()) {
+                for (Policy policy : Policy.values()) {
+                    DataType joined = TypeWidening.join(a, b, policy);
+                    assertTrue(
+                        a + " join " + b + " [" + policy + "] = " + joined,
+                        joined == a || joined == b || joined == DataType.KEYWORD
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * No type is an identity element, {@code NULL} least of all. Pinned because a caller folding a
+     * collection is tempted to seed with {@code NULL}, which would collapse every fold to keyword.
+     */
+    public void testLatticeHasNoBottom() {
+        for (DataType t : UNIVERSE) {
+            for (Policy policy : Policy.values()) {
+                if (t == DataType.NULL) {
+                    continue;
+                }
+                assertEquals(t + " [" + policy + "]", DataType.KEYWORD, TypeWidening.join(DataType.NULL, t, policy));
             }
         }
     }

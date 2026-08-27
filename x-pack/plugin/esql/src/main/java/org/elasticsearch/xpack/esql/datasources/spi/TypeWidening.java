@@ -83,6 +83,13 @@ public final class TypeWidening {
      * The single type that represents both, always. Returns {@code KEYWORD} when there is no closer
      * common supertype, so callers never have to invent a fallback of their own &mdash; inventing one
      * per call site is how the answers drifted apart in the first place.
+     *
+     * <p><b>There is a top but no bottom.</b> No type is an identity element: {@code join(NULL, X)} is
+     * {@code KEYWORD}, not {@code X}, because a column that is null in one file and an integer in
+     * another is not thereby an integer column. So a caller folding a collection must seed the fold
+     * with the collection's own first element and handle emptiness itself &mdash; seeding with
+     * {@code NULL} (or any other type as a stand-in for "nothing yet") collapses every fold to
+     * {@code KEYWORD}.
      */
     public static DataType join(DataType a, DataType b, Policy policy) {
         if (a == b) {

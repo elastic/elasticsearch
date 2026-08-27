@@ -200,6 +200,52 @@ public class ExternalReadConfigContaminationIT extends AbstractExternalDataSourc
     }
 
     /** Asserts how many records {@code COUNT(*)} actually had to read: 0 means it was served from the cache. */
+    /**
+     * ONE dataset, three queries, and the reproduction a reviewer measured on this branch's parent. Under
+     * {@code skip_row} only PROJECTED columns are coerced, so the query's projection decides which rows survive —
+     * and the projection is not in the cache identity and cannot be, being per-query and different between a
+     * coordinator and a data node.
+     * <p>
+     * This is the route no identity gate can defend, because there is nothing to distinguish: same dataset, same
+     * file, same configuration, so the same fingerprint. A read that projects the uncoercible column drops that row
+     * and would commit 29 under the identity a {@code COUNT(*)} scan shares, and the {@code COUNT(*)} would then be
+     * served 29 where its own scan answers 30. Only the producer refusing to publish closes it. Every other
+     * contamination test here crosses two datasets, where the fingerprint does the work — this one has to fail if
+     * the suppression fails, and nothing else in the suite does.
+     * <p>
+     * The typed header is what makes it reachable and is the reason two earlier attempts to construct it failed: a
+     * plain header lets inference sample the bad value and widen the column to text, after which nothing fails to
+     * coerce and the path quietly heals.
+     */
+    public void testProjectionDependentDropIsNeverServedToADifferentProjection() throws Exception {
+        String uri = writeTypedDropFixture();
+        String dataset = register("cross_projection", uri, null);
+
+        // Projects no column: nothing coerces, nothing drops, and this is the file's true row count.
+        assertCount(dataset, "STATS c = COUNT(*)", ROWS);
+        // Projects the uncoercible column, so the row drops. The dropped row is mid-file and never the extremum, so
+        // the answer is unchanged — what matters is that this read measured 199 surviving rows, not 200.
+        assertCount(dataset, "STATS hi = MAX(age)", (ROWS - 1L) * 10);
+        // The same question as the first, and it must still be the file's row count — not the survivor count the
+        // projected read measured.
+        assertCount(dataset, "STATS c = COUNT(*)", ROWS);
+    }
+
+    /**
+     * A TYPED header, so {@code age} is bound as an integer by declaration rather than inferred from a sample. The
+     * uncoercible value therefore fails to coerce whenever the column is projected, which a plain header would
+     * never produce — inference would see the value and widen the column to text instead.
+     */
+    private String writeTypedDropFixture() throws Exception {
+        StringBuilder sb = new StringBuilder("name:keyword,age:integer\n");
+        for (int i = 0; i < ROWS; i++) {
+            sb.append("row_").append(i).append(',').append(i == ROWS / 2 ? "oops" : String.valueOf(i * 10)).append('\n');
+        }
+        Path file = createTempDir().resolve("typed_drops.csv");
+        Files.writeString(file, sb.toString());
+        return StoragePath.fileUri(file);
+    }
+
     private void assertScanRows(String dataset, long expectedScanRows) {
         String query = "FROM " + dataset + " | STATS c = COUNT(*)";
         try (var response = run(syncEsqlQueryRequest(query).profile(true), TIMEOUT)) {

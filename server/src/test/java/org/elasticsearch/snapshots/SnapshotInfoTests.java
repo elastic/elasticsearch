@@ -228,7 +228,12 @@ public class SnapshotInfoTests extends ESTestCase {
         Map<String, SnapshotInfo.IndexSnapshotDetails> details = new HashMap<>();
         details.put(BACKING_1, successDetails());
         details.put(FAILURE_1, SnapshotInfo.IndexSnapshotDetails.SKIPPED);
-        SnapshotInfo snap = snapshotWithDataStream(List.of(DS_NAME), List.of(BACKING_1, FAILURE_1), details, List.of(shardFailure(FAILURE_1)));
+        SnapshotInfo snap = snapshotWithDataStream(
+            List.of(DS_NAME),
+            List.of(BACKING_1, FAILURE_1),
+            details,
+            List.of(shardFailure(FAILURE_1))
+        );
 
         assertTrue(snap.isDataStreamComplete(ds));
     }

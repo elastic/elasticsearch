@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -14,19 +15,23 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.RemovedParquetDatasetSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.sameInstance;
 
 /** Pins that the Parquet reader claims no per-dataset configuration keys. */
-public class ParquetFormatReaderRecognizedKeysTests extends ESTestCase {
+public class ParquetFormatReaderConfigKeysTests extends ESTestCase {
 
     private static final BlockFactory NOOP_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
         .breaker(new NoopCircuitBreaker("noop"))
@@ -59,5 +64,36 @@ public class ParquetFormatReaderRecognizedKeysTests extends ESTestCase {
 
     public void testNullConfigConsumesNothing() {
         assertThat(new ParquetFormatReader(NOOP_BLOCK_FACTORY).withConfigTrackingConsumedKeys(null).consumedKeys(), empty());
+    }
+
+    public void testRemovedParquetDatasetSettingsRejectedOnPut() {
+        FileDataSourceValidator validator = parquetFormatAwareValidator();
+        for (String key : RemovedParquetDatasetSettings.KEYS) {
+            var e = expectThrows(
+                ValidationException.class,
+                () -> validator.validateDataset(Map.of(), "s3://bucket/path/*.parquet", Map.of(key, false))
+            );
+            assertThat(e.validationErrors(), hasItem(containsString("unknown setting [" + key + "]")));
+        }
+    }
+
+    private static FileDataSourceValidator parquetFormatAwareValidator() {
+        Map<String, Set<String>> formatToConfigKeys = new HashMap<>();
+        Map<String, String> extToFormat = new HashMap<>();
+        for (FormatSpec spec : new ParquetDataSourcePlugin().formatSpecs()) {
+            String format = spec.format().toLowerCase(Locale.ROOT);
+            formatToConfigKeys.put(format, spec.configKeys());
+            for (String ext : spec.extensions()) {
+                String normalized = ext.toLowerCase(Locale.ROOT);
+                if (normalized.startsWith(".") == false) {
+                    normalized = "." + normalized;
+                }
+                extToFormat.put(normalized, format);
+            }
+        }
+        return new FileDataSourceValidator("s3", (settings, secrets) -> null, Set.of("s3")).withFormatConfigKeyResolver(
+            FileDataSourceValidator.FormatConfigKeyResolver.of(formatToConfigKeys, extToFormat),
+            Set.of()
+        );
     }
 }

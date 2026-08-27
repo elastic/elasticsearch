@@ -315,7 +315,7 @@ The following settings apply to all file-based data sources:
 
 ### Parquet
 
-Parquet is self-describing and is read with no per-dataset settings.
+Parquet is self-describing and has no format-specific dataset settings.
 
 ## How schemas are inferred
 

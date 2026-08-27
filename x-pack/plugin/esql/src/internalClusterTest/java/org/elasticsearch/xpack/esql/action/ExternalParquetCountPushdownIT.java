@@ -156,6 +156,8 @@ public class ExternalParquetCountPushdownIT extends AbstractExternalDataSourceIT
      * Stored {@code optimized_reader} / {@code late_materialization} keys must not fail
      * {@code FROM}: {@code DatasetRewriter} strips them before {@code ConfigKeyValidator}.
      * TestValidator stores raw settings, so this is the tolerated-legacy window after an upgrade.
+     * A pushable {@code WHERE} pins that filtering is not suppressed: {@code COUNT(*)} alone
+     * can be answered from footer stats even if row-level late-mat were off.
      */
     public void testStoredRemovedParquetDatasetSettingsAreToleratedOnFrom() throws Exception {
         int totalRows = 50;
@@ -166,12 +168,12 @@ public class ExternalParquetCountPushdownIT extends AbstractExternalDataSourceIT
                 StoragePath.fileUri(parquetFile),
                 Map.of(RemovedParquetDatasetSettings.OPTIMIZED_READER, false, RemovedParquetDatasetSettings.LATE_MATERIALIZATION, false)
             );
-            String query = "FROM " + dataset + " | STATS c = COUNT(*)";
+            String query = "FROM " + dataset + " | WHERE id < 10 | STATS c = COUNT(*)";
             var request = syncEsqlQueryRequest(query);
 
             try (var response = run(request)) {
                 List<List<Object>> rows = getValuesList(response);
-                assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo((long) totalRows));
+                assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(10L));
             }
         } finally {
             Files.deleteIfExists(parquetFile);

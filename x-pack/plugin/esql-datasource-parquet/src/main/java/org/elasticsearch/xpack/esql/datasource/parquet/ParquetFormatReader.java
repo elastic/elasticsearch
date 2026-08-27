@@ -136,7 +136,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
     private final ParquetPushedExpressions pushedExpressions;
     private final boolean forceBaselinePath;
     private final boolean optimizedReader;
-    private final boolean lateMaterializationEnabled;
     private final DynamicThreshold dynamicThreshold;
     /** Declared per-column date parse patterns (physical name &rarr; pattern); see {@link #withDeclaredDateFormats}. */
     private final Map<String, String> declaredDateFormats;
@@ -266,12 +265,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
     }
 
     public ParquetFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, FilterCompat.NOOP, null, false, true, true, null, Map.of(), Set.of());
+        this(blockFactory, FilterCompat.NOOP, null, false, true, null, Map.of(), Set.of());
     }
 
     // Test oracle: false selects the baseline iterator. Production uses the public ctor (always optimized).
     ParquetFormatReader(BlockFactory blockFactory, boolean optimizedReader) {
-        this(blockFactory, FilterCompat.NOOP, null, false, optimizedReader, true, null, Map.of(), Set.of());
+        this(blockFactory, FilterCompat.NOOP, null, false, optimizedReader, null, Map.of(), Set.of());
     }
 
     private ParquetFormatReader(
@@ -280,7 +279,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         ParquetPushedExpressions pushedExpressions,
         boolean forceBaselinePath,
         boolean optimizedReader,
-        boolean lateMaterializationEnabled,
         DynamicThreshold dynamicThreshold,
         Map<String, String> declaredDateFormats,
         Set<String> declaredTypeColumns
@@ -290,7 +288,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         this.pushedExpressions = pushedExpressions;
         this.forceBaselinePath = forceBaselinePath;
         this.optimizedReader = optimizedReader;
-        this.lateMaterializationEnabled = lateMaterializationEnabled;
         this.dynamicThreshold = dynamicThreshold;
         this.declaredDateFormats = declaredDateFormats;
         this.declaredTypeColumns = declaredTypeColumns;
@@ -308,26 +305,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             pushedExpressions,
             true,
             optimizedReader,
-            lateMaterializationEnabled,
-            dynamicThreshold,
-            declaredDateFormats,
-            declaredTypeColumns
-        );
-    }
-
-    /**
-     * Returns a reader with late materialization forced on or off. Package-private; intended
-     * for tests that contrast the always-on production path against the no-late-mat oracle.
-     * Production reads always leave late materialization enabled.
-     */
-    ParquetFormatReader withLateMaterialization(boolean enabled) {
-        return new ParquetFormatReader(
-            blockFactory,
-            pushedFilter,
-            pushedExpressions,
-            forceBaselinePath,
-            optimizedReader,
-            enabled,
             dynamicThreshold,
             declaredDateFormats,
             declaredTypeColumns
@@ -343,7 +320,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 null,
                 forceBaselinePath,
                 optimizedReader,
-                lateMaterializationEnabled,
                 dynamicThreshold,
                 declaredDateFormats,
                 declaredTypeColumns
@@ -356,7 +332,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 exprs,
                 forceBaselinePath,
                 optimizedReader,
-                lateMaterializationEnabled,
                 dynamicThreshold,
                 declaredDateFormats,
                 declaredTypeColumns
@@ -373,7 +348,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             pushedExpressions,
             forceBaselinePath,
             optimizedReader,
-            lateMaterializationEnabled,
             threshold,
             declaredDateFormats,
             declaredTypeColumns
@@ -398,7 +372,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             pushedExpressions,
             forceBaselinePath,
             optimizedReader,
-            lateMaterializationEnabled,
             dynamicThreshold,
             Map.copyOf(physicalNameToPattern),
             declaredTypeColumns
@@ -424,7 +397,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             pushedExpressions,
             forceBaselinePath,
             optimizedReader,
-            lateMaterializationEnabled,
             dynamicThreshold,
             declaredDateFormats,
             Set.copyOf(physicalDeclaredColumns)
@@ -473,7 +445,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      */
     private void recordPerColumnMaterialization(List<Attribute> projectedAttributes, boolean useOptimized) {
         Set<String> predicateNames = pushedExpressions != null ? pushedExpressions.predicateColumnNames() : Set.of();
-        boolean lateActive = useOptimized && lateMaterializationEnabled && pushedExpressions != null;
+        boolean lateActive = useOptimized && pushedExpressions != null;
         for (Attribute attr : projectedAttributes) {
             if (attr.dataType() == DataType.NULL || attr.dataType() == DataType.UNSUPPORTED) {
                 continue;
@@ -1719,7 +1691,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         ErrorPolicy errorPolicy,
         @Nullable Consumer<String> warningSink
     ) throws IOException {
-        counters.setLateMaterializationEnabled(lateMaterializationEnabled);
+        counters.setLateMaterializationEnabled(true);
         try {
             FileMetaData fileMetaData = reader.getFileMetaData();
             MessageType parquetSchema = fileMetaData.getSchema();
@@ -1869,7 +1841,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             rowLimit,
             FilterCompat.isFilteringRequired(recordFilter),
             filterPredicate != null,
-            lateMaterializationEnabled && pushedExpressions != null,
+            pushedExpressions != null,
             dynamicThreshold != null
         );
         IndexColumnPaths indexColumnPaths = computeIndexColumnPaths(
@@ -1938,8 +1910,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             // surviving row paid the predicate cost twice (once in late-mat, once again in FilterExec).
             // With WildcardLike now pushed as Pushability.YES, FilterExec is dropped for that conjunct,
             // so suppressing late-mat at the file level would leak unfiltered rows past the source.
-            ParquetPushedExpressions effectivePushed = lateMaterializationEnabled ? pushedExpressions : null;
-            if (effectivePushed != null) {
+            if (pushedExpressions != null) {
                 counters.markLateMaterializationUsed();
             }
 
@@ -1962,7 +1933,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             // OptimizedFilteredReaderTests.testPushedExpressionsLikeWithStatsTrivialEqDoesNotLeak
             // and the unit tests in ParquetPushedExpressionsTests cover this contract.
             MessageType fileSchema = reader.getFileMetaData().getSchema();
-            FilterPredicate triviallyPassesPredicate = effectivePushed != null
+            FilterPredicate triviallyPassesPredicate = pushedExpressions != null
                 && filterPredicate != null
                 && (pushedExpressions == null || pushedExpressions.hasYesConjunctOutsideFilterPredicate(fileSchema) == false)
                     ? filterPredicate
@@ -1984,7 +1955,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 survivingRowGroups,
                 rowGroupFirstRowGlobalOverride,
                 codecFactory,
-                effectivePushed,
+                pushedExpressions,
                 triviallyPassesPredicate,
                 this,
                 fullFooter,

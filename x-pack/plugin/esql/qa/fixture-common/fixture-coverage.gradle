@@ -299,6 +299,11 @@ tasks.register('checkFixtureGeneration') {
   description = 'Fails when a declared layout cell produced no fixture files.'
   group = 'verification'
 
+  // Observing the artifact only means something if the artifact was produced. Without this the gate
+  // passed locally on a build directory left populated by earlier runs and failed on a clean CI agent
+  // where nothing had generated yet -- a stale-state false pass in the gate itself.
+  dependsOn tasks.matching { it.name.startsWith('generate') || it.name.startsWith('sync') }
+
   doLast {
     if (coverageLayoutRoots == null) {
       logger.lifecycle('fixture generation: no layout roots declared for this module, nothing to walk')
@@ -348,6 +353,15 @@ tasks.register('checkFixtureGeneration') {
   }
 }
 
+// The three declaration checks hang off precommit: they compare the declaration against the spec corpus
+// and the authored data, need no build output, and are therefore meaningful everywhere -- including
+// release builds, where csvSpecTests is disabled entirely.
 tasks.named('precommit').configure {
-  dependsOn 'checkFixtureCoverage', 'checkFixtureDialect', 'checkFixtureExclusions', 'checkFixtureGeneration'
+  dependsOn 'checkFixtureCoverage', 'checkFixtureDialect', 'checkFixtureExclusions'
 }
+
+// checkFixtureGeneration is different in kind: it observes ARTIFACTS, so it is only meaningful where
+// generation is expected to have run. Hanging it off precommit made it fail on release builds, which
+// generate no fixtures because no test consumes them -- the gate was asking a question that has no answer
+// there. It rides the test path instead, where the fixtures are a dependency anyway.
+tasks.matching { it.name == 'csvSpecTests' }.configureEach { dependsOn 'checkFixtureGeneration' }

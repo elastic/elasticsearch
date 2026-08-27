@@ -182,7 +182,6 @@ public class NativeLibraryTests extends PackagingTestCase {
      * functions ({@code getStatistics}, {@code getSchemaFFI}). If the library loading moves into
      * the ES|QL module, this test should be updated to invoke it through a query instead.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/156597")
     public void test40ParquetRsNativeLibrary() throws Exception {
         assumeTrue("parquet-rs native library is only supported on Linux and macOS", Platforms.LINUX || Platforms.DARWIN);
         configureAndStart(SECURITY_DISABLED_SETTINGS);

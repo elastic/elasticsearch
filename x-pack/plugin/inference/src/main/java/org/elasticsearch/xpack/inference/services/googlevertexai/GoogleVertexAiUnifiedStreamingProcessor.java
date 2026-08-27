@@ -21,7 +21,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessage;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCall;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage;
@@ -78,7 +78,7 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
     protected void next(Deque<ServerSentEvent> events) throws Exception {
 
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
-        var results = new ArrayDeque<ChatCompletionChunk>(events.size());
+        var results = new ArrayDeque<ChatCompletionChunkResponse>(events.size());
 
         for (var event : events) {
             try {
@@ -98,11 +98,11 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
         }
     }
 
-    Iterator<ChatCompletionChunk> parse(XContentParserConfiguration parserConfig, String event) throws IOException {
-        return parseObjects(parserConfig, event, p -> Stream.of(GoogleVertexAiChatCompletionChunkParser.parse(p))).iterator();
+    Iterator<ChatCompletionChunkResponse> parse(XContentParserConfiguration parserConfig, String event) throws IOException {
+        return parseObjects(parserConfig, event, p -> Stream.of(GoogleVertexAiChatCompletionChunkResponseParser.parse(p))).iterator();
     }
 
-    public static class GoogleVertexAiChatCompletionChunkParser {
+    public static class GoogleVertexAiChatCompletionChunkResponseParser {
         private static @Nullable ChatCompletionUsage usageMetadataToChunk(@Nullable UsageMetadata usage) {
             if (usage == null) {
                 return null;
@@ -154,7 +154,7 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
         }
 
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<ChatCompletionChunk, Void> PARSER = new ConstructingObjectParser<>(
+        private static final ConstructingObjectParser<ChatCompletionChunkResponse, Void> PARSER = new ConstructingObjectParser<>(
             "google_vertexai_chat_completion_chunk",
             true,
             args -> {
@@ -166,9 +166,9 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
                 var candidatesIsEmpty = candidates == null || candidates.isEmpty();
                 List<ChatCompletionChoiceResponse> choices = candidatesIsEmpty
                     ? Collections.emptyList()
-                    : candidates.stream().map(GoogleVertexAiChatCompletionChunkParser::candidateToChoice).toList();
+                    : candidates.stream().map(GoogleVertexAiChatCompletionChunkResponseParser::candidateToChoice).toList();
 
-                return new ChatCompletionChunk(responseId, choices, modelversion, CHAT_COMPLETION_CHUNK, usageMetadataToChunk(usage));
+                return new ChatCompletionChunkResponse(responseId, choices, modelversion, CHAT_COMPLETION_CHUNK, usageMetadataToChunk(usage));
             }
         );
 
@@ -187,7 +187,7 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
             PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(RESPONSE_ID_FIELD));
         }
 
-        public static ChatCompletionChunk parse(XContentParser parser) throws IOException {
+        public static ChatCompletionChunkResponse parse(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
         }
     }

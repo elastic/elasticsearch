@@ -10,14 +10,14 @@ package org.elasticsearch.xpack.inference.services.openai.response;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 import java.io.IOException;
 
 /**
- * Parses a non-streaming OpenAI-compatible chat completion response into {@link ChatCompletionChunk}.
+ * Parses a non-streaming OpenAI-compatible chat completion response into {@link ChatCompletionChunkResponse}.
  *
  * <p>Delegates parsing to {@link OpenAiUnifiedChatCompletionParser#parseNonStreamingResponse}, which shares
  * its parser tree with the streaming path ({@code OpenAiUnifiedStreamingProcessor}) to avoid duplication.
@@ -62,11 +62,11 @@ import java.io.IOException;
  */
 public class OpenAiUnifiedChatCompletionResponseEntity {
 
-    public static ChatCompletionChunk fromResponse(OutboundRequest outboundRequest, HttpResult response) throws IOException {
+    public static ChatCompletionChunkResponse fromResponse(OutboundRequest outboundRequest, HttpResult response) throws IOException {
         return fromResponse(response.body());
     }
 
-    public static ChatCompletionChunk fromResponse(byte[] body) throws IOException {
+    public static ChatCompletionChunkResponse fromResponse(byte[] body) throws IOException {
         try (var p = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, body)) {
             return OpenAiUnifiedChatCompletionParser.parseNonStreamingResponse(p);
         }

@@ -26,7 +26,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessage;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCall;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage;
@@ -84,7 +84,7 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
     }
 
     public void processItem(ConverseStreamOutput item) {
-        var chunks = new ArrayDeque<ChatCompletionChunk>(1);
+        var chunks = new ArrayDeque<ChatCompletionChunkResponse>(1);
 
         var eventType = item.sdkEventType();
         // For each event type, we perform the processing on a utility thread because the AWS SDK will likely call the runnable using a
@@ -170,13 +170,13 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
         runOnUtilityThreadPool(errorHandlingRunnable);
     }
 
-    private void handleMessageStart(MessageStartEvent event, ArrayDeque<ChatCompletionChunk> chunks) {
+    private void handleMessageStart(MessageStartEvent event, ArrayDeque<ChatCompletionChunkResponse> chunks) {
         var messageStart = handleMessageStart(event);
         messageStart.forEach(chunks::offer);
         callDownStreamOnNext(chunks);
     }
 
-    private void callDownStreamOnNext(ArrayDeque<ChatCompletionChunk> chunks) {
+    private void callDownStreamOnNext(ArrayDeque<ChatCompletionChunkResponse> chunks) {
         if (chunks.isEmpty() == false && downstream != null) {
             downstream.onNext(new StreamingUnifiedChatCompletionResults.Results(chunks));
         } else if (upstream != null) {
@@ -185,13 +185,13 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
         }
     }
 
-    private void handleContentBlockStart(ContentBlockStartEvent event, ArrayDeque<ChatCompletionChunk> chunks) {
+    private void handleContentBlockStart(ContentBlockStartEvent event, ArrayDeque<ChatCompletionChunkResponse> chunks) {
         var contentBlockStart = handleContentBlockStart(event);
         contentBlockStart.forEach(chunks::offer);
         callDownStreamOnNext(chunks);
     }
 
-    private void handleContentBlockDelta(ContentBlockDeltaEvent event, ArrayDeque<ChatCompletionChunk> chunks) {
+    private void handleContentBlockDelta(ContentBlockDeltaEvent event, ArrayDeque<ChatCompletionChunkResponse> chunks) {
         var contentBlockDelta = handleContentBlockDelta(event);
         contentBlockDelta.forEach(chunks::offer);
         callDownStreamOnNext(chunks);
@@ -203,13 +203,13 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
         }
     }
 
-    private void handleMessageStop(MessageStopEvent event, ArrayDeque<ChatCompletionChunk> chunks) {
+    private void handleMessageStop(MessageStopEvent event, ArrayDeque<ChatCompletionChunkResponse> chunks) {
         var messageStop = handleMessageStop(event);
         messageStop.forEach(chunks::offer);
         callDownStreamOnNext(chunks);
     }
 
-    private void handleMetadata(ConverseStreamMetadataEvent event, ArrayDeque<ChatCompletionChunk> chunks) {
+    private void handleMetadata(ConverseStreamMetadataEvent event, ArrayDeque<ChatCompletionChunkResponse> chunks) {
         var messageDelta = handleMetadata(event);
         messageDelta.forEach(chunks::offer);
 
@@ -217,22 +217,22 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
     }
 
     /**
-     * Parse a MessageStartEvent into a ChatCompletionChunk stream
+     * Parse a MessageStartEvent into a ChatCompletionChunkResponse stream
      * @param event the MessageStartEvent data
-     * @return a stream of ChatCompletionChunk
+     * @return a stream of ChatCompletionChunkResponse
      */
-    private Stream<ChatCompletionChunk> handleMessageStart(MessageStartEvent event) {
+    private Stream<ChatCompletionChunkResponse> handleMessageStart(MessageStartEvent event) {
         var message = new ChatCompletionMessage(null, null, getRole(event), null);
         var choice = new ChatCompletionChoiceResponse(message, null, 0);
-        var chunk = createChatCompletionChunk(List.of(choice), null);
+        var chunk = createChatCompletionChunkResponse(List.of(choice), null);
         return Stream.of(chunk);
     }
 
-    private ChatCompletionChunk createChatCompletionChunk(
+    private ChatCompletionChunkResponse createChatCompletionChunkResponse(
         @Nullable List<ChatCompletionChoiceResponse> choices,
         @Nullable ChatCompletionUsage usage
     ) {
-        return new ChatCompletionChunk(conversationId, choices, modelId, CHAT_COMPLETION_CHUNK_OBJECT, usage);
+        return new ChatCompletionChunkResponse(conversationId, choices, modelId, CHAT_COMPLETION_CHUNK_OBJECT, usage);
     }
 
     /**
@@ -243,15 +243,15 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
     }
 
     /**
-     * Parse a MessageStopEvent into a ChatCompletionChunk stream
+     * Parse a MessageStopEvent into a ChatCompletionChunkResponse stream
      * @param event the MessageStopEvent data
-     * @return a stream of ChatCompletionChunk
+     * @return a stream of ChatCompletionChunkResponse
      */
-    private Stream<ChatCompletionChunk> handleMessageStop(MessageStopEvent event) {
+    private Stream<ChatCompletionChunkResponse> handleMessageStop(MessageStopEvent event) {
         var finishReason = handleFinishReason(event.stopReason());
         var message = new ChatCompletionMessage(null, null, null, null);
         var choice = new ChatCompletionChoiceResponse(message, finishReason, 0);
-        var chunk = createChatCompletionChunk(List.of(choice), null);
+        var chunk = createChatCompletionChunkResponse(List.of(choice), null);
         return Stream.of(chunk);
     }
 
@@ -301,11 +301,11 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
     }
 
     /**
-     * Parse a ContentBlockStartEvent into a ChatCompletionChunk stream
+     * Parse a ContentBlockStartEvent into a ChatCompletionChunkResponse stream
      * @param event the content block start data
-     * @return a stream of ChatCompletionChunk
+     * @return a stream of ChatCompletionChunkResponse
      */
-    private Stream<ChatCompletionChunk> handleContentBlockStart(ContentBlockStartEvent event) {
+    private Stream<ChatCompletionChunkResponse> handleContentBlockStart(ContentBlockStartEvent event) {
         var index = event.contentBlockIndex();
         var type = event.start().type();
 
@@ -320,7 +320,7 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
                 List.of(toolCall)
             );
             var choice = new ChatCompletionChoiceResponse(message, null, index);
-            var chunk = createChatCompletionChunk(List.of(choice), null);
+            var chunk = createChatCompletionChunkResponse(List.of(choice), null);
             return Stream.of(chunk);
         }
 
@@ -330,11 +330,11 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
 
     /**
      * Processes incremental content updates
-     * Parse a ContentBlockDeltaEvent into a ChatCompletionChunk stream
+     * Parse a ContentBlockDeltaEvent into a ChatCompletionChunkResponse stream
      * @param event the event data
-     * @return a stream of ChatCompletionChunk
+     * @return a stream of ChatCompletionChunkResponse
      */
-    private Stream<ChatCompletionChunk> handleContentBlockDelta(ContentBlockDeltaEvent event) {
+    private Stream<ChatCompletionChunkResponse> handleContentBlockDelta(ContentBlockDeltaEvent event) {
         var type = event.delta().type();
         var content = event.delta().text();
 
@@ -351,19 +351,19 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
         };
         var choice = new ChatCompletionChoiceResponse(message, null, event.contentBlockIndex());
 
-        var chunk = createChatCompletionChunk(List.of(choice), null);
+        var chunk = createChatCompletionChunkResponse(List.of(choice), null);
         return Stream.of(chunk);
     }
 
     /**
      * Processes usage statistics
-     * Parse a ConverseStreamMetadataEvent into a ChatCompletionChunk stream
+     * Parse a ConverseStreamMetadataEvent into a ChatCompletionChunkResponse stream
      * @param event the event data
-     * @return a stream of ChatCompletionChunk
+     * @return a stream of ChatCompletionChunkResponse
      */
-    private Stream<ChatCompletionChunk> handleMetadata(ConverseStreamMetadataEvent event) {
+    private Stream<ChatCompletionChunkResponse> handleMetadata(ConverseStreamMetadataEvent event) {
         var usage = getUsage(event);
-        var chunk = createChatCompletionChunk(null, usage);
+        var chunk = createChatCompletionChunkResponse(null, usage);
         return Stream.of(chunk);
     }
 

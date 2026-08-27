@@ -12,7 +12,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiUnifiedChatCompletionParser;
@@ -42,7 +42,7 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
     protected void next(Deque<ServerSentEvent> item) throws Exception {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
 
-        var results = new ArrayDeque<ChatCompletionChunk>(item.size());
+        var results = new ArrayDeque<ChatCompletionChunkResponse>(item.size());
         for (var event : item) {
             if ("error".equals(event.type()) && event.hasData()) {
                 throw errorParser.apply(event.data(), null);
@@ -64,7 +64,7 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
         }
     }
 
-    public static Stream<ChatCompletionChunk> parse(XContentParserConfiguration parserConfig, ServerSentEvent event) throws IOException {
+    public static Stream<ChatCompletionChunkResponse> parse(XContentParserConfiguration parserConfig, ServerSentEvent event) throws IOException {
         if (DONE_MESSAGE.equalsIgnoreCase(event.data())) {
             return Stream.empty();
         }
@@ -72,7 +72,7 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
         return parse(parserConfig, event.data());
     }
 
-    public static Stream<ChatCompletionChunk> parse(XContentParserConfiguration parserConfig, String data) throws IOException {
+    public static Stream<ChatCompletionChunkResponse> parse(XContentParserConfiguration parserConfig, String data) throws IOException {
         return parseObjects(parserConfig, data, p -> Stream.of(OpenAiUnifiedChatCompletionParser.parseStreamingChunk(p)));
     }
 }

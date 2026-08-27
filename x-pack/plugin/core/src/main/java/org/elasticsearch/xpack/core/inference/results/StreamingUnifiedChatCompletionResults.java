@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.inference.DequeUtils;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
 
 import java.io.IOException;
 import java.util.Deque;
@@ -36,7 +36,7 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
      * So we will insert a buffer in between the upstream data and the downstream client so that we only send one request at a time.
      */
     public StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publisher) {
-        Deque<ChatCompletionChunk> buffer = new LinkedBlockingDeque<>();
+        Deque<ChatCompletionChunkResponse> buffer = new LinkedBlockingDeque<>();
         AtomicBoolean onComplete = new AtomicBoolean();
         this.publisher = downstream -> {
             publisher.subscribe(new Flow.Subscriber<>() {
@@ -98,11 +98,11 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
         throw new UnsupportedOperationException("Not implemented");
     }
 
-    public record Results(Deque<ChatCompletionChunk> chunks) implements InferenceServiceResults.Result {
+    public record Results(Deque<ChatCompletionChunkResponse> chunks) implements InferenceServiceResults.Result {
         public static final String NAME = "streaming_unified_chat_completion_results";
 
         public Results(StreamInput in) throws IOException {
-            this(readDeque(in, ChatCompletionChunk::new));
+            this(readDeque(in, ChatCompletionChunkResponse::new));
         }
 
         @Override

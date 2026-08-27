@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.inference.DequeUtils;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedStreamingProcessor;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
@@ -96,7 +96,7 @@ public class ElasticCompletionPayload implements SageMakerStreamSchemaPayload, E
         var responseData = response.asUtf8String();
         try {
             var results = OpenAiUnifiedStreamingProcessor.parse(parserConfig, responseData)
-                .collect(() -> new ArrayDeque<ChatCompletionChunk>(), ArrayDeque::offer, ArrayDeque::addAll);
+                .collect(() -> new ArrayDeque<ChatCompletionChunkResponse>(), ArrayDeque::offer, ArrayDeque::addAll);
             return new StreamingUnifiedChatCompletionResults.Results(results);
         } catch (Exception e) {
             throw OpenAiUnifiedChatCompletionResponseHandler.buildMidStreamError(model.getInferenceEntityId(), responseData, e);

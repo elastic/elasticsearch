@@ -18,8 +18,8 @@ import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkTests;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponseTests;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessage;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCall;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage;
@@ -135,7 +135,7 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractBWCWireS
             }
             """, reasoningPart, reasoningDetailsPart, cachedTokensPart, reasoningUsagePart);
 
-        var chunk = new ChatCompletionChunk(
+        var chunk = new ChatCompletionChunkResponse(
             "chunk1",
             List.of(
                 new ChatCompletionChoiceResponse(
@@ -191,7 +191,7 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractBWCWireS
             )
         );
 
-        Deque<ChatCompletionChunk> deque = new ArrayDeque<>();
+        Deque<ChatCompletionChunkResponse> deque = new ArrayDeque<>();
         deque.add(chunk);
         var results = new StreamingUnifiedChatCompletionResults.Results(deque);
         XContentBuilder builder = JsonXContent.contentBuilder();
@@ -336,9 +336,9 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractBWCWireS
     }
 
     public void testBufferedPublishing() {
-        var results = new ArrayDeque<ChatCompletionChunk>();
-        results.offer(ChatCompletionChunkTests.randomChatCompletionChunk());
-        results.offer(ChatCompletionChunkTests.randomChatCompletionChunk());
+        var results = new ArrayDeque<ChatCompletionChunkResponse>();
+        results.offer(ChatCompletionChunkResponseTests.randomChatCompletionChunkResponse());
+        results.offer(ChatCompletionChunkResponseTests.randomChatCompletionChunkResponse());
         var completed = new AtomicBoolean();
         var streamingResults = new StreamingUnifiedChatCompletionResults(downstream -> {
             downstream.onSubscribe(new Flow.Subscription() {
@@ -402,9 +402,9 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractBWCWireS
 
     @Override
     protected StreamingUnifiedChatCompletionResults.Results createTestInstance() {
-        var results = new ArrayDeque<ChatCompletionChunk>();
+        var results = new ArrayDeque<ChatCompletionChunkResponse>();
         for (int i = 0; i < randomIntBetween(1, 3); i++) {
-            results.offer(ChatCompletionChunkTests.randomChatCompletionChunk());
+            results.offer(ChatCompletionChunkResponseTests.randomChatCompletionChunkResponse());
         }
         return new StreamingUnifiedChatCompletionResults.Results(results);
     }
@@ -416,7 +416,7 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractBWCWireS
         if (randomBoolean()) {
             results.pop();
         } else {
-            results.add(ChatCompletionChunkTests.randomChatCompletionChunk());
+            results.add(ChatCompletionChunkResponseTests.randomChatCompletionChunkResponse());
         }
         return new StreamingUnifiedChatCompletionResults.Results(results);
     }
@@ -431,9 +431,9 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractBWCWireS
         StreamingUnifiedChatCompletionResults.Results instance,
         TransportVersion version
     ) {
-        var mutatedChunks = new ArrayDeque<ChatCompletionChunk>();
+        var mutatedChunks = new ArrayDeque<ChatCompletionChunkResponse>();
         for (var chunk : instance.chunks()) {
-            mutatedChunks.add(ChatCompletionChunkTests.downgrade(chunk, version));
+            mutatedChunks.add(ChatCompletionChunkResponseTests.downgrade(chunk, version));
         }
         return new StreamingUnifiedChatCompletionResults.Results(mutatedChunks);
     }

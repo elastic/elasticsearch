@@ -24,7 +24,7 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.FINI
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.INDEX_FIELD;
 
 /**
- * A single choice within a {@link ChatCompletionChunk} response.
+ * A single choice within a {@link ChatCompletionChunkResponse} response.
  *
  * <p>The {@code message} wrapper is rendered as either {@code "delta"} (streaming) or
  * {@code "message"} (non-streaming) depending on the {@code messageFieldName} argument

@@ -50,7 +50,7 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.USAG
  *       {@code StreamingUnifiedChatCompletionResults.Results}.</li>
  * </ul>
  */
-public record ChatCompletionChunk(
+public record ChatCompletionChunkResponse(
     String id,
     @Nullable List<ChatCompletionChoiceResponse> choices,
     String model,
@@ -60,7 +60,7 @@ public record ChatCompletionChunk(
 
     public static final String NAME = "chat_completion_chunk";
 
-    public ChatCompletionChunk(StreamInput in) throws IOException {
+    public ChatCompletionChunkResponse(StreamInput in) throws IOException {
         this(
             in.readString(),
             in.readOptionalCollectionAsList(ChatCompletionChoiceResponse::new),

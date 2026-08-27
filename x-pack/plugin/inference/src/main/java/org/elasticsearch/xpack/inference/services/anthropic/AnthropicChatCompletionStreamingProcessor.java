@@ -16,7 +16,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessage;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCall;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage;
@@ -139,7 +139,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
     @Override
     protected void next(Deque<ServerSentEvent> item) throws Exception {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
-        var results = new ArrayDeque<ChatCompletionChunk>(item.size());
+        var results = new ArrayDeque<ChatCompletionChunkResponse>(item.size());
 
         for (var event : item) {
             if (ERROR_EVENT_TYPE.equals(event.type()) && event.hasData()) {
@@ -163,13 +163,13 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
     }
 
     /**
-     * Parse a single ServerSentEvent into zero or more ChatCompletionChunk
+     * Parse a single ServerSentEvent into zero or more ChatCompletionChunkResponse
      * @param parserConfig the parser configuration
      * @param event the server sent event
-     * @return a stream of ChatCompletionChunk
+     * @return a stream of ChatCompletionChunkResponse
      * @throws IOException if parsing fails
      */
-    private Stream<ChatCompletionChunk> parse(XContentParserConfiguration parserConfig, ServerSentEvent event) throws IOException {
+    private Stream<ChatCompletionChunkResponse> parse(XContentParserConfiguration parserConfig, ServerSentEvent event) throws IOException {
         // Handle known event types
         switch (event.type()) {
             case VERTEX_EVENT_EVENT_TYPE, PING_EVENT_TYPE, CONTENT_BLOCK_STOP_EVENT_TYPE:
@@ -213,10 +213,10 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
      * }
      * </code></pre>
      * @param parser the parser positioned at the root {@code START_OBJECT}
-     * @return a stream of {@link ChatCompletionChunk}
+     * @return a stream of {@link ChatCompletionChunkResponse}
      * @throws IOException if parsing fails
      */
-    private Stream<ChatCompletionChunk> parseMessageStart(XContentParser parser) throws IOException {
+    private Stream<ChatCompletionChunkResponse> parseMessageStart(XContentParser parser) throws IOException {
         var messageMap = extractInnerStringObjectMap(parser.map(), MESSAGE_FIELD);
         model = extractMandatoryString(messageMap, MODEL_FIELD);
         id = extractMandatoryString(messageMap, ID_FIELD);
@@ -243,10 +243,10 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
      * {"type":"content_block_start","index":3,"content_block":{"type":"redacted_thinking","data":"..."}}
      * </code></pre>
      * @param parser the parser positioned at the root {@code START_OBJECT}
-     * @return a stream of {@link ChatCompletionChunk}
+     * @return a stream of {@link ChatCompletionChunkResponse}
      * @throws IOException if parsing fails
      */
-    private Stream<ChatCompletionChunk> parseContentBlockStart(XContentParser parser) throws IOException {
+    private Stream<ChatCompletionChunkResponse> parseContentBlockStart(XContentParser parser) throws IOException {
         var outerMap = parser.map();
         var blockIndex = extractMandatoryInteger(outerMap, INDEX_FIELD);
         var contentBlockMap = extractInnerStringObjectMap(outerMap, CONTENT_BLOCK_FIELD);
@@ -318,10 +318,10 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
      * {"type":"content_block_delta","index":2,"delta":{"type":"signature_delta","signature":"..."}}
      * </code></pre>
      * @param parser the parser positioned at the root {@code START_OBJECT}
-     * @return a stream of {@link ChatCompletionChunk}
+     * @return a stream of {@link ChatCompletionChunkResponse}
      * @throws IOException if parsing fails
      */
-    private Stream<ChatCompletionChunk> parseContentBlockDelta(XContentParser parser) throws IOException {
+    private Stream<ChatCompletionChunkResponse> parseContentBlockDelta(XContentParser parser) throws IOException {
         var outerMap = parser.map();
         var blockIndex = extractMandatoryInteger(outerMap, INDEX_FIELD);
         var deltaMap = extractInnerStringObjectMap(outerMap, DELTA_FIELD);
@@ -404,10 +404,10 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
      * }
      * </code></pre>
      * @param parser the parser positioned at the root {@code START_OBJECT}
-     * @return a stream of {@link ChatCompletionChunk}
+     * @return a stream of {@link ChatCompletionChunkResponse}
      * @throws IOException if parsing fails
      */
-    public Stream<ChatCompletionChunk> parseMessageDelta(XContentParser parser) throws IOException {
+    public Stream<ChatCompletionChunkResponse> parseMessageDelta(XContentParser parser) throws IOException {
         var outerMap = parser.map();
         var deltaMap = extractInnerStringObjectMap(outerMap, DELTA_FIELD);
         var stopReason = extractOptionalString(deltaMap, STOP_REASON_FIELD);
@@ -441,7 +441,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
      * Builds a usage-only chunk from accumulated state, emitted on message_stop.
      * Usage is emitted once here rather than at message_start/message_delta to avoid double-counting.
      */
-    private Stream<ChatCompletionChunk> buildMessageStop() {
+    private Stream<ChatCompletionChunkResponse> buildMessageStop() {
         var promptTokens = inputTokens + cacheReadTokens + cacheCreationTokens;
         var totalTokens = promptTokens + outputTokens;
         Integer cachedTokens = cacheReadTokens > 0 ? cacheReadTokens : null;
@@ -451,8 +451,8 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
         return Stream.of(newChunk(List.of(), usage));
     }
 
-    private ChatCompletionChunk newChunk(@Nullable List<ChatCompletionChoiceResponse> choices, @Nullable ChatCompletionUsage usage) {
-        return new ChatCompletionChunk(id, choices, model, OBJECT_VALUE, usage);
+    private ChatCompletionChunkResponse newChunk(@Nullable List<ChatCompletionChoiceResponse> choices, @Nullable ChatCompletionUsage usage) {
+        return new ChatCompletionChunkResponse(id, choices, model, OBJECT_VALUE, usage);
     }
 
     private static String convertStopReason(@Nullable String stopReason) {

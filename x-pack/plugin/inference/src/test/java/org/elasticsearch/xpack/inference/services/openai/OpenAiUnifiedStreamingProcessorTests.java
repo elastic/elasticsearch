@@ -17,7 +17,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCall;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiUnifiedChatCompletionParser;
 
@@ -69,7 +69,7 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             LoggingDeprecationHandler.INSTANCE
         );
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, json)) {
-            ChatCompletionChunk chunk = OpenAiUnifiedChatCompletionParser.parseStreamingChunk(parser);
+            ChatCompletionChunkResponse chunk = OpenAiUnifiedChatCompletionParser.parseStreamingChunk(parser);
 
             // Assertions to verify the parsed object
             assertEquals("example_id", chunk.id());
@@ -146,7 +146,7 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             LoggingDeprecationHandler.INSTANCE
         );
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, json)) {
-            ChatCompletionChunk chunk = OpenAiUnifiedChatCompletionParser.parseStreamingChunk(parser);
+            ChatCompletionChunkResponse chunk = OpenAiUnifiedChatCompletionParser.parseStreamingChunk(parser);
 
             // Assertions to verify the parsed object
             assertEquals("example_id", chunk.id());
@@ -221,7 +221,7 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             """;
 
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, json)) {
-            ChatCompletionChunk chunk = OpenAiUnifiedChatCompletionParser.parseStreamingChunk(parser);
+            ChatCompletionChunkResponse chunk = OpenAiUnifiedChatCompletionParser.parseStreamingChunk(parser);
 
             // Assertions to verify the parsed object
             assertThat(chunk.id(), is(""));
@@ -275,7 +275,7 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
 
         String chatCompletionChunkId = randomAlphaOfLength(10);
         String chatCompletionChunkModel = randomAlphaOfLength(5);
-        String chatCompletionChunkJson = createChatCompletionChunkJson(
+        String chatCompletionChunkJson = createChatCompletionChunkResponseJson(
             chatCompletionChunkId,
             choiceJson,
             chatCompletionChunkModel,
@@ -288,7 +288,7 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             LoggingDeprecationHandler.INSTANCE
         );
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, chatCompletionChunkJson)) {
-            ChatCompletionChunk chunk = OpenAiUnifiedChatCompletionParser.parseStreamingChunk(parser);
+            ChatCompletionChunkResponse chunk = OpenAiUnifiedChatCompletionParser.parseStreamingChunk(parser);
 
             // Assertions to verify the parsed object
             assertEquals(chatCompletionChunkId, chunk.id());
@@ -349,7 +349,7 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
 
         String chatCompletionChunkId = randomAlphaOfLength(10);
         String chatCompletionChunkModel = randomAlphaOfLength(5);
-        String chatCompletionChunkJson = createChatCompletionChunkJson(
+        String chatCompletionChunkJson = createChatCompletionChunkResponseJson(
             chatCompletionChunkId,
             choiceJson,
             chatCompletionChunkModel,
@@ -362,7 +362,7 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             LoggingDeprecationHandler.INSTANCE
         );
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, chatCompletionChunkJson)) {
-            ChatCompletionChunk chunk = OpenAiUnifiedChatCompletionParser.parseStreamingChunk(parser);
+            ChatCompletionChunkResponse chunk = OpenAiUnifiedChatCompletionParser.parseStreamingChunk(parser);
 
             // Assertions to verify the parsed object
             assertEquals(chatCompletionChunkId, chunk.id());
@@ -465,7 +465,7 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
         }
     }
 
-    private String createChatCompletionChunkJson(String id, String choicesJson, String model, String object, String usageJson) {
+    private String createChatCompletionChunkResponseJson(String id, String choicesJson, String model, String object, String usageJson) {
         if (usageJson != null) {
             return Strings.format("""
                 {
@@ -559,7 +559,7 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
 
         String usageJson = createUsageJson(completionTokens, promptTokens, totalTokens, cachedTokens, cacheWriteTokens, reasoningTokens);
 
-        String chatCompletionChunkJson = createChatCompletionChunkJson(
+        String chatCompletionChunkJson = createChatCompletionChunkResponseJson(
             randomAlphaOfLength(10),
             createChoiceJson(null, null, null, "", null, 0),
             randomAlphaOfLength(5),
@@ -571,7 +571,7 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             LoggingDeprecationHandler.INSTANCE
         );
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, chatCompletionChunkJson)) {
-            ChatCompletionChunk chunk = OpenAiUnifiedChatCompletionParser.parseStreamingChunk(parser);
+            ChatCompletionChunkResponse chunk = OpenAiUnifiedChatCompletionParser.parseStreamingChunk(parser);
 
             assertNotNull(chunk.usage());
             assertEquals(completionTokens, chunk.usage().completionTokens());

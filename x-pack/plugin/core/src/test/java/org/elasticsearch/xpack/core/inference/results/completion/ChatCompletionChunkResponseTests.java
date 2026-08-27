@@ -22,14 +22,14 @@ import java.util.List;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Wire-serialization tests for {@link ChatCompletionChunk} (the merged streaming/non-streaming payload).
+ * Wire-serialization tests for {@link ChatCompletionChunkResponse} (the merged streaming/non-streaming payload).
  *
  * <p>Two public statics are exposed so that {@code StreamingUnifiedChatCompletionResultsTests} can
  * delegate to them, keeping both test classes in sync without duplicating the random-instance builders.
  */
-public class ChatCompletionChunkTests extends AbstractBWCWireSerializationTestCase<ChatCompletionChunk> {
-    public static ChatCompletionChunk randomChatCompletionChunk() {
-        return new ChatCompletionChunk(
+public class ChatCompletionChunkResponseTests extends AbstractBWCWireSerializationTestCase<ChatCompletionChunkResponse> {
+    public static ChatCompletionChunkResponse randomChatCompletionChunkResponse() {
+        return new ChatCompletionChunkResponse(
             randomAlphanumericOfLength(5),
             randomBoolean() ? null : randomList(randomInt(5), ChatCompletionChoiceResponseTests::randomChatCompletionChoiceResponse),
             randomAlphanumericOfLength(5),
@@ -44,35 +44,35 @@ public class ChatCompletionChunkTests extends AbstractBWCWireSerializationTestCa
      * {@link ChatCompletionUsageTests#downgrade}.
      * Exposed so that {@code StreamingUnifiedChatCompletionResultsTests.mutateInstanceForVersion} can delegate.
      */
-    public static ChatCompletionChunk downgrade(ChatCompletionChunk instance, TransportVersion version) {
+    public static ChatCompletionChunkResponse downgrade(ChatCompletionChunkResponse instance, TransportVersion version) {
         var choices = instance.choices() == null
             ? null
             : instance.choices().stream().map(c -> ChatCompletionChoiceResponseTests.downgrade(c, version)).toList();
         var usage = instance.usage() == null ? null : ChatCompletionUsageTests.downgrade(instance.usage(), version);
-        return new ChatCompletionChunk(instance.id(), choices, instance.model(), instance.object(), usage);
+        return new ChatCompletionChunkResponse(instance.id(), choices, instance.model(), instance.object(), usage);
     }
 
     @Override
-    protected Writeable.Reader<ChatCompletionChunk> instanceReader() {
-        return ChatCompletionChunk::new;
+    protected Writeable.Reader<ChatCompletionChunkResponse> instanceReader() {
+        return ChatCompletionChunkResponse::new;
     }
 
     @Override
-    protected ChatCompletionChunk createTestInstance() {
-        return randomChatCompletionChunk();
+    protected ChatCompletionChunkResponse createTestInstance() {
+        return randomChatCompletionChunkResponse();
     }
 
     @Override
-    protected ChatCompletionChunk mutateInstance(ChatCompletionChunk instance) {
+    protected ChatCompletionChunkResponse mutateInstance(ChatCompletionChunkResponse instance) {
         return switch (randomIntBetween(0, 3)) {
-            case 0 -> new ChatCompletionChunk(
+            case 0 -> new ChatCompletionChunkResponse(
                 instance.id() + "x",
                 instance.choices(),
                 instance.model(),
                 instance.object(),
                 instance.usage()
             );
-            case 1 -> new ChatCompletionChunk(
+            case 1 -> new ChatCompletionChunkResponse(
                 instance.id(),
                 randomList(
                     1,
@@ -87,14 +87,14 @@ public class ChatCompletionChunkTests extends AbstractBWCWireSerializationTestCa
                 instance.object(),
                 instance.usage()
             );
-            case 2 -> new ChatCompletionChunk(
+            case 2 -> new ChatCompletionChunkResponse(
                 instance.id(),
                 instance.choices(),
                 instance.model() + "x",
                 instance.object(),
                 instance.usage()
             );
-            case 3 -> new ChatCompletionChunk(
+            case 3 -> new ChatCompletionChunkResponse(
                 instance.id(),
                 instance.choices(),
                 instance.model(),
@@ -111,12 +111,12 @@ public class ChatCompletionChunkTests extends AbstractBWCWireSerializationTestCa
     }
 
     @Override
-    protected ChatCompletionChunk mutateInstanceForVersion(ChatCompletionChunk instance, TransportVersion version) {
+    protected ChatCompletionChunkResponse mutateInstanceForVersion(ChatCompletionChunkResponse instance, TransportVersion version) {
         return downgrade(instance, version);
     }
 
     public void testToXContentChunked_FullResponse() throws IOException {
-        var completion = new ChatCompletionChunk(
+        var completion = new ChatCompletionChunkResponse(
             "chatcmpl-123",
             List.of(
                 new ChatCompletionChoiceResponse(
@@ -173,7 +173,7 @@ public class ChatCompletionChunkTests extends AbstractBWCWireSerializationTestCa
     }
 
     public void testToXContentChunked_MinimalResponse() throws IOException {
-        var completion = new ChatCompletionChunk(
+        var completion = new ChatCompletionChunkResponse(
             "chatcmpl-456",
             List.of(new ChatCompletionChoiceResponse(new ChatCompletionMessage("Hi", null, "assistant", null), "stop", 0)),
             "gpt-4o-mini",
@@ -204,7 +204,7 @@ public class ChatCompletionChunkTests extends AbstractBWCWireSerializationTestCa
      * Wraps the non-streaming form in a top-level object to match the outer object supplied by
      * {@code InferenceAction.Response.toXContentChunked()} in production.
      */
-    private static String toXContentNonStreaming(ChatCompletionChunk completion) throws IOException {
+    private static String toXContentNonStreaming(ChatCompletionChunkResponse completion) throws IOException {
         var builder = JsonXContent.contentBuilder();
         builder.startObject();
         completion.toXContentChunked(null).forEachRemaining(xContent -> {

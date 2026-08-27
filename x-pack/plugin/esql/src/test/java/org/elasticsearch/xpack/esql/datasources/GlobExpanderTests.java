@@ -1038,6 +1038,53 @@ public class GlobExpanderTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("discovered too many files"));
     }
 
+    // -- entry-point characterization: expand() vs expandGlob() --
+
+    /**
+     * The existing glob tests drive {@code expandGlob}. Real datasets go through {@code expand}, which splits on
+     * commas BEFORE any brace parsing, so a pattern that works in a unit test can be unusable in a dataset.
+     * Recorded here so the rewrite has the real entry point pinned, not only the internal one.
+     *
+     * <p>DEFECT: alternation is unreachable through the entry point datasets actually use.
+     */
+    public void testBraceAlternationWorksThroughExpandGlobButNotThroughExpand() throws IOException {
+        // A brace-only pattern never lists: it probes each enumerated candidate with exists(). That is a second
+        // behavioural fork on top of the language one, and it is why the provider is primed with existingPaths
+        // rather than a listing here.
+        StubProvider direct = new StubProvider(List.of());
+        direct.existingPaths.add("s3://bucket/data/a.csv");
+        direct.existingPaths.add("s3://bucket/data/b.csv");
+        FileList viaGlob = GlobExpander.expandGlob("s3://bucket/data/{a,b}.csv", direct, null, HIVE_OFF);
+        assertTrue("alternation resolves through expandGlob", viaGlob.isResolved());
+        assertEquals(2, viaGlob.fileCount());
+
+        // The same pattern through the real entry point: the comma split tears it into "s3://bucket/data/{a"
+        // and "b}.csv", and the second fragment has no scheme.
+        StubProvider viaEntry = new StubProvider(List.of());
+        viaEntry.existingPaths.add("s3://bucket/data/a.csv");
+        viaEntry.existingPaths.add("s3://bucket/data/b.csv");
+        Exception e = expectThrows(
+            Exception.class,
+            () -> GlobExpander.expand("s3://bucket/data/{a,b}.csv", viaEntry, null, HIVE_OFF, MAX, MAX)
+        );
+        assertNotNull("the entry point rejects what expandGlob supports", e.getMessage());
+    }
+
+    /**
+     * A numeric range has no comma, so it survives the split that kills alternation and reaches the brace-only
+     * fast path, where it expands. The matcher would read it literally. Two spellings of one construct, two
+     * meanings, decided by whether the pattern happens to contain a comma.
+     */
+    public void testNumericRangeSurvivesTheCommaSplitThatKillsAlternation() throws IOException {
+        StubProvider provider = new StubProvider(List.of());
+        provider.existingPaths.add("s3://bucket/data/1.csv");
+        provider.existingPaths.add("s3://bucket/data/2.csv");
+
+        FileList result = GlobExpander.expand("s3://bucket/data/{1..2}.csv", provider, null, HIVE_OFF, MAX, MAX);
+        assertTrue(result.isResolved());
+        assertEquals("the range expanded rather than being read literally", 2, result.fileCount());
+    }
+
     // -- listing cache discriminator --
 
     /**

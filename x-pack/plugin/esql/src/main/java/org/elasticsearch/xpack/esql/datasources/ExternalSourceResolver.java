@@ -2930,6 +2930,7 @@ public class ExternalSourceResolver {
             rejectUncoercibleFileTypedRetypes(inferred.schema(), inferred.sourceType(), declaredMapping);
         }
         DeclaredSchemaResolver.Overlaid unified = DeclaredSchemaResolver.overlayNonStrict(inferred.schema(), declaredMapping, false);
+        DeclaredReadSpec declaredReadSpec = declaredReadSpecOf(declaredMapping);
         // S1 boundary: the warm-aggregate _stats.* map on sourceMetadata is keyed PHYSICAL and holds INFERRED-type values;
         // the declared overlay renames/retypes the plan afterwards. Rekey renames (a pure `path` move changes no value, so
         // the rekeyed stats stay exactly correct — warm serving survives the rename) and poison extrema + drop counts for
@@ -2958,16 +2959,93 @@ public class ExternalSourceResolver {
                 }
             }
         }
+        // Recompute per-file mappings when the declaration can retype columns. The inherited mapping was built against
+        // the INFERRED unified schema; a declared retype changes both the unified target type and (via the per-file
+        // overlay) the type the reader emits, so a stale cast slot — e.g. a union-by-name KEYWORD fallback for a column
+        // now declared datetime — would corrupt the page. Rebuilding from the two overlaid schemas keeps the
+        // union-by-name widening casts for undeclared columns and drops the now-satisfied ones for declared columns.
+        // The mapping width is the data-only unified schema (partition columns are path-derived, never read), matching
+        // the width every inherited mapping already has.
+        boolean hasDeclaredColumns = declaredMapping.mappings() != null && declaredMapping.mappings().properties().isEmpty() == false;
+        List<Attribute> dataOnlyUnifiedOverlaid = unified.output();
+        if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
+            dataOnlyUnifiedOverlaid = ExternalSchema.dataAttributesOf(
+                dataOnlyUnifiedOverlaid,
+                partitionMetadata.partitionColumns().keySet()
+            ).attributes();
+        }
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> overlaidSchemaMap = new HashMap<>();
+        // The expected read configuration must be byte-identical to what the STAMP hashed and what the HARVEST will
+        // hash: the per-file overlaid PHYSICAL schema. Partition columns are path-derived and never part of any read
+        // schema, while a partition-SHADOWED physical column is parsed by the reader and so is hashed. Folded here,
+        // in the loop that already builds that schema per file.
+        String expectedReadConfig = null;
+        boolean perFileReadConfigsDisagree = false;
+        for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : resolved.schemaMap().entrySet()) {
+            SchemaReconciliation.FileSchemaInfo info = e.getValue();
+            if (fileTyped) {
+                // Per-file coercibility: under union-by-name this file's inferred type for a declared column can
+                // differ from the unified type checked above; every file the declared column reads from must be
+                // coercible on its own or the read would silently null. Names are physical on both sides here
+                // (pre-overlay), matching the declared `path` physicals.
+                rejectUncoercibleFileTypedRetypes(info.fileSchema().attributes(), inferred.sourceType(), declaredMapping);
+            }
+            DeclaredSchemaResolver.Overlaid perFile = DeclaredSchemaResolver.overlayNonStrict(
+                info.fileSchema().attributes(),
+                declaredMapping,
+                true
+            );
+            String perFileReadConfig = ReadConfigFingerprint.of(perFile.fileSchema(), declaredReadSpec);
+            if (expectedReadConfig == null) {
+                expectedReadConfig = perFileReadConfig;
+            } else if (expectedReadConfig.equals(perFileReadConfig) == false) {
+                perFileReadConfigsDisagree = true;
+            }
+            ColumnMapping mapping = hasDeclaredColumns
+                ? SchemaReconciliation.computeMapping(dataOnlyUnifiedOverlaid, perFile.fileSchema())
+                : info.mapping();
+            // PRE-retype file types, physical-keyed, so the stats boundaries recover the file's real inferred types
+            // (the split-level footer normalize and the resolve/commit pinned-column safe-miss), not the overlaid
+            // declared ones. A UNION_BY_NAME pin already retyped this file's read schema and snapshotted the pre-pin
+            // inferred types onto info.inferredTypes(); preserve that snapshot so a widened+pinned column stays
+            // identifiable after the overlay. Only when nothing upstream retyped the file (inferredTypes null) does
+            // info.fileSchema() still carry the inferred types, so fall back to it for the declared-overlay-only path.
+            Map<String, DataType> preRetypeInferredTypes = info.inferredTypes() != null
+                ? info.inferredTypes()
+                : attributesToTypeMap(info.fileSchema().attributes());
+            overlaidSchemaMap.put(
+                e.getKey(),
+                new SchemaReconciliation.FileSchemaInfo(
+                    new ExternalSchema(perFile.fileSchema()),
+                    mapping,
+                    info.statistics(),
+                    preRetypeInferredTypes
+                )
+            );
+        }
+        if (expectedReadConfig == null) {
+            // Defensive only: a stamped entry always has a non-empty schema and therefore a non-empty schemaMap
+            // (an empty schema stamps UNKNOWN and never reaches here).
+            expectedReadConfig = ReadConfigFingerprint.of(dataOnlyUnifiedOverlaid, declaredReadSpec);
+        }
+        if (perFileReadConfigsDisagree) {
+            // Files read under different configurations: no single expectation is right, so strip the per-column
+            // statistics. UNKNOWN equals no real stamp, and the licensed record count still crosses.
+            expectedReadConfig = ReadConfigFingerprint.UNKNOWN;
+        }
         // Copy-of to match every sibling producer on this seam (buildUnifiedMetadata / applyFirstFileWinsAggregatedStats
         // / SchemaCacheEntry.safeMetadata are all immutable): this map becomes the long-lived sourceMetadata() below.
-        // Serve gate, ahead of the overlay: the cached statistics were harvested under whatever shape produced them,
-        // and the declaration may have changed the read configuration of the read we are about to do — a retype or a per-column
+        // Serve gate: the cached statistics were harvested under whatever configuration produced them, and the
+        // declaration may have changed the configuration of the read we are about to do — a retype or a per-column
         // date pattern changes which rows survive under a lenient policy, so those numbers are not ours to serve.
         // Only the physical record count crosses, and only where the producer licensed it (FAIL_FAST).
-        Map<String, Object> servableStats = SourceStatisticsSerializer.restrictToReadConfig(
-            inferred.sourceMetadata(),
-            ReadConfigFingerprint.of(unified.output(), declaredReadSpecOf(declaredMapping))
-        );
+        //
+        // The expectation is the PER-FILE overlaid physical schema, which is what the entry's stamp hashed and what
+        // the harvest will hash. Hashing the coordinator-facing unified schema instead matched nothing on any hive
+        // layout — it carries the path-derived partition columns, which no reader ever parses, and it prunes the
+        // physical column a partition shadows, which every reader does parse — and took the per-column statistics of
+        // every mapped partitioned dataset permanently cold.
+        Map<String, Object> servableStats = SourceStatisticsSerializer.restrictToReadConfig(inferred.sourceMetadata(), expectedReadConfig);
         Map<String, Object> overlaidSourceMetadata = Map.copyOf(
             SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(servableStats, physicalToLogical, poisonColumns)
         );
@@ -3011,58 +3089,6 @@ public class ExternalSourceResolver {
                 return inferred.config();
             }
         };
-        // Recompute per-file mappings when the declaration can retype columns. The inherited mapping was built against
-        // the INFERRED unified schema; a declared retype changes both the unified target type and (via the per-file
-        // overlay) the type the reader emits, so a stale cast slot — e.g. a union-by-name KEYWORD fallback for a column
-        // now declared datetime — would corrupt the page. Rebuilding from the two overlaid schemas keeps the
-        // union-by-name widening casts for undeclared columns and drops the now-satisfied ones for declared columns.
-        // The mapping width is the data-only unified schema (partition columns are path-derived, never read), matching
-        // the width every inherited mapping already has.
-        boolean hasDeclaredColumns = declaredMapping.mappings() != null && declaredMapping.mappings().properties().isEmpty() == false;
-        List<Attribute> dataOnlyUnifiedOverlaid = unified.output();
-        if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
-            dataOnlyUnifiedOverlaid = ExternalSchema.dataAttributesOf(
-                dataOnlyUnifiedOverlaid,
-                partitionMetadata.partitionColumns().keySet()
-            ).attributes();
-        }
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> overlaidSchemaMap = new HashMap<>();
-        for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : resolved.schemaMap().entrySet()) {
-            SchemaReconciliation.FileSchemaInfo info = e.getValue();
-            if (fileTyped) {
-                // Per-file coercibility: under union-by-name this file's inferred type for a declared column can
-                // differ from the unified type checked above; every file the declared column reads from must be
-                // coercible on its own or the read would silently null. Names are physical on both sides here
-                // (pre-overlay), matching the declared `path` physicals.
-                rejectUncoercibleFileTypedRetypes(info.fileSchema().attributes(), inferred.sourceType(), declaredMapping);
-            }
-            DeclaredSchemaResolver.Overlaid perFile = DeclaredSchemaResolver.overlayNonStrict(
-                info.fileSchema().attributes(),
-                declaredMapping,
-                true
-            );
-            ColumnMapping mapping = hasDeclaredColumns
-                ? SchemaReconciliation.computeMapping(dataOnlyUnifiedOverlaid, perFile.fileSchema())
-                : info.mapping();
-            // PRE-retype file types, physical-keyed, so the stats boundaries recover the file's real inferred types
-            // (the split-level footer normalize and the resolve/commit pinned-column safe-miss), not the overlaid
-            // declared ones. A UNION_BY_NAME pin already retyped this file's read schema and snapshotted the pre-pin
-            // inferred types onto info.inferredTypes(); preserve that snapshot so a widened+pinned column stays
-            // identifiable after the overlay. Only when nothing upstream retyped the file (inferredTypes null) does
-            // info.fileSchema() still carry the inferred types, so fall back to it for the declared-overlay-only path.
-            Map<String, DataType> preRetypeInferredTypes = info.inferredTypes() != null
-                ? info.inferredTypes()
-                : attributesToTypeMap(info.fileSchema().attributes());
-            overlaidSchemaMap.put(
-                e.getKey(),
-                new SchemaReconciliation.FileSchemaInfo(
-                    new ExternalSchema(perFile.fileSchema()),
-                    mapping,
-                    info.statistics(),
-                    preRetypeInferredTypes
-                )
-            );
-        }
         return new ExternalSourceResolution.ResolvedSource(overlaidMetadata, resolved.fileList(), overlaidSchemaMap);
     }
 

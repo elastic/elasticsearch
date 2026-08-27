@@ -27,6 +27,11 @@ public class NdjsonExternalReadConfigParityIT extends AbstractExternalReadConfig
     }
 
     @Override
+    protected boolean hasHeaderRow() {
+        return false; // NDJSON records are self-describing; there is no header line
+    }
+
+    @Override
     protected String fileExtension() {
         return ".ndjson";
     }

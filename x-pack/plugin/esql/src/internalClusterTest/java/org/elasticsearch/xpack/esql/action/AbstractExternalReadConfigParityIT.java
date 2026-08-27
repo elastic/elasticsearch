@@ -130,6 +130,42 @@ public abstract class AbstractExternalReadConfigParityIT extends AbstractExterna
         assertThat("warm must agree with cold — the same query cannot depend on cache state", count(dataset), equalTo(cold));
     }
 
+    /**
+     * A hive-partitioned dataset and a no-op redeclaration of it must share the warm entry, exactly as the flat twin
+     * above does. They did not: the serve gate hashed the coordinator-facing unified schema, which carries the
+     * path-derived partition columns the reader never parses, so it matched neither the entry's stamp nor the
+     * harvest — and every mapped partitioned dataset re-scanned for its per-column statistics forever.
+     * <p>
+     * Asserts MIN(id) rather than COUNT(*) deliberately: under the default policy the record count crosses on the
+     * producer's licence and is warm on the parent too, so a COUNT assertion here would pass for the wrong reason.
+     */
+    public void testHivePartitionedNoOpRedeclarationKeepsPerColumnWarmth() throws Exception {
+        String glob = writeHivePartitionedFixture();
+        DatasetMapping sameAsInferred = mappingOf("age", new DatasetFieldMapping("keyword", null));
+        String inferred = register("hive_noop_inferred", glob, null);
+        String declared = register("hive_noop_declared", glob, sameAsInferred);
+
+        assertMinScan(inferred, (long) ROWS); // cold: reads both partitions and harvests
+        assertMinScan(inferred, 0L);          // the partitioned inferred rail warms at all
+        assertMinScan(declared, 0L);          // and the declaration is the same read, so it shares
+    }
+
+    /**
+     * The one cell where the record count really does go cold: under a lenient policy the producer withholds the
+     * licence that lets a count cross configurations, so the count depends on the fingerprint matching too.
+     */
+    public void testHivePartitionedNoOpRedeclarationKeepsSkipRowCountWarm() throws Exception {
+        String glob = writeHivePartitionedFixture();
+        Map<String, Object> skipRow = Map.of("error_mode", "skip_row");
+        DatasetMapping sameAsInferred = mappingOf("age", new DatasetFieldMapping("keyword", null));
+        String inferred = register("hive_skip_inferred", glob, null, skipRow);
+        String declared = register("hive_skip_declared", glob, sameAsInferred, skipRow);
+
+        assertCount(inferred, ROWS, (long) ROWS);
+        assertCount(inferred, ROWS, 0L);
+        assertCount(declared, ROWS, 0L);
+    }
+
     private long count(String dataset) {
         try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS c = COUNT(*)").profile(true), TIMEOUT)) {
             return ((Number) getValuesList(response).get(0).get(0)).longValue();
@@ -150,6 +186,44 @@ public abstract class AbstractExternalReadConfigParityIT extends AbstractExterna
         }
     }
 
+    /**
+     * The same rows split across two hive partition directories, returned as a glob. The partition key is named
+     * {@code part} so it cannot collide with a fixture column, and its values live only in the path — a reader never
+     * parses them, which is the whole point: the schema the reader binds and the schema the coordinator hands the
+     * planner differ by exactly these columns.
+     */
+    private String writeHivePartitionedFixture() throws Exception {
+        Path root = createTempDir();
+        String content = buildContent(ROWS);
+        // The header, where the format has one, has to be repeated into both partition files; NDJSON has none, so
+        // splitting off a first line there would silently drop a record and the row counts would stop adding up.
+        int headerEnd = hasHeaderRow() ? content.indexOf('\n') + 1 : 0;
+        String header = content.substring(0, headerEnd);
+        String body = content.substring(headerEnd);
+        int mid = body.indexOf('\n', body.length() / 2) + 1;
+        for (String part : new String[] { "a", "b" }) {
+            Path dir = root.resolve("part=" + part);
+            Files.createDirectories(dir);
+            String half = part.equals("a") ? body.substring(0, mid) : body.substring(mid);
+            Files.writeString(dir.resolve("data" + fileExtension()), header + half);
+        }
+        // The recursive-glob segment is built from two literals: spelled whole, checkstyle reads it as an empty
+        // javadoc comment. Same workaround as the glob fixtures in ExternalSourceCacheServiceTests.
+        return StoragePath.fileUri(root) + "/*" + "*/*" + fileExtension();
+    }
+
+    /** Whether {@link #buildContent} emits a header line the partition halves must each repeat. */
+    protected boolean hasHeaderRow() {
+        return true;
+    }
+
+    /** Asserts a per-column aggregate's value and how much it had to scan; 0 means it was served warm. */
+    protected void assertMinScan(String dataset, Long expectedScanned) {
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS m = MIN(id)").profile(true), TIMEOUT)) {
+            assertThat("scan rows for [" + dataset + "] MIN(id) (0 == served warm)", response.documentsFound(), equalTo(expectedScanned));
+        }
+    }
+
     private String writeFixture(String name) throws Exception {
         Path file = createTempDir().resolve(name + fileExtension());
         Files.writeString(file, buildContent(ROWS));
@@ -157,8 +231,13 @@ public abstract class AbstractExternalReadConfigParityIT extends AbstractExterna
     }
 
     private String register(String name, String uri, DatasetMapping mapping) {
+        return register(name, uri, mapping, Map.of());
+    }
+
+    protected String register(String name, String uri, DatasetMapping mapping, Map<String, Object> extraSettings) {
         Map<String, Object> settings = new LinkedHashMap<>();
         settings.put("format", format());
+        settings.putAll(extraSettings);
         assertAcked(
             client().execute(
                 PutDatasetAction.INSTANCE,
@@ -169,7 +248,7 @@ public abstract class AbstractExternalReadConfigParityIT extends AbstractExterna
         return name;
     }
 
-    private static DatasetMapping mappingOf(String column, DatasetFieldMapping fieldMapping) {
+    protected static DatasetMapping mappingOf(String column, DatasetFieldMapping fieldMapping) {
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put(column, fieldMapping);
         return new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));

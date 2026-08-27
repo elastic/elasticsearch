@@ -423,9 +423,15 @@ public class TsidBuilder {
     /**
      * The single prefix byte, given the winning {@link #prefixByteRank} for a row.
      *
-     * @param nameSimilarityHash hash over the {@code pathH1 ^ pathH2} words of the row's dimensions in
-     *                           sorted order, duplicates included. Needed only when no dimension is
-     *                           special, so callers can otherwise skip that fold.
+     * <p>The two paths are asymmetric by design. When no special dimension is present,
+     * {@code nameSimilarityHash} is read directly ({@code h1} as-is, no re-hash), so the caller must
+     * supply a finalized hash — the output of {@link BufferedMurmur3Hasher#digestHash}. When a special
+     * field is present, {@code bestValueH1}/{@code bestValueH2} are re-hashed internally via
+     * {@link MurmurHash3#hashLongToH1}, using {@code scratch} as a temporary buffer.
+     *
+     * @param nameSimilarityHash finalized hash over the {@code pathH1 ^ pathH2} words of the row's
+     *                           dimensions in sorted order, duplicates included. Needed only when no
+     *                           dimension is special, so callers can otherwise skip that fold.
      */
     static byte singleBytePrefix(
         int bestRank,
@@ -463,6 +469,7 @@ public class TsidBuilder {
         MurmurHash3.Hash128 fullHash
     ) {
         assert valueSimilarityByteCount <= MAX_TSID_VALUE_SIMILARITY_FIELDS : valueSimilarityByteCount;
+        assert valueSimilarityByteCount <= valueSimilarityBytes.length : valueSimilarityByteCount;
         final byte[] tsid = new byte[1 + valueSimilarityByteCount + FULL_HASH_BYTES];
         int index = 0;
         tsid[index++] = nameSimilarityByte;

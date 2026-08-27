@@ -12,15 +12,21 @@ package org.elasticsearch.common.hash;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.test.ESTestCase;
 
-/**
- * The external-state accumulation API ({@link MurmurHash3#mixBlock} and friends) must be
- * bit-identical to hashing the equivalent byte stream through {@link MurmurHash3#hash128} or
- * {@link BufferedMurmur3Hasher}. These tests are the contract that lets callers fold {@code long}s
- * straight into caller-owned state instead of staging them through a byte buffer.
- */
-public class MurmurHash3AccumulatorTests extends ESTestCase {
+import java.nio.charset.StandardCharsets;
 
-    /** Folding whole blocks read as little-endian long pairs equals hashing the bytes. */
+public class MurmurHash3Tests extends ESTestCase {
+
+    public void testKnownValues() {
+        assertHash(0x629942693e10f867L, 0x92db0b82baeb5347L, "hell", 0);
+        assertHash(0xa78ddff5adae8d10L, 0x128900ef20900135L, "hello", 1);
+        assertHash(0x8a486b23f422e826L, 0xf962a2c58947765fL, "hello ", 2);
+        assertHash(0x2ea59f466f6bed8cL, 0xc610990acc428a17L, "hello w", 3);
+        assertHash(0x79f6305a386c572cL, 0x46305aed3483b94eL, "hello wo", 4);
+        assertHash(0xc2219d213ec1f1b5L, 0xa1d8e2e0a52785bdL, "hello wor", 5);
+        assertHash(0xe34bbc7bbc071b6cL, 0x7a433ca9c49a9347L, "The quick brown fox jumps over the lazy dog", 0);
+        assertHash(0x658ca970ff85269aL, 0x43fee3eaa68e5c3eL, "The quick brown fox jumps over the lazy cog", 0);
+    }
+
     public void testMixBlockMatchesHash128() {
         int blocks = randomIntBetween(1, 32);
         byte[] bytes = randomByteArrayOfLength(blocks * 16);
@@ -34,7 +40,6 @@ public class MurmurHash3AccumulatorTests extends ESTestCase {
         assertEquals(MurmurHash3.hash128(bytes, 0, bytes.length, 0L, new MurmurHash3.Hash128()), actual);
     }
 
-    /** {@code mixTwoBlocks} must be exactly two {@code mixBlock} calls. */
     public void testMixTwoBlocksMatchesTwoMixBlocks() {
         long k1 = randomLong();
         long k2 = randomLong();
@@ -52,11 +57,8 @@ public class MurmurHash3AccumulatorTests extends ESTestCase {
         assertEquals(pair[MurmurHash3.STATE_H2], fused[MurmurHash3.STATE_H2]);
     }
 
-    /**
-     * A stream of {@code n} longs folded pairwise, with an 8-byte tail when {@code n} is odd, must
-     * equal the same longs pushed through {@link BufferedMurmur3Hasher#addLong}. This is the
-     * name-similarity stream shape, where the odd/even tail parity is the easy thing to get wrong.
-     */
+    // Todo: This is essentially implementing the columnar hashing for a test. When we commit the actual columnar implementation we should
+    // test at that level and remove this.
     public void testLongStreamWithOptionalTailMatchesBufferedHasher() {
         for (int n = 1; n <= 9; n++) {
             long[] values = new long[n];
@@ -87,8 +89,7 @@ public class MurmurHash3AccumulatorTests extends ESTestCase {
 
     /**
      * Four longs per element folded via {@code mixTwoBlocks} must equal
-     * {@link BufferedMurmur3Hasher#addLongs(long, long, long, long)}. This is the tsid full-hash
-     * stream shape: 32 bytes per element is exactly two blocks, so it is always block aligned.
+     * {@link BufferedMurmur3Hasher#addLongs(long, long, long, long)}.
      */
     public void testFourLongsPerElementMatchesBufferedHasher() {
         int elements = randomIntBetween(1, 16);
@@ -222,5 +223,18 @@ public class MurmurHash3AccumulatorTests extends ESTestCase {
         MurmurHash3.Hash128 actual = MurmurHash3.finalizeAlignedHash(new MurmurHash3.Hash128(), bytes.length, state, 0);
 
         assertEquals(MurmurHash3.hash128(bytes, 0, bytes.length, seed, new MurmurHash3.Hash128()), actual);
+    }
+
+    private static void assertHash(long lower, long upper, String inputString, long seed) {
+        byte[] bytes = inputString.getBytes(StandardCharsets.UTF_8);
+        MurmurHash3.Hash128 expected = new MurmurHash3.Hash128();
+        expected.h1 = lower;
+        expected.h2 = upper;
+        assertHash(expected, MurmurHash3.hash128(bytes, 0, bytes.length, seed, new MurmurHash3.Hash128()));
+    }
+
+    private static void assertHash(MurmurHash3.Hash128 expected, MurmurHash3.Hash128 actual) {
+        assertEquals(expected.h1, actual.h1);
+        assertEquals(expected.h2, actual.h2);
     }
 }

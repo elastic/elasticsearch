@@ -2908,18 +2908,21 @@ public class NumberFieldMapper extends FieldMapper {
         EscfColumnData outData = NumberColumnTransform.toSortableLongColumn(source, type, coerce(), ctx.recycler(), nullSortableLong);
         if (fieldType().indexType().hasDocValuesSkipper()) {
             ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE, numericKind(type)));
-        } else if (indexed && type == NumberType.HALF_FLOAT) {
-            // half_float uses separate HalfFloatPoint (2-byte BKD) and SortedNumericDocValuesField,
-            // unlike other numeric types which use a combined field. Send one column for each.
-            ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, LongColumn.NumericKind.FLOAT));
-            EscfColumnData halfFloatPointData = NumberColumnTransform.toHalfFloatPointBinaryColumn(
-                EscfColumn.from(outData),
-                ctx.recycler()
-            );
-            ctx.addColumn(LuceneBinaryColumn.of(halfFloatPointData, fieldType().name(), HALF_FLOAT_POINT_FIELD_TYPE));
+        } else if (indexed) {
+            if (type == NumberType.HALF_FLOAT) {
+                // half_float uses separate HalfFloatPoint (2-byte BKD) and SortedNumericDocValuesField,
+                // unlike other numeric types which use a combined field. Send one column for each.
+                ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, LongColumn.NumericKind.FLOAT));
+                EscfColumnData halfFloatPointData = NumberColumnTransform.toHalfFloatPointBinaryColumn(
+                    EscfColumn.from(outData),
+                    ctx.recycler()
+                );
+                ctx.addColumn(LuceneBinaryColumn.of(halfFloatPointData, fieldType().name(), HALF_FLOAT_POINT_FIELD_TYPE));
+            } else {
+                ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), indexableFieldType(type), numericKind(type)));
+            }
         } else {
-            IndexableFieldType columnFieldType = indexed ? indexableFieldType(type) : SORTED_NUMERIC_DV_FIELD_TYPE;
-            ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), columnFieldType, numericKind(type)));
+            ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, numericKind(type)));
         }
         if (stored) {
             if (type == NumberType.HALF_FLOAT) {

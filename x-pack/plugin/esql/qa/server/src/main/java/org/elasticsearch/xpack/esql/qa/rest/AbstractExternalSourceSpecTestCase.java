@@ -774,6 +774,17 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * tests; a directive that sets {@code trim_spaces} explicitly is left untouched (so a spec can still
      * exercise the no-trim default end to end).
      */
+    /**
+     * The directive settings the running vector pins, keyed by their {@code WITH} key.
+     *
+     * <p>Empty by default, so a suite that has not been moved onto generated vectors behaves exactly as
+     * before. A suite driven by {@link org.elasticsearch.xpack.esql.datasources.fixtures.FixtureDimensions}
+     * overrides this with the directive-bound slots of its vector that sit off their declared default.
+     */
+    protected Map<String, String> vectorSettings() {
+        return Map.of();
+    }
+
     private String withJsonForSource(DatasetSource source) {
         // Memoized per source: injectTrimSpaces parses the JSON to decide whether the directive already sets
         // trim_spaces, and this is asked once per registration and again when the query is built.
@@ -782,10 +793,14 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             // formats (parquet, ...) reject the trim_spaces key, so only the csv/tsv backends read the
             // column-aligned fixtures with trimming; the shared injector adds the key.
             boolean csvOrTsv = format.equals("csv") || format.startsWith("csv.") || format.equals("tsv") || format.startsWith("tsv.");
-            if (csvOrTsv == false) {
-                return s.withJson();
+            String json = csvOrTsv ? injectMultiValueSyntax(injectTrimSpaces(s.withJson()), s.resource()) : s.withJson();
+            // Then whatever the running vector pins. A directive-bound dimension at its default injects
+            // nothing -- omission IS the default -- so an unvaried suite produces byte-identical JSON to
+            // before, which is what lets vectors be introduced one dimension at a time.
+            for (Map.Entry<String, String> setting : vectorSettings().entrySet()) {
+                json = injectSetting(json, setting.getKey(), setting.getValue());
             }
-            return injectMultiValueSyntax(injectTrimSpaces(s.withJson()), s.resource());
+            return json;
         });
     }
 
@@ -815,16 +830,32 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         if (template == null || "brackets".equals(MATRIX.writeDialectForTemplate(template)) == false) {
             return withJson;
         }
-        if (DatasetRegistry.declaresSetting(withJson, "multi_value_syntax")) {
+        return injectSetting(withJson, "multi_value_syntax", "brackets");
+    }
+
+    /**
+     * Adds one setting to a dataset directive's {@code WITH} JSON, unless the directive already declares it.
+     *
+     * <p>Whether it does is decided by parsing rather than by matching raw text: a directive may carry a
+     * nested declared schema, and a same-named key inside {@code mappings} would otherwise suppress the
+     * injection. Placement stays textual -- {@code withJson} is parser-guaranteed to be a brace-delimited
+     * object or {@code null}, so {@code lastIndexOf('}')} is always the structural closer.
+     *
+     * <p>This is the seam every generated vector reaches: a dimension declared to bind as a directive
+     * becomes a key here, so adding one to the declaration needs no new injector.
+     */
+    static String injectSetting(String withJson, String key, String value) {
+        if (DatasetRegistry.declaresSetting(withJson, key)) {
             return withJson;
         }
+        String entry = "\"" + key + "\": \"" + value + "\"";
         if (withJson == null) {
-            return "{\"multi_value_syntax\": \"brackets\"}";
+            return "{" + entry + "}";
         }
         int close = withJson.lastIndexOf('}');
         String head = withJson.substring(0, close).trim();
         String separator = head.endsWith("{") ? "" : ", ";
-        return head + separator + "\"multi_value_syntax\": \"brackets\"" + withJson.substring(close);
+        return head + separator + entry + withJson.substring(close);
     }
 
     /** The {@code {{template}}} a dataset directive's resource names, or null when it names none. */

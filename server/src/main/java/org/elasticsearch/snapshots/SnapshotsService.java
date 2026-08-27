@@ -938,6 +938,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             final List<String> finalIndices = updatedShardGensForLiveIndices.indices().stream().map(IndexId::getName).toList();
             final Set<String> indexNames = new HashSet<>(finalIndices);
             ArrayList<SnapshotShardFailure> shardFailures = new ArrayList<>();
+            Map<ShardState, Integer> unsuccessfulShardCountByState = new HashMap<>();
             for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shardStatus : entry.shardSnapshotStatusByRepoShardId().entrySet()) {
                 RepositoryShardId repoShardId = shardStatus.getKey();
                 if (indexNames.contains(repoShardId.indexName()) == false) {
@@ -951,6 +952,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         ? new ShardId(repoShardId.indexName(), IndexMetadata.INDEX_UUID_NA_VALUE, repoShardId.shardId())
                         : entry.shardId(repoShardId);
                     shardFailures.add(new SnapshotShardFailure(status.nodeId(), shardId, status.reason()));
+                    unsuccessfulShardCountByState.merge(state, 1, Integer::sum);
                 } else {
                     assert state == ShardState.SUCCESS;
                 }
@@ -1068,14 +1070,27 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             )
                         ), () -> {
                             RepositoryMetadata repoMetadata = repo.getMetadata();
-                            final Map<String, Object> attributes = Maps.copyMapWithAddedEntry(
-                                SnapshotMetrics.createAttributesMap(snapshot.getProjectId(), repoMetadata),
+                            final Map<String, Object> attributes = SnapshotMetrics.createAttributesMap(
+                                snapshot.getProjectId(),
+                                repoMetadata
+                            );
+                            final Map<String, Object> attributesWithSnapshotState = Maps.copyMapWithAddedEntry(
+                                attributes,
                                 "state",
                                 snapshotInfo.state().name()
                             );
-                            snapshotMetrics.snapshotsCompletedCounter().incrementBy(1, attributes);
+                            snapshotMetrics.snapshotsCompletedCounter().incrementBy(1, attributesWithSnapshotState);
                             snapshotMetrics.snapshotsDurationHistogram()
-                                .record((threadPool.absoluteTimeInMillis() - snapshotInfo.startTime()) / 1_000.0, attributes);
+                                .record(
+                                    (threadPool.absoluteTimeInMillis() - snapshotInfo.startTime()) / 1_000.0,
+                                    attributesWithSnapshotState
+                                );
+                            snapshotMetrics.shardsUnsuccessfulHistogram().record(shardFailures.size(), attributesWithSnapshotState);
+                            // Counter broken down by shard state (MISSING/FAILED), not snapshot state
+                            unsuccessfulShardCountByState.forEach(
+                                (shardState, count) -> snapshotMetrics.shardsUnsuccessfulCounter()
+                                    .incrementBy(count, Maps.copyMapWithAddedEntry(attributes, "state", shardState.name()))
+                            );
                         }),
                         () -> snapshotListeners.addListener(new ActionListener<>() {
                             @Override

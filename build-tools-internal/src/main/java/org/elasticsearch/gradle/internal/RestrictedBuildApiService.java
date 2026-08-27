@@ -12,7 +12,6 @@ package org.elasticsearch.gradle.internal;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
 
-import org.elasticsearch.gradle.internal.test.LegacyRestTestBasePlugin;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.provider.Property;
@@ -28,9 +27,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
     private static ListMultimap<Class<?>, String> createLegacyRestTestBasePluginUsage() {
         ListMultimap<Class<?>, String> map = ArrayListMultimap.create(1, 200);
         // Projects that apply LegacyRestTestBasePlugin transitively via the standalone-rest-test plugin.
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:rolling-upgrade-legacy");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:eql:qa:ccs-rolling-upgrade");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:shutdown:qa:rolling-upgrade");
 
         return map;
     }

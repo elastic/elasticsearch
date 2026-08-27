@@ -17,11 +17,13 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
@@ -40,8 +42,10 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Plan-rewrite tests for {@link InsertExternalFieldExtraction}: covers the happy-path narrowing,
@@ -133,6 +137,41 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         TopNExec topN = topN(source.output().get(0), 100, source);
         PhysicalPlan result = applyRule(topN, /* registry = */ null);
         assertSame(topN, result);
+    }
+
+    /**
+     * {@code skip_row} + declared column types is the one combination where the columnar reader has to drop rows
+     * at the page emit point. An {@link ExternalFieldExtractExec} runs after the page shape is fixed and cannot
+     * participate, so the operator factory turns deferred extraction off for such a read — and a plan that still
+     * carried the extract exec would ask a {@code SourceExtractors} registry nobody filled for extractor 0,
+     * failing with "extractor id [0] is out of range [0, 0)". The rule must bail out instead.
+     */
+    public void testNoOpWhenSkipRowWithDeclaredTypeColumns() {
+        List<Attribute> schema = sixColumnSchema();
+        ExternalSourceExec source = parquetSource(schema, "skip_row", Set.of("a"));
+        TopNExec topN = topN(schema.get(0), 100, source);
+
+        PhysicalPlan result = applyRule(topN, columnExtractorAwareRegistry());
+        assertSame("skip_row + declared types must not get an extract exec", topN, result);
+    }
+
+    /** {@code skip_row} with no declared column types coerces nothing, so no row is ever dropped and the
+     *  optimization stays available. */
+    public void testSkipRowWithoutDeclaredTypeColumnsStillDefers() {
+        List<Attribute> schema = sixColumnSchema();
+        ExternalSourceExec source = parquetSource(schema, "skip_row", Set.of());
+        TopNExec topN = topN(schema.get(0), 100, source);
+
+        assertThat(applyRule(topN, columnExtractorAwareRegistry()), instanceOf(ExternalFieldExtractExec.class));
+    }
+
+    /** Declared column types under a mode that keeps every row ({@code null_field}) also stay eligible. */
+    public void testDeclaredTypeColumnsUnderNullFieldStillDefers() {
+        List<Attribute> schema = sixColumnSchema();
+        ExternalSourceExec source = parquetSource(schema, "null_field", Set.of("a"));
+        TopNExec topN = topN(schema.get(0), 100, source);
+
+        assertThat(applyRule(topN, columnExtractorAwareRegistry()), instanceOf(ExternalFieldExtractExec.class));
     }
 
     public void testNoOpWhenNoExternalSourceReachable() {
@@ -464,15 +503,22 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
     }
 
     private static ExternalSourceExec parquetSource(List<Attribute> schema, Object pushedFilter, Map<String, Object> sourceMetadata) {
-        return new ExternalSourceExec(
-            Source.EMPTY,
-            "file:///test.parquet",
-            "parquet",
-            schema,
-            Map.of(),
-            sourceMetadata,
-            pushedFilter,
-            null
+        return parquetSource(schema, pushedFilter, sourceMetadata, Map.of());
+    }
+
+    private static ExternalSourceExec parquetSource(
+        List<Attribute> schema,
+        Object pushedFilter,
+        Map<String, Object> sourceMetadata,
+        Map<String, Object> config
+    ) {
+        return new ExternalSourceExec(Source.EMPTY, "file:///test.parquet", "parquet", schema, config, sourceMetadata, pushedFilter, null);
+    }
+
+    /** A source reading with the given {@code error_mode} and declared-type columns — the pair the row-drop guard keys on. */
+    private static ExternalSourceExec parquetSource(List<Attribute> schema, String errorMode, Set<String> declaredTypeColumns) {
+        return parquetSource(schema, null, Map.of(), Map.of(ErrorPolicy.CONFIG_ERROR_MODE, errorMode)).withDeclaredReadSpec(
+            DeclaredReadSpec.of(Map.of(), null, Map.of(), declaredTypeColumns)
         );
     }
 

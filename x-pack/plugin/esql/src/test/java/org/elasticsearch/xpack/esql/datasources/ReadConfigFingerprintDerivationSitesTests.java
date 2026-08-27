@@ -43,6 +43,16 @@ import static org.hamcrest.Matchers.empty;
  * build on any new {@code ReadConfigFingerprint.of} call in main sources until the author declares the site below
  * — its role, and which existing site it must agree with — and the declaration's instructions demand a behavioural
  * fixture in the suite that owns the pairing. The declarations are the map; the fixtures are the proof.
+ * <p>
+ * Known limits, deliberate: the census counts sites PER FILE, so removing a declared site and adding a different
+ * one in the same file in one change passes it — within a declared file, only the named behavioural fixtures
+ * discriminate (measured: deleting the {@code stampInferredReadConfig} derivation while adding another {@code of}
+ * call elsewhere in the resolver passes this census and is caught by the promise-forwarding fixture named in its
+ * declaration). Pinning call-site text instead would redden on every cosmetic rename without proving agreement.
+ * The APPLICATION seam — {@code withReadConfig(...)} / {@code readConfigFingerprinter.apply(...)} — is out of
+ * census scope for the same reason: which schema flows into an existing fingerprinter is only observable
+ * behaviourally, and those applications are pinned end to end by {@code ReadConfigSymmetryTests} and the
+ * {@code AbstractExternalReadConfigParityIT} rails.
  */
 public class ReadConfigFingerprintDerivationSitesTests extends ESTestCase {
 
@@ -78,7 +88,9 @@ public class ReadConfigFingerprintDerivationSitesTests extends ESTestCase {
             "stampInferredReadConfig — of(entry.toAttributes(), NONE) on the inferred text rail",
             Role.STAMP,
             "the HARVEST over the schema this entry was minted from; entry round-trip half pinned by "
-                + "testInferredEntryStampRoundTripsToTheHarvestFingerprint below"
+                + "testInferredEntryStampRoundTripsToTheHarvestFingerprint below; stamp presence and its forwarding "
+                + "into the dataset-aggregate promise pinned by ExternalSourceResolverTests"
+                + "#testMultiFileRailsForwardPerPathReadConfigsIntoTheDatasetAggregatePromise"
         ),
         new Site(
             RESOLVER,

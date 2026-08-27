@@ -39,6 +39,8 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
+import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
@@ -1288,6 +1290,187 @@ public class ExternalSourceResolverTests extends ESTestCase {
             assertEquals(1L, cacheService.usageStats().get("dataset_aggregate.hits"));
             assertEquals(1L, cacheService.usageStats().get("dataset_aggregate.misses"));
         }
+    }
+
+    /**
+     * The wiring the per-path read-configuration gate stands on: a multi-file resolve must record each file's
+     * stamped resolved read configuration and forward the per-path map into the dataset-aggregate promise. The
+     * cache-side gate only checks what a promise CARRIES — a rail that forwards an empty map leaves the gate to
+     * its documented per-path fallback (the config-level check alone), and a glob's promise could then be
+     * fulfilled by counts harvested under a DIFFERENT resolved read configuration: a declared glob handed the
+     * sum of an inferred read's counts, a wrong {@code COUNT(*)}. Driven through the full resolve on both
+     * multi-file rails (FIRST_FILE_WINS collects during the stats gather; the reconciliation rail collects from
+     * its own per-file metadata walk), with one file's statistics missing so the per-file merge stays incomplete
+     * and the resolve must register the promise. The matching-shape serve is the positive control that keeps the
+     * refusal from passing vacuously on a broken identity (wrong key, mtime, or config fingerprint).
+     */
+    public void testMultiFileRailsForwardPerPathReadConfigsIntoTheDatasetAggregatePromise() throws Exception {
+        for (FormatReader.SchemaResolution strategy : List.of(
+            FormatReader.SchemaResolution.FIRST_FILE_WINS,
+            FormatReader.SchemaResolution.UNION_BY_NAME
+        )) {
+            try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+                String glob = "s3://bucket/nd/*.ndjson";
+                String pathA = "s3://bucket/nd/a.ndjson";
+                String pathB = "s3://bucket/nd/b.ndjson";
+                List<Attribute> schema = List.of(attr("x", DataType.LONG));
+                Map<String, List<Attribute>> schemas = Map.of(pathA, schema, pathB, schema);
+                List<StorageEntry> listing = List.of(entry(pathA, 100), entry(pathB, 200));
+                StubStorageProvider provider = new StubStorageProvider(Map.of("s3://bucket/nd/", listing), schemas);
+                // b.ndjson has no row count: the per-file merge stays incomplete, forcing the resolve onto the
+                // promise-registration path this test pins.
+                ExternalSourceResolver resolver = ndjsonPromiseResolver(provider, schemas, Map.of(pathA, 40L), cacheService);
+
+                Map<String, Object> config = configFor(strategy);
+                PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+                resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), null, null, Set.of(glob), future);
+                ExternalSourceResolution resolution = future.actionGet();
+                assertEquals(
+                    "[" + strategy + "] an incomplete per-file merge must mark stats partial (the promise-registration path)",
+                    Boolean.TRUE,
+                    resolution.resolvedSource(glob).metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_PARTIAL)
+                );
+
+                SchemaCacheKey key = resolver.datasetAggregateKey(GlobExpander.fileListOf(listing, glob), config);
+                assertNotNull("[" + strategy + "] the resolve must have minted a dataset key", key);
+                String fingerprint = SchemaCacheKey.buildFormatConfig(config);
+
+                // Counts harvested under a different resolved read configuration measured a different set of rows;
+                // summing them for this dataset would be a wrong COUNT(*). Mtime and config fingerprint both match
+                // on purpose — only the per-path map the resolve forwarded can refuse these contributions.
+                cacheService.reconcileSourceStatsFromContributions(
+                    Map.of(
+                        pathA,
+                        List.of(promiseContribution(fingerprint, "foreign-read", 40L)),
+                        pathB,
+                        List.of(promiseContribution(fingerprint, "foreign-read", 60L))
+                    )
+                );
+                assertNull(
+                    "["
+                        + strategy
+                        + "] the promise must refuse counts from a foreign read configuration — an empty "
+                        + "forwarded per-path map would accept them through the config-level fallback",
+                    cacheService.getDatasetAggregate(key)
+                );
+
+                // Positive control: contributions carrying the fingerprint the resolve stamped fulfill the promise,
+                // proving the refusal above discriminated on the read configuration rather than on a broken
+                // key/mtime/config identity.
+                String promised = ReadConfigFingerprint.of(schema, DeclaredReadSpec.NONE);
+                cacheService.reconcileSourceStatsFromContributions(
+                    Map.of(
+                        pathA,
+                        List.of(promiseContribution(fingerprint, promised, 40L)),
+                        pathB,
+                        List.of(promiseContribution(fingerprint, promised, 60L))
+                    )
+                );
+                Map<String, Object> aggregate = cacheService.getDatasetAggregate(key);
+                assertNotNull("[" + strategy + "] matching-shape contributions must fulfill the promise", aggregate);
+                assertEquals(100L, ((Number) aggregate.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+            }
+        }
+    }
+
+    /** A whole-file scan contribution at the listing's mtime ({@code Instant.EPOCH}), carrying an explicit read configuration. */
+    private static Map<String, Object> promiseContribution(String configFingerprint, String readConfig, long rowCount) {
+        Map<String, Object> contribution = new LinkedHashMap<>();
+        contribution.put(ExternalStats.MTIME_MILLIS_KEY, 0L);
+        contribution.put(ExternalStats.CONFIG_FINGERPRINT_KEY, configFingerprint);
+        contribution.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, readConfig);
+        contribution.put(SourceStatisticsSerializer.STATS_ROW_COUNT, rowCount);
+        return contribution;
+    }
+
+    /**
+     * Resolver over a stub ndjson reader with storage, for full multi-file resolves that must reach the
+     * dataset-aggregate promise: the text contract (absent column stats safe-miss) is what lets the dataset key
+     * mint at all, and the per-file metadata must report {@code sourceType() == "ndjson"} because the inferred
+     * read-config stamp skips FILE_TYPED_FORMATS — a parquet-labelled stub would leave every file unstamped and
+     * the promise's per-path map empty, indistinguishable from the missing wiring this suite exists to catch.
+     */
+    private ExternalSourceResolver ndjsonPromiseResolver(
+        StorageProvider storageProvider,
+        Map<String, List<Attribute>> schemasByPath,
+        Map<String, Long> rowCountsByPath,
+        ExternalSourceCacheService cacheService
+    ) {
+        StubFormatReaderWithStats reader = new StubFormatReaderWithStats(schemasByPath, rowCountsByPath) {
+            @Override
+            public String formatName() {
+                return "ndjson";
+            }
+
+            @Override
+            public List<String> fileExtensions() {
+                return List.of(".ndjson");
+            }
+
+            @Override
+            public AggregatePushdownSupport aggregatePushdownSupport() {
+                return new TextAggregatePushdownSupport();
+            }
+
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                SourceMetadata inner = super.metadata(object);
+                return new SourceMetadata() {
+                    @Override
+                    public List<Attribute> schema() {
+                        return inner.schema();
+                    }
+
+                    @Override
+                    public String sourceType() {
+                        return "ndjson";
+                    }
+
+                    @Override
+                    public String location() {
+                        return inner.location();
+                    }
+
+                    @Override
+                    public Optional<SourceStatistics> statistics() {
+                        return inner.statistics();
+                    }
+                };
+            }
+        };
+        DataSourcePlugin plugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("s3");
+            }
+
+            @Override
+            public Set<FormatSpec> formatSpecs() {
+                return Set.of(FormatSpec.of("ndjson", ".ndjson"));
+            }
+
+            @Override
+            public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+                return Map.of("s3", stubStorageProviderFactory(storageProvider));
+            }
+
+            @Override
+            public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+                return Map.of("ndjson", (s, bf) -> reader);
+            }
+        };
+        List<DataSourcePlugin> plugins = List.of(plugin);
+        DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
+        DataSourceModule module = new DataSourceModule(
+            plugins,
+            capabilities,
+            Settings.EMPTY,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
+        );
+        return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module, Settings.EMPTY, cacheService);
     }
 
     /** Shared parquet+ndjson module for the dataset-aggregate gate tests; see {@link TextAggregatePushdownSupport}. */

@@ -451,7 +451,10 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
         return Stream.of(newChunk(List.of(), usage));
     }
 
-    private ChatCompletionChunkResponse newChunk(@Nullable List<ChatCompletionChoiceResponse> choices, @Nullable ChatCompletionUsageResponse usage) {
+    private ChatCompletionChunkResponse newChunk(
+        @Nullable List<ChatCompletionChoiceResponse> choices,
+        @Nullable ChatCompletionUsageResponse usage
+    ) {
         return new ChatCompletionChunkResponse(id, choices, model, OBJECT_VALUE, usage);
     }
 

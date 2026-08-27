@@ -64,7 +64,8 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
         }
     }
 
-    public static Stream<ChatCompletionChunkResponse> parse(XContentParserConfiguration parserConfig, ServerSentEvent event) throws IOException {
+    public static Stream<ChatCompletionChunkResponse> parse(XContentParserConfiguration parserConfig, ServerSentEvent event)
+        throws IOException {
         if (DONE_MESSAGE.equalsIgnoreCase(event.data())) {
             return Stream.empty();
         }

@@ -28,7 +28,10 @@ public class ChatCompletionToolCallResponseTests extends AbstractBWCWireSerializ
             randomAlphaOfLengthOrNull(FIELD_LENGTH),
             randomBoolean()
                 ? null
-                : new ChatCompletionToolCallResponse.Function(randomAlphaOfLengthOrNull(FIELD_LENGTH), randomAlphaOfLengthOrNull(FIELD_LENGTH)),
+                : new ChatCompletionToolCallResponse.Function(
+                    randomAlphaOfLengthOrNull(FIELD_LENGTH),
+                    randomAlphaOfLengthOrNull(FIELD_LENGTH)
+                ),
             randomAlphaOfLengthOrNull(FIELD_LENGTH)
         );
     }
@@ -62,7 +65,10 @@ public class ChatCompletionToolCallResponseTests extends AbstractBWCWireSerializ
                 function,
                 () -> randomBoolean()
                     ? null
-                    : new ChatCompletionToolCallResponse.Function(randomAlphaOfLengthOrNull(FIELD_LENGTH), randomAlphaOfLengthOrNull(FIELD_LENGTH))
+                    : new ChatCompletionToolCallResponse.Function(
+                        randomAlphaOfLengthOrNull(FIELD_LENGTH),
+                        randomAlphaOfLengthOrNull(FIELD_LENGTH)
+                    )
             );
             case 3 -> type = randomValueOtherThan(type, () -> randomAlphaOfLengthOrNull(FIELD_LENGTH));
             default -> throw new AssertionError("Illegal randomisation branch");
@@ -71,7 +77,12 @@ public class ChatCompletionToolCallResponseTests extends AbstractBWCWireSerializ
     }
 
     public void testToXContentChunked_WithFunction() throws IOException {
-        var toolCall = new ChatCompletionToolCallResponse(0, "call_abc", new ChatCompletionToolCallResponse.Function("{}", "get_weather"), "function");
+        var toolCall = new ChatCompletionToolCallResponse(
+            0,
+            "call_abc",
+            new ChatCompletionToolCallResponse.Function("{}", "get_weather"),
+            "function"
+        );
 
         assertThat(toXContent(toolCall), is(XContentHelper.stripWhitespace("""
             {

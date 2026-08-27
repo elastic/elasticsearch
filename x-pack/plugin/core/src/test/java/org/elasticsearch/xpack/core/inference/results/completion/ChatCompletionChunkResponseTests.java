@@ -125,7 +125,12 @@ public class ChatCompletionChunkResponseTests extends AbstractBWCWireSerializati
                         null,
                         "assistant",
                         List.of(
-                            new ChatCompletionToolCallResponse(0, "call_abc", new ChatCompletionToolCallResponse.Function("{}", "get_weather"), "function")
+                            new ChatCompletionToolCallResponse(
+                                0,
+                                "call_abc",
+                                new ChatCompletionToolCallResponse.Function("{}", "get_weather"),
+                                "function"
+                            )
                         )
                     ),
                     "tool_calls",

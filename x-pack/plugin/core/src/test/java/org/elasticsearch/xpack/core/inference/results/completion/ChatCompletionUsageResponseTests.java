@@ -91,7 +91,9 @@ public class ChatCompletionUsageResponseTests extends AbstractBWCWireSerializati
             case 2 -> totalTokens = randomValueOtherThan(totalTokens, () -> randomInt(100));
             case 3 -> promptTokensDetails = randomValueOtherThan(
                 promptTokensDetails,
-                () -> randomBoolean() ? null : new ChatCompletionUsageResponse.PromptTokensDetails(randomNonNegativeInt(), randomNonNegativeInt())
+                () -> randomBoolean()
+                    ? null
+                    : new ChatCompletionUsageResponse.PromptTokensDetails(randomNonNegativeInt(), randomNonNegativeInt())
             );
             case 4 -> completionTokenDetails = randomValueOtherThan(
                 completionTokenDetails,
@@ -141,7 +143,13 @@ public class ChatCompletionUsageResponseTests extends AbstractBWCWireSerializati
 
     public void testToXContentChunked_NullReasoningTokens_CompletionTokenDetailsOmitted() throws IOException {
         // completionTokenDetails is only emitted when reasoningTokens is non-null
-        var usage = new ChatCompletionUsageResponse(12, 9, 21, null, new ChatCompletionUsageResponse.CompletionTokenDetails((Integer) null));
+        var usage = new ChatCompletionUsageResponse(
+            12,
+            9,
+            21,
+            null,
+            new ChatCompletionUsageResponse.CompletionTokenDetails((Integer) null)
+        );
 
         assertThat(toXContent(usage), is(XContentHelper.stripWhitespace("""
             {

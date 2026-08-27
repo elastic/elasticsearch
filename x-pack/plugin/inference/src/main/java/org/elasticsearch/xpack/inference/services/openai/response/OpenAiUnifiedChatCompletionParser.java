@@ -173,7 +173,10 @@ public final class OpenAiUnifiedChatCompletionParser {
     }
 
     @SuppressWarnings("unchecked")
-    private static ConstructingObjectParser<ChatCompletionChunkResponse, Void> buildRootParser(String choiceContentField, boolean indexRequired) {
+    private static ConstructingObjectParser<ChatCompletionChunkResponse, Void> buildRootParser(
+        String choiceContentField,
+        boolean indexRequired
+    ) {
         var choiceParser = buildChoiceParser(choiceContentField, buildMessageParser(buildToolCallParser(indexRequired), indexRequired));
         var parser = new ConstructingObjectParser<ChatCompletionChunkResponse, Void>(
             "chat_completion_chunk",

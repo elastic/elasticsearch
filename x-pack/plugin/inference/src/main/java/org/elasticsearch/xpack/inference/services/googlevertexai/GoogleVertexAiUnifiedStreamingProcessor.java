@@ -168,7 +168,13 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
                     ? Collections.emptyList()
                     : candidates.stream().map(GoogleVertexAiChatCompletionChunkResponseParser::candidateToChoice).toList();
 
-                return new ChatCompletionChunkResponse(responseId, choices, modelversion, CHAT_COMPLETION_CHUNK, usageMetadataToChunk(usage));
+                return new ChatCompletionChunkResponse(
+                    responseId,
+                    choices,
+                    modelversion,
+                    CHAT_COMPLETION_CHUNK,
+                    usageMetadataToChunk(usage)
+                );
             }
         );
 

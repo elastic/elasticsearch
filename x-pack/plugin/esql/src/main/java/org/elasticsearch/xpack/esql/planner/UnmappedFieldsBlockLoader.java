@@ -22,6 +22,8 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,9 +37,9 @@ import java.util.Set;
  * group and not matching any exclude pattern) and hold a value, and re-serialises the surviving
  * key/value pairs as a JSON object. Documents where nothing survives get a null.
  *
- * <p>Dropping the value-less keys here rather than on the coordinator keeps them off the wire entirely, and is what lets the
+ * <p>Pruning the value-less parts here rather than on the coordinator keeps them off the wire entirely, and is what lets the
  * coordinator turn every key it receives into an output column without producing one that is null in every row - see
- * {@link UnmappedFields#carriesValue} and {@code ExpandUnmappedFieldsPostProcessor} (package-private in another package, so it
+ * {@link UnmappedFields#pruned} and {@code ExpandUnmappedFieldsPostProcessor} (package-private in another package, so it
  * cannot be linked from here).
  *
  * <p>Field-level security needs no handling here: it strips denied fields from the {@code _source} this reads, so they never
@@ -117,9 +119,12 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
                     json.startObject();
                     boolean keep = false;
                     for (Map.Entry<String, Object> entry : sourceMap.entrySet()) {
-                        if (pattern.matches(entry.getKey()) && carriesValue(entry.getValue())) {
-                            keep = true;
-                            json.field(entry.getKey(), entry.getValue());
+                        if (pattern.matches(entry.getKey())) {
+                            Object pruned = pruned(entry.getValue());
+                            if (pruned != null) {
+                                keep = true;
+                                json.field(entry.getKey(), pruned);
+                            }
                         }
                     }
                     json.endObject();
@@ -136,38 +141,74 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
         }
 
         /**
-         * Whether a {@code _source} value says anything about the field it sits under. {@code null}, {@code []}, {@code {}} and any
-         * nesting of those - {@code [null]}, {@code [{"foo":null},{"bar":[]}]}, {@code {"baz":[null],"inga":{}}} - do not: a document
-         * writing one of them tells us as little about the field as a document omitting it altogether, and Elasticsearch indexes
-         * nothing for either, not even a leaf field inside the object.
+         * Strips everything out of a {@code _source} value that says nothing about the field it sits under, returning {@code null} if
+         * that leaves nothing at all.
          * <p>
-         * Shipping such a value to the coordinator would only cost bytes and a parse to arrive at the same {@code null} - and, worse,
-         * would earn the field a whole output column that is {@code null} in every row, which
-         * {@code ExpandUnmappedFieldsPostProcessor#assertNoAllNullExpandedColumn} asserts against.
+         * What says nothing is {@code null}, {@code []}, {@code {}} and any nesting of those - {@code [null]},
+         * {@code [{"foo":null},{"bar":[]}]}, {@code {"baz":[null],"inga":{}}}. A document writing one of them tells us as little about
+         * the field as a document omitting it altogether, and Elasticsearch indexes nothing for either, not even a leaf field inside
+         * the object. Two reasons to drop them here:
+         * <ul>
+         *     <li>A value that prunes away entirely would cost bytes on the wire and a parse on the coordinator only to arrive at the
+         *     same {@code null} - and, worse, would earn its field a whole output column that is {@code null} in every row, which
+         *     {@code ExpandUnmappedFieldsPostProcessor#assertNoAllNullExpandedColumn} asserts against.</li>
+         *     <li>A {@code null} left inside an array would reach the user as a literal {@code "null"} in that array. Were the field
+         *     mapped, the array would have become a multi-value, and multi-values never contain nulls.</li>
+         * </ul>
+         * Containers are rebuilt only where something was actually dropped, so the common case - a {@code _source} with nothing nully
+         * in it - allocates nothing and hands back the very objects it was given.
          */
-        private static boolean carriesValue(Object value) {
+        private static Object pruned(Object value) {
             if (value == null) {
-                return false;
+                return null;
             }
             if (value instanceof List<?> values) {
-                for (Object element : values) {
-                    if (carriesValue(element)) {
-                        return true;
+                List<Object> kept = null;
+                for (int i = 0; i < values.size(); i++) {
+                    Object element = values.get(i);
+                    Object prunedElement = pruned(element);
+                    if (kept == null) {
+                        // A null element always changes things - it is about to be dropped - so identity is only telling for the rest.
+                        if (element != null && prunedElement == element) {
+                            continue;
+                        }
+                        // First element that changed: everything before it survived untouched, so copy that much and go on from here.
+                        kept = new ArrayList<>(values.size());
+                        kept.addAll(values.subList(0, i));
+                    }
+                    if (prunedElement != null) {
+                        kept.add(prunedElement);
                     }
                 }
-                return false;
+                if (kept == null) {
+                    return values.isEmpty() ? null : values;
+                }
+                return kept.isEmpty() ? null : kept;
             }
             // Objects are not expanded into columns of their own, but a nully one still says nothing about the field it sits under, so
-            // it must not keep that field's column alive either.
+            // it must neither keep that field's column alive nor show up in what the field renders as.
             if (value instanceof Map<?, ?> map) {
-                for (Object element : map.values()) {
-                    if (carriesValue(element)) {
-                        return true;
+                Map<Object, Object> kept = null;
+                for (Map.Entry<?, ?> entry : map.entrySet()) {
+                    Object prunedValue = pruned(entry.getValue());
+                    if (kept == null) {
+                        if (entry.getValue() != null && prunedValue == entry.getValue()) {
+                            continue;
+                        }
+                        kept = new LinkedHashMap<>(map);
+                    }
+                    if (prunedValue == null) {
+                        kept.remove(entry.getKey());
+                    } else {
+                        kept.put(entry.getKey(), prunedValue);
                     }
                 }
-                return false;
+                if (kept == null) {
+                    return map.isEmpty() ? null : map;
+                }
+                return kept.isEmpty() ? null : kept;
             }
-            return true;
+            return value;
         }
 
         @Override

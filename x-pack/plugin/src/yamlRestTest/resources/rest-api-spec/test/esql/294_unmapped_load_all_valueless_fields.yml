@@ -41,6 +41,16 @@ setup:
               id:
                 type: keyword
 
+  - do:
+      indices.create:
+        index: load-all-array-nulls
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+
   # Every way a document can mention specific_unmapped_field without saying anything about it, plus one document that omits it.
   - do:
       bulk:
@@ -88,6 +98,16 @@ setup:
           - { "id": "2", "nully_object": { "baz": [ null ], "inga": { } } }
           - { "index": { } }
           - { "id": "3", "object_with_a_value": { "baz": "world" } }
+
+  - do:
+      bulk:
+        index: load-all-array-nulls
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "id": "1", "tags": [ null, "web", null ] }
+          - { "index": { } }
+          - { "id": "2", "tags": [ "web", "api" ] }
 
 ---
 'valueless unmapped field expands into no column':
@@ -165,3 +185,18 @@ setup:
   - match: { columns.1.name: object_with_a_value }
   - match: { columns.1.type: keyword }
   - length: { values: 3 }
+
+---
+'nulls are stripped from an array that is kept':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load_all"; FROM load-all-array-nulls | SORT id'
+  - length: { columns: 2 }
+  - match: { columns.1.name: tags }
+  # An array still renders as one stringified keyword rather than a multi-value - that is the arraysGap in unmapped-load-all.csv-spec.
+  # The point here is that the nulls document 1 wrote are gone, so it reads exactly as if it had never carried them.
+  - match: { values.0: [ "1", "[web]" ] }
+  - match: { values.1: [ "2", "[web, api]" ] }

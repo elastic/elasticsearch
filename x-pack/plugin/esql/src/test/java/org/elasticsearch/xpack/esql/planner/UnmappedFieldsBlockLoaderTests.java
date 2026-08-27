@@ -146,13 +146,14 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
         assertMap(filtered, matchesMap().entry("hobby", "chess"));
     }
 
-    /** An object with anything at all in it is kept, since the coordinator has a value to render for the field it sits under. */
-    public void testSourceObjectWithAValueIsKept() throws IOException {
+    /** An object with anything at all in it is kept, but only the parts of it that say something survive. */
+    public void testSourceObjectWithAValueKeepsOnlyThatValue() throws IOException {
         Map<String, Object> nested = new HashMap<>();
         nested.put("baz", "world");
         nested.put("empty", List.of());
+        nested.put("null_leaf", null);
         Map<String, Object> filtered = load(UnmappedFieldsPattern.ALL, Map.of("extra", nested));
-        assertMap(filtered, matchesMap().entry("extra", matchesMap().entry("baz", "world").entry("empty", List.of())));
+        assertMap(filtered, matchesMap().entry("extra", matchesMap().entry("baz", "world")));
     }
 
     public void testOnlyValuelessSourceValuesEmitsNull() throws IOException {
@@ -163,10 +164,33 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
         assertThat(load(UnmappedFieldsPattern.ALL, source), nullValue());
     }
 
-    /** Only arrays that bottom out in nothing but nulls are valueless; one real element makes the whole array worth keeping. */
-    public void testArrayWithAValueIsKept() throws IOException {
-        Map<String, Object> filtered = load(UnmappedFieldsPattern.ALL, Map.of("tags", asList(null, "a")));
-        assertMap(filtered, matchesMap().entry("tags", asList(null, "a")));
+    /**
+     * One real element makes an array worth keeping, but the nulls around it are not: were the field mapped, the array would have
+     * become a multi-value, and multi-values never contain nulls.
+     */
+    public void testNullsAreStrippedFromKeptArrays() throws IOException {
+        Map<String, Object> filtered = load(UnmappedFieldsPattern.ALL, Map.of("tags", asList(null, "a", null, "b")));
+        assertMap(filtered, matchesMap().entry("tags", List.of("a", "b")));
+    }
+
+    public void testNullsAreStrippedFromNestedArraysAndObjects() throws IOException {
+        Map<String, Object> filtered = load(
+            UnmappedFieldsPattern.ALL,
+            Map.of("tags", asList(null, asList("b", null), List.of(), Map.of("keep", "me", "drop", List.of())))
+        );
+        assertMap(filtered, matchesMap().entry("tags", List.of(List.of("b"), Map.of("keep", "me"))));
+    }
+
+    /** Nothing to prune means nothing to rebuild: the loader hands the value straight through, untouched. */
+    public void testValuesWithoutNullsPassThroughUnchanged() throws IOException {
+        Map<String, Object> filtered = load(
+            UnmappedFieldsPattern.ALL,
+            Map.of("tags", List.of("a", "b"), "address", Map.of("city", "Berlin", "zips", List.of("10115")))
+        );
+        assertMap(
+            filtered,
+            matchesMap().entry("tags", List.of("a", "b")).entry("address", Map.of("city", "Berlin", "zips", List.of("10115")))
+        );
     }
 
     public void testReaderToStringIsDistinctFromLoader() throws IOException {

@@ -55,7 +55,9 @@ public class AuditUtil {
                     );
                 }
                 return json;
-            } catch (IOException ioe) {
+            } catch (ElasticsearchStatusException e) {
+                throw e;
+            } catch (Exception e) {
                 return "Invalid Format: " + content.utf8ToString();
             }
         }

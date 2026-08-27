@@ -13,6 +13,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.columnar.ColumnarFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -140,6 +141,44 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
             final Map<String, Object> plain = client().prepareGet(withoutCodec, Integer.toString(i)).get().getSourceAsMap();
             assertEquals(arrays.get(i), plain.get("kw"), codec.get("kw"));
             assertEquals(arrays.get(i) + " field presence", plain.containsKey("kw"), codec.containsKey("kw"));
+        }
+    }
+
+    /**
+     * A {@code multi_value: false} field is stored by the codec like any other, but it records no {@code .offsets} sidecar and so is not
+     * array-ordered. It still writes a payload, so every reader of it has to decode one — this pins that against the same field with the
+     * codec off.
+     */
+    public void testSingleValuedFieldRendersAsItDoesWithoutTheCodec() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
+
+        final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        final String mapping = """
+            {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword","doc_values":{"multi_value":false}}}}""";
+        final List<String> values = List.of("\"solo\"", "\"\"", "null");
+
+        final String withCodec = INDEX + "-sv-codec";
+        final String withoutCodec = INDEX + "-sv-no-codec";
+        for (boolean codecEnabled : new boolean[] { true, false }) {
+            final String index = codecEnabled ? withCodec : withoutCodec;
+            indicesAdmin().prepareCreate(index).setSettings(columnarSettings(mode, codecEnabled)).setMapping(mapping).get();
+            // Indexed in bulk so the columnar batch-parse path gets a chance at these documents, not only the row path.
+            final BulkRequestBuilder bulk = client().prepareBulk();
+            for (int i = 0; i < values.size(); i++) {
+                bulk.add(
+                    prepareIndex(index).setId(Integer.toString(i))
+                        .setSource("{\"@timestamp\":\"2024-01-01T00:00:0" + i + "Z\",\"kw\":" + values.get(i) + "}", XContentType.JSON)
+                );
+            }
+            final var response = bulk.get();
+            assertFalse(response.buildFailureMessage(), response.hasFailures());
+            indicesAdmin().prepareRefresh(index).get();
+        }
+
+        for (int i = 0; i < values.size(); i++) {
+            final Map<String, Object> codec = client().prepareGet(withCodec, Integer.toString(i)).get().getSourceAsMap();
+            final Map<String, Object> plain = client().prepareGet(withoutCodec, Integer.toString(i)).get().getSourceAsMap();
+            assertEquals(values.get(i), plain.get("kw"), codec.get("kw"));
         }
     }
 

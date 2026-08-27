@@ -17,6 +17,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LongValues;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
 import org.elasticsearch.columnar.substrate.ChunkIndexMetadata;
@@ -142,10 +143,24 @@ public final class ValueStream {
         ) throws IOException {
             this.valuesPerBlock = valuesPerBlock;
             this.data = data;
-            this.chunks = new ChunkedBytesWriter(codec, targetChunkBytes, dir, ctx, prefix, data);
             this.pending = new int[valuesPerBlock];
-            final long blocks = (numValues + valuesPerBlock - 1) / valuesPerBlock;
-            this.offsets = new MonotonicWriter(dir, ctx, prefix, blocks + 1L);
+            // Both hold a temporary file of their own. Whichever opens first is closed here if the one after
+            // it fails, since a writer that never finished being built is one nothing else can close.
+            ChunkedBytesWriter chunks = null;
+            MonotonicWriter offsets = null;
+            boolean success = false;
+            try {
+                chunks = new ChunkedBytesWriter(codec, targetChunkBytes, dir, ctx, prefix, data);
+                final long blocks = (numValues + valuesPerBlock - 1) / valuesPerBlock;
+                offsets = new MonotonicWriter(dir, ctx, prefix, blocks + 1L);
+                success = true;
+            } finally {
+                if (success == false) {
+                    IOUtils.closeWhileHandlingException(chunks, offsets);
+                }
+            }
+            this.chunks = chunks;
+            this.offsets = offsets;
         }
 
         public void add(BytesRef value) throws IOException {

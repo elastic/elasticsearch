@@ -273,57 +273,58 @@ public final class StringColumnWriter {
             final ValueStream.Metadata escapeStream;
             final MonotonicWriter.Table escapeRanks;
             try (MonotonicWriter ranks = new MonotonicWriter(directory, context, data.getName(), escapeRankEntries(numValues))) {
-                try (
-                    IndexOutput ordinalTemp = directory.createTempOutput(data.getName(), "columnar-ordinals", context);
-                    IndexOutput escapeTemp = directory.createTempOutput(data.getName(), "columnar-escapes", context)
-                ) {
+                // Opened one at a time, each named before the next is asked for: a temporary file that the
+                // one after it fails to open is still a file to delete, and only its name says which.
+                try (IndexOutput ordinalTemp = directory.createTempOutput(data.getName(), "columnar-ordinals", context)) {
                     ordinalTempName = ordinalTemp.getName();
-                    escapeTempName = escapeTemp.getName();
-                    final StringColumnValues values = cursors.get();
-                    // As in the survey: a column in term order repeats each value, so the ordinal is almost
-                    // always the one before it. An escaped value still has its bytes staged individually.
-                    final BytesRefBuilder previous = new BytesRefBuilder();
-                    int previousOrdinal = Vocabulary.DROPPED;
-                    boolean hasPrevious = false;
-                    long index = 0;
-                    for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                        for (int i = 0, count = values.valueCount(); i < count; i++) {
-                            if (index % ESCAPE_RANK_BLOCK == 0) {
-                                ranks.add(escapes);
-                            }
-                            values.nextValue();
-                            // A cursor that already knows the ordinal saves resolving the value's bytes
-                            // only to look them up again, which is most of what merging such a column costs.
-                            final int mapped = values.ordinal();
-                            if (mapped >= 0) {
-                                ordinalTemp.writeVInt(mapped);
+                    try (IndexOutput escapeTemp = directory.createTempOutput(data.getName(), "columnar-escapes", context)) {
+                        escapeTempName = escapeTemp.getName();
+                        final StringColumnValues values = cursors.get();
+                        // As in the survey: a column in term order repeats each value, so the ordinal is almost
+                        // always the one before it. An escaped value still has its bytes staged individually.
+                        final BytesRefBuilder previous = new BytesRefBuilder();
+                        int previousOrdinal = Vocabulary.DROPPED;
+                        boolean hasPrevious = false;
+                        long index = 0;
+                        for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                            for (int i = 0, count = values.valueCount(); i < count; i++) {
+                                if (index % ESCAPE_RANK_BLOCK == 0) {
+                                    ranks.add(escapes);
+                                }
+                                values.nextValue();
+                                // A cursor that already knows the ordinal saves resolving the value's bytes
+                                // only to look them up again, which is most of what merging such a column costs.
+                                final int mapped = values.ordinal();
+                                if (mapped >= 0) {
+                                    ordinalTemp.writeVInt(mapped);
+                                    index++;
+                                    continue;
+                                }
+                                final BytesRef value = values.value();
+                                final int ordinal;
+                                if (hasPrevious && previous.get().bytesEquals(value)) {
+                                    ordinal = previousOrdinal;
+                                } else {
+                                    final int id = vocabulary.terms().find(value);
+                                    ordinal = id >= 0 ? vocabulary.ordinalOfId()[id] : Vocabulary.DROPPED;
+                                    previous.copyBytes(value);
+                                    previousOrdinal = ordinal;
+                                    hasPrevious = true;
+                                }
+                                if (ordinal == Vocabulary.DROPPED) {
+                                    ordinalTemp.writeVInt(dictionarySize);
+                                    escapeTemp.writeVInt(value.length);
+                                    escapeTemp.writeBytes(value.bytes, value.offset, value.length);
+                                    escapes++;
+                                } else {
+                                    ordinalTemp.writeVInt(ordinal);
+                                }
                                 index++;
-                                continue;
                             }
-                            final BytesRef value = values.value();
-                            final int ordinal;
-                            if (hasPrevious && previous.get().bytesEquals(value)) {
-                                ordinal = previousOrdinal;
-                            } else {
-                                final int id = vocabulary.terms().find(value);
-                                ordinal = id >= 0 ? vocabulary.ordinalOfId()[id] : Vocabulary.DROPPED;
-                                previous.copyBytes(value);
-                                previousOrdinal = ordinal;
-                                hasPrevious = true;
-                            }
-                            if (ordinal == Vocabulary.DROPPED) {
-                                ordinalTemp.writeVInt(dictionarySize);
-                                escapeTemp.writeVInt(value.length);
-                                escapeTemp.writeBytes(value.bytes, value.offset, value.length);
-                                escapes++;
-                            } else {
-                                ordinalTemp.writeVInt(ordinal);
-                            }
-                            index++;
                         }
+                        // One past the end, so the escapes in the last block can be counted like any other.
+                        ranks.add(escapes);
                     }
-                    // One past the end, so the escapes in the last block can be counted like any other.
-                    ranks.add(escapes);
                 }
                 escapeStream = replayEscapes(
                     directory,

@@ -12,7 +12,6 @@ package org.elasticsearch.painless;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.painless.api.Augmentation;
 
 import java.util.HashMap;
@@ -60,18 +59,6 @@ public final class CompilerSettings {
         "limit",
         key -> new Setting<>(key, MAX_ALLOCATION_BYTES_DISABLED.getStringRep(), s -> parseMaxAllocationBytes(s, key), Property.NodeScope)
     );
-
-    /**
-     * Enables per-execution allocation metrics, off by default. A system property rather than a {@link Setting} so it can
-     * be withdrawn later: a released {@code NodeScope} setting cannot be, since a node that no longer registers the key
-     * refuses to start with it in {@code elasticsearch.yml}. Serverless sets it; stateful leaves it off.
-     */
-    public static final String ALLOCATION_METRICS_ENABLED_PROPERTY = "es.painless.allocation_metrics.enabled";
-
-    /** Anything but {@code true} or {@code false} is an error. */
-    public static boolean readAllocationMetricsEnabledProperty() {
-        return Booleans.parseBoolean(System.getProperty(ALLOCATION_METRICS_ENABLED_PROPERTY), false);
-    }
 
     /** Accepts the {@code -1b} sentinel or {@code [1b, 1gb]}; rejects {@code 0b} and (via {@link ByteSizeValue}) other negatives. */
     static ByteSizeValue parseMaxAllocationBytes(String value, String key) {

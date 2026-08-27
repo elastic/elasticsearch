@@ -34,7 +34,7 @@ import java.util.Map;
 public class AllocationMetricsRestIT extends ESRestTestCase {
 
     /**
-     * Mirrors {@code CompilerSettings.ALLOCATION_METRICS_ENABLED_PROPERTY}. A REST test talks to the cluster over HTTP and
+     * Mirrors {@code PainlessPlugin.ALLOCATION_METRICS_ENABLED_PROPERTY}. A REST test talks to the cluster over HTTP and
      * has none of the plugin's classes on its classpath, so the name is repeated rather than referenced. If the two drift,
      * these tests still pass, but with metrics off — which is to say they stop testing anything.
      */

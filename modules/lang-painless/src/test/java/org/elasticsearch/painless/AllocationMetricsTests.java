@@ -9,13 +9,17 @@
 
 package org.elasticsearch.painless;
 
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.spi.PainlessTestScript;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.test.MockLog;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Per-execution allocation metrics: one count per execution in the bucket its total falls in, no enforcement, and
@@ -137,6 +141,47 @@ public class AllocationMetricsTests extends AllocationTestCase {
 
         expectThrows(ScriptException.class, script::execute);
         assertEquals(0, totalCount(registry));
+    }
+
+    /**
+     * A script compiled before telemetry exists records nothing, and goes on recording nothing until it is recompiled,
+     * because its recorder is baked into the generated class. Nothing in the tree compiles that early, but a plugin
+     * compiling in its own {@code createComponents} ahead of Painless would, so the case warns rather than passing quietly.
+     */
+    public void testCompilingBeforeMetricsExistWarns() {
+        Settings settings = Settings.builder().put(LIMIT_KEY, MAX_ALLOCATION_BYTES_DISABLED).build();
+        // Recording is on, but nothing has been installed to record into yet.
+        PainlessScriptEngine engine = new PainlessScriptEngine(settings, scriptContexts(), () -> null, true);
+
+        MockLog.assertThatLogger(
+            () -> engine.compile("early", LARGE, PainlessTestScript.CONTEXT, Map.of()),
+            PainlessScriptEngine.class,
+            new MockLog.SeenEventExpectation(
+                "compiled before metrics",
+                PainlessScriptEngine.class.getCanonicalName(),
+                Level.WARN,
+                "script [early] of context [" + PainlessTestScript.CONTEXT.name + "] compiled before allocation metrics *"
+            )
+        );
+    }
+
+    /** The same compile with metrics installed must not warn. */
+    public void testCompilingWithMetricsDoesNotWarn() {
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        Settings settings = Settings.builder().put(LIMIT_KEY, MAX_ALLOCATION_BYTES_DISABLED).build();
+        AllocationMetrics metrics = recordingMetrics(registry);
+        PainlessScriptEngine engine = new PainlessScriptEngine(settings, scriptContexts(), () -> metrics, true);
+
+        MockLog.assertThatLogger(
+            () -> engine.compile("ready", LARGE, PainlessTestScript.CONTEXT, Map.of()),
+            PainlessScriptEngine.class,
+            new MockLog.UnseenEventExpectation(
+                "no warning",
+                PainlessScriptEngine.class.getCanonicalName(),
+                Level.WARN,
+                "*compiled before allocation metrics*"
+            )
+        );
     }
 
     public void testBucketIndexBoundaries() {

@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.painless.action.PainlessContextAction;
 import org.elasticsearch.painless.action.PainlessExecuteAction;
@@ -56,8 +57,18 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
      */
     private final SetOnce<AllocationMetrics> allocationMetrics = new SetOnce<>();
 
-    /** Read at construction: whether to record is settled long before there is anything to record into. */
-    private final boolean allocationMetricsEnabled = CompilerSettings.readAllocationMetricsEnabledProperty();
+    /**
+     * Enables per-execution allocation metrics, off by default. A system property rather than a {@link Setting} so it can be
+     * withdrawn later: a released {@code NodeScope} setting cannot be, since a node that no longer registers the key refuses
+     * to start with it in {@code elasticsearch.yml}. Serverless sets it; stateful leaves it off.
+     */
+    public static final String ALLOCATION_METRICS_ENABLED_PROPERTY = "es.painless.allocation_metrics.enabled";
+
+    /**
+     * Read at construction: whether to record is settled long before there is anything to record into. Anything but
+     * {@code true} or {@code false} is an error.
+     */
+    private final boolean allocationMetricsEnabled = Booleans.parseBoolean(System.getProperty(ALLOCATION_METRICS_ENABLED_PROPERTY), false);
 
     public static List<Whitelist> baseWhiteList() {
         return List.of(

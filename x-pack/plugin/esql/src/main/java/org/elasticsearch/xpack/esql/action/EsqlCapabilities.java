@@ -3726,7 +3726,7 @@ public class EsqlCapabilities {
          */
         FIX_TS_STATS_ALIAS_GROUPING_SHADOW,
 
-        /*
+        /**
          * CHANGE_POINT now uses EventDetector (multiple events, log-space p-values), which can report
          * a change point at a slightly different bucket and with different p-values than the previous
          * implementation.
@@ -3743,6 +3743,7 @@ public class EsqlCapabilities {
          * See <a href="https://github.com/elastic/elasticsearch/pull/155923">#155923</a>.
          */
         FIX_PARTIAL_PREFIX_COMPOUND_TOPN_PUSHDOWN,
+
         /**
          * Time-series windows are dispatched per aggregate: the time bucket is pure emission cadence and each
          * aggregate independently decomposes its window as {@code W = k * B + r}, aggregating {@code k} full buckets
@@ -3751,6 +3752,12 @@ public class EsqlCapabilities {
          * windows smaller than the time bucket with non-multiple windows in the same aggregation.
          */
         PER_AGGREGATE_WINDOWS,
+
+        /**
+         * Don't approximate queries of the form {@code STATS COUNT() BY BUCKET(date, ...)},
+         * because they are efficiently pushed down to Lucene.
+         */
+        APPROXIMATION_FIX_COUNT_HISTOGRAM,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

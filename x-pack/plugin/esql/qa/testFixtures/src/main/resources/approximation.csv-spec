@@ -817,6 +817,7 @@ c:long  | b:date                   | _approximation_confidence_interval(c):long 
 
 Count by date bucket on large data
 required_capability: approximation_v7
+required_capability: approximation_fix_count_histogram
 request_stored: skip
 
 SET approximation = {"rows":10000}\;

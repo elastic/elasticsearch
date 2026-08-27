@@ -157,9 +157,20 @@ public class GlobMatcherTests extends ESTestCase {
         assertFalse(new GlobMatcher("a[]]b").matches("ab"));
     }
 
-    public void testOverWideBraceExpansionIsRejected() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new GlobMatcher("f{1..99999}.csv"));
-        assertTrue(e.getMessage(), e.getMessage().contains("more than"));
+    /**
+     * A brace group can be undexpandable for more than one reason, so the message names both rather than reporting
+     * a cap that was not what actually failed.
+     */
+    public void testUnexpandableBraceGroupIsRejected() {
+        IllegalArgumentException tooWide = expectThrows(IllegalArgumentException.class, () -> new GlobMatcher("f{1..99999}.csv"));
+        assertTrue(tooWide.getMessage(), tooWide.getMessage().contains("cannot be expanded"));
+        assertTrue(tooWide.getMessage(), tooWide.getMessage().contains("at most 1024"));
+
+        IllegalArgumentException unparseable = expectThrows(
+            IllegalArgumentException.class,
+            () -> new GlobMatcher("f{99999999999999999999..2}.csv")
+        );
+        assertTrue(unparseable.getMessage(), unparseable.getMessage().contains("parseable endpoints"));
     }
 
     /** Degenerate inputs: the empty pattern, bare separators, and repeated separators. */

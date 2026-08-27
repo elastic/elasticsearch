@@ -415,7 +415,16 @@ final class GlobMatcher {
         String[] spellings = BraceExpander.expandBraceContent(body, MAX_BRACE_ALTERNATIVES);
         if (spellings == null) {
             throw new IllegalArgumentException(
-                "Invalid glob pattern [" + whole + "]: brace group expands to more than " + MAX_BRACE_ALTERNATIVES + " alternatives"
+                // expandBraceContent declines for more than one reason: an over-wide range, but also endpoints
+                // that are not parseable as numbers, such as one overflowing a long. Naming only the cap would be
+                // the wrong message for those.
+                "Invalid glob pattern ["
+                    + whole
+                    + "]: brace group ["
+                    + body
+                    + "] cannot be expanded; a numeric range needs parseable endpoints and at most "
+                    + MAX_BRACE_ALTERNATIVES
+                    + " alternatives"
             );
         }
         List<List<Token>> alternatives = new ArrayList<>(spellings.length);

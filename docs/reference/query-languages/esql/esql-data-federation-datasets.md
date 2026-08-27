@@ -73,7 +73,7 @@ Click **Add dataset** to open a flyout where you define the dataset:
 - **Data source**: the connected data source to read through.
 - **Name**: a unique name for use in queries. Names must be lowercase and cannot begin with `-`, `_`, or `+`. A dataset cannot share a name with any existing index, data stream, alias, or view.
 - **Description**: an optional description.
-- **Resource**: the URI and glob pattern that selects the files to read.
+- **Resource**: the URI and glob pattern that selects the files to read. Refer to [resource patterns](esql-data-federation-patterns.md) for the pattern language.
 - **Format**: the file format. This selection is required in the {{kib}} UI. The API can omit `settings.format` to auto-detect it from the file extension. Refer to [supported file formats](#supported-file-formats).
 
 To configure how the format is read, expand **Advanced settings**. Refer to [dataset settings](#dataset-settings).
@@ -272,8 +272,7 @@ The following settings apply to all file-based data sources:
 | `error_mode` | `fail_fast` | How malformed rows are handled. Valid values: `"fail_fast"`, `"skip_row"`, `"null_field"`. For Parquet, `skip_row` fills affected columns with null instead of skipping the entire row. For CSV, TSV, and NDJSON, `null_field` fills only individual value failures with null. Rows whose structure cannot be parsed (for example, an unparsable JSON line or a malformed CSV row) are still dropped. |
 | `max_errors` | unbounded | Maximum malformed rows allowed before the query fails. Ignored when `error_mode` is `fail_fast`. |
 | `max_error_ratio` | `0.0` | Fraction of malformed rows allowed (0.0–1.0). Ignored when `error_mode` is `fail_fast`. |
-| `file_exclusions` {applies_to}`stack: experimental 9.6+` | `["_*", ".*"]` | Globs naming objects to leave out of the listing. Each entry matches the **name of a single path segment**, so `_*` skips both a `_SUCCESS` file and everything under a `_temporary/` directory. Refer to [excluding non-data objects](#excluding-non-data-objects). |
-| `file_inclusions` {applies_to}`stack: experimental 9.6+` | `["_*=*"]` | Globs that override `file_exclusions`. A segment matching one of these is kept even when an exclusion also matches it. The default keeps Hive partition directories such as `_dept=alpha/`. |
+| `file_exclusions` {applies_to}`stack: experimental 9.6+` | `["**/_*", "**/.*", "**/_temporary/**", "**/_delta_log/**"]` | Patterns naming objects to drop from wildcard discovery, written in the same [pattern language](esql-data-federation-patterns.md) as `resource` and matched against the object's path relative to the listing prefix. The default skips file names beginning with `_` or `.` and the contents of `_temporary` and `_delta_log` directories. Refer to [excluding non-data objects](#excluding-non-data-objects). |
 
 ### Excluding non-data objects
 
@@ -285,15 +284,26 @@ Object-store prefixes rarely hold only data. A Spark `_SUCCESS` marker, `.crc` s
 or `_delta_log/` subtree, or a folder placeholder the S3 console created all sit next to the files you want
 to read, and any object no reader can claim fails the whole query.
 
-By default a dataset skips them, following the convention Spark, Hive and Trino use: a path segment beginning
-with `_` or `.` is not data. There is one exception, and it applies to underscores only: a segment starting
-with `_` that also contains an `=` is a Hive partition directory and is kept, so `_dept=alpha/` is read while
-`_SUCCESS` is not. A segment starting with `.` is always skipped, `=` or no `=`, so `.key=value/` is dropped.
+By default a dataset skips them. The default exclusion list is:
 
-That default is expressed as the two settings above, so you can change it.
+```
+["**/_*", "**/.*", "**/_temporary/**", "**/_delta_log/**"]
+```
+
+The first two entries follow the convention Spark, Hive, and Trino use: a file whose name begins with `_` or
+`.` is not data, at any depth. Because `*` never crosses a `/`, these entries match only the last path
+segment. They exclude files by name and cannot touch a directory, so partition directories are never
+affected: `_dept=alpha/part-0.parquet` and `_foo/part-0.parquet` are read under every partition detection
+mode. The last two entries name the two well-known directories whose contents look like data but are not: a
+failed Spark job's leftovers under `_temporary`, and a Delta Lake transaction log under `_delta_log`.
+
+Each entry is an ordinary pattern in the same [pattern language](esql-data-federation-patterns.md) as
+`resource`, matched against the same string: the object's path relative to the resource's listing prefix. An
+object whose relative path matches any entry is dropped from the listing. Setting `file_exclusions` replaces
+the default list entirely.
 
 Note that the `resource` pattern is your first filter: a dataset on `**/*.parquet` never sees a `README.md` at
-all, so there is nothing to exclude. These settings are for objects the `resource` pattern *does* match, most
+all, so there is nothing to exclude. This setting is for objects the `resource` pattern *does* match, most
 often data-shaped files in a directory you do not want read. A retired partition kept alongside the live ones
 is the common case:
 
@@ -303,7 +313,7 @@ access/year=2025/part-0.parquet      <- read
 access/backup_2024/part-0.parquet    <- also matches **/*.parquet, but is not current data
 ```
 
-Restate the default and name the directory:
+Restate the default and add the directory:
 
 ```console
 PUT /_query/dataset/access_logs
@@ -311,24 +321,27 @@ PUT /_query/dataset/access_logs
   "data_source": "prod_s3_logs",
   "resource": "s3://logs-bucket/access/**/*.parquet",
   "settings": {
-    "file_exclusions": ["_*", ".*", "backup_2024"],
-    "file_inclusions": ["_*=*"]
+    "file_exclusions": ["**/_*", "**/.*", "**/_temporary/**", "**/_delta_log/**", "backup_2024/**"]
   }
 }
 ```
 
-To turn name-based exclusion off entirely, set `"file_exclusions": []`. Directory placeholder keys are still
-skipped (see below), so this reads every object the resource pattern matches except those.
+The added entry is matched against paths relative to the listing prefix `s3://logs-bucket/access/`, so
+`backup_2024/**` drops everything under that one directory. To drop directories of that name at any depth,
+write `**/backup_2024/**` instead.
 
-Two rules are worth knowing. Entries match one path-segment name, never a path, so `_temporary` is correct
-and `_temporary/**` is rejected when you register the dataset. And exclusion applies to wildcard discovery
-only. An object you name explicitly in `resource` is always read, because naming it is a request to read it,
-whether the resource carries no wildcard at all or names the object as one segment of a comma-separated
-resource.
+To turn exclusion off entirely, set `"file_exclusions": []`. Directory placeholder keys are still skipped
+(see below), so this reads every object the resource pattern matches except those.
 
-Objects whose key ends in `/` are directory placeholders rather than files — the empty markers an object-store
-console creates for a folder. They are always skipped, and no setting reads them, because a segment name never
-carries its trailing slash and so no glob could name one.
+Two rules are worth knowing. A malformed entry is rejected when you register the dataset, with an error
+naming the [invalid pattern](esql-data-federation-patterns.md#invalid-patterns). And exclusion applies to
+wildcard discovery only. An object you name explicitly in `resource` is always read, because naming it is a
+request to read it, whether the resource carries no wildcard at all, names the object as one entry of a
+comma-separated resource, or names it through a finite brace pattern such as `data/{a,b}.csv`.
+
+Objects whose key ends in `/` are directory placeholders rather than files, the empty markers an object-store
+console creates for a folder. They are always skipped, and no setting reads them, because a pattern segment
+never carries a trailing slash and so no pattern could name one.
 
 ### CSV and TSV settings
 

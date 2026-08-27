@@ -18,10 +18,12 @@ import java.util.Properties;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * The declaration is load-bearing: the whole test set derives from it, so these pin the properties
@@ -271,6 +273,81 @@ public class FixtureDimensionsTests extends ESTestCase {
         FixtureDimensions d = FixtureDimensions.get();
         assertThat(d.directiveValue("datetime_format", "custom"), equalTo("strict_date_optional_time"));
         assertThat(d.directiveValue("error_mode", "skip_row"), equalTo("skip_row"));
+    }
+
+    /** The baseline has no off-default slot, so it must not render as an empty name. */
+    public void testTheAllDefaultsVectorRendersAsDefaults() {
+        FixtureDimensions d = FixtureDimensions.get();
+        Map<String, String> allDefaults = new LinkedHashMap<>();
+        for (String name : d.names()) {
+            allDefaults.put(name, d.defaultValue(name));
+        }
+        assertThat(d.render(allDefaults), equalTo("defaults"));
+    }
+
+    /** A rendered name lists only what differs, so a failure names the combination rather than the world. */
+    public void testRenderListsOnlyOffDefaultSlots() {
+        FixtureDimensions d = FixtureDimensions.get();
+        Map<String, String> v = new LinkedHashMap<>();
+        for (String name : d.names()) {
+            v.put(name, d.defaultValue(name));
+        }
+        v.put("error_mode", "skip_row");
+        assertThat(d.render(v), equalTo("error_mode=skip_row"));
+    }
+
+    /**
+     * Every vector this returns has to be runnable through the directive seam alone -- that is the whole
+     * claim the method makes. A slot bound to anything else would be silently ignored at injection time
+     * and the test would report a combination it never actually ran.
+     */
+    public void testDirectiveExpressibleVectorsVaryOnlyDirectiveBoundSlots() {
+        FixtureDimensions d = FixtureDimensions.get();
+        List<Map<String, String>> vectors = d.directiveExpressibleVectors("csv");
+        assertThat(vectors, not(empty()));
+        for (Map<String, String> vector : vectors) {
+            assertThat(vector.get("format"), equalTo("csv"));
+            for (Map.Entry<String, String> slot : vector.entrySet()) {
+                if (slot.getKey().equals("format") || slot.getValue().equals(d.defaultValue(slot.getKey()))) {
+                    continue;
+                }
+                assertThat(
+                    "off-default slot [" + slot.getKey() + "] must be expressible as a directive",
+                    d.directiveKey(slot.getKey()),
+                    notNullValue()
+                );
+            }
+        }
+    }
+
+    /** Distinct parameterisations, or the suite would run the same combination twice under two names. */
+    public void testDirectiveExpressibleVectorsAreDistinct() {
+        FixtureDimensions d = FixtureDimensions.get();
+        List<String> names = d.directiveExpressibleVectors("csv").stream().map(d::render).toList();
+        assertThat(names.size(), equalTo(Set.copyOf(names).size()));
+    }
+
+    /** Every vector must survive the round trip through its own name, or the suite runs the wrong thing. */
+    public void testEveryDirectiveExpressibleVectorRoundTripsThroughItsName() {
+        FixtureDimensions d = FixtureDimensions.get();
+        for (Map<String, String> vector : d.directiveExpressibleVectors("csv")) {
+            Map<String, String> back = d.parseRendered(d.render(vector));
+            assertThat(d.directiveSettings(back), equalTo(d.directiveSettings(vector)));
+        }
+    }
+
+    /** A name naming a dimension that no longer exists must fail loudly, not inject nothing. */
+    public void testARenderedNameWithAnUnknownDimensionIsRejected() {
+        FixtureDimensions d = FixtureDimensions.get();
+        Exception e = expectThrows(IllegalArgumentException.class, () -> d.parseRendered("nonesuch=x"));
+        assertThat(e.getMessage(), containsString("nonesuch"));
+    }
+
+    /** Likewise a value the dimension has since dropped. */
+    public void testARenderedNameWithAnUndeclaredValueIsRejected() {
+        FixtureDimensions d = FixtureDimensions.get();
+        Exception e = expectThrows(IllegalArgumentException.class, () -> d.parseRendered("error_mode=explode"));
+        assertThat(e.getMessage(), containsString("explode"));
     }
 
     /** Renders the derived set so a reader can see what the declaration produces without running it. */

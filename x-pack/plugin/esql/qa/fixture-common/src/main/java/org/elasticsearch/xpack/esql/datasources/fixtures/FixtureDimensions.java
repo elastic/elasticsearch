@@ -411,6 +411,88 @@ public final class FixtureDimensions {
     }
 
     /**
+     * A vector's identity: its off-default slots, or {@code defaults} when it has none.
+     *
+     * <p>Stable and short, because it becomes part of a test's name -- a failure has to say which
+     * combination broke without the reader decoding eighteen slots, seventeen of which are the baseline.
+     */
+    public String render(Map<String, String> vector) {
+        StringBuilder out = new StringBuilder();
+        for (String name : names) {
+            String value = vector.get(name);
+            if (value == null || value.equals(defaultValue(name))) {
+                continue;
+            }
+            out.append(out.isEmpty() ? "" : ",").append(name).append('=').append(value);
+        }
+        return out.isEmpty() ? "defaults" : out.toString();
+    }
+
+    /**
+     * The inverse of {@link #render}: the off-default slots a rendered name carries.
+     *
+     * <p>Validated rather than trusted. The name survives a round trip through a test parameter, and a
+     * dimension or value that no longer exists would otherwise inject a setting the reader rejects, or
+     * -- worse -- silently inject nothing and let the case pass as the baseline it is not.
+     */
+    public Map<String, String> parseRendered(String rendered) {
+        Map<String, String> out = new LinkedHashMap<>();
+        if (rendered.equals("defaults")) {
+            return out;
+        }
+        for (String slot : rendered.split(",")) {
+            int eq = slot.indexOf('=');
+            if (eq < 0) {
+                throw new IllegalArgumentException("malformed vector name [" + rendered + "]");
+            }
+            String dimension = slot.substring(0, eq);
+            String value = slot.substring(eq + 1);
+            if (valuesByName.containsKey(dimension) == false) {
+                throw new IllegalArgumentException("vector name [" + rendered + "] names unknown dimension [" + dimension + "]");
+            }
+            if (valuesByName.get(dimension).contains(value) == false) {
+                throw new IllegalArgumentException(
+                    "vector name [" + rendered + "] gives [" + dimension + "] a value it does not declare [" + value + "]"
+                );
+            }
+            out.put(dimension, value);
+        }
+        return out;
+    }
+
+    /**
+     * The vectors for one format that a directive alone can express: every off-default slot binds as a
+     * directive AND declares a constant key.
+     *
+     * <p>This is deliberately a small subset of {@link #vectors()}. A slot bound to a fixture, a cluster
+     * setting, a pragma or a backend needs something built before it can be run, and a derived slot needs
+     * the dataset. Those are not skipped quietly -- they are simply not expressible through this seam, and
+     * naming the seam in the method is what keeps that visible at the call site.
+     */
+    public List<Map<String, String>> directiveExpressibleVectors(String format) {
+        List<Map<String, String>> out = new ArrayList<>();
+        Set<String> rendered = new LinkedHashSet<>();
+        forEachVector(vector -> {
+            if (format.equals(vector.get("format")) == false) {
+                return;
+            }
+            for (Map.Entry<String, String> slot : vector.entrySet()) {
+                String dimension = slot.getKey();
+                if (dimension.equals("format") || slot.getValue().equals(defaultValue(dimension))) {
+                    continue;
+                }
+                if (directiveKeyByName.containsKey(dimension) == false) {
+                    return;
+                }
+            }
+            if (rendered.add(render(vector))) {
+                out.add(Map.copyOf(vector));
+            }
+        });
+        return out;
+    }
+
+    /**
      * Feeds every vector to the consumer without materialising the set.
      *
      * <p>Vectors are a product, so the count grows multiplicatively with the declaration -- eleven

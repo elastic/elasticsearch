@@ -54,6 +54,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.ObjIntConsumer;
 import java.util.zip.GZIPOutputStream;
+import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.notNullValue;
@@ -375,6 +376,14 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
     /** Writes {@code content} to {@code target} through a {@link GZIPOutputStream}. */
     protected static Path writeGzipped(Path target, String content) throws IOException {
         try (OutputStream out = new GZIPOutputStream(Files.newOutputStream(target))) {
+            out.write(content.getBytes(StandardCharsets.UTF_8));
+        }
+        return target;
+    }
+
+    /** Writes {@code content} to {@code target} as a bzip2-compressed file. */
+    protected static Path writeBzip2(Path target, String content) throws IOException {
+        try (OutputStream out = new BZip2CompressorOutputStream(Files.newOutputStream(target))) {
             out.write(content.getBytes(StandardCharsets.UTF_8));
         }
         return target;

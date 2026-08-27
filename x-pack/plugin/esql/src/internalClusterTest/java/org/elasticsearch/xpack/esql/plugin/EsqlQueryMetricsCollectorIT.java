@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.esql.action.AbstractExternalDataSourceIT;
 import org.elasticsearch.xpack.esql.action.EsqlPluginWithEnterpriseOrTrialLicense;
+import org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
@@ -73,7 +74,13 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
 
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
-        return List.of(CsvDataSourcePlugin.class, NdJsonDataSourcePlugin.class, GzipDataSourcePlugin.class, ParquetDataSourcePlugin.class);
+        return List.of(
+            CsvDataSourcePlugin.class,
+            NdJsonDataSourcePlugin.class,
+            GzipDataSourcePlugin.class,
+            Bzip2DataSourcePlugin.class,
+            ParquetDataSourcePlugin.class
+        );
     }
 
     @Override
@@ -189,6 +196,27 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
 
         assertThat("brackets-csv: metrics must be set", lastMetrics, notNullValue());
         assertThat("brackets-csv: read_cpu_nanos > 0", lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS), greaterThan(0L));
+    }
+
+    /**
+     * Bzip2-compressed CSV — exercises the {@code SPLITTABLE_OR_INDEXED_COMPRESSED} dispatch mode, which falls back to
+     * a single-threaded read through {@code CompressionDelegatingFormatReader}. Unlike the gzip/brackets streaming
+     * paths, the producer thread runs the full CSV parse directly, so both {@code read_nanos} and
+     * {@code read_cpu_nanos} are populated from the CSV format reader's own timing regions.
+     */
+    public void testMetricsCollectorBzip2Csv() throws Exception {
+        Path dir = createTempDir();
+        StringBuilder csv = new StringBuilder("emp_no:integer,name:keyword\n");
+        for (int i = 0; i < 100; i++) {
+            csv.append(i).append(",name_").append(i).append('\n');
+        }
+        writeBzip2(dir.resolve("data.csv.bz2"), csv.toString());
+
+        registerDataset("metrics_bzip2_ds", dir.resolve("data.csv.bz2").toUri().toString(), Map.of());
+
+        try (var ignored = run(syncEsqlQueryRequest("FROM metrics_bzip2_ds | LIMIT 200"), TIMEOUT)) {}
+
+        assertReadCpuNanos("bzip2-csv");
     }
 
     /** Parquet file — exercises the Parquet format reader path. */

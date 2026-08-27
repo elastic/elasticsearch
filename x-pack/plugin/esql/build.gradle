@@ -120,6 +120,7 @@ dependencies {
   internalClusterTestImplementation project(':test:fixtures:aws-fixture-utils')
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-compression-libs'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-bzip2'))
+  internalClusterTestImplementation "org.apache.commons:commons-compress:${versions.esql_commons_compress}"
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-gzip'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-http'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-parquet'))

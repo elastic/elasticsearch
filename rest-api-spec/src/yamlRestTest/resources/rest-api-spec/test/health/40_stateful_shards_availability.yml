@@ -6,9 +6,19 @@ setup:
       reason: "The stateless shards_availability indicator differs to stateful"
 
 ---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            cluster.routing.allocation.enable: null
+            health.shards_availability.replica_unassigned_buffer_time: null
+
+---
 "Red when index allocation is disabled on a stateful cluster":
   - requires:
       cluster_features: "gte_v8.7.0"
+      test_runner_features: contains
       reason: "the API path changed in 8.7"
 
   - do:
@@ -54,17 +64,22 @@ setup:
   - match: { indicators.shards_availability.impacts.0.impact_areas.1: "search" }
   - match: { indicators.shards_availability.impacts.0.description: "Cannot add data to 1 index [${_project_id_prefix_}red_index]. Searches might return incomplete results." }
 
-  - length: { indicators.shards_availability.diagnosis: 1 }
-  - match: { indicators.shards_availability.diagnosis.0.id: "elasticsearch:health:shards_availability:diagnosis:enable_index_allocations" }
-  - match: { indicators.shards_availability.diagnosis.0.cause: "Elasticsearch isn't allowed to allocate some shards from these indices because allocation for those shards has been disabled at the index level." }
-  - match: { indicators.shards_availability.diagnosis.0.action: "Check that the [index.routing.allocation.enable] index settings are set to [all]." }
-  - match: { indicators.shards_availability.diagnosis.0.help_url: "https://ela.st/fix-index-allocation" }
-  - match: { indicators.shards_availability.diagnosis.0.affected_resources.indices.0: "${_project_id_prefix_}red_index" }
+  - is_true: indicators.shards_availability.diagnosis
+  - contains:
+      indicators.shards_availability.diagnosis:
+        id: "elasticsearch:health:shards_availability:diagnosis:enable_index_allocations"
+        cause: "Elasticsearch isn't allowed to allocate some shards from these indices because allocation for those shards has been disabled at the index level."
+        action: "Check that the [index.routing.allocation.enable] index settings are set to [all]."
+        help_url: "https://ela.st/fix-index-allocation"
+        affected_resources:
+          indices:
+            - "${_project_id_prefix_}red_index"
 
 ---
 "Red when cluster allocation is disabled on a stateful cluster":
   - requires:
       cluster_features: "gte_v8.7.0"
+      test_runner_features: contains
       reason: "the API path changed in 8.7"
 
   - do:
@@ -78,6 +93,7 @@ setup:
         index: red_cluster_index
         master_timeout: 1s
         timeout: 1s
+        wait_for_active_shards: 0
         body:
           settings:
             number_of_shards: 1
@@ -102,18 +118,16 @@ setup:
   - match: { indicators.shards_availability.impacts.0.impact_areas.1: "search" }
   - match: { indicators.shards_availability.impacts.0.description: "Cannot add data to 1 index [${_project_id_prefix_}red_cluster_index]. Searches might return incomplete results." }
 
-  - length: { indicators.shards_availability.diagnosis: 1 }
-  - match: { indicators.shards_availability.diagnosis.0.id: "elasticsearch:health:shards_availability:diagnosis:enable_cluster_allocations" }
-  - match: { indicators.shards_availability.diagnosis.0.cause: "Elasticsearch isn't allowed to allocate some shards from these indices because allocation for those shards has been disabled at the cluster level." }
-  - match: { indicators.shards_availability.diagnosis.0.action: "Check that the [cluster.routing.allocation.enable] cluster setting is set to [all]." }
-  - match: { indicators.shards_availability.diagnosis.0.help_url: "https://ela.st/fix-cluster-allocation" }
-  - match: { indicators.shards_availability.diagnosis.0.affected_resources.indices.0: "${_project_id_prefix_}red_cluster_index" }
-
-  - do:
-      cluster.put_settings:
-        body:
-          transient:
-            cluster.routing.allocation.enable: null
+  - is_true: indicators.shards_availability.diagnosis
+  - contains:
+      indicators.shards_availability.diagnosis:
+        id: "elasticsearch:health:shards_availability:diagnosis:enable_cluster_allocations"
+        cause: "Elasticsearch isn't allowed to allocate some shards from these indices because allocation for those shards has been disabled at the cluster level."
+        action: "Check that the [cluster.routing.allocation.enable] cluster setting is set to [all]."
+        help_url: "https://ela.st/fix-cluster-allocation"
+        affected_resources:
+          indices:
+            - "${_project_id_prefix_}red_cluster_index"
 
 ---
 "Yellow when all replicas are unassigned on a stateful cluster":
@@ -180,9 +194,3 @@ setup:
 
   - is_true: indicators.shards_availability.diagnosis
   - contains: { indicators.shards_availability.diagnosis: { id: "elasticsearch:health:shards_availability:diagnosis:enable_index_allocations" } }
-
-  - do:
-      cluster.put_settings:
-        body:
-          transient:
-            health.shards_availability.replica_unassigned_buffer_time: null

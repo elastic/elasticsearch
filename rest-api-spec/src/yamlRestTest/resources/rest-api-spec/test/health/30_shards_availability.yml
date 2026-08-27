@@ -71,101 +71,6 @@
   - is_false: indicators.shards_availability.diagnosis
 
 ---
-"Red when index allocation is disabled":
-  - requires:
-      cluster_features: "gte_v8.7.0"
-      reason: "the API path changed in 8.7"
-
-  - do:
-      indices.create:
-        index: red_index
-        master_timeout: 1s
-        timeout: 1s
-        body:
-          settings:
-            number_of_shards: 1
-            number_of_replicas: 0
-            index.routing.allocation.enable: none
-
-  - do:
-      health_report:
-        feature: shards_availability
-
-  - is_true: cluster_name
-  - match: { indicators.shards_availability.status: "red" }
-  - match: { indicators.shards_availability.symptom: "This cluster has 1 unavailable primary shard." }
-  - match: { indicators.shards_availability.details.unassigned_primaries: 1 }
-  - match: { indicators.shards_availability.details.initializing_primaries: 0 }
-  - match: { indicators.shards_availability.details.creating_primaries: 0 }
-  - match: { indicators.shards_availability.details.restarting_primaries: 0 }
-  - gte: { indicators.shards_availability.details.started_primaries: 0 }
-  - match: { indicators.shards_availability.details.unassigned_replicas: 0 }
-  - match: { indicators.shards_availability.details.initializing_replicas: 0 }
-  - match: { indicators.shards_availability.details.creating_replicas: 0 }
-  - match: { indicators.shards_availability.details.restarting_replicas: 0 }
-  - gte: { indicators.shards_availability.details.started_replicas: 0 }
-  - is_true: indicators.shards_availability.diagnosis
-  - match: { indicators.shards_availability.diagnosis.0.id: "elasticsearch:health:shards_availability:diagnosis:enable_index_allocations" }
-  - is_true: indicators.shards_availability.diagnosis.0.cause
-  - is_true: indicators.shards_availability.diagnosis.0.action
-  - is_true: indicators.shards_availability.diagnosis.0.help_url
-  - match: { indicators.shards_availability.diagnosis.0.affected_resources.indices.0: "${_project_id_prefix_}red_index" }
-  - is_true: indicators.shards_availability.impacts
-
----
-"Red when cluster allocation is disabled":
-  - requires:
-      cluster_features: "gte_v8.7.0"
-      reason: "the API path changed in 8.7"
-
-  - do:
-      cluster.put_settings:
-        body:
-          transient:
-            cluster.routing.allocation.enable: "none"
-
-  - do:
-      indices.create:
-        index: red_cluster_index
-        master_timeout: 1s
-        timeout: 1s
-        body:
-          settings:
-            number_of_shards: 1
-            number_of_replicas: 0
-
-  - do:
-      health_report:
-        feature: shards_availability
-
-  - is_true: cluster_name
-  - match: { indicators.shards_availability.status: "red" }
-  - match: { indicators.shards_availability.symptom: "This cluster has 1 unavailable primary shard." }
-  - match: { indicators.shards_availability.details.unassigned_primaries: 1 }
-  - match: { indicators.shards_availability.details.initializing_primaries: 0 }
-  - match: { indicators.shards_availability.details.creating_primaries: 0 }
-  - match: { indicators.shards_availability.details.restarting_primaries: 0 }
-  - gte: { indicators.shards_availability.details.started_primaries: 0 }
-  - match: { indicators.shards_availability.details.unassigned_replicas: 0 }
-  - match: { indicators.shards_availability.details.initializing_replicas: 0 }
-  - match: { indicators.shards_availability.details.creating_replicas: 0 }
-  - match: { indicators.shards_availability.details.restarting_replicas: 0 }
-  - gte: { indicators.shards_availability.details.started_replicas: 0 }
-  - is_true: indicators.shards_availability.diagnosis
-  - match: { indicators.shards_availability.diagnosis.0.id: "elasticsearch:health:shards_availability:diagnosis:enable_cluster_allocations" }
-  - is_true: indicators.shards_availability.diagnosis.0.cause
-  - is_true: indicators.shards_availability.diagnosis.0.action
-  - is_true: indicators.shards_availability.diagnosis.0.help_url
-  - match: { indicators.shards_availability.diagnosis.0.affected_resources.indices.0: "${_project_id_prefix_}red_cluster_index" }
-  - is_true: indicators.shards_availability.impacts
-
-  - do:
-      cluster.put_settings:
-        body:
-          transient:
-            cluster.routing.allocation.enable: null
-
----
 "Shards availability recovers after enabling allocation":
   - requires:
       cluster_features: "gte_v8.7.0"
@@ -176,6 +81,7 @@
         index: recover_index
         master_timeout: 1s
         timeout: 1s
+        wait_for_active_shards: 0
         body:
           settings:
             number_of_shards: 1

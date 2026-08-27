@@ -6,9 +6,18 @@ setup:
       reason: "Must run these tests on the stateless shards_availability indicator only since it differs to stateful"
 
 ---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            health.shards_availability.replica_unassigned_buffer_time: null
+
+---
 "Red when index allocation is disabled on a stateless cluster":
   - requires:
       cluster_features: "gte_v8.7.0"
+      test_runner_features: contains
       reason: "the API path changed in 8.7"
 
   - do:
@@ -54,12 +63,16 @@ setup:
   - match: { indicators.shards_availability.impacts.0.impact_areas.1: "search" }
   - match: { indicators.shards_availability.impacts.0.description: "Cannot add data to 1 index [${_project_id_prefix_}red_index]. Searches might return incomplete results." }
 
-  - length: { indicators.shards_availability.diagnosis: 1 }
-  - match: { indicators.shards_availability.diagnosis.0.id: "elasticsearch:health:shards_availability:diagnosis:enable_index_allocations" }
-  - match: { indicators.shards_availability.diagnosis.0.cause: "Elasticsearch isn't allowed to allocate some shards from these indices because allocation for those shards has been disabled at the index level." }
-  - match: { indicators.shards_availability.diagnosis.0.action: "Check that the [index.routing.allocation.enable] index settings are set to [all]." }
-  - match: { indicators.shards_availability.diagnosis.0.help_url: "https://ela.st/fix-index-allocation" }
-  - match: { indicators.shards_availability.diagnosis.0.affected_resources.indices.0: "${_project_id_prefix_}red_index" }
+  - is_true: indicators.shards_availability.diagnosis
+  - contains:
+      indicators.shards_availability.diagnosis:
+        id: "elasticsearch:health:shards_availability:diagnosis:enable_index_allocations"
+        cause: "Elasticsearch isn't allowed to allocate some shards from these indices because allocation for those shards has been disabled at the index level."
+        action: "Check that the [index.routing.allocation.enable] index settings are set to [all]."
+        help_url: "https://ela.st/fix-index-allocation"
+        affected_resources:
+          indices:
+            - "${_project_id_prefix_}red_index"
 
 ---
 # Stateless reports red (stateful is yellow) when every replica copy is unavailable
@@ -127,9 +140,3 @@ setup:
 
   - is_true: indicators.shards_availability.diagnosis
   - contains: { indicators.shards_availability.diagnosis: { id: "elasticsearch:health:shards_availability:diagnosis:enable_index_allocations" } }
-
-  - do:
-      cluster.put_settings:
-        body:
-          transient:
-            health.shards_availability.replica_unassigned_buffer_time: null

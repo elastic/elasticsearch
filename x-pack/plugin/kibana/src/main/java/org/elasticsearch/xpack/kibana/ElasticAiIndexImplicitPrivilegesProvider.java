@@ -37,8 +37,10 @@ import java.util.stream.Collectors;
  * <p>
  * {@code permissions.kibana.privileges} is a {@code nested} field holding one element per space the
  * document is visible in, each listing the {@code ai_index:} actions that space requires plus a
- * {@code count} of them; an element whose space is {@code "*"} means the document lives in every
- * space, and a document with no elements at all is public. This shape is currently owned by the Kibana
+ * {@code count} of them. An element whose space is {@code "*"} means the document lives in every space,
+ * and an element whose {@code count} is {@code 0} requires no action at all — the document is public
+ * <em>within that element's space</em>. A document carrying no elements at all is public everywhere,
+ * but the Kibana indexer never writes that shape. This shape is currently owned by the Kibana
  * agent_builder_sml plugin's storage schema; the {@code ai-index-*} index template deliberately does
  * not declare it, so this Javadoc and {@code ElasticAiIndexImplicitPrivilegesIT} are the de-facto
  * contract.
@@ -121,9 +123,8 @@ public class ElasticAiIndexImplicitPrivilegesProvider implements ImplicitPrivile
      * Builds the DLS query making a document visible only when the user holds all the actions it
      * requires within a single space. Inside a single {@code nested} query it emits one clause per
      * distinct effective action set (a space's own actions unioned with any {@code *} grant's),
-     * matching any of that set's spaces via {@link #spaceMatches} and gating the actions with
-     * {@code terms_set} on the per-element {@code count}; a {@code *} grant adds one further
-     * space-less clause.
+     * matching any of that set's spaces via {@link #spaceMatches} and gating the actions via
+     * {@link #requiredActionsHeld}; a {@code *} grant adds one further space-less clause.
      * <p>
      * Documents with no permission elements are public. This must be expressed as
      * {@code must_not nested(match_all)}, never {@code must_not exists} — a root-level {@code exists}
@@ -158,10 +159,12 @@ public class ElasticAiIndexImplicitPrivilegesProvider implements ImplicitPrivile
 
         BoolQueryBuilder spaceClauses = QueryBuilders.boolQuery();
         spacesByActions.forEach(
-            (actions, spaces) -> spaceClauses.should(QueryBuilders.boolQuery().filter(spaceMatches(spaces)).filter(termsSetOn(actions)))
+            (actions, spaces) -> spaceClauses.should(
+                QueryBuilders.boolQuery().filter(spaceMatches(spaces)).filter(requiredActionsHeld(actions))
+            )
         );
         if (globalActions.isEmpty() == false) {
-            spaceClauses.should(QueryBuilders.boolQuery().filter(termsSetOn(globalActions)));
+            spaceClauses.should(QueryBuilders.boolQuery().filter(requiredActionsHeld(globalActions)));
         }
 
         if (spaceClauses.should().isEmpty()) {
@@ -195,8 +198,22 @@ public class ElasticAiIndexImplicitPrivilegesProvider implements ImplicitPrivile
             .minimumShouldMatch(1);
     }
 
-    private static TermsSetQueryBuilder termsSetOn(Set<String> actions) {
-        return new TermsSetQueryBuilder(NAME_FIELD, actions.stream().sorted().toList()).setMinimumShouldMatchField(COUNT_FIELD);
+    /**
+     * Matches elements whose required actions the user holds: either the element requires none
+     * ({@code count: 0}), or {@code terms_set} confirms {@code actions} covers all {@code count} of them.
+     * <p>
+     * The {@code count: 0} arm is not redundant with {@code minimum_should_match_field} resolving to
+     * {@code 0}. {@code terms_set} is a Lucene {@code CoveringQuery}: its candidate documents are the
+     * union of the postings of the terms in the <em>query</em>, and the per-document minimum is only
+     * compared once a document is already a candidate. An indexed element that carries no {@code name}
+     * value is in no postings list, so it is never visited and cannot match however low its
+     * {@code count} is. Without this arm every {@code count: 0} element would be invisible to every user.
+     */
+    private static BoolQueryBuilder requiredActionsHeld(Set<String> actions) {
+        return QueryBuilders.boolQuery()
+            .should(QueryBuilders.termQuery(COUNT_FIELD, 0))
+            .should(new TermsSetQueryBuilder(NAME_FIELD, actions.stream().sorted().toList()).setMinimumShouldMatchField(COUNT_FIELD))
+            .minimumShouldMatch(1);
     }
 
 }

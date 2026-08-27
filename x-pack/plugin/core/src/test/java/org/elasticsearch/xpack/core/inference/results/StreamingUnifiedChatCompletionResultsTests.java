@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionC
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponseTests;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessageResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCallResponse;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsageResponse;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
@@ -182,12 +182,12 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractBWCWireS
             ),
             "example_model",
             "example_object",
-            new ChatCompletionUsage(
+            new ChatCompletionUsageResponse(
                 10,
                 5,
                 15,
-                includeCachedTokens ? new ChatCompletionUsage.PromptTokensDetails(20, 25) : null,
-                includeReasoning ? new ChatCompletionUsage.CompletionTokenDetails(25) : null
+                includeCachedTokens ? new ChatCompletionUsageResponse.PromptTokensDetails(20, 25) : null,
+                includeReasoning ? new ChatCompletionUsageResponse.CompletionTokenDetails(25) : null
             )
         );
 

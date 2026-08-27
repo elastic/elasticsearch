@@ -55,7 +55,7 @@ public record ChatCompletionChunkResponse(
     @Nullable List<ChatCompletionChoiceResponse> choices,
     String model,
     String object,
-    @Nullable ChatCompletionUsage usage
+    @Nullable ChatCompletionUsageResponse usage
 ) implements InferenceServiceResults {
 
     public static final String NAME = "chat_completion_chunk";
@@ -66,7 +66,7 @@ public record ChatCompletionChunkResponse(
             in.readOptionalCollectionAsList(ChatCompletionChoiceResponse::new),
             in.readString(),
             in.readString(),
-            in.readOptional(ChatCompletionUsage::new)
+            in.readOptional(ChatCompletionUsageResponse::new)
         );
     }
 

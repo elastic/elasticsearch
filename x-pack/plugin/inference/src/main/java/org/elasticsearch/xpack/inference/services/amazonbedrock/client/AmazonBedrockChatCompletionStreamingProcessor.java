@@ -29,8 +29,8 @@ import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionC
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessageResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCallResponse;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage.PromptTokensDetails;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsageResponse;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsageResponse.PromptTokensDetails;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.translation.ChatCompletionRole;
 
 import java.util.ArrayDeque;
@@ -230,7 +230,7 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
 
     private ChatCompletionChunkResponse createChatCompletionChunkResponse(
         @Nullable List<ChatCompletionChoiceResponse> choices,
-        @Nullable ChatCompletionUsage usage
+        @Nullable ChatCompletionUsageResponse usage
     ) {
         return new ChatCompletionChunkResponse(conversationId, choices, modelId, CHAT_COMPLETION_CHUNK_OBJECT, usage);
     }
@@ -367,7 +367,7 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
         return Stream.of(chunk);
     }
 
-    private static ChatCompletionUsage getUsage(ConverseStreamMetadataEvent event) {
+    private static ChatCompletionUsageResponse getUsage(ConverseStreamMetadataEvent event) {
         var inputTokens = event.usage().inputTokens();
         var outputTokens = event.usage().outputTokens();
         var totalTokens = event.usage().totalTokens();
@@ -378,6 +378,6 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
         var promptTokens = inputTokens + Objects.requireNonNullElse(cacheReadTokens, 0) + Objects.requireNonNullElse(cacheWriteTokens, 0);
         var promptTokensDetails = PromptTokensDetails.ofNullable(cacheReadTokens, cacheWriteTokens);
 
-        return new ChatCompletionUsage(outputTokens, promptTokens, totalTokens, promptTokensDetails, null);
+        return new ChatCompletionUsageResponse(outputTokens, promptTokens, totalTokens, promptTokensDetails, null);
     }
 }

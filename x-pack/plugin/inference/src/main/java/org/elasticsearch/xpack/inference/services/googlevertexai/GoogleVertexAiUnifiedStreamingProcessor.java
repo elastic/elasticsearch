@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionC
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessageResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCallResponse;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsageResponse;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 
@@ -103,11 +103,11 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
     }
 
     public static class GoogleVertexAiChatCompletionChunkResponseParser {
-        private static @Nullable ChatCompletionUsage usageMetadataToChunk(@Nullable UsageMetadata usage) {
+        private static @Nullable ChatCompletionUsageResponse usageMetadataToChunk(@Nullable UsageMetadata usage) {
             if (usage == null) {
                 return null;
             }
-            return new ChatCompletionUsage(usage.candidatesTokenCount(), usage.promptTokenCount(), usage.totalTokenCount());
+            return new ChatCompletionUsageResponse(usage.candidatesTokenCount(), usage.promptTokenCount(), usage.totalTokenCount());
         }
 
         private static ChatCompletionChoiceResponse candidateToChoice(Candidate candidate) {

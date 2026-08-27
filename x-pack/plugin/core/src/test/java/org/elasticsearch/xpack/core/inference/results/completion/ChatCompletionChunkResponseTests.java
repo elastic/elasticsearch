@@ -34,21 +34,21 @@ public class ChatCompletionChunkResponseTests extends AbstractBWCWireSerializati
             randomBoolean() ? null : randomList(randomInt(5), ChatCompletionChoiceResponseTests::randomChatCompletionChoiceResponse),
             randomAlphanumericOfLength(5),
             randomAlphanumericOfLength(5),
-            randomBoolean() ? null : ChatCompletionUsageTests.randomChatCompletionUsage()
+            randomBoolean() ? null : ChatCompletionUsageResponseTests.randomChatCompletionUsageResponse()
         );
     }
 
     /**
      * Truncates fields that would not survive serialization to an older transport version.
      * Delegates the per-record truncation rules to {@link ChatCompletionChoiceResponseTests#downgrade} and
-     * {@link ChatCompletionUsageTests#downgrade}.
+     * {@link ChatCompletionUsageResponseTests#downgrade}.
      * Exposed so that {@code StreamingUnifiedChatCompletionResultsTests.mutateInstanceForVersion} can delegate.
      */
     public static ChatCompletionChunkResponse downgrade(ChatCompletionChunkResponse instance, TransportVersion version) {
         var choices = instance.choices() == null
             ? null
             : instance.choices().stream().map(c -> ChatCompletionChoiceResponseTests.downgrade(c, version)).toList();
-        var usage = instance.usage() == null ? null : ChatCompletionUsageTests.downgrade(instance.usage(), version);
+        var usage = instance.usage() == null ? null : ChatCompletionUsageResponseTests.downgrade(instance.usage(), version);
         return new ChatCompletionChunkResponse(instance.id(), choices, instance.model(), instance.object(), usage);
     }
 
@@ -99,7 +99,7 @@ public class ChatCompletionChunkResponseTests extends AbstractBWCWireSerializati
                 instance.choices(),
                 instance.model(),
                 instance.object(),
-                instance.usage() == null ? new ChatCompletionUsage(1, 2, 3) : null
+                instance.usage() == null ? new ChatCompletionUsageResponse(1, 2, 3) : null
             );
             default -> throw new AssertionError("unexpected case");
         };
@@ -134,7 +134,7 @@ public class ChatCompletionChunkResponseTests extends AbstractBWCWireSerializati
             ),
             "gpt-4o",
             "chat.completion",
-            new ChatCompletionUsage(12, 9, 21)
+            new ChatCompletionUsageResponse(12, 9, 21)
         );
 
         assertThat(toXContentNonStreaming(completion), is(XContentHelper.stripWhitespace("""

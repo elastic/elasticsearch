@@ -26,8 +26,8 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage.PromptTokensDetails;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsageResponse;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsageResponse.PromptTokensDetails;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -279,7 +279,7 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
         assertThat(usage.promptTokensDetails(), equalTo(new PromptTokensDetails(3, 5)));
     }
 
-    private ChatCompletionUsage usageFromMetadataEvent(TokenUsage tokenUsage) {
+    private ChatCompletionUsageResponse usageFromMetadataEvent(TokenUsage tokenUsage) {
         var upstream = mock(Flow.Subscription.class);
         processor.onSubscribe(upstream);
         Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream = mock();

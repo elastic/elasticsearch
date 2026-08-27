@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionC
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessageResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCallResponse;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsageResponse;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 
@@ -446,12 +446,12 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
         var totalTokens = promptTokens + outputTokens;
         Integer cachedTokens = cacheReadTokens > 0 ? cacheReadTokens : null;
         Integer cachedWriteTokens = cacheCreationTokens > 0 ? cacheCreationTokens : null;
-        var promptTokensDetails = ChatCompletionUsage.PromptTokensDetails.ofNullable(cachedTokens, cachedWriteTokens);
-        var usage = new ChatCompletionUsage(outputTokens, promptTokens, totalTokens, promptTokensDetails, null);
+        var promptTokensDetails = ChatCompletionUsageResponse.PromptTokensDetails.ofNullable(cachedTokens, cachedWriteTokens);
+        var usage = new ChatCompletionUsageResponse(outputTokens, promptTokens, totalTokens, promptTokensDetails, null);
         return Stream.of(newChunk(List.of(), usage));
     }
 
-    private ChatCompletionChunkResponse newChunk(@Nullable List<ChatCompletionChoiceResponse> choices, @Nullable ChatCompletionUsage usage) {
+    private ChatCompletionChunkResponse newChunk(@Nullable List<ChatCompletionChoiceResponse> choices, @Nullable ChatCompletionUsageResponse usage) {
         return new ChatCompletionChunkResponse(id, choices, model, OBJECT_VALUE, usage);
     }
 

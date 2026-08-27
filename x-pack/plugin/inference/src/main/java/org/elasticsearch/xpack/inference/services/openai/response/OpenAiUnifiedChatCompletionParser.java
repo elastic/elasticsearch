@@ -19,9 +19,9 @@ import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionC
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessageResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCallResponse;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage.CompletionTokenDetails;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage.PromptTokensDetails;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsageResponse;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsageResponse.CompletionTokenDetails;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsageResponse.PromptTokensDetails;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -89,7 +89,7 @@ public final class OpenAiUnifiedChatCompletionParser {
     private static final ConstructingObjectParser<ChatCompletionToolCallResponse.Function, Void> FUNCTION_PARSER;
     private static final ConstructingObjectParser<CompletionTokenDetails, Void> COMPLETION_TOKENS_DETAILS_PARSER;
     private static final ConstructingObjectParser<PromptTokensDetails, Void> PROMPT_TOKENS_DETAILS_PARSER;
-    private static final ConstructingObjectParser<ChatCompletionUsage, Void> USAGE_PARSER;
+    private static final ConstructingObjectParser<ChatCompletionUsageResponse, Void> USAGE_PARSER;
 
     private static final ConstructingObjectParser<ChatCompletionChunkResponse, Void> STREAMING_PARSER;
     private static final ConstructingObjectParser<ChatCompletionChunkResponse, Void> NON_STREAMING_PARSER;
@@ -136,7 +136,7 @@ public final class OpenAiUnifiedChatCompletionParser {
         USAGE_PARSER = new ConstructingObjectParser<>(
             USAGE_FIELD,
             true,
-            args -> new ChatCompletionUsage(
+            args -> new ChatCompletionUsageResponse(
                 (int) args[0],
                 (int) args[1],
                 (int) args[2],
@@ -183,7 +183,7 @@ public final class OpenAiUnifiedChatCompletionParser {
                 (List<ChatCompletionChoiceResponse>) args[1],
                 Objects.requireNonNullElse((String) args[2], ""),
                 Objects.requireNonNullElse((String) args[3], ""),
-                (ChatCompletionUsage) args[4]
+                (ChatCompletionUsageResponse) args[4]
             )
         );
         parser.declareString(constructorArg(), new ParseField(ID_FIELD));

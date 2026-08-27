@@ -15,7 +15,7 @@ import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsageResponse;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 import org.hamcrest.Matchers;
 
@@ -854,7 +854,7 @@ public class AnthropicChatCompletionStreamingProcessorTests extends ESTestCase {
         assertThat(usage.totalTokens(), is(expectedTotal));
         assertThat(
             usage.promptTokensDetails(),
-            is(ChatCompletionUsage.PromptTokensDetails.ofNullable(expectedCachedTokens, expectedCacheWriteTokens))
+            is(ChatCompletionUsageResponse.PromptTokensDetails.ofNullable(expectedCachedTokens, expectedCacheWriteTokens))
         );
     }
 

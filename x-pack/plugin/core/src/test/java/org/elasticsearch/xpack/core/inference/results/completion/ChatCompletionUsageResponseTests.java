@@ -21,28 +21,28 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.INFERENCE_CACHED_TOKENS;
 import static org.hamcrest.Matchers.is;
 
-public class ChatCompletionUsageTests extends AbstractBWCWireSerializationTestCase<ChatCompletionUsage> {
+public class ChatCompletionUsageResponseTests extends AbstractBWCWireSerializationTestCase<ChatCompletionUsageResponse> {
 
-    public static ChatCompletionUsage randomChatCompletionUsage() {
-        return new ChatCompletionUsage(
+    public static ChatCompletionUsageResponse randomChatCompletionUsageResponse() {
+        return new ChatCompletionUsageResponse(
             randomInt(100),
             randomInt(100),
             randomInt(100),
             randomBoolean()
                 ? null
-                : new ChatCompletionUsage.PromptTokensDetails(randomNonNegativeIntOrNull(), randomNonNegativeIntOrNull()),
-            randomBoolean() ? null : new ChatCompletionUsage.CompletionTokenDetails(randomNonNegativeIntOrNull())
+                : new ChatCompletionUsageResponse.PromptTokensDetails(randomNonNegativeIntOrNull(), randomNonNegativeIntOrNull()),
+            randomBoolean() ? null : new ChatCompletionUsageResponse.CompletionTokenDetails(randomNonNegativeIntOrNull())
         );
     }
 
-    public static ChatCompletionUsage downgrade(ChatCompletionUsage instance, TransportVersion version) {
+    public static ChatCompletionUsageResponse downgrade(ChatCompletionUsageResponse instance, TransportVersion version) {
         var promptTokensDetails = instance.promptTokensDetails();
         var completionTokenDetails = instance.completionTokenDetails();
 
         if (version.supports(CHAT_COMPLETION_CACHE_WRITE_TOKENS_SUPPORT_ADDED) == false && promptTokensDetails != null) {
             promptTokensDetails = promptTokensDetails.cachedTokens() == null
                 ? null
-                : new ChatCompletionUsage.PromptTokensDetails(promptTokensDetails.cachedTokens(), null);
+                : new ChatCompletionUsageResponse.PromptTokensDetails(promptTokensDetails.cachedTokens(), null);
         }
 
         if (version.supports(INFERENCE_CACHED_TOKENS) == false) {
@@ -53,7 +53,7 @@ public class ChatCompletionUsageTests extends AbstractBWCWireSerializationTestCa
             completionTokenDetails = null;
         }
 
-        return new ChatCompletionUsage(
+        return new ChatCompletionUsageResponse(
             instance.completionTokens(),
             instance.promptTokens(),
             instance.totalTokens(),
@@ -63,22 +63,22 @@ public class ChatCompletionUsageTests extends AbstractBWCWireSerializationTestCa
     }
 
     @Override
-    protected Writeable.Reader<ChatCompletionUsage> instanceReader() {
-        return ChatCompletionUsage::new;
+    protected Writeable.Reader<ChatCompletionUsageResponse> instanceReader() {
+        return ChatCompletionUsageResponse::new;
     }
 
     @Override
-    protected ChatCompletionUsage createTestInstance() {
-        return randomChatCompletionUsage();
+    protected ChatCompletionUsageResponse createTestInstance() {
+        return randomChatCompletionUsageResponse();
     }
 
     @Override
-    protected ChatCompletionUsage mutateInstanceForVersion(ChatCompletionUsage instance, TransportVersion version) {
+    protected ChatCompletionUsageResponse mutateInstanceForVersion(ChatCompletionUsageResponse instance, TransportVersion version) {
         return downgrade(instance, version);
     }
 
     @Override
-    protected ChatCompletionUsage mutateInstance(ChatCompletionUsage instance) {
+    protected ChatCompletionUsageResponse mutateInstance(ChatCompletionUsageResponse instance) {
         var completionTokens = instance.completionTokens();
         var promptTokens = instance.promptTokens();
         var totalTokens = instance.totalTokens();
@@ -91,24 +91,24 @@ public class ChatCompletionUsageTests extends AbstractBWCWireSerializationTestCa
             case 2 -> totalTokens = randomValueOtherThan(totalTokens, () -> randomInt(100));
             case 3 -> promptTokensDetails = randomValueOtherThan(
                 promptTokensDetails,
-                () -> randomBoolean() ? null : new ChatCompletionUsage.PromptTokensDetails(randomNonNegativeInt(), randomNonNegativeInt())
+                () -> randomBoolean() ? null : new ChatCompletionUsageResponse.PromptTokensDetails(randomNonNegativeInt(), randomNonNegativeInt())
             );
             case 4 -> completionTokenDetails = randomValueOtherThan(
                 completionTokenDetails,
-                () -> randomBoolean() ? null : new ChatCompletionUsage.CompletionTokenDetails(randomNonNegativeIntOrNull())
+                () -> randomBoolean() ? null : new ChatCompletionUsageResponse.CompletionTokenDetails(randomNonNegativeIntOrNull())
             );
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new ChatCompletionUsage(completionTokens, promptTokens, totalTokens, promptTokensDetails, completionTokenDetails);
+        return new ChatCompletionUsageResponse(completionTokens, promptTokens, totalTokens, promptTokensDetails, completionTokenDetails);
     }
 
     public void testToXContentChunked_AllFields() throws IOException {
-        var usage = new ChatCompletionUsage(
+        var usage = new ChatCompletionUsageResponse(
             12,
             9,
             21,
-            new ChatCompletionUsage.PromptTokensDetails(5, 3),
-            new ChatCompletionUsage.CompletionTokenDetails(7)
+            new ChatCompletionUsageResponse.PromptTokensDetails(5, 3),
+            new ChatCompletionUsageResponse.CompletionTokenDetails(7)
         );
 
         assertThat(toXContent(usage), is(XContentHelper.stripWhitespace("""
@@ -128,7 +128,7 @@ public class ChatCompletionUsageTests extends AbstractBWCWireSerializationTestCa
     }
 
     public void testToXContentChunked_NoDetails() throws IOException {
-        var usage = new ChatCompletionUsage(12, 9, 21);
+        var usage = new ChatCompletionUsageResponse(12, 9, 21);
 
         assertThat(toXContent(usage), is(XContentHelper.stripWhitespace("""
             {
@@ -141,7 +141,7 @@ public class ChatCompletionUsageTests extends AbstractBWCWireSerializationTestCa
 
     public void testToXContentChunked_NullReasoningTokens_CompletionTokenDetailsOmitted() throws IOException {
         // completionTokenDetails is only emitted when reasoningTokens is non-null
-        var usage = new ChatCompletionUsage(12, 9, 21, null, new ChatCompletionUsage.CompletionTokenDetails((Integer) null));
+        var usage = new ChatCompletionUsageResponse(12, 9, 21, null, new ChatCompletionUsageResponse.CompletionTokenDetails((Integer) null));
 
         assertThat(toXContent(usage), is(XContentHelper.stripWhitespace("""
             {
@@ -153,7 +153,7 @@ public class ChatCompletionUsageTests extends AbstractBWCWireSerializationTestCa
     }
 
     public void testToXContentChunked_PartialPromptTokensDetails() throws IOException {
-        var usage = new ChatCompletionUsage(5, 3, 8, new ChatCompletionUsage.PromptTokensDetails(2, null), null);
+        var usage = new ChatCompletionUsageResponse(5, 3, 8, new ChatCompletionUsageResponse.PromptTokensDetails(2, null), null);
 
         assertThat(toXContent(usage), is(XContentHelper.stripWhitespace("""
             {
@@ -169,7 +169,7 @@ public class ChatCompletionUsageTests extends AbstractBWCWireSerializationTestCa
 
     public void testToXContentChunked_EmptyPromptTokensDetails_OmitsField() throws IOException {
         // A non-null instance with both fields null must not produce a dangling field name with no value.
-        var usage = new ChatCompletionUsage(5, 3, 8, new ChatCompletionUsage.PromptTokensDetails(null, null), null);
+        var usage = new ChatCompletionUsageResponse(5, 3, 8, new ChatCompletionUsageResponse.PromptTokensDetails(null, null), null);
 
         assertThat(toXContent(usage), is(XContentHelper.stripWhitespace("""
             {
@@ -182,7 +182,7 @@ public class ChatCompletionUsageTests extends AbstractBWCWireSerializationTestCa
 
     public void testToXContentChunked_EmptyCompletionTokenDetails_OmitsField() throws IOException {
         // A non-null instance with null reasoning tokens must omit the field entirely.
-        var usage = new ChatCompletionUsage(5, 3, 8, null, new ChatCompletionUsage.CompletionTokenDetails((Integer) null));
+        var usage = new ChatCompletionUsageResponse(5, 3, 8, null, new ChatCompletionUsageResponse.CompletionTokenDetails((Integer) null));
 
         assertThat(toXContent(usage), is(XContentHelper.stripWhitespace("""
             {
@@ -194,18 +194,18 @@ public class ChatCompletionUsageTests extends AbstractBWCWireSerializationTestCa
     }
 
     public void testOfNullable_BothNull_ReturnsNull() {
-        assertNull(ChatCompletionUsage.PromptTokensDetails.ofNullable(null, null));
-        assertNull(ChatCompletionUsage.CompletionTokenDetails.ofNullable(null));
+        assertNull(ChatCompletionUsageResponse.PromptTokensDetails.ofNullable(null, null));
+        assertNull(ChatCompletionUsageResponse.CompletionTokenDetails.ofNullable(null));
     }
 
     public void testOfNullable_AtLeastOneNonNull_ReturnsInstance() {
-        assertNotNull(ChatCompletionUsage.PromptTokensDetails.ofNullable(5, null));
-        assertNotNull(ChatCompletionUsage.PromptTokensDetails.ofNullable(null, 3));
-        assertNotNull(ChatCompletionUsage.PromptTokensDetails.ofNullable(5, 3));
-        assertNotNull(ChatCompletionUsage.CompletionTokenDetails.ofNullable(7));
+        assertNotNull(ChatCompletionUsageResponse.PromptTokensDetails.ofNullable(5, null));
+        assertNotNull(ChatCompletionUsageResponse.PromptTokensDetails.ofNullable(null, 3));
+        assertNotNull(ChatCompletionUsageResponse.PromptTokensDetails.ofNullable(5, 3));
+        assertNotNull(ChatCompletionUsageResponse.CompletionTokenDetails.ofNullable(7));
     }
 
-    static String toXContent(ChatCompletionUsage usage) throws IOException {
+    static String toXContent(ChatCompletionUsageResponse usage) throws IOException {
         var builder = JsonXContent.contentBuilder();
         usage.toXContentChunked(null).forEachRemaining(chunk -> {
             try {

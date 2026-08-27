@@ -39,7 +39,7 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOTA
 /**
  * Usage statistics for a unified chat completion response.
  */
-public record ChatCompletionUsage(
+public record ChatCompletionUsageResponse(
     int completionTokens,
     int promptTokens,
     int totalTokens,
@@ -47,11 +47,11 @@ public record ChatCompletionUsage(
     @Nullable CompletionTokenDetails completionTokenDetails
 ) implements Writeable, ChunkedToXContentObject {
 
-    public ChatCompletionUsage(int completionTokens, int promptTokens, int totalTokens) {
+    public ChatCompletionUsageResponse(int completionTokens, int promptTokens, int totalTokens) {
         this(completionTokens, promptTokens, totalTokens, null, null);
     }
 
-    public ChatCompletionUsage(StreamInput in) throws IOException {
+    public ChatCompletionUsageResponse(StreamInput in) throws IOException {
         this(
             in.readInt(),
             in.readInt(),

@@ -487,6 +487,54 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         assertSurvivors(new ParquetPushedExpressions(List.of(not)), blocks, 5, reusable, new int[] { 0, 1, 3, 4 });
     }
 
+    public void testNotOverPartialAndDoesNotDropRows() {
+        // NOT(a == 1 AND tag == "x") with only `a` decoded. Positive AND over-admits by
+        // dropping the missing arm; bitwise-negating that superset under-admits and
+        // compaction would drop surviving rows. evaluateFilter must return null (all survive).
+        int[] values = { 1, 2, 3 };
+        Block block = blockFactory.newIntArrayVector(values, values.length).asBlock();
+        Map<String, Block> blocks = Map.of("a", block);
+
+        Expression eqA = new Equals(Source.EMPTY, attr("a", DataType.INTEGER), lit(1, DataType.INTEGER), null);
+        Expression eqTag = new Equals(Source.EMPTY, attr("tag", DataType.KEYWORD), lit(new BytesRef("x"), DataType.KEYWORD), null);
+        Expression not = new Not(Source.EMPTY, new And(Source.EMPTY, eqA, eqTag));
+
+        WordMask result = new ParquetPushedExpressions(List.of(not)).evaluateFilter(blocks, 3, new WordMask());
+        assertNull(result);
+    }
+
+    public void testNotOverCompleteAndStillPrunes() {
+        // Both arms evaluable: NOT(a == 1 AND b == 2) must still drop the row where both hold.
+        int[] aValues = { 1, 2, 3 };
+        int[] bValues = { 2, 2, 2 };
+        Block a = blockFactory.newIntArrayVector(aValues, aValues.length).asBlock();
+        Block b = blockFactory.newIntArrayVector(bValues, bValues.length).asBlock();
+        Map<String, Block> blocks = Map.of("a", a, "b", b);
+
+        Expression eqA = new Equals(Source.EMPTY, attr("a", DataType.INTEGER), lit(1, DataType.INTEGER), null);
+        Expression eqB = new Equals(Source.EMPTY, attr("b", DataType.INTEGER), lit(2, DataType.INTEGER), null);
+        Expression not = new Not(Source.EMPTY, new And(Source.EMPTY, eqA, eqB));
+        assertSurvivors(new ParquetPushedExpressions(List.of(not)), blocks, 3, new WordMask(), new int[] { 1, 2 });
+    }
+
+    public void testNotOverAndWithLikeStillPrunes() {
+        // NOT(a == 1 AND s LIKE "*x*") with both columns present still prunes the matching row.
+        int[] aValues = { 1, 2, 3 };
+        Block a = blockFactory.newIntArrayVector(aValues, aValues.length).asBlock();
+        try (var builder = blockFactory.newBytesRefBlockBuilder(3)) {
+            builder.appendBytesRef(new BytesRef("xx"));
+            builder.appendBytesRef(new BytesRef("yy"));
+            builder.appendBytesRef(new BytesRef("zz"));
+            Block s = builder.build();
+            Map<String, Block> blocks = Map.of("a", a, "s", s);
+
+            Expression eqA = new Equals(Source.EMPTY, attr("a", DataType.INTEGER), lit(1, DataType.INTEGER), null);
+            Expression like = new WildcardLike(Source.EMPTY, attr("s", DataType.KEYWORD), new WildcardPattern("*x*"));
+            Expression not = new Not(Source.EMPTY, new And(Source.EMPTY, eqA, like));
+            assertSurvivors(new ParquetPushedExpressions(List.of(not)), blocks, 3, new WordMask(), new int[] { 1, 2 });
+        }
+    }
+
     // ---- Test 6c: dictionary-match shape classifier and fast-path semantics ----
 
     public void testDictionaryMatchShapeClassifier() {

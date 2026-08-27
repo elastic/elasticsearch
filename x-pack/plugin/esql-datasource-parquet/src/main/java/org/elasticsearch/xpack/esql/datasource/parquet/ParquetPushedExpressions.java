@@ -1516,39 +1516,7 @@ final class ParquetPushedExpressions {
             return null;
         }
         if (expr instanceof Not not) {
-            // NOT (LIKE-family) needs TVL: null rows must stay filtered out, so each LIKE-family
-            // child routes through a tvlNegate helper instead of the generic bitwise negate below.
-            // YES pushability of WildcardLike/Contains/EndsWith depends on this branch.
-            if (not.field() instanceof WildcardLike wl) {
-                Block block = namedBlock(wl.field(), blocks);
-                return block == null ? null : evaluateNotWildcardLike(wl, block, rowCount, intermediateMask, dictCache);
-            }
-            if (not.field() instanceof StartsWith sw) {
-                Block block = namedBlock(sw.singleValueField(), blocks);
-                return block == null ? null : evaluateNotStartsWith(sw, block, rowCount, intermediateMask, dictCache);
-            }
-            if (not.field() instanceof Contains c) {
-                Block block = namedBlock(c.singleValueField(), blocks);
-                return block == null ? null : evaluateNotContains(c, block, rowCount, intermediateMask, dictCache);
-            }
-            if (not.field() instanceof EndsWith ew) {
-                Block block = namedBlock(ew.singleValueField(), blocks);
-                return block == null ? null : evaluateNotEndsWith(ew, block, rowCount, intermediateMask, dictCache);
-            }
-            WordMask inner = evaluateExpression(not.field(), blocks, rowCount, intermediateMask, dictCache);
-            if (inner != null) {
-                // For value predicates on a single column, MV positions were correctly set to bit 0
-                // by the inner evaluator. A plain negate() would flip them to bit 1 (survivors),
-                // causing unnecessary Parquet decoding for every MV row. The RECHECK safety net
-                // still corrects results, but tvlNegate avoids the decoding cost.
-                Block valueBlock = valueColumnBlockForNot(not.field(), blocks);
-                if (valueBlock != null) {
-                    return tvlNegate(inner, valueBlock, rowCount);
-                }
-                inner.negate();
-                return inner;
-            }
-            return null;
+            return evaluateNot(not.field(), blocks, rowCount, intermediateMask, dictCache);
         }
         if (expr instanceof StartsWith sw) {
             Block block = namedBlock(sw.singleValueField(), blocks);
@@ -1565,6 +1533,73 @@ final class ParquetPushedExpressions {
         if (expr instanceof WildcardLike wl) {
             Block block = namedBlock(wl.field(), blocks);
             return block == null ? null : evaluateWildcardLike(wl, block, rowCount, intermediateMask, dictCache);
+        }
+        return null;
+    }
+
+    // Evaluates the inner of a Not. Compound inners are De Morgan'd so a partial (over-admitting)
+    // AND is never bitwise-negated; LIKE-family children keep their TVL helpers. Recurses on the
+    // existing children rather than allocating Not wrappers or calling And.negate()/Or.negate()
+    // (those rewrite Equals to NotEquals in the tree this evaluator walks).
+    private WordMask evaluateNot(
+        Expression inner,
+        Map<String, Block> blocks,
+        int rowCount,
+        @Nullable WordMask intermediateMask,
+        @Nullable Map<Expression, boolean[]> dictCache
+    ) {
+        // NOT (LIKE-family) needs TVL: null rows must stay filtered out, so each LIKE-family
+        // child routes through a tvlNegate helper instead of the generic bitwise negate below.
+        // YES pushability of WildcardLike/Contains/EndsWith depends on this branch.
+        if (inner instanceof WildcardLike wl) {
+            Block block = namedBlock(wl.field(), blocks);
+            return block == null ? null : evaluateNotWildcardLike(wl, block, rowCount, intermediateMask, dictCache);
+        }
+        if (inner instanceof StartsWith sw) {
+            Block block = namedBlock(sw.singleValueField(), blocks);
+            return block == null ? null : evaluateNotStartsWith(sw, block, rowCount, intermediateMask, dictCache);
+        }
+        if (inner instanceof Contains c) {
+            Block block = namedBlock(c.singleValueField(), blocks);
+            return block == null ? null : evaluateNotContains(c, block, rowCount, intermediateMask, dictCache);
+        }
+        if (inner instanceof EndsWith ew) {
+            Block block = namedBlock(ew.singleValueField(), blocks);
+            return block == null ? null : evaluateNotEndsWith(ew, block, rowCount, intermediateMask, dictCache);
+        }
+        if (inner instanceof And and) {
+            WordMask left = evaluateNot(and.left(), blocks, rowCount, intermediateMask, dictCache);
+            WordMask right = evaluateNot(and.right(), blocks, rowCount, intermediateMask, dictCache);
+            if (left != null && right != null) {
+                left.or(right);
+                return left;
+            }
+            return null;
+        }
+        if (inner instanceof Or or) {
+            WordMask left = evaluateNot(or.left(), blocks, rowCount, intermediateMask, dictCache);
+            if (left != null && left.isEmpty()) {
+                return left;
+            }
+            WordMask right = evaluateNot(or.right(), blocks, rowCount, intermediateMask, dictCache);
+            if (left != null && right != null) {
+                left.and(right);
+                return left;
+            }
+            return left != null ? left : right;
+        }
+        WordMask mask = evaluateExpression(inner, blocks, rowCount, intermediateMask, dictCache);
+        if (mask != null) {
+            // For value predicates on a single column, MV positions were correctly set to bit 0
+            // by the inner evaluator. A plain negate() would flip them to bit 1 (survivors),
+            // causing unnecessary Parquet decoding for every MV row. The RECHECK safety net
+            // still corrects results, but tvlNegate avoids the decoding cost.
+            Block valueBlock = valueColumnBlockForNot(inner, blocks);
+            if (valueBlock != null) {
+                return tvlNegate(mask, valueBlock, rowCount);
+            }
+            mask.negate();
+            return mask;
         }
         return null;
     }

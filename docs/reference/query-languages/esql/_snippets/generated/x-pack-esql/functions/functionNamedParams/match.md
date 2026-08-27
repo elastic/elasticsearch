@@ -3,7 +3,7 @@
 ### Supported function named parameters
 
 `analyzer`
-:   (keyword) Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used. For expressions not backed by an index, defaults to the values analyzer declared through `TO_TEXT` (`standard` when none is declared).
+:   (keyword) Analyzer used to convert the text in the query value into tokens. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used. For expressions not backed by an index, defaults to the values analyzer declared through `TO_TEXT` (`standard` when none is declared).
 
 `auto_generate_synonyms_phrase_query`
 :   (boolean) If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.

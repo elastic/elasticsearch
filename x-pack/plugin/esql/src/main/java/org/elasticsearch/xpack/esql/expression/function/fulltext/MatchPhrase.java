@@ -154,7 +154,7 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
                     name = "analyzer",
                     type = "keyword",
                     valueHint = { "standard" },
-                    description = "Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer"
+                    description = "Analyzer used to convert the text in the query value into tokens. Defaults to the index-time analyzer"
                         + " mapped for the field; if no analyzer is mapped, the index’s default analyzer is used. For expressions not"
                         + " backed by an index, defaults to the values analyzer declared through `TO_TEXT` (`standard` when none is"
                         + " declared)."

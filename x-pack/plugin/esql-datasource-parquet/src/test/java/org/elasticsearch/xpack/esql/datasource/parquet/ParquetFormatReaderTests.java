@@ -835,7 +835,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
         assertThat(
             trackingBreaker.peakUsed.get(),
-            allOf(greaterThanOrEqualTo((long) parquetData.length), lessThan((long) ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE))
+            allOf(greaterThanOrEqualTo((long) parquetData.length), lessThan(2L * parquetData.length + 256 * 1024L))
         );
         assertEquals(0, trackingBreaker.getUsed());
     }

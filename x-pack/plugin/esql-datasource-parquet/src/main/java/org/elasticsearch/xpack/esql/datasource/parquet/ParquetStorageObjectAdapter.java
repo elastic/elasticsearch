@@ -103,6 +103,9 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to read storage object length for [" + storageObject.path() + "]", e);
         }
+        // Zero-length objects still need a 1-byte array; fetchWindowAt returns before any read
+        // (pos >= length). For length > 0 this equals min(requested, length), so
+        // length <= windowSize iff the object fits in the window (whole-file fill below).
         this.windowSize = (int) Math.min(windowSize, Math.max(1L, this.length));
         this.cacheKey = FooterByteCache.Key.keyFor(storageObject, this.length);
     }
@@ -275,35 +278,37 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             // to 0, otherwise a chunk that starts later (typical dictionary pages) is missed.
             long remaining = length - pos;
             long posToRead = Math.min((long) windowSize, remaining);
-            if (posToRead > 0 && fillFromPreWarmedChunk(pos, (int) posToRead) && windowCovers(pos)) {
+            if (fillFromPreWarmedChunk(pos, (int) posToRead)) {
+                assert windowCovers(pos);
                 return;
             }
 
+            final boolean wholeFileFill = length <= windowSize;
             final long fetchPos;
             final long toRead;
-            if (length <= windowSize) {
+            if (wholeFileFill) {
                 fetchPos = 0;
                 toRead = length;
             } else {
                 fetchPos = pos;
                 toRead = posToRead;
             }
-            if (toRead <= 0) {
-                windowStart = fetchPos;
-                windowLength = 0;
-                return;
-            }
 
             FooterByteCache tailCache = FooterByteCache.getInstance();
-            if (fillFromTailCache(tailCache, fetchPos, (int) toRead) && windowCovers(pos)) {
+            if (fillFromTailCache(tailCache, fetchPos, (int) toRead)) {
+                assert windowCovers(pos);
                 return;
             }
 
-            boolean isTailRead = fetchPos + toRead == length;
+            // Whole-file fills must not become FooterByteCache entries: isTailRead would otherwise
+            // be true (fetchPos == 0, toRead == length) and objects up to maxEntryBytes would
+            // evict genuine footers from the 8 MiB JVM-wide budget.
+            boolean isTailRead = wholeFileFill == false && fetchPos + toRead == length;
             if (isTailRead && toRead <= tailCache.maxEntryBytes()) {
                 try {
                     byte[] tailBytes = tailCache.getOrLoad(cacheKey, k -> readTailBytes(fetchPos, (int) toRead));
-                    if (tailBytes.length > 0 && fillFromCachedTail(tailBytes, fetchPos, (int) toRead) && windowCovers(pos)) {
+                    if (tailBytes.length > 0 && fillFromCachedTail(tailBytes, fetchPos, (int) toRead)) {
+                        assert windowCovers(pos);
                         return;
                     }
                 } catch (ExecutionException e) {
@@ -339,7 +344,12 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 windowLength = totalRead;
             }
 
-            if (windowLength > 0 && windowStart + windowLength == length && windowLength <= tailCache.maxEntryBytes()) {
+            // put() copies the window. Skip that copy when the entry would be rejected, and never
+            // cache a whole-file fill (see isTailRead above).
+            if (wholeFileFill == false
+                && windowLength > 0
+                && windowStart + windowLength == length
+                && windowLength <= tailCache.maxEntryBytes()) {
                 byte[] tailBytes = UninitializedArrays.newByteArray(windowLength);
                 System.arraycopy(window, 0, tailBytes, 0, windowLength);
                 tailCache.put(cacheKey, tailBytes);
@@ -437,7 +447,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             if (position >= length) {
                 return;
             }
-            if (position >= windowStart && position < windowStart + windowLength) {
+            if (windowCovers(position)) {
                 return;
             }
             fetchWindowAt(position);
@@ -452,7 +462,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 return -1;
             }
             ensureWindow();
-            if (position >= windowStart + windowLength) {
+            if (windowCovers(position) == false) {
                 return -1;
             }
             int offset = (int) (position - windowStart);
@@ -505,7 +515,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             if (closed || position >= length) {
                 return 0;
             }
-            if (position >= windowStart && position < windowStart + windowLength) {
+            if (windowCovers(position)) {
                 return windowLength - (int) (position - windowStart);
             }
             return 0;

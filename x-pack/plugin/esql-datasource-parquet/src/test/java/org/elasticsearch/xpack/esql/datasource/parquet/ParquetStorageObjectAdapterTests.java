@@ -36,6 +36,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.Before;
@@ -139,9 +140,12 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         byte[] data = new byte[100];
         randomBytes(data);
         LimitedBreaker limited = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
-        ParquetStorageObjectAdapter adapter = ParquetStorageObjectAdapter.forRange(createStorageObject(data), 1024L, limited);
+        ParquetStorageObjectAdapter adapter = ParquetStorageObjectAdapter.forRange(createRangeReadStorageObject(data), 1024L, limited);
         try (SeekableInputStream stream = adapter.newStream()) {
             assertEquals(data.length, limited.getUsed());
+            byte[] buf = new byte[data.length];
+            stream.readFully(buf);
+            assertArrayEquals(data, buf);
         }
         assertEquals(0, limited.getUsed());
     }
@@ -603,7 +607,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
      * Each new stream fetches the tail independently; there is no cross-stream footer cache.
      */
     public void testSeparateStreamsEachFetchTailViaRangeRead() throws IOException {
-        byte[] data = new byte[1024 * 1024];
+        // Must exceed the sliding window so a tail seek is a suffix GET, not a whole-file fill
+        // (whole-file fills are not stored in FooterByteCache).
+        byte[] data = new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1024];
         randomBytes(data);
         final int[] rangeReadCount = { 0 };
         Instant lastModified = Instant.ofEpochMilli(123);
@@ -800,26 +806,6 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         );
     }
 
-    /**
-     * {@code forRange} still floors the <em>hint</em> at {@link ParquetStorageObjectAdapter#DEFAULT_WINDOW_SIZE},
-     * but the constructor then clamps the window to the file length. A tiny object therefore allocates
-     * {@code data.length} bytes, not 4 MiB.
-     */
-    public void testAdaptiveWindowFloorAtDefault() throws IOException {
-        byte[] data = new byte[100];
-        randomBytes(data);
-        StorageObject storageObject = createRangeReadStorageObject(data);
-
-        long tinyRange = 1024L; // 1 KiB — hint is floored to DEFAULT_WINDOW_SIZE, then clamped to file length
-        ParquetStorageObjectAdapter adapter = ParquetStorageObjectAdapter.forRange(storageObject, tinyRange, breaker);
-
-        try (SeekableInputStream stream = adapter.newStream()) {
-            byte[] buf = new byte[data.length];
-            stream.readFully(buf);
-            assertArrayEquals(data, buf);
-        }
-    }
-
     public void testTinyFileTailSeekIsOneWholeFileGet() throws IOException {
         byte[] data = new byte[100];
         randomBytes(data);
@@ -840,7 +826,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         assertEquals(data.length, rangeGets.getFirst()[1]);
     }
 
-    public void testTinyFileSecondStreamHitsWholeFileTailCache() throws IOException {
+    public void testTinyFileWholeFileFillDoesNotEnterFooterCache() throws IOException {
         byte[] data = new byte[100];
         randomBytes(data);
         List<long[]> rangeGets = new ArrayList<>();
@@ -855,6 +841,8 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             assertArrayEquals(data, buf);
         }
         assertEquals(1, rangeGets.size());
+        byte[] cached = FooterByteCache.getInstance().get(adapter.cacheKey());
+        assertNull("whole-file fills must not occupy FooterByteCache", cached);
 
         rangeGets.clear();
         try (SeekableInputStream stream = adapter.newStream()) {
@@ -864,7 +852,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             stream.readFully(buf);
             assertArrayEquals(data, buf);
         }
-        assertEquals(0, rangeGets.size());
+        assertEquals(1, rangeGets.size());
+        assertEquals(0L, rangeGets.getFirst()[0]);
+        assertEquals(data.length, rangeGets.getFirst()[1]);
     }
 
     public void testSeekToEndOfTinyFileDoesNotFetch() throws IOException {
@@ -1245,7 +1235,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
      * {@code lastModified}) each perform their own range reads; there is no cross-adapter cache.
      */
     public void testSeparateAdaptersDoNotShareCachedRanges() throws IOException {
-        byte[] data = new byte[1024 * 1024];
+        // Must exceed the sliding window so a tail seek is a suffix GET, not a whole-file fill
+        // (whole-file fills are not stored in FooterByteCache).
+        byte[] data = new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1024];
         random().nextBytes(data);
         final int[] rangeReadCount = { 0 };
         final StoragePath path = StoragePath.of("memory://cache-key-test.parquet");
@@ -1281,7 +1273,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
      * each stream performs its own range read(s).
      */
     public void testConcurrentTailReadsEachIssueRangeRequest() throws Exception {
-        byte[] data = new byte[1024 * 1024];
+        // Must exceed the sliding window so a tail seek is a suffix GET, not a whole-file fill
+        // (whole-file fills are not stored in FooterByteCache).
+        byte[] data = new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1024];
         random().nextBytes(data);
         final AtomicInteger rangeReadCount = new AtomicInteger();
         final StoragePath path = StoragePath.of("memory://thundering-herd.parquet");

@@ -91,9 +91,10 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
     public void testPrefetchWithTightBreakerLimit() throws Exception {
         MessageType wideSchema = buildWideSchema(10);
         byte[] parquetData = createMultiRowGroupFile(wideSchema, 5000, 50 * 1024);
-        // Add DEFAULT_WINDOW_SIZE so the window fits; the remaining ~2 MB budget is still tight
-        // enough that decode or prefetch allocations may trip the breaker.
-        var breaker = new TrackingBreaker("test", ByteSizeValue.ofBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 2 * 1024 * 1024));
+        // Cover the clamped window (file length, or 4 MiB if the object is larger) and leave ~2 MB
+        // so decode or prefetch allocations may still trip the breaker.
+        long windowCharge = Math.min(parquetData.length, ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE);
+        var breaker = new TrackingBreaker("test", ByteSizeValue.ofBytes(windowCharge + 2 * 1024 * 1024));
         BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
 
         StorageObject storage = createAsyncStorageObject(parquetData);
@@ -152,11 +153,12 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
         }
         assertTrue("Should have read rows", totalRows > 0);
         assertEquals("Breaker should return to zero", 0, breaker.getUsed());
-        // The window buffer (DEFAULT_WINDOW_SIZE) is now tracked by the circuit breaker, so the
-        // peak includes the window. Prefetch and decode allocations are still bounded by parquetData.length.
+        // Peak includes the clamped window (file length when the object fits, else 4 MiB) plus
+        // prefetch/decode. Bound against that window, not the historical 4 MiB floor.
+        long windowCharge = Math.min(parquetData.length, ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE);
         assertTrue(
             "Peak prefetch breaker usage should be bounded (was " + breaker.peakUsed + " bytes)",
-            breaker.peakUsed.get() < parquetData.length + ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE
+            breaker.peakUsed.get() < parquetData.length + windowCharge
         );
     }
 

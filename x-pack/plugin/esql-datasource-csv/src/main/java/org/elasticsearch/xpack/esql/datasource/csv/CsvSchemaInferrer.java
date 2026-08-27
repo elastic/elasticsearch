@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.TemporalInference;
+import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
 
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
@@ -202,60 +203,79 @@ public class CsvSchemaInferrer {
     }
 
     /**
-     * Finds the narrowest type candidate that can represent the given value, starting from the
-     * current candidate index. When a column has been confirmed as BOOLEAN, DATETIME or DATE_NANOS by
-     * previous values and a new value doesn't fit, skip directly to KEYWORD (since a column with
-     * "true" and "42" is most likely a string column, not numeric).
-     * For unconfirmed columns or numeric types, narrow one step at a time.
+     * Commits a column to the type that represents everything it has shown so far, given one more
+     * value.
      * <p>
-     * The one exception to the skip rule is DATETIME meeting a nanosecond timestamp: that steps to
-     * DATE_NANOS. Both are timestamps, and which one the column needs is not knowable until a value
-     * demands the extra precision — so collapsing to KEYWORD there would make the column's type
-     * depend on row order, with millis-first landing KEYWORD and nanos-first landing DATE_NANOS.
+     * Two questions, kept apart. {@link #recognise} answers "which is the narrowest candidate whose
+     * string form accepts this token" &mdash; knowledge only a text reader has, since only it is
+     * handed raw text. {@link TypeWidening} answers "which single type represents the accepted type
+     * and this new evidence" &mdash; the question NDJSON and cross-file reconciliation also ask, so it
+     * is answered in one place for all of them.
      * <p>
-     * The value is classified as temporal at most once per call, however many rungs are walked: both
-     * temporal rungs read the same answer, so adding DATE_NANOS costs no additional parse.
+     * Fusing the two is what made a numeric column commit to {@code datetime} on its first timestamp:
+     * walking the ladder answers the recognition question, and the ladder's next rung is not the type
+     * a number and a timestamp have in common. The lattice says they have none below {@code keyword},
+     * and says it without a special case per pair.
      * <p>
-     * DATE_NANOS accepts <em>any</em> timestamp, including ones outside the {@code date_nanos} window
-     * that no value could ever have forced. That is deliberate: rejecting them here would make the
-     * column's type depend on whether the out-of-window row came before or after the forcing one.
-     * Once some value has established that the column is nanosecond-precision, an out-of-window
-     * timestamp elsewhere in it is a bad cell rather than evidence the column is really a string.
-     * <p>
-     * Be clear about what that costs. Such a cell fails at read time under the error policy, and the
-     * default policy is {@code FAIL_FAST} — so a schemaless file mixing in-window nanosecond
-     * timestamps with out-of-window ones goes from a silently-truncating success to a failed query.
-     * That is the same thing that happens to the same file under a declared {@code date_nanos}
-     * schema today, and the value that forced the column always decodes; but it is a real change in
-     * outcome, not merely a change in which cells are marked bad.
+     * An unconfirmed column has nothing to combine with, so its first value simply sets the type.
+     *
+     * @param currentIdx the candidate the column has committed to so far
+     * @param confirmed  whether any value has confirmed that candidate
      */
     private static int narrowCandidate(int currentIdx, boolean confirmed, String value, @Nullable DateFormatter datetimeFormatter) {
-        int temporal = -1; // computed on demand, at most once, and only if a temporal rung is reached
-        while (currentIdx < TYPE_CANDIDATES.length - 1) {
-            DataType current = TYPE_CANDIDATES[currentIdx];
-            if (current == DataType.DATETIME || current == DataType.DATE_NANOS) {
+        int evidenceIdx = recognise(currentIdx, value, datetimeFormatter);
+        if (confirmed == false) {
+            return evidenceIdx;
+        }
+        DataType accepted = TYPE_CANDIDATES[currentIdx];
+        DataType evidence = TYPE_CANDIDATES[evidenceIdx];
+        DataType committed = TypeWidening.join(accepted, evidence, TypeWidening.Policy.INFERENCE);
+        // The join never invents a third type, so the answer is one of these three rungs and there is
+        // no rung to search for. TypeWideningTests#testJoinNeverInventsAThirdType is what makes this
+        // exhaustive rather than merely true today.
+        if (committed == accepted) {
+            return currentIdx;
+        }
+        if (committed == evidence) {
+            return evidenceIdx;
+        }
+        return TYPE_CANDIDATES.length - 1; // KEYWORD, the lattice's top and the ladder's last rung
+    }
+
+    /**
+     * The narrowest candidate at or after {@code fromIdx} whose string form accepts this value, or
+     * KEYWORD when none does.
+     * <p>
+     * Starting at the column's own candidate rather than at the first rung is what keeps this cheap:
+     * a settled numeric column tries its own type first and stops. It costs nothing in accuracy,
+     * because evidence narrower than the accepted type joins back to the accepted type anyway &mdash;
+     * a {@code long} column meeting {@code 42} commits to {@code long} whether the evidence is read as
+     * {@code integer} or as {@code long}.
+     * <p>
+     * The value is classified as temporal at most once, however many rungs are walked, so the two
+     * temporal rungs share one parse.
+     */
+    private static int recognise(int fromIdx, String value, @Nullable DateFormatter datetimeFormatter) {
+        int temporal = -1; // computed on demand, and only if a temporal rung is reached
+        for (int idx = fromIdx; idx < TYPE_CANDIDATES.length - 1; idx++) {
+            DataType candidate = TYPE_CANDIDATES[idx];
+            if (candidate == DataType.DATETIME || candidate == DataType.DATE_NANOS) {
                 if (temporal < 0) {
                     temporal = classifyTemporal(value, datetimeFormatter);
                 }
-                // DATETIME holds every timestamp that does not move the column; DATE_NANOS takes any
-                // timestamp at all, including out-of-window ones — see the acceptance note below.
-                boolean fits = current == DataType.DATETIME ? temporal == TEMPORAL_DATETIME : temporal != NOT_TEMPORAL;
+                // DATETIME takes the timestamps it reads without dropping digits; DATE_NANOS takes any
+                // timestamp at all, including ones outside its own window. That asymmetry is why an
+                // out-of-window nanosecond value reads as datetime evidence and joins a date_nanos
+                // column back to date_nanos, instead of deciding the column is a string.
+                boolean fits = candidate == DataType.DATETIME ? temporal == TEMPORAL_DATETIME : temporal != NOT_TEMPORAL;
                 if (fits) {
-                    return currentIdx;
+                    return idx;
                 }
-                if (confirmed && current == DataType.DATETIME && temporal == TEMPORAL_NANOS_FORCED) {
-                    currentIdx++; // the exception: widen to DATE_NANOS instead of collapsing
-                    continue;
-                }
-            } else if (canParse(current, value)) {
-                return currentIdx;
+            } else if (canParse(candidate, value)) {
+                return idx;
             }
-            if (confirmed && (current == DataType.BOOLEAN || current == DataType.DATETIME || current == DataType.DATE_NANOS)) {
-                return TYPE_CANDIDATES.length - 1;
-            }
-            currentIdx++;
         }
-        return currentIdx;
+        return TYPE_CANDIDATES.length - 1;
     }
 
     /**

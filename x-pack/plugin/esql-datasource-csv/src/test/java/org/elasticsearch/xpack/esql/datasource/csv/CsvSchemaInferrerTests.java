@@ -475,14 +475,12 @@ public class CsvSchemaInferrerTests extends ESTestCase {
      * The set is stated rather than the assertion being skipped, so the divergence is visible and
      * bounded: a pair that starts disagreeing for some other reason fails immediately.
      */
-    private static final Set<String> KNOWN_DIVERGENT_CELLS = Set.of(
-        "INTEGER,DATETIME",
-        "LONG,DATETIME",
-        "DOUBLE,DATETIME",
-        "INTEGER,DATE_NANOS",
-        "LONG,DATE_NANOS",
-        "DOUBLE,DATE_NANOS"
-    );
+    /**
+     * Ordered type pairs where this rail does not agree with the shared lattice. Empty, and meant to
+     * stay that way: it held the six numeric-then-timestamp pairs that made a column of numbers infer
+     * as timestamps (elastic/esql-planning#1807) until the commitment step started asking the lattice.
+     */
+    private static final Set<String> KNOWN_DIVERGENT_CELLS = Set.of();
 
     /**
      * Inference over a two-value column must land where {@link TypeWidening} says those two types

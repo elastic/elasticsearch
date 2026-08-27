@@ -228,12 +228,10 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
     private record FailureResult(OutboundRequest request, RetryException exception) {}
 
     private static RetryException callHandleFailureStatusCode(int statusCode) {
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(statusCode);
         var httpResponse = mock(HttpResponse.class);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
+        when(httpResponse.getCode()).thenReturn(statusCode);
+        // the header mock's getValue() returns null, so header lookups resolve to "unknown" as before
         var header = mock(Header.class);
-        when(header.getElements()).thenReturn(new HeaderElement[] {});
         when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
         var mockRequest = RequestTests.mockRequest("id");
         var httpResult = new HttpResult(httpResponse, new byte[] {});
@@ -248,12 +246,10 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
     }
 
     private static FailureResult invokeHandlerExpectingFailure(int statusCode) {
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(statusCode);
         var httpResponse = mock(HttpResponse.class);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
+        when(httpResponse.getCode()).thenReturn(statusCode);
+        // the header mock's getValue() returns null, so header lookups resolve to "unknown" as before
         var header = mock(Header.class);
-        when(header.getElements()).thenReturn(new HeaderElement[] {});
         when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
 
         var mockRequest = RequestTests.mockRequest("id");

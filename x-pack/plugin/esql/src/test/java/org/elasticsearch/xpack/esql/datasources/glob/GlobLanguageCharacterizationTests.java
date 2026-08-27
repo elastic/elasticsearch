@@ -309,6 +309,8 @@ public class GlobLanguageCharacterizationTests extends ESTestCase {
         assertTrue(new GlobMatcher("**/*.parquet").needsRecursion());
         assertTrue(new GlobMatcher("a/**").needsRecursion());
         assertFalse(new GlobMatcher("*.parquet").needsRecursion());
-        assertFalse(new GlobMatcher("a/*/b").needsRecursion());
+        // Was false, which was the defect: a non-recursive listing returns only the prefix's immediate children,
+        // so a multi-segment glob saw the directories and never the files inside them.
+        assertTrue(new GlobMatcher("a/*/b").needsRecursion());
     }
 }

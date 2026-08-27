@@ -93,8 +93,12 @@ final class GlobMatcher {
             throw new IllegalArgumentException("glob pattern cannot be null");
         }
         this.glob = glob;
-        this.recursive = glob.contains(DOUBLE_STAR);
         this.segments = parse(glob);
+        // A globstar obviously needs a recursive listing, but so does any glob spanning more than one segment: a
+        // non-recursive listing returns only the immediate children of the prefix, so `*/*.parquet` would see the
+        // directories and never the files inside them. Checking only for `**` meant a multi-segment glob without
+        // one silently matched nothing.
+        this.recursive = segments.size() > 1 || glob.contains(DOUBLE_STAR);
     }
 
     boolean matches(String relativePath) {

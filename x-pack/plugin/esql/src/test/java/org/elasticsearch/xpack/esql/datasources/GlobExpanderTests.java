@@ -38,7 +38,7 @@ public class GlobExpanderTests extends ESTestCase {
     /** The legacy switch that turns partition detection off, now folded into Strategy.NONE. */
     private static final Map<String, Object> HIVE_OFF = Map.of(PartitionConfig.CONFIG_PARTITIONING_HIVE, "false");
 
-    /** Hive off, and every name-based exclusion off. Directory placeholder keys are still skipped regardless. */
+    /** Hive off, and every exclusion off. Directory placeholder keys are still skipped regardless. */
     private static final Map<String, Object> NO_EXCLUSION = Map.of(
         PartitionConfig.CONFIG_PARTITIONING_HIVE,
         "false",
@@ -238,40 +238,46 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * Files under a _delta_log directory must not appear in the expansion result.
-     * A directory whose name begins with '_' and all its descendants are hidden by convention (esql-planning#1544).
+     * Delta's {@code _delta_log/} is the same shape as {@code _temporary/}: a junk directory holding real files.
+     * Read by default now, and excluded once named. Kept as its own case because it is the other writer people
+     * actually hit, and because its contents are JSON rather than the dataset's format, so a narrower resource
+     * pattern often hides the problem — which is exactly why the explicit line is worth documenting.
      */
-    @SuppressWarnings("RegexpMultiline")
-    public void testExpandGlobExcludesDeltaLogContent() throws IOException {
+    public void testDeltaLogContentIsReadUntilNamed() throws IOException {
         List<StorageEntry> listing = List.of(
-            entry("s3://bucket/data/_delta_log/00000000000000000001.json", 500),
-            entry("s3://bucket/data/_delta_log/", 0),
-            entry("s3://bucket/data/file1.parquet", 100)
+            entry("s3://bucket/data/_delta_log/00000000000000000001.json", 100),
+            entry("s3://bucket/data/file1.parquet", 200)
         );
-        StubProvider provider = new StubProvider(listing);
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/**", provider, null, HIVE_OFF);
-        assertTrue(result.isResolved());
-        assertEquals(1, result.fileCount());
-        assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
+        FileList byDefault = GlobExpander.expandGlob("s3://bucket/data/**", new StubProvider(listing), null, HIVE_OFF);
+        assertEquals("the log entries are listed by default", 2, byDefault.fileCount());
+
+        Map<String, Object> named = new HashMap<>(HIVE_OFF);
+        named.put(ExclusionConfig.CONFIG_FILE_EXCLUSIONS, List.of("**/_*", "**/.*", "**/_delta_log/**"));
+        FileList excluded = GlobExpander.expandGlob("s3://bucket/data/**", new StubProvider(listing), null, named);
+        assertEquals("and excluded once the directory is named", 1, excluded.fileCount());
+        assertEquals("s3://bucket/data/file1.parquet", excluded.path(0).toString());
     }
 
     /**
-     * Files under a _temporary directory must not appear in the expansion result.
-     * A directory whose name begins with '_' and all its descendants are hidden by convention (esql-planning#1544).
+     * A failed job's {@code _temporary/} holds real data files, and the default no longer excludes them: the
+     * default matches only the file name, which is what keeps it from ever touching a partition directory. Naming
+     * the directory is one line, and unlike a wildcard over directory names it cannot swallow somebody's partition.
      */
-    @SuppressWarnings("RegexpMultiline")
-    public void testExpandGlobExcludesTemporaryDirContent() throws IOException {
+    public void testTemporaryDirContentIsReadUntilNamed() throws IOException {
         List<StorageEntry> listing = List.of(
-            entry("s3://bucket/data/_temporary/part-00001.parquet", 100),
-            entry("s3://bucket/data/file1.parquet", 100)
+            entry("s3://bucket/data/_temporary/task_0/part.parquet", 100),
+            entry("s3://bucket/data/file1.parquet", 200)
         );
-        StubProvider provider = new StubProvider(listing);
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/**", provider, null, HIVE_OFF);
-        assertTrue(result.isResolved());
-        assertEquals(1, result.fileCount());
-        assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
+        FileList byDefault = GlobExpander.expandGlob("s3://bucket/data/**", new StubProvider(listing), null, HIVE_OFF);
+        assertEquals("the leftovers are listed by default", 2, byDefault.fileCount());
+
+        Map<String, Object> named = new HashMap<>(HIVE_OFF);
+        named.put(ExclusionConfig.CONFIG_FILE_EXCLUSIONS, List.of("**/_*", "**/.*", "**/_temporary/**"));
+        FileList excluded = GlobExpander.expandGlob("s3://bucket/data/**", new StubProvider(listing), null, named);
+        assertEquals("and excluded once the directory is named", 1, excluded.fileCount());
+        assertEquals("s3://bucket/data/file1.parquet", excluded.path(0).toString());
     }
 
     /**
@@ -320,13 +326,13 @@ public class GlobExpanderTests extends ESTestCase {
     public void testExpandGlobKeepsUnderscorePrefixedPartitionDirectory() throws IOException {
         List<StorageEntry> listing = List.of(
             entry("s3://bucket/data/_dept=alpha/part1.csv", 100),
-            entry("s3://bucket/data/_hidden/x.csv", 50)
+            entry("s3://bucket/data/_dept=alpha/_SUCCESS", 0)
         );
         StubProvider provider = new StubProvider(listing);
 
         FileList result = GlobExpander.expandGlob("s3://bucket/data/**", provider);
         assertTrue(result.isResolved());
-        assertEquals("the key=value segment is exempt, the plain _ segment is not", 1, result.fileCount());
+        assertEquals("the partition directory survives; only the marker inside it is dropped", 1, result.fileCount());
         assertEquals("s3://bucket/data/_dept=alpha/part1.csv", result.path(0).toString());
     }
 
@@ -1151,9 +1157,9 @@ public class GlobExpanderTests extends ESTestCase {
         List<Map<String, Object>> configs = new ArrayList<>();
         for (Map<String, Object> hive : List.of(HIVE_ON, HIVE_OFF)) {
             configs.add(hive);
-            configs.add(withExclusion(hive, ExclusionConfig.DEFAULT_FILE_EXCLUSIONS, ExclusionConfig.DEFAULT_FILE_INCLUSIONS));
-            configs.add(withExclusion(hive, List.of(), List.of()));
-            configs.add(withExclusion(hive, List.of("*.tmp"), List.of()));
+            configs.add(withExclusion(hive, ExclusionConfig.DEFAULT_FILE_EXCLUSIONS));
+            configs.add(withExclusion(hive, List.of()));
+            configs.add(withExclusion(hive, List.of("**/*.tmp")));
         }
 
         Map<String, List<String>> listingByDiscriminator = new HashMap<>();
@@ -1607,10 +1613,9 @@ public class GlobExpanderTests extends ESTestCase {
         public void close() {}
     }
 
-    private static Map<String, Object> withExclusion(Map<String, Object> base, List<String> exclusions, List<String> inclusions) {
+    private static Map<String, Object> withExclusion(Map<String, Object> base, List<String> exclusions) {
         Map<String, Object> config = new HashMap<>(base);
         config.put(ExclusionConfig.CONFIG_FILE_EXCLUSIONS, exclusions);
-        config.put(ExclusionConfig.CONFIG_FILE_INCLUSIONS, inclusions);
         return config;
     }
 

@@ -287,12 +287,11 @@ public class FileDataSourceValidator implements DataSourceValidator {
             errors
         );
         validate(() -> PartitionConfig.validate(settings), errors);
-        // file_exclusions + file_inclusions: array-of-strings shape here, segment-name and glob-compilation
-        // semantics via the owning parser. Stricter than the query path for the same reason as the partition
+        // file_exclusions: array-of-strings shape here, pattern compilation via the owning parser. Stricter than the query path for the
+        // same reason as the partition
         // settings above: ExclusionConfig.fromConfig degrades a malformed stored value to its default so an
         // upgrade cannot break a working dataset, which leaves registration as the only place to catch it.
         validateStringList(settings, result, ExclusionConfig.CONFIG_FILE_EXCLUSIONS, errors);
-        validateStringList(settings, result, ExclusionConfig.CONFIG_FILE_INCLUSIONS, errors);
         validate(() -> ExclusionConfig.validate(settings), errors);
         Object schemaResolution = settings.get(ExternalSourceResolver.CONFIG_SCHEMA_RESOLUTION);
         if (schemaResolution != null) {

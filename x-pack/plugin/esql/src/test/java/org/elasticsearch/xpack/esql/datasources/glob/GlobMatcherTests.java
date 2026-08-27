@@ -64,11 +64,19 @@ public class GlobMatcherTests extends ESTestCase {
     }
 
     @SuppressWarnings("RegexpMultiline")
+    /**
+     * A recursive listing is needed for a globstar, and also for any glob spanning more than one segment: a
+     * non-recursive listing returns only the prefix's immediate children, so {@code data/*.csv} would see the
+     * directory {@code data} and never the files in it. This used to test only for {@code **}, which meant a
+     * multi-segment glob without one silently matched nothing.
+     */
     public void testNeedsRecursion() {
         assertTrue(new GlobMatcher("**/*.parquet").needsRecursion());
         assertTrue(new GlobMatcher("data/**" + "/file.csv").needsRecursion());
-        assertFalse(new GlobMatcher("*.parquet").needsRecursion());
-        assertFalse(new GlobMatcher("data/*.csv").needsRecursion());
+        assertTrue("spans two segments", new GlobMatcher("data/*.csv").needsRecursion());
+        assertTrue("spans three", new GlobMatcher("a/*/b.csv").needsRecursion());
+        assertFalse("one segment is satisfied by the immediate children", new GlobMatcher("*.parquet").needsRecursion());
+        assertFalse(new GlobMatcher("file.csv").needsRecursion());
     }
 
     public void testLiteralDotsEscaped() {

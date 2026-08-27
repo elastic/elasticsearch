@@ -5821,6 +5821,41 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
+     * The defect this whole exclusion design exists to remove. Under {@code partition_detection: template} the
+     * directories are bare values rather than {@code key=value}, so a value beginning with {@code _} had nothing to
+     * distinguish it from a Spark marker: the old default matched every path segment and dropped the whole
+     * partition, silently, along with its rows. The default now matches only the file name, which a partition value
+     * can never be, so the question cannot arise under any detection mode.
+     */
+    public void testTemplatePartitionValueStartingWithUnderscoreSurvives() throws Exception {
+        Path root = createTempDir();
+        Path underscore = Files.createDirectories(root.resolve("_foo"));
+        Files.writeString(underscore.resolve("part1.csv"), "emp_no:integer,name:keyword\n1,Alice\n");
+        Path ordinary = Files.createDirectories(root.resolve("bar"));
+        Files.writeString(ordinary.resolve("part1.csv"), "emp_no:integer,name:keyword\n2,Bob\n");
+        // A marker inside the underscore-named partition, to show the leaf rule still does its job in there.
+        Files.writeString(underscore.resolve("_SUCCESS"), "");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest(
+                    "logs_template_underscore",
+                    "local_ds",
+                    root.toUri() + "*/*",
+                    Map.of("format", "csv", "partition_detection", "template", "partition_path", "{dept}")
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM logs_template_underscore | KEEP name | SORT name | LIMIT 5"), TIMEOUT)) {
+            List<String> names = getValuesList(response).stream().map(r -> (String) r.get(0)).toList();
+            assertEquals("the _foo partition must not disappear", List.of("Alice", "Bob"), names);
+        }
+    }
+
+    /**
      * The gap this feature closes: an object that no convention covers — a README beside the data — fails the
      * query on main with no way out short of moving the file. Naming it in {@code file_exclusions} resolves it.
      */

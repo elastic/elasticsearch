@@ -16,36 +16,29 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig.CONFIG_FILE_EXCLUSIONS;
-import static org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig.CONFIG_FILE_INCLUSIONS;
 import static org.hamcrest.Matchers.containsString;
 
 /**
  * The two halves of the settings contract: {@link ExclusionConfig#fromConfig} runs on every query against every
  * already-stored dataset and must never throw, and {@link ExclusionConfig#validate} runs once at registration and
- * must name what is wrong. A value the validator accepts is exactly a value the reader uses as written — these
- * tests are what keeps the two from drifting into a state where a stored dataset behaves unlike its registration.
+ * must name what is wrong. A value the validator accepts is exactly a value the reader uses as written.
  */
 public class ExclusionConfigTests extends ESTestCase {
 
     // -- fromConfig: the one defaulting site --
 
-    public void testAbsentKeysResolveToTheDefault() {
+    public void testAbsentKeyResolvesToTheDefault() {
         assertEquals(ExclusionConfig.DEFAULT, ExclusionConfig.fromConfig(null));
         assertEquals(ExclusionConfig.DEFAULT, ExclusionConfig.fromConfig(Map.of()));
         assertEquals(ExclusionConfig.DEFAULT, ExclusionConfig.fromConfig(Map.of("partition_detection", "hive")));
     }
 
-    public void testEachKeyDefaultsIndependently() {
-        ExclusionConfig onlyExclusions = ExclusionConfig.fromConfig(Map.of(CONFIG_FILE_EXCLUSIONS, List.of("*.tmp")));
-        assertEquals(List.of("*.tmp"), onlyExclusions.fileExclusions());
-        assertEquals("the untouched key keeps its default", ExclusionConfig.DEFAULT_FILE_INCLUSIONS, onlyExclusions.fileInclusions());
-
-        ExclusionConfig onlyInclusions = ExclusionConfig.fromConfig(Map.of(CONFIG_FILE_INCLUSIONS, List.of("keep_*")));
-        assertEquals(ExclusionConfig.DEFAULT_FILE_EXCLUSIONS, onlyInclusions.fileExclusions());
-        assertEquals(List.of("keep_*"), onlyInclusions.fileInclusions());
+    public void testAnExplicitListIsUsedAsStored() {
+        ExclusionConfig config = ExclusionConfig.fromConfig(Map.of(CONFIG_FILE_EXCLUSIONS, List.of("**/*.tmp")));
+        assertEquals(List.of("**/*.tmp"), config.fileExclusions());
     }
 
-    /** The empty list is a legitimate value — "exclude nothing" — not a malformed one that falls back. */
+    /** The empty list is a legitimate value — exclude nothing — not a malformed one that falls back. */
     public void testEmptyListIsHonoured() {
         ExclusionConfig config = ExclusionConfig.fromConfig(Map.of(CONFIG_FILE_EXCLUSIONS, List.of()));
         assertEquals(List.of(), config.fileExclusions());
@@ -53,23 +46,16 @@ public class ExclusionConfigTests extends ESTestCase {
     }
 
     /**
-     * Every shape of malformed stored value degrades that key to its default, silently. Reading must not fail on a
-     * value stored before these checks existed; registration is where a malformed value is named and refused.
+     * Every shape of malformed stored value degrades to the default, silently. Reading must not fail on a value
+     * stored before these checks existed; registration is where a malformed value is named and refused.
      */
     public void testMalformedStoredValuesDegradeToTheDefaultWithoutThrowing() {
-        for (Object malformed : Arrays.asList(
-            "_*",                                  // a scalar where a list belongs
-            List.of("_*", 42),                     // a non-string element
-            List.of("_temporary/**"),              // an entry that is a path, not a segment name
-            List.of("**"),                         // recursion, which a segment name cannot express
-            List.of("["),                          // an entry that does not compile as a glob
-            List.of("")                            // an empty entry
-        )) {
+        for (Object malformed : Arrays.asList("**/_*", List.of("**/_*", 42), List.of("a[b"), List.of("{a"), List.of(""))) {
             Map<String, Object> config = new HashMap<>();
             config.put(CONFIG_FILE_EXCLUSIONS, malformed);
             ExclusionConfig resolved = ExclusionConfig.fromConfig(config);
             assertEquals(
-                "malformed [" + malformed + "] must fall back to the default",
+                "malformed [" + malformed + "] must fall back",
                 ExclusionConfig.DEFAULT_FILE_EXCLUSIONS,
                 resolved.fileExclusions()
             );
@@ -77,10 +63,9 @@ public class ExclusionConfigTests extends ESTestCase {
         }
     }
 
-    /** A null value in the list is a non-String element, and must degrade rather than trip a null check. */
     public void testNullElementDegradesToTheDefault() {
         Map<String, Object> config = new HashMap<>();
-        config.put(CONFIG_FILE_EXCLUSIONS, Arrays.asList("_*", null));
+        config.put(CONFIG_FILE_EXCLUSIONS, Arrays.asList("**/_*", null));
         assertEquals(ExclusionConfig.DEFAULT_FILE_EXCLUSIONS, ExclusionConfig.fromConfig(config).fileExclusions());
     }
 
@@ -89,105 +74,90 @@ public class ExclusionConfigTests extends ESTestCase {
     public void testValidateAcceptsWellFormedSettings() {
         ExclusionConfig.validate(null);
         ExclusionConfig.validate(Map.of());
-        ExclusionConfig.validate(Map.of(CONFIG_FILE_EXCLUSIONS, List.of("_*", ".*", "*.tmp"), CONFIG_FILE_INCLUSIONS, List.of("_*=*")));
+        ExclusionConfig.validate(Map.of(CONFIG_FILE_EXCLUSIONS, List.of("**/_*", "**/.*", "**/_temporary/**")));
         ExclusionConfig.validate(Map.of(CONFIG_FILE_EXCLUSIONS, List.of()));
     }
 
-    public void testValidateRejectsPathEntriesByNamingTheRule() {
+    public void testValidateRejectsAnUnparseablePattern() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> ExclusionConfig.validate(Map.of(CONFIG_FILE_EXCLUSIONS, List.of("_temporary/**")))
+            () -> ExclusionConfig.validate(Map.of(CONFIG_FILE_EXCLUSIONS, List.of("a[b")))
         );
-        assertEquals(
-            "[file_exclusions] must contain only single path-segment name globs — entries cannot contain '/' or '**', "
-                + "got [_temporary/**]",
-            e.getMessage()
-        );
+        assertThat(e.getMessage(), containsString("must contain only valid patterns"));
+        assertThat(e.getMessage(), containsString("unterminated character class"));
     }
 
-    public void testValidateRejectsRecursion() {
-        expectThrows(IllegalArgumentException.class, () -> ExclusionConfig.validate(Map.of(CONFIG_FILE_EXCLUSIONS, List.of("**"))));
-        expectThrows(IllegalArgumentException.class, () -> ExclusionConfig.validate(Map.of(CONFIG_FILE_INCLUSIONS, List.of("a/b"))));
+    /** Entries are ordinary resource patterns, so a path-shaped one is legal — that is the point of the change. */
+    public void testEntriesMayNameDirectories() {
+        ExclusionConfig.validate(Map.of(CONFIG_FILE_EXCLUSIONS, List.of("**/_temporary/**")));
+        ExclusionConfig.NameFilter filter = ExclusionConfig.fromConfig(Map.of(CONFIG_FILE_EXCLUSIONS, List.of("**/_temporary/**")))
+            .compile();
+        assertFalse(filter.keeps("_temporary/task_0/part.parquet"));
+        assertFalse(filter.keeps("a/b/_temporary/part.parquet"));
+        assertTrue(filter.keeps("a/_temporaryX/part.parquet"));
     }
 
-    /** A mistake in each key is reported in one go, rather than one round-trip at a time. */
-    public void testValidateReportsProblemsInBothKeysAtOnce() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> ExclusionConfig.validate(Map.of(CONFIG_FILE_EXCLUSIONS, List.of("_temporary/**"), CONFIG_FILE_INCLUSIONS, List.of("[")))
-        );
-        assertThat(e.getMessage(), containsString("[file_exclusions]"));
-        assertThat(e.getMessage(), containsString("[file_inclusions]"));
-    }
-
-    /**
-     * An empty entry is a shape problem, and the caller's string-list check already reports it. Reporting it here
-     * as well would put two validation errors on one setting for one mistake, so this returns silently — the same
-     * split {@code PartitionConfig.validate} uses for a value the enum validator has already rejected.
-     */
-    public void testValidateLeavesEmptyEntriesToTheCaller() {
-        ExclusionConfig.validate(Map.of(CONFIG_FILE_EXCLUSIONS, List.of("")));
-        ExclusionConfig.validate(Map.of(CONFIG_FILE_INCLUSIONS, List.of("_*", "")));
-    }
-
-    public void testValidateRejectsAnUncompilableGlob() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> ExclusionConfig.validate(Map.of(CONFIG_FILE_INCLUSIONS, List.of("[")))
-        );
-        assertTrue(e.getMessage(), e.getMessage().startsWith("[file_inclusions] must contain only valid glob patterns ("));
-        assertTrue(e.getMessage(), e.getMessage().endsWith(", got [[]"));
-    }
-
-    /**
-     * A shape problem is the list-validator's to report, so this returns silently rather than adding a second error
-     * about the same setting.
-     */
+    /** A shape problem is the list validator's to report, so this returns silently rather than doubling up. */
     public void testValidateLeavesShapeProblemsToTheCaller() {
         Map<String, Object> scalar = new HashMap<>();
-        scalar.put(CONFIG_FILE_EXCLUSIONS, "_*");
+        scalar.put(CONFIG_FILE_EXCLUSIONS, "**/_*");
         ExclusionConfig.validate(scalar);
 
         Map<String, Object> nonString = new HashMap<>();
         nonString.put(CONFIG_FILE_EXCLUSIONS, List.of(42));
         ExclusionConfig.validate(nonString);
+
+        ExclusionConfig.validate(Map.of(CONFIG_FILE_EXCLUSIONS, List.of("")));
     }
 
-    // -- the compiled evaluator --
+    // -- the compiled filter, and the partition-safety property the default rests on --
 
-    public void testInclusionsWinOnTheSegmentTheyMatch() {
-        ExclusionConfig.NameFilter matchers = ExclusionConfig.DEFAULT.compile();
-        assertTrue(matchers.keeps("_dept=alpha/part1.csv"));
-        assertFalse(matchers.keeps("_dept=alpha/_SUCCESS"));
-        assertFalse(matchers.keeps("_hidden/part1.csv"));
+    /**
+     * The default matches only the FINAL segment, because {@code *} cannot cross a separator. Partition values live
+     * in directory names and never in the file name, so no partition directory can be touched — under any
+     * {@code partition_detection} mode, which is what the previous {@code _*=*} carve-out only managed for hive.
+     */
+    public void testTheDefaultNeverTouchesADirectory() {
+        ExclusionConfig.NameFilter filter = ExclusionConfig.DEFAULT.compile();
+
+        assertFalse("a marker file", filter.keeps("_SUCCESS"));
+        assertFalse("a marker nested under partitions", filter.keeps("year=2024/_SUCCESS"));
+        assertFalse("a sidecar", filter.keeps("a/b/.part-0.parquet.crc"));
+
+        assertTrue("hive partition directory starting with _", filter.keeps("_dept=alpha/part1.csv"));
+        assertTrue("template partition value starting with _", filter.keeps("_foo/part1.csv"));
+        assertTrue("bare hive null sentinel", filter.keeps("__HIVE_DEFAULT_PARTITION__/part1.csv"));
+        assertTrue("hive null sentinel", filter.keeps("col=__HIVE_DEFAULT_PARTITION__/part1.csv"));
+        assertTrue("a dot directory's contents are read by default", filter.keeps(".hidden/data.parquet"));
+        assertTrue("ordinary data", filter.keeps("year=2024/month=01/part-0.parquet"));
+        assertTrue("a name merely containing an underscore", filter.keeps("foo_bar.parquet"));
     }
 
-    /** An inclusion rescues only the segment it matches — another segment's exclusion still drops the object. */
-    public void testInclusionDoesNotRescueOtherSegments() {
-        ExclusionConfig config = new ExclusionConfig(List.of("_*"), List.of("_keep"));
-        ExclusionConfig.NameFilter matchers = config.compile();
-        assertTrue(matchers.keeps("_keep/data.csv"));
-        assertFalse(matchers.keeps("_keep/_other/data.csv"));
-    }
+    /** The cost of a leaf-only default, pinned so it is a decision rather than a surprise. */
+    public void testJunkDirectoriesAreReadUntilNamed() {
+        assertTrue("a failed job's leftovers are read by default", ExclusionConfig.DEFAULT.compile().keeps("_temporary/t/part.parquet"));
 
-    public void testCustomExclusionsReplaceRatherThanAugmentTheDefault() {
-        ExclusionConfig.NameFilter matchers = ExclusionConfig.fromConfig(
-            Map.of(CONFIG_FILE_EXCLUSIONS, List.of("*.tmp"), CONFIG_FILE_INCLUSIONS, List.of())
+        ExclusionConfig.NameFilter named = ExclusionConfig.fromConfig(
+            Map.of(CONFIG_FILE_EXCLUSIONS, List.of("**/_*", "**/.*", "**/_temporary/**"))
         ).compile();
-        assertFalse(matchers.keeps("staging/a.tmp"));
-        assertTrue("the convention is not augmented onto a custom list", matchers.keeps("_SUCCESS"));
+        assertFalse("and are excluded once named", named.keeps("_temporary/t/part.parquet"));
+        assertTrue("without endangering a partition directory", named.keeps("_dept=alpha/part1.csv"));
     }
 
-    /** Both components are required — a half-built config would make {@code keeps} throw deep inside a listing. */
-    public void testNullComponentsAreRejected() {
-        expectThrows(NullPointerException.class, () -> new ExclusionConfig(null, List.of()));
-        expectThrows(NullPointerException.class, () -> new ExclusionConfig(List.of(), null));
+    public void testCustomEntriesReplaceRatherThanAugmentTheDefault() {
+        ExclusionConfig.NameFilter filter = ExclusionConfig.fromConfig(Map.of(CONFIG_FILE_EXCLUSIONS, List.of("**/*.tmp"))).compile();
+        assertFalse(filter.keeps("staging/a.tmp"));
+        assertTrue("the convention is not augmented onto a custom list", filter.keeps("_SUCCESS"));
+    }
+
+    public void testNullComponentIsRejected() {
+        expectThrows(NullPointerException.class, () -> new ExclusionConfig(null));
     }
 
     public void testConfigIsImmutableAgainstCallerMutation() {
-        List<String> mutable = new ArrayList<>(List.of("_*"));
-        ExclusionConfig config = new ExclusionConfig(mutable, List.of());
-        mutable.add("*.parquet");
-        assertEquals(List.of("_*"), config.fileExclusions());
+        List<String> mutable = new ArrayList<>(List.of("**/_*"));
+        ExclusionConfig config = new ExclusionConfig(mutable);
+        mutable.add("**/*.parquet");
+        assertEquals(List.of("**/_*"), config.fileExclusions());
     }
 }

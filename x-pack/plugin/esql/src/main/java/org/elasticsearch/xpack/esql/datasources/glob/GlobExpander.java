@@ -575,17 +575,13 @@ public final class GlobExpander {
             for (String encodedHint : encodedFileHints) {
                 appendLengthPrefixed(sb, encodedHint);
             }
-            // Both exclusion lists are framed like encodedFileHints above — a count, then that many
+            // The exclusion list is framed like encodedFileHints above — a count, then that many
             // length-prefixed entries — so no user-supplied glob can forge a field boundary. Entry order is
             // preserved rather than sorted: order does not change semantics (any-match), so two same-set
             // different-order configs merely get distinct keys, which is safe over-fragmentation and keeps
             // encode() aligned with the record's equals.
             sb.append(exclusionConfig.fileExclusions().size()).append(':');
             for (String glob : exclusionConfig.fileExclusions()) {
-                appendLengthPrefixed(sb, glob);
-            }
-            sb.append(exclusionConfig.fileInclusions().size()).append(':');
-            for (String glob : exclusionConfig.fileInclusions()) {
                 appendLengthPrefixed(sb, glob);
             }
             return sb.toString();

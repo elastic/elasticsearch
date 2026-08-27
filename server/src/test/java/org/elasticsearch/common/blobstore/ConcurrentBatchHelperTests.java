@@ -23,11 +23,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class ConcurrentBatchHelperTests extends ESTestCase {
 
     public void testEmptyBatchListIsNoOp() throws IOException {
-        ConcurrentBatchHelper.runConcurrentBatches(
-            List.of(), randomIntBetween(1, 10), command -> {
-                throw new AssertionError("executor must not be called for empty input");
-            }, batch -> {throw new AssertionError("consumer must not be called for empty input");}
-        );
+        ConcurrentBatchHelper.runConcurrentBatches(List.of(), randomIntBetween(1, 10), command -> {
+            throw new AssertionError("executor must not be called for empty input");
+        }, batch -> { throw new AssertionError("consumer must not be called for empty input"); });
     }
 
     public void testAllBatchesExecutedWhenExecutorRejects() throws IOException {
@@ -35,11 +33,9 @@ public class ConcurrentBatchHelperTests extends ESTestCase {
         final List<List<String>> batches = makeBatches(nbBatches);
         final AtomicInteger batchesExecuted = new AtomicInteger(0);
 
-        ConcurrentBatchHelper.runConcurrentBatches(
-            batches, randomIntBetween(2, 10), command -> {
-                throw new RejectedExecutionException("executor is full");
-            }, batch -> batchesExecuted.incrementAndGet()
-        );
+        ConcurrentBatchHelper.runConcurrentBatches(batches, randomIntBetween(2, 10), command -> {
+            throw new RejectedExecutionException("executor is full");
+        }, batch -> batchesExecuted.incrementAndGet());
 
         assertEquals(nbBatches, batchesExecuted.get());
     }
@@ -64,11 +60,10 @@ public class ConcurrentBatchHelperTests extends ESTestCase {
         final RuntimeException cause = new RuntimeException("batch failed");
 
         final IOException e = expectThrows(
-            IOException.class, () -> ConcurrentBatchHelper.runConcurrentBatches(
-                batches, 1, Runnable::run, batch -> {
-                    throw cause;
-                }
-            )
+            IOException.class,
+            () -> ConcurrentBatchHelper.runConcurrentBatches(batches, 1, Runnable::run, batch -> {
+                throw cause;
+            })
         );
 
         assertEquals("Failed to delete blobs", e.getMessage());
@@ -84,12 +79,11 @@ public class ConcurrentBatchHelperTests extends ESTestCase {
         final AtomicInteger callCount = new AtomicInteger();
 
         final IOException e = expectThrows(
-            IOException.class, () -> ConcurrentBatchHelper.runConcurrentBatches(
-                batches, 1, Runnable::run, batch -> {
-                    callCount.incrementAndGet();
-                    throw cause;
-                }
-            )
+            IOException.class,
+            () -> ConcurrentBatchHelper.runConcurrentBatches(batches, 1, Runnable::run, batch -> {
+                callCount.incrementAndGet();
+                throw cause;
+            })
         );
 
         assertEquals("Failed to delete blobs", e.getMessage());
@@ -101,11 +95,9 @@ public class ConcurrentBatchHelperTests extends ESTestCase {
     public void testSingleBatchNeverUsesExecutor() throws IOException {
         // With nbBatches=1, min(maxConcurrency-1, nbBatches-1) = 0, so the executor is never called.
         final AtomicInteger batchesExecuted = new AtomicInteger();
-        ConcurrentBatchHelper.runConcurrentBatches(
-            makeBatches(1), randomIntBetween(1, 100), command -> {
-                throw new AssertionError("executor must not be called for a single batch");
-            }, batch -> batchesExecuted.incrementAndGet()
-        );
+        ConcurrentBatchHelper.runConcurrentBatches(makeBatches(1), randomIntBetween(1, 100), command -> {
+            throw new AssertionError("executor must not be called for a single batch");
+        }, batch -> batchesExecuted.incrementAndGet());
         assertEquals(1, batchesExecuted.get());
     }
 
@@ -142,11 +134,10 @@ public class ConcurrentBatchHelperTests extends ESTestCase {
         // of the wrapper rather than being double-wrapped.
         final IOException cause = new IOException("IO error during batch");
         final IOException e = expectThrows(
-            IOException.class, () -> ConcurrentBatchHelper.runConcurrentBatches(
-                makeBatches(1), 1, Runnable::run, batch -> {
-                    throw cause;
-                }
-            )
+            IOException.class,
+            () -> ConcurrentBatchHelper.runConcurrentBatches(makeBatches(1), 1, Runnable::run, batch -> {
+                throw cause;
+            })
         );
         assertEquals("Failed to delete blobs", e.getMessage());
         assertSame(cause, e.getCause());
@@ -160,15 +151,13 @@ public class ConcurrentBatchHelperTests extends ESTestCase {
         final AtomicInteger executorCalls = new AtomicInteger();
         final AtomicInteger batchesExecuted = new AtomicInteger();
 
-        ConcurrentBatchHelper.runConcurrentBatches(
-            makeBatches(nbBatches), nbBatches, command -> {
-                if (executorCalls.getAndIncrement() < acceptCount) {
-                    command.run();
-                } else {
-                    throw new RejectedExecutionException("pool full");
-                }
-            }, batch -> batchesExecuted.incrementAndGet()
-        );
+        ConcurrentBatchHelper.runConcurrentBatches(makeBatches(nbBatches), nbBatches, command -> {
+            if (executorCalls.getAndIncrement() < acceptCount) {
+                command.run();
+            } else {
+                throw new RejectedExecutionException("pool full");
+            }
+        }, batch -> batchesExecuted.incrementAndGet());
 
         assertEquals(nbBatches, batchesExecuted.get());
     }

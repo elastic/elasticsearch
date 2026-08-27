@@ -13,8 +13,8 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import java.util.Collection;
 import java.util.List;
 
-/** TSV binding of {@link AbstractExternalRowDropParityIT}. TSV is served by {@link CsvDataSourcePlugin} (tab delimiter). */
-public class TsvExternalRowDropParityIT extends AbstractExternalRowDropParityIT {
+/** TSV binding of {@link AbstractExternalReadConfigParityIT}. */
+public class TsvExternalReadConfigParityIT extends AbstractExternalReadConfigParityIT {
 
     @Override
     protected String format() {
@@ -32,16 +32,10 @@ public class TsvExternalRowDropParityIT extends AbstractExternalRowDropParityIT 
     }
 
     @Override
-    protected String buildContent(int rows, boolean malformed) {
-        int badRow = rows / 2;
-        StringBuilder sb = new StringBuilder("id:integer\tname:keyword\tvalue:double\n");
+    protected String buildContent(int rows) {
+        StringBuilder sb = new StringBuilder("id:integer\tage:keyword\n");
         for (int i = 0; i < rows; i++) {
-            if (malformed && i == badRow) {
-                // An extra column -> wrong-width STRUCTURAL drop; see the CSV sibling for why not a coercion drop.
-                sb.append(i).append("\trow_").append(i).append('\t').append(i + 0.5).append("\textra").append('\n');
-            } else {
-                sb.append(i).append("\trow_").append(i).append('\t').append(i + 0.5).append('\n');
-            }
+            sb.append(i).append('\t').append(20 + i % 50).append('\n');
         }
         return sb.toString();
     }

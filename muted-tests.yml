@@ -781,9 +781,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
   method: testUploadedCommitPrefetchNeverHitsIndexingNode
   issue: https://github.com/elastic/elasticsearch/issues/157813
-- class: org.elasticsearch.xpack.esql.CsvColumnarIT
-  method: test {csv-spec:inlinestats.inlineStatsDroppingMultipleCommandsGroupingFields}
-  issue: https://github.com/elastic/elasticsearch/issues/157817
 - class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlGoldenTests
   method: testBinaryWithDifferentSelectors {historical}
   issue: https://github.com/elastic/elasticsearch/issues/157827

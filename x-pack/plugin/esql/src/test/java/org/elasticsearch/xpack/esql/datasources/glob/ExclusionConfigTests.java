@@ -88,6 +88,19 @@ public class ExclusionConfigTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("unterminated character class"));
     }
 
+    /**
+     * Every bad entry is named, not just the first. Registering a dataset is a round trip, so a validator that
+     * stopped at the first mistake would cost the user one round trip per mistake.
+     */
+    public void testValidateReportsEveryBadEntryNotJustTheFirst() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ExclusionConfig.validate(Map.of(CONFIG_FILE_EXCLUSIONS, List.of("a[b", "**/_*", "c{d")))
+        );
+        assertThat(e.getMessage(), containsString("unterminated character class"));
+        assertThat(e.getMessage(), containsString("unterminated brace group"));
+    }
+
     /** Entries are ordinary resource patterns, so a path-shaped one is legal — that is the point of the change. */
     public void testEntriesMayNameDirectories() {
         ExclusionConfig.validate(Map.of(CONFIG_FILE_EXCLUSIONS, List.of("**/_temporary/**")));

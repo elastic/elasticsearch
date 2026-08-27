@@ -445,7 +445,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 assertThat(col, hasSize(1));
                 return addDocument(col.iterator().next());
             }
-        }, null, null, config);
+        }, config);
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetadata(0)) {
             @Override
             protected EngineFactory getEngineFactory(ShardRouting routing) {

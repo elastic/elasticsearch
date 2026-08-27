@@ -127,7 +127,7 @@ class SampleBytesRefAggregator {
 
         private GroupingState(BigArrays bigArrays, int limit) {
             CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-            this.sort = new BytesRefBucketedSort(breaker, "sample", bigArrays, SortOrder.ASC, limit);
+            this.sort = new BytesRefBucketedSort(bigArrays, SortOrder.ASC, limit);
             boolean success = false;
             try {
                 this.bytesRefBuilder = new BreakingBytesRefBuilder(breaker, "sample");
@@ -146,7 +146,6 @@ class SampleBytesRefAggregator {
             bytesRefBuilder.clear();
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             blocks[offset] = toBlock(driverContext.blockFactory(), selected);
         }

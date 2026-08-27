@@ -55,7 +55,7 @@ public class AlibabaCloudSearchCompletionRequestManagerTests extends ESTestCase 
         verify(mockExecutorService).execute(captor.capture());
 
         ExecutableInferenceRequest executableRequest = captor.getValue();
-        assertThat(executableRequest.request(), is(instanceOf(AlibabaCloudSearchCompletionRequest.class)));
+        assertThat(executableRequest.outboundRequest(), is(instanceOf(AlibabaCloudSearchCompletionRequest.class)));
         assertThat(executableRequest.responseHandler().getRequestType(), is("alibaba cloud search completion"));
     }
 
@@ -74,7 +74,7 @@ public class AlibabaCloudSearchCompletionRequestManagerTests extends ESTestCase 
     }
 
     public void testExecute_throwsIllegalArgumentException_whenInputIsNotChatCompletion() {
-        var inputs = new EmbeddingsInput(List.of("input1"), InputType.SEARCH);
+        var inputs = EmbeddingsInput.fromStrings(List.of("input1"), InputType.SEARCH);
         RequestSender mockSender = mock(RequestSender.class);
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 

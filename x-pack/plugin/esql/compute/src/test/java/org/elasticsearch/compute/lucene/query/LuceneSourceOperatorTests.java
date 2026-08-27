@@ -37,6 +37,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SourceOperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
@@ -194,7 +195,11 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         void assertSourceOperator(LuceneSourceOperator sourceOperator) {
             for (int shard = 0; shard < sourceOperator.refCounteds.size(); shard++) {
                 var shardContext = sourceOperator.getSliceQueue().shardContext(shard);
-                assertThat(shardContext.stats().stats().getTotal().getSearchLoadRate(), greaterThan(0d));
+                if (shardContext.searcher().getIndexReader().maxDoc() > 0) {
+                    assertThat(shardContext.stats().stats().getTotal().getSearchLoadRate(), greaterThan(0d));
+                } else {
+                    assertThat(shardContext.stats().stats().getTotal().getSearchLoadRate(), equalTo(0d));
+                }
             }
         }
     }
@@ -246,10 +251,14 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             queryFunction,
             dataPartitioning,
             DataPartitioning.AutoStrategy.DEFAULT,
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
             taskConcurrency,
             maxPageSize,
             limit,
-            scoring
+            scoring,
+            () -> 0L,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            QueryWarnings.EMIT
         );
     }
 
@@ -451,10 +460,14 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
                 queryFunction,
                 DataPartitioning.SEGMENT,
                 DataPartitioning.AutoStrategy.DEFAULT,
+                LuceneOperator.SMALL_INDEX_BOUNDARY,
                 taskConcurrency,
                 maxPageSize,
                 LuceneOperator.NO_LIMIT,
-                scoring
+                scoring,
+                () -> 0L,
+                LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+                QueryWarnings.EMIT
             );
             DriverContext ctx = driverContext();
             LuceneSourceOperator sourceOperator = (LuceneSourceOperator) factory.get(ctx);

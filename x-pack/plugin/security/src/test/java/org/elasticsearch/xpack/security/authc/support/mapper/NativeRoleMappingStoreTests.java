@@ -350,7 +350,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             final var listener = (ActionListener<SearchResponse>) invocation.getArguments()[1];
-            final var searchHit = SearchHit.unpooled(
+            final var searchHit = new SearchHit(
                 randomIntBetween(0, Integer.MAX_VALUE),
                 NativeRoleMappingStore.getIdForName(mapping.getName())
             );
@@ -358,12 +358,14 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
                 mapping.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 searchHit.sourceRef(BytesReference.bytes(builder));
             }
-            ActionListener.respondAndRelease(
-                listener,
-                SearchResponseUtils.successfulResponse(
-                    SearchHits.unpooled(new SearchHit[] { searchHit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), randomFloat())
-                )
+            SearchHits searchHits = new SearchHits(
+                new SearchHit[] { searchHit },
+                new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                randomFloat()
             );
+            var searchResponse = SearchResponseUtils.successfulResponse(searchHits);
+            searchHits.decRef(); // transfer ownership to searchResponse
+            ActionListener.respondAndRelease(listener, searchResponse);
             return null;
         }).when(client).search(any(SearchRequest.class), anyActionListener());
     }

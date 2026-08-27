@@ -25,12 +25,14 @@ public class FieldCapabilitiesBuilder {
     private boolean isMetadataField;
     private boolean isSearchable;
     private boolean isAggregatable;
+    private boolean isInference;
     private boolean isDimension;
     private @Nullable TimeSeriesParams.MetricType metricType;
 
     private @Nullable String[] indices;
     private @Nullable String[] nonSearchableIndices;
     private @Nullable String[] nonAggregatableIndices;
+    private @Nullable String[] nonInferenceIndices;
     private @Nullable String[] nonDimensionIndices;
     private @Nullable String[] metricConflictsIndices;
 
@@ -61,6 +63,11 @@ public class FieldCapabilitiesBuilder {
         return this;
     }
 
+    public FieldCapabilitiesBuilder isInference(boolean isInference) {
+        this.isInference = isInference;
+        return this;
+    }
+
     public FieldCapabilitiesBuilder isDimension(boolean isDimension) {
         this.isDimension = isDimension;
         return this;
@@ -83,6 +90,11 @@ public class FieldCapabilitiesBuilder {
 
     public FieldCapabilitiesBuilder nonAggregatableIndices(String... nonAggregatableIndices) {
         this.nonAggregatableIndices = copyStringArray(nonAggregatableIndices);
+        return this;
+    }
+
+    public FieldCapabilitiesBuilder nonInferenceIndices(String... nonInferenceIndices) {
+        this.nonInferenceIndices = copyStringArray(nonInferenceIndices);
         return this;
     }
 
@@ -112,11 +124,13 @@ public class FieldCapabilitiesBuilder {
             isMetadataField,
             isSearchable,
             isAggregatable,
+            isInference,
             isDimension,
             metricType,
             indices,
             nonSearchableIndices,
             nonAggregatableIndices,
+            nonInferenceIndices,
             nonDimensionIndices,
             metricConflictsIndices,
             meta

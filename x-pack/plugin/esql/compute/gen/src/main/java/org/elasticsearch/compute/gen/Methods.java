@@ -49,6 +49,7 @@ import static org.elasticsearch.compute.gen.Types.INT_VECTOR_BUILDER;
 import static org.elasticsearch.compute.gen.Types.INT_VECTOR_FIXED_BUILDER;
 import static org.elasticsearch.compute.gen.Types.LONG_BLOCK;
 import static org.elasticsearch.compute.gen.Types.LONG_BLOCK_BUILDER;
+import static org.elasticsearch.compute.gen.Types.LONG_RANGE_BLOCK_BUILDER;
 import static org.elasticsearch.compute.gen.Types.LONG_VECTOR;
 import static org.elasticsearch.compute.gen.Types.LONG_VECTOR_BUILDER;
 import static org.elasticsearch.compute.gen.Types.LONG_VECTOR_FIXED_BUILDER;
@@ -234,6 +235,12 @@ public class Methods {
         if (t.equals(Types.TDIGEST) || t.equals(Types.TDIGEST_BLOCK)) {
             return "appendTDigest";
         }
+        if (t.equals(Types.LONG_RANGE) || t.equals(Types.LONG_RANGE_BLOCK)) {
+            return "appendLongRange";
+        }
+        if (t.equals(Types.DOUBLE_RANGE) || t.equals(Types.DOUBLE_RANGE_BLOCK)) {
+            return "appendDoubleRange";
+        }
         throw new IllegalArgumentException("unknown append method for [" + t + "]");
     }
 
@@ -299,6 +306,12 @@ public class Methods {
         if (t.equals(EXPONENTIAL_HISTOGRAM_BLOCK_BUILDER)) {
             return "newExponentialHistogramBlockBuilder";
         }
+        if (t.equals(LONG_RANGE_BLOCK_BUILDER)) {
+            return "newLongRangeBlockBuilder";
+        }
+        if (t.equals(Types.DOUBLE_RANGE_BLOCK_BUILDER)) {
+            return "newDoubleRangeBlockBuilder";
+        }
         throw new IllegalArgumentException("unknown build method for [" + t + "]");
     }
 
@@ -330,6 +343,12 @@ public class Methods {
         }
         if (elementType.equals(Types.TDIGEST)) {
             return "getTDigestHolder";
+        }
+        if (elementType.equals(Types.LONG_RANGE)) {
+            return "getLongRange";
+        }
+        if (elementType.equals(Types.DOUBLE_RANGE)) {
+            return "getDoubleRange";
         }
         throw new IllegalArgumentException("unknown get method for [" + elementType + "]");
     }

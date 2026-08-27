@@ -107,7 +107,9 @@ public class AuthorizedIndicesTests extends ESTestCase {
             new FieldPermissionsCache(Settings.EMPTY),
             null,
             RESTRICTED_INDICES,
-            future
+            future,
+            List.of(),
+            false
         );
         Role roles = future.actionGet();
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
@@ -284,7 +286,9 @@ public class AuthorizedIndicesTests extends ESTestCase {
             new FieldPermissionsCache(Settings.EMPTY),
             null,
             RESTRICTED_INDICES,
-            future
+            future,
+            List.of(),
+            false
         );
         Role roles = future.actionGet();
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
@@ -370,7 +374,9 @@ public class AuthorizedIndicesTests extends ESTestCase {
             new FieldPermissionsCache(Settings.EMPTY),
             null,
             RESTRICTED_INDICES,
-            future
+            future,
+            List.of(),
+            false
         );
         Role roles = future.actionGet();
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
@@ -457,7 +463,9 @@ public class AuthorizedIndicesTests extends ESTestCase {
             new FieldPermissionsCache(Settings.EMPTY),
             null,
             RESTRICTED_INDICES,
-            future
+            future,
+            List.of(),
+            false
         );
         Role roles = future.actionGet();
         TransportRequest request = new ResolveIndexAction.Request(new String[] { "a*" });
@@ -541,7 +549,9 @@ public class AuthorizedIndicesTests extends ESTestCase {
             new FieldPermissionsCache(Settings.EMPTY),
             null,
             RESTRICTED_INDICES,
-            future
+            future,
+            List.of(),
+            false
         );
         Role roles = future.actionGet();
         TransportRequest request = new ResolveIndexAction.Request(new String[] { "a*" });
@@ -623,7 +633,9 @@ public class AuthorizedIndicesTests extends ESTestCase {
             new FieldPermissionsCache(Settings.EMPTY),
             null,
             RESTRICTED_INDICES,
-            future
+            future,
+            List.of(),
+            false
         );
         Role roles = future.actionGet();
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
@@ -702,7 +714,9 @@ public class AuthorizedIndicesTests extends ESTestCase {
             new FieldPermissionsCache(Settings.EMPTY),
             null,
             RESTRICTED_INDICES,
-            future
+            future,
+            List.of(),
+            false
         );
         Role roles = future.actionGet();
         TransportRequest request = new ResolveIndexAction.Request(new String[] { "a*" });

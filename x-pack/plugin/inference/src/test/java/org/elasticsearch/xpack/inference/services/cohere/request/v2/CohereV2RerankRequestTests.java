@@ -16,7 +16,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
-import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
+import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankServiceSettings;
@@ -38,7 +38,7 @@ public class CohereV2RerankRequestTests extends ESTestCase {
             List.of("abc"),
             Boolean.TRUE,
             22,
-            createModel("model", null, new CohereRerankTaskSettings(null, null, 3))
+            createModel("model", new CohereRerankTaskSettings(null, null, 3))
         );
 
         var httpRequest = RequestTests.getHttpRequestSync(request);
@@ -60,7 +60,7 @@ public class CohereV2RerankRequestTests extends ESTestCase {
             List.of("abc"),
             Boolean.TRUE,
             22,
-            createModel("model", "uri", new CohereRerankTaskSettings(null, null, 3))
+            createModel("model", new CohereRerankTaskSettings(null, null, 3))
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -77,7 +77,7 @@ public class CohereV2RerankRequestTests extends ESTestCase {
             List.of("abc"),
             null,
             null,
-            createModel("model", "uri", new CohereRerankTaskSettings(null, null, null))
+            createModel("model", new CohereRerankTaskSettings(null, null, null))
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -94,7 +94,7 @@ public class CohereV2RerankRequestTests extends ESTestCase {
             List.of("abc"),
             Boolean.FALSE,
             99,
-            createModel("model", "uri", new CohereRerankTaskSettings(33, Boolean.TRUE, null))
+            createModel("model", new CohereRerankTaskSettings(33, Boolean.TRUE, null))
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -111,7 +111,7 @@ public class CohereV2RerankRequestTests extends ESTestCase {
             List.of("abc"),
             null,
             null,
-            createModel("model", "uri", new CohereRerankTaskSettings(33, Boolean.TRUE, null))
+            createModel("model", new CohereRerankTaskSettings(33, Boolean.TRUE, null))
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -122,10 +122,12 @@ public class CohereV2RerankRequestTests extends ESTestCase {
             {"model":"model","query":"query","documents":["abc"],"return_documents":true,"top_n":33}"""));
     }
 
-    private CohereRerankModel createModel(String modelId, String uri, CohereRerankTaskSettings taskSettings) {
+    private CohereRerankModel createModel(String modelId, CohereRerankTaskSettings taskSettings) {
         return new CohereRerankModel(
             "inference_id",
-            new CohereRerankServiceSettings(uri, modelId, null, CohereServiceSettings.CohereApiVersion.V2),
+            new CohereRerankServiceSettings(
+                new CohereCommonServiceSettings(modelId, null, CohereCommonServiceSettings.CohereApiVersion.V2)
+            ),
             taskSettings,
             new DefaultSecretSettings(new SecureString("secret".toCharArray()))
         );

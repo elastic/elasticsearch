@@ -10,5 +10,5 @@ mapped_pages:
 The `CATEGORIZE` function requires a [platinum license](https://www.elastic.co/subscriptions).
 :::
 
-:::{include} ../../_snippets/functions/layout/categorize.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/categorize.md
 :::

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.FuzzyQueryBuilder;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -47,9 +49,11 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.Rounding.RoundingConvention.DOWN;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToLong;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 import static org.elasticsearch.xpack.esql.plugin.QueryPragmas.ROUNDTO_PUSHDOWN_THRESHOLD;
@@ -306,6 +310,15 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             // It is not clear how to push down multiple RoundTos, dealing with multiple RoundTos is out of the scope of this PR.
             if (roundTos.size() == 1) {
                 RoundTo roundTo = roundTos.get(0);
+                if (roundTo.field() instanceof FieldAttribute == false) {
+                    return evalExec;
+                }
+                // The range queries and tags generated below assume DOWN (floor) semantics: each interval [p_i, p_{i+1})
+                // is tagged with p_i. UP (ceiling) convention would require tagging with p_{i+1} instead, which is not
+                // implemented here. Skip the pushdown for UP convention.
+                if (roundTo.roundingConvention() != DOWN) {
+                    return evalExec;
+                }
                 int count = roundTo.points().size();
                 int roundingPointsUpperLimit = adjustedRoundingPointsThreshold(
                     ctx.searchStats(),
@@ -330,12 +343,19 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
                 // 15 queries. Each query would necessitate 1,000 seeks, requiring decompression and partial reads
                 // of many doc-value blocks.
                 //
-                // However, if the EsQueryExec index mode is time-series (e.g., rate), we should replace round_to with
-                // QueryAndTags when possible, as we currently lack a method to partition the data for increased parallelism.
-                if (queryExec.indexMode() != IndexMode.TIME_SERIES
-                    && ((FieldAttribute) roundTo.field()).name().equals(MetadataAttribute.TIMESTAMP_FIELD)
-                    && ctx.searchStats().targetShards().values().stream().allMatch(imd -> imd.getIndexMode() == IndexMode.TIME_SERIES)) {
-                    return evalExec;
+                // However, if the EsQueryExec index mode is time-series (e.g., rate), we prefer partitioning by tsid
+                // prefixes. When prefix partitioning is not available (old codec), we fall back to replacing round_to
+                // with QueryAndTags.
+                if (((FieldAttribute) roundTo.field()).name().equals(MetadataAttribute.TIMESTAMP_FIELD)
+                    && ctx.searchStats().targetShards().values().stream().allMatch(imd -> IndexMode.isTsdb(imd.getIndexMode()))) {
+                    if (queryExec.indexMode().isTsdb() == false) {
+                        return evalExec;
+                    }
+                    // prefer partitioning by tsid prefixes
+                    var partitioning = ctx.configuration().pragmas().dataPartitioning(ctx.plannerSettings().defaultDataPartitioning());
+                    if (partitioning != DataPartitioning.SHARD && ctx.searchStats().canPartitionByTsidPrefix()) {
+                        return evalExec;
+                    }
                 }
                 plan = planRoundTo(roundTo, evalExec, queryExec, ctx);
             }
@@ -421,7 +441,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             Object lower = null;
             Object upper = null;
             Queries.Clause clause = queryExec.hasScoring() ? Queries.Clause.MUST : Queries.Clause.FILTER;
-            ZoneId zoneId = ctx.configuration().zoneId();
+            ZoneId zoneId = QuerySettings.TIME_ZONE.get(ctx.configuration().resolvedSettings());
             for (int i = 1; i < count; i++) {
                 upper = points.get(i);
                 // build predicates and range queries for RoundTo ranges
@@ -438,7 +458,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
     }
 
     private static List<Number> resolveRoundingPoints(List<Expression> roundingPoints, DataType dataType) {
-        List<Object> points = new ArrayList<>(roundingPoints.size());
+        List<Number> points = new ArrayList<>(roundingPoints.size());
         for (Expression e : roundingPoints) {
             if (e instanceof Literal l && l.value() instanceof Number n) {
                 switch (dataType) {
@@ -450,7 +470,13 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
                 }
             }
         }
-        return RoundTo.sortedRoundingPoints(points, dataType);
+        switch (dataType) {
+            case INTEGER -> points.sort(Comparator.comparingInt(Number::intValue));
+            case LONG, DATETIME, DATE_NANOS -> points.sort(Comparator.comparingLong(Number::longValue));
+            case DOUBLE -> points.sort(Comparator.comparingDouble(Number::doubleValue));
+            default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);
+        }
+        return points;
     }
 
     private static Expression createRangeExpression(
@@ -546,7 +572,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
      */
     static int adjustedRoundingPointsThreshold(SearchStats stats, int threshold, QueryBuilder query, IndexMode indexMode) {
         int clauses = estimateQueryClauses(stats, query) + 1;
-        if (indexMode == IndexMode.TIME_SERIES) {
+        if (indexMode.isTsdb()) {
             // No doc partitioning for time_series sources; increase the threshold to trade overhead for parallelism.
             threshold *= 2;
         }

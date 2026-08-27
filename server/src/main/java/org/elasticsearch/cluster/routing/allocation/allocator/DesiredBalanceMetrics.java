@@ -13,16 +13,15 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator.NodeAllocationStatsAndWeight;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.telemetry.metric.ConsumingLongGaugeMetric;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 
 /**
@@ -107,6 +106,14 @@ public class DesiredBalanceMetrics {
     /** {@link #UNDESIRED_ALLOCATION_COUNT_METRIC_NAME} / {@link #TOTAL_SHARDS_METRIC_NAME} */
     public static final String UNDESIRED_ALLOCATION_RATIO_METRIC_NAME = "es.allocator.desired_balance.allocations.undesired.ratio";
 
+    // Desired balance computation metrics (from {@link DesiredBalanceStats}).
+    public static final String COMPUTATIONS_SUBMITTED_METRIC_NAME = "es.allocator.desired_balance.computations.submitted.total";
+    public static final String COMPUTATIONS_EXECUTED_METRIC_NAME = "es.allocator.desired_balance.computations.executed.total";
+    public static final String COMPUTATIONS_CONVERGED_METRIC_NAME = "es.allocator.desired_balance.computations.converged.total";
+    public static final String COMPUTATIONS_ITERATIONS_METRIC_NAME = "es.allocator.desired_balance.computations.iterations.total";
+    public static final String COMPUTATIONS_TIME_METRIC_NAME = "es.allocator.desired_balance.computations.time";
+    public static final String RECONCILIATIONS_TIME_METRIC_NAME = "es.allocator.desired_balance.reconciliations.time";
+
     // Desired balance node metrics.
     public static final String DESIRED_BALANCE_NODE_WEIGHT_METRIC_NAME = "es.allocator.desired_balance.allocations.node_weight.current";
     public static final String DESIRED_BALANCE_NODE_SHARD_COUNT_METRIC_NAME =
@@ -144,11 +151,15 @@ public class DesiredBalanceMetrics {
     private final AtomicReference<Map<DiscoveryNode, NodeAllocationStatsAndWeight>> allocationStatsPerNodeRef = new AtomicReference<>(
         Map.of()
     );
+    private final ConsumingLongGaugeMetric writeLoadDeciderMaxQueueLatencyGauge;
+
+    private volatile DesiredBalanceStats desiredBalanceStats = DesiredBalanceStats.ZERO;
 
     public void updateMetrics(
         AllocationStats allocationStats,
         Map<DiscoveryNode, NodeWeightStats> weightStatsPerNode,
-        Map<DiscoveryNode, NodeAllocationStatsAndWeight> nodeAllocationStats
+        Map<DiscoveryNode, NodeAllocationStatsAndWeight> nodeAllocationStats,
+        DesiredBalanceStats desiredBalanceStats
     ) {
         assert allocationStats != null : "allocation stats cannot be null";
         assert weightStatsPerNode != null : "node balance weight stats cannot be null";
@@ -157,91 +168,144 @@ public class DesiredBalanceMetrics {
         }
         weightStatsPerNodeRef.set(weightStatsPerNode);
         allocationStatsPerNodeRef.set(nodeAllocationStats);
+        this.desiredBalanceStats = desiredBalanceStats;
     }
 
     public DesiredBalanceMetrics(MeterRegistry meterRegistry) {
         this.meterRegistry = meterRegistry;
-        meterRegistry.registerLongsGauge(
+        this.writeLoadDeciderMaxQueueLatencyGauge = ConsumingLongGaugeMetric.create(
+            meterRegistry,
+            WRITE_LOAD_DECIDER_MAX_LATENCY_VALUE,
+            "max latency for write load decider",
+            "ms"
+        );
+        meterRegistry.registerLongsAsyncGauge(
             UNASSIGNED_SHARDS_METRIC_NAME,
             "Current number of unassigned shards",
             "{shard}",
             this::getUnassignedShardsMetrics
         );
-        meterRegistry.registerLongsGauge(TOTAL_SHARDS_METRIC_NAME, "Total number of shards", "{shard}", this::getTotalAllocationsMetrics);
-        meterRegistry.registerLongsGauge(
+        meterRegistry.registerLongsAsyncGauge(
+            TOTAL_SHARDS_METRIC_NAME,
+            "Total number of shards",
+            "{shard}",
+            this::getTotalAllocationsMetrics
+        );
+        meterRegistry.registerLongsAsyncGauge(
             UNDESIRED_ALLOCATION_COUNT_METRIC_NAME,
             "Total number of shards allocated on undesired nodes excluding shutting down nodes",
             "{shard}",
             this::getUndesiredAllocationsExcludingShuttingDownNodesMetrics
         );
-        meterRegistry.registerDoublesGauge(
+        meterRegistry.registerDoublesAsyncGauge(
             UNDESIRED_ALLOCATION_RATIO_METRIC_NAME,
             "Ratio of undesired allocations to shard count excluding shutting down nodes",
             "1",
             this::getUndesiredAllocationsRatioMetrics
         );
 
-        meterRegistry.registerDoublesGauge(
+        meterRegistry.registerLongsAsyncCounter(
+            COMPUTATIONS_SUBMITTED_METRIC_NAME,
+            "Total number of desired balance computations submitted on this elected master",
+            "unit",
+            this::getComputationSubmittedMetrics
+        );
+        meterRegistry.registerLongsAsyncCounter(
+            COMPUTATIONS_EXECUTED_METRIC_NAME,
+            "Total number of desired balance computations executed on this elected master",
+            "unit",
+            this::getComputationExecutedMetrics
+        );
+        meterRegistry.registerLongsAsyncCounter(
+            COMPUTATIONS_CONVERGED_METRIC_NAME,
+            "Total number of desired balance computations that converged on this elected master",
+            "unit",
+            this::getComputationConvergedMetrics
+        );
+        meterRegistry.registerLongsAsyncCounter(
+            COMPUTATIONS_ITERATIONS_METRIC_NAME,
+            "Total iterations across desired balance computations on this elected master",
+            "unit",
+            this::getComputationIterationsMetrics
+        );
+        meterRegistry.registerLongsAsyncCounter(
+            COMPUTATIONS_TIME_METRIC_NAME,
+            "Cumulative wall-clock time spent in desired balance computation on this elected master",
+            "ms",
+            this::getCumulativeComputationTimeMillisMetrics
+        );
+        meterRegistry.registerLongsAsyncCounter(
+            RECONCILIATIONS_TIME_METRIC_NAME,
+            "Cumulative wall-clock time spent reconciling toward the desired balance on this elected master",
+            "ms",
+            this::getCumulativeReconciliationTimeMillisMetrics
+        );
+
+        meterRegistry.registerDoublesAsyncGauge(
             DESIRED_BALANCE_NODE_WEIGHT_METRIC_NAME,
             "Weight of nodes in the computed desired balance",
             "unit",
             this::getDesiredBalanceNodeWeightMetrics
         );
-        meterRegistry.registerDoublesGauge(
+        meterRegistry.registerDoublesAsyncGauge(
             DESIRED_BALANCE_NODE_WRITE_LOAD_METRIC_NAME,
             "Write load of nodes in the computed desired balance",
             "threads",
             this::getDesiredBalanceNodeWriteLoadMetrics
         );
-        meterRegistry.registerDoublesGauge(
+        meterRegistry.registerDoublesAsyncGauge(
             DESIRED_BALANCE_NODE_DISK_USAGE_METRIC_NAME,
             "Disk usage of nodes in the computed desired balance",
             "bytes",
             this::getDesiredBalanceNodeDiskUsageMetrics
         );
-        meterRegistry.registerLongsGauge(
+        meterRegistry.registerLongsAsyncGauge(
             DESIRED_BALANCE_NODE_SHARD_COUNT_METRIC_NAME,
             "Shard count of nodes in the computed desired balance",
             "unit",
             this::getDesiredBalanceNodeShardCountMetrics
         );
 
-        meterRegistry.registerDoublesGauge(
+        meterRegistry.registerDoublesAsyncGauge(
             CURRENT_NODE_WEIGHT_METRIC_NAME,
             "The weight of nodes based on the current allocation state",
             "unit",
             this::getCurrentNodeWeightMetrics
         );
-        meterRegistry.registerDoublesGauge(
+        meterRegistry.registerDoublesAsyncGauge(
             CURRENT_NODE_WRITE_LOAD_METRIC_NAME,
             "The current write load of nodes",
             "threads",
             this::getCurrentNodeWriteLoadMetrics
         );
-        meterRegistry.registerLongsGauge(
+        meterRegistry.registerLongsAsyncGauge(
             CURRENT_NODE_DISK_USAGE_METRIC_NAME,
             "The current disk usage of nodes",
             "bytes",
             this::getCurrentNodeDiskUsageMetrics
         );
-        meterRegistry.registerLongsGauge(
+        meterRegistry.registerLongsAsyncGauge(
             CURRENT_NODE_SHARD_COUNT_METRIC_NAME,
             "The current shard count of nodes",
             "unit",
             this::getCurrentNodeShardCountMetrics
         );
-        meterRegistry.registerLongsGauge(
+        meterRegistry.registerLongsAsyncGauge(
             CURRENT_NODE_FORECASTED_DISK_USAGE_METRIC_NAME,
             "The current forecasted disk usage of nodes",
             "bytes",
             this::getCurrentNodeForecastedDiskUsageMetrics
         );
-        meterRegistry.registerLongsGauge(
+        meterRegistry.registerLongsAsyncGauge(
             CURRENT_NODE_UNDESIRED_SHARD_COUNT_METRIC_NAME,
             "The current undesired shard count of nodes",
             "unit",
             this::getCurrentNodeUndesiredShardCountMetrics
         );
+    }
+
+    public ConsumingLongGaugeMetric getWriteLoadDeciderMaxQueueLatencyGauge() {
+        return writeLoadDeciderMaxQueueLatencyGauge;
     }
 
     /**
@@ -268,13 +332,8 @@ public class DesiredBalanceMetrics {
         return lastReconciliationAllocationStats;
     }
 
-    public void registerWriteLoadDeciderMaxLatencyGauge(Supplier<Collection<LongWithAttributes>> maxLatencySupplier) {
-        meterRegistry.registerLongsGauge(
-            WRITE_LOAD_DECIDER_MAX_LATENCY_VALUE,
-            "max latency for write load decider",
-            "ms",
-            maxLatencySupplier
-        );
+    DesiredBalanceStats desiredBalanceStats() {
+        return desiredBalanceStats;
     }
 
     private List<LongWithAttributes> getUnassignedShardsMetrics() {
@@ -426,6 +485,37 @@ public class DesiredBalanceMetrics {
         var currentStats = lastReconciliationAllocationStats;
         if (nodeIsMaster && currentStats != EMPTY_ALLOCATION_STATS) {
             return List.of(new DoubleWithAttributes(currentStats.undesiredAllocationsRatio()));
+        }
+        return List.of();
+    }
+
+    private List<LongWithAttributes> getComputationSubmittedMetrics() {
+        return getIfPublishingDesiredBalanceStats(DesiredBalanceStats::computationSubmitted);
+    }
+
+    private List<LongWithAttributes> getComputationExecutedMetrics() {
+        return getIfPublishingDesiredBalanceStats(DesiredBalanceStats::computationExecuted);
+    }
+
+    private List<LongWithAttributes> getComputationConvergedMetrics() {
+        return getIfPublishingDesiredBalanceStats(DesiredBalanceStats::computationConverged);
+    }
+
+    private List<LongWithAttributes> getComputationIterationsMetrics() {
+        return getIfPublishingDesiredBalanceStats(DesiredBalanceStats::computationIterations);
+    }
+
+    private List<LongWithAttributes> getCumulativeComputationTimeMillisMetrics() {
+        return getIfPublishingDesiredBalanceStats(DesiredBalanceStats::cumulativeComputationTime);
+    }
+
+    private List<LongWithAttributes> getCumulativeReconciliationTimeMillisMetrics() {
+        return getIfPublishingDesiredBalanceStats(DesiredBalanceStats::cumulativeReconciliationTime);
+    }
+
+    private List<LongWithAttributes> getIfPublishingDesiredBalanceStats(ToLongFunction<DesiredBalanceStats> value) {
+        if (nodeIsMaster && lastReconciliationAllocationStats != EMPTY_ALLOCATION_STATS) {
+            return List.of(new LongWithAttributes(value.applyAsLong(desiredBalanceStats)));
         }
         return List.of();
     }

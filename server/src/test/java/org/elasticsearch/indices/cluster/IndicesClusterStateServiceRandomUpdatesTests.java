@@ -32,27 +32,39 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.SnapshotMetrics;
+import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -75,6 +87,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SILENT;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -84,16 +97,14 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
     private ThreadPool threadPool;
     private ClusterStateChanges cluster;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void startCluster() throws Exception {
         threadPool = new TestThreadPool(getClass().getName());
         cluster = new ClusterStateChanges(xContentRegistry(), threadPool);
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void terminateCluster() throws Exception {
         terminate(threadPool);
     }
 
@@ -270,6 +281,133 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
     }
 
+    /**
+     * An in-place restore over an already-open index publishes a cluster state in which the index keeps its index UUID and stays
+     * {@link IndexMetadata.State#OPEN}, but receives a new history UUID and snapshot-recovery routing. {@link IndexSettings} rejects an
+     * in-place history UUID change, so the node must remove and recreate the index service with reopened-index semantics rather than
+     * update it. The removal reason must keep the shard store on disk so that restore recovery can reuse identical local Lucene files.
+     */
+    public void testRestoreOverOpenIndexRecreatesIndexServicePreservingStore() {
+        disableRandomFailures();
+        final String indexName = "index_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
+        final ClusterState stateWithInitializingIndex = ClusterStateCreationUtils.state(indexName, true, ShardRoutingState.INITIALIZING);
+        final ShardRouting initializingPrimary = stateWithInitializingIndex.routingTable().index(indexName).shard(0).primaryShard();
+        final DiscoveryNode node = stateWithInitializingIndex.nodes().get(initializingPrimary.currentNodeId());
+
+        final ClusterState stateWithoutIndex = ClusterState.builder(stateWithInitializingIndex)
+            .metadata(Metadata.builder(stateWithInitializingIndex.metadata()).remove(indexName))
+            .routingTable(RoutingTable.builder().build())
+            .build();
+
+        final IndicesClusterStateService indicesCSSvc = createIndicesClusterStateService(node, RecordingIndicesService::new);
+        indicesCSSvc.start();
+        indicesCSSvc.applyClusterState(
+            new ClusterChangedEvent(
+                "cluster state change that adds the index",
+                adaptClusterStateToLocalNode(stateWithInitializingIndex, node),
+                adaptClusterStateToLocalNode(stateWithoutIndex, node)
+            )
+        );
+
+        // start the primary so that the restore transition below replaces an active routing, as an in-place restore does
+        final ClusterState stateWithOpenIndex = cluster.applyStartedShards(
+            ClusterState.builder(stateWithInitializingIndex)
+                .nodes(stateWithInitializingIndex.nodes().withMasterNodeId(stateWithInitializingIndex.nodes().getLocalNodeId()))
+                .build(),
+            List.of(initializingPrimary)
+        );
+        indicesCSSvc.applyClusterState(
+            new ClusterChangedEvent(
+                "cluster state change that starts the primary",
+                adaptClusterStateToLocalNode(stateWithOpenIndex, node),
+                adaptClusterStateToLocalNode(stateWithInitializingIndex, node)
+            )
+        );
+
+        final IndexMetadata openIndexMetadata = stateWithOpenIndex.metadata().getProject().index(indexName);
+        final Index index = openIndexMetadata.getIndex();
+        final ShardRouting startedPrimary = stateWithOpenIndex.routingTable().index(indexName).shard(0).primaryShard();
+        assertThat(startedPrimary.state(), equalTo(ShardRoutingState.STARTED));
+
+        final RecordingIndicesService indicesService = (RecordingIndicesService) indicesCSSvc.indicesService;
+        final MockIndexService indexServiceBeforeRestore = indicesService.indexService(index);
+        assertNotNull(indexServiceBeforeRestore);
+
+        // the state that the atomic open-index restore initialization publishes: same index UUID, still open, new history UUID
+        final String restoredHistoryUuid = UUIDs.randomBase64UUID();
+        final IndexMetadata restoredIndexMetadata = IndexMetadata.builder(openIndexMetadata)
+            .settings(Settings.builder().put(openIndexMetadata.getSettings()).put(IndexMetadata.SETTING_HISTORY_UUID, restoredHistoryUuid))
+            .settingsVersion(openIndexMetadata.getSettingsVersion() + 1)
+            .primaryTerm(0, openIndexMetadata.primaryTerm(0) + 1)
+            .build();
+        final SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(
+            UUIDs.randomBase64UUID(),
+            new Snapshot("repository", new SnapshotId("snapshot", UUIDs.randomBase64UUID())),
+            IndexVersion.current(),
+            new IndexId(indexName, UUIDs.randomBase64UUID())
+        );
+        final ShardRouting restoringPrimary = TestShardRouting.shardRoutingBuilder(
+            startedPrimary.shardId(),
+            node.getId(),
+            true,
+            ShardRoutingState.INITIALIZING
+        ).withRecoverySource(recoverySource).build();
+        final ClusterState stateWithRestoreInitialized = ClusterState.builder(stateWithOpenIndex)
+            .metadata(Metadata.builder(stateWithOpenIndex.metadata()).put(restoredIndexMetadata, false))
+            .routingTable(
+                RoutingTable.builder(stateWithOpenIndex.routingTable())
+                    .add(IndexRoutingTable.builder(index).addShard(restoringPrimary))
+                    .build()
+            )
+            .build();
+
+        indicesCSSvc.applyClusterState(
+            new ClusterChangedEvent(
+                "cluster state change that initializes an in-place restore over the open index",
+                adaptClusterStateToLocalNode(stateWithRestoreInitialized, node),
+                adaptClusterStateToLocalNode(stateWithOpenIndex, node)
+            )
+        );
+
+        final MockIndexService indexServiceAfterRestore = indicesService.indexService(index);
+        assertNotNull("index service should have been recreated for the restored index", indexServiceAfterRestore);
+        assertNotSame(
+            "index service should have been recreated rather than updated in place",
+            indexServiceBeforeRestore,
+            indexServiceAfterRestore
+        );
+        assertThat(
+            indexServiceAfterRestore.getIndexSettings().getSettings().get(IndexMetadata.SETTING_HISTORY_UUID),
+            equalTo(restoredHistoryUuid)
+        );
+        assertNotNull("restoring shard should have been created", indexServiceAfterRestore.getShardOrNull(startedPrimary.id()));
+        // REOPENED keeps the shard store on disk so that the restore file diff can reuse identical local Lucene files
+        assertThat(indicesService.removalReason(index), equalTo(IndexRemovalReason.REOPENED));
+        assertFalse(indicesService.isDeleted(index));
+
+        // reapplying the same restore state must not recreate the index service a second time
+        final IndexMetadata unchangedIndexMetadata = IndexMetadata.builder(restoredIndexMetadata)
+            .settingsVersion(restoredIndexMetadata.getSettingsVersion() + 1)
+            .build();
+        indicesCSSvc.applyClusterState(
+            new ClusterChangedEvent(
+                "cluster state change that does not change the history UUID",
+                adaptClusterStateToLocalNode(
+                    ClusterState.builder(stateWithRestoreInitialized)
+                        .metadata(Metadata.builder(stateWithRestoreInitialized.metadata()).put(unchangedIndexMetadata, false))
+                        .build(),
+                    node
+                ),
+                adaptClusterStateToLocalNode(stateWithRestoreInitialized, node)
+            )
+        );
+        assertSame(
+            "an update that leaves the history UUID alone must not recreate the index service",
+            indexServiceAfterRestore,
+            indicesService.indexService(index)
+        );
+    }
+
     public void testRecoveryFailures() {
         disableRandomFailures();
         String index = "index_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
@@ -300,11 +438,13 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
         assertNotNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
 
+        final long primaryTerm = localState.metadata().getProject().index(index).primaryTerm(shardId.id());
+
         // check that failing unrelated allocation does not remove shard
-        indicesCSSvc.handleRecoveryFailure(shardRouting.reinitializeReplicaShard(), false, new Exception("dummy"));
+        indicesCSSvc.handleRecoveryFailure(shardRouting.reinitializeReplicaShard(), FAIL_SILENT, primaryTerm, new Exception("dummy"));
         assertNotNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
 
-        indicesCSSvc.handleRecoveryFailure(shardRouting, false, new Exception("dummy"));
+        indicesCSSvc.handleRecoveryFailure(shardRouting, FAIL_SILENT, primaryTerm, new Exception("dummy"));
         assertNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
     }
 
@@ -580,7 +720,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             null,
             primaryReplicaSyncer,
             RetentionLeaseSyncer.EMPTY,
-            client
+            client,
+            RecoveryMetricsCollector.NOOP
         ) {
             @Override
             protected void updateGlobalCheckpointForShard(final ShardId shardId) {}
@@ -589,6 +730,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
     private class RecordingIndicesService extends MockIndicesService {
         private Set<Index> deletedIndices = Collections.emptySet();
+        private final Map<Index, IndexRemovalReason> removalReasons = new HashMap<>();
 
         @Override
         public synchronized void removeIndex(
@@ -599,6 +741,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             ActionListener<Void> shardsClosedListener
         ) {
             super.removeIndex(index, reason, extraInfo, shardCloseExecutor, shardsClosedListener);
+            removalReasons.put(index, reason);
             if (reason == IndexRemovalReason.DELETED) {
                 Set<Index> newSet = Sets.newHashSet(deletedIndices);
                 newSet.add(index);
@@ -608,6 +751,14 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
         public synchronized boolean isDeleted(Index index) {
             return deletedIndices.contains(index);
+        }
+
+        /**
+         * @return the reason the index was most recently removed for, or {@code null} if it was never removed
+         */
+        @Nullable
+        public synchronized IndexRemovalReason removalReason(Index index) {
+            return removalReasons.get(index);
         }
     }
 

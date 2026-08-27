@@ -30,6 +30,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -70,6 +71,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -107,6 +109,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeRes
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
+import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.metric.SecurityCacheMetrics;
@@ -152,6 +155,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.MANAGE_ROLES_PRIVILEGE;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
+import static org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.DatasourcePrivileges.ESQL_DATASOURCE_PRIVILEGE;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.SecurityFeatures.CERTIFICATE_IDENTITY_FIELD_FEATURE;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
@@ -398,8 +402,8 @@ public class ApiKeyService implements Closeable {
         ensureEnabled();
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
-        } else if (authentication.isCloudApiKey()) {
-            listener.onFailure(new IllegalArgumentException("creating elasticsearch api keys using cloud api keys is not supported"));
+        } else if (authentication.isCloudApiKey() && request.getType() == ApiKey.Type.CROSS_CLUSTER) {
+            listener.onFailure(new IllegalArgumentException("cross-cluster API keys cannot be created with a cloud API key"));
         } else {
             final TransportVersion transportVersion = getMinTransportVersion();
             if (validateRoleDescriptorsForMixedCluster(listener, request.getRoleDescriptors(), transportVersion) == false) {
@@ -470,6 +474,16 @@ public class ApiKeyService implements Closeable {
             );
             return false;
         }
+        if (transportVersion.supports(ESQL_DATASOURCE_PRIVILEGE) == false && hasGlobalDatasourcePrivilege(roleDescriptors)) {
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "all nodes must have version ["
+                        + ESQL_DATASOURCE_PRIVILEGE.toReleaseVersion()
+                        + "] or higher to support the datasource privilege for API keys"
+                )
+            );
+            return false;
+        }
         return true;
     }
 
@@ -518,6 +532,13 @@ public class ApiKeyService implements Closeable {
             && roleDescriptors.stream()
                 .flatMap(roleDescriptor -> Arrays.stream(roleDescriptor.getConditionalClusterPrivileges()))
                 .anyMatch(privilege -> privilege instanceof ConfigurableClusterPrivileges.ManageRolesPrivilege);
+    }
+
+    private static boolean hasGlobalDatasourcePrivilege(Collection<RoleDescriptor> roleDescriptors) {
+        return roleDescriptors != null
+            && roleDescriptors.stream()
+                .flatMap(roleDescriptor -> Arrays.stream(roleDescriptor.getConditionalClusterPrivileges()))
+                .anyMatch(privilege -> privilege instanceof ConfigurableClusterPrivileges.DatasourcePrivileges);
     }
 
     private static IllegalArgumentException validateWorkflowsRestrictionConstraints(
@@ -1280,8 +1301,20 @@ public class ApiKeyService implements Closeable {
                 listener.onResponse(AuthenticationResult.unsuccessful("unable to find apikey with id " + credentials.getId(), null));
             }
         }, e -> {
-            if (ExceptionsHelper.unwrapCause(e) instanceof EsRejectedExecutionException) {
+            final Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (cause instanceof EsRejectedExecutionException) {
                 listener.onResponse(AuthenticationResult.terminate("server is too busy to respond", e));
+            } else if (TransportActions.isShardNotAvailableException(e) || cause instanceof ConnectTransportException) {
+                // Surface a 503 so clients retry
+                listener.onResponse(
+                    AuthenticationResult.terminate(
+                        "authentication backend temporarily unavailable",
+                        Exceptions.authenticationProcessError(
+                            "authentication backend for apikey with id " + credentials.getId() + " is temporarily unavailable",
+                            e
+                        )
+                    )
+                );
             } else {
                 listener.onResponse(
                     AuthenticationResult.unsuccessful("apikey authentication for id " + credentials.getId() + " encountered a failure", e)

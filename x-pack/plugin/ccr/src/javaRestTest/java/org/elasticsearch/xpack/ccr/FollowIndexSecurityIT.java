@@ -312,7 +312,7 @@ public class FollowIndexSecurityIT extends AbstractCCRRestTestCase {
         final String cleanFollower = "clean-follower";
         if (targetCluster == TargetCluster.LEADER) {
             logger.info("running against leader cluster");
-            final Settings indexSettings = indexSettings(1, 0).put("index.soft_deletes.enabled", true).build();
+            final Settings indexSettings = indexSettings(1, 0).build();
             createIndex(adminClient(), cleanLeader, indexSettings);
         } else {
             logger.info("running against follower cluster");

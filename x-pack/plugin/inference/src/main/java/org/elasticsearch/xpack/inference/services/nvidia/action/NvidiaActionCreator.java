@@ -49,7 +49,7 @@ public class NvidiaActionCreator implements NvidiaActionVisitor {
     private static final String USER_ROLE = "user";
 
     private static final ResponseHandler EMBEDDINGS_HANDLER = new NvidiaEmbeddingsResponseHandler(
-        "NVIDIA text embedding",
+        "NVIDIA embedding",
         OpenAiEmbeddingsResponseEntity::fromResponse
     );
 
@@ -117,7 +117,7 @@ public class NvidiaActionCreator implements NvidiaActionVisitor {
             serviceComponents.threadPool(),
             model,
             RERANK_HANDLER,
-            inputs -> new NvidiaRerankRequest(inputs.getQuery(), inputs.getChunks(), model),
+            inputs -> new NvidiaRerankRequest(inputs.getQueryAsString(), inputs.getDocsAsStrings(), model),
             QueryAndDocsInputs.class
         );
         var errorMessage = buildErrorMessage(TaskType.RERANK, model.getInferenceEntityId());

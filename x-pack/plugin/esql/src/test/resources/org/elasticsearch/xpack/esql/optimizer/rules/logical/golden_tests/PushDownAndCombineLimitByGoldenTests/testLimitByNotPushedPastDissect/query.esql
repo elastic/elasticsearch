@@ -1,0 +1,3 @@
+FROM web_logs
+| DISSECT uri "/%{path}/%{file}"
+| LIMIT 2 BY path, domain

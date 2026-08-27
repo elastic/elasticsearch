@@ -10,6 +10,10 @@
     "responseTime": {
       "type": "exponential_histogram",
       "time_series_metric": "histogram"
+    },
+    "mostly_empty": {
+      "type": "exponential_histogram",
+      "time_series_metric": "histogram"
     }
   }
 }

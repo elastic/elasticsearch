@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -13,6 +14,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
@@ -310,7 +312,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
     }
 
     private static SearchHit newHit(String json) {
-        SearchHit hit = SearchHit.unpooled(randomInt(), randomAlphaOfLength(10));
+        SearchHit hit = new SearchHit(randomInt(), randomAlphaOfLength(10));
         hit.sourceRef(new BytesArray(json));
         return hit;
     }
@@ -342,7 +344,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
 
     private static class DelegateStubDataExtractor {
 
-        private final List<SearchHit[]> batches;
+        private final List<SearchHits> batches;
         private final Map<SearchHit, DataFrameDataExtractor.Row> rows = new HashMap<>();
         private int batchIndex;
 
@@ -354,7 +356,8 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
                     this.rows.put(row.getHit(), row);
                     batchHits.add(row.getHit());
                 }
-                batches.add(batchHits.toArray(new SearchHit[0]));
+                SearchHit[] hitArray = batchHits.toArray(new SearchHit[0]);
+                batches.add(new SearchHits(hitArray, new TotalHits(hitArray.length, TotalHits.Relation.EQUAL_TO), Float.NaN));
             }
         }
 
@@ -362,7 +365,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
             return batchIndex < batches.size();
         }
 
-        public Optional<SearchHit[]> next() {
+        public Optional<SearchHits> next() {
             return Optional.of(batches.get(batchIndex++));
         }
 

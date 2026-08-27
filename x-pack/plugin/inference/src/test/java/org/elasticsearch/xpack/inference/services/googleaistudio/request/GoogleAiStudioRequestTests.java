@@ -30,7 +30,7 @@ public class GoogleAiStudioRequestTests extends ESTestCase {
         var httpPost = new HttpPost(uriString);
         var secretSettings = new DefaultSecretSettings(secureApiKey);
 
-        GoogleAiStudioRequest.decorateWithApiKeyParameter(httpPost, secretSettings);
+        GoogleAiStudioRequestUtils.decorateWithApiKeyParameter(httpPost, secretSettings);
 
         assertThat(httpPost.getURI(), is(new URI(Strings.format("%s?key=%s", uriString, secureApiKey))));
     }
@@ -43,7 +43,7 @@ public class GoogleAiStudioRequestTests extends ESTestCase {
 
         ValidationException validationException = expectThrows(
             ValidationException.class,
-            () -> GoogleAiStudioRequest.decorateWithApiKeyParameter(
+            () -> GoogleAiStudioRequestUtils.decorateWithApiKeyParameter(
                 httpPost,
                 new DefaultSecretSettings(new SecureString("abc".toCharArray()))
             )

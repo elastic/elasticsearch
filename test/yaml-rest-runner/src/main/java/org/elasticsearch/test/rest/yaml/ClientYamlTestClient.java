@@ -65,7 +65,7 @@ public class ClientYamlTestClient implements Closeable {
     private final Map<NodeSelector, RestClient> restClients = new HashMap<>();
     private final CheckedSupplier<RestClientBuilder, IOException> clientBuilderWithSniffedNodes;
 
-    ClientYamlTestClient(
+    public ClientYamlTestClient(
         final ClientYamlSuiteRestSpec restSpec,
         final RestClient restClient,
         final List<HttpHost> hosts,

@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -65,6 +66,13 @@ import static org.hamcrest.Matchers.not;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
+    /**
+     * OpenTelemetry double histograms may report bucket values rounded slightly above the wall-clock
+     * interval measured here with {@link TimeValue#secondsFrac()}, causing strict {@code lessThan}
+     * comparisons to flake (e.g. 0.108 vs 0.107915...).
+     */
+    private static final double DOUBLE_HISTOGRAM_DURATION_UPPER_BOUND_SLACK_SEC = 1e-4;
+
     private static final String REQUIRE_NODE_NAME_SETTING = IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name";
 
     @Override
@@ -105,7 +113,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         // Block the snapshot to test "snapshot shards in progress"
         blockAllDataNodes(repositoryName);
         final String snapshotName = randomIdentifier();
-        final long beforeCreateSnapshotNanos = System.nanoTime();
+        final long beforeCreateSnapshotMs = System.currentTimeMillis();
         final ActionFuture<CreateSnapshotResponse> snapshotFuture;
         try {
             snapshotFuture = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, snapshotName)
@@ -129,7 +137,8 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
         // wait for snapshot to finish to test the other metrics
         safeGet(snapshotFuture);
-        final TimeValue snapshotElapsedTime = TimeValue.timeValueNanos(System.nanoTime() - beforeCreateSnapshotNanos);
+        final TimeValue snapshotElapsedTime = TimeValue.timeValueMillis(System.currentTimeMillis() - beforeCreateSnapshotMs);
+        final double maxHistogramDurationSeconds = snapshotElapsedTime.secondsFrac() + DOUBLE_HISTOGRAM_DURATION_UPPER_BOUND_SLACK_SEC;
         collectMetrics();
 
         // sanity check blobs, bytes and throttling metrics
@@ -141,18 +150,18 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
         // Sanity check shard duration observations
         assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_SHARDS_DURATION, hasSize(numShards));
-        assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_SHARDS_DURATION, everyItem(lessThan(snapshotElapsedTime.secondsFrac())));
+        assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_SHARDS_DURATION, everyItem(lessThan(maxHistogramDurationSeconds)));
 
         // Sanity check shard queue time observations
         assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_SHARDS_QUEUE_TIME, hasSize(numShards));
         assertDoubleHistogramMetrics(
             SnapshotMetrics.SNAPSHOT_SHARDS_QUEUE_TIME,
-            everyItem(allOf(greaterThanOrEqualTo(0.0), lessThan(snapshotElapsedTime.secondsFrac())))
+            everyItem(allOf(greaterThanOrEqualTo(0.0), lessThan(maxHistogramDurationSeconds)))
         );
 
         // Sanity check snapshot observations
         assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_DURATION, hasSize(1));
-        assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_DURATION, everyItem(lessThan(snapshotElapsedTime.secondsFrac())));
+        assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_DURATION, everyItem(lessThan(maxHistogramDurationSeconds)));
 
         // Work out the maximum amount of concurrency per node
         final ThreadPool tp = internalCluster().getDataNodeInstance(ThreadPool.class);
@@ -189,7 +198,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertMetricsHaveAttributes(InstrumentType.DOUBLE_HISTOGRAM, SnapshotMetrics.SNAPSHOT_DURATION, expectedAttrsWithSnapshotState);
 
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_SHARDS_STARTED, expectedAttrs);
-        assertMetricsHaveAttributes(InstrumentType.LONG_GAUGE, SnapshotMetrics.SNAPSHOT_SHARDS_IN_PROGRESS, expectedAttrs);
+        assertMetricsHaveAttributes(InstrumentType.LONG_ASYNC_GAUGE, SnapshotMetrics.SNAPSHOT_SHARDS_IN_PROGRESS, expectedAttrs);
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_SHARDS_COMPLETED, expectedAttrsWithShardStage);
         assertMetricsHaveAttributes(InstrumentType.DOUBLE_HISTOGRAM, SnapshotMetrics.SNAPSHOT_SHARDS_DURATION, expectedAttrsWithShardStage);
         assertMetricsHaveAttributes(InstrumentType.DOUBLE_HISTOGRAM, SnapshotMetrics.SNAPSHOT_SHARDS_QUEUE_TIME, expectedAttrs);
@@ -197,14 +206,87 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_UPLOAD_DURATION, expectedAttrs);
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_BYTES_UPLOADED, expectedAttrs);
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_BLOBS_UPLOADED, expectedAttrs);
+
+        // Clean snapshot: no unsuccessful shards at all; the counter is not emitted (nothing to iterate), and
+        // the histogram records exactly one observation of zero.
+        assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_SHARDS_UNSUCCESSFUL), equalTo(0L));
+        final List<Measurement> cleanHistogramMeasurements = getClusterMeasurements(
+            InstrumentType.LONG_HISTOGRAM,
+            SnapshotMetrics.SNAPSHOT_SHARDS_UNSUCCESSFUL_HISTOGRAM
+        );
+        assertThat(cleanHistogramMeasurements, hasSize(1));
+        assertThat(cleanHistogramMeasurements.getFirst().getLong(), equalTo(0L));
+        assertMetricsHaveAttributes(
+            InstrumentType.LONG_HISTOGRAM,
+            SnapshotMetrics.SNAPSHOT_SHARDS_UNSUCCESSFUL_HISTOGRAM,
+            expectedAttrsWithSnapshotState
+        );
+    }
+
+    /**
+     * Verifies that unsuccessful shard metrics are emitted when a partial snapshot completes
+     * with MISSING shards (unallocated primaries).
+     */
+    public void testUnsuccessfulShardMetrics() throws Exception {
+        final int numShards = randomIntBetween(1, 3);
+        final String indexName = randomIdentifier();
+        // Routing requirement that can never be satisfied forces all primaries to stay unallocated,
+        // so the snapshot records each shard as MISSING (partial=true mode).
+        // Use setWaitForActiveShards(NONE) so createIndex does not time out waiting for an
+        // allocation that will never arrive.
+        prepareCreate(indexName).setSettings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(REQUIRE_NODE_NAME_SETTING, "nonexistent-node")
+        ).setWaitForActiveShards(ActiveShardCount.NONE).get();
+
+        final String repositoryName = randomIdentifier();
+        createRepository(repositoryName, "mock");
+
+        final CreateSnapshotResponse response = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            repositoryName,
+            randomIdentifier()
+        ).setIndices(indexName).setPartial(true).setWaitForCompletion(true).get();
+
+        assertThat(response.getSnapshotInfo().state(), equalTo(SnapshotState.PARTIAL));
+        assertThat(response.getSnapshotInfo().failedShards(), equalTo(numShards));
+
+        awaitNoMoreRunningOperations();
+        collectMetrics();
+
+        // Counter: each MISSING shard adds one, broken down by shard state.
+        assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_SHARDS_UNSUCCESSFUL), equalTo((long) numShards));
+
+        // Histogram: one observation recording the total across all shard states for this snapshot.
+        final List<Measurement> histogramMeasurements = getClusterMeasurements(
+            InstrumentType.LONG_HISTOGRAM,
+            SnapshotMetrics.SNAPSHOT_SHARDS_UNSUCCESSFUL_HISTOGRAM
+        );
+        assertThat(histogramMeasurements, hasSize(1));
+        assertThat(histogramMeasurements.getFirst().getLong(), equalTo((long) numShards));
+
+        // Assert attribute dimensions.
+        final Map<String, Object> expectedAttrs = Map.of("repo_name", repositoryName, "repo_type", "mock");
+        assertMetricsHaveAttributes(
+            InstrumentType.LONG_COUNTER,
+            SnapshotMetrics.SNAPSHOT_SHARDS_UNSUCCESSFUL,
+            Maps.copyMapWithAddedEntry(expectedAttrs, "state", SnapshotsInProgress.ShardState.MISSING.name())
+        );
+        assertMetricsHaveAttributes(
+            InstrumentType.LONG_HISTOGRAM,
+            SnapshotMetrics.SNAPSHOT_SHARDS_UNSUCCESSFUL_HISTOGRAM,
+            Maps.copyMapWithAddedEntry(expectedAttrs, "state", SnapshotState.PARTIAL.name())
+        );
     }
 
     public void testThrottlingMetrics() throws Exception {
         final String indexName = randomIdentifier();
-        final int numShards = randomIntBetween(1, 10);
+        final int numShards = randomIntBetween(1, 3);
         final int numReplicas = randomIntBetween(0, 1);
         createIndex(indexName, numShards, numReplicas);
-        indexRandom(true, indexName, randomIntBetween(100, 120));
+        indexRandom(true, indexName, randomIntBetween(10, 50));
 
         // Create a repository with restrictive throttling settings
         final String repositoryName = randomIdentifier();
@@ -213,8 +295,8 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
             ByteSizeValue.ofKb(2)
         )
             .put(BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC.getKey(), ByteSizeValue.ofKb(2))
-            // Small chunk size ensures we don't get stuck throttling for too long
-            .put("chunk_size", ByteSizeValue.ofBytes(100));
+            // Small chunk size ensures we don't get stuck throttling for too long. But we don't want to overwhelm with too many chunks.
+            .put("chunk_size", ByteSizeValue.ofBytes(1000));
         createRepository(repositoryName, "mock", repositorySettings, false);
 
         final String snapshotName = randomIdentifier();
@@ -368,12 +450,12 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
         // Ensure all common attributes are present
         assertMetricsHaveAttributes(
-            InstrumentType.LONG_GAUGE,
+            InstrumentType.LONG_ASYNC_GAUGE,
             SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATE,
             Map.of("repo_name", repositoryName, "repo_type", "mock")
         );
         assertMetricsHaveAttributes(
-            InstrumentType.LONG_GAUGE,
+            InstrumentType.LONG_ASYNC_GAUGE,
             SnapshotMetrics.SNAPSHOTS_BY_STATE,
             Map.of("repo_name", repositoryName, "repo_type", "mock")
         );
@@ -438,12 +520,12 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
         // Ensure all common attributes are present
         assertMetricsHaveAttributes(
-            InstrumentType.LONG_GAUGE,
+            InstrumentType.LONG_ASYNC_GAUGE,
             SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATE,
             Map.of("repo_name", repositoryName, "repo_type", "mock")
         );
         assertMetricsHaveAttributes(
-            InstrumentType.LONG_GAUGE,
+            InstrumentType.LONG_ASYNC_GAUGE,
             SnapshotMetrics.SNAPSHOTS_BY_STATE,
             Map.of("repo_name", repositoryName, "repo_type", "mock")
         );
@@ -518,12 +600,12 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
         // Ensure all common attributes are present
         assertMetricsHaveAttributes(
-            InstrumentType.LONG_GAUGE,
+            InstrumentType.LONG_ASYNC_GAUGE,
             SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATE,
             Map.of("repo_name", repositoryName, "repo_type", "mock")
         );
         assertMetricsHaveAttributes(
-            InstrumentType.LONG_GAUGE,
+            InstrumentType.LONG_ASYNC_GAUGE,
             SnapshotMetrics.SNAPSHOTS_BY_STATE,
             Map.of("repo_name", repositoryName, "repo_type", "mock")
         );

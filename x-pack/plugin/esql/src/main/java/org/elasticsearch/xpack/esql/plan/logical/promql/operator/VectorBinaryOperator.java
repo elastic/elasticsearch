@@ -196,6 +196,12 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
 
     @Override
     public PromqlDataType returnType() {
+        PromqlDataType leftType = PromqlPlan.getType(left());
+        PromqlDataType rightType = PromqlPlan.getType(right());
+        // scalar op scalar → scalar; otherwise → vector
+        if (leftType == PromqlDataType.SCALAR && rightType == PromqlDataType.SCALAR) {
+            return PromqlDataType.SCALAR;
+        }
         return PromqlDataType.INSTANT_VECTOR;
     }
 }

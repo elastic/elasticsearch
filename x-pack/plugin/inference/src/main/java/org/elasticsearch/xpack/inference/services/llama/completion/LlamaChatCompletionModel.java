@@ -48,7 +48,7 @@ public class LlamaChatCompletionModel extends LlamaModel {
             taskType,
             service,
             LlamaChatCompletionServiceSettings.fromMap(serviceSettings, context),
-            retrieveSecretSettings(secrets)
+            retrieveSecretSettings(secrets, context)
         );
     }
 
@@ -80,7 +80,6 @@ public class LlamaChatCompletionModel extends LlamaModel {
      */
     public LlamaChatCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
         super(modelConfigurations, modelSecrets);
-        setPropertiesFromServiceSettings((LlamaChatCompletionServiceSettings) modelConfigurations.getServiceSettings());
     }
 
     /**
@@ -111,11 +110,6 @@ public class LlamaChatCompletionModel extends LlamaModel {
             overriddenServiceSettings,
             model.getSecretSettings()
         );
-    }
-
-    private void setPropertiesFromServiceSettings(LlamaChatCompletionServiceSettings serviceSettings) {
-        this.uri = serviceSettings.uri();
-        this.rateLimitSettings = serviceSettings.rateLimitSettings();
     }
 
     /**

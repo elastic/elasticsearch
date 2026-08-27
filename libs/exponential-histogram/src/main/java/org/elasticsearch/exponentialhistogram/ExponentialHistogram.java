@@ -110,6 +110,16 @@ public interface ExponentialHistogram extends Accountable {
     long valueCount();
 
     /**
+     * Returns whether this histogram is empty, i.e. contains no values.
+     * Implementations may override this in case {@link #valueCount()} is expensive.
+     *
+     * @return true if this histogram contains no values
+     */
+    default boolean isEmpty() {
+        return valueCount() == 0;
+    }
+
+    /**
      * Returns minimum of all values represented by this histogram.
      *
      * @return the minimum, NaN for empty histograms

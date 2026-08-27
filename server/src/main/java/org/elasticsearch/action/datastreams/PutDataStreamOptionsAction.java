@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -108,6 +109,14 @@ public class PutDataStreamOptionsAction {
             ActionRequestValidationException validationException = null;
             if (options.failureStore() == null) {
                 validationException = addValidationError("At least one option needs to be provided", validationException);
+            }
+            if (options.failureStore() != null
+                && options.failureStore().lifecycle() != null
+                && options.failureStore().lifecycle().frozenAfter() != null) {
+                validationException = addValidationError(
+                    DataStreamLifecycle.FROZEN_AFTER_NOT_SUPPORTED_ON_FAILURES_ERROR_MESSAGE,
+                    validationException
+                );
             }
             return validationException;
         }

@@ -585,11 +585,11 @@ dynamic templates - conflicting aliases with top-level field:
                       time_series_metric: counter
                       ignore_malformed: true
                 - strings_as_keyword:
+                    match_mapping_type: string
+                    path_match: "*attributes.*"
                     mapping:
                       type: keyword
                       ignore_above: 1024
-                      match_mapping_type: string
-                      path_match: "*attributes.*"
 
   - do:
       bulk:

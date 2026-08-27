@@ -50,7 +50,7 @@ public class OpenShiftAiActionCreator implements OpenShiftAiActionVisitor {
     private static final String USER_ROLE = "user";
 
     private static final ResponseHandler EMBEDDINGS_HANDLER = new OpenShiftAiEmbeddingsResponseHandler(
-        "OpenShift AI text embedding",
+        "OpenShift AI embedding",
         OpenAiEmbeddingsResponseEntity::fromResponse
     );
     private static final ResponseHandler COMPLETION_HANDLER = new OpenShiftAiCompletionResponseHandler(
@@ -117,8 +117,8 @@ public class OpenShiftAiActionCreator implements OpenShiftAiActionVisitor {
             overriddenModel,
             RERANK_HANDLER,
             inputs -> new OpenShiftAiRerankRequest(
-                inputs.getQuery(),
-                inputs.getChunks(),
+                inputs.getQueryAsString(),
+                inputs.getDocsAsStrings(),
                 inputs.getReturnDocuments(),
                 inputs.getTopN(),
                 overriddenModel

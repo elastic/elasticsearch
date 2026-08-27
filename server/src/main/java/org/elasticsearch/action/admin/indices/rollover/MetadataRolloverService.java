@@ -53,11 +53,12 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.time.Instant;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -97,7 +98,8 @@ public class MetadataRolloverService {
     private final SystemIndices systemIndices;
     private final WriteLoadForecaster writeLoadForecaster;
     private final ClusterService clusterService;
-    private final MeterRegistry meterRegistry;
+
+    private final Map<AutoShardingType, LongCounter> autoShardingCounters = new EnumMap<>(AutoShardingType.class);
 
     @Inject
     public MetadataRolloverService(
@@ -115,13 +117,12 @@ public class MetadataRolloverService {
         this.systemIndices = systemIndices;
         this.writeLoadForecaster = writeLoadForecaster;
         this.clusterService = clusterService;
-        this.meterRegistry = telemetryProvider.getMeterRegistry();
 
         for (var entry : AUTO_SHARDING_METRIC_NAMES.entrySet()) {
             final AutoShardingType type = entry.getKey();
             final String metricName = entry.getValue();
             final String description = String.format(Locale.ROOT, "auto-sharding %s counter", type.name().toLowerCase(Locale.ROOT));
-            meterRegistry.registerLongCounter(metricName, description, "unit");
+            autoShardingCounters.put(type, telemetryProvider.getMeterRegistry().registerLongCounter(metricName, description, "unit"));
         }
     }
 
@@ -366,9 +367,9 @@ public class MetadataRolloverService {
             );
         } else {
             if (autoShardingResult != null) {
-                final String metricName = AUTO_SHARDING_METRIC_NAMES.get(autoShardingResult.type());
-                if (metricName != null) {
-                    meterRegistry.getLongCounter(metricName).increment();
+                final LongCounter counter = autoShardingCounters.get(autoShardingResult.type());
+                if (counter != null) {
+                    counter.increment();
                 }
             }
 
@@ -476,12 +477,13 @@ public class MetadataRolloverService {
             var index = projectBuilder.getSafe(indexName);
             final Settings originalSettings = index.getSettings();
             if (index.getCreationVersion().before(IndexVersions.FIRST_DETACHED_INDEX_VERSION)
-                && index.getIndexMode() == IndexMode.TIME_SERIES
+                && IndexMode.isTsdb(index.getIndexMode())
                 && originalSettings.keySet().contains(IndexSettings.TIME_SERIES_START_TIME.getKey()) == false
                 && originalSettings.keySet().contains(IndexSettings.TIME_SERIES_END_TIME.getKey()) == false) {
-                final Settings.Builder settingsBuilder = Settings.builder().put(originalSettings);
-                settingsBuilder.remove(IndexSettings.MODE.getKey());
-                settingsBuilder.remove(IndexMetadata.INDEX_ROUTING_PATH.getKey());
+                final Settings.Builder settingsBuilder = Settings.builder()
+                    .put(originalSettings)
+                    .remove(IndexSettings.MODE.getKey())
+                    .remove(IndexMetadata.INDEX_ROUTING_PATH.getKey());
                 long newVersion = index.getSettingsVersion() + 1;
                 projectBuilder.put(IndexMetadata.builder(index).settings(settingsBuilder.build()).settingsVersion(newVersion));
             }

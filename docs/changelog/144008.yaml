@@ -1,6 +1,0 @@
-area: Vector Search
-issues:
- - 143901
-pr: 144008
-summary: Use bulk scoring for filtered scenarios in DiskBBQ
-type: enhancement

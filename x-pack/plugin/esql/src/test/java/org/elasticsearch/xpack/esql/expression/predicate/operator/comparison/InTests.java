@@ -10,6 +10,8 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -49,6 +51,10 @@ public class InTests extends AbstractFunctionTestCase {
             booleans(suppliers, i);
             numerics(suppliers, i);
             bytesRefs(suppliers, i);
+            if (DataType.DATE_RANGE.supportedVersion().supportedLocally()) {
+                dateRanges(suppliers, i);
+            }
+            doubleRanges(suppliers, i);
         }
         return parameterSuppliersFromTypedData(suppliers);
     }
@@ -241,6 +247,52 @@ public class InTests extends AbstractFunctionTestCase {
             return new TestCaseSupplier.TestCase(
                 args,
                 matchesPattern("InBytesRefEvaluator.*"),
+                DataType.BOOLEAN,
+                equalTo(inlist.contains(field))
+            );
+        }));
+    }
+
+    private static void dateRanges(List<TestCaseSupplier> suppliers, int items) {
+        suppliers.add(new TestCaseSupplier("date_range", typesList(DataType.DATE_RANGE, DataType.DATE_RANGE, items), () -> {
+            var drSupplier = TestCaseSupplier.dateRangeCases().get(0).supplier();
+            List<LongRangeBlockBuilder.LongRange> inlist = randomList(
+                items,
+                items,
+                () -> (LongRangeBlockBuilder.LongRange) drSupplier.get()
+            );
+            LongRangeBlockBuilder.LongRange field = inlist.get(0);
+            List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
+            for (LongRangeBlockBuilder.LongRange i : inlist) {
+                args.add(new TestCaseSupplier.TypedData(i, DataType.DATE_RANGE, "inlist"));
+            }
+            args.add(new TestCaseSupplier.TypedData(field, DataType.DATE_RANGE, "field"));
+            return new TestCaseSupplier.TestCase(
+                args,
+                matchesPattern("InLongRangeEvaluator.*"),
+                DataType.BOOLEAN,
+                equalTo(inlist.contains(field))
+            );
+        }));
+    }
+
+    private static void doubleRanges(List<TestCaseSupplier> suppliers, int items) {
+        suppliers.add(new TestCaseSupplier("double_range", typesList(DataType.DOUBLE_RANGE, DataType.DOUBLE_RANGE, items), () -> {
+            var drSupplier = TestCaseSupplier.doubleRangeCases().get(0).supplier();
+            List<DoubleRangeBlockBuilder.DoubleRange> inlist = randomList(
+                items,
+                items,
+                () -> (DoubleRangeBlockBuilder.DoubleRange) drSupplier.get()
+            );
+            DoubleRangeBlockBuilder.DoubleRange field = inlist.get(0);
+            List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
+            for (DoubleRangeBlockBuilder.DoubleRange i : inlist) {
+                args.add(new TestCaseSupplier.TypedData(i, DataType.DOUBLE_RANGE, "inlist"));
+            }
+            args.add(new TestCaseSupplier.TypedData(field, DataType.DOUBLE_RANGE, "field"));
+            return new TestCaseSupplier.TestCase(
+                args,
+                matchesPattern("InDoubleRangeEvaluator.*"),
                 DataType.BOOLEAN,
                 equalTo(inlist.contains(field))
             );

@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `PRESENT_OVER_TIME` function [esql-present_over_time]
 
-:::{include} ../../_snippets/functions/layout/present_over_time.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/present_over_time.md
 :::

@@ -118,26 +118,26 @@ public class SplitShardCountSummaryTests extends ESTestCase {
 
     public void testCheckReturningValidDecision() {
         var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(), 4, 0).build();
-        IndexMetadata indexMetadata = IndexMetadata.builder("index")
-            .settings(settings)
-            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(2, 2))
-            .build();
 
-        assertEquals(SplitShardCountSummary.Decision.CURRENT, new SplitShardCountSummary(4).check(indexMetadata));
-        assertEquals(SplitShardCountSummary.Decision.OLDER, new SplitShardCountSummary(2).check(indexMetadata));
+        assertEquals(
+            SplitShardCountSummary.Decision.CURRENT,
+            new SplitShardCountSummary(4).check(4, IndexReshardingMetadata.newSplitByMultiple(2, 2))
+        );
+        assertEquals(
+            SplitShardCountSummary.Decision.OLDER,
+            new SplitShardCountSummary(2).check(4, IndexReshardingMetadata.newSplitByMultiple(2, 2))
+        );
     }
 
     public void testCheckReturningInvalidDecision() {
         var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(), 4, 0).build();
-        IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
 
-        assertEquals(SplitShardCountSummary.Decision.INVALID, new SplitShardCountSummary(8).check(indexMetadata));
-        assertEquals(SplitShardCountSummary.Decision.INVALID, new SplitShardCountSummary(2).check(indexMetadata));
+        assertEquals(SplitShardCountSummary.Decision.INVALID, new SplitShardCountSummary(8).check(4, null));
+        assertEquals(SplitShardCountSummary.Decision.INVALID, new SplitShardCountSummary(2).check(4, null));
 
-        IndexMetadata indexMetadataWith4To8Split = IndexMetadata.builder("index")
-            .settings(settings)
-            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(4, 2))
-            .build();
-        assertEquals(SplitShardCountSummary.Decision.INVALID, new SplitShardCountSummary(2).check(indexMetadataWith4To8Split));
+        assertEquals(
+            SplitShardCountSummary.Decision.INVALID,
+            new SplitShardCountSummary(2).check(4, IndexReshardingMetadata.newSplitByMultiple(4, 2))
+        );
     }
 }

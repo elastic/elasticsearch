@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -90,7 +89,7 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
             newSettingsMap.put(Headers.HEADERS_FIELD, newSettings.headers().mapValue().orElse(null));
         }
 
-        var updatedSettings = initialSettings.updatedTaskSettings(Collections.unmodifiableMap(newSettingsMap));
+        var updatedSettings = initialSettings.updatedTaskSettings(newSettingsMap);
 
         if (newSettings.user().isPresent()) {
             assertEquals(newSettings.user(), updatedSettings.user());
@@ -117,14 +116,14 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
 
     public void testUpdatedTaskSettings_ApplyingEmptyHeaders() {
         var initialSettings = create(STATEFUL_USER, Headers.NULL_INSTANCE);
-        Map<String, Object> newSettingsMap = Map.of(Headers.HEADERS_FIELD, Map.of());
+        var newSettingsMap = new HashMap<String, Object>(Map.of(Headers.HEADERS_FIELD, Map.of()));
 
         var updatedSettings = initialSettings.updatedTaskSettings(newSettingsMap);
         assertThat(updatedSettings, is(create(STATEFUL_USER, Headers.UNDEFINED_INSTANCE)));
 
         var initialSettingsDefinedHeaders = create(STATEFUL_USER, HEADERS);
         // This will remove the headers because using "headers": {} in the update counts as the user wanting to remove all existing headers
-        updatedSettings = initialSettingsDefinedHeaders.updatedTaskSettings(newSettingsMap);
+        updatedSettings = initialSettingsDefinedHeaders.updatedTaskSettings(new HashMap<>(Map.of(Headers.HEADERS_FIELD, Map.of())));
         assertThat(updatedSettings, is(create(STATEFUL_USER, Headers.UNDEFINED_INSTANCE)));
     }
 
@@ -167,7 +166,7 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
 
     public void testFromMap_isEmpty() {
         {
-            var emptyMap = createFromMap(new HashMap<>(Map.of()), randomContext());
+            var emptyMap = createFromMap(new HashMap<>(), randomContext());
             assertTrue(emptyMap.isEmpty());
         }
         {
@@ -209,7 +208,7 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
     }
 
     public void testFromMap_MissingUser_DoesNotThrowException() {
-        var taskSettings = createFromMap(new HashMap<>(Map.of()), ConfigurationParseContext.REQUEST);
+        var taskSettings = createFromMap(new HashMap<>(), ConfigurationParseContext.REQUEST);
         assertTrue(taskSettings.user().isUndefined());
     }
 
@@ -301,7 +300,7 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
     }
 
     public void testFromMap_WithRequestContext_ReturnsEmptySettings_WhenMapIsEmpty() {
-        var settings = createFromMap(new HashMap<>(Map.of()), ConfigurationParseContext.REQUEST);
+        var settings = createFromMap(new HashMap<>(), ConfigurationParseContext.REQUEST);
         assertTrue(settings.isEmpty());
         assertTrue(settings.user().isUndefined());
         assertThat(settings.headers(), sameInstance(Headers.UNDEFINED_INSTANCE));
@@ -314,7 +313,7 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
             ConfigurationParseContext.PERSISTENT
         );
 
-        var overriddenTaskSettings = taskSettings.updatedTaskSettings(Map.of());
+        var overriddenTaskSettings = taskSettings.updatedTaskSettings(new HashMap<>());
         assertThat(overriddenTaskSettings, is(taskSettings));
     }
 

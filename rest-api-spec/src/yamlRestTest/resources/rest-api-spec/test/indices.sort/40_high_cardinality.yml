@@ -1,0 +1,323 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.keyword.columnar_default_high_cardinality" ]
+      reason: "columnar mode keyword fields default to high-cardinality doc values"
+
+---
+# Tests for index sort on keyword fields with cardinality:high.
+#
+# High-cardinality keyword fields use BinaryDocValues (MultiValuedBinaryDocValuesField).
+# MultiValuedBinaryDocValuesSortField sorts by the minimum value across a document's
+# values, consistent with how SortedSetSortField behaves with a MIN selector.
+#
+# columnar mode is used so the sort field actually defaults to high cardinality;
+# cardinality is not user-configurable via doc_values.cardinality.
+
+"Index sort on high cardinality keyword field - single values":
+
+  - do:
+      indices.create:
+        index: test_single
+        body:
+          settings:
+            number_of_shards: 1
+            refresh_interval: -1
+            index.mode: columnar
+            index.sort.field: name
+            routing.rebalance.enable: "none"
+          mappings:
+            properties:
+              name:
+                type: keyword
+
+  - do:
+      cluster.health:
+        index: test_single
+        wait_for_events: languid
+        wait_for_no_initializing_shards: true
+
+  - do:
+      index:
+        index: test_single
+        id: "1"
+        body: { "name": "charlie" }
+  - do:
+      index:
+        index: test_single
+        id: "2"
+        body: { "name": "alice" }
+  - do:
+      index:
+        index: test_single
+        id: "3"
+        body: { "name": "bob" }
+
+  - do:
+      indices.refresh:
+        index: test_single
+
+  - do:
+      indices.forcemerge:
+        index: test_single
+        max_num_segments: 1
+
+  - do:
+      indices.refresh:
+        index: test_single
+
+  # After forcemerge _doc order reflects the index sort (ascending by name):
+  # "alice" (id=2), "bob" (id=3), "charlie" (id=1).
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_single
+        body:
+          sort: _doc
+
+  - match: { hits.total: 3 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.2._id: "1" }
+
+---
+"Index sort on high cardinality keyword field - mixed single and multi values":
+
+  - do:
+      indices.create:
+        index: test_mixed
+        body:
+          settings:
+            number_of_shards: 1
+            refresh_interval: -1
+            index.mode: columnar
+            index.sort.field: name
+            routing.rebalance.enable: "none"
+          mappings:
+            properties:
+              name:
+                type: keyword
+
+  - do:
+      cluster.health:
+        index: test_mixed
+        wait_for_events: languid
+        wait_for_no_initializing_shards: true
+
+  # Single-value: sort key = "charlie"
+  - do:
+      index:
+        index: test_mixed
+        id: "1"
+        body: { "name": "charlie" }
+  # Single-value: sort key = "alice"
+  - do:
+      index:
+        index: test_mixed
+        id: "2"
+        body: { "name": "alice" }
+  # Multi-value: stored sorted as ["bob","zebra"], sort key = min = "bob"
+  - do:
+      index:
+        index: test_mixed
+        id: "3"
+        body: { "name": ["zebra", "bob"] }
+  # Multi-value: stored sorted as ["alpha","delta"], sort key = min = "alpha"
+  - do:
+      index:
+        index: test_mixed
+        id: "4"
+        body: { "name": ["delta", "alpha"] }
+
+  - do:
+      indices.refresh:
+        index: test_mixed
+
+  - do:
+      indices.forcemerge:
+        index: test_mixed
+        max_num_segments: 1
+
+  - do:
+      indices.refresh:
+        index: test_mixed
+
+  # Ascending order by minimum value:
+  # "alice" (id=2), "alpha" (id=4), "bob" (id=3), "charlie" (id=1).
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_mixed
+        body:
+          sort: _doc
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "4" }
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.3._id: "1" }
+
+---
+"Index sort on high cardinality keyword field - explicit mode=min":
+
+  - do:
+      indices.create:
+        index: test_mode_min
+        body:
+          settings:
+            number_of_shards: 1
+            refresh_interval: -1
+            index.mode: columnar
+            index.sort.field: name
+            index.sort.mode: min
+            routing.rebalance.enable: "none"
+          mappings:
+            properties:
+              name:
+                type: keyword
+
+  - do:
+      cluster.health:
+        index: test_mode_min
+        wait_for_events: languid
+        wait_for_no_initializing_shards: true
+
+  # Single-value: sort key (min) = "charlie"
+  - do:
+      index:
+        index: test_mode_min
+        id: "1"
+        body: { "name": "charlie" }
+  # Single-value: sort key (min) = "alice"
+  - do:
+      index:
+        index: test_mode_min
+        id: "2"
+        body: { "name": "alice" }
+  # Multi-value: stored sorted as ["bob","zebra"], min = "bob"
+  - do:
+      index:
+        index: test_mode_min
+        id: "3"
+        body: { "name": ["zebra", "bob"] }
+  # Multi-value: stored sorted as ["alpha","delta"], min = "alpha"
+  - do:
+      index:
+        index: test_mode_min
+        id: "4"
+        body: { "name": ["delta", "alpha"] }
+
+  - do:
+      indices.refresh:
+        index: test_mode_min
+
+  - do:
+      indices.forcemerge:
+        index: test_mode_min
+        max_num_segments: 1
+
+  - do:
+      indices.refresh:
+        index: test_mode_min
+
+  # Ascending order by minimum value:
+  # "alice" (id=2), "alpha" (id=4), "bob" (id=3), "charlie" (id=1).
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_mode_min
+        body:
+          sort: _doc
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "4" }
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.3._id: "1" }
+
+---
+"Index sort on high cardinality keyword field - explicit mode=max":
+
+  - do:
+      indices.create:
+        index: test_mode_max
+        body:
+          settings:
+            number_of_shards: 1
+            refresh_interval: -1
+            index.mode: columnar
+            index.sort.field: name
+            index.sort.mode: max
+            routing.rebalance.enable: "none"
+          mappings:
+            properties:
+              name:
+                type: keyword
+
+  - do:
+      cluster.health:
+        index: test_mode_max
+        wait_for_events: languid
+        wait_for_no_initializing_shards: true
+
+  # Single-value: sort key (max) = "charlie"
+  - do:
+      index:
+        index: test_mode_max
+        id: "1"
+        body: { "name": "charlie" }
+  # Single-value: sort key (max) = "alice"
+  - do:
+      index:
+        index: test_mode_max
+        id: "2"
+        body: { "name": "alice" }
+  # Multi-value: stored sorted as ["bob","zebra"], max = "zebra"
+  - do:
+      index:
+        index: test_mode_max
+        id: "3"
+        body: { "name": ["zebra", "bob"] }
+  # Multi-value: stored sorted as ["alpha","delta"], max = "delta"
+  - do:
+      index:
+        index: test_mode_max
+        id: "4"
+        body: { "name": ["delta", "alpha"] }
+
+  - do:
+      indices.refresh:
+        index: test_mode_max
+
+  - do:
+      indices.forcemerge:
+        index: test_mode_max
+        max_num_segments: 1
+
+  - do:
+      indices.refresh:
+        index: test_mode_max
+
+  # Ascending order by maximum value:
+  # "alice" (id=2), "charlie" (id=1), "delta" (id=4), "zebra" (id=3).
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_mode_max
+        body:
+          sort: _doc
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "1" }
+  - match: { hits.hits.2._id: "4" }
+  - match: { hits.hits.3._id: "3" }

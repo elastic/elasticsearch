@@ -14,6 +14,7 @@ import fixture.s3.S3HttpHandler;
 
 import com.sun.net.httpserver.HttpHandler;
 
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -37,6 +38,7 @@ public abstract class AbstractS3RepositoryAnalysisRestTestCase extends AbstractR
         RepositoryAnalysisHttpFixture(S3ConsistencyModel consistencyModel) {
             super(
                 USE_FIXTURE,
+                null,
                 "bucket",
                 "base_path_integration_tests",
                 () -> consistencyModel,
@@ -140,6 +142,16 @@ public abstract class AbstractS3RepositoryAnalysisRestTestCase extends AbstractR
     @Override
     protected String repositoryType() {
         return "s3";
+    }
+
+    @Override
+    protected RequestOptions repositoryRegistrationRequestOptions(Settings repositorySettings) {
+        if (repositorySettings.hasValue("unsafely_incompatible_with_s3_conditional_writes")) {
+            return expectWarnings("""
+                [unsafely_incompatible_with_s3_conditional_writes] setting was deprecated in Elasticsearch and will be removed \
+                in a future release. See the breaking changes documentation for the next major version.""");
+        }
+        return RequestOptions.DEFAULT;
     }
 
 }

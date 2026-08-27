@@ -180,6 +180,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private Path confPathData;
     private String keystorePassword = "";
     private boolean preserveDataDir = false;
+    private String leakMessage = null;
 
     ElasticsearchNode(
         String clusterName,
@@ -318,6 +319,17 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     public void module(Provider<RegularFile> module) {
         checkFrozen();
         this.modules.add(module.map(RegularFile::getAsFile));
+    }
+
+    /**
+     * Adds a module directory directly from a plain file provider.
+     * Used by {@link ElasticsearchCluster} when wiring a {@link org.gradle.api.tasks.Sync} task output,
+     * where the destination directory is already resolved as a {@link java.io.File} and does not need
+     * to go through the {@code Provider<RegularFile>} abstraction.
+     */
+    void addModuleDirectory(Provider<File> moduleDir) {
+        checkFrozen();
+        this.modules.add(moduleDir);
     }
 
     public void module(TaskProvider<Sync> module) {
@@ -874,6 +886,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         defaultEnv.put("HOSTNAME", HOSTNAME_OVERRIDE);
         defaultEnv.put("COMPUTERNAME", COMPUTERNAME_OVERRIDE);
 
+        // Propagate PATH so shell scripts (e.g. elasticsearch-keystore) can locate standard utilities
+        // such as `dirname`. This is essential on systems like NixOS where PATH is non-standard.
+        String systemPath = System.getenv("PATH");
+        if (systemPath != null) {
+            defaultEnv.put("PATH", systemPath);
+        }
+
         Set<String> commonKeys = new HashSet<>(environment.keySet());
         commonKeys.retainAll(defaultEnv.keySet());
         if (commonKeys.isEmpty() == false) {
@@ -985,6 +1004,14 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     @Internal
     public File getAuditLog() {
         return confPathLogs.resolve(defaultConfig.get("cluster.name") + "_audit.json").toFile();
+    }
+
+    /**
+     * Returns the resource leak message if one was detected during node shutdown, or null if no leaks were found.
+     */
+    @Internal
+    public String getLeakMessage() {
+        return leakMessage;
     }
 
     @Override
@@ -1165,7 +1192,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             }
         }
         if (foundLeaks) {
-            throw new TestClustersException("Found resource leaks in node log: " + from);
+            leakMessage = "Found resource leaks in node log: " + from;
         }
     }
 

@@ -1,0 +1,7 @@
+Limit[1000[INTEGER],false,false]
+\_Filter[ISNOTNULL(result{r}#0)]
+  \_Project[[result{r}#0, step{r}#1]]
+    \_Eval[[step{r}#2 AS step#1]]
+      \_Eval[[TODOUBLE(step{r}#2) / 1000.0[DOUBLE] AS result#0]]
+        \_MvExpand[[1715299380000][DATETIME] AS step#1,step{r}#2]
+          \_Row[[[1715299380000][DATETIME] AS step#1]]

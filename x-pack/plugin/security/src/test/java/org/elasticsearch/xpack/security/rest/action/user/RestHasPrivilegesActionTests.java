@@ -53,7 +53,7 @@ public class RestHasPrivilegesActionTests extends ESTestCase {
             final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_security/user/_has_privileges/")
                 .withContent(new BytesArray(bodyBuilder.toString()), XContentType.JSON)
                 .build();
-            final RestChannel channel = new FakeRestChannel(request, true, 1);
+            final RestChannel channel = new FakeRestChannel(request, true);
             ElasticsearchSecurityException e = expectThrows(
                 ElasticsearchSecurityException.class,
                 () -> action.handleRequest(request, channel, client)
@@ -77,7 +77,7 @@ public class RestHasPrivilegesActionTests extends ESTestCase {
             final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_security/user/_has_privileges/")
                 .withContent(new BytesArray(bodyBuilder.toString()), XContentType.JSON)
                 .build();
-            final FakeRestChannel channel = new FakeRestChannel(request, true, 1);
+            final FakeRestChannel channel = new FakeRestChannel(request, true);
             action.handleRequest(request, channel, client);
             assertThat(channel.capturedResponse(), notNullValue());
             assertThat(channel.capturedResponse().status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));

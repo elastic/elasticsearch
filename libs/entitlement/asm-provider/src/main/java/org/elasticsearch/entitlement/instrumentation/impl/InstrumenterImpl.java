@@ -10,9 +10,10 @@
 package org.elasticsearch.entitlement.instrumentation.impl;
 
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.instrumentation.EntitlementInstrumented;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
-import org.elasticsearch.entitlement.instrumentation.MethodKey;
+import org.elasticsearch.entitlement.instrumentation.MethodSignature;
 import org.elasticsearch.entitlement.rules.DeniedEntitlementStrategy;
 import org.elasticsearch.entitlement.runtime.registry.InstrumentationInfo;
 import org.elasticsearch.logging.LogManager;
@@ -27,11 +28,25 @@ import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.RecordComponentVisitor;
 import org.objectweb.asm.Type;
-import org.objectweb.asm.util.CheckClassAdapter;
+import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.analysis.Analyzer;
+import org.objectweb.asm.tree.analysis.AnalyzerException;
+import org.objectweb.asm.tree.analysis.BasicValue;
+import org.objectweb.asm.tree.analysis.BasicVerifier;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.ArrayDeque;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.objectweb.asm.ClassWriter.COMPUTE_FRAMES;
@@ -42,22 +57,34 @@ import static org.objectweb.asm.Opcodes.INVOKESTATIC;
 
 public final class InstrumenterImpl implements Instrumenter {
     private static final Logger logger = LogManager.getLogger(InstrumenterImpl.class);
+    private static final String JAVA_LANG_OBJECT = "java/lang/Object";
+
+    private static final boolean ASSERTIONS_ENABLED;
+    static {
+        boolean enabled = false;
+        assert (enabled = true);
+        ASSERTIONS_ENABLED = enabled;
+    }
 
     private final String registryClassMethodDescriptor;
     private final String handleClass;
-    private final Map<MethodKey, InstrumentationInfo> instrumentedMethods;
+    private final Map<String, Map<MethodSignature, InstrumentationInfo>> rulesByClass;
 
-    InstrumenterImpl(String handleClass, String registryClassMethodDescriptor, Map<MethodKey, InstrumentationInfo> instrumentedMethods) {
+    InstrumenterImpl(
+        String handleClass,
+        String registryClassMethodDescriptor,
+        Map<String, Map<MethodSignature, InstrumentationInfo>> rulesByClass
+    ) {
         this.handleClass = handleClass;
         this.registryClassMethodDescriptor = registryClassMethodDescriptor;
-        this.instrumentedMethods = instrumentedMethods;
+        this.rulesByClass = rulesByClass;
     }
 
-    public static InstrumenterImpl create(Class<?> registryClass, Map<MethodKey, InstrumentationInfo> checkMethods) {
+    public static InstrumenterImpl create(Class<?> registryClass, Map<String, Map<MethodSignature, InstrumentationInfo>> rulesByClass) {
         Type registryClassType = Type.getType(registryClass);
         String handleClass = registryClassType.getInternalName() + "Handle";
         String getCheckerClassMethodDescriptor = Type.getMethodDescriptor(registryClassType);
-        return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, checkMethods);
+        return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, rulesByClass);
     }
 
     private static boolean isJvmConstant(Object value) {
@@ -78,11 +105,32 @@ public final class InstrumenterImpl implements Instrumenter {
         AFTER_INSTRUMENTATION
     }
 
+    /**
+     * Verifies bytecode using {@link BasicVerifier} instead of ASM's {@code SimpleVerifier}.
+     * {@code SimpleVerifier} resolves type hierarchies via {@link Class#forName}, which triggers
+     * class loading during transformation. The JVM suppresses recursive transformer invocations
+     * during an active {@code ClassFileTransformer} callback, so any class loaded by the verifier
+     * bypasses instrumentation entirely.
+     * <p>
+     * {@link BasicVerifier} performs frame-level checks (stack depth, operand types, jump targets)
+     * without resolving class hierarchies, which is sufficient for catching instrumentation bugs.
+     */
     private static String verify(byte[] classfileBuffer) {
         ClassReader reader = new ClassReader(classfileBuffer);
+        ClassNode classNode = new ClassNode();
+        reader.accept(classNode, ClassReader.SKIP_DEBUG);
+
         StringWriter stringWriter = new StringWriter();
         PrintWriter printWriter = new PrintWriter(stringWriter);
-        CheckClassAdapter.verify(reader, false, printWriter);
+
+        for (MethodNode method : classNode.methods) {
+            Analyzer<BasicValue> analyzer = new Analyzer<>(new BasicVerifier());
+            try {
+                analyzer.analyze(classNode.name, method);
+            } catch (AnalyzerException e) {
+                printWriter.println(method.name + method.desc + ": " + e.getMessage());
+            }
+        }
         return stringWriter.toString();
     }
 
@@ -95,12 +143,7 @@ public final class InstrumenterImpl implements Instrumenter {
                 logger.info("Bytecode verification ({}) for class [{}] passed", phase, className);
             }
         } catch (ClassCircularityError e) {
-            // Apparently, verification during instrumentation is challenging for class resolution and loading
-            // Treat this not as an error, but as "inconclusive"
             logger.warn(Strings.format("Cannot perform bytecode verification (%s) for class [%s]", phase, className), e);
-        } catch (IllegalArgumentException e) {
-            // The ASM CheckClassAdapter in some cases throws this instead of printing the error
-            logger.error(Strings.format("Bytecode verification (%s) for class [%s] failed", phase, className), e);
         }
     }
 
@@ -129,6 +172,8 @@ public final class InstrumenterImpl implements Instrumenter {
 
         private final String className;
 
+        private String superClassName;
+        private String[] interfaceNames = new String[0];
         private boolean isAnnotationPresent;
         private boolean annotationNeeded = true;
 
@@ -139,6 +184,8 @@ public final class InstrumenterImpl implements Instrumenter {
 
         @Override
         public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
+            this.superClassName = superName;
+            this.interfaceNames = interfaces != null ? interfaces : new String[0];
             super.visit(version, access, name, signature, superName, interfaces);
         }
 
@@ -185,17 +232,20 @@ public final class InstrumenterImpl implements Instrumenter {
         public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
             addClassAnnotationIfNeeded();
             var mv = super.visitMethod(access, name, descriptor, signature, exceptions);
-            if (isAnnotationPresent == false) {
+            boolean isAbstract = (access & Opcodes.ACC_ABSTRACT) != 0;
+            boolean isNative = (access & Opcodes.ACC_NATIVE) != 0;
+            if (isAnnotationPresent == false && isAbstract == false && isNative == false) {
                 boolean isStatic = (access & ACC_STATIC) != 0;
                 boolean isCtor = "<init>".equals(name);
-                var key = new MethodKey(
-                    className,
-                    name,
-                    Stream.of(Type.getArgumentTypes(descriptor)).map(EntitlementClassVisitor::getTypeName).toList()
-                );
-                var instrumentationMethod = instrumentedMethods.get(key);
+                List<String> paramTypes = Stream.of(Type.getArgumentTypes(descriptor)).map(EntitlementClassVisitor::getTypeName).toList();
+                var sig = new MethodSignature(name, paramTypes);
+                var classRules = rulesByClass.get(className);
+                var instrumentationMethod = classRules != null ? classRules.get(sig) : null;
+                if (instrumentationMethod == null && isStatic == false && isCtor == false) {
+                    instrumentationMethod = findInheritedRule(name, paramTypes);
+                }
                 if (instrumentationMethod != null) {
-                    logger.debug("Will instrument {}", key);
+                    logger.debug("Will instrument [{}.{}]", className, sig);
                     return new EntitlementMethodVisitor(
                         Opcodes.ASM9,
                         mv,
@@ -206,10 +256,56 @@ public final class InstrumenterImpl implements Instrumenter {
                         instrumentationMethod.handler()
                     );
                 } else {
-                    logger.trace("Will not instrument {}", key);
+                    logger.trace("Will not instrument [{}.{}]", className, sig);
                 }
             }
             return mv;
+        }
+
+        /**
+         * Walk the supertype hierarchy (superclasses and interfaces) looking for an inherited rule
+         * matching this method signature. At most one rule should exist in the hierarchy; if assertions
+         * are enabled, the entire hierarchy is walked to verify this invariant.
+         */
+        private InstrumentationInfo findInheritedRule(String methodName, List<String> paramTypes) {
+            var sig = new MethodSignature(methodName, paramTypes);
+            InstrumentationInfo result = null;
+            String resultClass = null;
+            Set<String> visited = new HashSet<>();
+            Deque<String> queue = new ArrayDeque<>();
+            if (superClassName != null) queue.add(superClassName);
+            Collections.addAll(queue, interfaceNames);
+            while (queue.isEmpty() == false) {
+                String current = queue.poll();
+                if (visited.add(current) == false) continue;
+                var classRules = rulesByClass.get(current);
+                if (classRules != null) {
+                    var info = classRules.get(sig);
+                    if (info != null) {
+                        if (result == null) {
+                            result = info;
+                            resultClass = current;
+                            if (ASSERTIONS_ENABLED == false) {
+                                return result;
+                            }
+                        } else {
+                            throw new AssertionError(
+                                "Duplicate inherited rules for ["
+                                    + className
+                                    + "."
+                                    + sig
+                                    + "]: found on both ["
+                                    + resultClass
+                                    + "] and ["
+                                    + current
+                                    + "]"
+                            );
+                        }
+                    }
+                }
+                Collections.addAll(queue, readDirectSupertypes(current));
+            }
+            return result;
         }
 
         private static String getTypeName(Type type) {
@@ -364,7 +460,7 @@ public final class InstrumenterImpl implements Instrumenter {
             int numArgs = argumentTypes.length + (passThis ? 1 : 0);
 
             pushInt(numArgs);
-            mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Object");
+            mv.visitTypeInsn(Opcodes.ANEWARRAY, JAVA_LANG_OBJECT);
 
             int arrayIndex = 0;
             if (passThis) {
@@ -546,6 +642,64 @@ public final class InstrumenterImpl implements Instrumenter {
                         );
                     }
             }
+        }
+    }
+
+    @Override
+    public String[] readDirectSupertypes(byte[] classfileBuffer) {
+        return readDirectSupertypes(new ByteArrayInputStream(classfileBuffer));
+    }
+
+    @Override
+    public boolean hasRuleInHierarchy(byte[] classfileBuffer) {
+        Set<String> visited = new HashSet<>();
+        Deque<String> queue = new ArrayDeque<>();
+        Collections.addAll(queue, readDirectSupertypes(classfileBuffer));
+        while (queue.isEmpty() == false) {
+            String current = queue.poll();
+            if (visited.add(current) == false) {
+                continue;
+            }
+            if (rulesByClass.containsKey(current)) {
+                return true;
+            }
+            Collections.addAll(queue, readDirectSupertypes(current));
+        }
+        return false;
+    }
+
+    /**
+     * Reads the direct supertypes of a class from its classfile resource, without triggering class loading.
+     * Returns an empty array for {@code java/lang/Object}, or {@code ["java/lang/Object"]} if the
+     * class resource cannot be found.
+     */
+    @SuppressForbidden(reason = "reads classfile resources to resolve hierarchy without triggering class loading")
+    static String[] readDirectSupertypes(String internalName) {
+        if (JAVA_LANG_OBJECT.equals(internalName)) {
+            return new String[0];
+        }
+        try (InputStream is = ClassLoader.getSystemResourceAsStream(internalName + ".class")) {
+            if (is == null) {
+                return new String[] { JAVA_LANG_OBJECT };
+            }
+            return readDirectSupertypes(is);
+        } catch (IOException e) {
+            return new String[] { JAVA_LANG_OBJECT };
+        }
+    }
+
+    private static String[] readDirectSupertypes(InputStream classfileStream) {
+        try {
+            ClassReader reader = new ClassReader(classfileStream);
+            String superName = reader.getSuperName();
+            String[] interfaces = reader.getInterfaces();
+            if (superName == null) return interfaces;
+            String[] result = new String[interfaces.length + 1];
+            result[0] = superName;
+            System.arraycopy(interfaces, 0, result, 1, interfaces.length);
+            return result;
+        } catch (IOException e) {
+            return new String[] { JAVA_LANG_OBJECT };
         }
     }
 }

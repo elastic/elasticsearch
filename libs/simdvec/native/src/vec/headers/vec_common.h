@@ -3,60 +3,92 @@
 #define VEC_COMMON_H
 
 #include <stdint.h>
-#include <assert.h>
 #include <type_traits>
 #include <utility>
 
 template <uintptr_t align>
 static inline uintptr_t align_downwards(const void* ptr) {
     static_assert(align > 0 && (align & (align - 1)) == 0, "Align must be a power of 2");
-    assert(ptr != 0);
 
     uintptr_t addr = (uintptr_t)ptr;
     // Round down to align-byte boundary
     addr &= -align;
-    assert(addr <= (uintptr_t)ptr);
     return addr;
 }
 
-template <typename T>
-static inline auto dot_scalar(const T a, const T b) {
+template <typename T, typename U>
+static inline auto dot_scalar(const T a, const U b) {
     return a * b;
 }
 
-template <typename T>
-static inline auto sqr_scalar(const T a, const T b) {
+template <>
+inline auto dot_scalar<uint16_t, uint16_t>(const uint16_t a, const uint16_t b) {
+    const f32_t af = __builtin_bit_cast(f32_t, a << 16);
+    const f32_t bf = __builtin_bit_cast(f32_t, b << 16);
+    return af * bf;
+}
+
+template <>
+inline auto dot_scalar<uint16_t, f32_t>(const uint16_t a, const f32_t b) {
+    const f32_t af = __builtin_bit_cast(f32_t, a << 16);
+    return af * b;
+}
+
+template <typename T, typename U>
+static inline auto sqr_scalar(const T a, const U b) {
     auto d = a - b;
     return d * d;
 }
 
-static inline int64_t identity_mapper(const int32_t i, const int32_t* offsets) {
-   return i;
+template <>
+inline auto sqr_scalar<uint16_t, uint16_t>(const uint16_t a, const uint16_t b) {
+    const f32_t af = __builtin_bit_cast(f32_t, a << 16);
+    const f32_t bf = __builtin_bit_cast(f32_t, b << 16);
+    auto d = af - bf;
+    return d * d;
 }
 
-static inline int64_t array_mapper(const int32_t i, const int32_t* offsets) {
-   return offsets[i];
+template <>
+inline auto sqr_scalar<uint16_t, f32_t>(const uint16_t a, const f32_t b) {
+    const f32_t af = __builtin_bit_cast(f32_t, a << 16);
+    auto d = af - b;
+    return d * d;
 }
 
-template <typename T, int offset, int64_t(*mapper)(const int32_t, const int32_t*)>
-static inline const T* safe_mapper_offset(
-    const T* a,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count
-) {
-    return count > offset ? a + mapper(offset, offsets) * pitch : nullptr;
+// --- Mapper functions ---
+// Each mapper resolves the i-th document vector to a direct pointer.
+// All share the same signature so they can be passed as a template
+// parameter to the bulk scoring templates (call_i8_bulk, call_f32_bulk, etc.).
+
+// Contiguous layout: vectors are packed sequentially, each `pitch` elements apart.
+template <typename T>
+static inline const T* sequential_mapper(const T* data, const int32_t i, const int32_t* offsets, const int32_t pitch) {
+    return data + (int64_t)i * pitch;
 }
 
-// Populates out[0..N-1] with safe_mapper_offset<T, 0..N-1, mapper>(...),
-// using recursive template instantiation to supply each array index as a
-// compile-time constant (required by safe_mapper_offset's template parameter).
-template <int N, typename T, int64_t(*mapper)(const int32_t, const int32_t*), int I = 0>
-static inline void init_offsets(const T** out, const T* a, int32_t pitch,
-                                const int32_t* offsets, int32_t count) {
+// Offset layout: vectors share a common base but are at non-sequential positions
+// given by offsets[i], each `pitch` elements from the base.
+template <typename T>
+static inline const T* offsets_mapper(const T* data, const int32_t i, const int32_t* offsets, const int32_t pitch) {
+    return data + (int64_t)offsets[i] * pitch;
+}
+
+// Sparse layout: vectors reside in disjoint memory regions. `data` is an array
+// of pre-resolved pointers — one per vector — so pitch and offsets are unused.
+template <typename T>
+static inline const T* sparse_mapper(const T* const* data, const int32_t i, const int32_t* offsets, const int32_t pitch) {
+    return data[i];
+}
+
+// Populates out[0..N-1] by invoking mapper for indices [base..base+N-1],
+// with a bounds check that sets out-of-range entries to nullptr.
+// Uses recursive template instantiation so each index is a compile-time constant.
+template <int N, typename TData, typename T, const T*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t), int I = 0>
+static inline void init_pointers(const T** out, const TData* a, int32_t pitch,
+                                 const int32_t* offsets, int32_t base, int32_t count) {
     if constexpr (I < N) {
-        out[I] = safe_mapper_offset<T, I, mapper>(a, pitch, offsets, count);
-        init_offsets<N, T, mapper, I + 1>(out, a, pitch, offsets, count);
+        out[I] = (base + I < count) ? mapper(a, base + I, offsets, pitch) : nullptr;
+        init_pointers<N, TData, T, mapper, I + 1>(out, a, pitch, offsets, base, count);
     }
 }
 

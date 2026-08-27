@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `TO_DOUBLE` function [esql-to_double]
 
-:::{include} ../../_snippets/functions/layout/to_double.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/to_double.md
 :::

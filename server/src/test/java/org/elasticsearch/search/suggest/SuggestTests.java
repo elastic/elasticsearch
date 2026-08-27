@@ -17,7 +17,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
@@ -53,6 +55,35 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 import static org.hamcrest.Matchers.equalTo;
 
 public class SuggestTests extends ESTestCase {
+
+    /**
+     * DecRefs the extra factory reference on each completion option {@link SearchHit} from test fixtures (e.g.
+     * {@link #createTestItem()}). Uses {@link Suggest#collectCompletionOptionHits(boolean)} with {@code false} so
+     * refs are not incremented.
+     */
+    public static void decRefCompletionOptionTestFactoryRefs(@Nullable Suggest suggest) {
+        if (suggest == null) {
+            return;
+        }
+        var completionHits = suggest.collectCompletionOptionHits(false);
+        if (completionHits != null) {
+            for (SearchHit hit : completionHits) {
+                hit.decRef();
+            }
+        }
+    }
+
+    /**
+     * Same as {@link #decRefCompletionOptionTestFactoryRefs(Suggest)} for a single completion entry (wraps in an
+     * ephemeral {@link Suggest} so {@link Suggest#collectCompletionOptionHits(boolean)} can be reused).
+     */
+    public static void decRefCompletionOptionTestFactoryRefs(Entry<?> entry) {
+        if (entry instanceof CompletionSuggestion.Entry completionEntry) {
+            CompletionSuggestion cs = new CompletionSuggestion("__test_release__", 1, false);
+            cs.addTerm(completionEntry);
+            decRefCompletionOptionTestFactoryRefs(new Suggest(Collections.singletonList(cs)));
+        }
+    }
 
     private static final NamedXContentRegistry xContentRegistry;
     private static final List<NamedXContentRegistry.Entry> namedXContents;
@@ -158,26 +189,31 @@ public class SuggestTests extends ESTestCase {
     public void testFromXContent() throws IOException {
         ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         Suggest suggest = createTestItem();
-        XContentType xContentType = randomFrom(XContentType.values());
-        boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toShuffledXContent(suggest, xContentType, params, humanReadable);
-        Suggest parsed;
-        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-            ensureFieldName(parser, parser.nextToken(), Suggest.NAME);
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-            parsed = SearchResponseUtils.parseSuggest(parser);
-            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
-            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-            assertNull(parser.nextToken());
+        Suggest parsed = null;
+        try {
+            XContentType xContentType = randomFrom(XContentType.values());
+            boolean humanReadable = randomBoolean();
+            BytesReference originalBytes = toShuffledXContent(suggest, xContentType, params, humanReadable);
+            try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                ensureFieldName(parser, parser.nextToken(), Suggest.NAME);
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                parsed = SearchResponseUtils.parseSuggest(parser);
+                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+                assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+                assertNull(parser.nextToken());
+            }
+            assertEquals(suggest.size(), parsed.size());
+            for (Suggestion<?> suggestion : suggest) {
+                Suggestion<? extends Entry<? extends Option>> parsedSuggestion = parsed.getSuggestion(suggestion.getName());
+                assertNotNull(parsedSuggestion);
+                assertEquals(suggestion.getClass(), parsedSuggestion.getClass());
+            }
+            assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, params, humanReadable), xContentType);
+        } finally {
+            decRefCompletionOptionTestFactoryRefs(suggest);
+            decRefCompletionOptionTestFactoryRefs(parsed);
         }
-        assertEquals(suggest.size(), parsed.size());
-        for (Suggestion<?> suggestion : suggest) {
-            Suggestion<? extends Entry<? extends Option>> parsedSuggestion = parsed.getSuggestion(suggestion.getName());
-            assertNotNull(parsedSuggestion);
-            assertEquals(suggestion.getClass(), parsedSuggestion.getClass());
-        }
-        assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, params, humanReadable), xContentType);
     }
 
     public void testToXContent() throws IOException {
@@ -296,32 +332,38 @@ public class SuggestTests extends ESTestCase {
         TransportVersion bwcVersion = TransportVersionUtils.randomCompatibleVersion();
 
         final Suggest suggest = createTestItem();
-        final Suggest bwcSuggest;
+        Suggest bwcSuggest = null;
+        Suggest backAgain = null;
+        try {
+            NamedWriteableRegistry registry = new NamedWriteableRegistry(
+                new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables()
+            );
 
-        NamedWriteableRegistry registry = new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());
-
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(bwcVersion);
-            suggest.writeTo(out);
-            try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {
-                in.setTransportVersion(bwcVersion);
-                bwcSuggest = new Suggest(in);
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.setTransportVersion(bwcVersion);
+                suggest.writeTo(out);
+                try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {
+                    in.setTransportVersion(bwcVersion);
+                    bwcSuggest = new Suggest(in);
+                }
             }
-        }
 
-        assertEquals(suggest, bwcSuggest);
+            assertEquals(suggest, bwcSuggest);
 
-        final Suggest backAgain;
-
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(TransportVersion.current());
-            bwcSuggest.writeTo(out);
-            try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {
-                in.setTransportVersion(TransportVersion.current());
-                backAgain = new Suggest(in);
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.setTransportVersion(TransportVersion.current());
+                bwcSuggest.writeTo(out);
+                try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {
+                    in.setTransportVersion(TransportVersion.current());
+                    backAgain = new Suggest(in);
+                }
             }
-        }
 
-        assertEquals(suggest, backAgain);
+            assertEquals(suggest, backAgain);
+        } finally {
+            decRefCompletionOptionTestFactoryRefs(suggest);
+            decRefCompletionOptionTestFactoryRefs(bwcSuggest);
+            decRefCompletionOptionTestFactoryRefs(backAgain);
+        }
     }
 }

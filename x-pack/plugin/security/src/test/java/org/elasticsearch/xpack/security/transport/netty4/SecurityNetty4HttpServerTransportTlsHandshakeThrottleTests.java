@@ -52,9 +52,9 @@ import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.MetricRecorder;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.TelemetryProvider.NoopTelemetryProvider;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -81,7 +81,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.telemetry.InstrumentType.LONG_ASYNC_COUNTER;
-import static org.elasticsearch.telemetry.InstrumentType.LONG_GAUGE;
+import static org.elasticsearch.telemetry.InstrumentType.LONG_ASYNC_GAUGE;
 import static org.elasticsearch.telemetry.RecordingMeterRegistry.measures;
 import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForNodePEMFiles;
 import static org.hamcrest.Matchers.equalTo;
@@ -162,12 +162,7 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
         settingsSet.add(Netty4Plugin.SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_DELAYED);
         final var clusterSettings = new ClusterSettings(settings, Set.copyOf(settingsSet));
 
-        final var telemetryProvider = new TelemetryProvider() {
-            @Override
-            public Tracer getTracer() {
-                return Tracer.NOOP;
-            }
-
+        final var telemetryProvider = new NoopTelemetryProvider() {
             @Override
             public MeterRegistry getMeterRegistry() {
                 return meterRegistry;
@@ -334,8 +329,8 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
             logger.info("--> all handshakes blocked");
 
             metricRecorder.collect();
-            assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_IN_PROGRESS_METRIC, clientCount);
-            assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_DELAYED_METRIC, 0);
+            assertLongMetric(metricRecorder, LONG_ASYNC_GAUGE, CURRENT_IN_PROGRESS_METRIC, clientCount);
+            assertLongMetric(metricRecorder, LONG_ASYNC_GAUGE, CURRENT_DELAYED_METRIC, 0);
             assertLongMetric(metricRecorder, LONG_ASYNC_COUNTER, TOTAL_DELAYED_METRIC, 0);
             assertLongMetric(metricRecorder, LONG_ASYNC_COUNTER, TOTAL_DROPPED_METRIC, 0);
             metricRecorder.resetCalls();
@@ -399,8 +394,8 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
             logger.info("--> expected number of delayed handshakes observed");
 
             metricRecorder.collect();
-            assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_IN_PROGRESS_METRIC, eventLoopCount * maxConcurrentTlsHandshakes);
-            assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_DELAYED_METRIC, expectedDelayedHandshakes);
+            assertLongMetric(metricRecorder, LONG_ASYNC_GAUGE, CURRENT_IN_PROGRESS_METRIC, eventLoopCount * maxConcurrentTlsHandshakes);
+            assertLongMetric(metricRecorder, LONG_ASYNC_GAUGE, CURRENT_DELAYED_METRIC, expectedDelayedHandshakes);
             assertLongMetric(metricRecorder, LONG_ASYNC_COUNTER, TOTAL_DELAYED_METRIC, expectedDelayedHandshakes);
             assertLongMetric(metricRecorder, LONG_ASYNC_COUNTER, TOTAL_DROPPED_METRIC, 0);
             metricRecorder.resetCalls();
@@ -479,13 +474,13 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
             }
 
             final var client0 = new TestClient();
-            awaitLongMetric(metricRecorder, LONG_GAUGE, CURRENT_IN_PROGRESS_METRIC, 1);
+            awaitLongMetric(metricRecorder, LONG_ASYNC_GAUGE, CURRENT_IN_PROGRESS_METRIC, 1);
 
             final var client1 = new TestClient();
-            awaitLongMetric(metricRecorder, LONG_GAUGE, CURRENT_DELAYED_METRIC, 1);
+            awaitLongMetric(metricRecorder, LONG_ASYNC_GAUGE, CURRENT_DELAYED_METRIC, 1);
 
             final var client2 = new TestClient();
-            awaitLongMetric(metricRecorder, LONG_GAUGE, CURRENT_DELAYED_METRIC, 2);
+            awaitLongMetric(metricRecorder, LONG_ASYNC_GAUGE, CURRENT_DELAYED_METRIC, 2);
 
             logger.info("--> all handshakes blocked/delayed, unblocking client0");
 
@@ -569,8 +564,8 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
             logger.info("--> excessive handshakes cancelled");
 
             metricRecorder.collect();
-            assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_IN_PROGRESS_METRIC, eventLoopCount * maxConcurrentTlsHandshakes);
-            assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_DELAYED_METRIC, eventLoopCount * maxDelayedTlsHandshakes);
+            assertLongMetric(metricRecorder, LONG_ASYNC_GAUGE, CURRENT_IN_PROGRESS_METRIC, eventLoopCount * maxConcurrentTlsHandshakes);
+            assertLongMetric(metricRecorder, LONG_ASYNC_GAUGE, CURRENT_DELAYED_METRIC, eventLoopCount * maxDelayedTlsHandshakes);
             assertLongMetric(
                 metricRecorder,
                 LONG_ASYNC_COUNTER,
@@ -765,8 +760,8 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
             }
 
             metricRecorder.collect();
-            assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_IN_PROGRESS_METRIC, 0);
-            assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_DELAYED_METRIC, 0);
+            assertLongMetric(metricRecorder, LONG_ASYNC_GAUGE, CURRENT_IN_PROGRESS_METRIC, 0);
+            assertLongMetric(metricRecorder, LONG_ASYNC_GAUGE, CURRENT_DELAYED_METRIC, 0);
             assertLongMetric(metricRecorder, LONG_ASYNC_COUNTER, TOTAL_DELAYED_METRIC, 0);
             assertLongMetric(metricRecorder, LONG_ASYNC_COUNTER, TOTAL_DROPPED_METRIC, 0);
             metricRecorder.resetCalls();
@@ -774,8 +769,8 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
             safeAwait(completeLatch);
 
             metricRecorder.collect();
-            assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_IN_PROGRESS_METRIC, 0);
-            assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_DELAYED_METRIC, 0);
+            assertLongMetric(metricRecorder, LONG_ASYNC_GAUGE, CURRENT_IN_PROGRESS_METRIC, 0);
+            assertLongMetric(metricRecorder, LONG_ASYNC_GAUGE, CURRENT_DELAYED_METRIC, 0);
             assertLongMetric(metricRecorder, LONG_ASYNC_COUNTER, TOTAL_DELAYED_METRIC, 0);
             assertLongMetric(metricRecorder, LONG_ASYNC_COUNTER, TOTAL_DROPPED_METRIC, 0);
             metricRecorder.resetCalls();
@@ -855,12 +850,12 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
             getNextBlock(handshakeBlockQueue);
             logger.info("--> at least one handshake started");
 
-            awaitLongMetric(metricRecorder, LONG_GAUGE, CURRENT_IN_PROGRESS_METRIC, 0);
+            awaitLongMetric(metricRecorder, LONG_ASYNC_GAUGE, CURRENT_IN_PROGRESS_METRIC, 0);
             logger.info("--> CURRENT_IN_FLIGHT_METRIC reached zero");
 
             metricRecorder.collect();
-            assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_IN_PROGRESS_METRIC, 0);
-            assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_DELAYED_METRIC, 0);
+            assertLongMetric(metricRecorder, LONG_ASYNC_GAUGE, CURRENT_IN_PROGRESS_METRIC, 0);
+            assertLongMetric(metricRecorder, LONG_ASYNC_GAUGE, CURRENT_DELAYED_METRIC, 0);
             metricRecorder.resetCalls();
 
         } catch (Exception e) {
@@ -940,10 +935,10 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
 
     private static void assertFinalStats(MetricRecorder<Instrument> metricRecorder, int expectedTotalDelayed, int expectedTotalDropped) {
         // clients may get handshake completion before server, so we have to busy-wait here before checking final metrics:
-        awaitLongMetric(metricRecorder, LONG_GAUGE, CURRENT_IN_PROGRESS_METRIC, 0);
+        awaitLongMetric(metricRecorder, LONG_ASYNC_GAUGE, CURRENT_IN_PROGRESS_METRIC, 0);
         metricRecorder.collect();
-        assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_IN_PROGRESS_METRIC, 0);
-        assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_DELAYED_METRIC, 0);
+        assertLongMetric(metricRecorder, LONG_ASYNC_GAUGE, CURRENT_IN_PROGRESS_METRIC, 0);
+        assertLongMetric(metricRecorder, LONG_ASYNC_GAUGE, CURRENT_DELAYED_METRIC, 0);
         assertLongMetric(metricRecorder, LONG_ASYNC_COUNTER, TOTAL_DELAYED_METRIC, expectedTotalDelayed);
         assertLongMetric(metricRecorder, LONG_ASYNC_COUNTER, TOTAL_DROPPED_METRIC, expectedTotalDropped);
         metricRecorder.resetCalls();

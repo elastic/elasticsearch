@@ -8,9 +8,9 @@
  */
 package org.elasticsearch.benchmark.vector.scorer;
 
-import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
 import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -62,18 +62,14 @@ public class VectorScorerDistanceBulkBenchmark {
 
         this.length = OptimizedScalarQuantizer.discretize(dims, 64) / 8;
 
-        vectors = new float[numVectors][dims];
-        for (float[] vector : vectors) {
-            for (int i = 0; i < dims; i++) {
-                vector[i] = random.nextFloat();
-            }
+        vectors = new float[numVectors][];
+        for (int i = 0; i < vectors.length; i++) {
+            vectors[i] = VectorTestUtils.randomFloatVector(random, dims);
         }
 
-        queries = new float[numQueries][dims];
-        for (float[] query : queries) {
-            for (int i = 0; i < dims; i++) {
-                query[i] = random.nextFloat();
-            }
+        queries = new float[numQueries][];
+        for (int i = 0; i < queries.length; i++) {
+            queries[i] = VectorTestUtils.randomFloatVector(random, dims);
         }
     }
 
@@ -84,7 +80,7 @@ public class VectorScorerDistanceBulkBenchmark {
             float[] query = queries[j];
             for (int i = 0; i < numVectors; i++) {
                 float[] vector = vectors[i];
-                float distance = VectorUtil.squareDistance(query, vector);
+                float distance = ESVectorUtil.squareDistance(query, vector);
                 bh.consume(distance);
             }
         }
@@ -109,11 +105,8 @@ public class VectorScorerDistanceBulkBenchmark {
         for (int j = 0; j < numQueries; j++) {
             float[] query = queries[j];
             for (int i = 0; i < numVectors; i += 4) {
-                ESVectorUtil.squareDistanceBulk(query, vectors[i], vectors[i + 1], vectors[i + 2], vectors[i + 3], distances);
-                for (float distance : distances) {
-                    bh.consume(distance);
-                }
-
+                ESVectorUtil.squareDistanceBulk(query, vectors[i], vectors[i + 1], vectors[i + 2], vectors[i + 3], 0, distances);
+                bh.consume(distances);
             }
         }
     }
@@ -135,10 +128,7 @@ public class VectorScorerDistanceBulkBenchmark {
                     1.0f,
                     distances
                 );
-                for (float distance : distances) {
-                    bh.consume(distance);
-                }
-
+                bh.consume(distances);
             }
         }
     }

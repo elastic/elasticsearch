@@ -25,6 +25,7 @@ import java.util.TreeMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEmptyString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.INPUT_TYPE_TRANSLATOR;
 
 public class InputTypeTranslator implements ToXContentFragment, Writeable {
     public static final String INPUT_TYPE_TRANSLATOR = "input_type";
@@ -39,7 +40,7 @@ public class InputTypeTranslator implements ToXContentFragment, Writeable {
 
         Map<String, Object> inputTypeTranslation = Objects.requireNonNullElse(
             extractOptionalMap(map, INPUT_TYPE_TRANSLATOR, validationException),
-            new HashMap<>(Map.of())
+            new HashMap<>()
         );
 
         Map<String, Object> translationMap = extractOptionalMap(inputTypeTranslation, TRANSLATION, validationException);
@@ -48,11 +49,9 @@ public class InputTypeTranslator implements ToXContentFragment, Writeable {
 
         var defaultValue = extractOptionalEmptyString(inputTypeTranslation, DEFAULT, validationException);
 
-        throwIfNotEmptyMap(inputTypeTranslation, INPUT_TYPE_TRANSLATOR, "input_type_translator");
+        throwIfNotEmptyMap(inputTypeTranslation, INPUT_TYPE_TRANSLATOR, INPUT_TYPE_TRANSLATOR);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new InputTypeTranslator(validatedTranslation, defaultValue);
     }

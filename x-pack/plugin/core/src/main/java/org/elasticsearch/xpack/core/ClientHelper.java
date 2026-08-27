@@ -241,19 +241,24 @@ public final class ClientHelper {
     }
 
     /**
-     * Execute a client operation and return the response, try to run an action
-     * with least privileges, when headers exist
-     *
-     * @param headers
-     *            Request headers, ideally including security headers
-     * @param origin
-     *            The origin to fall back to if there are no security headers
-     * @param client
-     *            The client used to query
-     * @param supplier
-     *            The action to run
-     * @return An instance of the response class
+     * Executes an asynchronous action using the provided client. The origin is set in the context and the listener
+     * is wrapped to ensure the proper context is restored.
      */
+    public static <Request extends ActionRequest, Response extends ActionResponse> void executeAsyncWithOrigin(
+        Client client,
+        String origin,
+        ActionType<Response> action,
+        boolean preserveResponseHeaders,
+        Request request,
+        ActionListener<Response> listener
+    ) {
+        final ThreadContext threadContext = client.threadPool().getThreadContext();
+        final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(preserveResponseHeaders);
+        try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(origin)) {
+            client.execute(action, request, new ContextPreservingActionListener<>(supplier, listener));
+        }
+    }
+
     public static <T extends ActionResponse> T executeWithHeaders(
         Map<String, String> headers,
         String origin,
@@ -300,10 +305,23 @@ public final class ClientHelper {
         Request request,
         ActionListener<Response> listener
     ) {
+        executeWithHeadersAsync(headers, origin, client, action, false, request, listener);
+    }
+
+    public static <Request extends ActionRequest, Response extends ActionResponse> void executeWithHeadersAsync(
+        Map<String, String> headers,
+        String origin,
+        Client client,
+        ActionType<Response> action,
+        boolean preserveResponseHeaders,
+        Request request,
+        ActionListener<Response> listener
+    ) {
         executeWithHeadersAsync(
             client.threadPool().getThreadContext(),
             headers,
             origin,
+            preserveResponseHeaders,
             request,
             listener,
             (r, l) -> client.execute(action, r, l)
@@ -318,14 +336,28 @@ public final class ClientHelper {
         ActionListener<Response> listener,
         BiConsumer<Request, ActionListener<Response>> consumer
     ) {
+        executeWithHeadersAsync(threadContext, headers, origin, false, request, listener, consumer);
+    }
+
+    public static <Request, Response> void executeWithHeadersAsync(
+        ThreadContext threadContext,
+        Map<String, String> headers,
+        String origin,
+        boolean preserveResponseHeaders,
+        Request request,
+        ActionListener<Response> listener,
+        BiConsumer<Request, ActionListener<Response>> consumer
+    ) {
         // No need to rewrite authentication header because it will be handled by Security Interceptor
         final Map<String, String> filteredHeaders = filterSecurityHeaders(headers);
+        final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(preserveResponseHeaders);
         // No headers (e.g. security not installed/in use) so execute as origin
         if (filteredHeaders.isEmpty()) {
-            executeAsyncWithOrigin(threadContext, origin, request, listener, consumer);
+            try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(origin)) {
+                consumer.accept(request, new ContextPreservingActionListener<>(supplier, listener));
+            }
         } else {
             // Otherwise stash the context and copy in the saved headers before executing
-            final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
             try (ThreadContext.StoredContext ignore = stashWithHeaders(threadContext, filteredHeaders)) {
                 consumer.accept(request, new ContextPreservingActionListener<>(supplier, listener));
             }

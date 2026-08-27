@@ -25,6 +25,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
@@ -32,6 +33,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -43,13 +45,17 @@ import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NestedLookup;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -84,6 +90,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -105,6 +112,10 @@ final class DefaultSearchContext extends SearchContext {
     private final IndexShard indexShard;
     private final IndexService indexService;
     private final ContextIndexSearcher searcher;
+    @Nullable
+    private DirectoryMetricsAwareExecutor metricsAwareExecutor;
+    private final DirectoryMetrics.Capture currentThreadDirectoryMetricsCapture;
+    private DirectoryMetrics fetchThreadsMetrics = DirectoryMetrics.EMPTY;
     private final long memoryAccountingBufferSize;
     private DfsSearchResult dfsResult;
     private QuerySearchResult queryResult;
@@ -173,11 +184,13 @@ final class DefaultSearchContext extends SearchContext {
         boolean enableQueryPhaseParallelCollection,
         int minimumDocsPerSlice,
         long memoryAccountingBufferSize,
-        @Nullable CircuitBreaker circuitBreaker
+        @Nullable CircuitBreaker circuitBreaker,
+        DirectoryMetrics.Capture currentThreadDirectoryMetricsCapture
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
         this.fetchPhase = fetchPhase;
+        this.currentThreadDirectoryMetricsCapture = currentThreadDirectoryMetricsCapture;
         boolean success = false;
         try {
             this.searchType = request.searchType();
@@ -194,7 +207,8 @@ final class DefaultSearchContext extends SearchContext {
                 enableQueryPhaseParallelCollection,
                 field -> getFieldCardinality(field, readerContext.indexService(), engineSearcher.getDirectoryReader())
             );
-            if (executor == null || maximumNumberOfSlices <= 1) {
+            boolean searcherRequiresExecutor = executor != null && maximumNumberOfSlices > 1;
+            if (searcherRequiresExecutor == false) {
                 this.searcher = new ContextIndexSearcher(
                     engineSearcher.getIndexReader(),
                     engineSearcher.getSimilarity(),
@@ -203,6 +217,10 @@ final class DefaultSearchContext extends SearchContext {
                     lowLevelCancellation
                 );
             } else {
+                // Always wrap: cache metrics must be collected on worker threads regardless of the directory_metrics flag.
+                this.metricsAwareExecutor = new DirectoryMetricsAwareExecutor(executor, currentThreadDirectoryMetricsCapture);
+                executor = this.metricsAwareExecutor;
+
                 this.searcher = new ContextIndexSearcher(
                     engineSearcher.getIndexReader(),
                     engineSearcher.getSimilarity(),
@@ -213,6 +231,9 @@ final class DefaultSearchContext extends SearchContext {
                     maximumNumberOfSlices,
                     minimumDocsPerSlice
                 );
+            }
+            if (circuitBreaker != null) {
+                this.searcher.setCircuitBreaker(circuitBreaker);
             }
             closeFuture.addListener(ActionListener.releasing(Releasables.wrap(engineSearcher, searcher)));
             this.relativeTimeSupplier = relativeTimeSupplier;
@@ -228,6 +249,10 @@ final class DefaultSearchContext extends SearchContext {
                 indexShard.shardSearchStats()
             );
             searchExecutionContext = circuitBreaker != null ? new SearchExecutionContext(baseContext, circuitBreaker) : baseContext;
+            if (searchExecutionContext != null) {
+                final String requestSliceRouting = request.sliceRouting();
+                searchExecutionContext.setSliceRouting(SliceIndexing.SLICE_ALL.equals(requestSliceRouting) ? null : requestSliceRouting);
+            }
             queryBoost = request.indexBoost();
             this.lowLevelCancellation = lowLevelCancellation;
             success = true;
@@ -235,6 +260,28 @@ final class DefaultSearchContext extends SearchContext {
             if (success == false) {
                 close();
             }
+        }
+    }
+
+    @Override
+    public DirectoryMetrics getWorkerThreadsMetrics() {
+        return metricsAwareExecutor == null ? DirectoryMetrics.EMPTY : metricsAwareExecutor.workerMetrics();
+    }
+
+    @Override
+    public DirectoryMetrics.Capture currentThreadDirectoryMetricsCapture() {
+        return currentThreadDirectoryMetricsCapture;
+    }
+
+    @Override
+    public DirectoryMetrics getFetchThreadsMetrics() {
+        return fetchThreadsMetrics;
+    }
+
+    @Override
+    public void addFetchThreadsMetrics(DirectoryMetrics metrics) {
+        if (metrics != null && metrics.isEmpty() == false) {
+            fetchThreadsMetrics = fetchThreadsMetrics.isEmpty() ? metrics : fetchThreadsMetrics.merge(metrics);
         }
     }
 
@@ -474,6 +521,10 @@ final class DefaultSearchContext extends SearchContext {
                 filters.add(slicedQuery);
             }
         }
+        final Query sliceRoutingFilter = buildSliceRoutingFilter(searchExecutionContext.getSliceRouting());
+        if (sliceRoutingFilter != null) {
+            filters.add(sliceRoutingFilter);
+        }
 
         if (filters.isEmpty()) {
             return query;
@@ -484,6 +535,28 @@ final class DefaultSearchContext extends SearchContext {
                 builder.add(filter, Occur.FILTER);
             }
             return builder.build();
+        }
+    }
+
+    @Nullable
+    private Query buildSliceRoutingFilter(@Nullable String sliceRouting) {
+        if (sliceRouting == null) {
+            return null;
+        }
+        final List<String> sliceTerms = Arrays.stream(Strings.splitStringByCommaToArray(sliceRouting))
+            .map(String::trim)
+            .filter(value -> value.isEmpty() == false)
+            .toList();
+        if (sliceTerms.isEmpty()) {
+            return new MatchNoDocsQuery("empty [slice] routing");
+        }
+        final QueryBuilder sliceFilterQuery = sliceTerms.size() == 1
+            ? new TermQueryBuilder(RoutingFieldMapper.NAME, sliceTerms.get(0))
+            : new TermsQueryBuilder(RoutingFieldMapper.NAME, sliceTerms);
+        try {
+            return sliceFilterQuery.toQuery(searchExecutionContext);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 

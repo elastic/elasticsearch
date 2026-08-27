@@ -195,15 +195,22 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
     }
 
     @Override
-    public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return this::evaluate;
+    }
+
+    private void evaluate(Block[] blocks, int offset, IntVector selectedInPage) {
         final BlockFactory blockFactory = driverContext.blockFactory();
-        final int positionCount = selected.getPositionCount();
+        final int positionCount = selectedInPage.getPositionCount();
         try (
             var segmentBuilder = blockFactory.newIntVectorFixedBuilder(positionCount);
             var docBuilder = blockFactory.newIntVectorFixedBuilder(positionCount)
         ) {
             for (int p = 0; p < positionCount; p++) {
-                int group = selected.getInt(p);
+                int group = selectedInPage.getInt(p);
                 segmentBuilder.appendInt(docs.get(3L * group + 1));
                 docBuilder.appendInt(docs.get(3L * group + 2));
             }
@@ -213,7 +220,7 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
             } else {
                 try (var shardBuilder = blockFactory.newIntVectorFixedBuilder(positionCount)) {
                     for (int p = 0; p < positionCount; p++) {
-                        int group = selected.getInt(p);
+                        int group = selectedInPage.getInt(p);
                         shardBuilder.appendInt(docs.get(3L * group));
                     }
                     shardVector = shardBuilder.build();
@@ -275,8 +282,11 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
     }
 
     @Override
-    public void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
-        evaluateIntermediate(blocks, offset, selected);
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return this::evaluate;
     }
 
     @Override

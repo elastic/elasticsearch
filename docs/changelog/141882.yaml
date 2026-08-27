@@ -1,5 +1,0 @@
-area: Search
-issues: []
-pr: 141882
-summary: Upgrade Elasticsearch to Apache Lucene 10.4
-type: upgrade

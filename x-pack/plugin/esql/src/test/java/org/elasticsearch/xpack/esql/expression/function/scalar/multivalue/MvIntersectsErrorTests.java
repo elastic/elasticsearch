@@ -23,12 +23,12 @@ import static org.hamcrest.Matchers.equalTo;
 public class MvIntersectsErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
-        return paramsToSuppliers(MvContainsTests.parameters());
+        return paramsToSuppliers(MvIntersectsTests.parameters());
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new MvContains(source, args.get(0), args.get(1));
+        return new MvIntersects(source, args.get(0), args.get(1));
     }
 
     @Override
@@ -39,7 +39,8 @@ public class MvIntersectsErrorTests extends ErrorsForCasesWithoutExamplesTestCas
             DataType.EXPONENTIAL_HISTOGRAM,
             DataType.HISTOGRAM,
             DataType.TDIGEST,
-            DataType.DATE_RANGE
+            DataType.DATE_RANGE,
+            DataType.DOUBLE_RANGE
         );
         if (unsupportedTypes.contains(signature.getFirst())
             || signature.getFirst() == DataType.NULL && unsupportedTypes.contains(signature.get(1))) {
@@ -49,7 +50,7 @@ public class MvIntersectsErrorTests extends ErrorsForCasesWithoutExamplesTestCas
                     validPerPosition,
                     signature,
                     (v, p) -> "any type except counter types, dense_vector, "
-                        + "aggregate_metric_double, tdigest, histogram, exponential_histogram, or date_range"
+                        + "aggregate_metric_double, tdigest, histogram, exponential_histogram, date_range, or double_range"
                 )
             );
         } else {

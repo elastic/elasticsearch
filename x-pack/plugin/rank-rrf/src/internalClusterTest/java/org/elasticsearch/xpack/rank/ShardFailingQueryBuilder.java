@@ -7,21 +7,19 @@
 
 package org.elasticsearch.xpack.rank;
 
-import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.DataInput;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class ShardFailingQueryBuilder extends AbstractQueryBuilder<ShardFailingQueryBuilder> {
+public class ShardFailingQueryBuilder extends LeafQueryBuilder<ShardFailingQueryBuilder> {
     public static final String NAME = "shard_failing_query";
 
     public static ShardFailingQueryBuilder fromXContent(XContentParser parser) {
@@ -58,7 +56,7 @@ public class ShardFailingQueryBuilder extends AbstractQueryBuilder<ShardFailingQ
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         if (context.getShardId() % 2 == 0) {
-            throw new CorruptIndexException("simulated failure", (DataInput) null);
+            throw new IllegalArgumentException("simulated failure");
         } else {
             return Queries.ALL_DOCS_INSTANCE;
         }

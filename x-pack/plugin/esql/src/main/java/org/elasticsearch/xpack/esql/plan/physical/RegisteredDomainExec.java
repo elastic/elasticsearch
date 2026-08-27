@@ -21,7 +21,7 @@ import java.util.List;
 /**
  * Physical plan for the REGISTERED_DOMAIN command.
  */
-public class RegisteredDomainExec extends CompoundOutputEvalExec {
+public class RegisteredDomainExec extends CompoundOutputEvalExec implements CompoundOutputEvaluator.OutputFieldsCollectorProvider {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,

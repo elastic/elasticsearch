@@ -7,12 +7,10 @@
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -24,24 +22,24 @@ import org.elasticsearch.xpack.sql.jdbc.EsDataSource;
 import org.junit.After;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.Map;
 import java.util.Properties;
+
+import static org.elasticsearch.xpack.ql.TestUtils.assertNoSearchContexts;
 
 public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
 
     public static final String JDBC_ES_URL_PREFIX = "jdbc:es://";
 
     @After
-    public void checkSearchContent() throws IOException {
+    public void checkSearchContent() throws Exception {
         // Some context might linger due to fire and forget nature of PIT cleanup
-        assertNoSearchContexts();
+        assertNoSearchContexts(client());
     }
 
     /**
@@ -139,33 +137,6 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
         // in the tests, don't be lenient towards multi values
         connectionProperties.put("field.multi.value.leniency", "false");
         return connectionProperties;
-    }
-
-    private static Map<String, Object> searchStats() throws IOException {
-        Response response = client().performRequest(new Request("GET", "/_stats/search"));
-        try (InputStream content = response.getEntity().getContent()) {
-            return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private static int getOpenContexts(Map<String, Object> stats, String index) {
-        stats = (Map<String, Object>) stats.get("indices");
-        stats = (Map<String, Object>) stats.get(index);
-        stats = (Map<String, Object>) stats.get("total");
-        stats = (Map<String, Object>) stats.get("search");
-        return (Integer) stats.get("open_contexts");
-    }
-
-    static void assertNoSearchContexts() throws IOException {
-        Map<String, Object> stats = searchStats();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> indicesStats = (Map<String, Object>) stats.get("indices");
-        for (String index : indicesStats.keySet()) {
-            if (index.startsWith(".") == false) { // We are not interested in internal indices
-                assertEquals(index + " should have no search contexts", 0, getOpenContexts(stats, index));
-            }
-        }
     }
 
     @Override

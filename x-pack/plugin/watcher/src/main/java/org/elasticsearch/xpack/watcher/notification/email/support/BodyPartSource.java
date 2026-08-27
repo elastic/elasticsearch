@@ -6,11 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.notification.email.support;
 
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.xcontent.ToXContentObject;
-
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 
 import javax.activation.FileTypeMap;
 import javax.mail.MessagingException;
@@ -20,11 +16,7 @@ public abstract class BodyPartSource implements ToXContentObject {
 
     protected static FileTypeMap fileTypeMap;
     static {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
-        }
-        fileTypeMap = AccessController.doPrivileged((PrivilegedAction<FileTypeMap>) () -> FileTypeMap.getDefaultFileTypeMap());
+        fileTypeMap = FileTypeMap.getDefaultFileTypeMap();
     }
 
     protected final String id;

@@ -41,8 +41,8 @@ public class MultiMatchQueryParser extends MatchQueryParser {
 
     private Float groupTieBreaker = null;
 
-    public MultiMatchQueryParser(SearchExecutionContext context) {
-        super(context);
+    public MultiMatchQueryParser(SearchExecutionContext context, QueryVisitor queryVisitor) {
+        super(context, queryVisitor);
     }
 
     public void setTieBreaker(float tieBreaker) {
@@ -152,7 +152,9 @@ public class MultiMatchQueryParser extends MatchQueryParser {
             Query query = builder.createBooleanQuery(representativeField, value.toString(), occur);
             if (query == null) {
                 query = zeroTermsQuery.asQuery();
-                query.visit(queryVisitor);
+                if (query != null) {
+                    query.visit(queryVisitor);
+                }
             }
 
             query = Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
@@ -174,6 +176,7 @@ public class MultiMatchQueryParser extends MatchQueryParser {
     private class CrossFieldsQueryBuilder extends MatchQueryBuilder {
         private final List<FieldAndBoost> blendedFields;
         private final float tieBreaker;
+        private final QueryVisitor queryVisitor;
 
         CrossFieldsQueryBuilder(
             Analyzer analyzer,
@@ -186,6 +189,7 @@ public class MultiMatchQueryParser extends MatchQueryParser {
             super(analyzer, blendedFields.get(0).fieldType, enablePositionIncrements, autoGenerateSynonymsPhraseQuery, queryVisitor);
             this.blendedFields = blendedFields;
             this.tieBreaker = tieBreaker;
+            this.queryVisitor = queryVisitor;
         }
 
         @Override

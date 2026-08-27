@@ -22,6 +22,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader.ArrayOrderSource;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -43,7 +44,10 @@ public class BinaryMvMinBytesRefsBlockLoaderTests extends AbstractBlockLoaderTes
             int docCount = 10_000;
             int cardinality = between(16, 2048);
             for (int i = 0; i < docCount; i++) {
-                var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", false);
+                var field = new MultiValuedBinaryDocValuesField.SeparateCount(
+                    "field",
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                );
                 int baseLength = (i % cardinality) + 1;
                 char c = 'z';
                 field.add(new BytesRef(("" + c).repeat(baseLength)));
@@ -68,7 +72,7 @@ public class BinaryMvMinBytesRefsBlockLoaderTests extends AbstractBlockLoaderTes
                 LeafReaderContext ctx = getOnlyLeafReader(dr).getContext();
 
                 var stringsLoader = new BytesRefsFromBinaryMultiSeparateCountBlockLoader("field");
-                var mvMinLoader = new MvMinBytesRefsFromBinaryBlockLoader("field");
+                var mvMinLoader = new MvMinBytesRefsFromBinaryBlockLoader("field", ArrayOrderSource.NONE);
                 try (var stringsReader = stringsLoader.reader(breaker, ctx); var mvMinReader = mvMinLoader.reader(breaker, ctx)) {
                     assertThat(mvMinReader, readerMatcher());
                     BlockLoader.Docs docs = TestBlock.docs(ctx);

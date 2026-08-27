@@ -42,15 +42,15 @@ A `RENAME` with multiple column renames is equivalent to multiple sequential `RE
 
 ### Rename a single column
 
-:::{include} ../examples/docs.csv-spec/rename.md
+:::{include} ../../generated/x-pack-esql/commands/examples/docs.csv-spec/rename.md
 :::
 
 ### Rename multiple columns in one command
 
-:::{include} ../examples/docs.csv-spec/renameMultipleColumns.md
+:::{include} ../../generated/x-pack-esql/commands/examples/docs.csv-spec/renameMultipleColumns.md
 :::
 
 The same result can be achieved with multiple `RENAME` commands:
 
-:::{include} ../examples/docs.csv-spec/renameMultipleColumnsDifferentCommands.md
+:::{include} ../../generated/x-pack-esql/commands/examples/docs.csv-spec/renameMultipleColumnsDifferentCommands.md
 :::

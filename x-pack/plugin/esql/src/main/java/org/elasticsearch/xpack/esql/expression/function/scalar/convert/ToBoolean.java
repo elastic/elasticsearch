@@ -16,6 +16,9 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -39,6 +42,9 @@ public class ToBoolean extends AbstractConvertFunction {
         "ToBoolean",
         ToBoolean::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToBoolean.class)
+        .unary(ToBoolean::new)
+        .name("to_boolean", "to_bool");
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(BOOLEAN, (source, field) -> field),
@@ -51,7 +57,9 @@ public class ToBoolean extends AbstractConvertFunction {
     );
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "boolean",
+        briefSummary = "Converts a value to a boolean.",
         description = """
             Converts an input value to a boolean value.
             A string value of `true` will be case-insensitive converted to the Boolean `true`.

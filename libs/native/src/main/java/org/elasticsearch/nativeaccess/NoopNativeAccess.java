@@ -14,7 +14,6 @@ import org.elasticsearch.logging.Logger;
 
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
-import java.util.Optional;
 import java.util.OptionalLong;
 
 class NoopNativeAccess implements NativeAccess {
@@ -79,26 +78,9 @@ class NoopNativeAccess implements NativeAccess {
     }
 
     @Override
-    public CloseableByteBuffer newSharedBuffer(int len) {
-        logger.warn("cannot allocate buffer because native access is not available");
-        return null;
-    }
-
-    @Override
-    public CloseableByteBuffer newConfinedBuffer(int len) {
-        logger.warn("cannot allocate buffer because native access is not available");
-        return null;
-    }
-
-    @Override
-    public CloseableMappedByteBuffer map(FileChannel fileChannel, FileChannel.MapMode mode, long position, long size) {
+    public MappedSegment map(FileChannel fileChannel, FileChannel.MapMode mode, long position, long size) {
         logger.warn("cannot map because native access is not available");
         return null;
     }
 
-    @Override
-    public Optional<VectorSimilarityFunctions> getVectorSimilarityFunctions() {
-        logger.warn("cannot get vector distance because native access is not available");
-        return Optional.empty();
-    }
 }

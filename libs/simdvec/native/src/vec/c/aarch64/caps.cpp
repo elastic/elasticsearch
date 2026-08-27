@@ -20,18 +20,10 @@
     #include <asm/hwcap.h>
 #endif
 
-#ifdef __APPLE__
-#include <TargetConditionals.h>
-#endif
-
 EXPORT int vec_caps() {
 #ifdef __APPLE__
-    #ifdef TARGET_OS_OSX
-        // All M series Apple silicon support Neon instructions; no SVE support as for now (M4)
-        return 1;
-    #else
-        #error "Unsupported Apple platform"
-    #endif
+    // All M series Apple silicon support Neon instructions; no SVE support as for now (M4)
+    return 1;
 #elif __linux__
     int hwcap = getauxval(AT_HWCAP);
     // See https://docs.kernel.org/arch/arm64/elf_hwcaps.html
@@ -47,7 +39,9 @@ EXPORT int vec_caps() {
     int sve = (hwcap & HWCAP_SVE) != 0;
     int hwcap2 = getauxval(AT_HWCAP2);
     int sve2 = (hwcap2 & HWCAP2_SVE2) != 0;
-    if (sve) {
+    // every SVE proc is expected to have BF16 support, but just to make sure...
+    int bf16 = (hwcap2 & HWCAP2_SVEBF16) != 0;
+    if (sve && bf16) {
         return 2;
     }
     return 1;

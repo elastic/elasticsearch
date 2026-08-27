@@ -9,7 +9,7 @@ mapped_pages:
 
 Applies a set of token filters to tokens that match conditions in a provided predicate script.
 
-This filter uses Lucene’s [ConditionalTokenFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/ConditionalTokenFilter.md).
+This filter uses Lucene’s [ConditionalTokenFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/ConditionalTokenFilter.html).
 
 ## Example [analysis-condition-analyze-ex]
 

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -16,6 +17,9 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -46,13 +50,26 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
  * </ul>
  */
 
-public class ToLongSurrogate extends EsqlScalarFunction implements OnlySurrogateExpression, OptionalArgument, ConvertFunction {
+public class ToLongSurrogate extends EsqlScalarFunction
+    implements
+        OnlySurrogateExpression,
+        OptionalArgument,
+        ConvertFunction,
+        AnyNullIsNull {
 
     private final Expression field;
     private final Expression base;
 
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToLongSurrogate.class)
+        .binary(ToLongSurrogate::new)
+        // Reject doubles at the exactly representable 2^63 boundary instead of saturating to Long.MAX_VALUE.
+        .capabilities("fix_double_to_long_overflow")
+        .name("to_long");
+
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "long",
+        briefSummary = "Converts a value to a long.",
         description = """
             Converts the input value to a long.
             If the input parameter is of a date type, its value will be interpreted as milliseconds

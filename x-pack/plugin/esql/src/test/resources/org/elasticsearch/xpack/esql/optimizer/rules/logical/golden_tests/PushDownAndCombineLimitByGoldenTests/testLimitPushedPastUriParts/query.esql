@@ -1,0 +1,4 @@
+FROM web_logs
+| SORT uri
+| URI_PARTS p = uri
+| LIMIT 1 BY uri

@@ -92,6 +92,41 @@ responseTime:tdigest                                                            
 
 // -------------------------------------------------------------------------------
 
+suffix cast to_exponential_histogram from histogram
+required_capability: casting_operator_for_histogram_types
+
+FROM histogram_standard_index
+ | WHERE STARTS_WITH(instance, "hand-rolled")
+ | EVAL converted = responseTime::exponential_histogram
+ | SORT instance
+ | KEEP responseTime, converted
+;
+
+responseTime:histogram                                         | converted:exponential_histogram
+"{""values"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}" | "{""scale"":38,""sum"":16.4,""min"":0.1,""max"":0.5,""positive"":{""indices"":[-913124641742,-638246734798,-477453466959,-363368827854,-274877906945],""counts"":[3,7,23,12,6]}}"
+"{""values"":[], ""counts"":[]}"                               | "{""scale"":38}"
+;
+
+// -------------------------------------------------------------------------------
+
+suffix cast to_exponential_histogram from tdigest
+required_capability: to_exponential_histogram
+required_capability: casting_operator_for_histogram_types
+
+FROM tdigest_standard_index
+ | WHERE STARTS_WITH(instance, "hand-rolled")
+ | EVAL converted = responseTime::exponential_histogram
+ | SORT instance
+ | KEEP responseTime, converted
+;
+
+responseTime:tdigest                                                                                         | converted:exponential_histogram
+"{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}" | "{""scale"":38,""sum"":16.4,""min"":0.1,""max"":0.5,""positive"":{""indices"":[-913124641742,-638246734798,-477453466959,-363368827854,-274877906945],""counts"":[3,7,23,12,6]}}"
+"{""centroids"":[], ""counts"":[]}"                                                                          | "{""scale"":38}"
+;
+
+// -------------------------------------------------------------------------------
+
 timeseries to_exponential_histogram from tdigest
 required_capability: to_exponential_histogram
 required_capability: ts_command_v0
@@ -111,6 +146,50 @@ TS tdigest_timeseries_index
 min:double | max:double | p50:double | p95:double | sum:double     | cnt:long
 0.1        | 0.5        | 0.24..0.36 | 0.4..0.6   | 16.399..16.401 | 51
 ;
+
+// -------------------------------------------------------------------------------
+
+Union Type support in FROM
+required_capability: casting_operator_for_histogram_types
+
+FROM histogram_standard_index, tdigest_standard_index, exp_histo_sample
+ | EVAL instance = instance::keyword, converted = responseTime::exponential_histogram
+ | WHERE STARTS_WITH(instance, "hand-rolled") OR instance::keyword == "dummy-full"
+ | SORT instance
+ | KEEP instance, converted
+;
+
+instance:keyword  | converted:exponential_histogram
+dummy-full        | "{""scale"":0,""sum"":-3775.0,""min"":-100.0,""max"":50.0,""zero"":{""count"":1,""threshold"":1.0E-4},""positive"":{""indices"":[-1,0,1,2,3,4,5],""counts"":[1,1,2,4,8,16,18]},""negative"":{""indices"":[-1,0,1,2,3,4,5,6],""counts"":[1,1,2,4,8,16,32,36]}}"
+hand-rolled       | "{""scale"":38,""sum"":16.4,""min"":0.1,""max"":0.5,""positive"":{""indices"":[-913124641742,-638246734798,-477453466959,-363368827854,-274877906945],""counts"":[3,7,23,12,6]}}"
+hand-rolled       | "{""scale"":38,""sum"":16.4,""min"":0.1,""max"":0.5,""positive"":{""indices"":[-913124641742,-638246734798,-477453466959,-363368827854,-274877906945],""counts"":[3,7,23,12,6]}}"
+hand-rolled-empty | "{""scale"":38}"
+hand-rolled-empty | "{""scale"":38}"
+;
+
+// -------------------------------------------------------------------------------
+
+Union Type support in TS
+required_capability: casting_operator_for_histogram_types
+required_capability: ts_command_v0
+
+TS histogram_timeseries_index, tdigest_timeseries_index, exp_histo_sample
+ | EVAL converted = responseTime::exponential_histogram
+ | WHERE STARTS_WITH(instance, "hand-rolled") OR instance == "dummy-full"
+ | STATS min = MIN(converted),
+         max = MAX(converted),
+         p50 = MEDIAN(converted),
+         p95 = PERCENTILE(converted,95),
+         sum = SUM(converted),
+         cnt = COUNT(converted)
+ | KEEP min, max, p50, p95, sum, cnt
+;
+
+min:double | max:double | p50:double | p95:double | sum:double | cnt:long
+-100.0     | 50.0       | 0.2..0.4   | 42..43     | -3742.2    | 253
+;
+
+// -------------------------------------------------------------------------------
 
 allAggsGrouped
 required_capability: exponential_histogram_tech_preview
@@ -653,6 +732,24 @@ instance-2       | 2.2E-4     | 2.744054   | 0.001571..0.00160683   | 27.7057..2
 ;
 
 
+timeseriesAvgOverTimeWithInlineFilterGroupByAll
+skip_flattened_rewrite: junk_injection_breaks_result_shape
+required_capability: fix_group_by_all_aggregation_filters
+required_capability: metrics_group_by_all
+
+TS exp_histo_sample 
+ | WHERE NOT STARTS_WITH(instance, "dummy")
+ | STATS avg = avg_over_time(responseTime) WHERE instance == "instance-0"
+;
+ignoreOrder:true
+
+avg:double         | _timeseries:keyword
+0.166579..0.166583 | "{""instance"":""instance-0""}"
+null               | "{""instance"":""instance-1""}"
+null               | "{""instance"":""instance-2""}"
+;
+
+
 timeseriesAllMathOverTimeAggsUngrouped
 required_capability: exponential_histogram_tech_preview
 required_capability: ts_command_v0
@@ -713,6 +810,129 @@ FROM exp_histo_sample
 
 cnt:long 
 15471
+;
+
+// -------------------------------------------------------------------------------
+
+Count buckets ungrouped (standard mode)
+required_capability: fn_count_histogram_bucket
+
+FROM exp_histo_sample
+ | WHERE NOT STARTS_WITH(instance, "dummy")
+ | STATS b1 = COUNT(responseTime, TO_RANGE(0.0, 0.001)),
+         b2 = COUNT(responseTime, TO_RANGE(0.001, 0.01)),
+         b3 = COUNT(responseTime, TO_RANGE(0.01, 0.1)),
+         b4 = COUNT(responseTime, TO_RANGE(0.1, 1.0)),
+         b5 = COUNT(responseTime, TO_RANGE(1.0, 7.0)),
+         total = COUNT(responseTime)
+ | EVAL matches = total == b1 + b2 + b3 + b4 + b5
+;
+
+b1:long    | b2:long    | b3:long    | b4:long    | b5:long | total:long  | matches:boolean
+6200..6300 | 3820..3920 | 2050..2160 | 3050..3180 | 120..145 | 15471      | true
+;
+
+Count buckets grouped (standard mode)
+required_capability: fn_count_histogram_bucket
+
+FROM exp_histo_sample
+ | WHERE NOT STARTS_WITH(instance, "dummy")
+ | STATS b1 = COUNT(responseTime, TO_RANGE(0.0, 0.001)),
+         b2 = COUNT(responseTime, TO_RANGE(0.001, 0.01)),
+         b3 = COUNT(responseTime, TO_RANGE(0.01, 0.1)),
+         b4 = COUNT(responseTime, TO_RANGE(0.1, 1.0)),
+         b5 = COUNT(responseTime, TO_RANGE(1.0, 7.0)),
+         total = COUNT(responseTime)
+   BY instance
+ | EVAL matches = total == b1 + b2 + b3 + b4 + b5
+ | SORT instance
+;
+
+b1:long    | b2:long    | b3:long    | b4:long    | b5:long  | total:long | instance:keyword | matches:boolean
+1950..2050 | 1880..1980 | 1680..1790 | 3000..3120 | 105..130 | 8841       | instance-0       | true
+2020..2130 | 900..1000  | 160..220   | 25..45     | 5..15    | 3250       | instance-1       | true
+2120..2230 | 945..1045  | 150..210   | 15..35     | 2..10    | 3380       | instance-2       | true
+;
+
+Count buckets ungrouped (timeseries mode)
+required_capability: fn_count_histogram_bucket
+required_capability: ts_command_v0
+
+TS exp_histo_sample
+ | WHERE NOT STARTS_WITH(instance, "dummy")
+ | STATS b1 = COUNT(responseTime, TO_RANGE(0.0, 0.001)),
+         b2 = COUNT(responseTime, TO_RANGE(0.001, 0.01)),
+         b3 = COUNT(responseTime, TO_RANGE(0.01, 0.1)),
+         b4 = COUNT(responseTime, TO_RANGE(0.1, 1.0)),
+         b5 = COUNT(responseTime, TO_RANGE(1.0, 7.0)),
+         total = COUNT(responseTime)
+ | EVAL matches = total == b1 + b2 + b3 + b4 + b5
+;
+
+b1:long    | b2:long    | b3:long    | b4:long    | b5:long  | total:long | matches:boolean
+6200..6300 | 3820..3920 | 2050..2160 | 3050..3180 | 120..145 | 15471      | true
+;
+
+Count buckets grouped (timeseries mode)
+required_capability: fn_count_histogram_bucket
+required_capability: ts_command_v0
+
+TS exp_histo_sample
+ | WHERE NOT STARTS_WITH(instance, "dummy")
+ | STATS b1 = COUNT(responseTime, TO_RANGE(0.0, 0.001)),
+         b2 = COUNT(responseTime, TO_RANGE(0.001, 0.01)),
+         b3 = COUNT(responseTime, TO_RANGE(0.01, 0.1)),
+         b4 = COUNT(responseTime, TO_RANGE(0.1, 1.0)),
+         b5 = COUNT(responseTime, TO_RANGE(1.0, 7.0)),
+         total = COUNT(responseTime)
+   BY instance
+ | EVAL matches = total == b1 + b2 + b3 + b4 + b5
+ | SORT instance
+;
+
+b1:long    | b2:long    | b3:long    | b4:long    | b5:long  | total:long | instance:keyword | matches:boolean
+1950..2050 | 1880..1980 | 1680..1790 | 3000..3120 | 105..130 | 8841       | instance-0       | true
+2020..2130 | 900..1000  | 160..220   | 25..45     | 5..15    | 3250       | instance-1       | true
+2120..2230 | 945..1045  | 150..210   | 15..35     | 2..10    | 3380       | instance-2       | true
+;
+
+// -------------------------------------------------------------------------------
+
+Count bucket with empty exponential histogram
+required_capability: fn_count_histogram_bucket
+
+FROM exp_histo_sample
+ | WHERE instance == "dummy-empty"
+ | STATS cnt = COUNT(responseTime, TO_RANGE(-1.0, 1.0))
+;
+
+cnt:long
+0
+;
+
+Count bucket with null exponential histogram
+required_capability: fn_count_histogram_bucket
+
+FROM exp_histo_sample
+ | WHERE instance == "dummy-full"
+ | EVAL histogram = CASE(instance == "does-not-exist", responseTime)
+ | STATS cnt = COUNT(histogram, TO_RANGE(-1.0, 1.0))
+;
+
+cnt:long
+0
+;
+
+Count exponential histogram with null bucket
+required_capability: fn_count_histogram_bucket
+
+FROM exp_histo_sample
+ | WHERE instance == "dummy-full"
+ | STATS cnt = COUNT(responseTime, TO_RANGE(null, 1.0))
+;
+
+cnt:long
+null
 ;
 
 // -------------------------------------------------------------------------------
@@ -1020,4 +1240,167 @@ time:datetime            | count:long
 2025-09-25T00:40:00.000Z | 1484
 2025-09-25T00:50:00.000Z | 1451
 2025-09-25T01:00:00.000Z | 147
+;
+
+// -------------------------------------------------------------------------------
+// Documentation examples for aggregations with exponential histograms
+// -------------------------------------------------------------------------------
+
+sum for exponential histogram docs
+required_capability: exponential_histogram_tech_preview
+required_capability: ts_command_v0
+
+// tag::sumExpHistoForDocs[]
+TS exp_histo_sample
+| WHERE instance == "instance-0"
+| STATS total = ROUND(SUM(responseTime), 2)
+// end::sumExpHistoForDocs[]
+;
+
+// tag::sumExpHistoForDocs-result[]
+total:double
+1472.74
+// end::sumExpHistoForDocs-result[]
+;
+
+// -------------------------------------------------------------------------------
+
+avg for exponential histogram docs
+required_capability: exponential_histogram_tech_preview
+required_capability: ts_command_v0
+
+// tag::avgExpHistoForDocs[]
+TS exp_histo_sample
+| WHERE instance == "instance-0"
+| STATS average = ROUND(AVG(responseTime), 4)
+// end::avgExpHistoForDocs[]
+;
+
+// tag::avgExpHistoForDocs-result[]
+average:double
+0.1666
+// end::avgExpHistoForDocs-result[]
+;
+
+// -------------------------------------------------------------------------------
+
+min for exponential histogram docs
+required_capability: exponential_histogram_tech_preview
+required_capability: ts_command_v0
+
+// tag::minExpHistoForDocs[]
+TS exp_histo_sample
+| WHERE instance == "instance-0"
+| STATS minimum = ROUND(MIN(responseTime), 4)
+// end::minExpHistoForDocs[]
+;
+
+// tag::minExpHistoForDocs-result[]
+minimum:double
+2.0E-4
+// end::minExpHistoForDocs-result[]
+;
+
+// -------------------------------------------------------------------------------
+
+max for exponential histogram docs
+required_capability: exponential_histogram_tech_preview
+required_capability: ts_command_v0
+
+// tag::maxExpHistoForDocs[]
+TS exp_histo_sample
+| WHERE instance == "instance-0"
+| STATS maximum = ROUND(MAX(responseTime), 4)
+// end::maxExpHistoForDocs[]
+;
+
+// tag::maxExpHistoForDocs-result[]
+maximum:double
+6.7862
+// end::maxExpHistoForDocs-result[]
+;
+
+// -------------------------------------------------------------------------------
+
+median for exponential histogram docs
+required_capability: exponential_histogram_tech_preview
+required_capability: ts_command_v0
+
+// tag::medianExpHistoForDocs[]
+TS exp_histo_sample
+| WHERE instance == "instance-0"
+| STATS p50 = ROUND(MEDIAN(responseTime), 4)
+// end::medianExpHistoForDocs[]
+;
+
+// tag::medianExpHistoForDocs-result[]
+p50:double
+0.0211
+// end::medianExpHistoForDocs-result[]
+;
+
+// -------------------------------------------------------------------------------
+
+percentile for exponential histogram docs
+required_capability: exponential_histogram_tech_preview
+required_capability: ts_command_v0
+
+// tag::percentileExpHistoForDocs[]
+TS exp_histo_sample
+| WHERE instance == "instance-0"
+| STATS p99 = ROUND(PERCENTILE(responseTime, 99), 4)
+// end::percentileExpHistoForDocs[]
+;
+
+// tag::percentileExpHistoForDocs-result[]
+p99:double
+1.0433
+// end::percentileExpHistoForDocs-result[]
+;
+
+// -------------------------------------------------------------------------------
+
+count for exponential histogram docs
+required_capability: exponential_histogram_tech_preview
+required_capability: ts_command_v0
+required_capability: count_of_histogram_types
+
+// tag::countExpHistoForDocs[]
+TS exp_histo_sample
+| WHERE instance == "instance-0"
+| STATS cnt = COUNT(responseTime)
+// end::countExpHistoForDocs[]
+;
+
+// tag::countExpHistoForDocs-result[]
+cnt:long
+8841
+// end::countExpHistoForDocs-result[]
+;
+
+// -------------------------------------------------------------------------------
+
+isNotNullFilter
+required_capability: count_of_histogram_types
+required_capability: fix_histogram_blockloaders_isnull
+required_capability: count_of_histogram_types
+
+TS exp_histo_sample
+ | WHERE mostly_empty IS NOT NULL
+ | STATS cnt = COUNT(mostly_empty) BY instance
+ | KEEP instance, cnt
+ | SORT instance
+;
+
+instance:keyword          | cnt:long
+dummy-empty               | 0
+dummy-full                | 7
+dummy-negative_only       | 0
+dummy-no_zero_bucket      | 0
+dummy-positive_only       | 0
+dummy-zero_count_only     | 0
+dummy-zero_threshold_only | 0
+instance-0                | 0
+instance-1                | 0
+instance-2                | 0
 ;

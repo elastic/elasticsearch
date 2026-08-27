@@ -9,56 +9,58 @@ package org.elasticsearch.xpack.inference.services.elastic;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
-import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankRequest;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
-import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.elastic.action.ElasticInferenceServiceActionCreator;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
+import org.elasticsearch.xpack.inference.services.elastic.compatibility.CompletionCompatibilityService;
+import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModelCreator;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelCreator;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModelCreator;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -68,17 +70,14 @@ import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.inference.TaskType.RERANK;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
+import static org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs.fromRerankRequest;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedTaskTypeStatusException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.openai.action.OpenAiActionCreator.USER_ROLE;
 
-public class ElasticInferenceService extends SenderService<ElasticInferenceServiceModel> {
+public class ElasticInferenceService extends SenderService<ElasticInferenceServiceModel> implements RerankingInferenceService {
 
     public static final String NAME = "elastic";
     public static final String ELASTIC_INFERENCE_SERVICE_IDENTIFIER = "Elastic Inference Service";
@@ -106,42 +105,63 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
     /**
      * The task types that the {@link InferenceAction.Request} can accept.
      */
-    private static final EnumSet<TaskType> SUPPORTED_INFERENCE_ACTION_TASK_TYPES = EnumSet.of(
-        SPARSE_EMBEDDING,
-        COMPLETION,
-        RERANK,
-        TEXT_EMBEDDING
-    );
+    private static final EnumSet<TaskType> SUPPORTED_INFERENCE_ACTION_TASK_TYPES = EnumSet.of(SPARSE_EMBEDDING, COMPLETION, TEXT_EMBEDDING);
 
-    private final Map<TaskType, ElasticInferenceServiceModelCreator<? extends ElasticInferenceServiceModel>> modelCreators;
     private final CCMAuthenticationApplierFactory ccmAuthenticationApplierFactory;
+    private final InferencePreferencesCache inferencePreferencesCache;
     private ElasticInferenceServiceActionCreator actionCreator;
 
-    public ElasticInferenceService(
+    public static ElasticInferenceService create(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,
         ElasticInferenceServiceSettings elasticInferenceServiceSettings,
         InferenceServiceExtension.InferenceServiceFactoryContext context,
-        CCMAuthenticationApplierFactory ccmAuthApplierFactory
+        CCMAuthenticationApplierFactory ccmAuthApplierFactory,
+        InferencePreferencesCache inferencePreferencesCache
     ) {
-        this(factory, serviceComponents, elasticInferenceServiceSettings, context.clusterService(), ccmAuthApplierFactory);
+        return new ElasticInferenceService(
+            factory,
+            serviceComponents,
+            elasticInferenceServiceSettings,
+            context,
+            ccmAuthApplierFactory,
+            inferencePreferencesCache,
+            new CompletionCompatibilityService(context.clusterService(), context.featureService())
+        );
     }
 
-    public ElasticInferenceService(
+    private ElasticInferenceService(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,
         ElasticInferenceServiceSettings elasticInferenceServiceSettings,
-        ClusterService clusterService,
-        CCMAuthenticationApplierFactory ccmAuthApplierFactory
+        InferenceServiceExtension.InferenceServiceFactoryContext context,
+        CCMAuthenticationApplierFactory ccmAuthApplierFactory,
+        InferencePreferencesCache inferencePreferencesCache,
+        CompletionCompatibilityService completionCompatibilityService
     ) {
-        super(factory, serviceComponents, clusterService, Map.of());
+        super(
+            factory,
+            serviceComponents,
+            context.clusterService(),
+            initModelCreators(elasticInferenceServiceSettings, completionCompatibilityService)
+        );
         this.ccmAuthenticationApplierFactory = ccmAuthApplierFactory;
+        this.inferencePreferencesCache = inferencePreferencesCache;
+    }
+
+    private static Map<TaskType, ModelCreator<? extends ElasticInferenceServiceModel>> initModelCreators(
+        ElasticInferenceServiceSettings elasticInferenceServiceSettings,
+        CompletionCompatibilityService completionCompatibilityService
+    ) {
         var elasticInferenceServiceComponents = new ElasticInferenceServiceComponents(
             elasticInferenceServiceSettings.getElasticInferenceServiceUrl()
         );
         var denseEmbeddingsModelCreator = new ElasticInferenceServiceDenseEmbeddingsModelCreator(elasticInferenceServiceComponents);
-        var completionModelCreator = new ElasticInferenceServiceCompletionModelCreator(elasticInferenceServiceComponents);
-        this.modelCreators = Map.of(
+        var completionModelCreator = new ElasticInferenceServiceCompletionModelCreator(
+            elasticInferenceServiceComponents,
+            completionCompatibilityService
+        );
+        return Map.of(
             TaskType.TEXT_EMBEDDING,
             denseEmbeddingsModelCreator,
             TaskType.EMBEDDING,
@@ -159,7 +179,12 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
 
     public void init() {
         // Wait to initialize the action creator until the sender is constructed
-        this.actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents(), ccmAuthenticationApplierFactory);
+        this.actionCreator = new ElasticInferenceServiceActionCreator(
+            getSender(),
+            getServiceComponents(),
+            ccmAuthenticationApplierFactory,
+            inferencePreferencesCache
+        );
     }
 
     @Override
@@ -186,8 +211,7 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        if (model instanceof ElasticInferenceServiceCompletionModel == false
-            || (model.getTaskType() != CHAT_COMPLETION && model.getTaskType() != COMPLETION)) {
+        if (model instanceof ElasticInferenceServiceCompletionModel == false || (model.getTaskType() != CHAT_COMPLETION)) {
             listener.onFailure(createInvalidModelException(model));
             return;
         }
@@ -200,15 +224,65 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
         var completionModel = (ElasticInferenceServiceCompletionModel) model;
         var overriddenModel = ElasticInferenceServiceCompletionModel.of(completionModel, inputs.getRequest());
 
+        // Merge reasoning from stored task settings with the request body (body wins).
+        var effectiveInputs = getUnifiedInputs(overriddenModel, inputs);
+
         actionCreator.create(
             overriddenModel,
             currentTraceInfo,
-            listener.delegateFailureAndWrap((delegate, action) -> action.execute(inputs, timeout, delegate))
+            listener.delegateFailureAndWrap((delegate, action) -> action.execute(effectiveInputs, timeout, delegate))
         );
+    }
+
+    private static UnifiedChatInput getUnifiedInputs(ElasticInferenceServiceCompletionModel model, UnifiedChatInput inputs) {
+        if (model.getTaskType() != CHAT_COMPLETION) {
+            throw new IllegalArgumentException(
+                Strings.format("Only chat completion models support reasoning, but model task type is: [%s]", model.getTaskType())
+            );
+        }
+
+        var storedReasoning = model.getTaskSettings() instanceof ElasticInferenceServiceChatCompletionTaskSettings ts
+            ? ts.reasoning()
+            : null;
+        var mergedReasoning = ElasticInferenceServiceChatCompletionTaskSettings.mergeReasoning(
+            inputs.getRequest().reasoning(),
+            storedReasoning
+        );
+
+        if (mergedReasoning != null && Objects.equals(mergedReasoning, inputs.getRequest().reasoning()) == false) {
+            return new UnifiedChatInput(
+                new UnifiedCompletionRequest(
+                    inputs.getRequest().messages(),
+                    inputs.getRequest().model(),
+                    inputs.getRequest().maxCompletionTokens(),
+                    inputs.getRequest().stop(),
+                    inputs.getRequest().temperature(),
+                    inputs.getRequest().toolChoice(),
+                    inputs.getRequest().tools(),
+                    inputs.getRequest().topP(),
+                    mergedReasoning,
+                    inputs.getRequest().cacheControl(),
+                    inputs.getRequest().sessionId()
+                ),
+                inputs.stream()
+            );
+        }
+
+        return inputs;
     }
 
     @Override
     protected boolean supportsChatCompletionReasoning() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsChatCompletionCacheControl() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsChatCompletionSessionId() {
         return true;
     }
 
@@ -264,12 +338,46 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
                 (ElasticInferenceServiceDenseEmbeddingsModel) model,
                 getCurrentTraceInfo(),
                 listener.delegateFailureAndWrap(
-                    (delegate, action) -> action.execute(new EmbeddingsInput(request::inputs, request.inputType()), timeout, delegate)
+                    (delegate, action) -> action.execute(new EmbeddingsInput(request.inputs(), request.inputType()), timeout, delegate)
                 )
             );
         } else {
             listener.onFailure(createUnsupportedTaskTypeStatusException(model, EnumSet.of(EMBEDDING)));
         }
+    }
+
+    @Override
+    public boolean usesParserForTaskSettings() {
+        return true;
+    }
+
+    @Override
+    public boolean supportsNonTextEmbeddingContent() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsMultipleItemsPerContent() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsMultimodalRerank() {
+        return true;
+    }
+
+    @Override
+    protected void doRerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        if (!(model instanceof ElasticInferenceServiceRerankModel elasticInferenceServiceRerankModel)) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+
+        actionCreator.create(
+            elasticInferenceServiceRerankModel,
+            getCurrentTraceInfo(),
+            listener.delegateFailureAndWrap((delegate, action) -> action.execute(fromRerankRequest(request), timeout, delegate))
+        );
     }
 
     @Override
@@ -295,7 +403,11 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
                 getCurrentTraceInfo(),
                 request.listener()
                     .delegateFailureAndWrap(
-                        (delegate, action) -> action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, delegate)
+                        (delegate, action) -> action.execute(
+                            new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                            timeout,
+                            delegate
+                        )
                     )
             );
         }
@@ -320,43 +432,6 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
     @Override
     public String name() {
         return NAME;
-    }
-
-    @Override
-    public void parseRequestConfig(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> config,
-        ActionListener<Model> parsedModelListener
-    ) {
-        try {
-            Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-            Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-
-            ChunkingSettings chunkingSettings = null;
-            if (CHUNKING_TASK_TYPES.contains(taskType)) {
-                chunkingSettings = ChunkingSettingsBuilder.fromMap(
-                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
-                );
-            }
-
-            ElasticInferenceServiceModel model = createModel(
-                inferenceEntityId,
-                taskType,
-                serviceSettingsMap,
-                chunkingSettings,
-                ConfigurationParseContext.REQUEST,
-                null
-            );
-
-            throwIfNotEmptyMap(config, NAME);
-            throwIfNotEmptyMap(serviceSettingsMap, NAME);
-            throwIfNotEmptyMap(taskSettingsMap, NAME);
-
-            parsedModelListener.onResponse(model);
-        } catch (Exception e) {
-            parsedModelListener.onFailure(e);
-        }
     }
 
     /**
@@ -387,83 +462,9 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
         );
     }
 
-    private ElasticInferenceServiceModel createModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        ChunkingSettings chunkingSettings,
-        ConfigurationParseContext context,
-        @Nullable EndpointMetadata endpointMetadata
-    ) {
-
-        return retrieveModelCreatorFromMapOrThrow(modelCreators, inferenceEntityId, taskType, NAME, context).createFromMaps(
-            inferenceEntityId,
-            taskType,
-            serviceSettings,
-            chunkingSettings,
-            context,
-            endpointMetadata
-        );
-    }
-
-    @Override
-    public ElasticInferenceServiceModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return retrieveModelCreatorFromMapOrThrow(
-            modelCreators,
-            config.getInferenceEntityId(),
-            config.getTaskType(),
-            config.getService(),
-            ConfigurationParseContext.PERSISTENT
-        ).createFromModelConfigurationsAndSecrets(config, secrets);
-    }
-
-    @Override
-    public ElasticInferenceServiceModel parsePersistedConfig(UnparsedModel unparsedModel) {
-        var config = unparsedModel.settings();
-        var secrets = unparsedModel.secrets();
-        var taskType = unparsedModel.taskType();
-
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        // These aren't used by EIS endpoints so we'll remove them to avoid potential validation issues
-        removeFromMap(config, ModelConfigurations.TASK_SETTINGS);
-        if (secrets != null) {
-            removeFromMap(secrets, ModelSecrets.SECRET_SETTINGS);
-        }
-
-        ChunkingSettings chunkingSettings = null;
-        if (CHUNKING_TASK_TYPES.contains(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
-        }
-
-        return createModelFromPersistent(
-            unparsedModel.inferenceEntityId(),
-            taskType,
-            serviceSettingsMap,
-            chunkingSettings,
-            unparsedModel.endpointMetadata()
-        );
-    }
-
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.minimumCompatible();
-    }
-
-    private ElasticInferenceServiceModel createModelFromPersistent(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        ChunkingSettings chunkingSettings,
-        @Nullable EndpointMetadata endpointMetadata
-    ) {
-        return createModel(
-            inferenceEntityId,
-            taskType,
-            serviceSettings,
-            chunkingSettings,
-            ConfigurationParseContext.PERSISTENT,
-            endpointMetadata
-        );
     }
 
     @Override
@@ -548,5 +549,20 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
             .setTaskTypes(enabledTaskTypes)
             .setConfigurations(configurationMap)
             .build();
+    }
+
+    /**
+     * EIS only supports Jina reranker models, so the same value from {@link JinaAIService#rerankerWindowSize(String)} is used.
+     * <p>
+     * The {@code jina-reranker-m0} model <a href="https://jina.ai/models/jina-reranker-m0">has a 10,000 token input length</a>, which is
+     * the smallest of the non-deprecated Jina reranker models, so that value is used here.
+     * <p>
+     * Using 1 token = 0.75 words as a rough estimate, we get 7500 words. Allowing for some headroom, we set the window size to 7000 words
+     * @param modelId The model ID
+     * @return the max input size for the model, in words
+     */
+    @Override
+    public int rerankerWindowSize(String modelId) {
+        return 7000;
     }
 }

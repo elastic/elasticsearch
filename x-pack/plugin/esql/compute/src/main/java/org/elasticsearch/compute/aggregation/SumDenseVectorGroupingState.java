@@ -62,7 +62,6 @@ final class SumDenseVectorGroupingState extends AbstractFallibleArrayState imple
         sums = bigArrays.grow(sums, (groupId + 1L) * dimensions);
     }
 
-    @Override
     public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
         blocks[offset] = toValuesBlock(selected, driverContext);
         try (var hasFailedBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount())) {

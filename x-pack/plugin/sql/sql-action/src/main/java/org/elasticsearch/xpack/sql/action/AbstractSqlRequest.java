@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.proto.Mode;
@@ -24,7 +24,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * <p>
  * Contains information about the client mode that can be used to generate different responses based on the caller type.
  */
-public abstract class AbstractSqlRequest extends LegacyActionRequest {
+public abstract class AbstractSqlRequest extends UntypedActionRequest {
 
     private RequestInfo requestInfo;
 

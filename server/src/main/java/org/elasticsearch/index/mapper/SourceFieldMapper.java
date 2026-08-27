@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -20,10 +21,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -37,7 +38,9 @@ import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
+import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -53,12 +56,6 @@ import java.util.Locale;
 import java.util.Set;
 
 public class SourceFieldMapper extends MetadataFieldMapper {
-    public static final NodeFeature REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION = new NodeFeature(
-        "mapper.source.remove_synthetic_source_only_validation"
-    );
-    public static final NodeFeature SOURCE_MODE_FROM_INDEX_SETTING = new NodeFeature("mapper.source.mode_from_index_setting");
-    public static final NodeFeature SYNTHETIC_RECOVERY_SOURCE = new NodeFeature("mapper.synthetic_recovery_source");
-
     public static final String NAME = "_source";
     public static final String RECOVERY_SOURCE_NAME = "_recovery_source";
 
@@ -77,7 +74,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     public enum Mode {
         DISABLED,
         STORED,
-        SYNTHETIC
+        SYNTHETIC,
+        COLUMNAR_STORED
     }
 
     private static final SourceFieldMapper DEFAULT = new SourceFieldMapper(
@@ -281,6 +279,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             return resolveSourceMode() == Mode.SYNTHETIC;
         }
 
+        public boolean isColumnarStored() {
+            return resolveSourceMode() == Mode.COLUMNAR_STORED;
+        }
+
         private Mode resolveSourceMode() {
             // If the `index.mapping.source.mode` exists it takes precedence to determine the source mode for `_source`
             // otherwise the mode is determined according to `_source.mode`.
@@ -306,6 +308,16 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             case SYNTHETIC -> SYNTHETIC;
             case STORED -> STORED;
             case DISABLED -> DISABLED;
+            // COLUMNAR_STORED gets its own instance per mapping version so ColumnarSourceWriter can cache
+            // instances of SourceLoader.Synthetic and related classes without conflating state across indices.
+            case COLUMNAR_STORED -> new SourceFieldMapper(
+                Mode.COLUMNAR_STORED,
+                Explicit.IMPLICIT_TRUE,
+                Strings.EMPTY_ARRAY,
+                Strings.EMPTY_ARRAY,
+                false,
+                false
+            );
         };
     }
 
@@ -352,7 +364,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             if (enabled) {
                 var config = blContext.blockLoaderFunctionConfig();
                 if (config instanceof BlockLoaderFunctionConfig.TimeSeriesMetadata tsm) {
-                    return new TimeSeriesMetadataFieldBlockLoader(blContext, tsm.loadMetrics());
+                    return new TimeSeriesMetadataFieldBlockLoader(blContext, tsm.loadMetricFields());
                 }
                 return new SourceFieldBlockLoader();
             }
@@ -372,6 +384,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     private final String[] includes;
     private final String[] excludes;
     private final SourceFilter sourceFilter;
+    private final ColumnarSourceWriter columnarSourceWriter;
 
     private SourceFieldMapper(
         Mode mode,
@@ -390,6 +403,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         this.complete = stored() && sourceFilter == null;
         this.serializeMode = serializeMode;
         this.sourceModeIsNoop = sourceModeIsNoop;
+        this.columnarSourceWriter = mode == Mode.COLUMNAR_STORED ? new ColumnarSourceWriter(sourceFilter) : null;
     }
 
     private static SourceFilter buildSourceFilter(String[] includes, String[] excludes) {
@@ -403,7 +417,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (enabled.explicit() || mode == null) {
             return enabled.value();
         }
-        return mode == Mode.STORED;
+        return mode == Mode.STORED || mode == Mode.COLUMNAR_STORED;
     }
 
     public boolean enabled() {
@@ -422,37 +436,108 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(DocumentParserContext context) throws IOException {
-        XContentType contentType = context.sourceToParse().getXContentType();
+        SourceToParse.Source sourceObject = context.sourceToParse().source();
+        XContentType contentType = sourceObject.xContentType();
+        final boolean recoverySourceEnabled = context.indexSettings().isRecoverySourceEnabled();
+        final boolean syntheticRecovery = recoverySourceEnabled && context.indexSettings().isRecoverySourceSyntheticEnabled();
 
-        final var originalSource = context.sourceToParse().source();
+        // Materializing the source bytes is only required when something downstream needs them:
+        // - storing the regular _source field (stored() == true), or
+        // - storing the reduced _recovery_source field (recovery enabled, non-synthetic).
+        // The recovery-disabled case needs nothing at all, and the synthetic-recovery case needs
+        // only a byte-size estimate, which the batch row can supply without re-serializing.
+        if (stored() == false && (recoverySourceEnabled == false || syntheticRecovery)) {
+            if (syntheticRecovery) {
+                assert isSynthetic() : "Recovery source should not be disabled for non-synthetic sources";
+                context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_SIZE_NAME, sourceObject.estimatedSizeInBytes()));
+            }
+            return;
+        }
+
+        final var originalSource = sourceObject.originalBytes();
         final var storedSource = stored() ? removeSyntheticVectorFields(context.mappingLookup(), originalSource, contentType) : null;
         final var adaptedStoredSource = applyFilters(context.mappingLookup(), storedSource, contentType, false);
+        final boolean useColumnarSource = mode == Mode.COLUMNAR_STORED;
 
-        if (adaptedStoredSource != null) {
+        if (adaptedStoredSource != null && useColumnarSource == false) {
             final BytesRef ref = adaptedStoredSource.toBytesRef();
             context.doc().add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
         }
 
-        if (context.indexSettings().isRecoverySourceEnabled() == false) {
-            // Recovery source is disabled; skip adding recovery source fields.
+        if (recoverySourceEnabled == false) {
             return;
         }
 
-        if (context.indexSettings().isRecoverySourceSyntheticEnabled()) {
-            assert isSynthetic() : "Recovery source should not be disabled for non-synthetic sources";
+        assert useColumnarSource == false || syntheticRecovery : "columnar_stored source requires synthetic recovery source";
+
+        if (syntheticRecovery) {
+            assert isSynthetic() || isColumnarStored() : "Recovery source should not be disabled for non-synthetic sources";
             // Synthetic source recovery is enabled; omit the full recovery source.
             // Instead, store only the size of the uncompressed original source.
             // This size is used by LuceneSyntheticSourceChangesSnapshot to manage memory usage
             // when loading batches of synthetic sources during recovery.
             context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_SIZE_NAME, originalSource.length()));
         } else if (stored() == false || adaptedStoredSource != storedSource) {
-            // If the source is missing (due to synthetic source or disabled mode)
+            // If the source is missing (due to synthetic source, columnar_stored, or disabled mode)
             // or has been altered (via source filtering), store a reduced recovery source.
             // This includes the original source with synthetic vector fields removed for operation-based recovery.
             var recoverySource = removeSyntheticVectorFields(context.mappingLookup(), originalSource, contentType).toBytesRef();
             context.doc().add(new StoredField(RECOVERY_SOURCE_NAME, recoverySource.bytes, recoverySource.offset, recoverySource.length));
             context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_NAME, 1));
         }
+    }
+
+    @Override
+    public void postParse(DocumentParserContext context) throws IOException {
+        if (mode != Mode.COLUMNAR_STORED) {
+            return;
+        }
+        try (var builder = XContentFactory.jsonBuilder()) {
+            columnarSourceWriter.write(context, builder);
+            BytesRef encodedValue = XContentDataHelper.encodeXContentBuilder(builder);
+            // Remove per-field fallback entries collected during parsing — their contents are
+            // subsumed by the whole-document entry written below, and binary doc values only allow
+            // one field instance per document. Entries kept here (e.g. .offsets, _ignored) are
+            // still used after indexing by block loaders or queries.
+            context.doc().getFields().removeIf(f -> isRedundantInColumnarStoredSource(f.name()));
+            IgnoredSourceFieldMapper.ignoredSourceFormat(context.indexSettings())
+                .writeIgnoredFields(
+                    List.of(new IgnoredSourceFieldMapper.NameValue(NAME, 0, encodedValue, context.doc())),
+                    context.indexSettings().getIndexVersionCreated(),
+                    false
+                );
+        }
+    }
+
+    /**
+     * Returns {@code true} for Lucene fields that exist only to support per-field synthetic-source reconstruction and are therefore
+     * redundant once {@link #postParse} has materialized the whole-document source blob into {@code _ignored_source}.
+     *
+     * <p>The following are removed:</p>
+     * <ul>
+     *   <li>{@code _ignored_source} per-field entries
+     *   <li>{@code <field>._ignore_malformed} (and {@code .counts})</li>
+     *   <li>{@code <field>._original} (and {@code .counts}) — the text / keyword fallback field for ignored-above and
+     *       normalized values</li>
+     *   <li>{@code <field>._on_failure} (and {@code .counts}) — the {@code doc_values.on_failure=ignore} failure column</li>
+     * </ul>
+     *
+     */
+    private static boolean isRedundantInColumnarStoredSource(String fieldName) {
+        // A less expense check to avoid more string comparison:
+        if (fieldName.indexOf('_') == -1) {
+            return false;
+        }
+
+        String counts = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+        return IgnoredSourceFieldMapper.NAME.equals(fieldName)
+            || (IgnoredSourceFieldMapper.NAME + counts).equals(fieldName)
+            || fieldName.endsWith(IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX)
+            || fieldName.endsWith(IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX + counts)
+            || fieldName.endsWith(TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX)
+            || fieldName.endsWith(TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX + counts)
+            || fieldName.endsWith(OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX)
+            || fieldName.endsWith(OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX + counts);
     }
 
     /**
@@ -532,6 +617,43 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        // TODO: Need to implement support for additional scenarios
+        // Columnar batch mapping only ports the cheap branch of preParse: no stored _source to
+        // materialize, and either recovery source is disabled or only a size estimate is needed
+        // (synthetic recovery). Stored source, COLUMNAR_STORED (stored() == true for that mode
+        // too), and non-synthetic recovery source all require the full row path.
+        final boolean recoverySourceEnabled = indexSettings.isRecoverySourceEnabled();
+        final boolean syntheticRecovery = recoverySourceEnabled && indexSettings.isRecoverySourceSyntheticEnabled();
+        return stored() == false && (recoverySourceEnabled == false || syntheticRecovery);
+    }
+
+    @Override
+    public void preColumnarParse(BatchMappingContext context) throws IOException {
+        final boolean syntheticRecovery = context.indexSettings().isRecoverySourceEnabled()
+            && context.indexSettings().isRecoverySourceSyntheticEnabled();
+        if (syntheticRecovery == false) {
+            return;
+        }
+
+        final int docCount = context.docCount();
+        final byte[] sizes = new byte[docCount * 8];
+        final XContentType[] contentTypes = context.contentTypes();
+        final BytesReference[] sources = context.sources();
+        for (int d = 0; d < docCount; d++) {
+            ByteUtils.writeLongLE(SourceToParse.Source.fromBytes(sources[d], contentTypes[d]).estimatedSizeInBytes(), sizes, d * 8);
+        }
+        context.addColumn(
+            MappedColumns.longColumn(
+                new BytesRef(sizes),
+                RECOVERY_SOURCE_SIZE_NAME,
+                NumericDocValuesField.TYPE,
+                LongColumn.NumericKind.LONG
+            )
+        );
+    }
+
+    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }
@@ -546,6 +668,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public boolean isSynthetic() {
         return mode == Mode.SYNTHETIC;
+    }
+
+    public boolean isColumnarStored() {
+        return mode == Mode.COLUMNAR_STORED;
     }
 
     /**

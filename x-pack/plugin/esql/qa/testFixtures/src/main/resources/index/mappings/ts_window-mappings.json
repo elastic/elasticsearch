@@ -1,0 +1,19 @@
+{
+  "properties": {
+    "@timestamp": {
+      "type": "date"
+    },
+    "dim": {
+      "type": "keyword",
+      "time_series_dimension": true
+    },
+    "val": {
+      "type": "long",
+      "time_series_metric": "gauge"
+    },
+    "counter_val": {
+      "type": "long",
+      "time_series_metric": "counter"
+    }
+  }
+}

@@ -101,7 +101,7 @@ public class ReindexRemoteIT extends ESRestTestCase {
     }
 
     public void testTaskDescriptionExcludesSensitiveFields() throws Exception {
-        Request indexRequest = new Request("POST", "/task_api_src/_doc");
+        Request indexRequest = new Request("POST", "/remote_src/_doc");
         indexRequest.addParameter("refresh", "true");
         indexRequest.setJsonEntity("{\"field\": \"value\"}");
         client().performRequest(indexRequest);

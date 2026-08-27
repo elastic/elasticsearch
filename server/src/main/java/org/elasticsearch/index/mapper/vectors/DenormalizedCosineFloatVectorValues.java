@@ -69,6 +69,11 @@ public class DenormalizedCosineFloatVectorValues extends FloatVectorValues {
         return in.ordToDoc(ord);
     }
 
+    @Override
+    public int getVectorByteLength() {
+        return in.getVectorByteLength();
+    }
+
     public float magnitude() {
         return magnitude;
     }

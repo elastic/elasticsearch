@@ -14,13 +14,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.math.Maths;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -42,25 +44,31 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAs
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 
-public class Round extends EsqlScalarFunction implements OptionalArgument {
+public class Round extends EsqlScalarFunction implements OptionalArgument, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Round", Round::new);
-    public static final FunctionDefinition DEFINITION = EsqlFunctionRegistry.binary(Round.class, Round::new, "round")
-        .withSubCapabilities(
-            List.of(
-                // Fixes on function {@code ROUND} that avoid it throwing exceptions on runtime for unsigned long cases.
-                "ul_fixes"
-            )
-        );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Round.class)
+        .binary(Round::new)
+        .capabilities(
+            // Fixes on function {@code ROUND} that avoid it throwing exceptions on runtime for unsigned long cases.
+            "ul_fixes"
+        )
+        .name("round");
 
     private static final BiFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> EVALUATOR_IDENTITY = (s, e) -> e;
 
     private final Expression field, decimals;
 
-    @FunctionInfo(returnType = { "double", "integer", "long", "unsigned_long" }, description = """
-        Rounds a number to the specified number of decimal places.
-        Defaults to 0, which returns the nearest integer. If the
-        precision is a negative number, rounds to the number of digits left
-        of the decimal point.""", examples = @Example(file = "docs", tag = "round"))
+    @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
+        returnType = { "double", "integer", "long", "unsigned_long" },
+        briefSummary = "Rounds a number to the specified number of decimal places.",
+        description = """
+            Rounds a number to the specified number of decimal places.
+            Defaults to 0, which returns the nearest integer. If the
+            precision is a negative number, rounds to the number of digits left
+            of the decimal point.""",
+        examples = @Example(file = "docs", tag = "round")
+    )
     public Round(
         Source source,
         @Param(

@@ -1,5 +1,0 @@
-pr: 140136
-summary: '`DocValuesBlockLoader` should return `ConstantNullsReader` rather than null'
-area: ES|QL
-type: bug
-issues: []

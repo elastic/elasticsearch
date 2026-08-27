@@ -85,7 +85,7 @@ public class JdbcApiKeyIT extends SqlApiKeyTestCase {
                 connection.createStatement().executeQuery("SELECT 1");
             }
         });
-        assertThat(e.getMessage(), containsString("security_exception"));
+        assertThat(e.getMessage(), containsString("unable to authenticate"));
     }
 
     public void testJdbcConnectionWithLimitedApiKey() throws Exception {

@@ -266,8 +266,18 @@ public class IgnoreMalformedStoredValuesTests extends ESTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
                 LuceneDocument doc = new LuceneDocument();
-                MultiValuedBinaryDocValuesField.SeparateCount.addToSeparateCountMultiBinaryFieldInDoc(doc, dvFieldName, encoded1, true);
-                MultiValuedBinaryDocValuesField.SeparateCount.addToSeparateCountMultiBinaryFieldInDoc(doc, dvFieldName, encoded2, true);
+                MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+                    doc,
+                    dvFieldName,
+                    encoded1,
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED
+                );
+                MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+                    doc,
+                    dvFieldName,
+                    encoded2,
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED
+                );
                 iw.addDocument(doc);
             }
 
@@ -353,7 +363,12 @@ public class IgnoreMalformedStoredValuesTests extends ESTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
                 LuceneDocument doc = new LuceneDocument();
-                MultiValuedBinaryDocValuesField.SeparateCount.addToSeparateCountMultiBinaryFieldInDoc(doc, dvFieldName, encoded, true);
+                MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+                    doc,
+                    dvFieldName,
+                    encoded,
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED
+                );
                 iw.addDocument(doc);
             }
 

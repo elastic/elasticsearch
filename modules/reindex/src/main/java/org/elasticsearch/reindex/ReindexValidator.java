@@ -20,7 +20,10 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -29,7 +32,10 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -44,7 +50,8 @@ public class ReindexValidator {
     static final String SORT_DEPRECATED_MESSAGE = "The sort option in reindex is deprecated. "
         + "Instead consider using query filtering to find the desired subset of data.";
 
-    private final CharacterRunAutomaton remoteWhitelist;
+    private final CharacterRunAutomaton allowedRemotes;
+    private final boolean remoteBlocklistSettingInUse;
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexResolver;
     private final ProjectResolver projectResolver;
@@ -57,7 +64,10 @@ public class ReindexValidator {
         ProjectResolver projectResolver,
         AutoCreateIndex autoCreateIndex
     ) {
-        this.remoteWhitelist = buildRemoteWhitelist(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.get(settings));
+        List<String> remoteWhitelist = TransportReindexAction.REMOTE_CLUSTER_WHITELIST.get(settings);
+        List<String> remoteBlocklist = TransportReindexAction.REMOTE_CLUSTER_BLOCKLIST.get(settings);
+        this.allowedRemotes = buildAllowedRemotes(remoteWhitelist, remoteBlocklist);
+        this.remoteBlocklistSettingInUse = !TransportReindexAction.REMOTE_CLUSTER_BLOCKLIST.get(settings).isEmpty();
         this.clusterService = clusterService;
         this.indexResolver = indexResolver;
         this.projectResolver = projectResolver;
@@ -65,7 +75,7 @@ public class ReindexValidator {
     }
 
     public void initialValidation(ReindexRequest request) {
-        checkRemoteWhitelist(remoteWhitelist, request.getRemoteInfo());
+        checkAllowedRemote(allowedRemotes, remoteBlocklistSettingInUse, request.getRemoteInfo());
         ClusterState state = clusterService.state();
         SearchRequest source = request.getSearchRequest();
 
@@ -78,41 +88,107 @@ public class ReindexValidator {
             );
             throw e;
         }
-        validateAgainstAliases(
-            source,
-            request.getDestination(),
-            request.getRemoteInfo(),
-            indexResolver,
-            autoCreateIndex,
-            projectResolver.getProjectMetadata(state)
-        );
+
+        final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
+        validateAgainstAliases(source, request.getDestination(), request.getRemoteInfo(), indexResolver, autoCreateIndex, projectMetadata);
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
+            validateDestinationSliceRouting(request, projectMetadata);
+        }
         SearchSourceBuilder searchSource = source.source();
         if (searchSource != null && searchSource.sorts() != null && searchSource.sorts().isEmpty() == false) {
             deprecationLogger.warn(DeprecationCategory.API, "reindex_sort", SORT_DEPRECATED_MESSAGE);
         }
     }
 
-    static void checkRemoteWhitelist(CharacterRunAutomaton whitelist, RemoteInfo remoteInfo) {
+    private void validateDestinationSliceRouting(ReindexRequest request, ProjectMetadata projectMetadata) {
+        final IndexRequest destination = request.getDestination();
+        final String destinationIndex = destination.index();
+        final boolean destinationSliceEnabled = isDestinationSliceEnabled(destination, destinationIndex, projectMetadata);
+
+        if (destinationSliceEnabled == false && destination.isRoutingFromSlice()) {
+            throw new IllegalArgumentException(
+                "["
+                    + SliceIndexing.PARAM_NAME
+                    + "] is not allowed in [dest] when ["
+                    + IndexSettings.SLICE_ENABLED.getKey()
+                    + "] is false for destination ["
+                    + destinationIndex
+                    + "]"
+            );
+        }
+        if (destinationSliceEnabled) {
+            if (destination.isRoutingFromSlice() == false && destination.routing() != null) {
+                throw new IllegalArgumentException(
+                    "[routing] is not allowed in [dest] when ["
+                        + IndexSettings.SLICE_ENABLED.getKey()
+                        + "] is true for destination ["
+                        + destinationIndex
+                        + "], use ["
+                        + SliceIndexing.PARAM_NAME
+                        + "] instead"
+                );
+            }
+            if (destination.routing() == null) {
+                throw new IllegalArgumentException(
+                    "[" + SliceIndexing.PARAM_NAME + "] is required in [dest] when [" + IndexSettings.SLICE_ENABLED.getKey() + "] is true"
+                );
+            }
+        }
+    }
+
+    private boolean isDestinationSliceEnabled(IndexRequest destination, String destinationIndex, ProjectMetadata projectMetadata) {
+        if (autoCreateIndex.shouldAutoCreate(destinationIndex, projectMetadata) == false) {
+            final Index writeIndex = indexResolver.concreteWriteIndex(projectMetadata, destination);
+            final IndexMetadata indexMetadata = projectMetadata.index(writeIndex);
+            return indexMetadata != null && IndexSettings.SLICE_ENABLED.get(indexMetadata.getSettings());
+        }
+
+        final String templateName = MetadataIndexTemplateService.findV2Template(projectMetadata, destinationIndex, false);
+        if (templateName != null) {
+            final Settings resolvedSettings = MetadataIndexTemplateService.resolveSettings(projectMetadata, templateName);
+            return IndexSettings.SLICE_ENABLED.get(resolvedSettings);
+        }
+        final List<IndexTemplateMetadata> templates = MetadataIndexTemplateService.findV1Templates(projectMetadata, destinationIndex, null);
+        if (templates.isEmpty()) {
+            return false;
+        }
+        final Settings resolvedSettings = MetadataIndexTemplateService.resolveSettings(templates);
+        return IndexSettings.SLICE_ENABLED.get(resolvedSettings);
+    }
+
+    static void checkAllowedRemote(CharacterRunAutomaton allowedRemotes, boolean remoteBlocklistSettingInUse, RemoteInfo remoteInfo) {
         if (remoteInfo == null) {
             return;
         }
         String check = remoteInfo.getHost() + ':' + remoteInfo.getPort();
-        if (whitelist.run(check)) {
+        if (allowedRemotes.run(check)) {
             return;
         }
-        String whiteListKey = TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey();
-        throw new IllegalArgumentException('[' + check + "] not whitelisted in " + whiteListKey);
+        throw new IllegalArgumentException(
+            remoteBlocklistSettingInUse
+                ? Strings.format(
+                    "[%s] either not whitelisted in %s or blocked in %s",
+                    check,
+                    TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(),
+                    TransportReindexAction.REMOTE_CLUSTER_BLOCKLIST.getKey()
+                )
+                : Strings.format("[%s] not whitelisted in %s", check, TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey())
+        );
     }
 
     /**
-     * Build the {@link CharacterRunAutomaton} that represents the reindex-from-remote whitelist and make sure that it doesn't whitelist
-     * the world.
+     * Build the {@link CharacterRunAutomaton} that represents the reindex-from-remote whitelist and blocklist and make sure that it doesn't
+     * whitelist the world.
      */
-    static CharacterRunAutomaton buildRemoteWhitelist(List<String> whitelist) {
+    static CharacterRunAutomaton buildAllowedRemotes(List<String> whitelist, List<String> blocklist) {
         if (whitelist.isEmpty()) {
             return new CharacterRunAutomaton(Automata.makeEmpty());
         }
-        Automaton automaton = Regex.simpleMatchToAutomaton(whitelist.toArray(Strings.EMPTY_ARRAY));
+        Automaton automaton = Regex.simpleMatchToAutomaton(whitelist.toArray(String[]::new));
+        if (!blocklist.isEmpty()) {
+            Automaton toBlock = Regex.simpleMatchToAutomaton(blocklist.toArray(String[]::new));
+            automaton = Operations.minus(automaton, toBlock, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        }
         automaton = Operations.determinize(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         return new CharacterRunAutomaton(automaton);
     }

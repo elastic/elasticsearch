@@ -88,13 +88,7 @@ final class DoubleFallibleArrayState extends AbstractFallibleArrayState implemen
     }
 
     /** Extracts an intermediate view of the contents of this state.  */
-    @Override
-    public void toIntermediate(
-        Block[] blocks,
-        int offset,
-        IntVector selected,
-        org.elasticsearch.compute.operator.DriverContext driverContext
-    ) {
+    public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
         assert blocks.length >= offset + 3;
         try (
             var valuesBuilder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount());

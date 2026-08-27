@@ -57,8 +57,9 @@ public class TsidBuilderTests extends ESTestCase {
             HexFormat.of().formatHex(legacyTsid.bytes, legacyTsid.offset, legacyTsid.length),
             equalTo("bfa0a8d66356d2151e7889e42b7a295d065613ded4")
         );
-        BytesRef newTsid = builder.buildTsid(randomSinglePrefixByteVersion());
-        if (TsidBuilder.SINGLE_PREFIX_BYTE_ENABLED) {
+        IndexVersion newVersion = randomSinglePrefixByteVersion();
+        BytesRef newTsid = builder.buildTsid(newVersion);
+        if (TsidBuilder.useSingleBytePrefixLayout(newVersion)) {
             assertThat(
                 HexFormat.of().formatHex(newTsid.bytes, newTsid.offset, newTsid.length),
                 equalTo("bfd2151e7889e42b7a295d065613ded4")
@@ -76,10 +77,11 @@ public class TsidBuilderTests extends ESTestCase {
             builder.addStringDimension("_test_large_array", "value_" + i);
         }
         assertThat(builder.buildTsid(randomMultiplePrefixBytesVersion()).length, equalTo(19));
-        if (TsidBuilder.SINGLE_PREFIX_BYTE_ENABLED) {
-            assertThat(builder.buildTsid(randomSinglePrefixByteVersion()).length, equalTo(16));
+        IndexVersion singleVersion = randomSinglePrefixByteVersion();
+        if (TsidBuilder.useSingleBytePrefixLayout(singleVersion)) {
+            assertThat(builder.buildTsid(singleVersion).length, equalTo(16));
         } else {
-            assertThat(builder.buildTsid(randomSinglePrefixByteVersion()).length, equalTo(19));
+            assertThat(builder.buildTsid(singleVersion).length, equalTo(19));
         }
     }
 
@@ -172,12 +174,13 @@ public class TsidBuilderTests extends ESTestCase {
             .addStringDimension("test_array", "value1")
             .addStringDimension("test_array", "value2");
         BytesRef oldTsid = builder.buildTsid(randomMultiplePrefixBytesVersion());
-        BytesRef newTsid = builder.buildTsid(randomSinglePrefixByteVersion());
+        IndexVersion newVersion = randomSinglePrefixByteVersion();
+        BytesRef newTsid = builder.buildTsid(newVersion);
         assertThat(
             HexFormat.of().formatHex(oldTsid.bytes, oldTsid.offset, oldTsid.length),
             equalTo("01e3a0a8d693dbccd8eed09bb80b82b55d9756c7a6")
         );
-        if (TsidBuilder.SINGLE_PREFIX_BYTE_ENABLED) {
+        if (TsidBuilder.useSingleBytePrefixLayout(newVersion)) {
             assertThat(
                 HexFormat.of().formatHex(newTsid.bytes, newTsid.offset, newTsid.length),
                 equalTo("e3dbccd8eed09bb80b82b55d9756c7a6")
@@ -201,8 +204,9 @@ public class TsidBuilderTests extends ESTestCase {
             HexFormat.of().formatHex(oldTsid.bytes, oldTsid.offset, oldTsid.length),
             equalTo("afe3a0a8d67821311bea0fc3c9cbd40c8047c484aa")
         );
-        BytesRef newTsid = builder.buildTsid(randomSinglePrefixByteVersion());
-        if (TsidBuilder.SINGLE_PREFIX_BYTE_ENABLED) {
+        IndexVersion version = randomSinglePrefixByteVersion();
+        BytesRef newTsid = builder.buildTsid(version);
+        if (TsidBuilder.useSingleBytePrefixLayout(version)) {
             assertThat(
                 HexFormat.of().formatHex(newTsid.bytes, newTsid.offset, newTsid.length),
                 equalTo("e321311bea0fc3c9cbd40c8047c484aa")
@@ -210,5 +214,9 @@ public class TsidBuilderTests extends ESTestCase {
         } else {
             assertThat(newTsid, equalTo(oldTsid));
         }
+    }
+
+    public void testEnableSinglePrefixByte() {
+        assertTrue(TsidBuilder.useSingleBytePrefixLayout(IndexVersion.current()));
     }
 }

@@ -1,0 +1,6 @@
+from all_types
+| keep *
+| mv_expand keyword
+| eval similarity = v_cosine(dense_vector, [0.78354394, 0.089722395, 0.88437265])
+| sort similarity desc, keyword asc
+| limit 1

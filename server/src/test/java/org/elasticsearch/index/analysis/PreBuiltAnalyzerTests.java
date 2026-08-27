@@ -15,6 +15,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -78,6 +79,19 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
         IndexVersion v1 = IndexVersionUtils.randomVersion();
         IndexVersion v2 = new IndexVersion(v1.id() - 1, v1.luceneVersion());
         assertSame(PreBuiltAnalyzers.STOP.getAnalyzer(v1), PreBuiltAnalyzers.STOP.getAnalyzer(v2));
+    }
+
+    public void testThatPrebuiltAnalyzersHaveElasticsearchPositionIncrementGap() {
+        // PreBuiltAnalyzerProvider bakes in the Elasticsearch default position_increment_gap (100)
+        // rather than leaving Lucene's default of 0 to be overridden later per index.
+        PreBuiltAnalyzers randomPreBuiltAnalyzer = randomFrom(PreBuiltAnalyzers.values());
+        String analyzerName = randomPreBuiltAnalyzer.name().toLowerCase(Locale.ROOT);
+        NamedAnalyzer namedAnalyzer = new PreBuiltAnalyzerProvider(
+            analyzerName,
+            AnalyzerScope.INDICES,
+            randomPreBuiltAnalyzer.getAnalyzer(IndexVersion.current())
+        ).get();
+        assertThat(namedAnalyzer.getPositionIncrementGap(analyzerName), is(TextFieldMapper.Defaults.POSITION_INCREMENT_GAP));
     }
 
     public void testThatAnalyzersAreUsedInMapping() throws IOException {

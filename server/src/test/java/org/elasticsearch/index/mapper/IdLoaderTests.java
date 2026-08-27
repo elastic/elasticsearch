@@ -40,6 +40,7 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class IdLoaderTests extends ESTestCase {
 
@@ -60,6 +61,30 @@ public class IdLoaderTests extends ESTestCase {
             LeafReader leafReader = indexReader.leaves().get(0).reader();
             assertThat(leafReader.numDocs(), equalTo(3));
             var leaf = idLoader.leaf(null, leafReader, new int[] { 0, 1, 2 });
+            // NOTE: time series data is ordered by (tsid, timestamp)
+            assertThat(leaf.getId(0), equalTo(expectedId(docs.get(2), routingHash, useSyntheticIds)));
+            assertThat(leaf.getId(1), equalTo(expectedId(docs.get(0), routingHash, useSyntheticIds)));
+            assertThat(leaf.getId(2), equalTo(expectedId(docs.get(1), routingHash, useSyntheticIds)));
+        };
+        prepareIndexReader(indexAndForceMerge(docs, routingHash), verify, false);
+    }
+
+    public void testSynthesizeIdLazy() throws Exception {
+        final boolean useSyntheticIds = randomBoolean();
+        var idLoader = IdLoader.createTsIdLoader(null, null, useSyntheticIds);
+
+        long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
+        List<Doc> docs = List.of(
+            new Doc(startTime, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "xxx"))),
+            new Doc(startTime + 1, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "yyy"))),
+            new Doc(startTime + 2, List.of(new Dimension("dim1", "bbb"), new Dimension("dim2", "xxx")))
+        );
+        CheckedConsumer<IndexReader, IOException> verify = indexReader -> {
+            assertThat(indexReader.leaves(), hasSize(1));
+            LeafReader leafReader = indexReader.leaves().get(0).reader();
+            assertThat(leafReader.numDocs(), equalTo(3));
+            var leaf = idLoader.leaf(null, leafReader, null);
+            assertThat(leaf, instanceOf(IdLoader.LazyTsIdLeaf.class));
             // NOTE: time series data is ordered by (tsid, timestamp)
             assertThat(leaf.getId(0), equalTo(expectedId(docs.get(2), routingHash, useSyntheticIds)));
             assertThat(leaf.getId(1), equalTo(expectedId(docs.get(0), routingHash, useSyntheticIds)));

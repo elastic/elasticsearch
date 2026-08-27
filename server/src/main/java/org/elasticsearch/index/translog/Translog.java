@@ -15,6 +15,7 @@ import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.apache.lucene.util.LongsRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -36,6 +37,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.engine.TranslogOperationAsserter;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -66,7 +68,7 @@ import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.LongConsumer;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -137,7 +139,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private final LongSupplier primaryTermSupplier;
     private final String translogUUID;
     private final TranslogDeletionPolicy deletionPolicy;
-    private final LongConsumer persistedSequenceNumberConsumer;
+    private final Consumer<LongsRef> persistedSequenceNumbersConsumer;
     private final OperationListener operationListener;
     private final TranslogOperationAsserter operationAsserter;
 
@@ -157,8 +159,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      *                                 examined and stored in the header whenever a new generation is rolled. It's guaranteed from outside
      *                                 that a new generation is rolled when the term is increased. This guarantee allows to us to validate
      *                                 and reject operation whose term is higher than the primary term stored in the translog header.
-     * @param persistedSequenceNumberConsumer a callback that's called whenever an operation with a given sequence number is successfully
-     *                                        persisted.
+     * @param persistedSequenceNumbersConsumer a callback that's called whenever some operations with the given sequence numbers are
+     *                                         successfully persisted.
      */
     @SuppressWarnings("this-escape")
     public Translog(
@@ -167,14 +169,14 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         TranslogDeletionPolicy deletionPolicy,
         final LongSupplier globalCheckpointSupplier,
         final LongSupplier primaryTermSupplier,
-        final LongConsumer persistedSequenceNumberConsumer,
+        final Consumer<LongsRef> persistedSequenceNumbersConsumer,
         final TranslogOperationAsserter operationAsserter
     ) throws IOException {
         super(config.getShardId(), config.getIndexSettings());
         this.config = config;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.primaryTermSupplier = primaryTermSupplier;
-        this.persistedSequenceNumberConsumer = persistedSequenceNumberConsumer;
+        this.persistedSequenceNumbersConsumer = persistedSequenceNumbersConsumer;
         this.operationListener = config.getOperationListener();
         this.operationAsserter = operationAsserter;
         this.deletionPolicy = deletionPolicy;
@@ -220,7 +222,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     checkpoint.generation + 1,
                     getMinFileGeneration(),
                     checkpoint.globalCheckpoint,
-                    persistedSequenceNumberConsumer
+                    persistedSequenceNumbersConsumer
                 );
                 success = true;
             } finally {
@@ -559,7 +561,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             fileGeneration,
             getMinFileGeneration(),
             globalCheckpointSupplier.getAsLong(),
-            persistedSequenceNumberConsumer
+            persistedSequenceNumbersConsumer
         );
         assert writer.sizeInBytes() == DEFAULT_HEADER_SIZE_IN_BYTES
             : "Mismatch translog header size; "
@@ -584,7 +586,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         long fileGeneration,
         long initialMinTranslogGen,
         long initialGlobalCheckpoint,
-        LongConsumer persistedSequenceNumberConsumer
+        Consumer<LongsRef> persistedSequenceNumbersConsumer
     ) throws IOException {
         final TranslogWriter newWriter;
         try {
@@ -601,7 +603,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 this::getMinFileGeneration,
                 primaryTermSupplier.getAsLong(),
                 tragedy,
-                persistedSequenceNumberConsumer,
+                persistedSequenceNumbersConsumer,
                 bigArrays,
                 diskIoBufferPool,
                 operationListener,
@@ -664,7 +666,54 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    public record Serialized(BytesReference header, @Nullable BytesReference source, int length, int checksum) {
+    /**
+     * Adds a source batch to the transaction log as a single record. The returned {@link Location}
+     * covers the whole batch. On snapshot reads, {@link TranslogSnapshot#next()} explodes the record
+     * back into individual {@link Index} ops. To read a single document by row, use
+     * {@link BaseTranslogReader#read(Location, int)} with a {@link Location} and an int that carries a non-negative
+     * {@code batchRowIndex}.
+     **/
+    public Location add(final IndexOperationBatch.TranslogRecord batch) throws IOException {
+        try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler())) {
+            writeBatchHeaderWithSize(out, batch);
+            final BytesReference header = out.bytes();
+            Serialized serialized = Serialized.create(header, ReleasableBytesReference.unwrap(batch.batchData()), new CRC32());
+
+            readLock.lock();
+            try {
+                ensureOpen();
+                final long batchPrimaryTerm = batch.primaryTerm();
+                if (batchPrimaryTerm > current.getPrimaryTerm()) {
+                    assert false
+                        : "Batch term is newer than the current term; "
+                            + "current term["
+                            + current.getPrimaryTerm()
+                            + "], batch term["
+                            + batchPrimaryTerm
+                            + "]";
+                    throw new IllegalArgumentException(
+                        "Batch term is newer than the current term; "
+                            + "current term["
+                            + current.getPrimaryTerm()
+                            + "], batch term["
+                            + batchPrimaryTerm
+                            + "]"
+                    );
+                }
+                return current.addBatch(serialized, batch);
+            } finally {
+                readLock.unlock();
+            }
+        } catch (final AlreadyClosedException | IOException ex) {
+            closeOnTragicEvent(ex);
+            throw ex;
+        } catch (final Exception ex) {
+            closeOnTragicEvent(ex);
+            throw new TranslogException(shardId, "Failed to write batch [" + batch + "]", ex);
+        }
+    }
+
+    public record Serialized(BytesReference header, @Nullable BytesReference payload, int length, int checksum) {
 
         public Serialized(BytesReference header, @Nullable BytesReference source, int checksum) {
             this(header, source, header.length() + (source == null ? 0 : source.length()) + 4, checksum);
@@ -675,7 +724,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             DataOutput out = EndiannessReverserUtil.wrapDataOutput(new ByteArrayDataOutput(checksumBytes));
             out.writeInt(checksum);
             BytesArray checksum = new BytesArray(checksumBytes);
-            return source == null ? CompositeBytesReference.of(header, checksum) : CompositeBytesReference.of(header, source, checksum);
+            return payload == null ? CompositeBytesReference.of(header, checksum) : CompositeBytesReference.of(header, payload, checksum);
         }
 
         public static Serialized create(BytesReference header, @Nullable BytesReference source, Checksum checksum) throws IOException {
@@ -705,8 +754,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         public void writeToTranslogBuffer(RecyclerBytesStreamOutput buffer) throws IOException {
             header.writeTo(buffer);
-            if (source != null) {
-                source.writeTo(buffer);
+            if (payload != null) {
+                payload.writeTo(buffer);
             }
             buffer.writeInt(checksum);
         }
@@ -799,6 +848,16 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * this method will return <code>null</code>.
      */
     public Operation readOperation(Location location) throws IOException {
+        return readOperation(location, -1);
+    }
+
+    /**
+     * Reads and returns the operation from the given location. If the record is an
+     * {@link IndexOperationBatch.TranslogRecord} and {@code rowIndex >= 0}, returns that row's
+     * {@link Index} operation. A batch record with {@code rowIndex < 0} throws. Returns
+     * {@code null} if the generation is no longer available.
+     */
+    public Operation readOperation(Location location, int rowIndex) throws IOException {
         try {
             readLock.lock();
             try {
@@ -809,13 +868,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 if (current.generation == location.generation) {
                     // no need to fsync here the read operation will ensure that buffers are written to disk
                     // if they are still in RAM and we are reading onto that position
-                    return current.read(location);
+                    return current.read(location, rowIndex);
                 } else {
                     // read backwards - it's likely we need to read on that is recent
                     for (int i = readers.size() - 1; i >= 0; i--) {
                         TranslogReader translogReader = readers.get(i);
                         if (translogReader.generation == location.generation) {
-                            return translogReader.read(location);
+                            return translogReader.read(location, rowIndex);
                         }
                     }
                 }
@@ -1063,6 +1122,35 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
+     * A translog location that may optionally pin a single document's row within a batch record,
+     * when it pins a single document's row within a batch.
+     */
+    public record OperationLocation(Location location, int rowIndex) {
+
+        /**
+         * Ensure that location is non-null
+         */
+        public OperationLocation {
+            Objects.requireNonNull(location, "location must not be null");
+        }
+
+        /**
+         * Creates a whole-record location that is not a batch row (i.e. {@code rowIndex == -1}).
+         */
+        public OperationLocation(Location location) {
+            this(location, -1);
+        }
+
+        /**
+         * Whether this location pins a single document's row within a batch
+         * ({@link IndexOperationBatch.TranslogRecord}).
+         */
+        public boolean isBatchRow() {
+            return rowIndex >= 0;
+        }
+    }
+
+    /**
      * A snapshot of the transaction log, allows to iterate over all the transaction log operations.
      */
     public interface Snapshot extends Closeable {
@@ -1150,16 +1238,37 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * A generic interface representing an operation performed on the transaction log.
-     * Each is associated with a type.
+     * Marker for an entry on the transaction log. Either a single-document {@link Operation}
+     * (Index/Delete/NoOp) or a batch {@link IndexOperationBatch.TranslogRecord} carrying N
+     * documents in one record.
      */
-    public abstract static sealed class Operation implements Writeable permits Delete, Index, NoOp {
-        public enum Type {
+    public sealed interface Record permits Operation, IndexOperationBatch.TranslogRecord {
+
+        long primaryTerm();
+
+        /**
+         * Wire-level tag for every record kind that can appear in a translog file. Both
+         * {@link Operation} sub-types and {@link IndexOperationBatch.TranslogRecord} records share
+         * this single-byte tag space,.
+         * <p>
+         * Note: byte ids for the non-batch values must match the corresponding
+         * {@link Operation.Type} constants
+         */
+        enum Type {
             @Deprecated
             CREATE((byte) 1),
             INDEX((byte) 2),
             DELETE((byte) 3),
-            NO_OP((byte) 4);
+            NO_OP((byte) 4),
+            BATCH((byte) 5);
+
+            // Verify that the ids shared with Operation.Type stay in sync.
+            static {
+                assert CREATE.id == Operation.Type.CREATE.id();
+                assert INDEX.id == Operation.Type.INDEX.id();
+                assert DELETE.id == Operation.Type.DELETE.id();
+                assert NO_OP.id == Operation.Type.NO_OP.id();
+            }
 
             private final byte id;
 
@@ -1177,8 +1286,54 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     case 2 -> INDEX;
                     case 3 -> DELETE;
                     case 4 -> NO_OP;
+                    case 5 -> BATCH;
                     default -> throw new IllegalArgumentException("no type mapped for [" + id + "]");
                 };
+            }
+        }
+    }
+
+    /**
+     * Reads the type byte and the body of either an {@link Operation} or an
+     * {@link IndexOperationBatch.TranslogRecord}. Does not consume a size prefix or verify a
+     * checksum — use {@link #readRecord(BufferedChecksumStreamInput)} when reading framed on-disk
+     * records.
+     */
+    public static Record readRecordBody(final StreamInput input) throws IOException {
+        final Record.Type type = Record.Type.fromId(input.readByte());
+        return switch (type) {
+            case CREATE, INDEX -> Index.readFrom(input);
+            case DELETE -> Delete.readFrom(input);
+            case NO_OP -> new NoOp(input);
+            case BATCH -> IndexOperationBatch.TranslogRecord.readFrom(input);
+        };
+    }
+
+    /**
+     * A generic interface representing an operation performed on the transaction log.
+     * Each is associated with a type.
+     */
+    public abstract static sealed class Operation implements Writeable, Record permits Delete, Index, NoOp {
+
+        /**
+         * The type of a single-document operation.
+         */
+        // TODO: Eventually remove and migrate all usages to Record Type
+        public enum Type {
+            @Deprecated
+            CREATE((byte) 1),
+            INDEX((byte) 2),
+            DELETE((byte) 3),
+            NO_OP((byte) 4);
+
+            private final byte id;
+
+            Type(byte id) {
+                this.id = id;
+            }
+
+            public byte id() {
+                return this.id;
             }
         }
 
@@ -1199,20 +1354,24 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return seqNo;
         }
 
+        @Override
         public final long primaryTerm() {
             return primaryTerm;
         }
 
         /**
-         * Reads the type and the operation from the given stream.
+         * Reads the type and the operation from the given stream. Throws if the next record is an
+         * {@link IndexOperationBatch.TranslogRecord}; use {@link Translog#readRecordBody(StreamInput)}
+         * for batch-aware reads.
          */
         public static Operation readOperation(final StreamInput input) throws IOException {
-            final Translog.Operation.Type type = Translog.Operation.Type.fromId(input.readByte());
+            final Record.Type type = Record.Type.fromId(input.readByte());
             return switch (type) {
                 // the de-serialization logic in Index was identical to that of Create when create was deprecated
                 case CREATE, INDEX -> Index.readFrom(input);
                 case DELETE -> Delete.readFrom(input);
                 case NO_OP -> new NoOp(input);
+                case BATCH -> throw new IOException("Cannot read batch record as a single Operation");
             };
         }
 
@@ -1291,7 +1450,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 indexResult.getSeqNo(),
                 index.primaryTerm(),
                 indexResult.getVersion(),
-                index.source(),
+                index.source().originalBytes(),
                 index.routing(),
                 index.getAutoGeneratedIdTimestamp()
             );
@@ -1315,7 +1474,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             long primaryTerm,
             long version,
             BytesReference source,
-            String routing,
+            @Nullable String routing,
             long autoGeneratedIdTimestamp
         ) {
             super(seqNo, primaryTerm);
@@ -1764,6 +1923,33 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
+     * Reads a length-prefixed translog record (Operation or IndexOperationBatch.TranslogRecord)
+     * from a checksummed stream, verifying its trailing checksum. Mirrors
+     * {@link #readOperation(BufferedChecksumStreamInput)}.
+     */
+    public static Translog.Record readRecord(BufferedChecksumStreamInput in) throws IOException {
+        final Translog.Record record;
+        try {
+            final int opSize = in.readInt();
+            if (opSize < 4) {
+                throw new TranslogCorruptedException(in.getSource(), "operation size must be at least 4 but was: " + opSize);
+            }
+            in.resetDigest();
+            if (in.markSupported()) {
+                in.mark(opSize);
+                in.skip(opSize - 4);
+                verifyChecksum(in);
+                in.reset();
+            }
+            record = readRecordBody(in);
+            verifyChecksum(in);
+        } catch (EOFException e) {
+            throw new TruncatedTranslogException(in.getSource(), "reached premature end of file, translog is truncated", e);
+        }
+        return record;
+    }
+
+    /**
      * Writes all operations in the given iterable to the given output stream including the size of the array
      * use {@link #readOperations(StreamInput, String)} to read it back.
      */
@@ -1806,6 +1992,34 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             case Delete delete -> TranslogHeaderWriter.writeDeleteHeader(out, delete);
             case NoOp noOp -> TranslogHeaderWriter.writeNoOpHeader(out, noOp);
         }
+    }
+
+    /**
+     * Writes a length-prefixed {@link IndexOperationBatch.TranslogRecord} metadata header (size +
+     * BATCH type byte + all body fields except the {@code batchData} bytes themselves) to the
+     * given buffer. The {@code batchData} payload is intentionally omitted so the caller can pass
+     * it as {@link Serialized#payload}, avoiding an extra copy of the source payload — mirroring
+     * how {@link TranslogHeaderWriter#writeIndexHeader} writes the {@link Index} header without
+     * the source body and the caller carries the source {@link BytesReference} separately.
+     *
+     * <p>The size prefix is back-patched to account for the deferred {@code batchData} bytes and
+     * the 4-byte trailing checksum, so on-disk layout is identical to writing the full body
+     * inline.
+     */
+    public static void writeBatchHeaderWithSize(RecyclerBytesStreamOutput out, IndexOperationBatch.TranslogRecord batch)
+        throws IOException {
+        final long start = out.position();
+        out.skip(Integer.BYTES);
+        out.writeByte(Translog.Record.Type.BATCH.id());
+
+        // Write the batch metadata header
+        batch.writeHeader(out);
+        final long end = out.position();
+        // total operation size on disk = (bytes after the size int) + batchData bytes + 4-byte trailing checksum
+        final int operationSize = Math.toIntExact(end - Integer.BYTES - start) + batch.batchData().length() + Integer.BYTES;
+        out.seek(start);
+        out.writeInt(operationSize);
+        out.seek(end);
     }
 
     /**

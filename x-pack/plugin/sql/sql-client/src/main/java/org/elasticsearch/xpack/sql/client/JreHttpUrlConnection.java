@@ -21,8 +21,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.sql.SQLClientInfoException;
 import java.sql.SQLDataException;
 import java.sql.SQLException;
@@ -127,10 +125,7 @@ public class JreHttpUrlConnection implements Closeable {
         if (cfg.sslConfig().isEnabled()) {
             HttpsURLConnection https = (HttpsURLConnection) con;
             SSLSocketFactory factory = cfg.sslConfig().sslSocketFactory();
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                https.setSSLSocketFactory(factory);
-                return null;
-            });
+            https.setSSLSocketFactory(factory);
         }
     }
 

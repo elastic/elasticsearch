@@ -12,11 +12,13 @@ import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.provider.Provider;
 
-import java.io.File;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
@@ -27,6 +29,13 @@ import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams
 public class DockerSupportPlugin implements Plugin<Project> {
     public static final String DOCKER_SUPPORT_SERVICE_NAME = "dockerSupportService";
     public static final String DOCKER_ON_LINUX_EXCLUSIONS_FILE = ".ci/dockerOnLinuxExclusions";
+
+    private final ProjectLayout projectLayout;
+
+    @Inject
+    public DockerSupportPlugin(ProjectLayout projectLayout) {
+        this.projectLayout = projectLayout;
+    }
 
     @Override
     public void apply(Project project) {
@@ -39,7 +48,7 @@ public class DockerSupportPlugin implements Plugin<Project> {
         Provider<DockerSupportService> dockerSupportServiceProvider = project.getGradle()
             .getSharedServices()
             .registerIfAbsent(DOCKER_SUPPORT_SERVICE_NAME, DockerSupportService.class, spec -> spec.parameters(params -> {
-                params.setExclusionsFile(new File(project.getRootDir(), DOCKER_ON_LINUX_EXCLUSIONS_FILE));
+                params.setExclusionsFile(projectLayout.getSettingsDirectory().file(DOCKER_ON_LINUX_EXCLUSIONS_FILE).getAsFile());
                 params.getIsCI().set(buildParams.getCi());
             }));
 

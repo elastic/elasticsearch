@@ -13,8 +13,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.command.RegisteredDomainFunctionBridge;
 import org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge;
+import org.elasticsearch.xpack.esql.evaluator.command.UserAgentFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
@@ -45,10 +46,14 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.DeferredRegexExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -62,6 +67,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -70,6 +76,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -84,10 +91,13 @@ import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
+import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -96,7 +106,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -128,10 +137,8 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestat
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
 import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerTests.releaseBuildForInlineStats;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.breakIntoFragments;
 import static org.hamcrest.Matchers.allOf;
@@ -142,6 +149,8 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
@@ -340,7 +349,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         new UnresolvedFunction(
                             EMPTY,
                             "fn",
-                            DEFAULT,
                             List.of(new Add(EMPTY, attribute("a"), integer(1), ConfigurationAware.CONFIGURATION_MARKER))
                         )
                     )
@@ -357,7 +365,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 PROCESSING_CMD_INPUT,
                 List.of(attribute("c"), attribute("d.e")),
                 List.of(
-                    new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
+                    new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", List.of(attribute("a")))),
                     attribute("c"),
                     attribute("d.e")
                 )
@@ -373,7 +381,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 PROCESSING_CMD_INPUT,
                 List.of(),
                 List.of(
-                    new Alias(EMPTY, "min(a)", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
+                    new Alias(EMPTY, "min(a)", new UnresolvedFunction(EMPTY, "min", List.of(attribute("a")))),
                     new Alias(EMPTY, "c", integer(1))
                 )
             ),
@@ -415,7 +423,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testStatsWithGroupKeyAndAggFilter() {
         var a = attribute("a");
-        var f = new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(a));
+        var f = new UnresolvedFunction(EMPTY, "min", List.of(a));
         var filter = new Alias(EMPTY, "min(a) where a > 1", new FilteredExpression(EMPTY, f, new GreaterThan(EMPTY, a, integer(1))));
         assertEqualsIgnoringIds(
             new Aggregate(EMPTY, PROCESSING_CMD_INPUT, List.of(a), List.of(filter, a)),
@@ -425,9 +433,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testStatsWithGroupKeyAndMixedAggAndFilter() {
         var a = attribute("a");
-        var min = new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(a));
-        var max = new UnresolvedFunction(EMPTY, "max", DEFAULT, List.of(a));
-        var avg = new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(a));
+        var min = new UnresolvedFunction(EMPTY, "min", List.of(a));
+        var max = new UnresolvedFunction(EMPTY, "max", List.of(a));
+        var avg = new UnresolvedFunction(EMPTY, "avg", List.of(a));
         var min_alias = new Alias(EMPTY, "min", min);
 
         var max_filter_ex = new Or(
@@ -454,7 +462,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testStatsWithoutGroupKeyMixedAggAndFilter() {
         var a = attribute("a");
-        var f = new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(a));
+        var f = new UnresolvedFunction(EMPTY, "min", List.of(a));
         var filter = new Alias(EMPTY, "min(a) where a > 1", new FilteredExpression(EMPTY, f, new GreaterThan(EMPTY, a, integer(1))));
         assertEqualsIgnoringIds(
             new Aggregate(EMPTY, PROCESSING_CMD_INPUT, List.of(), List.of(filter)),
@@ -478,7 +486,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                             PROCESSING_CMD_INPUT,
                             List.of(attribute("c"), attribute("d.e")),
                             List.of(
-                                new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "MIN", DEFAULT, List.of(attribute("a")))),
+                                new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "MIN", List.of(attribute("a")))),
                                 attribute("c"),
                                 attribute("d.e")
                             )
@@ -504,7 +512,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         PROCESSING_CMD_INPUT,
                         List.of(),
                         List.of(
-                            new Alias(EMPTY, "MIN(a)", new UnresolvedFunction(EMPTY, "MIN", DEFAULT, List.of(attribute("a")))),
+                            new Alias(EMPTY, "MIN(a)", new UnresolvedFunction(EMPTY, "MIN", List.of(attribute("a")))),
                             new Alias(EMPTY, "c", integer(1))
                         )
                     )
@@ -1000,6 +1008,31 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
+    /** Regression test for <a href="https://github.com/elastic/elasticsearch/issues/146073">#146073</a>. */
+    public void testWildcardPatternWithReservedPrefixChar() {
+        List<String> commands = new ArrayList<>();
+        commands.add("FROM");
+        if (Build.current().isSnapshot()) {
+            commands.add("TS");
+        }
+        for (String command : commands) {
+            assertStringAsIndexPattern("*_logs", command + " *_logs");
+            assertStringAsIndexPattern("*+logs", command + " *+logs");
+            assertStringAsIndexPattern("**_logs", command + " **_logs");
+            assertStringAsIndexPattern("foo*_logs", command + " foo*_logs");
+            assertStringAsIndexPattern("*_logs,*_metrics", command + " *_logs,*_metrics");
+            assertStringAsIndexPattern("cluster:*_logs", command + " cluster:*_logs");
+            if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
+                assertStringAsIndexPattern("*_logs::data", command + " *_logs::data");
+            }
+
+            String lineNumber = command.equals("FROM") ? "line 1:6: " : "line 1:4: ";
+            expectError(command + " _logs*", lineNumber + "Invalid index name [_logs], must not start with '_', '-', or '+'");
+            expectError(command + " _*logs", lineNumber + "Invalid index name [_logs], must not start with '_', '-', or '+'");
+            expectError(command + " +logs*", lineNumber + "Invalid index name [+logs], must not start with '_', '-', or '+'");
+        }
+    }
+
     public void testInvalidQuotingAsFromIndexPattern() {
         expectError("FROM \"foo", ": token recognition error at: '\"foo'");
         expectError("FROM \"foo | LIMIT 1", ": token recognition error at: '\"foo | LIMIT 1'");
@@ -1087,7 +1120,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitBy() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         LogicalPlan plan = query("""
                 FROM foo
                 | SORT @timestamp DESC
@@ -1125,7 +1157,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitByQualifiedName() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        assumeTrue("Requires qualifier support", EsqlCapabilities.Cap.NAME_QUALIFIERS.isEnabled());
         LogicalPlan plan = query("""
                 FROM foo
                 | SORT @timestamp DESC
@@ -1159,7 +1191,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitByNegativeValue() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("value of [LIMIT -1 BY languages] must be a non negative integer, found value [-1] type [integer]"),
@@ -1171,7 +1202,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitByExpressionForN() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         expectThrows(ParsingException.class, containsString("mismatched input '*'"), () -> query("""
             FROM foo
             | LIMIT -1 * 42 BY languages
@@ -1186,6 +1216,182 @@ public class StatementParserTests extends AbstractStatementParserTests {
             FROM foo
             | LIMIT -1 + 5 BY languages
             """));
+    }
+
+    public void testDedup() {
+        LogicalPlan plan = query("FROM foo | DEDUP");
+        Dedup dedup = as(plan, Dedup.class);
+        UnresolvedRelation relation = as(dedup.child(), UnresolvedRelation.class);
+        assertThat(relation.indexPattern().indexPattern(), equalTo("foo"));
+    }
+
+    public void testDedupAfterProcessingCommands() {
+        LogicalPlan plan = query("FROM foo | EVAL x = a + 1 | WHERE b > 0 | DEDUP");
+        Dedup dedup = as(plan, Dedup.class);
+        as(dedup.child(), Filter.class);
+    }
+
+    public void testDedupChained() {
+        LogicalPlan plan = query("FROM foo | DEDUP | LIMIT 10");
+        Limit limit = as(plan, Limit.class);
+        as(limit.child(), Dedup.class);
+    }
+
+    public void testDedupOnRow() {
+        assertEqualsIgnoringIds(new Dedup(EMPTY, PROCESSING_CMD_INPUT), processingCommand("DEDUP"));
+    }
+
+    public void testDedupRejectsArguments() {
+        expectThrows(ParsingException.class, containsString("extraneous input 'a' expecting"), () -> query("FROM foo | DEDUP a"));
+        expectThrows(ParsingException.class, containsString("extraneous input '*' expecting"), () -> query("FROM foo | DEDUP *"));
+    }
+
+    public void testHighlightOnFields() {
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
+        LogicalPlan plan = query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title, body");
+        Highlight highlight = as(plan, Highlight.class);
+        assertThat(highlight.prefix(), equalTo("highlight_"));
+        Literal q = as(highlight.query(), Literal.class);
+        assertThat(BytesRefs.toString(q.value()), equalTo("elasticsearch"));
+        assertThat(highlight.fields().size(), equalTo(2));
+        assertThat(((UnresolvedAttribute) highlight.fields().get(0)).name(), equalTo("title"));
+        assertThat(((UnresolvedAttribute) highlight.fields().get(1)).name(), equalTo("body"));
+        assertThat(highlight.options(), nullValue());
+        UnresolvedRelation relation = as(highlight.child(), UnresolvedRelation.class);
+        assertThat(relation.indexPattern().indexPattern(), equalTo("foo"));
+    }
+
+    public void testHighlightRequiresQueryAndOnClause() {
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
+        // Query and ON are currently required by grammar.
+        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT"));
+        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\""));
+        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT ON title"));
+    }
+
+    public void testHighlightCustomPrefix() {
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
+        LogicalPlan plan = query("FROM foo | HIGHLIGHT prefix = \"h_\" MATCH(title, \"x\") ON title, body");
+        Highlight highlight = as(plan, Highlight.class);
+        assertThat(highlight.prefix(), equalTo("h_"));
+        assertThat(as(highlight.query(), UnresolvedFunction.class).name(), equalTo("MATCH"));
+        List<String> generated = highlight.generatedAttributes().stream().map(NamedExpression::name).toList();
+        assertThat(generated, equalTo(List.of("h_title", "h_body")));
+    }
+
+    public void testHighlightEmptyPrefixParses() {
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
+        // Empty prefix overwrites the source column name.
+        LogicalPlan plan = query("FROM foo | HIGHLIGHT prefix = \"\" \"elasticsearch\" ON content");
+        Highlight highlight = as(plan, Highlight.class);
+        assertThat(highlight.prefix(), equalTo(""));
+        List<String> generated = highlight.generatedAttributes().stream().map(NamedExpression::name).toList();
+        assertThat(generated, equalTo(List.of("content")));
+    }
+
+    public void testHighlightFieldNamedPrefix() {
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
+        LogicalPlan plan = query("FROM foo | HIGHLIGHT \"elasticsearch\" ON prefix");
+        Highlight highlight = as(plan, Highlight.class);
+        assertThat(highlight.prefix(), equalTo("highlight_"));
+        assertThat(((UnresolvedAttribute) highlight.fields().get(0)).name(), equalTo("prefix"));
+        List<String> generated = highlight.generatedAttributes().stream().map(NamedExpression::name).toList();
+        assertThat(generated, equalTo(List.of("highlight_prefix")));
+    }
+
+    public void testPrefixIsNotAReservedKeyword() {
+        as(query("FROM foo | EVAL prefix = 1"), Eval.class);
+        as(query("FROM foo | STATS x = COUNT(*) BY prefix"), Aggregate.class);
+        as(query("ROW prefix = 1"), Row.class);
+        as(query("FROM foo | KEEP prefix"), Keep.class);
+        as(query("FROM foo | WHERE prefix > 0"), Filter.class);
+    }
+
+    public void testHighlightRejectsUnknownModifier() {
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
+        expectThrows(
+            ParsingException.class,
+            containsString("Invalid modifier [bogus] in HIGHLIGHT, expected [prefix]"),
+            () -> query("FROM foo | HIGHLIGHT bogus = \"h_\" \"elasticsearch\" ON title")
+        );
+    }
+
+    public void testHighlightWithOptions() {
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
+        LogicalPlan plan = query(
+            "FROM foo | HIGHLIGHT \"elasticsearch\" ON title WITH { \"fragment_size\": 150, \"number_of_fragments\": 2 }"
+        );
+        Highlight highlight = as(plan, Highlight.class);
+        assertThat(highlight.options(), notNullValue());
+        assertThat(highlight.options().keyFoldedMap().keySet(), equalTo(Set.of("fragment_size", "number_of_fragments")));
+    }
+
+    public void testHighlightAcceptsAllOptions() {
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
+        LogicalPlan plan = query("""
+            FROM foo | HIGHLIGHT "elasticsearch" ON title WITH {
+              "pre_tags": ["<b>"], "post_tags": ["</b>"], "encoder": "html",
+              "number_of_fragments": 2, "fragment_size": 150, "no_match_size": 100,
+              "boundary_scanner": "word", "boundary_scanner_locale": "en-US", "order": "score",
+              "analyzer": "standard", "max_analyzed_offset": 500 }""");
+        Highlight highlight = as(plan, Highlight.class);
+        assertThat(highlight.options().keyFoldedMap().keySet(), equalTo(Set.copyOf(Highlight.validOptionNames())));
+    }
+
+    public void testHighlightRejectsUnknownOption() {
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
+        expectThrows(
+            ParsingException.class,
+            containsString("Invalid option [bogus] in HIGHLIGHT"),
+            () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title WITH { \"bogus\": 1 }")
+        );
+    }
+
+    public void testHighlightRejectsMapOptionValue() {
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
+        expectThrows(
+            ParsingException.class,
+            containsString("Invalid value for option [pre_tags] in HIGHLIGHT, expected a constant, found [{ \"tag\": \"<b>\" }]"),
+            () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title WITH { \"pre_tags\": { \"tag\": \"<b>\" } }")
+        );
+    }
+
+    public void testHighlightAcceptsFunctionQuery() {
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
+        LogicalPlan plan = query("FROM foo | HIGHLIGHT MATCH(title, \"x\") ON title");
+        Highlight highlight = as(plan, Highlight.class);
+        UnresolvedFunction match = as(highlight.query(), UnresolvedFunction.class);
+        assertThat(match.name(), equalTo("MATCH"));
+        assertThat(highlight.fields().size(), equalTo(1));
+        assertThat(((UnresolvedAttribute) highlight.fields().get(0)).name(), equalTo("title"));
+    }
+
+    public void testHighlightTerminatesInsideFork() {
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
+        LogicalPlan plan = query("""
+            FROM foo
+            | FORK ( HIGHLIGHT MATCH(title, "x") ON title )
+                   ( WHERE a > 1 )
+            """);
+        Fork fork = as(plan, Fork.class);
+        assertThat(fork.children().size(), equalTo(2));
+        Eval firstBranch = as(fork.children().get(0), Eval.class);
+        Highlight highlight = as(firstBranch.child(), Highlight.class);
+        assertThat(as(highlight.query(), UnresolvedFunction.class).name(), equalTo("MATCH"));
+    }
+
+    public void testHighlightRejectsWildcardFields() {
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
+        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON *"));
+    }
+
+    public void testHighlightNotInReleaseBuild() {
+        assumeFalse("only runs on release build", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
+        expectThrows(
+            ParsingException.class,
+            containsString("mismatched input 'HIGHLIGHT'"),
+            () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title")
+        );
     }
 
     public void testBasicSortCommand() {
@@ -1466,13 +1672,117 @@ public class StatementParserTests extends AbstractStatementParserTests {
         RLike rlike = (RLike) filter.condition();
         assertEquals(".*bar.*", rlike.pattern().asJavaRegex());
 
-        expectError("from a | where foo like 12", "no viable alternative at input 'foo like 12'");
-        expectError("from a | where foo rlike 12", "no viable alternative at input 'foo rlike 12'");
-
         expectError(
             "from a | where foo like \"(?i)(^|[^a-zA-Z0-9_-])nmap($|\\\\.)\"",
             "line 1:16: Invalid pattern for LIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
                 + "[Invalid sequence - escape character is not followed by special wildcard char]"
+        );
+    }
+
+    public void testLikeRLikeConstantExpression() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        // At parse time, a non-literal RHS produces an DeferredRegexExpression placeholder.
+        // The optimizer folds the pattern and ReplaceDeferredRegex converts it to WildcardLike/RLike.
+        LogicalPlan cmd = processingCommand("where foo like concat(\"pre\", \"fix*\")");
+        assertEquals(Filter.class, cmd.getClass());
+        assertEquals(DeferredRegexExpression.class, ((Filter) cmd).condition().getClass());
+        assertEquals(DeferredRegexExpression.Variant.LIKE, ((DeferredRegexExpression) ((Filter) cmd).condition()).variant());
+
+        cmd = processingCommand("where foo rlike concat(\"pre\", \".*\")");
+        assertEquals(Filter.class, cmd.getClass());
+        assertEquals(DeferredRegexExpression.class, ((Filter) cmd).condition().getClass());
+        assertEquals(DeferredRegexExpression.Variant.RLIKE, ((DeferredRegexExpression) ((Filter) cmd).condition()).variant());
+
+        // Integer literals parse as DeferredRegexExpression too, but the query still fails:
+        // post-optimization verification rejects non-string patterns (see OptimizerVerificationTests).
+        cmd = processingCommand("where foo like 12");
+        assertEquals(Filter.class, cmd.getClass());
+        assertEquals(DeferredRegexExpression.class, ((Filter) cmd).condition().getClass());
+        assertEquals(DeferredRegexExpression.Variant.LIKE, ((DeferredRegexExpression) ((Filter) cmd).condition()).variant());
+
+        cmd = processingCommand("where foo rlike 12");
+        assertEquals(Filter.class, cmd.getClass());
+        assertEquals(DeferredRegexExpression.class, ((Filter) cmd).condition().getClass());
+        assertEquals(DeferredRegexExpression.Variant.RLIKE, ((DeferredRegexExpression) ((Filter) cmd).condition()).variant());
+    }
+
+    public void testLikeRLikeConstantExpressionComposition() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        // The single-value LIKE/RLIKE grammar rule now takes a primaryExpression, which composes with the
+        // surrounding boolean operators exactly like the old stringOrParameter form.
+        Filter and = (Filter) processingCommand("where foo like concat(\"a\", \"*\") and bar > 2");
+        And andCond = as(and.condition(), And.class);
+        assertEquals(DeferredRegexExpression.class, andCond.left().getClass());
+        assertEquals(GreaterThan.class, andCond.right().getClass());
+
+        // A literal RHS still takes the parse-time fast path (WildcardLike), while a constant expression
+        // on the other side of the OR becomes an DeferredRegexExpression placeholder.
+        Filter or = (Filter) processingCommand("where foo like \"a*\" or bar rlike concat(\"b\", \".*\")");
+        Or orCond = as(or.condition(), Or.class);
+        assertEquals(WildcardLike.class, orCond.left().getClass());
+        assertEquals(DeferredRegexExpression.class, orCond.right().getClass());
+
+        Filter not = (Filter) processingCommand("where not (foo like concat(\"a\", \"*\"))");
+        Not notCond = as(not.condition(), Not.class);
+        assertEquals(DeferredRegexExpression.class, notCond.field().getClass());
+    }
+
+    public void testLikeRLikeConstantExpressionCast() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        // A cast expression (`::`) is a primaryExpression, so it is accepted and deferred to the optimizer as
+        // an DeferredRegexExpression. Whether it ultimately succeeds depends on the folded value/type, which
+        // is exercised in OptimizerVerificationTests.
+        for (String pattern : new String[] { "\"abc\"::keyword", "12::keyword", "last_name::keyword" }) {
+            Filter cmd = (Filter) processingCommand("where foo like " + pattern);
+            assertEquals(DeferredRegexExpression.class, cmd.condition().getClass());
+            assertEquals(DeferredRegexExpression.Variant.LIKE, ((DeferredRegexExpression) cmd.condition()).variant());
+        }
+    }
+
+    public void testLikeRLikeConstantExpressionParentheses() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        // Behavior change: a single parenthesized string now binds to the single-value #likeExpression rule
+        // (which precedes #likeListExpression), so it produces a WildcardLike rather than a one-element list.
+        Filter single = (Filter) processingCommand("where foo like (\"a*\")");
+        WildcardLike like = as(single.condition(), WildcardLike.class);
+        assertEquals("a*", like.pattern().pattern());
+
+        // Two-or-more elements still match the list rule.
+        Filter list = (Filter) processingCommand("where foo like (\"a*\", \"b*\")");
+        assertEquals(WildcardLikeList.class, list.condition().getClass());
+
+        // A parenthesized non-literal expression is deferred to the optimizer.
+        Filter paren = (Filter) processingCommand("where foo like (concat(\"a\", \"*\"))");
+        assertEquals(DeferredRegexExpression.class, paren.condition().getClass());
+    }
+
+    public void testLikeRLikeConstantExpressionFieldReference() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        // A field reference on the RHS parses as an DeferredRegexExpression; it is rejected later as
+        // non-foldable (see OptimizerVerificationTests).
+        for (String pattern : new String[] { "last_name", "some.nested.field" }) {
+            Filter cmd = (Filter) processingCommand("where foo like " + pattern);
+            assertEquals(DeferredRegexExpression.class, cmd.condition().getClass());
+        }
+    }
+
+    public void testLikeRLikeConstantExpressionParseErrors() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        // Binary operators are not part of primaryExpression, so they are not accepted on the RHS without parentheses.
+        expectError("from a | where foo like \"a\" + \"b\"", "mismatched input '+' expecting {<EOF>, '|', 'and', '::', 'or'}");
+        // Missing RHS.
+        expectError("from a | where foo like", "no viable alternative at input 'foo like'");
+        // A bare wildcard token is not a valid expression.
+        expectError("from a | where foo like *", "no viable alternative at input 'foo like *'");
+        // Array literals are not valid scalar patterns; the correct multi-pattern form is LIKE ("p1", "p2").
+        // Without this check the list would silently fold to a garbled hex-string that matches nothing.
+        expectError(
+            "from a | where foo like [\"Geo*\", \"Ab*\"]",
+            "Invalid pattern for LIKE [\"Geo*\",\"Ab*\"]: expected a scalar string, not a list"
+        );
+        expectError(
+            "from a | where foo rlike [\"geo.*\", \"ab.*\"]",
+            "Invalid pattern for RLIKE [\"geo.*\",\"ab.*\"]: expected a scalar string, not a list"
         );
     }
 
@@ -2442,17 +2752,23 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         : "Query parameter [?f1] with value [" + pattern + "] declared as a constant, cannot be used as an identifier"
                 );
             }
-            // nulls
-            if (invalidParamPosition.contains("rename")) {
-                // rename null as null is allowed, there is no ParsingException or VerificationException thrown
-                // named parameter doesn't change this behavior, it will need to be revisited
-                continue;
+            // null params: rejected via unresolvedAttributeNameInParam for eval/stats/mv_expand
+            // (those positions use visitIdentifierOrParameter, not visitQualifiedNamePattern).
+            // For RENAME, KEEP, DROP, and ENRICH, the null param goes through visitQualifiedNamePattern
+            // which silently skips the empty segment; see testNullParamInIdentifierPatternPosition.
+            if (invalidParamPosition.contains("rename") == false) {
+                expectError(
+                    "from test | " + invalidParamPosition,
+                    List.of(paramAsConstant("f1", null), paramAsConstant("f2", null)),
+                    "Query parameter [?f1] is null or undefined"
+                );
             }
-            expectError(
-                "from test | " + invalidParamPosition,
-                List.of(paramAsConstant("f1", null), paramAsConstant("f2", null)),
-                "Query parameter [?f1] is null or undefined"
-            );
+        }
+        // double-parameter markers (??): null param produces a "is null" error rather than an NPE or empty identifier
+        if (EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()) {
+            for (String identifierPosition : List.of("drop ??f1", "keep ??f1", "rename ??f1 as color")) {
+                expectError("from test | " + identifierPosition, List.of(paramAsConstant("f1", null)), "Query parameter [??f1] is null");
+            }
         }
         // enrich with wildcard as pattern or constant is not supported
         String enrich = "ENRICH idx2 ON ?f1 WITH ?f2 = ?f3";
@@ -2468,6 +2784,32 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 "Query parameter [?f1] with value [" + pattern + "] declared as a constant, cannot be used as an identifier or pattern"
             );
         }
+    }
+
+    /**
+     * Null params in RENAME/KEEP/DROP/ENRICH identifier-pattern positions are silently skipped
+     * by {@code visitQualifiedNamePattern}, so no {@code ParsingException} is thrown at parse time.
+     * This is a bug, but we can't fix it without breaking some queries.
+     * <p>
+     * Contrast with eval/stats/mv_expand which use {@code unresolvedAttributeNameInParam} and
+     * do produce a parse-time error for null params.
+     */
+    public void testNullParamInIdentifierPatternPosition() {
+        List<QueryParam> params = List.of(paramAsConstant("f1", null), paramAsConstant("f2", null));
+        for (String cmd : List.of(
+            "rename ?f1 as color",
+            "rename foo as ?f2",
+            "rename ?f1 as ?f2",
+            "keep ?f1",
+            "drop ?f1",
+            "enrich idx2 ON ?f1"
+        )) {
+            assertNotNull(query("from test | " + cmd, new QueryParams(params)));
+        }
+        // ENRICH WITH: null param as alias or field name
+        assertNotNull(query("from idx1 | enrich idx2 ON f1 WITH ?f2", new QueryParams(List.of(paramAsConstant("f2", null)))));
+        assertNotNull(query("from idx1 | enrich idx2 ON f1 WITH ?f2 = src_field", new QueryParams(List.of(paramAsConstant("f2", null)))));
+        assertNotNull(query("from idx1 | enrich idx2 ON f1 WITH dst = ?f3", new QueryParams(List.of(paramAsConstant("f3", null)))));
     }
 
     public void testMissingParam() {
@@ -2647,12 +2989,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 unresolvedTSRelation("foo"),
                 List.of(attribute("ts")),
-                List.of(
-                    new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
-                    attribute("ts")
-                ),
+                List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", List.of(attribute("cpu")))), attribute("ts")),
                 null,
-                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts"))
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts")),
+                TimeSeriesAggregate.Origin.TS_COMMAND
             )
         );
         assertQuery(
@@ -2661,12 +3001,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 unresolvedTSRelation("foo,bar"),
                 List.of(attribute("ts")),
-                List.of(
-                    new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
-                    attribute("ts")
-                ),
+                List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", List.of(attribute("cpu")))), attribute("ts")),
                 null,
-                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts"))
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts")),
+                TimeSeriesAggregate.Origin.TS_COMMAND
             )
         );
         assertQuery(
@@ -2676,21 +3014,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 unresolvedTSRelation("foo,bar"),
                 List.of(attribute("ts")),
                 List.of(
-                    new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
+                    new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", List.of(attribute("cpu")))),
                     new Alias(
                         EMPTY,
                         "max(rate(requests))",
-                        new UnresolvedFunction(
-                            EMPTY,
-                            "max",
-                            DEFAULT,
-                            List.of(new UnresolvedFunction(EMPTY, "rate", DEFAULT, List.of(attribute("requests"))))
-                        )
+                        new UnresolvedFunction(EMPTY, "max", List.of(new UnresolvedFunction(EMPTY, "rate", List.of(attribute("requests")))))
                     ),
                     attribute("ts")
                 ),
                 null,
-                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu),max(rate(requests)) BY ts"))
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu),max(rate(requests)) BY ts")),
+                TimeSeriesAggregate.Origin.TS_COMMAND
             )
         );
         assertQuery(
@@ -2699,9 +3033,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 unresolvedTSRelation("foo*"),
                 List.of(),
-                List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", DEFAULT, List.of(attribute("errors"))))),
+                List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", List.of(attribute("errors"))))),
                 null,
-                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS count(errors)"))
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS count(errors)")),
+                TimeSeriesAggregate.Origin.TS_COMMAND
             )
         );
         assertQuery(
@@ -2710,9 +3045,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 unresolvedTSRelation("foo*"),
                 List.of(),
-                List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b"))))),
+                List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", List.of(attribute("b"))))),
                 null,
-                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a(b)"))
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a(b)")),
+                TimeSeriesAggregate.Origin.TS_COMMAND
             )
         );
         assertQuery(
@@ -2721,9 +3057,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 unresolvedTSRelation("foo*"),
                 List.of(),
-                List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b"))))),
+                List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", List.of(attribute("b"))))),
                 null,
-                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a(b)"))
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a(b)")),
+                TimeSeriesAggregate.Origin.TS_COMMAND
             )
         );
         assertQuery(
@@ -2732,9 +3069,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 unresolvedTSRelation("foo*"),
                 List.of(),
-                List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", DEFAULT, List.of(attribute("b2"))))),
+                List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", List.of(attribute("b2"))))),
                 null,
-                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a1(b2)"))
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a1(b2)")),
+                TimeSeriesAggregate.Origin.TS_COMMAND
             )
         );
         assertQuery(
@@ -2744,12 +3082,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 unresolvedTSRelation("foo*,bar*"),
                 List.of(attribute("c"), attribute("d.e")),
                 List.of(
-                    new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
+                    new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", List.of(attribute("a")))),
                     attribute("c"),
                     attribute("d.e")
                 ),
                 null,
-                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS b = min(a) by c, d.e"))
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS b = min(a) by c, d.e")),
+                TimeSeriesAggregate.Origin.TS_COMMAND
             )
         );
     }
@@ -2813,14 +3152,26 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "line 1:25: mismatched input 'another_field_or_value' expecting {QUOTED_STRING, INTEGER_LITERAL, DECIMAL_LITERAL, "
         );
         expectError("from test | WHERE field:2+3", "line 1:26: mismatched input '+'");
-        expectError(
-            "from test | WHERE \"field\":\"value\"",
-            "line 1:26: mismatched input ':' expecting {<EOF>, '|', 'and', '::', 'or', '+', '-', '*', '/', '%'}"
-        );
-        expectError(
-            "from test | WHERE CONCAT(\"field\", 1):\"value\"",
-            "line 1:37: mismatched input ':' expecting {<EOF>, '|', 'and', '::', 'or', '+', '-', '*', '/', '%'}"
-        );
+    }
+
+    public void testMatchOperatorWithFunctionLhs() {
+        var plan = query("FROM test | WHERE CONCAT(first_name, \" \", last_name):\"Anneke Preusig\"");
+        var filter = as(plan, Filter.class);
+        var match = (MatchOperator) filter.condition();
+        var concat = (UnresolvedFunction) match.field();
+        assertThat(concat.name(), equalTo("CONCAT"));
+        assertThat(concat.children().size(), equalTo(3));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("Anneke Preusig")));
+    }
+
+    public void testMatchOperatorWithNestedFunctionLhs() {
+        var plan = query("FROM test | WHERE TO_UPPER(CONCAT(first_name, \" \", last_name)):\"ANNEKE PREUSIG\"");
+        var filter = as(plan, Filter.class);
+        var match = (MatchOperator) filter.condition();
+        var toUpper = (UnresolvedFunction) match.field();
+        assertThat(toUpper.name(), equalTo("TO_UPPER"));
+        var concat = (UnresolvedFunction) toUpper.children().get(0);
+        assertThat(concat.name(), equalTo("CONCAT"));
     }
 
     public void testMatchFunctionFieldCasting() {
@@ -3155,30 +3506,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
-    public void testFunctionNamedParameterNotInMap() {
-        Map<String, String> commands = Map.ofEntries(
-            Map.entry("eval x = {}", "38"),
-            Map.entry("where {}", "35"),
-            Map.entry("stats {}", "35"),
-            Map.entry("stats agg() by {}", "44"),
-            Map.entry("sort {}", "34"),
-            Map.entry("dissect {} \"%{bar}\"", "37"),
-            Map.entry("grok {} \"%{WORD:foo}\"", "34")
-        );
-
-        for (Map.Entry<String, String> command : commands.entrySet()) {
-            String cmd = command.getKey();
-            String error = command.getValue();
-            String errorMessage = cmd.startsWith("dissect") || cmd.startsWith("grok")
-                ? "extraneous input ':' expecting {',', ')'}"
-                : "no viable alternative at input 'fn(f1, \"option1\":'";
-            expectError(
-                LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, \"option1\":\"string\")"),
-                LoggerMessageFormat.format(null, "line 1:{}: {}", error, errorMessage)
-            );
-        }
-    }
-
     public void testFunctionNamedParameterNotConstant() {
         Map<String, String[]> commands = Map.ofEntries(
             Map.entry("eval x = {}", new String[] { "31", "35" }),
@@ -3482,12 +3809,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
-    public void testInvalidInsistAsterisk() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
-        expectError("FROM text | EVAL x = 4 | INSIST_🐔 *", "INSIST doesn't support wildcards, found [*]");
-        expectError("FROM text | EVAL x = 4 | INSIST_🐔 foo*", "INSIST doesn't support wildcards, found [foo*]");
-    }
-
     public void testValidFork() {
         var plan = query("""
             FROM foo*
@@ -3652,7 +3973,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
             FROM foo*
             | FORK
                ( INLINE STATS x = MIN(a), y = MAX(b) WHERE d > 1000 )
-               ( INSIST_🐔 a )
                ( LOOKUP_🐔 a on b )
             | KEEP a
             """;
@@ -3708,11 +4028,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
     // this test checks that they are properly replaced in the error message
     public void testPreserveParentheses() {
         // test for (
-        expectError("row a = 1 not in", "line 1:17: mismatched input '<EOF>' expecting '('");
-        expectError("row a = 1 | where a not in", "line 1:27: mismatched input '<EOF>' expecting '('");
+        // With WHERE_IN_SUBQUERY enabled the parser has two IN alternatives (value list / subquery),
+        // so error recovery emits a "no viable alternative" message instead of the single-alt one.
+        expectError("row a = 1 not in", "line 1:17: no viable alternative at input '1 not in'");
+        expectError("row a = 1 | where a not in", "line 1:27: no viable alternative at input 'a not in'");
+        expectError("row a = 1 | where a not in [1", "line 1:28: no viable alternative at input 'a not in ['");
+        expectError("row a = 1 | where a not in 123", "line 1:28: no viable alternative at input 'a not in 123'");
         expectError("row a = 1 | where a not in (1", "line 1:30: mismatched input '<EOF>' expecting {',', ')'}");
-        expectError("row a = 1 | where a not in [1", "line 1:28: missing '(' at '['");
-        expectError("row a = 1 | where a not in 123", "line 1:28: missing '(' at '123'");
         // test for [
         if (EsqlCapabilities.Cap.EXPLAIN.isEnabled()) {
             expectError("explain", "line 1:8: mismatched input '<EOF>' expecting '('");
@@ -3997,7 +4319,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         expectError(
             "FROM foo* | RERANK \"query text\" ON title WITH { \"inference_id\": \"inferenceId\", \"unknown_option\": 3 }",
-            "line 1:42: Invalid option [unknown_option] in RERANK, expected one of [[inference_id]]"
+            "line 1:42: Invalid option [unknown_option] in RERANK, expected one of [[inference_id, timeout]]"
         );
         expectError("FROM foo* | RERANK ON title WITH inferenceId", "line 1:20: extraneous input 'ON' expecting {QUOTED_STRING");
         expectError("FROM foo* | RERANK \"query text\" WITH inferenceId", "line 1:33: mismatched input 'WITH' expecting 'on'");
@@ -4005,6 +4327,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError(
             "FROM foo* | RERANK \"query text\" ON title WITH { \"inference_id\": { \"a\": 123 } }",
             "Option [inference_id] must be a valid string, found [{ \"a\": 123 }]"
+        );
+        expectError(
+            "FROM foo* | RERANK \"query text\" ON title WITH { \"inference_id\": \"my_inference_id\", \"timeout\": \"a long one\" }",
+            "Invalid timeout value [a long one] for option [timeout] in RERANK: [failed to parse setting [timeout]"
         );
     }
 
@@ -4108,7 +4434,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         expectError(
             "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"unknown_option\": 3 }",
-            "line 1:31: Invalid option [unknown_option] in COMPLETION, expected one of [[inference_id, task_settings]]"
+            "line 1:31: Invalid option [unknown_option] in COMPLETION, expected one of [[inference_id, task_settings, timeout]]"
         );
 
         expectError("FROM foo* | COMPLETION WITH inferenceId", "line 1:24: extraneous input 'WITH' expecting {");
@@ -4119,6 +4445,258 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "FROM foo* | COMPLETION prompt WITH { \"inference_id\": { \"a\": 123 } }",
             "line 1:54: Option [inference_id] must be a valid string, found [{ \"a\": 123 }]"
         );
+        expectError(
+            "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"timeout\": \"a long one\" }",
+            "Invalid timeout value [a long one] for option [timeout] in COMPLETION: [failed to parse setting [timeout]"
+        );
+    }
+
+    private static void assumeDenseVectorCommandEnabled() {
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+    }
+
+    public void testDenseVectorSingleField() {
+        assumeDenseVectorCommandEnabled();
+        var plan = as(processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\"}"), DenseVector.class);
+        assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(plan.inferenceId(), equalTo(literalString("my-id")));
+        assertThat(plan.rowLimit(), equalTo(integer(1000)));
+    }
+
+    public void testDenseVectorMultipleFields() {
+        assumeDenseVectorCommandEnabled();
+        var plan = as(processingCommand("DENSE_VECTOR title, author WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"), attribute("author"))));
+        assertThat(plan.inferenceId(), equalTo(literalString("my-id")));
+        assertThat(plan.rowLimit(), equalTo(integer(1000)));
+    }
+
+    public void testDenseVectorChainedClausesWithPerClauseEndpoints() {
+        assumeDenseVectorCommandEnabled();
+        // Each chained clause carries its own inference endpoint (per-field endpoints).
+        var outer = as(
+            processingCommand(
+                "DENSE_VECTOR title WITH { \"inference_id\" : \"endpoint-a\" } "
+                    + "| DENSE_VECTOR author WITH { \"inference_id\" : \"endpoint-b\" }"
+            ),
+            DenseVector.class
+        );
+        assertThat(outer.fields(), equalToIgnoringIds(List.of(attribute("author"))));
+        assertThat(outer.inferenceId(), equalTo(literalString("endpoint-b")));
+
+        var inner = as(outer.child(), DenseVector.class);
+        assertThat(inner.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(inner.inferenceId(), equalTo(literalString("endpoint-a")));
+    }
+
+    public void testDenseVectorChainedClausesMixClusterDefaultAndExplicitEndpoint() {
+        assumeDenseVectorCommandEnabled();
+        // Endpoint resolution is per clause: the cluster default must land on the clause that omitted WITH and must not
+        // overwrite the one that supplied an id.
+        Settings settings = Settings.builder()
+            .put(InferenceSettings.DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING.getKey(), "cluster-default-id")
+            .build();
+        var outer = as(
+            processingCommand(
+                "DENSE_VECTOR title | DENSE_VECTOR author WITH { \"inference_id\" : \"endpoint-b\" }",
+                new QueryParams(),
+                settings
+            ),
+            DenseVector.class
+        );
+        assertThat(outer.fields(), equalToIgnoringIds(List.of(attribute("author"))));
+        assertThat(outer.inferenceId(), equalTo(literalString("endpoint-b")));
+
+        var inner = as(outer.child(), DenseVector.class);
+        assertThat(inner.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(inner.inferenceId(), equalTo(literalString("cluster-default-id")));
+    }
+
+    public void testDenseVectorChainedClausesMixBuiltInDefaultAndExplicitEndpoint() {
+        assumeDenseVectorCommandEnabled();
+        // The same mix without a cluster default, and with the clause that omits WITH last rather than first, so the built-in
+        // default has to land on the outer node.
+        var outer = as(
+            processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"endpoint-a\" } | DENSE_VECTOR author"),
+            DenseVector.class
+        );
+        assertThat(outer.fields(), equalToIgnoringIds(List.of(attribute("author"))));
+        assertThat(outer.inferenceId(), equalTo(literalString(".multilingual-e5-small-elasticsearch")));
+
+        var inner = as(outer.child(), DenseVector.class);
+        assertThat(inner.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(inner.inferenceId(), equalTo(literalString("endpoint-a")));
+    }
+
+    public void testDenseVectorQualifiedName() {
+        assumeDenseVectorCommandEnabled();
+        var plan = as(processingCommand("DENSE_VECTOR user.name WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("user.name"))));
+    }
+
+    public void testDenseVectorQuotedFieldName() {
+        assumeDenseVectorCommandEnabled();
+        var plan = as(processingCommand("DENSE_VECTOR `weird name` WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("weird name"))));
+    }
+
+    public void testDenseVectorWildcardNotSupported() {
+        assumeDenseVectorCommandEnabled();
+        // Wildcards are not supported: the field list is an explicit qualifiedNames list, so a pattern is a parse error.
+        expectError("FROM books | DENSE_VECTOR titl* WITH { \"inference_id\" : \"my-id\" }", "mismatched input '*'");
+        expectError("FROM books | DENSE_VECTOR * WITH { \"inference_id\" : \"my-id\" }", "mismatched input '*'");
+    }
+
+    public void testDenseVectorWithTimeout() {
+        assumeDenseVectorCommandEnabled();
+        var plan = as(
+            processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"timeout\" : \"30s\" }"),
+            DenseVector.class
+        );
+        assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(plan.inferenceId(), equalTo(literalString("my-id")));
+        assertThat(plan.timeout(), equalTo(TimeValue.timeValueSeconds(30)));
+    }
+
+    public void testDenseVectorDefaultTimeout() {
+        assumeDenseVectorCommandEnabled();
+        // When no timeout option is given, the plan carries a null timeout; the inference layer then applies its
+        // per-task default (30s for text_embedding).
+        var plan = as(processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.timeout(), nullValue());
+    }
+
+    public void testDenseVectorDefaultInferenceId() {
+        assumeDenseVectorCommandEnabled();
+        // No WITH: falls through to the built-in default endpoint.
+        var plan = as(processingCommand("DENSE_VECTOR title"), DenseVector.class);
+        assertThat(plan.inferenceId(), equalTo(literalString(".multilingual-e5-small-elasticsearch")));
+    }
+
+    public void testDenseVectorEmptyOptionsUsesDefaultInferenceId() {
+        assumeDenseVectorCommandEnabled();
+        // Empty WITH: still falls through to the built-in default endpoint.
+        var plan = as(processingCommand("DENSE_VECTOR title WITH { }"), DenseVector.class);
+        assertThat(plan.inferenceId(), equalTo(literalString(".multilingual-e5-small-elasticsearch")));
+    }
+
+    public void testDenseVectorClusterDefaultInferenceId() {
+        assumeDenseVectorCommandEnabled();
+        // Cluster-level default overrides the built-in default when no WITH id is given.
+        Settings settings = Settings.builder()
+            .put(InferenceSettings.DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING.getKey(), "cluster-default-id")
+            .build();
+        var plan = as(processingCommand("DENSE_VECTOR title", new QueryParams(), settings), DenseVector.class);
+        assertThat(plan.inferenceId(), equalTo(literalString("cluster-default-id")));
+    }
+
+    public void testDenseVectorBlankClusterDefaultInferenceIdIsRejected() {
+        assumeDenseVectorCommandEnabled();
+        // A blank but non-empty value would otherwise be taken for an endpoint id and only surface as an unknown-endpoint
+        // failure later on. Empty stays valid: it is the "not set" marker that falls through to the built-in default.
+        Settings blank = Settings.builder().put(InferenceSettings.DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING.getKey(), "   ").build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> processingCommand("DENSE_VECTOR title", new QueryParams(), blank)
+        );
+        assertThat(e.getMessage(), containsString("[esql.command.dense_vector.default_inference_id] must not be blank"));
+
+        Settings empty = Settings.builder().put(InferenceSettings.DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING.getKey(), "").build();
+        var plan = as(processingCommand("DENSE_VECTOR title", new QueryParams(), empty), DenseVector.class);
+        assertThat(plan.inferenceId(), equalTo(literalString(".multilingual-e5-small-elasticsearch")));
+    }
+
+    public void testDenseVectorWithOptionOverridesClusterDefault() {
+        assumeDenseVectorCommandEnabled();
+        // WITH { inference_id } takes precedence over the cluster-level default.
+        Settings settings = Settings.builder()
+            .put(InferenceSettings.DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING.getKey(), "cluster-default-id")
+            .build();
+        var plan = as(
+            processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"with-id\" }", new QueryParams(), settings),
+            DenseVector.class
+        );
+        assertThat(plan.inferenceId(), equalTo(literalString("with-id")));
+    }
+
+    public void testDenseVectorRowLimitOverride() {
+        assumeDenseVectorCommandEnabled();
+        int customRowLimit = between(1, 10_000);
+        Settings settings = Settings.builder().put(InferenceSettings.DENSE_VECTOR_ROW_LIMIT_SETTING.getKey(), customRowLimit).build();
+        var plan = as(
+            processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\" }", new QueryParams(), settings),
+            DenseVector.class
+        );
+        assertThat(plan.rowLimit(), equalTo(integer(customRowLimit)));
+    }
+
+    public void testDenseVectorCommandDisabled() {
+        assumeDenseVectorCommandEnabled();
+        Settings settings = Settings.builder().put(InferenceSettings.DENSE_VECTOR_ENABLED_SETTING.getKey(), false).build();
+        ParsingException pe = expectThrows(
+            ParsingException.class,
+            () -> processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\" }", new QueryParams(), settings)
+        );
+        assertThat(pe.getMessage(), containsString("DENSE_VECTOR command is disabled"));
+    }
+
+    public void testDenseVectorUnknownOption() {
+        assumeDenseVectorCommandEnabled();
+        expectError(
+            "FROM foo* | DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"foo\" : 3 }",
+            "Invalid option [foo] in DENSE_VECTOR, expected one of [[inference_id, timeout]]"
+        );
+    }
+
+    public void testDenseVectorInferenceIdNotString() {
+        assumeDenseVectorCommandEnabled();
+        expectError(
+            "FROM foo* | DENSE_VECTOR title WITH { \"inference_id\" : 3 }",
+            "Option [inference_id] must be a valid string, found [3]"
+        );
+    }
+
+    public void testDenseVectorTimeoutNotString() {
+        assumeDenseVectorCommandEnabled();
+        expectError(
+            "FROM foo* | DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"timeout\" : 3 }",
+            "Option [timeout] in DENSE_VECTOR must be a string literal (e.g. \"30s\"), found [3]"
+        );
+    }
+
+    public void testDenseVectorInvalidTimeout() {
+        assumeDenseVectorCommandEnabled();
+        expectError(
+            "FROM foo* | DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"timeout\" : \"a long one\" }",
+            "Invalid timeout value [a long one] for option [timeout] in DENSE_VECTOR: [failed to parse setting [timeout]"
+        );
+    }
+
+    public void testDenseVectorMissingFieldList() {
+        assumeDenseVectorCommandEnabled();
+        expectError("FROM foo* | DENSE_VECTOR WITH { \"inference_id\" : \"my-id\" }", "mismatched input 'WITH' expecting {");
+    }
+
+    public void testDenseVectorWithPositionalParameters() {
+        assumeDenseVectorCommandEnabled();
+        var queryParams = new QueryParams(List.of(paramAsConstant(null, "my-id")));
+        var plan = as(
+            TEST_PARSER.parseQuery("row a = 1 | DENSE_VECTOR title WITH { \"inference_id\" : ? }", queryParams),
+            DenseVector.class
+        );
+        assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(plan.inferenceId(), equalTo(literalString("my-id")));
+    }
+
+    public void testDenseVectorWithNamedParameters() {
+        assumeDenseVectorCommandEnabled();
+        var queryParams = new QueryParams(List.of(paramAsConstant("inferenceId", "my-id")));
+        var plan = as(
+            TEST_PARSER.parseQuery("row a = 1 | DENSE_VECTOR title WITH { \"inference_id\" : ?inferenceId }", queryParams),
+            DenseVector.class
+        );
+        assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(plan.inferenceId(), equalTo(literalString("my-id")));
     }
 
     public void testSample() {
@@ -4416,10 +4994,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         try (XContentBuilder report = JsonXContent.contentBuilder().humanReadable(true).prettyPrint().lfAtEnd()) {
             report.startObject();
             List<String> namesAndAliases = new ArrayList<>(DataType.namesAndAliases());
-            if (EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE.isEnabled() == false) {
-                // Some types do not have a converter function if the capability is disabled
-                namesAndAliases.removeAll(List.of("date_range"));
-            }
             Collections.sort(namesAndAliases);
             for (String nameOrAlias : namesAndAliases) {
                 DataType expectedType = DataType.fromNameOrAlias(nameOrAlias);
@@ -4433,6 +5007,26 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     (org.elasticsearch.xpack.esql.core.expression.function.Function) row.fields().get(0).child();
                 assertThat(functionCall.dataType(), equalTo(expectedType));
                 report.field(nameOrAlias, registry.snapshotRegistry().functionName(functionCall.getClass()).toLowerCase(Locale.ROOT));
+            }
+            if (EsqlCapabilities.Cap.TO_COUNTER.isEnabled()) {
+                // counter is a virtual cast target — not a real DataType — so it is not in namesAndAliases()
+                LogicalPlan plan = TEST_PARSER.parseQuery("ROW a = 1::" + DataType.COUNTER_CAST_NAME);
+                Row row = as(plan, Row.class);
+                assertThat(row.fields(), hasSize(1));
+                org.elasticsearch.xpack.esql.core.expression.function.Function functionCall =
+                    (org.elasticsearch.xpack.esql.core.expression.function.Function) row.fields().get(0).child();
+                assertThat(functionCall, instanceOf(ToCounter.class));
+                report.field(DataType.COUNTER_CAST_NAME, ToCounter.DEFINITION.name());
+            }
+            if (EsqlCapabilities.Cap.TO_GAUGE.isEnabled()) {
+                // gauge is a virtual cast target — not a real DataType — so it is not in namesAndAliases()
+                LogicalPlan plan = TEST_PARSER.parseQuery("ROW a = 1::" + DataType.GAUGE_CAST_NAME);
+                Row row = as(plan, Row.class);
+                assertThat(row.fields(), hasSize(1));
+                org.elasticsearch.xpack.esql.core.expression.function.Function functionCall =
+                    (org.elasticsearch.xpack.esql.core.expression.function.Function) row.fields().get(0).child();
+                assertThat(functionCall, instanceOf(ToGauge.class));
+                report.field(DataType.GAUGE_CAST_NAME, ToGauge.DEFINITION.name());
             }
             report.endObject();
             String rendered = Strings.toString(report);
@@ -4498,9 +5092,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
         MMR mmrCmd = (MMR) cmd;
 
         assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
-        verifyMMRLimitValue(mmrCmd.limit(), 10);
+        assertEquals(integer(10), mmrCmd.limit());
         assertNull(mmrCmd.queryVector());
-        verifyMMRLambdaValue(mmrCmd, null);
+        assertNull(mmrCmd.options());
     }
 
     public void testMMRCommandWithLimitAndLambda() {
@@ -4510,8 +5104,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
 
-        verifyMMRLimitValue(mmrCmd.limit(), 10);
-        verifyMMRLambdaValue(mmrCmd, 0.5);
+        assertEquals(integer(10), mmrCmd.limit());
+        assertEquals(mapExpression(Map.of("lambda", 0.5)), mmrCmd.options());
 
         assertNull(mmrCmd.queryVector());
     }
@@ -4520,37 +5114,38 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var mmrCmd = as(processingCommand("mmr [0.5, 0.4, 0.3, 0.2] on dense_embedding limit 10 with { \"lambda\": 0.5 }"), MMR.class);
         assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
 
-        verifyMMRLimitValue(mmrCmd.limit(), 10);
-        verifyMMRLambdaValue(mmrCmd, 0.5);
-        verifyMMRQueryVectorValue(mmrCmd.queryVector(), List.of(0.5, 0.4, 0.3, 0.2));
+        assertEquals(integer(10), mmrCmd.limit());
+        assertEquals(mapExpression(Map.of("lambda", 0.5)), mmrCmd.options());
+        assertEquals(literalDoubles(0.5, 0.4, 0.3, 0.2), mmrCmd.queryVector());
     }
 
     public void testMMRCommandWithByteVectorQuery() {
         var mmrByteArray = as(processingCommand("mmr [17, 48, 56] on dense_embedding limit 10 with { \"lambda\": 0.5 }"), MMR.class);
         assertThat(mmrByteArray.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
-        verifyMMRLimitValue(mmrByteArray.limit(), 10);
-        verifyMMRLambdaValue(mmrByteArray, 0.5);
-        verifyMMRQueryVectorValue(mmrByteArray.queryVector(), List.of(17, 48, 56));
+        assertEquals(integer(10), mmrByteArray.limit());
+        assertEquals(mapExpression(Map.of("lambda", 0.5)), mmrByteArray.options());
+        assertEquals(integers(17, 48, 56), mmrByteArray.queryVector());
 
-        var mmrByteArrayString = as(processingCommand("mmr \"113038\" on dense_embedding limit 10 with { \"lambda\": 0.5 }"), MMR.class);
+        var mmrByteArrayString = as(processingCommand("mmr \"113038\" on dense_embedding limit 50 with { \"lambda\": 0.8 }"), MMR.class);
         assertThat(mmrByteArrayString.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
-        verifyMMRLimitValue(mmrByteArrayString.limit(), 10);
-        verifyMMRLambdaValue(mmrByteArrayString, 0.5);
-        verifyMMRQueryVectorValue(mmrByteArrayString.queryVector(), List.of(), "113038");
+        assertEquals(integer(50), mmrByteArrayString.limit());
+        assertEquals(mapExpression(Map.of("lambda", 0.8)), mmrByteArrayString.options());
+        assertEquals(literalString("113038"), mmrByteArrayString.queryVector());
     }
 
     public void testMMRCommandWithFieldQueryVector() {
-        var queryParams = new QueryParams(List.of(paramAsConstant("query_vector_field", "[0.5, 0.4, 0.3, 0.2]")));
+        var queryVectorParam = List.of(0.5, 0.4, 0.3, 0.2);
+
+        var queryParams = new QueryParams(List.of(paramAsConstant("query_vector_field", queryVectorParam)));
         var mmrCmd = as(
             TEST_PARSER.parseQuery("row a = 1 | mmr ?query_vector_field on dense_embedding limit 10 with { \"lambda\": 0.5 }", queryParams),
             MMR.class
         );
 
         assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
-
-        verifyMMRLimitValue(mmrCmd.limit(), 10);
-        verifyMMRLambdaValue(mmrCmd, 0.5);
-        verifyMMRQueryVectorValue(mmrCmd.queryVector(), List.of(), "[0.5, 0.4, 0.3, 0.2]");
+        assertEquals(integer(10), mmrCmd.limit());
+        assertEquals(mapExpression(Map.of("lambda", 0.5)), mmrCmd.options());
+        assertEquals(literalDoubles(0.5, 0.4, 0.3, 0.2), mmrCmd.queryVector());
     }
 
     public void testMMRCommandWithTextEmbeddingQueryVector() {
@@ -4563,8 +5158,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
 
-        verifyMMRLimitValue(mmrCmd.limit(), 10);
-        verifyMMRLambdaValue(mmrCmd, 0.5);
+        assertEquals(integer(10), mmrCmd.limit());
+        assertEquals(mapExpression(Map.of("lambda", 0.5)), mmrCmd.options());
 
         Expression queryVectorExpression = mmrCmd.queryVector();
         if (queryVectorExpression instanceof UnresolvedFunction uaFunctioon) {
@@ -4575,62 +5170,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
-    private void verifyMMRLimitValue(Expression expression, int limit) {
-        assertThat(expression.dataType(), equalTo(INTEGER));
-        int limitValue = (Integer) (((Literal) expression).value());
-        assertEquals(limit, limitValue);
-    }
-
-    private void verifyMMRQueryVectorValue(Expression expression, List<?> expected) {
-        verifyMMRQueryVectorValue(expression, expected, null);
-    }
-
-    private void verifyMMRQueryVectorValue(Expression expression, List<?> expected, @Nullable String expectedString) {
-        if (expression instanceof Literal litExpression) {
-            var thisValue = litExpression.value();
-            if (thisValue instanceof Collection<?> litCollection) {
-                assertEquals(expected, litCollection);
-                return;
-            }
-        } else if (expression instanceof ToDenseVector asDenseVector) {
-            var thisValue = ((Literal) asDenseVector.field()).value();
-            if (thisValue instanceof Collection<?> litCollection) {
-                assertEquals(expected, litCollection);
-                return;
-            } else if (thisValue instanceof BytesRef bytesRef && expectedString != null) {
-                assertEquals(new BytesRef(expectedString), bytesRef);
-                return;
-            }
-        }
-
-        fail("query vector expression [" + expression + "] is not a valid dense vector convertable type");
-    }
-
-    private void verifyMMRLambdaValue(MMR mmrCmd, Double value) {
-        if (value == null) {
-            assertNull(mmrCmd.options());
-            return;
-        }
-
-        assertTrue(mmrCmd.options() instanceof MapExpression);
-        assertEquals(getLambdaFromMMROptions((MapExpression) mmrCmd.options()), value);
-    }
-
-    public Double getLambdaFromMMROptions(@Nullable MapExpression options) {
-        if (options == null) {
-            return null;
-        }
-
-        Map<String, Expression> optionsMap = options.keyFoldedMap();
-
-        Expression lambdaValueExpression = optionsMap.remove(MMR.LAMBDA_OPTION_NAME);
-        assertNotNull(lambdaValueExpression);
-        Literal litLambdaValue = (Literal) lambdaValueExpression;
-        assertNotNull(litLambdaValue);
-        assertEquals(DOUBLE, litLambdaValue.dataType());
-        return (Double) litLambdaValue.value();
-    }
-
     public void testInvalidMMRCommands() {
         expectError("row a = 1 | mmr on some_field", "line 1:30: mismatched input '<EOF>' expecting {'.', MMR_LIMIT}");
         expectError("row a = 1 | mmr on some_field limit", "line 1:36: mismatched input '<EOF>' expecting {INTEGER_LITERAL, '+', '-'}");
@@ -4638,6 +5177,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "row a = 1 | mmr on some_field limit 5 {\"unknown\": true}",
             "line 1:39: mismatched input '{' expecting {<EOF>, '|', 'with'}"
         );
+        expectError("row a = 1 | mmr on some_field limit 2.5", "line 1:37: mismatched input '2.5' expecting {INTEGER_LITERAL, '+', '-'}");
     }
 
     public void testInvalidSample() {
@@ -4692,4 +5232,126 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(expectedFieldNames, actualFieldNames);
     }
 
+    public void testUserAgentCommand() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("user_agent ua = a ");
+        UserAgent ua = as(cmd, UserAgent.class);
+        assertEqualsIgnoringIds(attribute("a"), ua.getInput());
+        assertFalse(ua.extractDeviceType());
+        assertEquals("_default_", ua.regexFile());
+
+        List<String> expectedFieldNames = UserAgentFunctionBridge.getAllOutputFields()
+            .keySet()
+            .stream()
+            .filter(name -> name.equals("device.type") == false)
+            .map(name -> "ua." + name)
+            .collect(Collectors.toList());
+
+        List<String> actualFieldNames = ua.generatedAttributes().stream().map(NamedExpression::name).collect(Collectors.toList());
+        assertEquals(expectedFieldNames, actualFieldNames);
+    }
+
+    public void testUserAgentCommandWithOptions() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("user_agent ua = a WITH { \"regex_file\": \"custom\", \"extract_device_type\": true }");
+        UserAgent ua = as(cmd, UserAgent.class);
+        assertEqualsIgnoringIds(attribute("a"), ua.getInput());
+        assertTrue(ua.extractDeviceType());
+        assertEquals("custom", ua.regexFile());
+
+        List<String> expectedFieldNames = UserAgentFunctionBridge.getAllOutputFields()
+            .keySet()
+            .stream()
+            .map(name -> "ua." + name)
+            .collect(Collectors.toList());
+
+        List<String> actualFieldNames = ua.generatedAttributes().stream().map(NamedExpression::name).collect(Collectors.toList());
+        assertEquals(expectedFieldNames, actualFieldNames);
+    }
+
+    public void testUserAgentCommandWithProperties() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("user_agent ua = a WITH { \"properties\": [\"name\", \"os\"] }");
+        UserAgent ua = as(cmd, UserAgent.class);
+
+        List<String> expectedFieldNames = List.of("ua.name", "ua.os.name", "ua.os.version", "ua.os.full");
+
+        List<String> actualFieldNames = ua.generatedAttributes().stream().map(NamedExpression::name).collect(Collectors.toList());
+        assertEquals(expectedFieldNames, actualFieldNames);
+    }
+
+    public void testUserAgentCommandInvalidOption() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        expectError(
+            "row a = \"test\" | user_agent ua = a WITH { \"unknown_option\": \"value\" }",
+            "Invalid option [unknown_option] in USER_AGENT"
+        );
+    }
+
+    public void testUserAgentCommandOriginalIgnored() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("user_agent ua = a WITH { \"original\": true }");
+        UserAgent ua = as(cmd, UserAgent.class);
+        assertEqualsIgnoringIds(attribute("a"), ua.getInput());
+    }
+
+    // --- IP_LOCATION tests ---
+
+    public void testIpLocationCommand() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("ip_location g = a");
+        UnresolvedIpLocation ip = as(cmd, UnresolvedIpLocation.class);
+        assertEqualsIgnoringIds(attribute("a"), ip.input());
+        assertEquals("GeoLite2-City.mmdb", ip.databaseFile());
+        assertTrue(ip.firstOnly());
+        assertNull(ip.properties());
+    }
+
+    public void testIpLocationCommandWithOptions() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand(
+            "ip_location g = a WITH { \"database_file\": \"GeoLite2-Country.mmdb\", \"first_only\": false }"
+        );
+        UnresolvedIpLocation ip = as(cmd, UnresolvedIpLocation.class);
+        assertEqualsIgnoringIds(attribute("a"), ip.input());
+        assertEquals("GeoLite2-Country.mmdb", ip.databaseFile());
+        assertFalse(ip.firstOnly());
+    }
+
+    public void testIpLocationCommandWithProperties() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("ip_location g = a WITH { \"properties\": [\"city_name\", \"country_iso_code\"] }");
+        UnresolvedIpLocation ip = as(cmd, UnresolvedIpLocation.class);
+        assertEquals(List.of("city_name", "country_iso_code"), ip.properties());
+    }
+
+    public void testIpLocationCommandUnknownOption() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        expectError("row a = \"test\" | ip_location g = a WITH { \"unknown_option\": \"value\" }", "Invalid option");
+    }
+
+    public void testIpLocationCommandEmptyPropertiesRejected() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        // ES|QL has no empty-array literal; an empty list is rejected as a syntax error rather than producing zero columns.
+        expectError("row a = \"test\" | ip_location g = a WITH { \"properties\": [] }", "no viable alternative at input '[]'");
+    }
+
+    public void testIpLocationCommandFirstOnlyAcceptsBothValues() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        LogicalPlan cmdTrue = processingCommand("ip_location g = a WITH { \"first_only\": true }");
+        UnresolvedIpLocation ipTrue = as(cmdTrue, UnresolvedIpLocation.class);
+        assertTrue(ipTrue.firstOnly());
+
+        LogicalPlan cmdFalse = processingCommand("ip_location g = a WITH { \"first_only\": false }");
+        UnresolvedIpLocation ipFalse = as(cmdFalse, UnresolvedIpLocation.class);
+        assertFalse(ipFalse.firstOnly());
+    }
+
+    public void testIpLocationCommandFirstOnlyTypeMismatch() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        expectError(
+            "row a = \"test\" | ip_location g = a WITH { \"first_only\": \"yes\" }",
+            "Option [first_only] must be a boolean literal"
+        );
+    }
 }

@@ -35,6 +35,10 @@ public class PackedValuesBlockHashCircuitBreakerTests extends BlockHashTestCase 
     /**
      * Set the breaker limit low enough, and test that adding many(1000) groups of BYTES_REF into bytes {@code BreakingBytesRefBuilder}
      * , which is reused for each grouping set, will trigger CBE. CBE happens when adding around 11th group to bytes.
+     *
+     * <p>The block is given a null entry so {@link BytesRefBlock#asVector()} returns {@code null}, which forces
+     * {@code PackedValuesBlockHash#add} onto the slow {@code AddWork} path that uses {@code BreakingBytesRefBuilder}.
+     * The vector-only bulk path bypasses that builder entirely.
      */
     public void testCircuitBreakerWithManyGroups() {
         CircuitBreaker bytesBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofKb(1));
@@ -48,9 +52,10 @@ public class PackedValuesBlockHashCircuitBreakerTests extends BlockHashTestCase 
 
         try (
             PackedValuesBlockHash blockHash = new PackedValuesBlockHash(groupSpecs, blockFactory, bytesBreaker, 32);
-            BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(1)
+            BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(2)
         ) {
             builder.appendBytesRef(new BytesRef("test"));
+            builder.appendNull();
             Block block = builder.build();
             Block[] blocks = new Block[1000];
             for (int i = 0; i < 1000; i++) {

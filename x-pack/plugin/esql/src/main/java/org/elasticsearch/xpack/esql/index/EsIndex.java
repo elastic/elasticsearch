@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.index;
 
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 
 import java.util.List;
@@ -16,24 +15,18 @@ import java.util.Set;
 public record EsIndex(
     String name,
     Map<String, EsField> mapping, // keyed by field names
-    Map<String, IndexMode> indexNameWithModes,
+    Map<String, IndexProperties> indexProperties, // keyed by concrete index name
     Map<String, List<String>> originalIndices, // keyed by cluster alias
-    Map<String, List<String>> concreteIndices, // keyed by cluster alias
-    Set<String> partiallyUnmappedFields
+    Map<String, List<String>> concreteIndices // keyed by cluster alias
 ) {
 
     public EsIndex {
         assert name != null;
         assert mapping != null;
-        assert partiallyUnmappedFields != null;
-    }
-
-    public boolean isPartiallyUnmappedField(String fieldName) {
-        return partiallyUnmappedFields.contains(fieldName);
     }
 
     public Set<String> concreteQualifiedIndices() {
-        return indexNameWithModes.keySet();
+        return indexProperties.keySet();
     }
 
     @Override

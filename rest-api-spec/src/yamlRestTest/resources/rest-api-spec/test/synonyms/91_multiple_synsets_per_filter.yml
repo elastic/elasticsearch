@@ -1,0 +1,232 @@
+setup:
+  - requires:
+      cluster_features: ["synonyms.multiple_sets_per_filter"]
+      reason: Multiple synonym sets per filter requires this feature
+
+  # Create set-a with "quick, fast"
+  - do:
+      synonyms.put_synonym:
+        id: set-a
+        body:
+          synonyms_set:
+            - synonyms: "quick, fast"
+              id: "rule-a-1"
+
+  # Create set-b with "jumps, leaps"
+  - do:
+      synonyms.put_synonym:
+        id: set-b
+        body:
+          synonyms_set:
+            - synonyms: "jumps, leaps"
+              id: "rule-b-1"
+
+  # Create an index with a filter referencing both synonym sets
+  - do:
+      indices.create:
+        index: my_index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+            analysis:
+              filter:
+                my_synonym_filter:
+                  type: synonym_graph
+                  synonyms_set: [ set-a, set-b ]
+                  updateable: true
+              analyzer:
+                my_analyzer:
+                  type: custom
+                  tokenizer: standard
+                  filter: [ lowercase, my_synonym_filter ]
+          mappings:
+            properties:
+              my_field:
+                type: text
+                search_analyzer: my_analyzer
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "my_index", "_id": "1"}}'
+          - '{"my_field": "quick"}'
+          - '{"index": {"_index": "my_index", "_id": "2"}}'
+          - '{"my_field": "jumps"}'
+
+---
+"Both synonym sets are applied at search time":
+
+  # "fast" should match doc 1 via set-a (quick, fast)
+  - do:
+      search:
+        index: my_index
+        body:
+          query:
+            match:
+              my_field:
+                query: fast
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  # "leaps" should match doc 2 via set-b (jumps, leaps)
+  - do:
+      search:
+        index: my_index
+        body:
+          query:
+            match:
+              my_field:
+                query: leaps
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "2" }
+
+---
+"Updating one synonym set reloads the analyzer":
+
+  - do:
+      synonyms.put_synonym:
+        id: set-a
+        body:
+          synonyms_set:
+            - synonyms: "quick, speedy"
+
+  - match: { result: "updated" }
+  - gt: { reload_analyzers_details._shards.total: 0 }
+  - gt: { reload_analyzers_details._shards.successful: 0 }
+  - match: { reload_analyzers_details._shards.failed: 0 }
+
+  # "speedy" should now match doc 1 after reload
+  - do:
+      search:
+        index: my_index
+        body:
+          query:
+            match:
+              my_field:
+                query: speedy
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  # set-b rules should still apply after set-a reload
+  - do:
+      search:
+        index: my_index
+        body:
+          query:
+            match:
+              my_field:
+                query: leaps
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "2" }
+
+---
+"Updating the other synonym set also reloads the analyzer":
+
+  - do:
+      synonyms.put_synonym:
+        id: set-b
+        body:
+          synonyms_set:
+            - synonyms: "jumps, springs"
+
+  - match: { result: "updated" }
+  - gt: { reload_analyzers_details._shards.total: 0 }
+  - gt: { reload_analyzers_details._shards.successful: 0 }
+  - match: { reload_analyzers_details._shards.failed: 0 }
+
+  # "springs" should now match doc 2 after reload
+  - do:
+      search:
+        index: my_index
+        body:
+          query:
+            match:
+              my_field:
+                query: springs
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "2" }
+
+---
+"Lenient filter with a missing synonym set still applies the valid set's rules":
+
+  - do:
+      synonyms.put_synonym:
+        id: set-c
+        body:
+          synonyms_set:
+            - synonyms: "cold, chilly"
+              id: "rule-c-1"
+
+  - do:
+      indices.create:
+        index: lenient_index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+            analysis:
+              filter:
+                lenient_synonym_filter:
+                  type: synonym_graph
+                  synonyms_set: [ set-c, set-does-not-exist ]
+                  updateable: true
+                  lenient: true
+              analyzer:
+                lenient_analyzer:
+                  type: custom
+                  tokenizer: standard
+                  filter: [ lowercase, lenient_synonym_filter ]
+          mappings:
+            properties:
+              my_field:
+                type: text
+                search_analyzer: lenient_analyzer
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "lenient_index", "_id": "1"}}'
+          - '{"my_field": "cold"}'
+
+  # set-c rule (cold, chilly) applies despite set-does-not-exist being missing
+  - do:
+      search:
+        index: lenient_index
+        body:
+          query:
+            match:
+              my_field:
+                query: chilly
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+---
+"Empty synonyms_set list produces an empty synonym map and index creation succeeds":
+  - do:
+      indices.create:
+        index: empty_sets_index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+            analysis:
+              filter:
+                empty_synonym_filter:
+                  type: synonym_graph
+                  synonyms_set: []
+                  updateable: true
+              analyzer:
+                empty_synonym_analyzer:
+                  type: custom
+                  tokenizer: standard
+                  filter: [ lowercase, empty_synonym_filter ]
+          mappings:
+            properties:
+              my_field:
+                type: text
+                search_analyzer: empty_synonym_analyzer
+  - match: { acknowledged: true }
+

@@ -14,6 +14,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -25,14 +26,17 @@ import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -75,6 +79,7 @@ public class TRange extends EsqlConfigurationFunction
     implements
         OptionalArgument,
         OnlySurrogateExpression,
+        AnyNullIsNull,
         PostAnalysisPlanVerificationAware,
         TimestampAware {
     public static final String NAME = "TRange";
@@ -86,8 +91,17 @@ public class TRange extends EsqlConfigurationFunction
     private final Expression second;
     private final Expression timestamp;
 
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(TRange.class).ternaryConfig(TRange::new).name("trange");
+
     @FunctionInfo(
         returnType = "boolean",
+        signatures = {
+            @Signature(params = { "date_period|time_duration" }, returnType = "boolean"),
+            @Signature(params = { "date", "date" }, returnType = "boolean"),
+            @Signature(params = { "date_nanos", "date_nanos" }, returnType = "boolean"),
+            @Signature(params = { "keyword", "keyword" }, returnType = "boolean"),
+            @Signature(params = { "long", "long" }, returnType = "boolean") },
+        briefSummary = "Filters data for a given time range using the @timestamp attribute.",
         description = "Filters data for the given time range using the @timestamp attribute.",
         examples = {
             @Example(file = "trange", tag = "docsTRangeOffsetFromNow"),
@@ -102,13 +116,20 @@ public class TRange extends EsqlConfigurationFunction
         @Param(
             name = START_TIME_OR_OFFSET_PARAMETER,
             type = { "time_duration", "date_period", "date", "date_nanos", "keyword", "long" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = """
                  Offset from NOW for the single parameter mode. Start time for two parameter mode.
                  In two parameter mode, the start time value can be a date string, date, date_nanos or epoch milliseconds.
                 """
         ) Expression first,
-        @Param(name = END_TIME_PARAMETER, type = { "keyword", "long", "date", "date_nanos" }, description = """
-            Explicit end time that can be a date string, date, date_nanos or epoch milliseconds.""", optional = true) Expression second,
+        @Param(
+            name = END_TIME_PARAMETER,
+            type = { "keyword", "long", "date", "date_nanos" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
+            description = """
+                Explicit end time that can be a date string, date, date_nanos or epoch milliseconds.""",
+            optional = true
+        ) Expression second,
         Expression timestamp,
         Configuration configuration
     ) {
@@ -208,10 +229,8 @@ public class TRange extends EsqlConfigurationFunction
 
     @Override
     public Expression surrogate() {
-        long[] range = getRange(FoldContext.small());
-
-        Expression startLiteral = new Literal(source(), range[0], timestamp.dataType());
-        Expression endLiteral = new Literal(source(), range[1], timestamp.dataType());
+        Expression startLiteral = rangeStartLiteral(FoldContext.small(), timestamp.dataType());
+        Expression endLiteral = rangeEndLiteral(FoldContext.small(), timestamp.dataType());
 
         return new And(source(), new GreaterThan(source(), timestamp, startLiteral), new LessThanOrEqual(source(), timestamp, endLiteral));
     }
@@ -226,7 +245,15 @@ public class TRange extends EsqlConfigurationFunction
         return timestamp.nullable();
     }
 
-    private long[] getRange(FoldContext foldContext) {
+    public Literal rangeStartLiteral(FoldContext foldContext, DataType targetType) {
+        return new Literal(source(), getRange(foldContext, targetType)[0], targetType);
+    }
+
+    public Literal rangeEndLiteral(FoldContext foldContext, DataType targetType) {
+        return new Literal(source(), getRange(foldContext, targetType)[1], targetType);
+    }
+
+    private long[] getRange(FoldContext foldContext, DataType targetType) {
         Instant rangeStart;
         Instant rangeEnd;
 
@@ -248,11 +275,11 @@ public class TRange extends EsqlConfigurationFunction
             throw new InvalidArgumentException("TRANGE rangeStart time [{}] must be before rangeEnd time [{}]", rangeStart, rangeEnd);
         }
 
-        if (timestamp.dataType() == DataType.DATE_NANOS && first.dataType() == DataType.DATE_NANOS) {
+        if (targetType == DataType.DATE_NANOS && first.dataType() == DataType.DATE_NANOS) {
             return new long[] { DateUtils.toLong(rangeStart), DateUtils.toLong(rangeEnd) };
         }
 
-        boolean convertToNanos = timestamp.dataType() == DataType.DATE_NANOS;
+        boolean convertToNanos = targetType == DataType.DATE_NANOS;
         return new long[] {
             convertToNanos ? DateUtils.toLong(rangeStart) : rangeStart.toEpochMilli(),
             convertToNanos ? DateUtils.toLong(rangeEnd) : rangeEnd.toEpochMilli() };
@@ -260,7 +287,7 @@ public class TRange extends EsqlConfigurationFunction
 
     private Instant timeWithOffset(Object offset, Instant base) {
         if (offset instanceof TemporalAmount amount) {
-            var zonedDateTime = ZonedDateTime.ofInstant(base, configuration().zoneId());
+            var zonedDateTime = ZonedDateTime.ofInstant(base, QuerySettings.TIME_ZONE.get(configuration().resolvedSettings()));
             return zonedDateTime.minus(amount).toInstant();
         }
         throw new InvalidArgumentException("Unsupported offset type [{}]", offset.getClass().getSimpleName());
@@ -273,7 +300,10 @@ public class TRange extends EsqlConfigurationFunction
 
         if (value instanceof BytesRef bytesRef) {
             try {
-                long millis = dateTimeToLong(bytesRef.utf8ToString(), DEFAULT_DATE_TIME_FORMATTER.withZone(configuration().zoneId()));
+                long millis = dateTimeToLong(
+                    bytesRef.utf8ToString(),
+                    DEFAULT_DATE_TIME_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration().resolvedSettings()))
+                );
                 return Instant.ofEpochMilli(millis);
             } catch (Exception e) {
                 throw new InvalidArgumentException("TRANGE {} parameter must be a valid datetime string, got: {}", paramName, value);

@@ -43,6 +43,9 @@
           "type": "object",
           "enabled": false
         },
+        "effective_config_hash": {
+          "type": "keyword"
+        },
         "enrolled_at": {
           "type": "date"
         },
@@ -233,6 +236,9 @@
         "agent_policy_id": {
           "type": "keyword"
         },
+        "policy_base_id": {
+          "type": "keyword"
+        },
         "policy_output_permissions_hash": {
           "type": "keyword"
         },
@@ -417,6 +423,48 @@
                   },
                    "description": {
                      "type": "keyword"
+                  }
+                }
+              },
+              "elastic": {
+                "properties": {
+                  "display": {
+                    "properties": {
+                      "name": {
+                        "type": "keyword"
+                      }
+                    }
+                  },
+                  "collector": {
+                    "properties": {
+                      "group": {
+                        "type": "keyword"
+                      },
+                      "group_name": {
+                        "type": "keyword"
+                      }
+                    }
+                  }
+                }
+              },
+              "config": {
+                "properties": {
+                  "description": {
+                    "type": "keyword"
+                  },
+                  "name": {
+                    "type": "keyword"
+                  }
+                }
+              },
+              "deployment": {
+                "properties": {
+                  "environment": {
+                    "properties": {
+                      "name": {
+                        "type": "keyword"
+                      }
+                    }
                   }
                 }
               }

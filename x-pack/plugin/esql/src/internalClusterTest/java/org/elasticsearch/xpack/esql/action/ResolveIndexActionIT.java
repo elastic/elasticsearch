@@ -11,7 +11,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.xpack.core.esql.EsqlFeatureFlags;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.hamcrest.Matcher;
 
@@ -25,7 +24,6 @@ import static org.hamcrest.Matchers.emptyIterable;
 public class ResolveIndexActionIT extends AbstractEsqlIntegTestCase {
 
     public void testResolveIndex() {
-        assumeTrue("views only enabled when feature flag is set", EsqlFeatureFlags.ESQL_VIEWS_FEATURE_FLAG.isEnabled());
         assertAcked(client().admin().indices().create(new CreateIndexRequest("my-index-1")));
         assertAcked(client().admin().indices().create(new CreateIndexRequest("other-index-2")));
 

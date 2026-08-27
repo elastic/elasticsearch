@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -48,6 +49,7 @@ class ScriptedMetricAggregator extends MetricsAggregator {
 
     private final SearchLookup lookup;
     private final Map<String, Object> aggParams;
+    private final Runnable cancellationCheck;
     @Nullable
     private final ScriptedMetricAggContexts.InitScript.Factory initScriptFactory;
     private final Map<String, Object> initScriptParams;
@@ -76,6 +78,7 @@ class ScriptedMetricAggregator extends MetricsAggregator {
         super(name, context, parent, metadata);
         this.lookup = lookup;
         this.aggParams = aggParams;
+        this.cancellationCheck = (context.searcher() instanceof ContextIndexSearcher cis) ? cis::checkCancelled : null;
         this.initScriptFactory = initScriptFactory;
         this.initScriptParams = initScriptParams;
         this.mapScriptFactory = mapScriptFactory;
@@ -121,6 +124,7 @@ class ScriptedMetricAggregator extends MetricsAggregator {
                 if (state.leafMapScript == null) {
                     state.leafMapScript = state.mapScript.newInstance(aggCtx.getLeafReaderContext());
                     state.leafMapScript.setScorer(scorer);
+                    state.leafMapScript._setCancellationCheck(cancellationCheck);
                 }
                 state.leafMapScript.setDocument(doc);
                 state.leafMapScript.execute();
@@ -184,7 +188,9 @@ class ScriptedMetricAggregator extends MetricsAggregator {
                 return new HashMap<>();
             }
             Map<String, Object> initialState = new HashMap<>();
-            initScriptFactory.newInstance(initScriptParamsForState, initialState).execute();
+            ScriptedMetricAggContexts.InitScript initScript = initScriptFactory.newInstance(initScriptParamsForState, initialState);
+            initScript._setCancellationCheck(cancellationCheck);
+            initScript.execute();
             CollectionUtils.ensureNoSelfReferences(initialState, "Scripted metric aggs init script");
             return initialState;
         }
@@ -193,7 +199,9 @@ class ScriptedMetricAggregator extends MetricsAggregator {
             if (combineScriptFactory == null) {
                 return aggState;
             }
-            Object result = combineScriptFactory.newInstance(combineScriptParamsForState, aggState).execute();
+            ScriptedMetricAggContexts.CombineScript combineScript = combineScriptFactory.newInstance(combineScriptParamsForState, aggState);
+            combineScript._setCancellationCheck(cancellationCheck);
+            Object result = combineScript.execute();
             CollectionUtils.ensureNoSelfReferences(result, "Scripted metric aggs combine script");
             return result;
         }

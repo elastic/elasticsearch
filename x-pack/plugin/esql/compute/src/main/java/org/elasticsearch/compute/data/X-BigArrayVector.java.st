@@ -149,6 +149,35 @@ $elseif(boolean)$
 $endif$
 
     @Override
+    public $Type$Vector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+$if(BytesRef)$
+        var scratch = new BytesRef();
+        try ($Type$Vector.Builder builder = blockFactory().new$Type$VectorBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendBytesRef(getBytesRef(i, scratch));
+            }
+            return builder.build();
+        }
+$else$
+        try ($Type$Vector.FixedBuilder builder = blockFactory().new$Type$VectorFixedBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.append$Type$(get$Type$(i));
+            }
+            return builder.build();
+        }
+$endif$
+    }
+
+    @Override
+    public int valueMaxByteSize() {
+        return $BYTES$;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.$TYPE$;
     }
@@ -164,25 +193,25 @@ $endif$
     }
 
     @Override
-    public $Type$Vector filter(boolean mayContainDuplicates, int... positions) {
+    public $Type$Vector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         var blockFactory = blockFactory();
     $if(boolean)$
-        final BitArray filtered = new BitArray(positions.length, blockFactory.bigArrays());
+        final BitArray filtered = new BitArray(length, blockFactory.bigArrays());
     $else$
-        final $Array$ filtered = blockFactory.bigArrays().new$Array$(positions.length);
+        final $Array$ filtered = blockFactory.bigArrays().new$Array$(length);
     $endif$
     $if(boolean)$
-        for (int i = 0; i < positions.length; i++) {
-            if (values.get(positions[i])) {
+        for (int i = 0; i < length; i++) {
+            if (values.get(positions[offset + i])) {
                 filtered.set(i);
             }
         }
     $else$
-        for (int i = 0; i < positions.length; i++) {
-            filtered.set(i, values.get(positions[i]));
+        for (int i = 0; i < length; i++) {
+            filtered.set(i, values.get(positions[offset + i]));
         }
     $endif$
-        return new $Type$BigArrayVector(filtered, positions.length, blockFactory);
+        return new $Type$BigArrayVector(filtered, length, blockFactory);
     }
 
     @Override

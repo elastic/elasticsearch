@@ -9,8 +9,6 @@
 
 package org.elasticsearch.benchmark.vector.scorer;
 
-import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsFormat;
-import org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -19,14 +17,15 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
+import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.applyI4Corrections;
-import static org.elasticsearch.nativeaccess.Int4TestUtils.dotProductI4SinglePacked;
-import static org.elasticsearch.nativeaccess.Int4TestUtils.unpackNibbles;
+import static org.elasticsearch.simdvec.Int4TestUtils.dotProductI4SinglePacked;
+import static org.elasticsearch.simdvec.Int4TestUtils.unpackNibbles;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.writePackedVectorWithCorrection;
 
 public class Int4BenchmarkUtils {
@@ -92,7 +91,7 @@ public class Int4BenchmarkUtils {
         int dims = values.dimension();
         OptimizedScalarQuantizer quantizer = values.getQuantizer();
         float[] centroid = values.getCentroid();
-        Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding encoding = values.getScalarEncoding();
+        QuantizedByteVectorValues.ScalarEncoding encoding = values.getScalarEncoding();
 
         byte[] queryQuantized = new byte[encoding.getDiscreteDimensions(dims)];
         float[] queryCopy = queryVector.clone();

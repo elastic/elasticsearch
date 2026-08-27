@@ -47,9 +47,7 @@ public class CustomTaskSettings implements TaskSettings {
             false
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new CustomTaskSettings(Objects.requireNonNullElse(parameters, new HashMap<>()));
     }
@@ -132,7 +130,7 @@ public class CustomTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        CustomTaskSettings updatedSettings = CustomTaskSettings.fromMap(new HashMap<>(newSettings));
+        CustomTaskSettings updatedSettings = CustomTaskSettings.fromMap(newSettings);
         return of(this, updatedSettings);
     }
 }

@@ -161,7 +161,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
     @Override
     void getSessionWithoutPool(String username, SecureString password, ActionListener<LdapSession> listener) {
         try {
-            final LDAPConnection connection = LdapUtils.privilegedConnect(serverSet::getConnection);
+            final LDAPConnection connection = serverSet.getConnection();
             getADAuthenticator(username).authenticate(connection, username, password, ActionListener.wrap(listener::onResponse, e -> {
                 IOUtils.closeWhileHandlingException(connection);
                 listener.onFailure(e);
@@ -190,7 +190,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
             return;
         }
         try {
-            final LDAPConnection connection = LdapUtils.privilegedConnect(serverSet::getConnection);
+            final LDAPConnection connection = serverSet.getConnection();
             LdapUtils.maybeForkThenBind(connection, getBindRequest(), true, threadPool, new AbstractRunnable() {
 
                 @Override
@@ -597,16 +597,14 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                     if (ldapInterface instanceof LDAPConnection) {
                         ldapConnection = (LDAPConnection) ldapInterface;
                     } else {
-                        ldapConnection = LdapUtils.privilegedConnect(((LDAPConnectionPool) ldapInterface)::getConnection);
+                        ldapConnection = ((LDAPConnectionPool) ldapInterface).getConnection();
                     }
                     final LDAPConnection finalLdapConnection = ldapConnection;
-                    final LDAPConnection searchConnection = LdapUtils.privilegedConnect(
-                        () -> new LDAPConnection(
-                            finalLdapConnection.getSocketFactory(),
-                            connectionOptions(config, sslService, logger),
-                            finalLdapConnection.getConnectedAddress(),
-                            finalLdapConnection.getSSLSession() != null ? ldapsPort : ldapPort
-                        )
+                    final LDAPConnection searchConnection = new LDAPConnection(
+                        finalLdapConnection.getSocketFactory(),
+                        connectionOptions(config, sslService, logger),
+                        finalLdapConnection.getConnectedAddress(),
+                        finalLdapConnection.getSSLSession() != null ? ldapsPort : ldapPort
                     );
                     final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
                     final SimpleBindRequest bindRequest = bindRequestSupplier.get();
@@ -677,7 +675,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                 LDAPConnectionPool pool = (LDAPConnectionPool) ldap;
                 LDAPConnection connection = null;
                 try {
-                    connection = LdapUtils.privilegedConnect(pool::getConnection);
+                    connection = pool.getConnection();
                     return usingGlobalCatalog(connection);
                 } finally {
                     if (connection != null) {

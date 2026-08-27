@@ -14,36 +14,41 @@ import org.elasticsearch.gradle.internal.precommit.ThirdPartyAuditPrecommitPlugi
 import org.elasticsearch.gradle.internal.precommit.ThirdPartyAuditTask
 import org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+import org.gradle.jvm.toolchain.JavaToolchainService
 
 // gradle has an open issue of failing applying plugins in
 // precompiled script plugins (see https://github.com/gradle/gradle/issues/17004)
 
 configure(allprojects) {
-    def launcher = javaToolchains.launcherFor {
-      languageVersion = JavaLanguageVersion.of(VersionProperties.bundledJdkMajorVersion)
-      vendor = VersionProperties.bundledJdkVendor == "openjdk" ?
-        JvmVendorSpec.ORACLE :
-        JvmVendorSpec.matching(VersionProperties.bundledJdkVendor)
-    }
   project.tasks.withType(Test).configureEach { Test test ->
-        if (buildParams.getIsRuntimeJavaHomeSet()) {
-            test.executable = "${buildParams.runtimeJavaHome.get()}/bin/java" +
-                    (OS.current() == OS.WINDOWS ? '.exe' : '')
-        } else {
-            test.javaLauncher = javaToolchains.launcherFor {
-                languageVersion = JavaLanguageVersion.of(VersionProperties.bundledJdkMajorVersion)
-                vendor = VersionProperties.bundledJdkVendor == "openjdk" ?
-                        JvmVendorSpec.ORACLE :
-                        JvmVendorSpec.matching(VersionProperties.bundledJdkVendor)
-            }
-        }
+    if (buildParams.getIsRuntimeJavaHomeSet()) {
+      test.executable = "${buildParams.runtimeJavaHome.get()}/bin/java" +
+              (OS.current() == OS.WINDOWS ? '.exe' : '')
+    } else {
+      // javaToolchains is only available on projects with the Java plugin applied;
+      // access it via the extension container rather than as a dynamic property to
+      // avoid the deprecated implicit project-hierarchy lookup.
+      test.javaLauncher = project.extensions.getByType(JavaToolchainService).launcherFor {
+        languageVersion = JavaLanguageVersion.of(VersionProperties.bundledJdkMajorVersion)
+        vendor = VersionProperties.bundledJdkVendor == "openjdk" ?
+                JvmVendorSpec.ORACLE :
+                JvmVendorSpec.matching(VersionProperties.bundledJdkVendor)
+      }
     }
-    project.plugins.withId("elasticsearch.testclusters") { testClustersPlugin ->
-        project.plugins.withId("elasticsearch.internal-testclusters") { internalPlugin ->
-            if (buildParams.getIsRuntimeJavaHomeSet() == false) {
-                // If no runtime java home is set, use the bundled JDK for test clusters
-                testClustersPlugin.setRuntimeJava(launcher.map { it.metadata.installationPath.asFile })
-            }
+  }
+  project.plugins.withId("elasticsearch.testclusters") { testClustersPlugin ->
+    project.plugins.withId("elasticsearch.internal-testclusters") { internalPlugin ->
+      if (buildParams.getIsRuntimeJavaHomeSet() == false) {
+        // If no runtime java home is set, use the bundled JDK for test clusters.
+        // Resolve javaToolchains lazily here where the Java plugin is guaranteed present.
+        def launcher = project.extensions.getByType(JavaToolchainService).launcherFor {
+          languageVersion = JavaLanguageVersion.of(VersionProperties.bundledJdkMajorVersion)
+          vendor = VersionProperties.bundledJdkVendor == "openjdk" ?
+                  JvmVendorSpec.ORACLE :
+                  JvmVendorSpec.matching(VersionProperties.bundledJdkVendor)
         }
+        testClustersPlugin.setRuntimeJava(launcher.map { it.metadata.installationPath.asFile })
+      }
     }
+  }
 }

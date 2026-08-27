@@ -47,7 +47,7 @@ public class PruneLeftJoinOnNullMatchingField extends OptimizerRules.Parameteriz
         // match the intended targets. The negative check correctly excludes InlineJoin while accepting all other
         // LEFT joins, including those originally created as LookupJoin.
         if (join.config().type() == LEFT && join instanceof InlineJoin == false) {
-            AttributeMap<Expression> attributeMap = RuleUtils.foldableReferences(join, ctx);
+            AttributeMap<Expression> attributeMap = RuleUtils.foldableReferencesSkipMVGroupings(join, ctx);
 
             for (var attr : AttributeSet.of(join.config().leftFields())) {
                 var resolved = attributeMap.resolve(attr);

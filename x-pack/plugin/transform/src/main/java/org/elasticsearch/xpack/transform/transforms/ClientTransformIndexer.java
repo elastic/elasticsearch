@@ -28,6 +28,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -41,7 +42,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DocumentParsingException;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.SearchContextMissingException;
@@ -50,6 +51,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
@@ -65,6 +68,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.transform.TransformExtension;
 import org.elasticsearch.xpack.transform.TransformServices;
+import org.elasticsearch.xpack.transform.action.TransformCloudCredentialManager;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
@@ -88,15 +92,27 @@ class ClientTransformIndexer extends TransformIndexer {
     private static final Logger logger = LogManager.getLogger(ClientTransformIndexer.class);
 
     private final ParentTaskAssigningClient client;
+    private final CloudCredentialManager credentialManager;
+    private final TransformCloudCredentialManager transformCloudCredentialManager;
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Settings destIndexSettings;
+    private final boolean crossProjectEnabled;
     private final AtomicBoolean oldStatsCleanedUp = new AtomicBoolean(false);
 
     private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndexHolder;
     private final ConcurrentHashMap<String, PointInTimeBuilder> namedPits = new ConcurrentHashMap<>();
     private volatile long pitCheckpoint;
     private volatile boolean disablePit = false;
+
+    /**
+     * Cached result of {@link #wrappedClient()}. Keyed by reference identity of the context's
+     * {@link PersistedCloudCredential}: credential rotation installs a new instance, so a reference
+     * change invalidates the cache. Avoids re-resolving (and, when encrypted at rest, re-decrypting)
+     * the credential on every outbound search/bulk/PIT call. Published as one volatile so a reader
+     * cannot observe a new credential paired with a stale client during a concurrent swap.
+     */
+    private volatile Tuple<Client, PersistedCloudCredential> currentClientAndCredential;
 
     ClientTransformIndexer(
         ThreadPool threadPool,
@@ -131,6 +147,8 @@ class ClientTransformIndexer extends TransformIndexer {
             context
         );
         this.client = ExceptionsHelper.requireNonNull(client, "client");
+        this.credentialManager = transformExtension.getCloudCredentialManager();
+        this.transformCloudCredentialManager = transformServices.cloudCredentialManager();
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.destIndexSettings = transformExtension.getTransformDestinationIndexSettings();
@@ -140,6 +158,18 @@ class ClientTransformIndexer extends TransformIndexer {
         context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
 
         disablePit = TransformEffectiveSettings.isPitDisabled(transformConfig.getSettings());
+        crossProjectEnabled = transformServices.crossProjectModeDecider().crossProjectEnabled()
+            && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled();
+    }
+
+    Client wrappedClient() {
+        PersistedCloudCredential nextCredential = context.getPersistedCloudCredential();
+        if (currentClientAndCredential != null && nextCredential == currentClientAndCredential.v2()) {
+            return currentClientAndCredential.v1();
+        }
+        Client nextClient = credentialManager.wrapClient(client, nextCredential);
+        currentClientAndCredential = new Tuple<>(nextClient, nextCredential);
+        return nextClient;
     }
 
     @Override
@@ -180,7 +210,7 @@ class ClientTransformIndexer extends TransformIndexer {
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
-            client,
+            wrappedClient(),
             TransportBulkAction.TYPE,
             request,
             ActionListener.wrap(bulkResponse -> handleBulkResponse(bulkResponse, nextPhase), nextPhase::onFailure)
@@ -256,11 +286,14 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     @Override
-    protected void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener) {
+    protected void doDeleteByQuery(
+        DeleteByQueryRequest deleteByQueryRequest,
+        ActionListener<BulkByPaginatedSearchResponse> responseListener
+    ) {
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
-            client,
+            wrappedClient(),
             DeleteByQueryAction.INSTANCE,
             deleteByQueryRequest,
             responseListener
@@ -301,7 +334,7 @@ class ClientTransformIndexer extends TransformIndexer {
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
-            client,
+            wrappedClient(),
             TransportSearchAction.TYPE,
             request,
             responseListener
@@ -316,7 +349,7 @@ class ClientTransformIndexer extends TransformIndexer {
     @Override
     void doMaybeCreateDestIndex(Map<String, String> deducedDestIndexMappings, ActionListener<Boolean> listener) {
         TransformIndex.createDestinationIndex(
-            client,
+            wrappedClient(),
             auditor,
             indexNameExpressionResolver,
             clusterService.state(),
@@ -328,12 +361,26 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     void validate(ActionListener<ValidateTransformAction.Response> listener) {
+        // Runtime validation runs the same source "test query" as the indexer search, so it must run under the same stored
+        // cloud credential; otherwise a cross-project source fails the test query with FORBIDDEN ("no cloud credential in
+        // thread context"). TransportValidateTransformAction derives both the wrapped client and cross-project resolution
+        // from request.cloudCredential(), so the credential has to travel on the request. Use toCloudCredential (not
+        // TransformCloudCredentialManager#cloudCredentialFromPersisted) because it reads the persisted credential eagerly
+        // into an owned copy and does NOT close the shared context credential that wrappedClient() reuses for every search.
+        var persistedCredential = context.getPersistedCloudCredential();
+        var request = new ValidateTransformAction.Request(
+            transformConfig,
+            false,
+            AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+            persistedCredential == null ? null : credentialManager.toCloudCredential(persistedCredential)
+        );
         ClientHelper.executeAsyncWithOrigin(
             client,
             ClientHelper.TRANSFORM_ORIGIN,
             ValidateTransformAction.INSTANCE,
-            new ValidateTransformAction.Request(transformConfig, false, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT),
-            listener
+            request,
+            // Closes the request's owned CloudCredential copy once validation completes; the shared context credential is untouched.
+            ActionListener.releaseAfter(listener, request)
         );
     }
 
@@ -445,9 +492,51 @@ class ClientTransformIndexer extends TransformIndexer {
         closePointInTime(super::afterFinishOrFailure);
     }
 
+    /**
+     * Invoked from {@link TransformIndexer#onStart} after a fresh {@link TransformConfig} has been
+     * loaded from the index. If the {@code credentialId} on the config has changed since the last
+     * checkpoint, fetch the new persisted credential from storage, swap it onto the context, and
+     * then revoke + delete the prior credential at UIAM. The previous checkpoint has already
+     * drained (we're past its {@code afterFinishOrFailure}), so no in-flight call still references
+     * the credential being revoked.
+     *
+     * <p>If anything in this chain fails, propagate the failure — {@code onStart} treats it as a
+     * checkpoint failure, which {@code TransformFailureHandler} will retry per the configured
+     * {@code num_failure_retries}.
+     */
+    @Override
+    protected void doMaybeRefreshCloudToken(TransformConfig priorConfig, TransformConfig newConfig, ActionListener<Void> listener) {
+        String priorId = priorConfig == null ? null : priorConfig.getCredentialId();
+        String newId = newConfig == null ? null : newConfig.getCredentialId();
+        if (Objects.equals(priorId, newId)) {
+            listener.onResponse(null);
+            return;
+        }
+
+        if (newId == null) {
+            // Config no longer carries a credentialId: drop the in-memory token and revoke + delete the prior.
+            PersistedCloudCredential displaced = context.replacePersistedCredential(null);
+            if (displaced != null) {
+                transformCloudCredentialManager.revokeCloseAndDelete(getJobId(), displaced);
+            }
+            listener.onResponse(null);
+            return;
+        }
+
+        transformsConfigManager.getTransformCloudCredentialByTokenId(newId, false, listener.delegateFailureAndWrap((l, next) -> {
+            PersistedCloudCredential displaced = context.replacePersistedCredential(next);
+            if (displaced != null) {
+                // revokeCloseAndDelete revokes at UIAM, removes the storage doc, and closes the
+                // SecureString. Fire-and-forget: the new credential is already on the context.
+                transformCloudCredentialManager.revokeCloseAndDelete(getJobId(), displaced);
+            }
+            l.onResponse(null);
+        }));
+    }
+
     @Override
     public boolean maybeTriggerAsyncJob(long now) {
-        if (TransformMetadata.upgradeMode(clusterService.state())) {
+        if (TransformMetadata.isUpgradeMode(clusterService.state().metadata().getProject(context.projectId()))) {
             logger.debug("[{}] schedule was triggered but the Transform is upgrading. Ignoring trigger.", getJobId());
             return false;
         }
@@ -522,7 +611,7 @@ class ClientTransformIndexer extends TransformIndexer {
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
-            client,
+            wrappedClient(),
             TransportClosePointInTimeAction.TYPE,
             closePitRequest,
             ActionListener.runAfter(ActionListener.wrap(response -> {
@@ -539,9 +628,13 @@ class ClientTransformIndexer extends TransformIndexer {
         ActionListener<Tuple<String, SearchRequest>> listener
     ) {
         SearchRequest searchRequest = namedSearchRequest.v2();
-        // We explicitly disable PIT in the presence of remote clusters in the source due to huge PIT handles causing performance problems.
-        // We should not re-enable until this is resolved: https://github.com/elastic/elasticsearch/issues/80187
-        if (disablePit || searchRequest.indices().length == 0 || transformConfig.getSource().requiresRemoteCluster()) {
+        // We explicitly disable PIT when the source can span clusters or projects due to huge PIT handles causing performance problems:
+        // remote clusters in the source (classic CCS), and any cross-project-search-enabled environment (CPS). We should not re-enable
+        // until this is resolved: https://github.com/elastic/elasticsearch/issues/80187
+        if (disablePit
+            || searchRequest.indices().length == 0
+            || transformConfig.getSource().requiresRemoteCluster()
+            || crossProjectEnabled) {
             listener.onResponse(namedSearchRequest);
             return;
         }
@@ -564,7 +657,7 @@ class ClientTransformIndexer extends TransformIndexer {
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
-            client,
+            wrappedClient(),
             TransportOpenPointInTimeAction.TYPE,
             pitRequest,
             ActionListener.wrap(response -> {
@@ -631,10 +724,21 @@ class ClientTransformIndexer extends TransformIndexer {
         }
         logger.trace("searchRequest: [{}]", searchRequest);
 
+        // record per-search metrics on every success path, including the pit-fallback retries below
+        ActionListener<SearchResponse> recordingListener = crossProjectEnabled ? listener.delegateFailureAndWrap((l, response) -> {
+            if (response != null) {
+                context.recordSearchMetrics(
+                    getConfig().getCredentialId() != null,
+                    response.getClusters() != null && response.getClusters().hasRemoteClusters()
+                );
+            }
+            l.onResponse(response);
+        }) : listener;
+
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
-            client,
+            wrappedClient(),
             TransportSearchAction.TYPE,
             searchRequest,
             ActionListener.wrap(response -> {
@@ -644,7 +748,7 @@ class ClientTransformIndexer extends TransformIndexer {
                     logger.trace("point in time handle has changed; request [{}]", name);
                 }
 
-                listener.onResponse(response);
+                recordingListener.onResponse(response);
             }, e -> {
                 // check if the error has been caused by a missing search context, which could be a timed out pit
                 // re-try this search without pit, if it fails again the normal failure handler is called, if it
@@ -660,10 +764,10 @@ class ClientTransformIndexer extends TransformIndexer {
                     ClientHelper.executeWithHeadersAsync(
                         transformConfig.getHeaders(),
                         ClientHelper.TRANSFORM_ORIGIN,
-                        client,
+                        wrappedClient(),
                         TransportSearchAction.TYPE,
                         originalRequest,
-                        listener
+                        recordingListener
                     );
                     return;
                 }
@@ -679,10 +783,10 @@ class ClientTransformIndexer extends TransformIndexer {
                     ClientHelper.executeWithHeadersAsync(
                         transformConfig.getHeaders(),
                         ClientHelper.TRANSFORM_ORIGIN,
-                        client,
+                        wrappedClient(),
                         TransportSearchAction.TYPE,
                         originalRequest,
-                        listener
+                        recordingListener
                     );
                     return;
                 }

@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -216,7 +216,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
 
         assertThat(msg, response.nodesStats.getVersions(), hasSize(greaterThan(0)));
         // TODO: Build.current().unqualifiedVersion() -- or Build.current().version() if/when we move NodeInfo to Build version(s)
-        assertThat(msg, response.nodesStats.getVersions(), hasItem(Version.CURRENT.toString()));
+        assertThat(msg, response.nodesStats.getVersions(), hasItem(Build.current().version()));
         assertThat(msg, response.nodesStats.getPlugins(), hasSize(greaterThanOrEqualTo(0)));
 
         assertThat(msg, response.nodesStats.getProcess().count, greaterThan(0));

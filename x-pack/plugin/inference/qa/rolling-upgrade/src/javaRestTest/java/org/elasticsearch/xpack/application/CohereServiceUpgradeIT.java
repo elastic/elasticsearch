@@ -210,10 +210,7 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
                     """, getUrl(cohereEmbeddingsServer));
 
                 var e = expectThrows(ResponseException.class, () -> put(upgradedClusterNoModel, jsonBody, testTaskType));
-                assertThat(
-                    e.getMessage(),
-                    containsString("Validation Failed: 1: The [service_settings.model_id] field is required for the Cohere V2 API.")
-                );
+                assertThat(e.getMessage(), containsString("The [service_settings.model_id] field is required for the Cohere V2 API."));
             }
 
             delete(oldClusterIdFloat);
@@ -311,10 +308,7 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
                     """, getUrl(cohereEmbeddingsServer));
 
                 var e = expectThrows(ResponseException.class, () -> put(upgradedClusterNoModel, jsonBody, testTaskType));
-                assertThat(
-                    e.getMessage(),
-                    containsString("Validation Failed: 1: The [service_settings.model_id] field is required for the Cohere V2 API.")
-                );
+                assertThat(e.getMessage(), containsString("The [service_settings.model_id] field is required for the Cohere V2 API."));
             }
 
             delete(oldClusterId);
@@ -395,10 +389,7 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
                     """, getUrl(cohereEmbeddingsServer));
 
                 var e = expectThrows(ResponseException.class, () -> put(upgradedClusterNoModel, jsonBody, TaskType.COMPLETION));
-                assertThat(
-                    e.getMessage(),
-                    containsString("Validation Failed: 1: The [service_settings.model_id] field is required for the Cohere V2 API.")
-                );
+                assertThat(e.getMessage(), containsString("The [service_settings.model_id] field is required for the Cohere V2 API."));
             }
 
             delete(oldClusterId);

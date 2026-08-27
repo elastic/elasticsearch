@@ -23,13 +23,20 @@ public final class DocValuesForUtil {
     private static final int BITS_IN_SEVEN_BYTES = 7 * Byte.SIZE;
 
     private final int blockSize;
-    private final byte[] encoded;
+
+    // Single threaded use; lazy init in ensureBuffer() needs no synchronization.
+    private byte[] encoded;
 
     public DocValuesForUtil(int numericBlockSize) {
         assert numericBlockSize >= ForUtil.BLOCK_SIZE && (numericBlockSize & (ForUtil.BLOCK_SIZE - 1)) == 0
             : "expected to get a block size that a multiple of " + ForUtil.BLOCK_SIZE + ", got " + numericBlockSize;
         this.blockSize = numericBlockSize;
-        this.encoded = new byte[numericBlockSize * Long.BYTES];
+    }
+
+    private void ensureBuffer() {
+        if (this.encoded == null) {
+            this.encoded = new byte[blockSize * Long.BYTES];
+        }
     }
 
     public static int roundBits(int bitsPerValue) {
@@ -68,7 +75,8 @@ public final class DocValuesForUtil {
     }
 
     private void encodeFiveSixOrSevenBytesPerValue(long[] in, int bitsPerValue, final DataOutput out) throws IOException {
-        int bytesPerValue = bitsPerValue / Byte.SIZE;
+        ensureBuffer();
+        final int bytesPerValue = bitsPerValue / Byte.SIZE;
         for (int i = 0; i < in.length; ++i) {
             ByteUtils.writeLongLE(in[i], this.encoded, i * bytesPerValue);
         }
@@ -93,8 +101,9 @@ public final class DocValuesForUtil {
 
     private void decodeFiveSixOrSevenBytesPerValue(int bitsPerValue, final DataInput in, long[] out) throws IOException {
         // NOTE: we expect multibyte values to be written "least significant byte" first
-        int bytesPerValue = bitsPerValue / Byte.SIZE;
-        long mask = (1L << bitsPerValue) - 1;
+        ensureBuffer();
+        final int bytesPerValue = bitsPerValue / Byte.SIZE;
+        final long mask = (1L << bitsPerValue) - 1;
         in.readBytes(this.encoded, 0, bytesPerValue * blockSize);
         for (int i = 0; i < blockSize; ++i) {
             out[i] = ByteUtils.readLongLE(this.encoded, i * bytesPerValue) & mask;

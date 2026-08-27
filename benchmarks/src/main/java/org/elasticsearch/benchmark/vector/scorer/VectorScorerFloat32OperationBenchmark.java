@@ -10,8 +10,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.benchmark.Utils;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.simdvec.SimdVecLibrary;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -30,12 +29,9 @@ import org.openjdk.jmh.annotations.Warmup;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
-import java.lang.invoke.MethodHandle;
 import java.nio.ByteOrder;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
-
-import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.rethrow;
 
 @Fork(value = 3, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
 @BenchmarkMode(Mode.AverageTime)
@@ -65,13 +61,7 @@ public class VectorScorerFloat32OperationBenchmark {
     @Param({ "DOT_PRODUCT", "EUCLIDEAN" })
     public VectorSimilarityType function;
 
-    @FunctionalInterface
-    private interface LuceneFunction {
-        float run(float[] vec1, float[] vec2);
-    }
-
-    private LuceneFunction luceneImpl;
-    private MethodHandle nativeImpl;
+    private LuceneFunction<float[]> luceneImpl;
 
     @Setup(Level.Iteration)
     public void init() {
@@ -89,20 +79,15 @@ public class VectorScorerFloat32OperationBenchmark {
 
         arena = Arena.ofConfined();
         nativeSegA = arena.allocate((long) floatsA.length * Float.BYTES);
-        MemorySegment.copy(MemorySegment.ofArray(floatsA), LAYOUT_LE_FLOAT, 0L, nativeSegA, LAYOUT_LE_FLOAT, 0L, floatsA.length);
+        MemorySegment.copy(floatsA, 0, nativeSegA, LAYOUT_LE_FLOAT, 0L, floatsA.length);
         nativeSegB = arena.allocate((long) floatsB.length * Float.BYTES);
-        MemorySegment.copy(MemorySegment.ofArray(floatsB), LAYOUT_LE_FLOAT, 0L, nativeSegB, LAYOUT_LE_FLOAT, 0L, floatsB.length);
+        MemorySegment.copy(floatsB, 0, nativeSegB, LAYOUT_LE_FLOAT, 0L, floatsB.length);
 
         luceneImpl = switch (function) {
             case DOT_PRODUCT -> VectorUtil::dotProduct;
             case EUCLIDEAN -> VectorUtil::squareDistance;
             default -> throw new UnsupportedOperationException("Not used");
         };
-        nativeImpl = vectorSimilarityFunctions.getHandle(switch (function) {
-            case DOT_PRODUCT -> VectorSimilarityFunctions.Function.DOT_PRODUCT;
-            case EUCLIDEAN -> VectorSimilarityFunctions.Function.SQUARE_DISTANCE;
-            default -> throw new IllegalArgumentException(function.toString());
-        }, VectorSimilarityFunctions.DataType.FLOAT32, VectorSimilarityFunctions.Operation.SINGLE);
     }
 
     @TearDown
@@ -124,21 +109,21 @@ public class VectorScorerFloat32OperationBenchmark {
 
     @Benchmark
     public float nativeWithNativeSeg() {
-        try {
-            return (float) nativeImpl.invokeExact(nativeSegA, nativeSegB, size);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
+        return switch (function) {
+            case DOT_PRODUCT -> VEC_LIBRARY.dotProductF32(nativeSegA, nativeSegB, size);
+            case EUCLIDEAN -> VEC_LIBRARY.squareDistanceF32(nativeSegA, nativeSegB, size);
+            default -> throw new IllegalArgumentException(function.toString());
+        };
     }
 
     @Benchmark
     public float nativeWithHeapSeg() {
-        try {
-            return (float) nativeImpl.invokeExact(heapSegA, heapSegB, size);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
+        return switch (function) {
+            case DOT_PRODUCT -> VEC_LIBRARY.dotProductF32(heapSegA, heapSegB, size);
+            case EUCLIDEAN -> VEC_LIBRARY.squareDistanceF32(heapSegA, heapSegB, size);
+            default -> throw new IllegalArgumentException(function.toString());
+        };
     }
 
-    static final VectorSimilarityFunctions vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions().orElseThrow();
+    static final SimdVecLibrary VEC_LIBRARY = SimdVecLibrary.instance().orElseThrow();
 }

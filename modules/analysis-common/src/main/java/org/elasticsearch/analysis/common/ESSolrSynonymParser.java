@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.synonym.SolrSynonymParser;
+import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -23,14 +24,12 @@ public class ESSolrSynonymParser extends SolrSynonymParser {
     private static final Logger logger = LogManager.getLogger(ESSolrSynonymParser.class);
 
     private final boolean lenient;
-    private final CircuitBreaker circuitBreaker;
-
-    private int ruleCount = 0;
+    private final ESSynonymMapBuilder esBuilder;
 
     public ESSolrSynonymParser(boolean dedup, boolean expand, boolean lenient, Analyzer analyzer, CircuitBreaker circuitBreaker) {
         super(dedup, expand, analyzer);
         this.lenient = lenient;
-        this.circuitBreaker = circuitBreaker;
+        this.esBuilder = new ESSynonymMapBuilder(dedup, circuitBreaker);
     }
 
     @Override
@@ -42,13 +41,15 @@ public class ESSolrSynonymParser extends SolrSynonymParser {
         // else would happen only in the case when the input or output is empty and lenient is set, in which case we
         // quietly ignore it. For more details on the control-flow see SolrSynonymParser::addInternal.
         if (lenient == false || (input.length > 0 && output.length > 0)) {
-            if ((ruleCount++ & 0x3FF) == 0) {
-                // Check the real memory usage via the parent circuit breaker every 1024 synonym rules
-                circuitBreaker.addEstimateBytesAndMaybeBreak(0L, "Synonyms");
-            }
-
-            super.add(input, output, includeOrig);
+            // Does not call super.add(): state is owned by esBuilder; build() is also overridden.
+            // Revisit if Lucene ever uses SynonymMap.Builder state outside of build().
+            esBuilder.add(input, output, includeOrig);
         }
+    }
+
+    @Override
+    public SynonymMap build() throws IOException {
+        return esBuilder.build();
     }
 
     @Override

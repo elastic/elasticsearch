@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.join.mapper.Joiner;
@@ -34,7 +35,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
-public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQueryBuilder> {
+public final class ParentIdQueryBuilder extends LeafQueryBuilder<ParentIdQueryBuilder> {
     public static final String NAME = "parent_id";
 
     /**

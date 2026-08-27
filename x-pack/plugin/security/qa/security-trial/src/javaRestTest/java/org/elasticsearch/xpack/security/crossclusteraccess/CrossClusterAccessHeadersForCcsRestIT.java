@@ -145,9 +145,8 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         deleteIndex(adminClient(), "index-a");
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void terminateThreadPool() throws Exception {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
@@ -1170,7 +1169,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     capturedHeaders.add(
                         new CapturedActionWithHeaders(task.getAction(), Map.copyOf(threadPool.getThreadContext().getHeaders()))
                     );
-                    channel.sendResponse(new SearchShardsResponse(List.of(), List.of(), Collections.emptyMap()));
+                    channel.sendResponse(new SearchShardsResponse(List.of(), 0, List.of(), Collections.emptyMap()));
                 }
             );
             service.registerRequestHandler(

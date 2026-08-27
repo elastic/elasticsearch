@@ -62,12 +62,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -100,9 +101,8 @@ public class FollowingEngineTests extends ESTestCase {
     private AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
     private IndexMode indexMode;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initEngineTestResources() throws Exception {
         Settings settings = Settings.builder()
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean())
             .build();
@@ -116,13 +116,22 @@ public class FollowingEngineTests extends ESTestCase {
         index = new Index("index", "uuid");
         shardId = new ShardId(index, 0);
         primaryTerm.set(randomLongBetween(1, Long.MAX_VALUE));
-        indexMode = randomFrom(IndexMode.values());
+        indexMode = randomFrom(IndexMode.availableModes());
+    }
+
+    @After
+    public void cleanupEngineTestResources() throws Exception {
+        IOUtils.close(nodeEnvironment, () -> terminate(threadPool));
     }
 
     @Override
-    public void tearDown() throws Exception {
-        IOUtils.close(nodeEnvironment, () -> terminate(threadPool));
-        super.tearDown();
+    protected List<String> filteredWarnings() {
+        final var warnings = super.filteredWarnings();
+        warnings.add(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
+        return warnings;
     }
 
     public void testFollowingEngineRejectsNonFollowingIndex() throws IOException {
@@ -254,44 +263,38 @@ public class FollowingEngineTests extends ESTestCase {
             BigArrays.NON_RECYCLING_INSTANCE
         );
         final MapperService mapperService = EngineTestCase.createMapperService(indexSettings.getSettings(), "{}");
-        return new EngineConfig(
-            shardIdValue,
-            threadPool,
-            threadPoolMergeExecutorService,
-            indexSettings,
-            null,
-            store,
-            newMergePolicy(),
-            indexWriterConfig.getAnalyzer(),
-            indexWriterConfig.getSimilarity(),
-            new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null),
-            new Engine.EventListener() {
+        return EngineConfig.builder()
+            .shardId(shardIdValue)
+            .threadPool(threadPool)
+            .threadPoolMergeExecutorService(threadPoolMergeExecutorService)
+            .indexSettings(indexSettings)
+            .store(store)
+            .mergePolicy(newMergePolicy())
+            .analyzer(indexWriterConfig.getAnalyzer())
+            .similarity(indexWriterConfig.getSimilarity())
+            .codecProvider(new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null))
+            .eventListener(new Engine.EventListener() {
                 @Override
                 public void onFailedEngine(String reason, Exception e) {
 
                 }
-            },
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            translogConfig,
-            TimeValue.timeValueMinutes(5),
-            Collections.emptyList(),
-            Collections.emptyList(),
-            null,
-            new NoneCircuitBreakerService(),
-            globalCheckpoint::longValue,
-            () -> RetentionLeases.EMPTY,
-            () -> primaryTerm.get(),
-            IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
-            null,
-            System::nanoTime,
-            null,
-            true,
-            mapperService,
-            new EngineResetLock(),
-            MergeMetrics.NOOP,
-            Function.identity()
-        );
+            })
+            .queryCache(IndexSearcher.getDefaultQueryCache())
+            .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
+            .translogConfig(translogConfig)
+            .flushMergesAfter(TimeValue.timeValueMinutes(5))
+            .circuitBreakerService(new NoneCircuitBreakerService())
+            .globalCheckpointSupplier(globalCheckpoint::longValue)
+            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .primaryTermSupplier(() -> primaryTerm.get())
+            .snapshotCommitSupplier(IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER)
+            .relativeTimeInNanosSupplier(System::nanoTime)
+            .promotableToPrimary(true)
+            .mapperService(mapperService)
+            .engineResetLock(new EngineResetLock())
+            .mergeMetrics(MergeMetrics.NOOP)
+            .indexDeletionPolicyWrapper(Function.identity())
+            .build();
     }
 
     private static Store createStore(final ShardId shardId, final IndexSettings indexSettings, final Directory directory) {
@@ -411,7 +414,7 @@ public class FollowingEngineTests extends ESTestCase {
             EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
             assertThat(follower.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(-1L));
             assertThat(getNumVersionLookups(follower), equalTo(0L));
-            assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
+            assertThat(getDocIds(follower, true, false), equalTo(getDocIds(leader, true, false)));
 
             // Do not apply optimization for deletes or updates
             long versionLookUps = 0;
@@ -427,11 +430,11 @@ public class FollowingEngineTests extends ESTestCase {
             EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
             assertThat(getNumVersionLookups(follower), greaterThanOrEqualTo(versionLookUps));
             assertThat(follower.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(leader.getMaxSeqNoOfUpdatesOrDeletes()));
-            assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
+            assertThat(getDocIds(follower, true, false), equalTo(getDocIds(leader, true, false)));
             // Apply optimization for documents that do not exist
             long moreDocs = between(1, 100);
             versionLookUps = getNumVersionLookups(follower);
-            Set<String> docIds = getDocIds(follower, true).stream().map(doc -> doc.id()).collect(Collectors.toSet());
+            Set<String> docIds = getDocIds(follower, true, false).stream().map(doc -> doc.id()).collect(Collectors.toSet());
             for (int i = 0; i < moreDocs; i++) {
                 String docId = randomValueOtherThanMany(docIds::contains, () -> Integer.toString(between(1, 1000)));
                 docIds.add(docId);
@@ -440,7 +443,7 @@ public class FollowingEngineTests extends ESTestCase {
             EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
             assertThat(follower.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(leader.getMaxSeqNoOfUpdatesOrDeletes()));
             assertThat(getNumVersionLookups(follower), equalTo(versionLookUps));
-            assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
+            assertThat(getDocIds(follower, true, false), equalTo(getDocIds(leader, true, false)));
         });
     }
 
@@ -509,7 +512,7 @@ public class FollowingEngineTests extends ESTestCase {
         runFollowTest((leader, follower) -> {
             EngineTestCase.concurrentlyApplyOps(ops, leader);
             EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
-            assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
+            assertThat(getDocIds(follower, true, false), equalTo(getDocIds(leader, true, false)));
 
             leader.delete(deleteForPrimary("id"));
             EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
@@ -634,7 +637,7 @@ public class FollowingEngineTests extends ESTestCase {
                     thread.join();
                 }
                 assertThat(follower.getMaxSeqNoOfUpdatesOrDeletes(), greaterThanOrEqualTo(leader.getMaxSeqNoOfUpdatesOrDeletes()));
-                assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
+                assertThat(getDocIds(follower, true, false), equalTo(getDocIds(leader, true, false)));
                 EngineTestCase.assertConsistentHistoryBetweenTranslogAndLuceneIndex(follower);
                 EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber(follower);
             }
@@ -781,23 +784,28 @@ public class FollowingEngineTests extends ESTestCase {
 
     public void testProcessOnceOnPrimary() throws Exception {
         final Settings.Builder settingsBuilder = indexSettings(IndexVersion.current(), 1, 0).put("index.xpack.ccr.following_index", true);
-        boolean useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && indexMode == IndexMode.TIME_SERIES && randomBoolean();
+        boolean useSyntheticId = indexMode == IndexMode.TIME_SERIES && randomBoolean();
         switch (indexMode) {
             case STANDARD:
                 break;
             case TIME_SERIES:
                 settingsBuilder.put("index.mode", "time_series").put("index.routing_path", "foo");
                 settingsBuilder.put("index.seq_no.index_options", "points_and_doc_values");
-                if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
-                    settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), useSyntheticId);
-                }
+                settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), useSyntheticId);
                 break;
             case LOGSDB:
-                settingsBuilder.put("index.mode", IndexMode.LOGSDB.getName());
+            case COLUMNAR:
+            case LOGSDB_COLUMNAR:
+                settingsBuilder.put("index.mode", indexMode.getName());
+                settingsBuilder.put("index.disable_sequence_numbers", "false");
                 settingsBuilder.put("index.seq_no.index_options", "points_and_doc_values");
+                settingsBuilder.put("index.mapping.use_columnar_id_mode_by_default", false);
                 break;
             case LOOKUP:
                 settingsBuilder.put("index.mode", IndexMode.LOOKUP.getName());
+                break;
+            case VECTORDB_DOCUMENT:
+                settingsBuilder.put("index.mode", IndexMode.VECTORDB_DOCUMENT.getName());
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown index mode [" + indexMode + "]");
@@ -894,7 +902,7 @@ public class FollowingEngineTests extends ESTestCase {
                         assertThat(failure.getExistingPrimaryTerm().getAsLong(), equalTo(operationWithTerms.get(op.seqNo())));
                     }
                 }
-                for (DocIdSeqNoAndSource docId : getDocIds(followingEngine, true)) {
+                for (DocIdSeqNoAndSource docId : getDocIds(followingEngine, true, false)) {
                     assertThat(docId.primaryTerm(), equalTo(operationWithTerms.get(docId.seqNo())));
                 }
                 // Replica should accept duplicates
@@ -908,7 +916,7 @@ public class FollowingEngineTests extends ESTestCase {
                     Engine.Result result = applyOperation(followingEngine, op, newTerm, nonPrimary);
                     assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
                 }
-                for (DocIdSeqNoAndSource docId : getDocIds(followingEngine, true)) {
+                for (DocIdSeqNoAndSource docId : getDocIds(followingEngine, true, false)) {
                     assertThat(docId.primaryTerm(), equalTo(operationWithTerms.get(docId.seqNo())));
                 }
             }

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -47,6 +48,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
@@ -54,10 +56,12 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
@@ -70,6 +74,7 @@ import org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMa
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.hamcrest.Matchers;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -185,7 +190,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
             true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         String nodeId = ESTestCase.randomAlphaOfLength(8);
         clusterStateBuilder.routingTable(
@@ -196,7 +202,10 @@ public class SecurityIndexManagerTests extends ESTestCase {
                         IndexShardRoutingTable.builder(new ShardId(index, 0))
                             .addShard(
                                 shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize())
-                                    .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""))
+                                    .moveToUnassigned(
+                                        new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""),
+                                        ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+                                    )
                             )
                     )
                     .build()
@@ -220,14 +229,16 @@ public class SecurityIndexManagerTests extends ESTestCase {
             true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
-            ShardRouting.Role.INDEX_ONLY
+            ShardRouting.Role.INDEX_ONLY,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         ShardRouting replica = ShardRouting.newUnassigned(
             shardId,
             false,
             RecoverySource.PeerRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, null),
-            ShardRouting.Role.SEARCH_ONLY
+            ShardRouting.Role.SEARCH_ONLY,
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
         );
         String nodeId = ESTestCase.randomAlphaOfLength(8);
         String nodeId2 = ESTestCase.randomAlphaOfLength(8);
@@ -236,11 +247,17 @@ public class SecurityIndexManagerTests extends ESTestCase {
         IndexShardRoutingTable.Builder indxShardRoutingTableBuilder = IndexShardRoutingTable.builder(shardId)
             .addShard(
                 primary.initialize(nodeId, null, primary.getExpectedShardSize())
-                    .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""))
+                    .moveToUnassigned(
+                        new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""),
+                        ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+                    )
             )
             .addShard(
                 replica.initialize(nodeId2, null, replica.getExpectedShardSize())
-                    .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""))
+                    .moveToUnassigned(
+                        new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""),
+                        ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+                    )
             );
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index).addIndexShard(indxShardRoutingTableBuilder);
         GlobalRoutingTable routingTable = GlobalRoutingTable.builder()
@@ -418,10 +435,14 @@ public class SecurityIndexManagerTests extends ESTestCase {
                                     true,
                                     RecoverySource.ExistingStoreRecoverySource.INSTANCE,
                                     new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
-                                    ShardRouting.Role.DEFAULT
+                                    ShardRouting.Role.DEFAULT,
+                                    ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
                                 )
                                     .initialize(UUIDs.randomBase64UUID(random()), null, 0L)
-                                    .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""))
+                                    .moveToUnassigned(
+                                        new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""),
+                                        ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+                                    )
                             )
                         )
                         .build()
@@ -935,6 +956,126 @@ public class SecurityIndexManagerTests extends ESTestCase {
         assertThat(projectIndex.indexExists(), is(true));
         assertThat(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), is(false));
         assertThat(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS), is(false));
+    }
+
+    public void testWhenIndexAvailableForSearchRespondsImmediatelyTryAwaitSearchableAvailable() {
+        final ClusterState.Builder clusterStateBuilder = createClusterState(
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
+            SecuritySystemIndices.SECURITY_MAIN_ALIAS
+        );
+        manager.clusterChanged(event(markShardsAvailable(clusterStateBuilder)));
+
+        final AtomicReference<IndexState> response = new AtomicReference<>();
+        manager.tryAwaitIndexAvailableForSearch(
+            ActionListener.wrap(response::set, e -> { throw new AssertionError("unexpected failure", e); })
+        );
+
+        assertThat(response.get(), notNullValue());
+        assertThat(response.get().isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), is(true));
+    }
+
+    public void testWhenIndexFailsFastOnClosedIndexAvailableForSearch() {
+        final ClusterState.Builder closedState = createClusterState(
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
+            SecuritySystemIndices.SECURITY_MAIN_ALIAS,
+            IndexMetadata.State.CLOSE
+        );
+        manager.clusterChanged(event(closedState.build()));
+
+        final AtomicReference<Exception> failure = new AtomicReference<>();
+        manager.tryAwaitIndexAvailableForSearch(
+            ActionListener.wrap(snapshot -> { throw new AssertionError("unexpected response " + snapshot); }, failure::set)
+        );
+
+        assertThat(failure.get(), instanceOf(IndexClosedException.class));
+    }
+
+    public void testWaitForSearchThenGetIndexFailsFastWhenWaitTimeoutIsZeroAvailableForSearch() {
+        markShardsUnavailable();
+
+        final AtomicReference<Exception> failure = new AtomicReference<>();
+        manager.tryAwaitIndexAvailableForSearch(
+            ActionListener.wrap(snapshot -> { throw new AssertionError("unexpected response " + snapshot); }, failure::set)
+        );
+
+        assertThat(failure.get(), instanceOf(UnavailableShardsException.class));
+    }
+
+    public void testWhenIndexAvailableForSearchReturnsFreshSnapshotTryAwaitSearchableShardsBecomeAvailable() {
+        markShardsUnavailable();
+        when(threadPool.schedule(any(Runnable.class), any(TimeValue.class), any())).thenReturn(mock(Scheduler.ScheduledCancellable.class));
+
+        final AtomicReference<IndexState> response = new AtomicReference<>();
+        manager.tryAwaitIndexAvailableForSearch(
+            ActionListener.wrap(response::set, e -> { throw new AssertionError("unexpected failure", e); }),
+            TimeValue.timeValueSeconds(30)
+        );
+        assertThat(response.get(), nullValue());
+
+        manager.clusterChanged(
+            event(
+                markShardsAvailable(
+                    createClusterState(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7, SecuritySystemIndices.SECURITY_MAIN_ALIAS)
+                )
+            )
+        );
+
+        assertThat(response.get(), notNullValue());
+        assertThat(response.get().isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), is(true));
+    }
+
+    public void testWaitForSearchThenGetIndexSurfacesFreshReasonWhenWaitTimesOutAvailableForSearch() {
+        markShardsUnavailable();
+        final ArgumentCaptor<Runnable> scheduled = ArgumentCaptor.forClass(Runnable.class);
+        when(threadPool.schedule(scheduled.capture(), any(TimeValue.class), any())).thenReturn(mock(Scheduler.ScheduledCancellable.class));
+
+        final AtomicReference<Exception> failure = new AtomicReference<>();
+        manager.tryAwaitIndexAvailableForSearch(
+            ActionListener.wrap(snapshot -> { throw new AssertionError("unexpected response " + snapshot); }, failure::set),
+            TimeValue.timeValueSeconds(30)
+        );
+        assertThat(failure.get(), nullValue());
+
+        scheduled.getValue().run();
+
+        assertThat("wait timeout should not be surfaced to caller", failure.get(), instanceOf(UnavailableShardsException.class));
+    }
+
+    private void markShardsUnavailable() {
+        final ClusterState cs = createClusterState(
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
+            SecuritySystemIndices.SECURITY_MAIN_ALIAS
+        ).build();
+        final Index index = cs.metadata().getProject(projectId).index(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7).getIndex();
+        final ShardRouting shardRouting = ShardRouting.newUnassigned(
+            new ShardId(index, 0),
+            true,
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+        );
+        final String nodeId = ESTestCase.randomAlphaOfLength(8);
+        final ClusterState.Builder clusterStateBuilder = ClusterState.builder(cs)
+            .routingTable(
+                routingTable(
+                    projectId,
+                    IndexRoutingTable.builder(index)
+                        .addIndexShard(
+                            IndexShardRoutingTable.builder(new ShardId(index, 0))
+                                .addShard(
+                                    shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize())
+                                        .moveToUnassigned(
+                                            new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""),
+                                            ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+                                        )
+                                )
+                        )
+                        .build()
+                )
+            );
+        manager.clusterChanged(event(clusterStateBuilder.build()));
+        assertThat(manager.getProject(projectId).isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), is(false));
     }
 
     public void testAddRemoveProjects() {

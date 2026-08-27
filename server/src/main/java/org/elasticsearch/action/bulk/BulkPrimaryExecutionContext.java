@@ -16,12 +16,16 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
+import org.elasticsearch.action.update.UpdateHelper;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * This is a utility class that holds the per request state needed to perform bulk operations on the primary.
@@ -55,6 +59,8 @@ class BulkPrimaryExecutionContext {
 
     private final BulkShardRequest request;
     private final IndexShard primary;
+    private final IndexingPressure.PrimaryExpansionTracker pressureExpansionTracker;
+    private final PreResolvedUpdates preResolvedUpdates;
     private Translog.Location locationToSync = null;
     private int currentIndex = -1;
 
@@ -65,8 +71,28 @@ class BulkPrimaryExecutionContext {
     private long noopMappingUpdateRetryForMappingVersion;
 
     BulkPrimaryExecutionContext(BulkShardRequest request, IndexShard primary) {
+        this(request, primary, IndexingPressure.PrimaryExpansionTracker.noop());
+    }
+
+    BulkPrimaryExecutionContext(
+        BulkShardRequest request,
+        IndexShard primary,
+        IndexingPressure.PrimaryExpansionTracker pressureExpansionTracker
+    ) {
+        this(request, primary, pressureExpansionTracker, PreResolvedUpdates.EMPTY);
+    }
+
+    BulkPrimaryExecutionContext(
+        BulkShardRequest request,
+        IndexShard primary,
+        IndexingPressure.PrimaryExpansionTracker pressureExpansionTracker,
+        PreResolvedUpdates preResolvedUpdates
+    ) {
         this.request = request;
         this.primary = primary;
+        this.pressureExpansionTracker = pressureExpansionTracker;
+        this.preResolvedUpdates = preResolvedUpdates;
+        assert preResolvedUpdates == PreResolvedUpdates.EMPTY || assertPreResolvedSlotsMatchUpdateItems(request, preResolvedUpdates);
         advance();
     }
 
@@ -98,6 +124,12 @@ class BulkPrimaryExecutionContext {
     /** gets the current, untranslated item request */
     public DocWriteRequest<?> getCurrent() {
         return getCurrentItem().request();
+    }
+
+    /** Takes the current item's pre-resolved update, or null if absent or already taken (e.g. on retry) */
+    @Nullable
+    public UpdateHelper.PreResolvedUpdate takePreResolvedUpdate() {
+        return preResolvedUpdates.take(currentIndex);
     }
 
     public BulkShardRequest getBulkShardRequest() {
@@ -165,7 +197,18 @@ class BulkPrimaryExecutionContext {
         assert assertInvariants(ItemProcessingState.INITIAL);
         requestToExecute = writeRequest;
         currentItemState = ItemProcessingState.TRANSLATED;
+        pressureExpansionTracker.addExpandedBytes(expansionDeltaBytes(getCurrent(), writeRequest));
         assert assertInvariants(ItemProcessingState.TRANSLATED);
+    }
+
+    /**
+     * Additional bytes to reserve when the prepared write is larger than the incoming update in RAM estimates
+     * ({@link org.apache.lucene.util.Accountable#ramBytesUsed()}), or zero otherwise.
+     */
+    static long expansionDeltaBytes(DocWriteRequest<?> update, DocWriteRequest<?> translated) {
+        long prepared = translated.ramBytesUsed();
+        long reserved = update.ramBytesUsed();
+        return Math.max(0L, prepared - reserved);
     }
 
     /** returns the request that should be executed on the shard. */
@@ -224,6 +267,9 @@ class BulkPrimaryExecutionContext {
     /** resets the current item state, prepare for a new execution */
     private void resetForExecutionRetry() {
         currentItemState = ItemProcessingState.INITIAL;
+        if (requestToExecute != null) {
+            pressureExpansionTracker.removeExpandedBytes(expansionDeltaBytes(getCurrent(), requestToExecute));
+        }
         requestToExecute = null;
         executionResult = null;
         noopMappingUpdateRetryForMappingVersion = -1;
@@ -253,8 +299,22 @@ class BulkPrimaryExecutionContext {
         markAsCompleted(executionResult);
     }
 
+    /**
+     * The current operation has been executed on the primary as part of a batch. Behaves like
+     * {@link #markOperationAsExecuted(Engine.Result)} except that the translog location is folded with
+     * {@link TransportWriteAction#locationToSync(Translog.Location, Translog.Location, boolean)} since
+     * all operations in a batch share one translog location.
+     */
+    public void markBatchOperationAsExecuted(Engine.Result result) {
+        markOperationAsExecuted(result, true);
+    }
+
     /** the current operation has been executed on the primary with the specified result */
     public void markOperationAsExecuted(Engine.Result result) {
+        markOperationAsExecuted(result, false);
+    }
+
+    private void markOperationAsExecuted(Engine.Result result, boolean isBatch) {
         assert assertInvariants(ItemProcessingState.TRANSLATED);
         final BulkItemRequest current = getCurrentItem();
         DocWriteRequest<?> docWriteRequest = getRequestToExecute();
@@ -295,7 +355,7 @@ class BulkPrimaryExecutionContext {
                 executionResult = BulkItemResponse.success(current.id(), current.request().opType(), response);
                 // set a blank ShardInfo so we can safely send it to the replicas. We won't use it in the real response though.
                 executionResult.getResponse().setShardInfo(ReplicationResponse.ShardInfo.EMPTY);
-                locationToSync = TransportWriteAction.locationToSync(locationToSync, result.getTranslogLocation());
+                locationToSync = TransportWriteAction.locationToSync(locationToSync, result.getTranslogLocation(), isBatch);
             }
             case FAILURE -> {
                 /*
@@ -309,6 +369,10 @@ class BulkPrimaryExecutionContext {
                     docWriteRequest.opType(),
                     new BulkItemResponse.Failure(index, result.getId(), result.getFailure(), result.getSeqNo(), result.getTerm())
                 );
+                // A FAILURE result can still carry a translog location when InternalEngine converts it into a no-op.
+                if (result.getTranslogLocation() != null) {
+                    locationToSync = TransportWriteAction.locationToSync(locationToSync, result.getTranslogLocation(), isBatch);
+                }
             }
             default -> throw new AssertionError("unknown result type for " + getCurrentItem() + ": " + result.getResultType());
         }
@@ -321,6 +385,15 @@ class BulkPrimaryExecutionContext {
         assert executionResult != null && translatedResponse.getItemId() == executionResult.getItemId();
         assert translatedResponse.getItemId() == getCurrentItem().id();
 
+        // If the primary is not searchable we know that we are in serverless and that we do not need to hold the request into memory
+        // anymore.
+        if (primary.routingEntry().isSearchable() == false) {
+            if (requestToExecute != null) {
+                pressureExpansionTracker.removeExpandedBytes(expansionDeltaBytes(getCurrent(), requestToExecute));
+            }
+            requestToExecute = null;
+        }
+
         if (translatedResponse.isFailed() == false && requestToExecute != null && requestToExecute != getCurrent()) {
             request.items()[currentIndex] = new BulkItemRequest(request.items()[currentIndex].id(), requestToExecute);
         }
@@ -332,10 +405,12 @@ class BulkPrimaryExecutionContext {
     /** builds the bulk shard response to return to the user */
     public BulkShardResponse buildShardResponse() {
         assert hasMoreOperationsToExecute() == false;
-        return new BulkShardResponse(
-            request.shardId(),
-            Arrays.stream(request.items()).map(BulkItemRequest::getPrimaryResponse).toArray(BulkItemResponse[]::new)
-        );
+        final BulkItemRequest[] requests = request.items();
+        final BulkItemResponse[] responses = new BulkItemResponse[requests.length];
+        for (int i = 0; i < responses.length; i++) {
+            responses[i] = requests[i].getPrimaryResponse();
+        }
+        return new BulkShardResponse(request.shardId(), responses);
     }
 
     private boolean assertInvariants(ItemProcessingState... expectedCurrentState) {
@@ -361,10 +436,26 @@ class BulkPrimaryExecutionContext {
                 assert executionResult != null;
                 break;
             case COMPLETED:
-                assert requestToExecute != null;
+                // requestToExecute can be null if the primary is not searchable (serverless)
                 assert executionResult != null;
                 assert getCurrentItem().getPrimaryResponse() != null;
                 break;
+        }
+        return true;
+    }
+
+    private static boolean assertPreResolvedSlotsMatchUpdateItems(BulkShardRequest request, PreResolvedUpdates preResolvedUpdates) {
+        assert preResolvedUpdates.size() == request.items().length
+            : "expected [" + request.items().length + "] pre-resolved update slots but found [" + preResolvedUpdates.size() + "]";
+        for (int i = 0; i < request.items().length; i++) {
+            UpdateHelper.PreResolvedUpdate preResolved = preResolvedUpdates.get(i);
+            if (preResolved != null) {
+                DocWriteRequest<?> item = request.items()[i].request();
+                assert item != null && item.opType() == DocWriteRequest.OpType.UPDATE
+                    : "pre-resolved slot [" + i + "] does not correspond to an update request but to [" + item + "]";
+                assert preResolved.id().equals(item.id()) && Objects.equals(preResolved.routing(), item.routing())
+                    : "pre-resolved slot [" + i + "] resolved [" + preResolved.id() + "] but the item targets [" + item.id() + "]";
+            }
         }
         return true;
     }

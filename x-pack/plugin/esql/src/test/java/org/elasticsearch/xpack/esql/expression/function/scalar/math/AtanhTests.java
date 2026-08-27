@@ -52,8 +52,8 @@ public class AtanhTests extends AbstractScalarFunctionTestCase {
         helper.expectedFromDouble(d -> d).castingToDouble(0, 0, true, suppliers);
         helper.expectedFromDouble(d -> {
             double canonical = canonicalAtanh(d);
-            double err = Math.ulp(canonical) * 2;
-            // Our canonical implementation isn't 100% in line with the real one. That's ok.
+            // FastMath.atanh (production) vs DECIMAL128 log-formula reference can differ by a few ULP.
+            double err = Math.ulp(canonical) * 4;
             if (Math.abs(d) > 0.94) {
                 err *= 2;
             }

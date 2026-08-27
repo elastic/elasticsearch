@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
@@ -30,6 +32,7 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
+import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
@@ -52,6 +55,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TransformConfigTests extends AbstractSerializingTransformTestCase<TransformConfig> {
 
@@ -196,7 +200,8 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             randomBoolean() ? null : randomMetadata(),
             randomBoolean() ? null : randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
-            TransformConfigVersion.CURRENT.toString()
+            TransformConfigVersion.CURRENT.toString(),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16)
         );
     }
 
@@ -236,7 +241,8 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             randomBoolean() ? null : randomMetadata(),
             randomBoolean() ? null : randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
-            version == null ? null : version.toString()
+            version == null ? null : version.toString(),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16)
         );
     }
 
@@ -354,7 +360,8 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             instance.getMetadata(),
             instance.getRetentionPolicyConfig(),
             instance.getCreateTime(),
-            instance.getVersion() == null ? null : instance.getVersion().toString()
+            instance.getVersion() == null ? null : instance.getVersion().toString(),
+            version.supports(TransformConfig.TRANSFORM_CLOUD_TOKEN) ? instance.getCredentialId() : null
         );
     }
 
@@ -575,6 +582,16 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
 
             assertFalse(doc.contains("doc_type"));
         }
+    }
+
+    public void testBuilderCopyConstructorPreservesHeaders() {
+        Map<String, String> headers = Map.of("_xpack_security_authentication", "encoded-auth", "x-trace-id", "trace-1");
+        TransformConfig original = randomTransformConfigWithHeaders(headers);
+
+        TransformConfig copied = new TransformConfig.Builder(original).build();
+
+        assertThat(copied.getHeaders(), equalTo(headers));
+        assertThat(copied.getCredentialId(), equalTo(original.getCredentialId()));
     }
 
     public void testMaxLengthDescription() {
@@ -1141,6 +1158,28 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         );
     }
 
+    public void testGetScopedIndicesOptionsScopesToCredentialPresence() {
+        SourceConfig crossProjectSource = new SourceConfig(
+            new String[] { "src" },
+            QueryConfig.matchAll(),
+            Map.of(),
+            IndicesOptions.CPS_LENIENT_EXPAND_OPEN,
+            "_alias:_origin"
+        );
+
+        // A minted credential means the transform can fan out cross-project.
+        TransformConfig withCredential = new TransformConfig.Builder(randomTransformConfig()).setSource(crossProjectSource)
+            .setCredentialId("cloud-api-key-id")
+            .build();
+        assertThat(withCredential.getScopedIndicesOptions().resolveCrossProjectIndexExpression(), is(true));
+
+        // No credential: the stored identity carries no cloud token, so scope down to origin-only.
+        TransformConfig withoutCredential = new TransformConfig.Builder(randomTransformConfig()).setSource(crossProjectSource)
+            .setCredentialId(null)
+            .build();
+        assertThat(withoutCredential.getScopedIndicesOptions().resolveCrossProjectIndexExpression(), is(false));
+    }
+
     public void testNotCrossProjectEnvironment() throws IOException {
         var transformConfig = createTransformConfigFromString("""
             {
@@ -1169,6 +1208,38 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
               }
             }""", "cross-project");
         assertNull(transformConfig.validateNoCrossProjectWhenCrossProjectIsDisabled(new CrossProjectModeDecider(Settings.EMPTY), null));
+    }
+
+    public void testCloudApiKeyIdExposedOnPublicGet() throws IOException {
+        TransformConfig withCredential = new TransformConfig.Builder(randomTransformConfigWithoutHeaders()).setCredentialId("cred-abc")
+            .build();
+        TransformConfig withoutCredential = new TransformConfig.Builder(randomTransformConfigWithoutHeaders()).setCredentialId(null)
+            .build();
+        ToXContent.Params internalParams = new ToXContent.MapParams(Map.of(TransformField.FOR_INTERNAL_STORAGE, "true"));
+        ToXContent.Params excludeParams = new ToXContent.MapParams(Map.of(TransformField.EXCLUDE_GENERATED, "true"));
+
+        Map<String, Object> publicResult = toMap(withCredential, ToXContent.EMPTY_PARAMS);
+        assertThat(XContentMapValues.extractValue("authorization.cloud_api_key.id", publicResult), equalTo("cred-abc"));
+        assertThat(XContentMapValues.extractValue("credential_id", publicResult), nullValue());
+
+        // No credential: no cloud_api_key block.
+        Map<String, Object> noCredResult = toMap(withoutCredential, ToXContent.EMPTY_PARAMS);
+        assertThat(XContentMapValues.extractValue("authorization.cloud_api_key", noCredResult), nullValue());
+
+        // Internal storage: raw credential_id present; no cloud_api_key block.
+        Map<String, Object> internalResult = toMap(withCredential, internalParams);
+        assertThat(XContentMapValues.extractValue("credential_id", internalResult), equalTo("cred-abc"));
+        assertThat(XContentMapValues.extractValue("authorization.cloud_api_key", internalResult), nullValue());
+
+        // exclude_generated=true: neither field present.
+        Map<String, Object> excludeResult = toMap(withCredential, excludeParams);
+        assertThat(XContentMapValues.extractValue("authorization.cloud_api_key", excludeResult), nullValue());
+        assertThat(XContentMapValues.extractValue("credential_id", excludeResult), nullValue());
+    }
+
+    private static Map<String, Object> toMap(TransformConfig config, ToXContent.Params params) throws IOException {
+        return XContentHelper.convertToMap(XContentHelper.toXContent(config, XContentType.JSON, params, false), false, XContentType.JSON)
+            .v2();
     }
 
     private TransformConfig createTransformConfigFromString(String json, String id) throws IOException {

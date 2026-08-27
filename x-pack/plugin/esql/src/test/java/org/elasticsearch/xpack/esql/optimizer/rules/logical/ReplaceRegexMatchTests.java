@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -16,12 +18,18 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
@@ -29,6 +37,12 @@ import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 public class ReplaceRegexMatchTests extends ESTestCase {
     private Expression replaceRegexMatch(RegexMatch<?> e) {
         return new ReplaceRegexMatch().rule(e, unboundLogicalOptimizerContext());
+    }
+
+    private Expression replaceRegexMatch(RegexMatch<?> e, TransportVersion minimumVersion) {
+        // Build the context with the EXACT minimum version. unboundLogicalOptimizerContext(TransportVersion)
+        // re-randomizes to a *supporting* version, which can't express "a node that predates the gate".
+        return new ReplaceRegexMatch().rule(e, new LogicalOptimizerContext(TEST_CFG, FoldContext.small(), minimumVersion));
     }
 
     public void testMatchAllWildcardLikeToExist() {
@@ -75,6 +89,124 @@ public class ReplaceRegexMatchTests extends ESTestCase {
         Equals eq = (Equals) e;
         assertEquals(fa, eq.left());
         assertEquals("abc", BytesRefs.toString(eq.right().fold(FoldContext.small())));
+    }
+
+    public void testLikePrefixDecomposesToStartsWith() {
+        WildcardPattern pattern = new WildcardPattern("foo*");
+        FieldAttribute fa = getFieldAttribute();
+        WildcardLike wl = new WildcardLike(EMPTY, fa, pattern);
+        Expression e = replaceRegexMatch(wl);
+        assertEquals(StartsWith.class, e.getClass());
+        StartsWith sw = (StartsWith) e;
+        assertEquals(fa, sw.children().get(0));
+        assertEquals("foo", BytesRefs.toString(sw.children().get(1).fold(FoldContext.small())));
+    }
+
+    public void testLikeSuffixDecomposesToEndsWith() {
+        WildcardPattern pattern = new WildcardPattern("*bar");
+        FieldAttribute fa = getFieldAttribute();
+        WildcardLike wl = new WildcardLike(EMPTY, fa, pattern);
+        Expression e = replaceRegexMatch(wl);
+        assertEquals(EndsWith.class, e.getClass());
+        EndsWith ew = (EndsWith) e;
+        assertEquals(fa, ew.children().get(0));
+        assertEquals("bar", BytesRefs.toString(ew.children().get(1).fold(FoldContext.small())));
+    }
+
+    public void testLikeMixedPatternAddsStartsWithConjunct() {
+        for (String s : asList("foo*bar*", "foo?bar*", "prefix?")) {
+            WildcardPattern pattern = new WildcardPattern(s);
+            FieldAttribute fa = getFieldAttribute();
+            WildcardLike wl = new WildcardLike(EMPTY, fa, pattern);
+            Expression e = replaceRegexMatch(wl);
+            assertEquals(And.class, e.getClass());
+            And and = (And) e;
+            assertEquals(StartsWith.class, and.left().getClass());
+            assertEquals(WildcardLike.class, and.right().getClass());
+        }
+    }
+
+    public void testLikeMixedPatternWithSuffix() {
+        WildcardPattern pattern = new WildcardPattern("foo*bar");
+        FieldAttribute fa = getFieldAttribute();
+        WildcardLike wl = new WildcardLike(EMPTY, fa, pattern);
+        Expression e = replaceRegexMatch(wl);
+        assertEquals(And.class, e.getClass());
+        And and = (And) e;
+        StartsWith sw = (StartsWith) and.left();
+        assertEquals("foo", BytesRefs.toString(sw.children().get(1).fold(FoldContext.small())));
+    }
+
+    public void testLikeContainsDecomposesToContains() {
+        WildcardPattern pattern = new WildcardPattern("*foo*");
+        FieldAttribute fa = getFieldAttribute();
+        WildcardLike wl = new WildcardLike(EMPTY, fa, pattern);
+        Expression e = replaceRegexMatch(wl, TransportVersionUtils.randomVersionSupporting(Contains.LIKE_TO_CONTAINS_VERSION));
+        assertEquals(Contains.class, e.getClass());
+        Contains c = (Contains) e;
+        assertEquals(fa, c.children().get(0));
+        assertEquals("foo", BytesRefs.toString(c.children().get(1).fold(FoldContext.small())));
+    }
+
+    public void testLikeContainsEscapedStar() {
+        WildcardPattern pattern = new WildcardPattern("*foo\\*bar*");
+        FieldAttribute fa = getFieldAttribute();
+        WildcardLike wl = new WildcardLike(EMPTY, fa, pattern);
+        Expression e = replaceRegexMatch(wl, TransportVersionUtils.randomVersionSupporting(Contains.LIKE_TO_CONTAINS_VERSION));
+        assertEquals(Contains.class, e.getClass());
+        Contains c = (Contains) e;
+        assertEquals(fa, c.children().get(0));
+        assertEquals("foo*bar", BytesRefs.toString(c.children().get(1).fold(FoldContext.small())));
+    }
+
+    public void testLikeContainsNotDecomposedOnOldVersion() {
+        // A mixed-version query (e.g. cross-cluster against a pre-Contains remote) must keep the original
+        // WildcardLike unchanged: older nodes either lack the Contains NamedWriteable or carry a
+        // non-TranslationAware Contains. Assert the predicate is preserved intact, not merely that some
+        // WildcardLike comes back — that is the plan the old remote actually needs to receive and execute.
+        WildcardPattern pattern = new WildcardPattern("*foo*");
+        FieldAttribute fa = getFieldAttribute();
+        WildcardLike wl = new WildcardLike(EMPTY, fa, pattern);
+        Expression e = replaceRegexMatch(wl, TransportVersionUtils.randomVersionNotSupporting(Contains.LIKE_TO_CONTAINS_VERSION));
+        assertEquals(WildcardLike.class, e.getClass());
+        WildcardLike kept = (WildcardLike) e;
+        assertEquals(fa, kept.field());
+        assertEquals("*foo*", kept.pattern().pattern());
+    }
+
+    public void testLikeComplexContainsNotDecomposedToContains() {
+        // *a*b* has three unescaped stars — not a pure Contains shape; stays as WildcardLike.
+        WildcardPattern pattern = new WildcardPattern("*a*b*");
+        FieldAttribute fa = getFieldAttribute();
+        WildcardLike wl = new WildcardLike(EMPTY, fa, pattern);
+        Expression e = replaceRegexMatch(wl);
+        assertEquals(WildcardLike.class, e.getClass());
+    }
+
+    public void testCaseInsensitiveContainsLikeNotDecomposed() {
+        WildcardPattern pattern = new WildcardPattern("*foo*");
+        FieldAttribute fa = getFieldAttribute();
+        WildcardLike wl = new WildcardLike(EMPTY, fa, pattern, true);
+        Expression e = replaceRegexMatch(wl);
+        assertEquals(WildcardLike.class, e.getClass());
+    }
+
+    public void testLikeEscapedWildcard() {
+        WildcardPattern pattern = new WildcardPattern("foo\\*bar*");
+        FieldAttribute fa = getFieldAttribute();
+        WildcardLike wl = new WildcardLike(EMPTY, fa, pattern);
+        Expression e = replaceRegexMatch(wl);
+        assertEquals(StartsWith.class, e.getClass());
+        StartsWith sw = (StartsWith) e;
+        assertEquals("foo*bar", BytesRefs.toString(sw.children().get(1).fold(FoldContext.small())));
+    }
+
+    public void testCaseInsensitiveLikeNotDecomposed() {
+        WildcardPattern pattern = new WildcardPattern("foo*");
+        FieldAttribute fa = getFieldAttribute();
+        WildcardLike wl = new WildcardLike(EMPTY, fa, pattern, true);
+        Expression e = replaceRegexMatch(wl);
+        assertEquals(WildcardLike.class, e.getClass());
     }
 
 }

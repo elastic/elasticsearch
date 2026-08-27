@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.generator.command.source;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
@@ -26,7 +27,6 @@ import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.randomId
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.randomMetricsNumericField;
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.randomNumericField;
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.randomNumericOrDateField;
-import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.randomStringField;
 
 public class PromQLGenerator implements CommandGenerator {
 
@@ -37,9 +37,10 @@ public class PromQLGenerator implements CommandGenerator {
         List<CommandDescription> previousCommands,
         List<Column> previousOutput,
         QuerySchema schema,
-        QueryExecutor executor
+        QueryExecutor executor,
+        GenerationContext context
     ) {
-        return generateWithIndices(previousCommands, previousOutput, schema, executor, null);
+        return generateWithIndices(previousCommands, previousOutput, schema, executor, context, null);
     }
 
     public CommandDescription generateWithIndices(
@@ -47,6 +48,7 @@ public class PromQLGenerator implements CommandGenerator {
         List<Column> previousOutput,
         QuerySchema schema,
         QueryExecutor executor,
+        GenerationContext context,
         String index
     ) {
         List<Column> acceptableFields = previousOutput.stream()
@@ -148,7 +150,8 @@ public class PromQLGenerator implements CommandGenerator {
                 innerAgg = gaugeAggs.get(randomIntBetween(0, gaugeAggs.size() - 1));
             }
             default -> {
-                fieldName = randomBoolean() ? randomStringField(acceptableFields) : randomNumericOrDateField(acceptableFields);
+                // String/keyword fields are typically dimension fields in TSDB and cannot be used as metric selectors
+                fieldName = randomNumericOrDateField(acceptableFields);
                 List<String> innerAggs = List.of("count_over_time", "absent_over_time", "present_over_time");
                 innerAgg = innerAggs.get(randomIntBetween(0, innerAggs.size() - 1));
                 hasInnerAgg = true;

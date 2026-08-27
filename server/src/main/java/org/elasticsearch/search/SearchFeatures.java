@@ -60,6 +60,48 @@ public final class SearchFeatures implements FeatureSpecification {
         "search.exponential_histogram_querydsl_boxplot"
     );
     public static final NodeFeature EXPONENTIAL_HISTOGRAM_QUERYDSL_RANGE = new NodeFeature("search.exponential_histogram_querydsl_range");
+    public static final NodeFeature DEFAULT_DISK_BBQ = new NodeFeature("search.default_disk_bbq");
+    public static final NodeFeature DENSE_VECTOR_QUERY = new NodeFeature("search.vectors.dense_vector_query");
+    /**
+     * Test-only gate for REST tests asserting that {@code inner_hits} of a nested kNN query score with the same
+     * fidelity the query phase used. Older nodes score the fetch phase against the quantized vectors while the query
+     * phase rescores against the full-precision ones, so those tests cannot pass on a mixed BWC cluster.
+     */
+    public static final NodeFeature NESTED_KNN_INNER_HITS_MATCH_QUERY_PHASE_SCORING = new NodeFeature(
+        "search.vectors.nested_knn_inner_hits_match_query_phase_scoring"
+    );
+    /**
+     * Test-only gate for REST tests that assert coordinator {@code profile.request} metadata; that response shape
+     * depends on {@code TransportVersion} {@code include_original_query_indices_in_search_profile_results}, which
+     * is not supported on mixed BWC clusters that still contain pre-9.5 nodes.
+     */
+    public static final NodeFeature PROFILE_COORDINATOR_REQUEST_METADATA = new NodeFeature("search.profile.coordinator_request_metadata");
+    /**
+     * Scroll requests whose scroll id encodes zero shard contexts (empty index pattern, all shards skipped by
+     * can_match) now return an empty 200 response instead of a 503 {@code SearchPhaseExecutionException}.
+     */
+    public static final NodeFeature SCROLL_EMPTY_CONTEXT_RETURNS_200 = new NodeFeature("search.scroll.empty_context_returns_200");
+    /**
+     * A non-top-level {@code date_histogram} with {@code hard_bounds} that excludes every fixed rounding point
+     * produced from the data no longer throws {@code ArrayIndexOutOfBoundsException}; it returns an empty histogram.
+     */
+    public static final NodeFeature DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX = new NodeFeature(
+        "search.aggs.date_histogram.hard_bounds_outside_data_fix"
+    );
+    public static final NodeFeature COUNT_STATS_PARAMETER = new NodeFeature("search.count.stats_parameter");
+    /**
+     * Test-only gate for REST tests asserting that a user-mapped field named {@code _type} is not
+     * surfaced as root-level hit metadata. Old nodes included it in the default metadata fetch
+     * regardless of whether it was a real metadata mapper.
+     */
+    public static final NodeFeature FETCH_FIELDS_EXCLUDES_NON_METADATA_TYPE = new NodeFeature(
+        "search.fetch_fields.excludes_non_metadata_type"
+    );
+    /**
+     * NestedIdentity.extractSource returns empty source when the nested path resolves to no objects
+     * (for example a scalar array) instead of throwing IllegalStateException.
+     */
+    public static final NodeFeature NESTED_EXTRACT_SOURCE_EMPTY_LIST_FIX = new NodeFeature("search.nested.extract_source_empty_list_fix");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -87,7 +129,16 @@ public final class SearchFeatures implements FeatureSpecification {
             LUCENE_10_4_0_UPGRADE_TEST,
             EXPONENTIAL_HISTOGRAM_QUERYDSL_BOXPLOT,
             EXPONENTIAL_HISTOGRAM_QUERYDSL_RANGE,
-            EXPONENTIAL_HISTOGRAM_UPSCALING_REMOVED
+            EXPONENTIAL_HISTOGRAM_UPSCALING_REMOVED,
+            DEFAULT_DISK_BBQ,
+            DENSE_VECTOR_QUERY,
+            PROFILE_COORDINATOR_REQUEST_METADATA,
+            SCROLL_EMPTY_CONTEXT_RETURNS_200,
+            DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX,
+            COUNT_STATS_PARAMETER,
+            FETCH_FIELDS_EXCLUDES_NON_METADATA_TYPE,
+            NESTED_KNN_INNER_HITS_MATCH_QUERY_PHASE_SCORING,
+            NESTED_EXTRACT_SOURCE_EMPTY_LIST_FIX
         );
     }
 }

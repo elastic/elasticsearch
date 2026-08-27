@@ -24,15 +24,16 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.logging.activity.ActivityLogger.ACTIVITY_LOGGER_ENABLED;
+import static org.elasticsearch.common.logging.activity.QueryLogger.QUERY_LOGGER_ENABLED;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_INDICES;
-import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_IS_CCS;
+import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_REMOTES;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_REMOTE_COUNT;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
 import static org.elasticsearch.test.ActivityLoggingUtils.getMessageData;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -67,7 +68,7 @@ public class CrossClusterLoggingIT extends AbstractCrossClusterTestCase {
             client(LOCAL_CLUSTER).admin()
                 .cluster()
                 .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-                .setPersistentSettings(Settings.builder().put(ACTIVITY_LOGGER_ENABLED.getKey(), true))
+                .setPersistentSettings(Settings.builder().put(QUERY_LOGGER_ENABLED.getKey(), true))
                 .get()
         );
         appender.reset();
@@ -79,7 +80,7 @@ public class CrossClusterLoggingIT extends AbstractCrossClusterTestCase {
             client(LOCAL_CLUSTER).admin()
                 .cluster()
                 .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-                .setPersistentSettings(Settings.builder().put(ACTIVITY_LOGGER_ENABLED.getKey(), (String) null))
+                .setPersistentSettings(Settings.builder().put(QUERY_LOGGER_ENABLED.getKey(), (String) null))
                 .get()
         );
     }
@@ -94,8 +95,8 @@ public class CrossClusterLoggingIT extends AbstractCrossClusterTestCase {
         assertNotNull(event);
         Map<String, String> message = getMessageData(event);
         assertMessageSuccess(message, EsqlLogContext.TYPE, "from logs-*");
-        assertNull(message.get(QUERY_FIELD_IS_CCS));
         assertNull(message.get(QUERY_FIELD_REMOTE_COUNT));
+        assertNull(message.get(QUERY_FIELD_REMOTES));
         assertThat(message.get(QUERY_FIELD_INDICES), equalTo("logs-*"));
     }
 
@@ -109,8 +110,9 @@ public class CrossClusterLoggingIT extends AbstractCrossClusterTestCase {
         assertNotNull(event);
         Map<String, String> message = getMessageData(event);
         assertMessageSuccess(message, EsqlLogContext.TYPE, "from logs-*");
-        assertThat(message.get(QUERY_FIELD_IS_CCS), equalTo("true"));
         assertThat(message.get(QUERY_FIELD_REMOTE_COUNT), equalTo("2"));
+        assertThat(message.get(QUERY_FIELD_REMOTES), containsString(REMOTE_CLUSTER_1));
+        assertThat(message.get(QUERY_FIELD_REMOTES), containsString(REMOTE_CLUSTER_2));
         assertThat(
             message.get(QUERY_FIELD_INDICES).split(","),
             arrayContainingInAnyOrder("logs-*", REMOTE_CLUSTER_1 + ":logs-*", REMOTE_CLUSTER_2 + ":logs-*")

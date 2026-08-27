@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -26,9 +25,7 @@ import static org.hamcrest.Matchers.is;
 public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimizerTests {
 
     protected LogicalPlan planK8s(String query) {
-        return logicalOptimizer.optimize(
-            analyzerWithEnrichPolicies().addIndex("k8s", "k8s-mappings.json", IndexMode.TIME_SERIES).query(query)
-        );
+        return logicalOptimizer.optimize(analyzerWithEnrichPolicies().addK8s().query(query));
     }
 
     /**

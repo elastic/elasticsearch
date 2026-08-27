@@ -7,8 +7,9 @@
 
 package org.elasticsearch.compute.aggregation;
 
+// begin generated imports
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.ByteArray;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.ann.Aggregator;
@@ -21,6 +22,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
+// end generated imports
 
 /**
  * An aggregator that retrieves the first value it encounters. It is useful in cases where we want to get back the
@@ -140,103 +142,128 @@ public class AnyLongAggregator {
     }
 
     public static final class GroupingState extends AbstractArrayState {
-        private final BigArrays bigArrays;
 
         /**
-         * The group-indexed observed flags
+         * First values, stored in a dense array to minimize per-group overhead.
          */
-        private ByteArray observed;
+        private LongArray firstValues;
 
         /**
-         * The group-indexed values
+         * The second-and-beyond values. Null for groups with zero or one value.
          */
-        private ObjectArray<LongArray> values;
+        private ObjectArray<LongArray> tailValues;
+
+        /**
+         * Lazy; set bit means the group observed a null value.
+         */
+        private BitArray nullValue;
+
+        /**
+         * Highest group id seen so far; -1 when no groups have been processed.
+         */
+        private int maxGroupId = -1;
 
         GroupingState(BigArrays bigArrays) {
             super(bigArrays);
-            this.bigArrays = bigArrays;
             boolean success = false;
-            ByteArray observed = null;
             try {
-                // Initialize observed
-                observed = bigArrays.newByteArray(1, true);
-                observed.set(0, (byte) -1);
-                this.observed = observed;
-
-                // Initialize values
-                this.values = bigArrays.newObjectArray(1);
-                this.values.set(0, null);
-
+                this.firstValues = bigArrays.newLongArray(1, false);
                 enableGroupIdTracking(new SeenGroupIds.Empty());
                 success = true;
             } finally {
                 if (success == false) {
-                    if (values != null) {
-                        for (long i = 0; i < values.size(); ++i) {
-                            Releasables.close(values.get(i));
-                        }
-                    }
-                    Releasables.close(observed, values, super::close);
+                    Releasables.close(firstValues, super::close);
                 }
             }
         }
 
         void collectValue(int group, int position, LongBlock valuesBlock) {
-            if (withinBounds(group) && observed.get(group) == 1) {
-                // We have already observed this group. We can short-circuit since any value is fine for this aggregator.
+            if (group <= maxGroupId && hasValue(group)) {
+                // Short-circuit: we already have a value for this group.
                 return;
             }
-            if (withinBounds(group) == false) {
-                observed = bigArrays.grow(observed, group + 1);
-                values = bigArrays.grow(values, group + 1);
+            if (group > maxGroupId) {
+                grow(group);
+                maxGroupId = group;
             }
-
-            // We always want to update here
-            observed.set(group, (byte) 1);
-            boolean success = false;
-            LongArray groupValues = null;
-            try {
-                if (valuesBlock.isNull(position) == false) {
-                    int count = valuesBlock.getValueCount(position);
-                    int offset = valuesBlock.getFirstValueIndex(position);
-                    groupValues = bigArrays.newLongArray(count);
-                    for (int i = 0; i < count; ++i) {
-                        groupValues.set(i, valuesBlock.getLong(i + offset));
+            if (valuesBlock.isNull(position)) {
+                setNullValue(group);
+            } else {
+                int count = valuesBlock.getValueCount(position);
+                int offset = valuesBlock.getFirstValueIndex(position);
+                firstValues.set(group, valuesBlock.getLong(offset));
+                if (count > 1) {
+                    LongArray tail = getTailForWriting(group, count - 1);
+                    for (int i = 1; i < count; ++i) {
+                        tail.set(i - 1, valuesBlock.getLong(offset + i));
                     }
-                }
-                success = true;
-                Releasables.close(values.get(group));
-                values.set(group, groupValues);
-            } finally {
-                if (success == false) {
-                    Releasables.close(groupValues);
                 }
             }
             trackGroupId(group);
         }
 
-        @Override
-        public void close() {
-            for (long i = 0; i < values.size(); ++i) {
-                Releasables.close(values.get(i));
+        private boolean nullValue(int group) {
+            return nullValue != null && nullValue.get(group);
+        }
+
+        private void setNullValue(int group) {
+            if (nullValue == null) {
+                nullValue = new BitArray(group + 1, bigArrays);
             }
-            Releasables.close(observed, values, super::close);
+            nullValue.set(group);
+        }
+
+        private void grow(int group) {
+            firstValues = bigArrays.grow(firstValues, group + 1);
+        }
+
+        private LongArray getTail(int group) {
+            if (tailValues == null || group >= tailValues.size()) {
+                return null;
+            }
+            return tailValues.get(group);
+        }
+
+        private LongArray getTailForWriting(int group, int count) {
+            LongArray existing;
+            if (tailValues == null) {
+                tailValues = bigArrays.newObjectArray(group + 1);
+                existing = null;
+            } else if (group >= tailValues.size()) {
+                tailValues = bigArrays.grow(tailValues, group + 1);
+                existing = null;
+            } else {
+                existing = tailValues.get(group);
+            }
+            if (existing == null) {
+                LongArray tail = bigArrays.newLongArray(count);
+                tailValues.set(group, tail);
+                return tail;
+            }
+            if (existing.size() == count) {
+                return existing;
+            }
+            LongArray resized = bigArrays.resize(existing, count);
+            tailValues.set(group, resized);
+            return resized;
         }
 
         @Override
+        public void close() {
+            if (tailValues != null) {
+                for (long i = 0; i < tailValues.size(); i++) {
+                    Releasables.close(tailValues.get(i));
+                }
+            }
+            Releasables.close(nullValue, firstValues, tailValues, super::close);
+        }
+
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             try (var observedBlockBuilder = driverContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount())) {
                 for (int p = 0; p < selected.getPositionCount(); ++p) {
                     int group = selected.getInt(p);
-                    if (withinBounds(group)) {
-                        // We must have seen this group before and saved its state
-                        observedBlockBuilder.appendBoolean(observed.get(group) == 1);
-                    } else {
-                        observedBlockBuilder.appendBoolean(false);
-                    }
+                    observedBlockBuilder.appendBoolean(group <= maxGroupId && hasValue(group));
                 }
-
-                // Create all intermediate state blocks
                 blocks[offset + 0] = observedBlockBuilder.build();
                 blocks[offset + 1] = intermediateValuesBlockBuilder(selected, driverContext.blockFactory());
             }
@@ -246,29 +273,26 @@ public class AnyLongAggregator {
             return intermediateValuesBlockBuilder(groups, evalContext.blockFactory());
         }
 
-        private boolean withinBounds(int group) {
-            return group < Math.min(values.size(), observed.size());
-        }
-
         private Block intermediateValuesBlockBuilder(IntVector groups, BlockFactory blockFactory) {
             try (var valuesBuilder = blockFactory.newLongBlockBuilder(groups.getPositionCount())) {
                 for (int p = 0; p < groups.getPositionCount(); ++p) {
                     int group = groups.getInt(p);
-                    int count = 0;
-                    if (withinBounds(group) && observed.get(group) == 1 && values.get(group) != null) {
-                        count = (int) values.get(group).size();
+                    if (group > maxGroupId || hasValue(group) == false || nullValue(group)) {
+                        valuesBuilder.appendNull();
+                        continue;
                     }
-                    switch (count) {
-                        case 0 -> valuesBuilder.appendNull();
-                        case 1 -> valuesBuilder.appendLong(values.get(group).get(0));
-                        default -> {
-                            valuesBuilder.beginPositionEntry();
-                            for (int i = 0; i < count; ++i) {
-                                valuesBuilder.appendLong(values.get(group).get(i));
-                            }
-                            valuesBuilder.endPositionEntry();
-                        }
+                    LongArray tail = getTail(group);
+                    int tailCount = tail == null ? 0 : (int) tail.size();
+                    if (tailCount == 0) {
+                        valuesBuilder.appendLong(firstValues.get(group));
+                        continue;
                     }
+                    valuesBuilder.beginPositionEntry();
+                    valuesBuilder.appendLong(firstValues.get(group));
+                    for (int i = 0; i < tailCount; ++i) {
+                        valuesBuilder.appendLong(tail.get(i));
+                    }
+                    valuesBuilder.endPositionEntry();
                 }
                 return valuesBuilder.build();
             }

@@ -14,6 +14,7 @@ import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
@@ -32,13 +34,14 @@ import java.util.List;
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
-public final class UrlEncode extends UnaryScalarFunction {
+public final class UrlEncode extends UnaryScalarFunction implements AnyNullIsNull {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "UrlEncode",
         UrlEncode::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(UrlEncode.class).unary(UrlEncode::new).name("url_encode");
 
     private UrlEncode(StreamInput in) throws IOException {
         super(in);
@@ -46,6 +49,7 @@ public final class UrlEncode extends UnaryScalarFunction {
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "URL-encodes a string with spaces encoded as plus signs.",
         description = "URL-encodes the input. All characters are {wikipedia}/Percent-encoding[percent-encoded] except "
             + "for alphanumerics, `.`, `-`, `_`, and `~`. Spaces are encoded as `+`.",
         examples = { @Example(file = "string", tag = "url_encode") },

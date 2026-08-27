@@ -16,6 +16,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
@@ -28,8 +29,9 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.Warnings;
-import org.elasticsearch.compute.operator.WarningsTests.TestWarningsSource;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -46,9 +48,12 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -124,20 +129,22 @@ public class LookupQueryOperatorTests extends OperatorTestCase {
                     new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                     0,
                     directoryData.searchExecutionContext,
-                    warnings()
+                    warnings(),
+                    false,
+                    () -> 0L
                 );
             }
 
             @Override
             public String describe() {
-                return "LookupQueryOperator[maxPageSize=256]";
+                return "LookupQueryOperator[maxPageSize=256, emptyResult=false]";
             }
         };
     }
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return equalTo("LookupQueryOperator[maxPageSize=256]");
+        return equalTo("LookupQueryOperator[maxPageSize=256, emptyResult=false]");
     }
 
     @Override
@@ -180,7 +187,9 @@ public class LookupQueryOperatorTests extends OperatorTestCase {
                     new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(noMatchDirectory.reader)),
                     0,
                     noMatchDirectory.searchExecutionContext,
-                    warnings()
+                    warnings(),
+                    false,
+                    () -> 0L
                 )
             ) {
                 // Create input with non-matching terms
@@ -237,7 +246,9 @@ public class LookupQueryOperatorTests extends OperatorTestCase {
                 new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                 0,
                 directoryData.searchExecutionContext,
-                warnings()
+                warnings(),
+                false,
+                () -> 0L
             )
         ) {
             // Create input with many matching terms
@@ -283,7 +294,9 @@ public class LookupQueryOperatorTests extends OperatorTestCase {
                 new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                 0,
                 directoryData.searchExecutionContext,
-                warnings()
+                warnings(),
+                false,
+                () -> 0L
             )
         ) {
             // Mix of matching and non-matching terms
@@ -325,8 +338,104 @@ public class LookupQueryOperatorTests extends OperatorTestCase {
         }
     }
 
+    /**
+     * Test that when emptyResult=true the operator discards all input pages without producing output.
+     */
+    public void testEmptyResultDiscardsInput() {
+        DriverContext driverContext = driverContext();
+        QueryList queryList = QueryList.rawTermQueryList(directoryData.field, AliasFilter.EMPTY, 0, ElementType.BYTES_REF);
+
+        try (
+            LookupQueryOperator operator = new LookupQueryOperator(
+                driverContext.blockFactory(),
+                LookupQueryOperator.DEFAULT_MAX_PAGE_SIZE,
+                queryList,
+                new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
+                0,
+                directoryData.searchExecutionContext,
+                warnings(),
+                true,
+                () -> 0L
+            )
+        ) {
+            assertTrue("Should need input initially", operator.needsInput());
+            assertFalse("Should not be finished before finish() is called", operator.isFinished());
+
+            // Feed multiple pages with terms that would normally match
+            for (int p = 0; p < 3; p++) {
+                try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(10)) {
+                    for (int i = 0; i < 10; i++) {
+                        builder.appendBytesRef(new BytesRef("term-" + i));
+                    }
+                    operator.addInput(new Page(builder.build()));
+                }
+
+                assertNull("Should never produce output when emptyResult=true", operator.getOutput());
+                assertFalse("Should not be able to produce more data", operator.canProduceMoreDataWithoutExtraInput());
+                assertTrue("Should still need input (not finished)", operator.needsInput());
+            }
+
+            operator.finish();
+            assertTrue("Should be finished after finish()", operator.isFinished());
+            assertNull("Should return null after finish()", operator.getOutput());
+        }
+    }
+
+    public void testBytesRead() throws Exception {
+        long countStep = 17L;
+        AtomicLong counter = new AtomicLong();
+        LongSupplier fakeDirectoryBytesRead = () -> counter.addAndGet(countStep);
+
+        int numTerms = 30;
+        QueryList queryList = QueryList.rawTermQueryList(directoryData.field, AliasFilter.EMPTY, 0, ElementType.BYTES_REF);
+        DriverContext driverContext = driverContext();
+        int maxPageSize = 5;
+
+        try (
+            LookupQueryOperator operator = new LookupQueryOperator(
+                driverContext.blockFactory(),
+                maxPageSize,
+                queryList,
+                new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
+                0,
+                directoryData.searchExecutionContext,
+                warnings(),
+                false,
+                fakeDirectoryBytesRead
+            )
+        ) {
+            assertThat(operator.status().bytesRead(), equalTo(0L));
+
+            try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(numTerms)) {
+                for (int i = 0; i < numTerms; i++) {
+                    builder.appendBytesRef(new BytesRef("term-" + i));
+                }
+                operator.addInput(new Page(builder.build()));
+            }
+
+            int pages = 0;
+            long lastBytesRead = 0L;
+            while (operator.canProduceMoreDataWithoutExtraInput()) {
+                Page page = operator.getOutput();
+                assertNotNull("Expected non-null page while canProduceMoreDataWithoutExtraInput()", page);
+                pages++;
+                long currentBytesRead = operator.status().bytesRead();
+                assertThat(currentBytesRead, greaterThan(lastBytesRead));
+                lastBytesRead = currentBytesRead;
+                page.releaseBlocks();
+            }
+
+            assertThat(pages, greaterThan(1));
+
+            long bytesRead = operator.status().bytesRead();
+            assertThat(bytesRead, greaterThan(0L));
+            assertThat(bytesRead, equalTo((long) pages * countStep));
+        }
+    }
+
     private static Warnings warnings() {
-        return Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test"));
+        DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
+        return driverContext.createWarnings(new TestWarningsSource("test"));
     }
 
     private record DirectoryData(

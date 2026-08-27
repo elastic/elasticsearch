@@ -11,13 +11,14 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.GroupKeyEncoder;
 import org.elasticsearch.compute.operator.Operator;
@@ -44,6 +45,11 @@ public class GroupedTopNOperator implements Operator, Accountable {
 
     private static final long SORT_ORDER_SIZE = RamUsageEstimator.shallowSizeOfInstance(TopNOperator.SortOrder.class);
 
+    public enum OutputOrdering {
+        SORTED,
+        NOT_SORTED
+    }
+
     public record GroupedTopNOperatorFactory(
         int topCount,
         List<ElementType> elementTypes,
@@ -51,7 +57,8 @@ public class GroupedTopNOperator implements Operator, Accountable {
         List<TopNOperator.SortOrder> sortOrders,
         List<Integer> groupKeys,
         int maxPageSize,
-        long jumboPageBytes
+        long jumboPageBytes,
+        OutputOrdering outputOrdering
     ) implements OperatorFactory {
         public GroupedTopNOperatorFactory {
             for (ElementType e : elementTypes) {
@@ -66,9 +73,14 @@ public class GroupedTopNOperator implements Operator, Accountable {
 
         @Override
         public GroupedTopNOperator get(DriverContext driverContext) {
-            var scratch = new BreakingBytesRefBuilder(driverContext.breaker(), "group-key-encoder");
+            PagedBytesBuilder row = new PagedBytesBuilder(
+                driverContext.blockFactory().bigArrays().recycler(),
+                driverContext.breaker(),
+                "group-key-encoder",
+                64
+            );
             int[] groupKeysArray = groupKeys.stream().mapToInt(Integer::intValue).toArray();
-            var keyEncoder = new GroupKeyEncoder(groupKeysArray, elementTypes, scratch);
+            GroupKeyEncoder keyEncoder = new GroupKeyEncoder(groupKeysArray, elementTypes, row);
             return new GroupedTopNOperator(
                 driverContext.blockFactory(),
                 driverContext.breaker(),
@@ -78,7 +90,8 @@ public class GroupedTopNOperator implements Operator, Accountable {
                 sortOrders,
                 keyEncoder,
                 maxPageSize,
-                jumboPageBytes
+                jumboPageBytes,
+                outputOrdering
             );
         }
 
@@ -94,6 +107,8 @@ public class GroupedTopNOperator implements Operator, Accountable {
                 + sortOrders
                 + ", groupKeys="
                 + groupKeys
+                + ", outputOrdering="
+                + outputOrdering
                 + "]";
         }
     }
@@ -108,6 +123,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
     private final List<TopNOperator.SortOrder> sortOrders;
     private final boolean[] channelInKey;
     private final GroupKeyEncoder keyEncoder;
+    private final OutputOrdering outputOrdering;
 
     private BytesRefHashTable keysHash;
     private GroupedQueue inputQueue;
@@ -131,7 +147,8 @@ public class GroupedTopNOperator implements Operator, Accountable {
         List<TopNOperator.SortOrder> sortOrders,
         GroupKeyEncoder keyEncoder,
         int maxPageSize,
-        long jumboPageBytes
+        long jumboPageBytes,
+        OutputOrdering outputOrdering
     ) {
         BytesRefHashTable keysHash = null;
         GroupedQueue inputQueue = null;
@@ -146,6 +163,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
             }
         }
         this.keyEncoder = keyEncoder;
+        this.outputOrdering = outputOrdering;
         this.keysHash = keysHash;
         this.inputQueue = inputQueue;
         this.blockFactory = blockFactory;
@@ -176,7 +194,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
             }
             TopNOperator.RowFiller rowFiller = new TopNOperator.RowFiller(elementTypes, encoders, sortOrders, channelInKey, page);
             for (int pos = 0; pos < page.getPositionCount(); pos++) {
-                BytesRef key = keyEncoder.encode(page, pos);
+                PagedBytesCursor key = keyEncoder.encode(page, pos);
                 long hashOrd = keysHash.add(key);
                 long groupId = BlockHash.hashOrdToGroup(hashOrd);
                 processRow(rowFiller, pos, groupId);
@@ -299,6 +317,8 @@ public class GroupedTopNOperator implements Operator, Accountable {
             + sortOrders
             + ", groupKeys="
             + Arrays.toString(keyEncoder.groupChannels())
+            + ", outputOrdering="
+            + outputOrdering
             + "]";
     }
 
@@ -316,7 +336,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
             return ReleasableIterator.empty();
         }
 
-        List<TopNRow> rows = inputQueue.popAll();
+        List<TopNRow> rows = inputQueue.popAll(outputOrdering);
         inputQueue.close();
         keysHash.close();
         inputQueue = null;

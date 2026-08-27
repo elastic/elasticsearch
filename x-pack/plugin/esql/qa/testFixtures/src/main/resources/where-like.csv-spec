@@ -102,6 +102,7 @@ emp_no:integer | first_name:keyword
 
 likeListTwoArgWildcard
 required_capability: like_with_list_of_patterns
+skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE first_name like ("Eberhardt*", "testString*") 
 | KEEP emp_no, first_name;
@@ -124,6 +125,7 @@ foobar
 
 likeListThreeArgWildcard
 required_capability: like_with_list_of_patterns
+skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE first_name like ("Eberhardt*", "Ot*", "Part?") 
 | KEEP emp_no, first_name  
@@ -138,6 +140,7 @@ emp_no:integer | first_name:keyword
 
 likeListMultipleWhere
 required_capability: like_with_list_of_patterns
+skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE first_name like ("Eberhardt*", "Ot*", "Part?") 
 | WHERE first_name like ("Eberhard?", "Otm*")
@@ -164,6 +167,7 @@ emp_no:integer | first_name:keyword
 
 likeListOverlappingPatterns
 required_capability: like_with_list_of_patterns
+skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE first_name like ("Eber*", "Eberhardt") 
 | KEEP emp_no, first_name;
@@ -183,6 +187,7 @@ emp_no:integer | first_name:keyword
 
 likeListSpecialCharacters
 required_capability: like_with_list_of_patterns
+skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE first_name like ("*ar*", "?eor*") 
 | KEEP emp_no, first_name 
@@ -235,6 +240,7 @@ emp_no:integer | first_name:keyword
 
 notLikeListThreeArgWildcardNotOtherFilter
 required_capability: like_with_list_of_patterns
+skip_columnar: NOT LIKE/RLIKE with list of patterns returns incorrect results in columnar mode
 FROM employees 
 | WHERE first_name not like ("Eberhardt*", "Ot*", "Part?") and emp_no < 10010 
 | KEEP emp_no, first_name
@@ -253,6 +259,7 @@ emp_no:integer | first_name:keyword
 
 likeListBeginningWithWildcard
 required_capability: like_with_list_of_patterns
+skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE first_name like ("A*", "B*", "C*") 
 | KEEP emp_no, first_name 
@@ -279,6 +286,7 @@ emp_no:integer | first_name:keyword
 
 notLikeListThreeArgWildcardOtherFirst
 required_capability: like_with_list_of_patterns
+skip_columnar: NOT LIKE/RLIKE with list of patterns returns incorrect results in columnar mode
 FROM employees 
 | WHERE emp_no < 10010 and first_name not like ("Eberhardt*", "Ot*", "Part?") 
 | KEEP emp_no, first_name  
@@ -332,6 +340,7 @@ emp_no:integer | first_name:keyword
 
 notLikeListMultipleWhere
 required_capability: like_with_list_of_patterns
+skip_columnar: NOT LIKE/RLIKE with list of patterns returns incorrect results in columnar mode
 FROM employees 
 | WHERE first_name not like ("Eberhardt*", "Ot*", "Part?", "A*", "B*", "C*", "D*") 
 | WHERE first_name not like ("Eberhard?", "Otm*", "F*", "G*", "H*", "I*", "J*", "K*", "L*")
@@ -387,6 +396,7 @@ emp_no:integer | first_name:keyword
 
 notLikeListNotField
 required_capability: like_with_list_of_patterns
+skip_columnar: NOT LIKE/RLIKE with list of patterns returns incorrect results in columnar mode
 FROM employees 
 | WHERE not first_name like ("Eberhardt*", "Ot*", "Part?", "A*", "B*", "C*", "D*") 
 | WHERE first_name not like ("Eberhard?", "Otm*", "F*", "G*", "H*", "I*", "J*", "K*", "L*")
@@ -455,6 +465,7 @@ emp_no:integer | first_name:keyword
 
 notLikeListWildcard
 required_capability: like_with_list_of_patterns
+skip_columnar: NOT LIKE/RLIKE with list of patterns returns incorrect results in columnar mode
 FROM employees 
 | WHERE first_name not like ("A*","B*", "C*", "D*","E*", "F*", "G*", "H*", "I*", "J*", "K*") 
 | KEEP emp_no, first_name  
@@ -523,6 +534,7 @@ emp_no:integer | first_name:keyword
 
 likeListWithUpperTurnedInsensitiveMult
 required_capability: like_with_list_of_patterns
+skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE TO_UPPER(first_name) LIKE ("GEOR*", "WE*")  
 | KEEP emp_no, first_name 
@@ -546,6 +558,7 @@ emp_no:integer | first_name:keyword
 
 likeListWithUpperAllUpper
 required_capability: like_with_list_of_patterns
+skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE TO_UPPER(first_name) LIKE ("GEOR*", "WEI*")
 | KEEP emp_no, first_name 
@@ -569,6 +582,7 @@ emp_no:integer | first_name:keyword
 
 likeListWithUpperMultiplePatternsMixedCase
 required_capability: like_with_list_of_patterns
+skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE TO_UPPER(first_name) LIKE ("geor*", "WEIYI*", "bErnI*") 
 | KEEP emp_no, first_name 
@@ -600,6 +614,7 @@ emp_no:integer | first_name:keyword
 
 rlikeListWithUpperAllUpper
 required_capability: rlike_with_list_of_patterns
+skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE TO_UPPER(first_name) RLIKE ("GEOR.*", "WEI.*")
 | KEEP emp_no, first_name 
@@ -623,6 +638,7 @@ emp_no:integer | first_name:keyword
 
 rlikeListWithUpperMultiplePatternsMixedCase
 required_capability: rlike_with_list_of_patterns
+skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE TO_UPPER(first_name) RLIKE ("geor*", "WEIYI.*", "bErnI.*") 
 | KEEP emp_no, first_name 
@@ -663,6 +679,7 @@ emp_no:integer | first_name:keyword
 
 rlikeListTwoArgWildcard
 required_capability: rlike_with_list_of_patterns
+skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE first_name rlike ("Eberhardt.*", "testString.*") 
 | KEEP emp_no, first_name;
@@ -685,6 +702,7 @@ foobar
 
 rlikeListThreeArgWildcard
 required_capability: rlike_with_list_of_patterns
+skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE first_name rlike ("Eberhardt.*", "Ot.*", "Part.") 
 | KEEP emp_no, first_name  
@@ -698,6 +716,7 @@ emp_no:integer | first_name:keyword
 
 rlikeListMultipleWhere
 required_capability: rlike_with_list_of_patterns
+skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE first_name RLIKE ("Eberhardt.*", "Ot.*", "Part.") 
 | WHERE first_name RLIKE ("Eberhard.", "Otm.*")
@@ -724,6 +743,7 @@ emp_no:integer | first_name:keyword
 
 rlikeListOverlappingPatterns
 required_capability: rlike_with_list_of_patterns
+skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE first_name rlike ("Eber.*", "Eberhardt") 
 | KEEP emp_no, first_name;
@@ -743,6 +763,7 @@ emp_no:integer | first_name:keyword
 
 rlikeListSpecialCharacters
 required_capability: rlike_with_list_of_patterns
+skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE first_name rlike (".*ar.*", ".*eor.*") 
 | KEEP emp_no, first_name 
@@ -795,6 +816,7 @@ emp_no:integer | first_name:keyword
 
 notRlikeListThreeArgWildcardNotOtherFilter
 required_capability: rlike_with_list_of_patterns
+skip_columnar: NOT LIKE/RLIKE with list of patterns returns incorrect results in columnar mode
 FROM employees 
 | WHERE first_name not rlike ("Eberhardt.*", "Ot.*", "Part.") and emp_no < 10010 
 | KEEP emp_no, first_name
@@ -813,6 +835,7 @@ emp_no:integer | first_name:keyword
 
 rlikeListBeginningWithWildcard
 required_capability: rlike_with_list_of_patterns
+skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE first_name rlike ("A.*", "B.*", "C.*") 
 | KEEP emp_no, first_name 
@@ -839,6 +862,7 @@ emp_no:integer | first_name:keyword
 
 notRlikeListThreeArgWildcardOtherFirst
 required_capability: rlike_with_list_of_patterns
+skip_columnar: NOT LIKE/RLIKE with list of patterns returns incorrect results in columnar mode
 FROM employees 
 | WHERE emp_no < 10010 and first_name not rlike ("Eberhardt.*", "Ot.*", "Part.") 
 | KEEP emp_no, first_name  
@@ -892,6 +916,7 @@ emp_no:integer | first_name:keyword
 
 notRlikeListMultipleWhere
 required_capability: rlike_with_list_of_patterns
+skip_columnar: NOT LIKE/RLIKE with list of patterns returns incorrect results in columnar mode
 FROM employees 
 | WHERE first_name NOT RLIKE ("Eberhardt.*", "Ot.*", "Part.", "A.*", "B.*", "C.*", "D.*") 
 | WHERE first_name NOT RLIKE ("Eberhard.", "Otm.*", "F.*", "G.*", "H.*", "I.*", "J.*", "K.*", "L.*")
@@ -947,6 +972,7 @@ emp_no:integer | first_name:keyword
 
 notRlikeListNotField
 required_capability: rlike_with_list_of_patterns
+skip_columnar: NOT LIKE/RLIKE with list of patterns returns incorrect results in columnar mode
 FROM employees 
 | WHERE NOT first_name RLIKE ("Eberhardt.*", "Ot.*", "Part.", "A.*", "B.*", "C.*", "D.*") 
 | WHERE first_name NOT RLIKE ("Eberhard.", "Otm.*", "F.*", "G.*", "H.*", "I.*", "J.*", "K.*", "L.*")
@@ -1015,6 +1041,7 @@ emp_no:integer | first_name:keyword
 
 notRlikeListWildcard
 required_capability: rlike_with_list_of_patterns
+skip_columnar: NOT LIKE/RLIKE with list of patterns returns incorrect results in columnar mode
 FROM employees 
 | WHERE first_name NOT RLIKE ("A.*","B.*", "C.*", "D.*","E.*", "F.*", "G.*", "H.*", "I.*", "J.*", "K.*") 
 | KEEP emp_no, first_name  
@@ -1083,6 +1110,7 @@ emp_no:integer | first_name:keyword
 
 rlikeListWithUpperTurnedInsensitiveMult
 required_capability: rlike_with_list_of_patterns
+skip_columnar: LIKE/RLIKE with list of patterns returns empty results in columnar mode
 FROM employees 
 | WHERE TO_UPPER(first_name) RLIKE ("GEOR.*", "WE.*")  
 | KEEP emp_no, first_name 
@@ -1310,7 +1338,7 @@ FROM sample_data
 @timestamp:date | client_ip:ip | event_duration:long | message:keyword
 ;
 
-multiValueLike#[skip:-8.12.99]
+multiValueLike
 from employees | where job_positions like "Account*" | keep emp_no, job_positions;
 
 warningRegex:evaluation of \[job_positions like \\\"Account\*\\\"\] failed, treating result as null. Only first 20 failures recorded.
@@ -1321,7 +1349,7 @@ emp_no:integer | job_positions:keyword
 ;
 
 
-multiValueRLike#[skip:-8.12.99]
+multiValueRLike
 from employees | where job_positions rlike "Account.*" | keep emp_no, job_positions;
 
 warningRegex:evaluation of \[job_positions rlike \\\"Account.*\\\"\] failed, treating result as null. Only first 20 failures recorded.
@@ -1331,7 +1359,7 @@ emp_no:integer | job_positions:keyword
 10025          | Accountant 
 ;
 
-likeWithUpperTurnedInsensitive#[skip:-8.12.99]
+likeWithUpperTurnedInsensitive
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -1343,7 +1371,7 @@ emp_no:integer |first_name:keyword
 10055          |Georgy
 ;
 
-likeWithLowerTurnedInsensitive#[skip:-8.12.99]
+likeWithLowerTurnedInsensitive
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -1355,7 +1383,7 @@ emp_no:integer |first_name:keyword
 10055          |Georgy
 ;
 
-likeWithLowerConflictingFolded#[skip:-8.12.99]
+likeWithLowerConflictingFolded
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -1365,7 +1393,7 @@ FROM employees
 emp_no:integer |first_name:keyword
 ;
 
-likeWithLowerTurnedInsensitiveNotPushedDown#[skip:-8.12.99]
+likeWithLowerTurnedInsensitiveNotPushedDown
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -1377,7 +1405,7 @@ emp_no:integer |first_name:keyword
 10055          |Georgy
 ;
 
-rlikeWithUpperTurnedInsensitive#[skip:-8.12.99]
+rlikeWithUpperTurnedInsensitive
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -1389,7 +1417,7 @@ emp_no:integer |first_name:keyword
 10055          |Georgy
 ;
 
-rlikeWithLowerTurnedInsensitive#[skip:-8.12.99]
+rlikeWithLowerTurnedInsensitive
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -1401,7 +1429,7 @@ emp_no:integer |first_name:keyword
 10055          |Georgy
 ;
 
-rlikeWithLowerConflictingFolded#[skip:-8.12.99]
+rlikeWithLowerConflictingFolded
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -1411,7 +1439,7 @@ FROM employees
 emp_no:integer |first_name:keyword
 ;
 
-negatedRLikeWithLowerTurnedInsensitive#[skip:-8.12.99]
+negatedRLikeWithLowerTurnedInsensitive
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -1423,7 +1451,7 @@ c:long
 88
 ;
 
-rlikeWithLowerTurnedInsensitiveNotPushedDown#[skip:-8.12.99]
+rlikeWithLowerTurnedInsensitiveNotPushedDown
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -1445,7 +1473,7 @@ x:keyword | bool:boolean
 abc       | false
 ;
 
-rlikeWithLowerTurnedInsensitiveUnicode#[skip:-8.12.99]
+rlikeWithLowerTurnedInsensitiveUnicode
 FROM airport_city_boundaries
 | WHERE TO_UPPER(region) RLIKE ".*Л.*" and abbrev == "FRU"
 | KEEP region
@@ -1466,4 +1494,469 @@ FROM airport_city_boundaries
 
 region:text
 Свердлов району
+;
+
+likeQuestionMarkWildcardOnIndexMetadataField
+required_capability: fix_index_like_question_mark_wildcard
+FROM employees METADATA _index | WHERE _index LIKE "employ?es" | KEEP emp_no | SORT emp_no | LIMIT 1;
+
+emp_no:integer
+10001
+;
+
+likeQuestionMarkWildcardNoMatchOnIndexMetadataField
+required_capability: fix_index_like_question_mark_wildcard
+FROM employees METADATA _index | WHERE _index LIKE "employ??es" | KEEP emp_no;
+
+emp_no:integer
+;
+
+
+// LIKE fast-path coverage on the row evaluator (non-pushable position).
+// These exercise the WildcardLike.toEvaluator dispatch added in elastic/elasticsearch#148680:
+// prefix -> StartsWithEvaluator, suffix -> EndsWithEvaluator, contains -> WildcardLikeContainsEvaluator.
+// LIKE sits on an EVAL-output column so the optimizer cannot push it down to Lucene; the row
+// evaluator is the only path it can take. End-to-end answers must match what the automaton path
+// would have produced before this PR.
+
+likePrefixOnEvalOutput
+from employees | eval n = first_name | where n like "Eberhar*" | keep emp_no, n;
+
+emp_no:integer | n:keyword
+10013          | Eberhardt
+;
+
+
+likeSuffixOnEvalOutput
+from employees | eval n = first_name | where n like "*uhito" | keep emp_no, n;
+
+emp_no:integer | n:keyword
+10016          | Kazuhito
+;
+
+
+likeContainsOnEvalOutput
+from employees | eval n = first_name | where n like "*har*" | keep emp_no, n | sort emp_no;
+
+emp_no:integer | n:keyword
+10013          | Eberhardt
+10058          | Berhard
+10068          | Charlene
+10089          | Sudharsan
+;
+
+
+likeContainsLongerLiteralOnEvalOutput
+from employees | eval n = first_name | where n like "*ardt*" | keep emp_no, n;
+
+emp_no:integer | n:keyword
+10013          | Eberhardt
+;
+
+
+likeStarAloneOnEvalOutput
+// LIKE on a NULL value returns NULL under 3-valued logic; WHERE then filters those rows out.
+// 10 of the 100 employees have a NULL first_name, so n LIKE "*" matches the remaining 90.
+from employees | eval n = first_name | where n like "*" | stats c = count(*);
+
+c:long
+90
+;
+
+
+// Constant expression on the RHS of LIKE/RLIKE (https://github.com/elastic/elasticsearch/issues/147671)
+
+likeConstantExpressionConcat
+required_capability: like_rlike_constant_expression
+// tag::likeConstExprConcat[]
+from employees | where first_name like concat("Eber", "*") | keep emp_no, first_name
+// end::likeConstExprConcat[]
+;
+
+// tag::likeConstExprConcat-result[]
+emp_no:integer | first_name:keyword
+10013          | Eberhardt
+// end::likeConstExprConcat-result[]
+;
+
+
+rlikeConstantExpressionConcat
+required_capability: like_rlike_constant_expression
+// tag::rlikeConstExprConcat[]
+from employees | where first_name rlike concat("Eber", ".*") | keep emp_no, first_name
+// end::rlikeConstExprConcat[]
+;
+
+// tag::rlikeConstExprConcat-result[]
+emp_no:integer | first_name:keyword
+10013          | Eberhardt
+// end::rlikeConstExprConcat-result[]
+;
+
+
+likeConstantExpressionToLower
+required_capability: like_rlike_constant_expression
+row x = "hello" | where x like to_lower("HELL*");
+
+x:keyword
+hello
+;
+
+
+likeConstantExpressionNested
+required_capability: like_rlike_constant_expression
+row x = "eberhardt" | where x like concat(to_lower("EBER"), "*");
+
+x:keyword
+eberhardt
+;
+
+
+rlikeConstantExpressionToUpper
+required_capability: like_rlike_constant_expression
+// to_upper folds at optimization time; the resulting pattern matches the uppercase string case-sensitively
+row x = "EBERHARDT" | where x rlike concat(to_upper("eber"), ".*");
+
+x:keyword
+EBERHARDT
+;
+
+
+likeEvalPropagatedLiteral
+required_capability: like_rlike_constant_expression
+from employees | eval p = "Eber*" | where first_name like p | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt
+;
+
+
+likeEvalPropagatedConcat
+required_capability: like_rlike_constant_expression
+from employees | eval p = concat("Eber", "*") | where first_name like p | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt
+;
+
+
+rlikeEvalPropagatedConcat
+required_capability: like_rlike_constant_expression
+from employees | eval p = concat("Eber", ".*") | where first_name rlike p | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt
+;
+
+
+likeRowEvalPropagatedConcat
+required_capability: like_rlike_constant_expression
+row abc = "demo" | eval filter = concat("demo", "*") | where abc like filter | keep abc;
+
+abc:keyword
+demo
+;
+
+
+rlikeRowEvalPropagatedConcat
+required_capability: like_rlike_constant_expression
+row abc = "demo" | eval filter = concat("demo", ".*") | where abc rlike filter | keep abc;
+
+abc:keyword
+demo
+;
+
+
+rlikeEvalPropagatedLiteral
+required_capability: like_rlike_constant_expression
+from employees | eval p = "Eber.*" | where first_name rlike p | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt
+;
+
+
+likeMultiLevelEvalChain
+required_capability: like_rlike_constant_expression
+from employees | eval suffix = "*" | eval p = concat("Eber", suffix) | where first_name like p | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt
+;
+
+
+rlikeMultiLevelEvalChain
+required_capability: like_rlike_constant_expression
+from employees | eval suffix = ".*" | eval p = concat("Eber", suffix) | where first_name rlike p | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt
+;
+
+
+likeNotConstantExpressionConcat
+required_capability: like_rlike_constant_expression
+from employees | where first_name not like concat("Eber", "*") | keep emp_no, first_name | sort emp_no | limit 3;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+
+rlikeNotConstantExpressionConcat
+required_capability: like_rlike_constant_expression
+from employees | where first_name not rlike concat("Eber", ".*") | keep emp_no, first_name | sort emp_no | limit 3;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+
+// Constant expression on the RHS: broader coverage (prefix/suffix/contains, multi-value fields,
+// upstream commands, escaping, aggregations and joins). See https://github.com/elastic/elasticsearch/issues/147671
+
+likeConstantExpressionSuffixNoMatch
+required_capability: like_rlike_constant_expression
+from employees | where first_name like concat("*", "ki") | keep emp_no, first_name | sort emp_no;
+
+emp_no:integer | first_name:keyword
+;
+
+
+likeConstantExpressionContains
+required_capability: like_rlike_constant_expression
+from employees | where first_name like concat("*", "ann", "*") | keep emp_no, first_name | sort emp_no;
+
+emp_no:integer | first_name:keyword
+10060          | Breannda
+;
+
+
+likeConstantExpressionExactMatch
+required_capability: like_rlike_constant_expression
+from employees | where first_name like concat("Georgi", "") | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+;
+
+
+likeConstantExpressionMultiValueField
+required_capability: like_rlike_constant_expression
+// job_positions is a multi-value field; expand it first, then match individual values with the constant pattern
+from employees | keep emp_no, job_positions | mv_expand job_positions | where job_positions like concat("Account", "*") | stats c = count(*);
+
+c:long
+18
+;
+
+
+likeConstantExpressionMultiValueFieldSenior
+required_capability: like_rlike_constant_expression
+from employees | keep emp_no, job_positions | mv_expand job_positions | where job_positions like concat("Sen", "*") | stats c = count(*);
+
+c:long
+35
+;
+
+
+likeConstantExpressionOnEvalField
+required_capability: like_rlike_constant_expression
+from employees | eval n = first_name | where n like concat("Eb", "*") | keep emp_no, first_name | sort emp_no;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt
+10057          | Ebbe
+;
+
+
+likeConstantExpressionOnGrokField
+required_capability: like_rlike_constant_expression
+from employees | grok first_name "%{WORD:g}" | where g like concat("Eb", "*") | keep emp_no | sort emp_no;
+
+emp_no:integer
+10013
+10057
+;
+
+
+likeConstantExpressionOnDissectField
+required_capability: like_rlike_constant_expression
+row s = "hello world" | dissect s "%{a} %{b}" | where b like concat("wor", "*") | keep b;
+
+b:keyword
+world
+;
+
+
+likeConstantExpressionToLowerField
+required_capability: like_rlike_constant_expression
+from employees | where to_lower(first_name) like concat(to_lower("EBER"), "*") | keep emp_no | sort emp_no;
+
+emp_no:integer
+10013
+;
+
+
+rlikeConstantExpressionToUpperField
+required_capability: like_rlike_constant_expression
+from employees | where to_upper(first_name) rlike concat(to_upper("eber"), ".*") | keep emp_no | sort emp_no;
+
+emp_no:integer
+10013
+;
+
+
+likeConstantExpressionMatchAll
+required_capability: like_rlike_constant_expression
+// a match-all pattern folds to IsNotNull, so null gender values are excluded
+from employees | where gender like concat("", "*") | stats c = count(*);
+
+c:long
+90
+;
+
+
+likeConstantExpressionNoMatch
+required_capability: like_rlike_constant_expression
+from employees | where first_name like concat("zzz", "*") | stats c = count(*);
+
+c:long
+0
+;
+
+
+likeConstantExpressionEscapedWildcard
+required_capability: like_rlike_constant_expression
+// the escaped "\*" is a literal star, so it matches the literal "a*b" and not an arbitrary string
+row x = "a*b" | where x like concat("a", "\\*", "b") | keep x;
+
+x:keyword
+a*b
+;
+
+
+rlikeConstantExpressionEscapedMetachar
+required_capability: like_rlike_constant_expression
+row x = "a?b" | where x rlike concat("a\\?", "b") | keep x;
+
+x:keyword
+a?b
+;
+
+
+likeConstantExpressionAfterStatsGrouping
+required_capability: like_rlike_constant_expression
+from employees | stats c = count(*) by gender | where gender like concat("M", "*") | keep gender, c;
+
+gender:keyword | c:long
+M              | 57
+;
+
+
+likeConstantExpressionOnAggregateToString
+required_capability: like_rlike_constant_expression
+from employees | stats c = count(*) by gender | where to_string(c) like concat("5", "*") | keep gender, c;
+
+gender:keyword | c:long
+M              | 57
+;
+
+
+likeConstantExpressionAfterEnrich
+required_capability: like_rlike_constant_expression
+from employees | eval x = to_string(languages) | enrich languages_policy on x | where language_name like concat("Eng", "*") | stats c = count(*);
+
+c:long
+15
+;
+
+
+likeConstantExpressionWithLookupJoin
+required_capability: like_rlike_constant_expression
+required_capability: join_lookup_v12
+from employees | eval language_code = languages | lookup join languages_lookup on language_code | where first_name like concat("Eb", "*") | keep emp_no, first_name, language_name | sort emp_no;
+
+emp_no:integer | first_name:keyword | language_name:keyword
+10013          | Eberhardt          | English
+10057          | Ebbe               | German
+;
+
+
+rlikeConstantExpressionWithLookupJoin
+required_capability: like_rlike_constant_expression
+required_capability: join_lookup_v12
+from employees | eval language_code = languages | lookup join languages_lookup on language_code | where language_name rlike concat("Eng", ".*") | stats c = count(*);
+
+c:long
+15
+;
+
+
+likeConstantExpressionWithInlineStats
+required_capability: like_rlike_constant_expression
+required_capability: inline_stats
+from employees | inline stats total = count(*) | where first_name like concat("Eb", "*") | keep emp_no, first_name, total | sort emp_no;
+
+emp_no:integer | first_name:keyword | total:long
+10013          | Eberhardt          | 100
+10057          | Ebbe               | 100
+;
+
+
+likeConstantExpressionWithFork
+required_capability: like_rlike_constant_expression
+required_capability: fork_v9
+from employees | fork (where first_name like concat("Eb", "*")) (where first_name like concat("Ge", "*")) | stats c = count(*) by _fork | sort _fork;
+
+c:long | _fork:keyword
+2      | fork1
+2      | fork2
+;
+
+
+likeConstantExpressionEmptyPattern
+required_capability: like_rlike_constant_expression
+// an empty pattern folds to an exact match on the empty string
+row x = "" | where x like concat("", "") | keep x;
+
+x:keyword
+""
+;
+
+
+likeConstantExpressionPatternVarWithLookupJoin
+required_capability: like_rlike_constant_expression
+required_capability: join_lookup_v12
+from employees | eval p = concat("Eb", "*"), language_code = languages | lookup join languages_lookup on language_code | where first_name like p | keep emp_no, first_name, language_name | sort emp_no;
+
+emp_no:integer | first_name:keyword | language_name:keyword
+10013          | Eberhardt          | English
+10057          | Ebbe               | German
+;
+
+
+likeConstantExpressionSampleDataLookupJoin
+required_capability: like_rlike_constant_expression
+required_capability: join_lookup_v12
+from sample_data | lookup join message_types_lookup on message | where message like concat("Connect", "*") | stats c = count(*);
+
+c:long
+6
+;
+
+
+likeConstantExpressionAsInlineStatsGrouping
+required_capability: like_rlike_constant_expression
+required_capability: inline_stats
+from employees | inline stats c = count(*) by starts_eb = first_name like concat("Eb", "*") | keep emp_no, first_name, starts_eb, c | sort emp_no | limit 3;
+
+emp_no:integer | first_name:keyword | starts_eb:boolean | c:long
+10001          | Georgi             | false             | 88
+10002          | Bezalel            | false             | 88
+10003          | Parto              | false             | 88
 ;

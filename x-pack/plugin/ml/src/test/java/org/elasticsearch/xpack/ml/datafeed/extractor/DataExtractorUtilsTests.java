@@ -8,14 +8,21 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedCloudCredentialDiagnostics;
 import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +40,82 @@ import static org.mockito.Mockito.when;
  */
 public class DataExtractorUtilsTests extends ESTestCase {
 
+    public void testCloudCredentialAuthenticationFailureShouldClassifyAndEnrich() {
+        ElasticsearchSecurityException failure = new ElasticsearchSecurityException("invalid key", RestStatus.UNAUTHORIZED);
+
+        DataExtractorUtils.CloudCredentialFailureKind kind = DataExtractorUtils.classifyCloudCredentialSearchFailure(failure, "key-abc");
+        Exception enriched = DatafeedCloudCredentialDiagnostics.enrichIfCloudCredentialFailure("key-abc", kind, failure);
+
+        assertThat(kind, equalTo(DataExtractorUtils.CloudCredentialFailureKind.AUTHENTICATION));
+        assertThat(enriched.getMessage(), equalTo(Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_CPS_KEY_RUNTIME_FAILURE, "key-abc")));
+        assertThat(enriched.getCause(), equalTo(failure));
+    }
+
+    public void testCloudCredentialAuthorizationFailureShouldClassifyAndEnrich() {
+        ElasticsearchSecurityException failure = new ElasticsearchSecurityException("action denied", RestStatus.FORBIDDEN);
+
+        DataExtractorUtils.CloudCredentialFailureKind kind = DataExtractorUtils.classifyCloudCredentialSearchFailure(failure, "key-abc");
+        Exception enriched = DatafeedCloudCredentialDiagnostics.enrichIfCloudCredentialFailure("key-abc", kind, failure);
+
+        assertThat(kind, equalTo(DataExtractorUtils.CloudCredentialFailureKind.AUTHORIZATION));
+        assertThat(
+            enriched.getMessage(),
+            equalTo(Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_CPS_KEY_RUNTIME_AUTHZ_FAILURE, "key-abc"))
+        );
+    }
+
+    public void testCloudCredentialWrappedAuthenticationFailureShouldClassifyViaCauseChain() {
+        Throwable failure = new RuntimeException(new ElasticsearchSecurityException("invalid key", RestStatus.UNAUTHORIZED));
+
+        DataExtractorUtils.CloudCredentialFailureKind kind = DataExtractorUtils.classifyCloudCredentialSearchFailure(failure, "key-abc");
+
+        assertThat(kind, equalTo(DataExtractorUtils.CloudCredentialFailureKind.AUTHENTICATION));
+    }
+
+    public void testCloudCredentialSearchPhaseAuthorizationFailureShouldClassify() {
+        ShardSearchFailure shardFailure = new ShardSearchFailure(new ElasticsearchSecurityException("action denied", RestStatus.FORBIDDEN));
+        SearchPhaseExecutionException failure = new SearchPhaseExecutionException(
+            "query",
+            "all shards failed",
+            new ShardSearchFailure[] { shardFailure }
+        );
+
+        DataExtractorUtils.CloudCredentialFailureKind kind = DataExtractorUtils.classifyCloudCredentialSearchFailure(failure, "key-abc");
+
+        assertThat(kind, equalTo(DataExtractorUtils.CloudCredentialFailureKind.AUTHORIZATION));
+    }
+
+    public void testCloudCredentialSearchPhaseNonElasticsearchShardCauseShouldNotRecurseInfinitely() {
+        ShardSearchFailure shardFailure = new ShardSearchFailure(new IOException("connection reset"));
+        SearchPhaseExecutionException failure = new SearchPhaseExecutionException(
+            "blah",
+            "all shards failed",
+            new ShardSearchFailure[] { shardFailure }
+        );
+
+        DataExtractorUtils.CloudCredentialFailureKind kind = DataExtractorUtils.classifyCloudCredentialSearchFailure(failure, "key-abc");
+
+        assertThat(kind, equalTo(DataExtractorUtils.CloudCredentialFailureKind.NONE));
+    }
+
+    public void testCloudCredentialSecurityFailureWithoutCredentialIdShouldNotClassify() {
+        ElasticsearchSecurityException failure = new ElasticsearchSecurityException("action denied", RestStatus.FORBIDDEN);
+
+        DataExtractorUtils.CloudCredentialFailureKind kind = DataExtractorUtils.classifyCloudCredentialSearchFailure(failure, null);
+
+        assertThat(kind, equalTo(DataExtractorUtils.CloudCredentialFailureKind.NONE));
+        assertThat(DatafeedCloudCredentialDiagnostics.enrichIfCloudCredentialFailure(null, kind, failure), equalTo(failure));
+    }
+
+    public void testCloudCredentialNonSecurityFailureShouldNotClassify() {
+        RuntimeException failure = new RuntimeException("connection reset");
+
+        DataExtractorUtils.CloudCredentialFailureKind kind = DataExtractorUtils.classifyCloudCredentialSearchFailure(failure, "key-abc");
+
+        assertThat(kind, equalTo(DataExtractorUtils.CloudCredentialFailureKind.NONE));
+        assertThat(DatafeedCloudCredentialDiagnostics.enrichIfCloudCredentialFailure("key-abc", kind, failure), equalTo(failure));
+    }
+
     public void testExtractLinkedClusterStates_returnsEmptyWhenClustersIsNull() {
         SearchResponse response = mock(SearchResponse.class);
         when(response.getClusters()).thenReturn(null);
@@ -45,11 +128,9 @@ public class DataExtractorUtilsTests extends ESTestCase {
     public void testExtractLinkedClusterStates_returnsEmptyWhenClustersIsEmpty() {
         SearchResponse response = createSearchResponse(SearchResponse.Clusters.EMPTY);
 
-        try {
-            List<LinkedClusterState> states = DataExtractorUtils.extractLinkedClusterStates(response);
+        try (var responseRef = ReleasableRef.of(response)) {
+            List<LinkedClusterState> states = DataExtractorUtils.extractLinkedClusterStates(responseRef.get());
             assertThat(states, hasSize(0));
-        } finally {
-            response.decRef();
         }
     }
 
@@ -71,16 +152,14 @@ public class DataExtractorUtilsTests extends ESTestCase {
         SearchResponse.Clusters clusters = new SearchResponse.Clusters(Map.of("remote_1", cluster));
         SearchResponse response = createSearchResponse(clusters);
 
-        try {
-            List<LinkedClusterState> states = DataExtractorUtils.extractLinkedClusterStates(response);
+        try (var responseRef = ReleasableRef.of(response)) {
+            List<LinkedClusterState> states = DataExtractorUtils.extractLinkedClusterStates(responseRef.get());
             assertThat(states, hasSize(1));
             LinkedClusterState state = states.get(0);
             assertThat(state.alias(), equalTo("remote_1"));
             assertThat(state.status(), equalTo(LinkedClusterState.Status.AVAILABLE));
             assertThat(state.errorReason(), nullValue());
             assertThat(state.searchLatencyMs(), equalTo(50L));
-        } finally {
-            response.decRef();
         }
     }
 
@@ -102,14 +181,12 @@ public class DataExtractorUtilsTests extends ESTestCase {
         SearchResponse.Clusters clusters = new SearchResponse.Clusters(Map.of("running_cluster", cluster));
         SearchResponse response = createSearchResponse(clusters);
 
-        try {
-            List<LinkedClusterState> states = DataExtractorUtils.extractLinkedClusterStates(response);
+        try (var responseRef = ReleasableRef.of(response)) {
+            List<LinkedClusterState> states = DataExtractorUtils.extractLinkedClusterStates(responseRef.get());
             assertThat(states, hasSize(1));
             assertThat(states.get(0).alias(), equalTo("running_cluster"));
             assertThat(states.get(0).status(), equalTo(LinkedClusterState.Status.AVAILABLE));
             assertThat(states.get(0).searchLatencyMs(), equalTo(30L));
-        } finally {
-            response.decRef();
         }
     }
 
@@ -131,15 +208,13 @@ public class DataExtractorUtilsTests extends ESTestCase {
         SearchResponse.Clusters clusters = new SearchResponse.Clusters(Map.of("skipped_cluster", cluster));
         SearchResponse response = createSearchResponse(clusters);
 
-        try {
-            List<LinkedClusterState> states = DataExtractorUtils.extractLinkedClusterStates(response);
+        try (var responseRef = ReleasableRef.of(response)) {
+            List<LinkedClusterState> states = DataExtractorUtils.extractLinkedClusterStates(responseRef.get());
             assertThat(states, hasSize(1));
             assertThat(states.get(0).alias(), equalTo("skipped_cluster"));
             assertThat(states.get(0).status(), equalTo(LinkedClusterState.Status.SKIPPED));
             assertThat(states.get(0).errorReason(), nullValue());
             assertThat(states.get(0).searchLatencyMs(), equalTo(0L));
-        } finally {
-            response.decRef();
         }
     }
 
@@ -161,13 +236,11 @@ public class DataExtractorUtilsTests extends ESTestCase {
         SearchResponse.Clusters clusters = new SearchResponse.Clusters(Map.of("failed_cluster", cluster));
         SearchResponse response = createSearchResponse(clusters);
 
-        try {
-            List<LinkedClusterState> states = DataExtractorUtils.extractLinkedClusterStates(response);
+        try (var responseRef = ReleasableRef.of(response)) {
+            List<LinkedClusterState> states = DataExtractorUtils.extractLinkedClusterStates(responseRef.get());
             assertThat(states, hasSize(1));
             assertThat(states.get(0).alias(), equalTo("failed_cluster"));
             assertThat(states.get(0).status(), equalTo(LinkedClusterState.Status.FAILED));
-        } finally {
-            response.decRef();
         }
     }
 
@@ -190,12 +263,10 @@ public class DataExtractorUtilsTests extends ESTestCase {
         SearchResponse.Clusters clusters = new SearchResponse.Clusters(Map.of("failed_cluster", cluster));
         SearchResponse response = createSearchResponse(clusters);
 
-        try {
-            List<LinkedClusterState> states = DataExtractorUtils.extractLinkedClusterStates(response);
+        try (var responseRef = ReleasableRef.of(response)) {
+            List<LinkedClusterState> states = DataExtractorUtils.extractLinkedClusterStates(responseRef.get());
             assertThat(states, hasSize(1));
             assertThat(states.get(0).errorReason(), containsString("index_not_found_exception: no such index"));
-        } finally {
-            response.decRef();
         }
     }
 
@@ -217,11 +288,9 @@ public class DataExtractorUtilsTests extends ESTestCase {
         SearchResponse.Clusters clusters = new SearchResponse.Clusters(Map.of("remote_1", cluster));
         SearchResponse response = createSearchResponse(clusters);
 
-        try {
-            List<LinkedClusterState> states = DataExtractorUtils.extractLinkedClusterStates(response);
+        try (var responseRef = ReleasableRef.of(response)) {
+            List<LinkedClusterState> states = DataExtractorUtils.extractLinkedClusterStates(responseRef.get());
             assertThat(states.get(0).searchLatencyMs(), equalTo(123L));
-        } finally {
-            response.decRef();
         }
     }
 
@@ -243,12 +312,10 @@ public class DataExtractorUtilsTests extends ESTestCase {
         SearchResponse.Clusters clusters = new SearchResponse.Clusters(Map.of("partial_cluster", cluster));
         SearchResponse response = createSearchResponse(clusters);
 
-        try {
-            List<LinkedClusterState> states = DataExtractorUtils.extractLinkedClusterStates(response);
+        try (var responseRef = ReleasableRef.of(response)) {
+            List<LinkedClusterState> states = DataExtractorUtils.extractLinkedClusterStates(responseRef.get());
             assertThat(states, hasSize(1));
             assertThat(states.get(0).status(), equalTo(LinkedClusterState.Status.AVAILABLE));
-        } finally {
-            response.decRef();
         }
     }
 
@@ -284,8 +351,8 @@ public class DataExtractorUtilsTests extends ESTestCase {
         SearchResponse.Clusters clusters = new SearchResponse.Clusters(Map.of("", local, "remote_a", remote));
         SearchResponse response = createSearchResponse(clusters);
 
-        try {
-            List<LinkedClusterState> states = DataExtractorUtils.extractLinkedClusterStates(response);
+        try (var responseRef = ReleasableRef.of(response)) {
+            List<LinkedClusterState> states = DataExtractorUtils.extractLinkedClusterStates(responseRef.get());
             assertThat(states, hasSize(2));
             LinkedClusterState localState = states.stream().filter(s -> "(local)".equals(s.alias())).findFirst().orElseThrow();
             LinkedClusterState remoteState = states.stream().filter(s -> "remote_a".equals(s.alias())).findFirst().orElseThrow();
@@ -293,14 +360,43 @@ public class DataExtractorUtilsTests extends ESTestCase {
             assertThat(localState.searchLatencyMs(), equalTo(5L));
             assertThat(remoteState.status(), equalTo(LinkedClusterState.Status.AVAILABLE));
             assertThat(remoteState.searchLatencyMs(), equalTo(20L));
-        } finally {
-            response.decRef();
         }
+    }
+
+    public void testPreferRicherLinkedClusterStates_keepsBestWhenCandidateEmpty() {
+        List<LinkedClusterState> best = List.of(
+            new LinkedClusterState("a", LinkedClusterState.Status.AVAILABLE, null, 1L),
+            new LinkedClusterState("b", LinkedClusterState.Status.AVAILABLE, null, 2L)
+        );
+        assertThat(DataExtractorUtils.preferRicherLinkedClusterStates(best, List.of()), equalTo(best));
+    }
+
+    public void testPreferRicherLinkedClusterStates_prefersMoreDistinctAliases() {
+        List<LinkedClusterState> one = List.of(new LinkedClusterState("a", LinkedClusterState.Status.AVAILABLE, null, 1L));
+        List<LinkedClusterState> two = List.of(
+            new LinkedClusterState("a", LinkedClusterState.Status.AVAILABLE, null, 1L),
+            new LinkedClusterState("b", LinkedClusterState.Status.SKIPPED, "x", 0L)
+        );
+        assertThat(DataExtractorUtils.preferRicherLinkedClusterStates(one, two), equalTo(two));
+        assertThat(DataExtractorUtils.preferRicherLinkedClusterStates(two, one), equalTo(two));
+    }
+
+    public void testPreferRicherLinkedClusterStates_tieBreaksOnAvailability() {
+        List<LinkedClusterState> mix = List.of(
+            new LinkedClusterState("a", LinkedClusterState.Status.AVAILABLE, null, 1L),
+            new LinkedClusterState("b", LinkedClusterState.Status.SKIPPED, "x", 0L)
+        );
+        List<LinkedClusterState> bothUp = List.of(
+            new LinkedClusterState("a", LinkedClusterState.Status.AVAILABLE, null, 1L),
+            new LinkedClusterState("b", LinkedClusterState.Status.AVAILABLE, null, 1L)
+        );
+        assertThat(DataExtractorUtils.preferRicherLinkedClusterStates(mix, bothUp), equalTo(bothUp));
+        assertThat(DataExtractorUtils.preferRicherLinkedClusterStates(bothUp, mix), equalTo(bothUp));
     }
 
     private static SearchResponse createSearchResponse(SearchResponse.Clusters clusters) {
         return new SearchResponse(
-            SearchHits.unpooled(SearchHits.EMPTY, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0.0f),
+            new SearchHits(SearchHits.EMPTY, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0.0f),
             null,
             new Suggest(Collections.emptyList()),
             false,

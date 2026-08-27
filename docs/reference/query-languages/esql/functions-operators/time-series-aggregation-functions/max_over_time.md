@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `MAX_OVER_TIME` function [esql-max_over_time]
 
-:::{include} ../../_snippets/functions/layout/max_over_time.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/max_over_time.md
 :::

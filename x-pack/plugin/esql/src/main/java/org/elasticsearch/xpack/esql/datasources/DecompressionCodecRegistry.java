@@ -17,7 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Registry for {@link DecompressionCodec} implementations, keyed by extension.
- * Populated from DataSourcePlugin.decompressionCodecs(Settings) at startup.
+ * Populated from DataSourcePlugin.decompressionCodecs(Settings, ExecutorService) at startup.
  */
 public class DecompressionCodecRegistry {
 

@@ -1,0 +1,5 @@
+Limit[1000[INTEGER],false,false]
+\_ChangePoint[salary{f}#0,emp_no{f}#1,type{r}#2,pvalue{r}#3,[x{r}#4, languages{f}#5 * 2[INTEGER]]]
+  \_Eval[[emp_no{f}#1 + 5[INTEGER] AS x#4]]
+    \_Project[[emp_no{f}#1, salary{f}#0, languages{f}#5]]
+      \_EsRelation[employees][avg_worked_seconds{f}#6, birth_date{f}#7, emp_no{f}#1, first_name{f}#8, gender{f}#9, height{f}#10, height.float{f}#11, height.half_float{f}#12, height.scaled_float{f}#13, hire_date{f}#14, is_rehired{f}#15, job_positions{f}#16, languages{f}#5, languages.byte{f}#17, languages.long{f}#18, languages.short{f}#19, last_name{f}#20, salary{f}#0, salary_change{f}#21, salary_change.int{f}#22, salary_change.keyword{f}#23, salary_change.long{f}#24, still_hired{f}#25]

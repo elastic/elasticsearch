@@ -17,9 +17,12 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 
 public abstract class Foldables {
     /**
@@ -89,13 +92,6 @@ public abstract class Foldables {
         throw new QlIllegalArgumentException("Expected literal, but got {}", e);
     }
 
-    public static Object extractLiteralOrReturnSelf(Expression e) {
-        if (e instanceof Literal literal) {
-            return literal.value();
-        }
-        return e;
-    }
-
     public static Integer limitValue(Expression limitField, String sourceText) {
         if (limitField instanceof Literal literal) {
             Object value = literal.value();
@@ -158,7 +154,9 @@ public abstract class Foldables {
         } else {
             // it is expected that the expression is a literal after folding
             // we fail if it is not a literal
-            validator.invalidIfPostValidation(fail(queryField, "Query must be a valid string in [{}], found [{}]", sourceText, queryField));
+            validator.invalidIfPostValidation(
+                fail(queryField, "Query must be a constant string in [{}], found [{}]", sourceText, queryField)
+            );
         }
         return validator.getResolvedType();
     }
@@ -172,21 +170,47 @@ public abstract class Foldables {
         );
     }
 
+    /**
+     * Converts a literal value to an Object suitable to be passed as a query term in a Lucene query.
+     * Handles common conversions for BytesRef, UNSIGNED_LONG, DATETIME, and DATE_NANOS.
+     */
+    public static Object literalValueAsLuceneQueryObject(Object literalValue, DataType dataType) {
+        return switch (dataType) {
+            case IP -> {
+                assert literalValue instanceof BytesRef;
+                yield EsqlDataTypeConverter.ipToString((BytesRef) literalValue);
+            }
+            case VERSION -> {
+                assert literalValue instanceof BytesRef;
+                yield EsqlDataTypeConverter.versionToString((BytesRef) literalValue);
+            }
+            case UNSIGNED_LONG -> {
+                assert literalValue instanceof Long;
+                yield org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsBigInteger((Long) literalValue);
+            }
+            case DATETIME -> {
+                assert literalValue instanceof Long;
+                yield EsqlDataTypeConverter.dateTimeToString((Long) literalValue);
+            }
+            case DATE_NANOS -> {
+                assert literalValue instanceof Long;
+                yield EsqlDataTypeConverter.nanoTimeToString((Long) literalValue);
+            }
+            case KEYWORD, TEXT, FLATTENED -> {
+                assert literalValue instanceof BytesRef;
+                yield ((BytesRef) literalValue).utf8ToString();
+            }
+            case BOOLEAN, DOUBLE, LONG, INTEGER -> literalValue;
+            default -> throw new IllegalArgumentException("Unsupported data type for Lucene query conversion " + dataType);
+        };
+    }
+
     public static String queryAsString(Expression queryField, String sourceText) {
         if (queryField instanceof Literal literal) {
             return BytesRefs.toString(literal.value());
         }
         throw new EsqlIllegalArgumentException(
             format(null, "Query value must be a constant string in [{}], found [{}]", sourceText, queryField)
-        );
-    }
-
-    public static int intValueOf(Expression field, String sourceText, String fieldName) {
-        if (field instanceof Literal literal && literal.value() instanceof Number n) {
-            return n.intValue();
-        }
-        throw new EsqlIllegalArgumentException(
-            Strings.format(null, "[{}] value must be a constant number in [{}], found [{}]", fieldName, sourceText, field)
         );
     }
 

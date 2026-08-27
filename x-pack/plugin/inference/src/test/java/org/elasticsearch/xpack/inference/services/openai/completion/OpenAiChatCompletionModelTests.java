@@ -14,6 +14,9 @@ import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.Utils;
+import org.elasticsearch.xpack.inference.common.oauth2.NoopTokenCache;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.util.List;
@@ -22,6 +25,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiTaskSettingsTests.getOpenAiTaskSettingsMap;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.mock;
 
 public class OpenAiChatCompletionModelTests extends ESTestCase {
 
@@ -63,9 +67,16 @@ public class OpenAiChatCompletionModelTests extends ESTestCase {
             null
         );
 
-        assertThat(
-            OpenAiChatCompletionModel.of(model, request),
-            is(createCompletionModel("url", "org", "api_key", "different_model", "user"))
+        assertThat(of(model, request), is(createCompletionModel("url", "org", "api_key", "different_model", "user")));
+    }
+
+    private static OpenAiChatCompletionModel of(OpenAiChatCompletionModel model, UnifiedCompletionRequest request) {
+        return OpenAiChatCompletionModel.of(
+            model,
+            request,
+            mock(ThreadPool.class),
+            NoopTokenCache.INSTANCE,
+            Utils.mockOAuth2ClusterSettings()
         );
     }
 
@@ -82,7 +93,7 @@ public class OpenAiChatCompletionModelTests extends ESTestCase {
             null
         );
 
-        assertThat(OpenAiChatCompletionModel.of(model, request), is(createCompletionModel("url", "org", "api_key", "model_name", "user")));
+        assertThat(of(model, request), is(createCompletionModel("url", "org", "api_key", "model_name", "user")));
     }
 
     public static OpenAiChatCompletionModel createCompletionModel(
@@ -119,7 +130,10 @@ public class OpenAiChatCompletionModelTests extends ESTestCase {
             "service",
             new OpenAiChatCompletionServiceSettings(modelName, url, org, null, null),
             new OpenAiChatCompletionTaskSettings(user, null),
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            mock(ThreadPool.class),
+            NoopTokenCache.INSTANCE,
+            Utils.mockOAuth2ClusterSettings()
         );
     }
 
@@ -138,8 +152,10 @@ public class OpenAiChatCompletionModelTests extends ESTestCase {
             "service",
             new OpenAiChatCompletionServiceSettings(modelName, url, org, null, null),
             new OpenAiChatCompletionTaskSettings(user, null),
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            mock(ThreadPool.class),
+            NoopTokenCache.INSTANCE,
+            Utils.mockOAuth2ClusterSettings()
         );
     }
-
 }

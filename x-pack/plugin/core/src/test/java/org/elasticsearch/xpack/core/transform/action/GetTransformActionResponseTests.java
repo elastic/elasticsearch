@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -153,5 +154,16 @@ public class GetTransformActionResponseTests extends AbstractWireSerializingTran
     @Override
     protected Reader<Response> instanceReader() {
         return Response::new;
+    }
+
+    @Override
+    protected Response mutateInstanceForVersion(Response instance, TransportVersion version) {
+        // Each TransformConfig's SourceConfig carries version-gated fields; drop them for older versions
+        // so the BWC baseline matches the wire round-trip.
+        List<TransformConfig> mutated = instance.getTransformConfigurations()
+            .stream()
+            .map(config -> TransformConfigTests.mutateForVersion(config, version))
+            .toList();
+        return new Response(mutated, instance.getTransformConfigurationCount(), instance.getErrors());
     }
 }

@@ -166,6 +166,33 @@ public class ApplicationPermissionTests extends ESTestCase {
         return privileges.iterator().next();
     }
 
+    public void testGrantsLiteralAndPatternResources() {
+        final ApplicationPermission perm = buildPermission(app1All, "dashboard/*", "user/12345");
+
+        // Literal resources (fast path via isLiteralPattern → grantsResource predicate)
+        assertThat("literal match under wildcard grant", perm.grants(app1All, "dashboard/1"), equalTo(true));
+        assertThat("literal match on exact grant", perm.grants(app1All, "user/12345"), equalTo(true));
+        assertThat("literal non-match", perm.grants(app1All, "report/1"), equalTo(false));
+        assertThat("literal non-match on partial", perm.grants(app1All, "dashboard"), equalTo(false));
+        assertThat("literal with / in non-leading position", perm.grants(app1All, "dash/board/nested"), equalTo(false));
+
+        // Wildcard * resources (old path via Automatons.patterns → subsetOf)
+        assertThat("wildcard subset of grant", perm.grants(app1All, "dashboard/*"), equalTo(true));
+        assertThat("wildcard broader than grant", perm.grants(app1All, "*"), equalTo(false));
+        assertThat("wildcard non-match", perm.grants(app1All, "report/*"), equalTo(false));
+
+        // Single-char wildcard ? resources (old path)
+        assertThat("? matching single char", perm.grants(app1All, "dashboard/?"), equalTo(true));
+        assertThat("? non-match on multi-char", perm.grants(app1All, "user/1234?"), equalTo(false));
+
+        // Escape \\ resources (old path)
+        assertThat("escaped star is literal", perm.grants(app1All, "dashboard/\\*"), equalTo(true));
+
+        // Lucene regex /.../ resources (old path)
+        assertThat("regex match", perm.grants(app1All, "/dashboard\\/.*/"), equalTo(true));
+        assertThat("regex non-match", perm.grants(app1All, "/report\\/.*/"), equalTo(false));
+    }
+
     private ApplicationPermission buildPermission(ApplicationPrivilege privilege, String... resources) {
         return buildPermission(Collections.singleton(privilege), resources);
     }

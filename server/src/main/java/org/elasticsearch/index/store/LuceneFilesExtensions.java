@@ -40,6 +40,11 @@ public enum LuceneFilesExtensions {
     // cache, so we use mmap, which provides better performance.
     DVD("dvd", "DocValues", false, true),
     DVM("dvm", "DocValues Metadata", true, false),
+    DVS("dvs", "DocValues Skip data", true, false),
+    // ColumNAR doc values format
+    CND("cnd", "ColumNAR Data", false, true),
+    CNM("cnm", "ColumNAR Metadata", true, false),
+    CNS("cns", "ColumNAR Skip data", true, false),
     FDM("fdm", "Field Metadata", true, false),
     FDT("fdt", "Field Data", false, false),
     FDX("fdx", "Field Index", false, false),

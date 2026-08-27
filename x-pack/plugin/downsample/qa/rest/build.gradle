@@ -14,6 +14,8 @@ dependencies {
   yamlRestTestImplementation project(xpackModule('rollup'))
 
   clusterModules project(xpackModule('downsample'))
+  clusterModules project(xpackModule('esql'))
+  clusterModules project(xpackModule('autoscaling'))
   clusterModules project(xpackModule('analytics'))
   clusterModules project(xpackModule('ilm'))
   clusterModules project(':modules:lang-painless')
@@ -25,7 +27,7 @@ dependencies {
 
 restResources {
   restApi {
-    include '_common', 'bulk', 'cluster', 'indices', 'search', 'ingest.put_pipeline', 'ingest.delete_pipeline', 'capabilities'
+    include '_common', 'bulk', 'cluster', 'indices', 'search', 'ingest.put_pipeline', 'ingest.delete_pipeline', 'capabilities', 'esql.query'
   }
 }
 
@@ -56,6 +58,7 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("downsample/10_basic/Downsample a downsampled index", "Default metric has been removed")
   task.skipTest("downsample/10_basic/Downsample histogram as label", "Default metric has been removed")
   task.skipTest("downsample/10_basic/Downsample index", "Default metric has been removed")
+  task.skipTest("downsample/10_basic/Downsample index with multi-value dimensions", "Counter downsampling has changed")
   task.skipTest("downsample-with-security/10_basic/Downsample index", "Default metric has been removed")
   task.skipTest("downsample/40_runtime_fields/Runtime fields accessing metric fields in downsample target index", "Using average as the value of an aggregate metric double")
   task.skipTest("downsample-with-security/40_runtime_fields/Runtime fields accessing metric fields in downsample target index", "Using average as the value of an aggregate metric double")

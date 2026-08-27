@@ -31,35 +31,76 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
     int count;
 
     private MultiValuedSortedBinaryDocValues(BinaryDocValues values) {
+        super(values);
         this.values = values;
     }
 
-    public static MultiValuedSortedBinaryDocValues from(LeafReader leafReader, String valuesFieldName) throws IOException {
+    /**
+     * Reads binary doc values written in the ({@link SeparateCounts} or {@link PlainBinary}) formats (as of April 2026).
+     * <ul>
+     *   <li>{@code .counts} present &rarr; {@link SeparateCounts} (multi-valued)</li>
+     *   <li>{@code .counts} absent &rarr; {@link PlainBinary} (single-valued)</li>
+     * </ul>
+     * For indices created before {@code DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES}, use {@link #fromMultiValued(LeafReader, String)}
+     * instead, which also handles the deprecated {@link IntegratedCounts} format.
+     */
+    public static SortedBinaryDocValues from(LeafReader leafReader, String valuesFieldName) throws IOException {
         BinaryDocValues values = DocValues.getBinary(leafReader, valuesFieldName);
-
-        // Obtain counts directly from leafReader so that null is returned rather than an empty doc values.
-        // Whether counts is null allows us to determine which multivalued format was used.
-        return from(leafReader, valuesFieldName, values);
+        String countsFieldName = valuesFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+        NumericDocValues counts = leafReader.getNumericDocValues(countsFieldName);
+        if (counts != null) {
+            return buildSeparateCounts(leafReader, countsFieldName, values, counts);
+        }
+        return new PlainBinary(values);
     }
 
-    public static MultiValuedSortedBinaryDocValues from(LeafReader leafReader, String valuesFieldName, BinaryDocValues values)
+    /**
+     * Reader for callers that read inherently multi-valued fields (ex. {@code _ignored_source}). These fields always use either the
+     * {@link SeparateCounts} or {@link IntegratedCounts} format, so the single-valued fast path in {@link #from(LeafReader, String)} does
+     * not apply.
+     * <ul>
+     *   <li>{@code .counts} present &rarr; {@link SeparateCounts}</li>
+     *   <li>{@code .counts} absent &rarr; {@link IntegratedCounts}</li>
+     * </ul>
+     */
+    public static MultiValuedSortedBinaryDocValues fromMultiValued(LeafReader leafReader, String valuesFieldName) throws IOException {
+        BinaryDocValues values = DocValues.getBinary(leafReader, valuesFieldName);
+        return fromMultiValued(leafReader, valuesFieldName, values);
+    }
+
+    /**
+     * Variant of {@link #fromMultiValued(LeafReader, String)} that accepts pre-loaded {@link BinaryDocValues}.
+     */
+    public static MultiValuedSortedBinaryDocValues fromMultiValued(LeafReader leafReader, String valuesFieldName, BinaryDocValues values)
         throws IOException {
+        if (values instanceof DecodedBinaryDocValues decodedBinaryDocValues) {
+            return new DecodedBinary(decodedBinaryDocValues);
+        }
         String countsFieldName = valuesFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
         NumericDocValues counts = leafReader.getNumericDocValues(countsFieldName);
         if (counts == null) {
             return new IntegratedCounts(values);
         } else {
-            Sparsity sparsity = Sparsity.UNKNOWN;
-            ValueMode valueMode = ValueMode.UNKNOWN;
-
-            DocValuesSkipper countsSkipper = leafReader.getDocValuesSkipper(countsFieldName);
-            if (countsSkipper != null) {
-                sparsity = countsSkipper.docCount() == leafReader.maxDoc() ? Sparsity.DENSE : Sparsity.SPARSE;
-                valueMode = countsSkipper.maxValue() == 1 ? ValueMode.SINGLE_VALUED : ValueMode.MULTI_VALUED;
-            }
-
-            return new SeparateCounts(values, counts, sparsity, valueMode);
+            return buildSeparateCounts(leafReader, countsFieldName, values, counts);
         }
+    }
+
+    private static SeparateCounts buildSeparateCounts(
+        LeafReader leafReader,
+        String countsFieldName,
+        BinaryDocValues values,
+        NumericDocValues counts
+    ) throws IOException {
+        Sparsity sparsity = Sparsity.UNKNOWN;
+        ValueMode valueMode = ValueMode.UNKNOWN;
+
+        DocValuesSkipper countsSkipper = leafReader.getDocValuesSkipper(countsFieldName);
+        if (countsSkipper != null) {
+            sparsity = countsSkipper.docCount() == leafReader.maxDoc() ? Sparsity.DENSE : Sparsity.SPARSE;
+            valueMode = countsSkipper.maxValue() == 1 ? ValueMode.SINGLE_VALUED : ValueMode.MULTI_VALUED;
+        }
+
+        return new SeparateCounts(values, counts, sparsity, valueMode);
     }
 
     @Override
@@ -74,7 +115,7 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
     public abstract BytesRef nextValue() throws IOException;
 
     /**
-     * Multivalued binary doc values encoded by {@link org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField}.
+     * Multivalued binary doc values encoded by {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.IntegratedCount}.
      * These have the form: [doc value count][length of value 1][value 1][length of value 2][value 2]...
      */
     private static class IntegratedCounts extends MultiValuedSortedBinaryDocValues {
@@ -166,6 +207,77 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
         @Override
         public ValueMode getValueMode() {
             return valueMode;
+        }
+    }
+
+    /**
+     * Single-valued binary doc values written as a plain {@link org.apache.lucene.document.BinaryDocValuesField}.
+     * No companion {@code .counts} field exists; each document has at most one value.
+     */
+    private static class PlainBinary extends MultiValuedSortedBinaryDocValues {
+        PlainBinary(BinaryDocValues values) {
+            super(values);
+        }
+
+        @Override
+        public boolean advanceExact(int doc) throws IOException {
+            if (values.advanceExact(doc)) {
+                count = 1;
+                return true;
+            } else {
+                count = 0;
+                return false;
+            }
+        }
+
+        @Override
+        public BytesRef nextValue() throws IOException {
+            return values.binaryValue();
+        }
+
+        @Override
+        public ValueMode getValueMode() {
+            return ValueMode.SINGLE_VALUED;
+        }
+    }
+
+    /**
+     * Already decoded binary doc values. Useful for things like a security wrapper that drops the values the user is not allowed to access.
+     * Without this, such a producer has to re-encode the values it decoded back into a binary blob, that ultimately needs to get re-decoded
+     * further down the line.
+     */
+    public abstract static class DecodedBinaryDocValues extends BinaryDocValues {
+        /** Valid only after {@link #advanceExact(int)} has returned {@code true} for the current document. */
+        public abstract int docValueCount();
+
+        public abstract BytesRef nextValue() throws IOException;
+    }
+
+    /**
+     * Reads from a producer that has already split the document into individual values, skipping the encode/decode round trip.
+     */
+    private static class DecodedBinary extends MultiValuedSortedBinaryDocValues {
+        private final DecodedBinaryDocValues decodedBinaryDocValues;
+
+        DecodedBinary(DecodedBinaryDocValues decodedBinaryDocValues) {
+            super(decodedBinaryDocValues);
+            this.decodedBinaryDocValues = decodedBinaryDocValues;
+        }
+
+        @Override
+        public boolean advanceExact(int doc) throws IOException {
+            if (values.advanceExact(doc)) {
+                count = decodedBinaryDocValues.docValueCount();
+                return true;
+            } else {
+                count = 0;
+                return false;
+            }
+        }
+
+        @Override
+        public BytesRef nextValue() throws IOException {
+            return decodedBinaryDocValues.nextValue();
         }
     }
 }

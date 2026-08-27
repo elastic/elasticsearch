@@ -48,6 +48,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class DocumentMapperTests extends MapperServiceTestCase {
 
@@ -82,7 +84,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             IndexVersion.current(),
             MapperMetrics.NOOP,
             "myIndex",
-            randomFrom(IndexMode.values())
+            randomFrom(IndexMode.availableModes())
         );
         assertThat(mergedMapper.mappers().getMapper("age"), notNullValue());
         assertThat(mergedMapper.mappers().getMapper("obj1.prop1"), notNullValue());

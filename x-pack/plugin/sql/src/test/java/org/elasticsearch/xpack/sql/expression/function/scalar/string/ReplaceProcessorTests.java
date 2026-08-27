@@ -58,6 +58,11 @@ public class ReplaceProcessorTests extends AbstractWireSerializingTestCase<Repla
         assertNull(new Replace(EMPTY, l(null), l(null), l(null)).makePipe().asProcessor().process(null));
     }
 
+    public void testReplaceFunctionWithEmptyPattern() {
+        assertEquals("foobar", new Replace(EMPTY, l("foobar"), l(""), l("baz")).makePipe().asProcessor().process(null));
+        assertEquals("foobar", new Replace(EMPTY, l("foobar"), l(""), l("")).makePipe().asProcessor().process(null));
+    }
+
     public void testReplaceFunctionInputsValidation() {
         SqlIllegalArgumentException siae = expectThrows(
             SqlIllegalArgumentException.class,

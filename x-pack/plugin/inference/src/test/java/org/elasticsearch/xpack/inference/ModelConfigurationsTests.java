@@ -44,16 +44,14 @@ import static org.hamcrest.Matchers.not;
 public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCase<ModelConfigurations> {
 
     public static ModelConfigurations createRandomInstance() {
-        var taskType = randomFrom(TaskType.values());
-        var endpointMetadata = randomBoolean() ? null : EndpointMetadataTests.randomInstance();
         return new ModelConfigurations(
             randomAlphaOfLength(6),
-            taskType,
+            TaskTypeTests.randomTaskTypeOtherThanAny(),
             randomAlphaOfLength(6),
             randomServiceSettings(),
             randomTaskSettings(),
             randomBoolean() ? ChunkingSettingsTests.createRandomChunkingSettings() : null,
-            endpointMetadata
+            randomBoolean() ? null : EndpointMetadataTests.randomInstance()
         );
     }
 
@@ -70,7 +68,7 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
             );
             case 1 -> new ModelConfigurations(
                 instance.getInferenceEntityId(),
-                TaskType.values()[(instance.getTaskType().ordinal() + 1) % TaskType.values().length],
+                randomValueOtherThan(instance.getTaskType(), TaskTypeTests::randomTaskTypeOtherThanAny),
                 instance.getService(),
                 instance.getServiceSettings(),
                 instance.getTaskSettings(),
@@ -181,12 +179,8 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
         var metadata = instance.getEndpointMetadata();
         if (version.supports(EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED) == false) {
             metadata = null;
-        } else if (metadata != null && version.supports(EndpointMetadata.Display.MODEL_CREATOR_ADDED) == false) {
-            metadata = new EndpointMetadata(
-                metadata.heuristics(),
-                metadata.internal(),
-                new EndpointMetadata.Display(metadata.display().name(), null)
-            );
+        } else if (metadata != null) {
+            metadata = EndpointMetadataTests.doMutateInstanceForVersion(metadata, version);
         }
         return new ModelConfigurations(
             instance.getInferenceEntityId(),
@@ -228,7 +222,9 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of("heuristic1", "heuristic2"), StatusHeuristic.BETA, "2025-01-01", "2025-12-31"),
                 new EndpointMetadata.Internal("fingerprint", 1L),
-                new EndpointMetadata.Display("name", "creator")
+                new EndpointMetadata.Display("name", "creator"),
+                List.of(),
+                false
             )
         );
 

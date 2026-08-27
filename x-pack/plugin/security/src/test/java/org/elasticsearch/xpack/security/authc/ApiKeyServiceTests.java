@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ElasticsearchAuthenticationProcessingError;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
@@ -18,6 +19,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -63,6 +65,7 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
@@ -77,6 +80,9 @@ import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.NodeDisconnectedException;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -100,6 +106,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.CertificateIdentity;
 import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -119,6 +126,8 @@ import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermi
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyDoc;
@@ -175,6 +184,7 @@ import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_METADATA_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_TYPE_KEY;
+import static org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.DatasourcePrivileges.ESQL_DATASOURCE_PRIVILEGE;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
@@ -402,7 +412,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             searchRequest.set((SearchRequest) invocationOnMock.getArguments()[0]);
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[1];
-            ActionListener.respondAndRelease(listener, SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY));
+            ActionListener.respondAndRelease(listener, SearchResponse.emptyResponseBuilder().tookInMillis(1L).build());
             return null;
         }).when(client).search(any(SearchRequest.class), anyActionListener());
         String[] realmNames = generateRandomStringArray(4, 4, true, true);
@@ -465,7 +475,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         CheckedSupplier<SearchResponse, IOException> searchResponseSupplier = () -> {
             // 2 API keys, one with a "null" (missing) realm type
             SearchHit[] searchHits = new SearchHit[2];
-            searchHits[0] = SearchHit.unpooled(randomIntBetween(0, Integer.MAX_VALUE), "0");
+            searchHits[0] = new SearchHit(randomIntBetween(0, Integer.MAX_VALUE), "0");
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 Map<String, Object> apiKeySourceDoc = buildApiKeySourceDoc("some_hash".toCharArray());
                 ((Map<String, Object>) apiKeySourceDoc.get("creator")).put("realm", realm1);
@@ -473,7 +483,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 builder.map(apiKeySourceDoc);
                 searchHits[0].sourceRef(BytesReference.bytes(builder));
             }
-            searchHits[1] = SearchHit.unpooled(randomIntBetween(0, Integer.MAX_VALUE), "1");
+            searchHits[1] = new SearchHit(randomIntBetween(0, Integer.MAX_VALUE), "1");
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 Map<String, Object> apiKeySourceDoc = buildApiKeySourceDoc("some_hash".toCharArray());
                 ((Map<String, Object>) apiKeySourceDoc.get("creator")).put("realm", realm2);
@@ -485,16 +495,17 @@ public class ApiKeyServiceTests extends ESTestCase {
                 builder.map(apiKeySourceDoc);
                 searchHits[1].sourceRef(BytesReference.bytes(builder));
             }
-            return SearchResponseUtils.successfulResponse(
-                SearchHits.unpooled(
-                    searchHits,
-                    new TotalHits(searchHits.length, TotalHits.Relation.EQUAL_TO),
-                    randomFloat(),
-                    null,
-                    null,
-                    null
-                )
+            var responseHits = new SearchHits(
+                searchHits,
+                new TotalHits(searchHits.length, TotalHits.Relation.EQUAL_TO),
+                randomFloat(),
+                null,
+                null,
+                null
             );
+            var searchResponse = SearchResponseUtils.successfulResponse(responseHits);
+            responseHits.decRef(); // transfer ownership to searchResponse
+            return searchResponse;
         };
         doAnswer(invocation -> {
             ActionListener.respondAndRelease((ActionListener<SearchResponse>) invocation.getArguments()[1], searchResponseSupplier.get());
@@ -553,7 +564,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             searchRequest.set((SearchRequest) invocationOnMock.getArguments()[0]);
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[1];
-            ActionListener.respondAndRelease(listener, SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY));
+            ActionListener.respondAndRelease(listener, SearchResponse.emptyResponseBuilder().tookInMillis(1L).build());
             return null;
         }).when(client).search(any(SearchRequest.class), anyActionListener());
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
@@ -624,24 +635,22 @@ public class ApiKeyServiceTests extends ESTestCase {
         when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(new SearchRequestBuilder(client));
         doAnswer(invocation -> {
             final var listener = (ActionListener<SearchResponse>) invocation.getArguments()[1];
-            final var searchHit = SearchHit.unpooled(docId, apiKeyId);
+            final var searchHit = new SearchHit(docId, apiKeyId);
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 builder.map(buildApiKeySourceDoc("some_hash".toCharArray()));
                 searchHit.sourceRef(BytesReference.bytes(builder));
             }
-            ActionListener.respondAndRelease(
-                listener,
-                SearchResponseUtils.successfulResponse(
-                    SearchHits.unpooled(
-                        new SearchHit[] { searchHit },
-                        new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-                        randomFloat(),
-                        null,
-                        null,
-                        null
-                    )
-                )
+            var responseHits = new SearchHits(
+                new SearchHit[] { searchHit },
+                new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                randomFloat(),
+                null,
+                null,
+                null
             );
+            var searchResponse = SearchResponseUtils.successfulResponse(responseHits);
+            responseHits.decRef(); // transfer ownership to searchResponse
+            ActionListener.respondAndRelease(listener, searchResponse);
             return null;
         }).when(client).search(any(SearchRequest.class), anyActionListener());
 
@@ -705,7 +714,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(new SearchRequestBuilder(client));
         doAnswer(invocation -> {
             final var listener = (ActionListener<SearchResponse>) invocation.getArguments()[1];
-            final var searchHit = SearchHit.unpooled(docId, apiKeyId);
+            final var searchHit = new SearchHit(docId, apiKeyId);
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 Map<String, Object> apiKeyDocMap = buildApiKeySourceDoc("some_hash".toCharArray());
                 // Ensure type is null
@@ -713,19 +722,17 @@ public class ApiKeyServiceTests extends ESTestCase {
                 builder.map(apiKeyDocMap);
                 searchHit.sourceRef(BytesReference.bytes(builder));
             }
-            ActionListener.respondAndRelease(
-                listener,
-                SearchResponseUtils.successfulResponse(
-                    SearchHits.unpooled(
-                        new SearchHit[] { searchHit },
-                        new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-                        randomFloat(),
-                        null,
-                        null,
-                        null
-                    )
-                )
+            var responseHits = new SearchHits(
+                new SearchHit[] { searchHit },
+                new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                randomFloat(),
+                null,
+                null,
+                null
             );
+            var searchResponse = SearchResponseUtils.successfulResponse(responseHits);
+            responseHits.decRef(); // transfer ownership to searchResponse
+            ActionListener.respondAndRelease(listener, searchResponse);
             return null;
         }).when(client).search(any(SearchRequest.class), anyActionListener());
 
@@ -1255,19 +1262,17 @@ public class ApiKeyServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             searchRequest.set(invocationOnMock.getArgument(0));
             final ActionListener<SearchResponse> listener = invocationOnMock.getArgument(1);
-            ActionListener.respondAndRelease(
-                listener,
-                SearchResponseUtils.successfulResponse(
-                    SearchHits.unpooled(
-                        searchHits.toArray(SearchHit[]::new),
-                        new TotalHits(searchHits.size(), TotalHits.Relation.EQUAL_TO),
-                        randomFloat(),
-                        null,
-                        null,
-                        null
-                    )
-                )
+            SearchHits hits = new SearchHits(
+                searchHits.toArray(SearchHit[]::new),
+                new TotalHits(searchHits.size(), TotalHits.Relation.EQUAL_TO),
+                randomFloat(),
+                null,
+                null,
+                null
             );
+            SearchResponse response = SearchResponseUtils.successfulResponse(hits);
+            hits.decRef(); // transfer ownership to response
+            ActionListener.respondAndRelease(listener, response);
             return null;
         }).when(client).search(any(SearchRequest.class), anyActionListener());
 
@@ -1312,7 +1317,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         };
         final int docId = randomIntBetween(0, Integer.MAX_VALUE);
         final String apiKeyId = randomAlphaOfLength(20);
-        final var searchHit = SearchHit.unpooled(docId, apiKeyId);
+        final var searchHit = new SearchHit(docId, apiKeyId);
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.map(XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.format("""
                 {
@@ -2742,6 +2747,43 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(authenticationResult.getMessage(), containsString("server is too busy to respond"));
     }
 
+    public void testAuthWillTerminateWith503IfBackendUnavailable() throws ExecutionException, InterruptedException {
+        final ApiKeyService service = createApiKeyService(Settings.EMPTY);
+        final List<Exception> backendUnavailableExceptions = List.of(
+            new NoShardAvailableActionException(new ShardId(SECURITY_MAIN_ALIAS, "_na_", 0), "no shard available"),
+            new ConnectTransportException(null, "node not reachable"),
+            new RemoteTransportException("remote", new NodeDisconnectedException(null, "disconnected"))
+        );
+        for (Exception backendUnavailableException : backendUnavailableExceptions) {
+            final AuthenticationResult<User> result = tryAuthenticateWithGetFailure(service, backendUnavailableException);
+            assertEquals(AuthenticationResult.Status.TERMINATE, result.getStatus());
+            assertThat(result.getException(), instanceOf(ElasticsearchAuthenticationProcessingError.class));
+            assertThat(((ElasticsearchAuthenticationProcessingError) result.getException()).status(), is(RestStatus.SERVICE_UNAVAILABLE));
+        }
+    }
+
+    public void testAuthWillContinueIfGetFailsWithUnexpectedException() throws ExecutionException, InterruptedException {
+        final AuthenticationResult<User> result = tryAuthenticateWithGetFailure(
+            createApiKeyService(Settings.EMPTY),
+            new RuntimeException("unexpected")
+        );
+        assertEquals(AuthenticationResult.Status.CONTINUE, result.getStatus());
+        assertThat(result.getMessage(), containsString("encountered a failure"));
+    }
+
+    private AuthenticationResult<User> tryAuthenticateWithGetFailure(ApiKeyService service, Exception failure) throws ExecutionException,
+        InterruptedException {
+        SecurityMocks.mockGetRequestException(client, failure);
+        final ApiKeyCredentials creds = getApiKeyCredentials(
+            randomAlphaOfLength(12),
+            randomAlphaOfLength(16),
+            randomFrom(ApiKey.Type.values())
+        );
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
+        service.tryAuthenticate(threadPool.getThreadContext(), creds, future);
+        return future.get();
+    }
+
     public void testAuthWillTerminateIfHashingThreadPoolIsSaturated() throws IOException, ExecutionException, InterruptedException {
         final String apiKey = randomAlphaOfLength(16);
 
@@ -2786,14 +2828,83 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(e, is(rejectedExecutionException));
     }
 
-    public void testCreationFailsIfAuthenticationIsCloudApiKey() throws InterruptedException {
+    public void testCreationSucceedsIfAuthenticationIsCloudApiKey() {
         final Authentication authentication = AuthenticationTestHelper.randomCloudApiKeyAuthentication();
+        final User cloudApiKeyUser = authentication.getEffectiveSubject().getUser();
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null);
+        final Set<RoleDescriptor> userRoleDescriptors = Set.of(
+            new RoleDescriptor("cloud_user_role", new String[] { "monitor" }, null, null)
+        );
+
+        final ApiKeyService service = createApiKeyService(Settings.EMPTY);
+        when(client.prepareIndex(anyString())).thenReturn(new IndexRequestBuilder(client));
+        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client));
+        when(client.threadPool()).thenReturn(threadPool);
+        final AtomicReference<AssertionError> asyncFailure = new AtomicReference<>();
+        doAnswer(inv -> {
+            final Object[] args = inv.getArguments();
+            final BulkRequest bulkRequest = (BulkRequest) args[1];
+            @SuppressWarnings("unchecked")
+            final ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) args[2];
+            assertThat(bulkRequest.numberOfActions(), is(1));
+            assertThat(bulkRequest.requests().get(0), instanceOf(IndexRequest.class));
+
+            final IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
+            final Map<String, Object> indexDoc = XContentHelper.convertToMap(indexRequest.source(), true, XContentType.JSON).v2();
+            try {
+                @SuppressWarnings("unchecked")
+                final Map<String, Object> creator = (Map<String, Object>) indexDoc.get("creator");
+                assertThat(creator, notNullValue());
+                assertThat(creator.get("principal"), equalTo(cloudApiKeyUser.principal()));
+                assertThat(creator.get("realm"), equalTo(AuthenticationField.CLOUD_API_KEY_REALM_NAME));
+                assertThat(creator.get("realm_type"), equalTo(AuthenticationField.CLOUD_API_KEY_REALM_TYPE));
+                assertThat(creator.get("metadata"), equalTo(cloudApiKeyUser.metadata()));
+                assertThat(creator.containsKey("realm_domain"), is(false));
+
+                @SuppressWarnings("unchecked")
+                final Map<String, Object> limitedBy = (Map<String, Object>) indexDoc.get("limited_by_role_descriptors");
+                assertThat(limitedBy, notNullValue());
+                assertThat(limitedBy.keySet(), contains("cloud_user_role"));
+            } catch (AssertionError failure) {
+                asyncFailure.set(failure);
+            }
+            final IndexResponse indexResponse = new IndexResponse(
+                new ShardId(INTERNAL_SECURITY_MAIN_INDEX_7, randomAlphaOfLength(22), randomIntBetween(0, 1)),
+                createApiKeyRequest.getId(),
+                randomLongBetween(1, 99),
+                randomLongBetween(1, 99),
+                randomIntBetween(1, 99),
+                true
+            );
+            listener.onResponse(
+                new BulkResponse(
+                    new BulkItemResponse[] { BulkItemResponse.success(randomInt(), DocWriteRequest.OpType.INDEX, indexResponse) },
+                    randomLongBetween(0, 100)
+                )
+            );
+            return null;
+        }).when(client).execute(eq(TransportBulkAction.TYPE), any(BulkRequest.class), any());
+
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        service.createApiKey(authentication, createApiKeyRequest, userRoleDescriptors, future);
+        final CreateApiKeyResponse createApiKeyResponse = future.actionGet();
+        if (asyncFailure.get() != null) {
+            throw asyncFailure.get();
+        }
+        assertThat(createApiKeyResponse.getId(), equalTo(createApiKeyRequest.getId()));
+    }
+
+    public void testCrossClusterApiKeyCreationFailsIfAuthenticationIsCloudApiKey() throws IOException {
+        final Authentication authentication = AuthenticationTestHelper.randomCloudApiKeyAuthentication();
+        final CreateCrossClusterApiKeyRequest createCrossClusterApiKeyRequest = CreateCrossClusterApiKeyRequest.withNameAndAccess(
+            randomAlphaOfLengthBetween(3, 8),
+            randomCrossClusterApiKeyAccessField()
+        );
         ApiKeyService service = createApiKeyService(Settings.EMPTY);
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
-        service.createApiKey(authentication, createApiKeyRequest, Set.of(), future);
+        service.createApiKey(authentication, createCrossClusterApiKeyRequest, Set.of(), future);
         final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, future);
-        assertThat(iae.getMessage(), equalTo("creating elasticsearch api keys using cloud api keys is not supported"));
+        assertThat(iae.getMessage(), equalTo("cross-cluster API keys cannot be created with a cloud API key"));
     }
 
     public void testCachedApiKeyValidationWillNotBeBlockedByUnCachedApiKey() throws IOException, ExecutionException, InterruptedException {
@@ -3317,6 +3428,49 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(auth3.getStatus(), is(AuthenticationResult.Status.SUCCESS));
         assertThat(auth3.getValue(), notNullValue());
         assertThat(auth3.getMetadata(), hasEntry(API_KEY_TYPE_KEY, apiKeyDoc3.type.value()));
+    }
+
+    public void testCreateApiKeyWithDatasourcePrivilegeRejectedInMixedCluster() {
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD, ApiKeyService.DELETE_INTERVAL))
+        );
+        final ClusterState clusterState = mock(ClusterState.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterState.getMinTransportVersion()).thenReturn(TransportVersionUtils.getPreviousVersion(ESQL_DATASOURCE_PRIVILEGE));
+        final ApiKeyService service = new ApiKeyService(
+            Settings.EMPTY,
+            clock,
+            client,
+            securityIndex,
+            clusterService,
+            cacheInvalidatorRegistry,
+            threadPool,
+            MeterRegistry.NOOP,
+            mock(FeatureService.class)
+        );
+
+        final var datasourcePrivileges = new ConfigurableClusterPrivileges.DatasourcePrivileges(
+            List.of(
+                new ConfigurableClusterPrivileges.DatasourcePrivileges.DatasourcePermissionGroup(
+                    new String[] { "my-ds" },
+                    new String[] { "read" }
+                )
+            )
+        );
+        final List<RoleDescriptor> requestRoleDescriptors = List.of(
+            new RoleDescriptor("test-role", null, null, null, new ConfigurableClusterPrivilege[] { datasourcePrivileges }, null, null, null)
+        );
+
+        final AbstractCreateApiKeyRequest createRequest = mock(AbstractCreateApiKeyRequest.class);
+        when(createRequest.getType()).thenReturn(ApiKey.Type.REST);
+        when(createRequest.getRoleDescriptors()).thenReturn(requestRoleDescriptors);
+
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        service.createApiKey(authentication, createRequest, Set.of(), future);
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("datasource privilege"));
     }
 
     public void testValidateOwnerUserRoleDescriptorsWithWorkflowsRestriction() {

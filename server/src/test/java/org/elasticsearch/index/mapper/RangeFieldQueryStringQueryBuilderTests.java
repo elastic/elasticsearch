@@ -15,7 +15,6 @@ import org.apache.lucene.document.InetAddressRange;
 import org.apache.lucene.document.IntRange;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.LongRange;
-import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
@@ -27,6 +26,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery;
+import org.elasticsearch.lucene.queries.SortedNumericDocValuesRangeQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -163,7 +163,7 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
             new long[] { parser.parse(upperBoundExact, () -> 0).toEpochMilli() }
         );
 
-        Query controlDv = SortedNumericDocValuesField.newSlowRangeQuery(
+        Query controlDv = SortedNumericDocValuesRangeQuery.newRangeQuery(
             DATE_FIELD_NAME,
             parser.parse(lowerBoundExact, () -> 0).toEpochMilli(),
             parser.parse(upperBoundExact, () -> 0).toEpochMilli()

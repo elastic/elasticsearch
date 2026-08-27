@@ -46,7 +46,8 @@ public class GetInferenceDiagnosticsActionResponseTests extends AbstractBWCWireS
                     node,
                     externalPoolStats,
                     eisPoolStats,
-                    new GetInferenceDiagnosticsAction.NodeResponse.Stats(5, 6, 7, 8)
+                    new GetInferenceDiagnosticsAction.NodeResponse.Stats(5, 6, 7, 8),
+                    null
                 )
             ),
             List.of()

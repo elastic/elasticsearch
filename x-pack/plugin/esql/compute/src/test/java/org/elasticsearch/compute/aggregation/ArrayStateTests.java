@@ -210,7 +210,7 @@ public class ArrayStateTests extends ESTestCase {
     }
 
     /**
-     * Calls {@link GroupingAggregatorState#toIntermediate} with a range that's greater than
+     * Calls {@link AbstractArrayState#toIntermediate} with a range that's greater than
      * any collected values. This is acceptable if {@link AbstractArrayState#enableGroupIdTracking}
      * is called, so we do that.
      */

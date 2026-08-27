@@ -41,7 +41,7 @@ public abstract class AbstractXContentParser implements XContentParser {
     // and change any code that needs to apply an alternative policy.
     public static final boolean DEFAULT_NUMBER_COERCE_POLICY = true;
 
-    private static void checkCoerceString(boolean coerce, Class<? extends Number> clazz) {
+    public static void checkCoerceString(boolean coerce, Class<? extends Number> clazz) {
         if (coerce == false) {
             // Need to throw type IllegalArgumentException as current catch logic in
             // NumberFieldMapper.parseCreateField relies on this for "malformed" value detection
@@ -118,19 +118,28 @@ public abstract class AbstractXContentParser implements XContentParser {
         return shortValue(DEFAULT_NUMBER_COERCE_POLICY);
     }
 
+    /**
+     * Parses a {@code short} from its decimal string representation, using the same semantics as the
+     * document-indexing path. The value is first parsed as a {@code double} and then narrowed; values
+     * outside [{@value Short#MIN_VALUE}, {@value Short#MAX_VALUE}] throw
+     * {@link IllegalArgumentException}.
+     */
+    public static short parseShort(String text) {
+        double doubleValue = Double.parseDouble(text);
+        if (doubleValue < Short.MIN_VALUE || doubleValue > Short.MAX_VALUE) {
+            throw new IllegalArgumentException("Value [" + text + "] is out of range for a short");
+        }
+        return (short) doubleValue;
+    }
+
     @Override
     public short shortValue(boolean coerce) throws IOException {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Short.class);
-
-            double doubleValue = Double.parseDouble(text());
-
-            if (doubleValue < Short.MIN_VALUE || doubleValue > Short.MAX_VALUE) {
-                throw new IllegalArgumentException("Value [" + text() + "] is out of range for a short");
-            }
-
-            return (short) doubleValue;
+            XContentString numericText = optimizedText();
+            checkNumericStringLength(numericText.stringLength());
+            return parseShort(numericText.string());
         }
         short result = doShortValue();
         ensureNumberConversion(coerce, result, Short.class);
@@ -144,18 +153,28 @@ public abstract class AbstractXContentParser implements XContentParser {
         return intValue(DEFAULT_NUMBER_COERCE_POLICY);
     }
 
+    /**
+     * Parses an {@code int} from its decimal string representation, using the same semantics as the
+     * document-indexing path. The value is first parsed as a {@code double} and then narrowed; values
+     * outside [{@value Integer#MIN_VALUE}, {@value Integer#MAX_VALUE}] throw
+     * {@link IllegalArgumentException}.
+     */
+    public static int parseInt(String text) {
+        double doubleValue = Double.parseDouble(text);
+        if (doubleValue < Integer.MIN_VALUE || doubleValue > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Value [" + text + "] is out of range for an integer");
+        }
+        return (int) doubleValue;
+    }
+
     @Override
     public int intValue(boolean coerce) throws IOException {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Integer.class);
-            double doubleValue = Double.parseDouble(text());
-
-            if (doubleValue < Integer.MIN_VALUE || doubleValue > Integer.MAX_VALUE) {
-                throw new IllegalArgumentException("Value [" + text() + "] is out of range for an integer");
-            }
-
-            return (int) doubleValue;
+            XContentString numericText = optimizedText();
+            checkNumericStringLength(numericText.stringLength());
+            return parseInt(numericText.string());
         }
         int result = doIntValue();
         ensureNumberConversion(coerce, result, Integer.class);
@@ -167,10 +186,29 @@ public abstract class AbstractXContentParser implements XContentParser {
     private static final BigInteger LONG_MAX_VALUE_AS_BIGINTEGER = BigInteger.valueOf(Long.MAX_VALUE);
     private static final BigInteger LONG_MIN_VALUE_AS_BIGINTEGER = BigInteger.valueOf(Long.MIN_VALUE);
 
-    /** Return the long that {@code stringValue} stores or throws an exception if the
-     *  stored value cannot be converted to a long that stores the exact same
-     *  value and {@code coerce} is false. */
-    private static long toLong(String stringValue, boolean coerce) {
+    // Numeric strings longer than this are rejected before coercion, whose cost grows with the digit count;
+    // matches the unquoted JSON number-token limit. Mirrored by Numbers#MAX_NUMERIC_STRING_LENGTH. Keep in sync.
+    public static final int MAX_NUMERIC_STRING_LENGTH = 1000;
+
+    private static void checkNumericStringLength(int length) {
+        if (length > MAX_NUMERIC_STRING_LENGTH) {
+            throw new IllegalArgumentException(
+                "Numeric value length [" + length + "] exceeds the maximum of [" + MAX_NUMERIC_STRING_LENGTH + "]"
+            );
+        }
+    }
+
+    /**
+     * Returns the {@code long} that {@code stringValue} represents, using the same semantics as the
+     * document-indexing path ({@code longValue(coerce)}).
+     *
+     * <p>Plain integer strings are parsed via {@link Long#parseLong}; strings that cannot be parsed
+     * that way (decimals, scientific notation, big integers) fall back to {@link java.math.BigDecimal}.
+     * A fractional part is truncated when {@code coerce=true} and rejected with
+     * {@link IllegalArgumentException} when {@code coerce=false}. Values outside
+     * [{@link Long#MIN_VALUE}, {@link Long#MAX_VALUE}] always throw.
+     */
+    public static long toLong(String stringValue, boolean coerce) {
         try {
             return Long.parseLong(stringValue);
         } catch (NumberFormatException e) {
@@ -219,7 +257,9 @@ public abstract class AbstractXContentParser implements XContentParser {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Long.class);
-            return toLong(text(), coerce);
+            XContentString numericText = optimizedText();
+            checkNumericStringLength(numericText.stringLength());
+            return toLong(numericText.string(), coerce);
         }
         long result = doLongValue();
         ensureNumberConversion(coerce, result, Long.class);
@@ -238,7 +278,9 @@ public abstract class AbstractXContentParser implements XContentParser {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Float.class);
-            return Float.parseFloat(text());
+            XContentString numericText = optimizedText();
+            checkNumericStringLength(numericText.stringLength());
+            return Float.parseFloat(numericText.string());
         }
         return doFloatValue();
     }
@@ -255,7 +297,9 @@ public abstract class AbstractXContentParser implements XContentParser {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Double.class);
-            return Double.parseDouble(text());
+            XContentString numericText = optimizedText();
+            checkNumericStringLength(numericText.stringLength());
+            return Double.parseDouble(numericText.string());
         }
         return doDoubleValue();
     }
@@ -291,14 +335,20 @@ public abstract class AbstractXContentParser implements XContentParser {
         return charBuffer();
     }
 
+    private void requireSupportsMap() {
+        if (supportsMap() == false) {
+            throw new UnsupportedOperationException();
+        }
+    }
+
     @Override
     public Map<String, Object> map() throws IOException {
-        return readMapSafe(this, SIMPLE_MAP_FACTORY);
+        return readMapSafe(SIMPLE_MAP_FACTORY);
     }
 
     @Override
     public Map<String, Object> mapOrdered() throws IOException {
-        return readMapSafe(this, ORDERED_MAP_FACTORY);
+        return readMapSafe(ORDERED_MAP_FACTORY);
     }
 
     @Override
@@ -309,6 +359,7 @@ public abstract class AbstractXContentParser implements XContentParser {
     @Override
     public <T> Map<String, T> map(Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser)
         throws IOException {
+        requireSupportsMap();
         final Map<String, T> map = mapFactory.get();
         String fieldName = findNonEmptyMapStart(this);
         if (fieldName == null) {
@@ -323,14 +374,22 @@ public abstract class AbstractXContentParser implements XContentParser {
         return map;
     }
 
+    private void requireSupportsList() {
+        if (supportsList() == false) {
+            throw new UnsupportedOperationException();
+        }
+    }
+
     @Override
     public List<Object> list() throws IOException {
+        requireSupportsList();
         skipToListStart(this);
         return readListUnsafe(this, SIMPLE_MAP_FACTORY);
     }
 
     @Override
     public List<Object> listOrderedMap() throws IOException {
+        requireSupportsList();
         skipToListStart(this);
         return readListUnsafe(this, ORDERED_MAP_FACTORY);
     }
@@ -339,10 +398,11 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     private static final Supplier<Map<String, Object>> ORDERED_MAP_FACTORY = LinkedHashMap::new;
 
-    private static Map<String, Object> readMapSafe(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
+    private Map<String, Object> readMapSafe(Supplier<Map<String, Object>> mapFactory) throws IOException {
+        requireSupportsMap();
         final Map<String, Object> map = mapFactory.get();
-        final String firstKey = findNonEmptyMapStart(parser);
-        return firstKey == null ? map : readMapEntries(parser, mapFactory, map, firstKey);
+        final String firstKey = findNonEmptyMapStart(this);
+        return firstKey == null ? map : readMapEntries(this, mapFactory, map, firstKey);
     }
 
     private static Map<String, Object> readMapEntries(

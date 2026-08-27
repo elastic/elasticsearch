@@ -10,6 +10,7 @@
 package org.elasticsearch.indices.memory.breaker;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -27,9 +28,12 @@ import org.junit.After;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE;
 import static org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_TYPE_ATTRIBUTE;
 import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING;
 import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING;
@@ -94,13 +98,56 @@ public class HierarchyCircuitBreakerTelemetryIT extends ESIntegTestCase {
                 .toList();
             assertThat(allMeasurements, Matchers.not(Matchers.empty()));
             final Measurement measurement = allMeasurements.get(0);
-            assertThat(1L, Matchers.equalTo(measurement.getLong()));
-            assertThat(1L, Matchers.equalTo(measurement.value()));
-            assertThat(Map.of(CIRCUIT_BREAKER_TYPE_ATTRIBUTE, "inflight_requests"), Matchers.equalTo(measurement.attributes()));
-            assertThat(true, Matchers.equalTo(measurement.isLong()));
+            // Indexing fans out into internal transport requests, each of which reserves its serialized size against the
+            // 100-byte inflight_requests breaker on the receiving node. A single trip is typically indices:admin/create or
+            // the dynamic-mapping update indices:admin/mapping/auto_put. Two trips occur when the shard bulk
+            // indices:data/write/bulk[s] trips on the data node: its transport failure makes the coordinator send a
+            // internal:admin/tasks/cancel_child request back to cancel the orphaned child task, and that request trips the
+            // breaker again. Which path runs depends on which node coordinates, so the count is non-deterministic (1 or 2)
+            // and we only assert the breaker tripped at least once.
+            assertThat(measurement.getLong(), Matchers.greaterThanOrEqualTo(1L));
+            assertThat(measurement.value().longValue(), Matchers.greaterThanOrEqualTo(1L));
+            assertThat(measurement.attributes(), Matchers.equalTo(Map.of(CIRCUIT_BREAKER_TYPE_ATTRIBUTE, "inflight_requests")));
+            assertThat(measurement.isLong(), Matchers.equalTo(true));
             return;
         }
         fail("Expected exception not thrown");
+    }
+
+    public void testCircuitBreakerMemoryGauges() {
+        internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        final String dataNodeName = internalCluster().startDataOnlyNode(Settings.EMPTY);
+
+        final TestTelemetryPlugin plugin = telemetryPlugin(dataNodeName);
+        plugin.collect();
+
+        final List<Measurement> limits = plugin.getLongGaugeMeasurement(CircuitBreakerMetrics.ES_BREAKER_MEMORY_LIMIT);
+        final List<Measurement> estimates = plugin.getLongGaugeMeasurement(CircuitBreakerMetrics.ES_BREAKER_MEMORY_ESTIMATED);
+
+        final Set<String> expectedTypes = Set.of(
+            CircuitBreaker.PARENT,
+            CircuitBreaker.FIELDDATA,
+            CircuitBreaker.REQUEST,
+            CircuitBreaker.IN_FLIGHT_REQUESTS
+        );
+        assertThat(typesIn(limits), Matchers.hasItems(expectedTypes.toArray(new String[0])));
+        assertThat(typesIn(estimates), Matchers.hasItems(expectedTypes.toArray(new String[0])));
+
+        // limits and estimates are non-negative byte values; -1 means "no limit" which is also acceptable
+        for (Measurement m : limits) {
+            assertTrue("expected non-negative limit (or -1 sentinel) for " + m.attributes(), m.getLong() >= -1);
+        }
+        for (Measurement m : estimates) {
+            assertTrue("expected non-negative estimate for " + m.attributes(), m.getLong() >= 0);
+        }
+    }
+
+    private static Set<String> typesIn(List<Measurement> measurements) {
+        return measurements.stream().map(m -> (String) m.attributes().get(BREAKER_METRIC_TYPE_ATTRIBUTE)).collect(Collectors.toSet());
+    }
+
+    private static TestTelemetryPlugin telemetryPlugin(String nodeName) {
+        return internalCluster().getInstance(PluginsService.class, nodeName).filterPlugins(TestTelemetryPlugin.class).toList().get(0);
     }
 
     @After

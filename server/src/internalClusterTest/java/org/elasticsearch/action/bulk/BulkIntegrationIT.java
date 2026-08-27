@@ -152,8 +152,6 @@ public class BulkIntegrationIT extends ESIntegTestCase {
      * and that the responses contain unassigned seqNo and primaryTerm sentinel values in XContent output.
      */
     public void testBulkReplicationWithSequenceNumbersDisabled() throws IOException {
-        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
         int numReplicas = Math.min(between(1, 2), cluster().numDataNodes() - 1);
         assumeTrue("Need at least 2 data nodes for replication", numReplicas > 0);
         indicesAdmin().prepareCreate("test-repl")

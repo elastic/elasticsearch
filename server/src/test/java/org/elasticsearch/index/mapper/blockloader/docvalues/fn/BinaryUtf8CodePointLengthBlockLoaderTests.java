@@ -45,7 +45,10 @@ public class BinaryUtf8CodePointLengthBlockLoaderTests extends AbstractBlockLoad
             int docCount = 10_000;
             int cardinality = between(16, 2048);
             for (int i = 0; i < docCount; i++) {
-                var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", false);
+                var field = new MultiValuedBinaryDocValuesField.SeparateCount(
+                    "field",
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                );
                 field.add(new BytesRef("a".repeat(i % cardinality)));
                 NumericDocValuesField countField;
                 if (multiValues && i % cardinality == 0) {
@@ -72,7 +75,12 @@ public class BinaryUtf8CodePointLengthBlockLoaderTests extends AbstractBlockLoad
 
                 var warnings = new MockWarnings();
                 var stringsLoader = new BytesRefsFromBinaryMultiSeparateCountBlockLoader("field");
-                var codePointsLoader = new Utf8CodePointsFromOrdsBlockLoader(warnings, "field", ByteSizeValue.ofKb(between(1, 100)));
+                var codePointsLoader = new Utf8CodePointsFromOrdsBlockLoader(
+                    warnings,
+                    "field",
+                    ByteSizeValue.ofKb(between(1, 100)),
+                    BytesRefsFromBinaryMultiSeparateCountBlockLoader.ArrayOrderSource.NONE
+                );
 
                 BlockLoader.Docs docs = TestBlock.docs(ctx);
                 try (

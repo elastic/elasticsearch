@@ -183,7 +183,7 @@ final class UserAgentParserImpl implements UserAgentParser {
 
     @Override
     public Details parseUserAgentInfo(String agentString, boolean extractDeviceType) {
-        Details details = cache.get(name, agentString);
+        Details details = cache.get(name, agentString, extractDeviceType);
         if (details == null) {
             VersionedName userAgent = findMatch(uaPatterns, agentString);
             VersionedName operatingSystem = findMatch(osPatterns, agentString);
@@ -199,7 +199,7 @@ final class UserAgentParserImpl implements UserAgentParser {
             VersionedName dev = (device != null && device.name() != null) ? device : null;
 
             details = new Details(uaName, uaVersion, os, osFull, dev, deviceType);
-            cache.put(name, agentString, details);
+            cache.put(name, agentString, details, extractDeviceType);
         }
         return details;
     }

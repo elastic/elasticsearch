@@ -40,3 +40,44 @@ setup:
   - match: { error.root_cause.0.type: "query_shard_exception" }
   - match: { error.root_cause.0.reason: "failed to create query: Too many ids specified, allowed max result window is [2]" }
 
+---
+"ids query in aggregation filter returns error above max result window":
+  - requires:
+      cluster_features: ["ids_query_limit_max_ids"]
+      reason: "Ensure a limited number if ids can be supplied to ids query"
+
+  - do:
+      catch: bad_request
+      search:
+        body:
+          size: 0
+          aggs:
+            too_many_ids:
+              filter:
+                ids:
+                  values: [1, 2, 3]
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Too many ids specified, allowed max result window is [2]" }
+
+---
+"ids query in highlight_query returns error above max result window":
+  - requires:
+      cluster_features: ["ids_query_limit_max_ids"]
+      reason: "Ensure a limited number if ids can be supplied to ids query"
+
+  - do:
+      catch: bad_request
+      search:
+        body:
+          query:
+            match_all: {}
+          highlight:
+            highlight_query:
+              ids:
+                values: [1, 2, 3]
+            fields:
+              key: {}
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Too many ids specified, allowed max result window is [2]" }

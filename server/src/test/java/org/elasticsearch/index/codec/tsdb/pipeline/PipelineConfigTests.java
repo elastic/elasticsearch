@@ -18,67 +18,41 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class PipelineConfigTests extends ESTestCase {
 
-    private static int randomBlockSize() {
-        return 128 << randomIntBetween(0, 7);
-    }
-
-    public void testLongBuilderFluency() {
-        final int blockSize = randomBlockSize();
+    public void testForLongsBuilder() {
+        int blockSize = randomBlockSize();
         final PipelineConfig config = PipelineConfig.forLongs(blockSize).delta().offset().gcd().bitPack();
+
         assertEquals(PipelineDescriptor.DataType.LONG, config.dataType());
         assertEquals(blockSize, config.blockSize());
+        assertEquals(3, config.transforms().size());
+        assertNotNull(config.payload());
         assertEquals(4, config.specs().size());
     }
 
-    public void testBlockSizePreserved() {
-        final int blockSize = randomBlockSize();
-        assertEquals(blockSize, PipelineConfig.forLongs(blockSize).delta().bitPack().blockSize());
-    }
-
-    public void testEquality() {
-        final int blockSize = randomBlockSize();
-        final PipelineConfig config1 = PipelineConfig.forLongs(blockSize).delta().bitPack();
-        final PipelineConfig config2 = PipelineConfig.forLongs(blockSize).delta().bitPack();
-
-        assertEquals(config1, config2);
-        assertEquals(config1.hashCode(), config2.hashCode());
-    }
-
-    public void testInequalityByStages() {
-        final int blockSize = randomBlockSize();
-        assertNotEquals(PipelineConfig.forLongs(blockSize).delta().bitPack(), PipelineConfig.forLongs(blockSize).offset().bitPack());
-    }
-
     public void testInequalityByDataType() {
-        final int blockSize = randomBlockSize();
-        final List<StageSpec> stages = List.of(new StageSpec.DeltaStage(), new StageSpec.BitPackPayload());
-        assertNotEquals(
-            PipelineConfig.of(PipelineDescriptor.DataType.LONG, blockSize, stages),
-            PipelineConfig.of(PipelineDescriptor.DataType.DOUBLE, blockSize, stages)
+        int blockSize = randomBlockSize();
+        final PipelineConfig a = new PipelineConfig(
+            PipelineDescriptor.DataType.LONG,
+            blockSize,
+            List.of(new StageSpec.DeltaStage()),
+            new StageSpec.BitPackPayload()
         );
+        final PipelineConfig b = new PipelineConfig(
+            PipelineDescriptor.DataType.DOUBLE,
+            blockSize,
+            List.of(new StageSpec.DeltaStage()),
+            new StageSpec.BitPackPayload()
+        );
+        assertNotEquals(a, b);
     }
 
     public void testInequalityByBlockSize() {
         assertNotEquals(PipelineConfig.forLongs(128).delta().bitPack(), PipelineConfig.forLongs(256).delta().bitPack());
     }
 
-    public void testDataTypePreserved() {
-        final int blockSize = randomBlockSize();
-        assertEquals(PipelineDescriptor.DataType.LONG, PipelineConfig.forLongs(blockSize).delta().bitPack().dataType());
-    }
-
-    public void testSpecsPreserved() {
+    public void testSpecsAreImmutable() {
         final PipelineConfig config = PipelineConfig.forLongs(randomBlockSize()).delta().offset().bitPack();
-
-        assertEquals(3, config.specs().size());
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.DeltaStage.class)));
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.OffsetStage.class)));
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.BitPackPayload.class)));
-    }
-
-    public void testSpecsAreUnmodifiable() {
-        final PipelineConfig config = PipelineConfig.forLongs(randomBlockSize()).delta().bitPack();
-        expectThrows(UnsupportedOperationException.class, () -> config.specs().add(new StageSpec.OffsetStage()));
+        expectThrows(UnsupportedOperationException.class, () -> config.transforms().add(new StageSpec.GcdStage()));
     }
 
     public void testDescribeStages() {
@@ -90,22 +64,6 @@ public class PipelineConfigTests extends ESTestCase {
 
     public void testDescribeStagesWithSingleStage() {
         assertEquals("bitPack", PipelineConfig.forLongs(randomBlockSize()).bitPack().describeStages());
-    }
-
-    public void testDescribeStagesWithEmptySpecs() {
-        assertEquals("empty", PipelineConfig.of(PipelineDescriptor.DataType.LONG, randomBlockSize(), List.of()).describeStages());
-    }
-
-    public void testOfFactoryMethod() {
-        final int blockSize = randomBlockSize();
-        final PipelineConfig config = PipelineConfig.of(
-            PipelineDescriptor.DataType.LONG,
-            blockSize,
-            List.of(new StageSpec.DeltaStage(), new StageSpec.BitPackPayload())
-        );
-        assertEquals(PipelineDescriptor.DataType.LONG, config.dataType());
-        assertEquals(blockSize, config.blockSize());
-        assertEquals(2, config.specs().size());
     }
 
     public void testAllLongTransformStages() {
@@ -128,19 +86,54 @@ public class PipelineConfigTests extends ESTestCase {
         assertEquals(StageId.BITPACK_PAYLOAD, specs.get(3).stageId());
     }
 
-    public void testRejectsNullDataType() {
-        expectThrows(NullPointerException.class, () -> new PipelineConfig(null, randomBlockSize(), List.of()));
+    public void testTransformsAndPayloadSeparation() {
+        final PipelineConfig config = PipelineConfig.forLongs(randomBlockSize()).delta().offset().gcd().bitPack();
+
+        assertEquals(3, config.transforms().size());
+        assertEquals(StageId.DELTA_STAGE, config.transforms().get(0).stageId());
+        assertEquals(StageId.OFFSET_STAGE, config.transforms().get(1).stageId());
+        assertEquals(StageId.GCD_STAGE, config.transforms().get(2).stageId());
+        assertEquals(StageId.BITPACK_PAYLOAD, config.payload().stageId());
     }
 
-    public void testRejectsNullSpecs() {
-        expectThrows(NullPointerException.class, () -> new PipelineConfig(PipelineDescriptor.DataType.LONG, randomBlockSize(), null));
+    public void testPayloadOnlyPipeline() {
+        final PipelineConfig config = PipelineConfig.forLongs(randomBlockSize()).bitPack();
+
+        assertEquals(0, config.transforms().size());
+        assertNotNull(config.payload());
+        assertEquals(1, config.specs().size());
+    }
+
+    public void testRejectsNullDataType() {
+        expectThrows(
+            NullPointerException.class,
+            () -> new PipelineConfig(null, randomBlockSize(), List.of(), new StageSpec.BitPackPayload())
+        );
+    }
+
+    public void testRejectsNullTransforms() {
+        expectThrows(
+            NullPointerException.class,
+            () -> new PipelineConfig(PipelineDescriptor.DataType.LONG, randomBlockSize(), null, new StageSpec.BitPackPayload())
+        );
+    }
+
+    public void testRejectsNullPayload() {
+        expectThrows(
+            NullPointerException.class,
+            () -> new PipelineConfig(PipelineDescriptor.DataType.LONG, randomBlockSize(), List.of(), null)
+        );
     }
 
     public void testRejectsInvalidBlockSize() {
-        final int invalid = randomFrom(0, -1, -randomIntBetween(1, 1000), 100, 300, 99);
+        int invalid = randomFrom(0, -1, -randomIntBetween(1, 1000), 100, 300, 99);
         expectThrows(
             IllegalArgumentException.class,
-            () -> new PipelineConfig(PipelineDescriptor.DataType.LONG, invalid, List.of(new StageSpec.BitPackPayload()))
+            () -> new PipelineConfig(PipelineDescriptor.DataType.LONG, invalid, List.of(), new StageSpec.BitPackPayload())
         );
+    }
+
+    private static int randomBlockSize() {
+        return 1 << randomIntBetween(4, 10);
     }
 }

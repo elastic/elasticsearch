@@ -170,13 +170,16 @@
         - method: GET
           path: /_nodes/stats
           capabilities: [ dense_vector_off_heap_stats ]
-      test_runner_features: [ capabilities ]
+      test_runner_features: [ capabilities, "allowed_warnings" ]
       reason: Capability required to run test
    - requires:
       cluster_features: [ "search.vectors.flat_index_threshold" ]
       reason: "Uses index_options.flat_index_threshold"
 
    - do:
+      allowed_warnings:
+        - "Parameter [confidence_interval] in [index_options] for dense_vector field [vector3] is deprecated and will be removed in a future version"
+        - "Parameter [confidence_interval] in [index_options] for dense_vector field [vector4] is deprecated and will be removed in a future version"
       indices.create:
         index: int8_and_4_quantized
         body:
@@ -209,6 +212,7 @@
                 index_options:
                   type: int4_hnsw
                   flat_index_threshold: 0
+                  confidence_interval: 0.0
               vector4:
                 type: dense_vector
                 dims: 4
@@ -216,6 +220,7 @@
                 similarity: l2_norm
                 index_options:
                   type: int4_flat
+                  confidence_interval: 0.0
 
    - do:
       index:

@@ -122,7 +122,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     }
 
     private void setReassignmentRecheckInterval(TimeValue recheckInterval) {
-        reassignmentRecheckInterval = Duration.ofNanos(recheckInterval.getNanos());
+        reassignmentRecheckInterval = recheckInterval.toDuration();
     }
 
     public void setAutoscalingCheckInterval(Duration autoscalingCheckInterval) {

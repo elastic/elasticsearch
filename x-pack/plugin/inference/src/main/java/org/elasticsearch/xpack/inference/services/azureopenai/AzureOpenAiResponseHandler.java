@@ -11,7 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiResponseHandler;
 
 import static org.elasticsearch.xpack.inference.external.http.retry.ResponseHandlerUtils.getFirstHeaderOrUnknown;
@@ -36,8 +36,8 @@ public class AzureOpenAiResponseHandler extends OpenAiResponseHandler {
     }
 
     @Override
-    protected RetryException buildExceptionHandling429(Request request, HttpResult result) {
-        return new RetryException(true, buildError(buildRateLimitErrorMessage(result), request, result));
+    protected RetryException buildExceptionHandling429(OutboundRequest outboundRequest, HttpResult result) {
+        return new RetryException(true, buildError(buildRateLimitErrorMessage(result), outboundRequest, result));
     }
 
     static String buildRateLimitErrorMessage(HttpResult result) {

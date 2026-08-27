@@ -36,7 +36,7 @@ public record AnalyzerSettings(
     );
     public static final Setting<Integer> QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE = Setting.intSetting(
         "esql.query.timeseries_result_truncation_default_size",
-        1_000_000,
+        10_000,
         1,
         10_000_000,
         Setting.Property.NodeScope,

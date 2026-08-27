@@ -149,7 +149,7 @@ public class DenseVectorFromBinaryBlockLoader extends BlockDocValuesReader.DocVa
 
         @Override
         protected void decodeDenseVector(BytesRef bytesRef, float[] scratch) {
-            VectorEncoderDecoder.decodeBFloat16DenseVector(bytesRef, scratch);
+            VectorEncoderDecoder.decodeBFloat16DenseVector(indexVersion, bytesRef, scratch);
         }
 
         @Override
@@ -179,7 +179,7 @@ public class DenseVectorFromBinaryBlockLoader extends BlockDocValuesReader.DocVa
         }
 
         protected void decodeDenseVector(BytesRef bytesRef, byte[] scratch) {
-            VectorEncoderDecoder.decodeDenseVector(indexVersion, bytesRef, scratch);
+            VectorEncoderDecoder.decodeDenseVector(bytesRef, scratch);
         }
     }
 

@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -77,7 +76,7 @@ public class AzureAiStudioRerankTaskSettingsTests extends AbstractBWCWireSeriali
         if (newSettings.topN() != null) settingsMap.put(TOP_N_FIELD, newSettings.topN());
 
         final AzureAiStudioRerankTaskSettings updatedSettings = (AzureAiStudioRerankTaskSettings) initialSettings.updatedTaskSettings(
-            Collections.unmodifiableMap(settingsMap)
+            settingsMap
         );
         assertEquals(
             newSettings.returnDocuments() == null ? initialSettings.returnDocuments() : newSettings.returnDocuments(),
@@ -112,7 +111,7 @@ public class AzureAiStudioRerankTaskSettingsTests extends AbstractBWCWireSeriali
     }
 
     public void testFromMap_WithNoValues_DoesNotThrowException() {
-        final var taskMap = AzureAiStudioRerankTaskSettings.fromMap(new HashMap<>(Map.of()));
+        final var taskMap = AzureAiStudioRerankTaskSettings.fromMap(new HashMap<>());
         assertNull(taskMap.returnDocuments());
         assertNull(taskMap.topN());
     }

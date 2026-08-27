@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 144024
-pr: 144031
-summary: Fix ESQL TS requests with LIMIT 0
-type: bug

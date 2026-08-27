@@ -66,9 +66,7 @@ public class DenseEmbeddingResponseParser extends BaseCustomResponseParser {
             CustomServiceEmbeddingType.FLOAT
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new DenseEmbeddingResponseParser(path, embeddingType);
     }
@@ -116,6 +114,11 @@ public class DenseEmbeddingResponseParser extends BaseCustomResponseParser {
     @Override
     public CustomServiceEmbeddingType getEmbeddingType() {
         return embeddingType;
+    }
+
+    @Override
+    public DenseEmbeddingResponseParser updateFromMap(Map<String, Object> map, String scope, ValidationException validationException) {
+        return fromMap(map, scope, validationException);
     }
 
     @Override

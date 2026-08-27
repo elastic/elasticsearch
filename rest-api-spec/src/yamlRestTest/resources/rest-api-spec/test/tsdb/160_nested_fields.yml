@@ -5,6 +5,7 @@ setup:
 
   - skip:
       cluster_features: "index.time_series_synthetic_id"
+      all_nodes: true
       reason: when cluster has synthetic_id feature use 161/162_nested_fields_synthetic_id_false/true instead
 
 ---

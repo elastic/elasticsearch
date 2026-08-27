@@ -34,6 +34,9 @@ public class InferenceWithSecurityRestIT extends ESClientYamlSuiteTestCase {
     private static final String INFERENCE_USERNAME = "inference_user";
     private static final String INFERENCE_PASSWORD = "inference_user_password";
 
+    private static final String MONITOR_INFERENCE_USERNAME = "monitor_inference_user";
+    private static final String MONITOR_INFERENCE_PASSWORD = "monitor_inference_password";
+
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .systemProperty("tests.seed", System.getProperty("tests.seed"))
@@ -42,6 +45,7 @@ public class InferenceWithSecurityRestIT extends ESClientYamlSuiteTestCase {
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .user(TEST_ADMIN_USERNAME, TEST_ADMIN_PASSWORD)    // admin user for setup and teardown
         .user(INFERENCE_USERNAME, INFERENCE_PASSWORD, "monitor_only_user", false)
+        .user(MONITOR_INFERENCE_USERNAME, MONITOR_INFERENCE_PASSWORD, "monitor_inference_only_user", false)
         .plugin("inference-service-test")
         .distribution(DistributionType.DEFAULT)
         .build();

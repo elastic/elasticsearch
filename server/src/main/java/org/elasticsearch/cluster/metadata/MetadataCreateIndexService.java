@@ -22,9 +22,10 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterStateAckListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -38,9 +39,10 @@ import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
-import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
+import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
@@ -56,7 +58,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
@@ -97,7 +98,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -119,6 +119,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUI
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveSettings;
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
 import static org.elasticsearch.index.IndexModule.INDEX_RECOVERY_TYPE_SETTING;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 
@@ -126,6 +127,7 @@ import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
  * Service responsible for submitting create index requests
  */
 public class MetadataCreateIndexService {
+
     public static TransportVersion INDEX_LIMIT_EXCEEDED_EXCEPTION_VERSION = TransportVersion.fromName("index_limit_exceeded_exception");
 
     // Deliberately not registered so it can only be set in tests/plugins.
@@ -165,11 +167,6 @@ public class MetadataCreateIndexService {
 
     public static final int MAX_INDEX_NAME_BYTES = 255;
 
-    /**
-     * Name of the setting used to allow blocking refreshes on newly created indices.
-     */
-    public static final String USE_INDEX_REFRESH_BLOCK_SETTING_NAME = "stateless.indices.use_refresh_block_upon_index_creation";
-
     @FunctionalInterface
     interface ClusterBlocksTransformer {
         void apply(ClusterBlocks.Builder clusterBlocks, ProjectId projectId, IndexMetadata indexMetadata);
@@ -188,7 +185,10 @@ public class MetadataCreateIndexService {
     private final Set<IndexSettingProvider> indexSettingProviders;
     private final ThreadPool threadPool;
     private final ClusterBlocksTransformer blocksTransformerUponIndexCreation;
-    private final Priority clusterStateUpdateTaskPriority;
+
+    // package private for tests
+    final CreateIndexClusterStateUpdateTaskExecutor createIndexTaskExecutor;
+    private final MasterServiceTaskQueue<CreateIndexClusterStateUpdateTask> createIndexTaskQueue;
 
     private volatile TimeValue maxMasterNodeTimeout;
     private volatile int maxIndicesPerProject;
@@ -221,27 +221,21 @@ public class MetadataCreateIndexService {
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
         this.threadPool = threadPool;
         this.blocksTransformerUponIndexCreation = createClusterBlocksTransformerForIndexCreation(settings);
-        this.clusterStateUpdateTaskPriority = CREATE_INDEX_PRIORITY_SETTING.get(settings);
+        this.createIndexTaskExecutor = new CreateIndexClusterStateUpdateTaskExecutor();
+        this.createIndexTaskQueue = clusterService.createTaskQueue(
+            "create-index",
+            CREATE_INDEX_PRIORITY_SETTING.get(settings),
+            createIndexTaskExecutor
+        );
 
-        if (clusterService.getClusterSettings().isDynamicSetting(CREATE_INDEX_MAX_TIMEOUT_SETTING.getKey())) {
-            // setting only registered in some tests today
-            clusterService.getClusterSettings().initializeAndWatch(CREATE_INDEX_MAX_TIMEOUT_SETTING, v -> maxMasterNodeTimeout = v);
-        } else {
-            maxMasterNodeTimeout = CREATE_INDEX_MAX_TIMEOUT_SETTING.get(clusterService.getSettings());
-        }
+        // setting only registered in some tests today
+        clusterService.getClusterSettings().initializeAndWatchIfRegistered(CREATE_INDEX_MAX_TIMEOUT_SETTING, v -> maxMasterNodeTimeout = v);
 
-        if (clusterService.getClusterSettings().isDynamicSetting(CLUSTER_MAX_INDICES_PER_PROJECT_ENABLED_SETTING.getKey())) {
-            clusterService.getClusterSettings()
-                .initializeAndWatch(CLUSTER_MAX_INDICES_PER_PROJECT_ENABLED_SETTING, v -> maxIndicesPerProjectEnabled = v);
-        } else {
-            maxIndicesPerProjectEnabled = CLUSTER_MAX_INDICES_PER_PROJECT_ENABLED_SETTING.get(clusterService.getSettings());
-        }
+        clusterService.getClusterSettings()
+            .initializeAndWatchIfRegistered(CLUSTER_MAX_INDICES_PER_PROJECT_ENABLED_SETTING, v -> maxIndicesPerProjectEnabled = v);
 
-        if (clusterService.getClusterSettings().isDynamicSetting(CLUSTER_MAX_INDICES_PER_PROJECT_SETTING.getKey())) {
-            clusterService.getClusterSettings().initializeAndWatch(CLUSTER_MAX_INDICES_PER_PROJECT_SETTING, v -> maxIndicesPerProject = v);
-        } else {
-            maxIndicesPerProject = CLUSTER_MAX_INDICES_PER_PROJECT_SETTING.get(clusterService.getSettings());
-        }
+        clusterService.getClusterSettings()
+            .initializeAndWatchIfRegistered(CLUSTER_MAX_INDICES_PER_PROJECT_SETTING, v -> maxIndicesPerProject = v);
     }
 
     public static long getTotalUserIndices(SystemIndices systemIndices, ProjectMetadata projectMetadata) {
@@ -257,7 +251,7 @@ public class MetadataCreateIndexService {
         if (maxIndicesPerProjectEnabled == false) {
             return;
         }
-        if (systemIndices.isSystemIndex(request.index()) || systemIndices.isSystemIndexBackingDataStream(request.index())) {
+        if (request.isSystem()) {
             return;
         }
         if (systemIndices.isFeatureAssociatedIndex(request.index())) {
@@ -299,6 +293,9 @@ public class MetadataCreateIndexService {
         }
         if (projectMetadata.hasView(index)) {
             throw new InvalidIndexNameException(index, "already exists as an ESQL view");
+        }
+        if (projectMetadata.hasDataset(index)) {
+            throw new InvalidIndexNameException(index, "already exists as an ESQL dataset");
         }
     }
 
@@ -387,6 +384,14 @@ public class MetadataCreateIndexService {
         final CreateIndexClusterStateUpdateRequest request,
         final ActionListener<ShardsAcknowledgedResponse> listener
     ) {
+        assert descriptorForRequestIndexAndMappingVersion(request) == request.systemIndexDescriptor()
+            : "Expected system index descriptor "
+                + descriptorForRequestIndexAndMappingVersion(request)
+                + " but got "
+                + request.systemIndexDescriptor();
+        assert request.dataStreamName() == null
+            || systemIndices.findMatchingDataStreamDescriptor(request.dataStreamName()) == request.systemDataStreamDescriptor();
+
         logger.trace("createIndex[{}]", request);
         onlyCreateIndex(
             MasterService.maybeLimitMasterNodeTimeout(masterNodeTimeout, maxMasterNodeTimeout),
@@ -426,54 +431,141 @@ public class MetadataCreateIndexService {
         );
     }
 
+    /**
+     * Get the expected system index descriptor for the index name and mapping version on the request
+     */
+    private SystemIndexDescriptor descriptorForRequestIndexAndMappingVersion(CreateIndexClusterStateUpdateRequest request) {
+        final var descriptorForIndex = systemIndices.findMatchingDescriptor(request.index());
+        if (descriptorForIndex == null) {
+            return null;
+        }
+        // If the expected descriptor is automatically managed, try and adjust it to the mapping version on the request descriptor
+        final var requestDescriptor = request.systemIndexDescriptor();
+        return requestDescriptor != null && descriptorForIndex.isAutomaticallyManaged() && requestDescriptor.isAutomaticallyManaged()
+            ? descriptorForIndex.getDescriptorCompatibleWith(requestDescriptor.getMappingsVersion())
+            : descriptorForIndex;
+    }
+
     private void onlyCreateIndex(
         final TimeValue masterNodeTimeout,
         final TimeValue ackTimeout,
         final CreateIndexClusterStateUpdateRequest request,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        try {
+        ActionListener.run(listener, l -> {
             normalizeRequestSetting(request);
-        } catch (Exception e) {
-            listener.onFailure(e);
-            return;
-        }
-
-        var delegate = new AllocationActionListener<>(listener, threadPool.getThreadContext());
-        submitUnbatchedTask(
-            "create-index [" + request.index() + "], in project [" + request.projectId() + "], cause [" + request.cause() + "]",
-            new AckedClusterStateUpdateTask(clusterStateUpdateTaskPriority, masterNodeTimeout, ackTimeout, delegate.clusterStateUpdate()) {
-
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    return applyCreateIndexRequest(currentState, request, false, RerouteBehavior.PERFORM_REROUTE, delegate.reroute());
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    if (e instanceof ResourceAlreadyExistsException) {
-                        logger.trace(() -> "[" + request.index() + "] failed to create, in project [" + request.projectId() + "]", e);
-                    } else {
-                        logger.debug(() -> "[" + request.index() + "] failed to create, in project [" + request.projectId() + "]", e);
-                    }
-                    super.onFailure(e);
-                }
-            }
-        );
+            final var task = new CreateIndexClusterStateUpdateTask(request, ackTimeout, l);
+            createIndexTaskQueue.submitTask(task.toString(), task, masterNodeTimeout);
+        });
     }
 
-    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
-        clusterService.submitUnbatchedStateUpdateTask(source, task);
+    static class CreateIndexClusterStateUpdateTask implements ClusterStateTaskListener {
+        private final CreateIndexClusterStateUpdateRequest request;
+        private final TimeValue ackTimeout;
+        private final ActionListener<AcknowledgedResponse> listener;
+
+        CreateIndexClusterStateUpdateTask(
+            CreateIndexClusterStateUpdateRequest request,
+            TimeValue ackTimeout,
+            ActionListener<AcknowledgedResponse> listener
+        ) {
+            this.request = request;
+            this.ackTimeout = ackTimeout;
+            this.listener = listener;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            logger.log(
+                e instanceof ResourceAlreadyExistsException
+                    || e instanceof ProcessClusterEventTimeoutException
+                    || MasterService.isPublishFailureException(e) ? Level.TRACE : Level.DEBUG,
+                () -> Strings.format("[%s] failed to create, in project [%s]", request.index(), request.projectId()),
+                e
+            );
+            listener.onFailure(e);
+        }
+
+        private ClusterStateAckListener getAckListener(ActionListener<AcknowledgedResponse> responseListener) {
+            return new ClusterStateAckListener() {
+                @Override
+                public boolean mustAck(DiscoveryNode discoveryNode) {
+                    return true;
+                }
+
+                @Override
+                public void onAllNodesAcked() {
+                    responseListener.onResponse(AcknowledgedResponse.TRUE);
+                }
+
+                @Override
+                public void onAckFailure(Exception e) {
+                    responseListener.onResponse(AcknowledgedResponse.FALSE);
+                }
+
+                @Override
+                public void onAckTimeout() {
+                    responseListener.onResponse(AcknowledgedResponse.FALSE);
+                }
+
+                @Override
+                public TimeValue ackTimeout() {
+                    return ackTimeout;
+                }
+            };
+        }
+
+        @Override
+        public String toString() {
+            return Strings.format("create-index [%s], in project [%s], cause [%s]", request.index(), request.projectId(), request.cause());
+        }
+    }
+
+    /**
+     * Executes a batch of {@link CreateIndexClusterStateUpdateTask}s in a single cluster state update,
+     * deferring allocation reroute() until all indices in the batch have been processed.
+     */
+    private class CreateIndexClusterStateUpdateTaskExecutor implements ClusterStateTaskExecutor<CreateIndexClusterStateUpdateTask> {
+        @Override
+        public ClusterState execute(BatchExecutionContext<CreateIndexClusterStateUpdateTask> batchExecutionContext) {
+            final var allocationActionMultiListener = new AllocationActionMultiListener<AcknowledgedResponse>(
+                threadPool.getThreadContext()
+            );
+            var state = batchExecutionContext.initialState();
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
+                final var task = taskContext.getTask();
+                try (var ignored = taskContext.captureResponseHeaders()) {
+                    state = applyCreateIndexRequest(
+                        state,
+                        task.request,
+                        false,
+                        // Wait until all indices in the batch have been processed before doing a reroute
+                        RerouteBehavior.SKIP_REROUTE,
+                        rerouteCompletionIsNotRequired()
+                    );
+                    taskContext.success(task.getAckListener(allocationActionMultiListener.delay(task.listener)));
+                } catch (Exception e) {
+                    taskContext.onFailure(e);
+                }
+            }
+            if (state != batchExecutionContext.initialState()) {
+                try (var ignored = batchExecutionContext.dropHeadersContext()) {
+                    state = allocationService.reroute(state, "create-index", allocationActionMultiListener.reroute());
+                }
+            } else {
+                allocationActionMultiListener.noRerouteNeeded();
+            }
+            return state;
+        }
     }
 
     private void normalizeRequestSetting(CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest) {
-        Settings build = Settings.builder()
+        final var settings = Settings.builder()
             .put(createIndexClusterStateRequest.settings())
             .normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX)
             .build();
-        indexScopedSettings.validate(build, true);
-        createIndexClusterStateRequest.settings(build);
+        indexScopedSettings.validate(settings, true);
+        createIndexClusterStateRequest.settings(settings);
     }
 
     /**
@@ -534,7 +626,7 @@ public class MetadataCreateIndexService {
                 );
             }
 
-            SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(request.index());
+            SystemIndexDescriptor descriptor = request.systemIndexDescriptor();
             // ignore all templates for all system indices that do not allow templates.
             // Essentially, all but .kibana indices, see KibanaPlugin.java.
             if (Objects.nonNull(descriptor) && descriptor.allowsTemplates() == false) {
@@ -717,7 +809,6 @@ public class MetadataCreateIndexService {
                 allocationService.getShardRoutingRoleStrategy()
             );
             assert assertHasRefreshBlock(indexMetadata, updated.projectState(request.projectId()));
-
             if (rerouteBehavior == RerouteBehavior.SKIP_REROUTE) {
                 if (rerouteListener != null) {
                     rerouteListener.onResponse(null);
@@ -744,17 +835,18 @@ public class MetadataCreateIndexService {
     ) {
 
         final boolean isHiddenAfterTemplates = IndexMetadata.INDEX_HIDDEN_SETTING.get(aggregatedIndexSettings);
-        final boolean isSystem = validateDotIndex(request.index(), isHiddenAfterTemplates);
+        validateDotIndex(request.index(), isHiddenAfterTemplates);
 
         // remove the setting it's temporary and is only relevant once we create the index
-        final Settings.Builder settingsBuilder = Settings.builder().put(aggregatedIndexSettings);
-        settingsBuilder.remove(IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey());
-        final Settings indexSettings = settingsBuilder.build();
+        final Settings indexSettings = Settings.builder()
+            .put(aggregatedIndexSettings)
+            .remove(IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey())
+            .build();
 
         final IndexMetadata.Builder tmpImdBuilder = IndexMetadata.builder(request.index());
         tmpImdBuilder.setRoutingNumShards(routingNumShards);
         tmpImdBuilder.settings(indexSettings);
-        tmpImdBuilder.system(isSystem);
+        tmpImdBuilder.system(request.isSystem());
 
         // Set up everything, now locally create the index to see that things are ok, and apply
         IndexMetadata tempMetadata = tmpImdBuilder.build();
@@ -899,6 +991,7 @@ public class MetadataCreateIndexService {
             xContentRegistry,
             request.index()
         );
+        request.setMatchingTemplate(template);
         final Settings aggregatedIndexSettings = aggregateIndexSettings(
             metadata,
             projectMetadata,
@@ -1220,7 +1313,7 @@ public class MetadataCreateIndexService {
     /**
      * Validates and creates the settings for the new index based on the explicitly configured settings via the
      * {@link CreateIndexClusterStateUpdateRequest}, inherited from templates and, if recovering from another index (ie. split, shrink,
-     * clone), the resize settings.
+     * clone), the resize settings, system indices default settings.
      *
      * The template mappings are applied in the order they are encountered in the list (clients should make sure the lower index, closer
      * to the head of the list, templates have the highest {@link IndexTemplateMetadata#order()})
@@ -1237,7 +1330,7 @@ public class MetadataCreateIndexService {
         Settings combinedTemplateSettings,
         List<CompressedXContent> combinedTemplateMappings,
         @Nullable IndexMetadata sourceMetadata,
-        Settings settings,
+        Settings nodeSettings,
         IndexScopedSettings indexScopedSettings,
         ShardLimitValidator shardLimitValidator,
         Set<IndexSettingProvider> indexSettingProviders
@@ -1270,11 +1363,11 @@ public class MetadataCreateIndexService {
 
         final Settings.Builder indexSettingsBuilder = Settings.builder();
         if (sourceMetadata == null) {
-            final IndexMode templateIndexMode = Optional.of(request)
-                .filter(r -> r.isFailureIndex() == false)
-                .map(CreateIndexClusterStateUpdateRequest::matchingTemplate)
-                .map(projectMetadata::retrieveIndexModeFromTemplate)
-                .orElse(null);
+            final ComposableIndexTemplate matchingTemplate = request.matchingTemplate();
+            final IndexMode templateIndexMode = request.isFailureIndex() || matchingTemplate == null
+                ? null
+                : projectMetadata.retrieveIndexModeFromTemplate(matchingTemplate);
+            final boolean registryInstalledTemplate = matchingTemplate != null && matchingTemplate.isRegistryInstalled();
 
             // Loop through all the explicit index setting providers, adding them to the
             // additionalIndexSettings map
@@ -1287,6 +1380,7 @@ public class MetadataCreateIndexService {
                     request.index(),
                     request.dataStreamName(),
                     templateIndexMode,
+                    registryInstalledTemplate,
                     projectMetadata,
                     resolvedAt,
                     templateAndRequestSettings,
@@ -1368,15 +1462,43 @@ public class MetadataCreateIndexService {
             }
         }
 
+        boolean systemIndex = request.isSystem();
+        Settings clusterSettings = metadata.settings();
+
         indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion);
         if (INDEX_NUMBER_OF_SHARDS_SETTING.exists(indexSettingsBuilder) == false) {
-            indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, INDEX_NUMBER_OF_SHARDS_SETTING.get(settings));
+            indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, INDEX_NUMBER_OF_SHARDS_SETTING.get(nodeSettings));
         }
-        if (INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettingsBuilder) == false) {
-            indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings));
+        // When the system-index replica settings are explicitly configured (via cluster API or node settings),
+        // they take priority over whatever the descriptor or a matching template put in the builder.
+        // This ensures a newly created managed system index — whose descriptor may pre-fill auto_expand_replicas —
+        // picks up the operator's configured value immediately, without waiting for a subsequent settings change.
+        boolean systemReplicasExplicitlySet = systemIndex
+            && (SystemIndices.NUMBER_OF_REPLICAS_SETTING.exists(clusterSettings)
+                || SystemIndices.NUMBER_OF_REPLICAS_SETTING.exists(nodeSettings));
+        if (INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettingsBuilder) == false || systemReplicasExplicitlySet) {
+            indexSettingsBuilder.put(
+                SETTING_NUMBER_OF_REPLICAS,
+                systemIndex
+                    ? SystemIndices.NUMBER_OF_REPLICAS_SETTING.get(clusterSettings, nodeSettings)
+                    : INDEX_NUMBER_OF_REPLICAS_SETTING.get(nodeSettings)
+            );
         }
-        if (settings.get(SETTING_AUTO_EXPAND_REPLICAS) != null && indexSettingsBuilder.get(SETTING_AUTO_EXPAND_REPLICAS) == null) {
-            indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, settings.get(SETTING_AUTO_EXPAND_REPLICAS));
+        boolean systemAutoExpandExplicitlySet = systemIndex
+            && (SystemIndices.AUTO_EXPAND_REPLICAS_SETTING.exists(clusterSettings)
+                || SystemIndices.AUTO_EXPAND_REPLICAS_SETTING.exists(nodeSettings));
+        if (indexSettingsBuilder.get(SETTING_AUTO_EXPAND_REPLICAS) == null || systemAutoExpandExplicitlySet) {
+            AutoExpandReplicas settingValue;
+            if (systemAutoExpandExplicitlySet) {
+                settingValue = SystemIndices.AUTO_EXPAND_REPLICAS_SETTING.get(clusterSettings, nodeSettings);
+            } else if (IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.exists(nodeSettings)) {
+                settingValue = IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(nodeSettings);
+            } else {
+                settingValue = null;
+            }
+            if (settingValue != null) {
+                indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, settingValue.toString());
+            }
         }
 
         if (indexSettingsBuilder.get(SETTING_CREATION_DATE) == null) {
@@ -1924,6 +2046,12 @@ public class MetadataCreateIndexService {
                 targetIndexName
             );
         }
+        if (projectMetadata.hasDataset(targetIndexName)) {
+            throw new ResourceAlreadyExistsException(
+                "cannot resize to [{}], as an ESQL dataset already exists with that name",
+                targetIndexName
+            );
+        }
         final IndexMetadata sourceMetadata = projectMetadata.index(sourceIndex);
         if (sourceMetadata == null) {
             throw new IndexNotFoundException(sourceIndex);
@@ -1944,6 +2072,10 @@ public class MetadataCreateIndexService {
         // ensure index is read-only
         if (clusterBlocks.indexBlocked(projectMetadata.id(), ClusterBlockLevel.WRITE, sourceIndex) == false) {
             throw new IllegalStateException("index " + sourceIndex + " must be read-only to resize index. use \"index.blocks.write=true\"");
+        }
+        // ensure no resharding operation is in progress
+        if (sourceMetadata.getReshardingMetadata() != null) {
+            throw new IllegalStateException("index " + sourceIndex + " cannot be resized while a resharding operation is in progress");
         }
 
         if (INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
@@ -2082,12 +2214,8 @@ public class MetadataCreateIndexService {
         }
     }
 
-    public static boolean useRefreshBlock(Settings settings) {
-        return DiscoveryNode.isStateless(settings) && settings.getAsBoolean(USE_INDEX_REFRESH_BLOCK_SETTING_NAME, true);
-    }
-
     static ClusterBlocksTransformer createClusterBlocksTransformerForIndexCreation(Settings settings) {
-        if (useRefreshBlock(settings) == false) {
+        if (DiscoveryNode.isStateless(settings) == false) {
             return (clusterBlocks, projectId, indexMetadata) -> {};
         }
         logger.debug("applying refresh block on index creation");
@@ -2102,7 +2230,8 @@ public class MetadataCreateIndexService {
     }
 
     private static boolean applyRefreshBlock(IndexMetadata indexMetadata) {
-        return 0 < indexMetadata.getNumberOfReplicas() // index has replicas
+        return (0 < indexMetadata.getNumberOfReplicas() // index has replicas or auto-expand replicas
+            || indexMetadata.getAutoExpandReplicas().enabled() && indexMetadata.getAutoExpandReplicas().maxReplicas() > 0)
             && indexMetadata.getResizeSourceIndex() == null // index is not a split/shrink index
             && indexMetadata.getInSyncAllocationIds().values().stream().allMatch(Set::isEmpty); // index is a new index
     }
@@ -2110,7 +2239,7 @@ public class MetadataCreateIndexService {
     private boolean assertHasRefreshBlock(IndexMetadata indexMetadata, ProjectState state) {
         var hasRefreshBlock = state.blocks()
             .hasIndexBlock(state.projectId(), indexMetadata.getIndex().getName(), IndexMetadata.INDEX_REFRESH_BLOCK);
-        if (useRefreshBlock(settings) == false || applyRefreshBlock(indexMetadata) == false) {
+        if (DiscoveryNode.isStateless(settings) == false || applyRefreshBlock(indexMetadata) == false) {
             assert hasRefreshBlock == false : indexMetadata.getIndex();
         } else {
             assert hasRefreshBlock : indexMetadata.getIndex();

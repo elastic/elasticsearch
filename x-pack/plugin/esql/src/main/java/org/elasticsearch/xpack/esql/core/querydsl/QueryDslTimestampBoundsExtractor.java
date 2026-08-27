@@ -8,12 +8,16 @@
 package org.elasticsearch.xpack.esql.core.querydsl;
 
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 
 import java.time.Instant;
+import java.time.ZoneId;
+import java.util.function.LongSupplier;
 
 import static org.elasticsearch.xpack.esql.core.expression.MetadataAttribute.TIMESTAMP_FIELD;
 
@@ -23,6 +27,7 @@ import static org.elasticsearch.xpack.esql.core.expression.MetadataAttribute.TIM
  * Used by PromQL planning to infer implicit start/end bounds from request filters.
  */
 public final class QueryDslTimestampBoundsExtractor {
+    private static final DateMathParser DEFAULT_PARSER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser();
 
     private QueryDslTimestampBoundsExtractor() {}
 
@@ -48,53 +53,101 @@ public final class QueryDslTimestampBoundsExtractor {
      */
     @Nullable
     public static TimestampBounds extractTimestampBounds(@Nullable QueryBuilder filter) {
+        return extractTimestampBounds(filter, null);
+    }
+
+    /**
+     * Extracts the {@code @timestamp} range bounds from a query DSL filter using the supplied {@code now} value
+     * to resolve date math expressions consistently with the current request.
+     */
+    @Nullable
+    public static TimestampBounds extractTimestampBounds(@Nullable QueryBuilder filter, LongSupplier nowSupplier) {
         if (filter == null) {
             return null;
         }
-        RangeQueryBuilder range = findTimestampRange(filter);
-        if (range == null) {
-            return null;
-        }
-        Instant start = parseInstant(range.format(), range.from());
-        Instant end = parseInstant(range.format(), range.to());
-        if (start == null || end == null) {
-            return null;
-        }
-        return new TimestampBounds(start, end);
+        var bounds = new Builder();
+        collectTimestampBounds(filter, nowSupplier, bounds);
+        return bounds.build();
     }
 
     /**
      * Recursively finds a {@link RangeQueryBuilder} on {@code @timestamp} in a {@link QueryBuilder} tree.
      */
-    @Nullable
-    private static RangeQueryBuilder findTimestampRange(QueryBuilder filter) {
-        return switch (filter) {
-            case RangeQueryBuilder range when TIMESTAMP_FIELD.equals(range.fieldName()) -> range;
+    private static void collectTimestampBounds(QueryBuilder filter, LongSupplier nowSupplier, Builder bounds) {
+        switch (filter) {
+            case RangeQueryBuilder range when TIMESTAMP_FIELD.equals(range.fieldName()) -> bounds.add(range, nowSupplier);
             case BoolQueryBuilder bool -> {
                 for (QueryBuilder clause : bool.filter()) {
-                    RangeQueryBuilder found = findTimestampRange(clause);
-                    if (found != null) yield found;
+                    collectTimestampBounds(clause, nowSupplier, bounds);
                 }
                 for (QueryBuilder clause : bool.must()) {
-                    RangeQueryBuilder found = findTimestampRange(clause);
-                    if (found != null) yield found;
+                    collectTimestampBounds(clause, nowSupplier, bounds);
                 }
-                yield null;
             }
-            default -> null;
-        };
+            default -> {
+            }
+        }
     }
 
     @Nullable
-    private static Instant parseInstant(@Nullable String format, @Nullable Object value) {
-        if (format == null || value == null) {
+    private static Instant parseInstant(
+        @Nullable Object value,
+        @Nullable String format,
+        @Nullable String timeZone,
+        @Nullable LongSupplier nowSupplier
+    ) {
+        if (value == null) {
             return null;
         }
+        String stringValue = value.toString();
+        if (nowSupplier == null && stringValue.contains("now")) {
+            return null;
+        }
+        ZoneId zone = timeZone == null ? null : ZoneId.of(timeZone);
+        DateMathParser parser = format != null ? DateFormatter.forPattern(format).toDateMathParser() : DEFAULT_PARSER;
         try {
-            DateFormatter df = DateFormatter.forPattern(format);
-            return Instant.from(df.parse(value.toString()));
+            return parseInstant(parser, stringValue, zone, nowSupplier);
         } catch (RuntimeException e) {
             return null;
+        }
+    }
+
+    private static Instant parseInstant(DateMathParser parser, String value, @Nullable ZoneId zone, @Nullable LongSupplier nowSupplier) {
+        return parser.parse(value, nowSupplier, false, zone);
+    }
+
+    private static final class Builder {
+        private Instant start;
+        private Instant end;
+        private boolean foundTimestampRange;
+        private boolean invalid;
+
+        private void add(RangeQueryBuilder range, LongSupplier nowSupplier) {
+            foundTimestampRange = true;
+            Instant lowerBound = parseInstant(range.from(), range.format(), range.timeZone(), nowSupplier);
+            if (range.from() != null && lowerBound == null) {
+                invalid = true;
+                return;
+            }
+            Instant upperBound = parseInstant(range.to(), range.format(), range.timeZone(), nowSupplier);
+            if (range.to() != null && upperBound == null) {
+                invalid = true;
+                return;
+            }
+            if (lowerBound != null && (start == null || lowerBound.isAfter(start))) {
+                start = lowerBound;
+            }
+            if (upperBound != null && (end == null || upperBound.isBefore(end))) {
+                end = upperBound;
+            }
+        }
+
+        @Nullable
+        TimestampBounds build() {
+            if (invalid || foundTimestampRange == false || start == null || end == null || start.isAfter(end)) {
+                return null;
+            }
+            return new TimestampBounds(start, end);
         }
     }
 }

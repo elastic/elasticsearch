@@ -1,0 +1,20 @@
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.base-internal-es-plugin'
+
+esplugin {
+  name = 'implicit-privileges-extension-test'
+  description = 'Test plugin exercising the ImplicitPrivilegesProvider SPI end-to-end via HTTP'
+  classname = 'org.elasticsearch.example.implicit.ImplicitPrivilegesTestPlugin'
+  extendedPlugins = ['x-pack-security']
+}
+
+dependencies {
+  compileOnly project(':x-pack:plugin:core')
+  javaRestTestImplementation project(':x-pack:plugin:core')
+  // let the javaRestTest see the classpath of main
+  javaRestTestImplementation project.sourceSets.main.runtimeClasspath
+}
+
+tasks.named("javaRestTest").configure {
+  usesDefaultDistribution("security features require default distribution")
+}

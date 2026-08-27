@@ -12,9 +12,13 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker.LinearizabilityCheckAborted;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -119,7 +123,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
     // multiple threads doing CAS updates.
     // Wait up to 1 minute (+10s in thread to ensure it does not time out) for threads to complete previous round before initiating next
     // round.
-    public void testSeqNoCASLinearizability() {
+    public void testSeqNoCASLinearizability() throws Exception {
         final int disruptTimeSeconds = scaledRandomIntBetween(1, 8);
 
         assertAcked(
@@ -182,6 +186,31 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         }
 
         partitions.forEach(Partition::assertLinearizable);
+
+        // ensure master election has stabilized after disruption
+        assertBusy(ConcurrentSeqNoVersioningIT::publishTrivialClusterStateUpdate);
+    }
+
+    private static void publishTrivialClusterStateUpdate() {
+        var processed = new PlainActionFuture<>();
+        internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
+            .submitUnbatchedStateUpdateTask("trivial cluster state update", new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return ClusterState.builder(currentState).build();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    processed.onFailure(e);
+                }
+
+                @Override
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                    processed.onResponse(null);
+                }
+            });
+        safeGet(processed);
     }
 
     private class CASUpdateThread extends Thread {

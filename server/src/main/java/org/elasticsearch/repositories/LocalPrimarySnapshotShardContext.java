@@ -18,7 +18,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
@@ -34,6 +33,9 @@ import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Objects;
+
+import static org.elasticsearch.repositories.SnapshotShardContextHelper.withSnapshotIndexCommitRef;
 
 /**
  * A {@link SnapshotShardContext} implementation that reads data from a local primary shard for snapshotting.
@@ -77,7 +79,7 @@ public final class LocalPrimarySnapshotShardContext extends SnapshotShardContext
             snapshotId,
             indexId,
             shardStateIdentifier,
-            snapshotStatus,
+            Objects.requireNonNull(snapshotStatus),
             repositoryMetaVersion,
             snapshotStartTime,
             commitRef.closingBefore(listener)
@@ -104,16 +106,8 @@ public final class LocalPrimarySnapshotShardContext extends SnapshotShardContext
         return commitRef.indexCommit();
     }
 
-    @Override
     public Releasable withCommitRef() {
-        status().ensureNotAborted(); // check this first to avoid acquiring a ref when aborted even if refs are available
-        if (commitRef.tryIncRef()) {
-            return Releasables.releaseOnce(commitRef::decRef);
-        } else {
-            status().ensureNotAborted();
-            assert false : "commit ref closed early in state " + status();
-            throw new IndexShardSnapshotFailedException(shardId(), "Store got closed concurrently");
-        }
+        return withSnapshotIndexCommitRef(shardId(), snapshotId(), commitRef, status());
     }
 
     @Override
@@ -123,22 +117,26 @@ public final class LocalPrimarySnapshotShardContext extends SnapshotShardContext
 
     @Override
     public Store.MetadataSnapshot metadataSnapshot() {
-        final IndexCommit snapshotIndexCommit = indexCommit();
-        logger.trace("[{}] [{}] Loading store metadata using index commit [{}]", shardId(), snapshotId(), snapshotIndexCommit);
-        try {
-            return store.getMetadata(snapshotIndexCommit);
-        } catch (IOException e) {
-            throw new IndexShardSnapshotFailedException(shardId(), "Failed to get store file metadata", e);
+        try (Releasable ignored = withCommitRef()) {
+            final IndexCommit snapshotIndexCommit = indexCommit();
+            logger.trace("[{}] [{}] Loading store metadata using index commit [{}]", shardId(), snapshotId(), snapshotIndexCommit);
+            try {
+                return store.getMetadata(snapshotIndexCommit);
+            } catch (IOException e) {
+                throw new IndexShardSnapshotFailedException(shardId(), "Failed to get store file metadata", e);
+            }
         }
     }
 
     @Override
     public Collection<String> fileNames() {
-        final IndexCommit snapshotIndexCommit = indexCommit();
-        try {
-            return snapshotIndexCommit.getFileNames();
-        } catch (IOException e) {
-            throw new IndexShardSnapshotFailedException(shardId(), "Failed to get store file names", e);
+        try (Releasable ignored = withCommitRef()) {
+            final IndexCommit snapshotIndexCommit = indexCommit();
+            try {
+                return snapshotIndexCommit.getFileNames();
+            } catch (IOException e) {
+                throw new IndexShardSnapshotFailedException(shardId(), "Failed to get store file names", e);
+            }
         }
     }
 

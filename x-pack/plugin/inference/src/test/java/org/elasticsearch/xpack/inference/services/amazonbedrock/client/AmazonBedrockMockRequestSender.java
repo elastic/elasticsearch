@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.client;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 
 import java.io.IOException;
@@ -66,16 +66,6 @@ public class AmazonBedrockMockRequestSender implements Sender {
     }
 
     @Override
-    public void startSynchronously() {
-        // do nothing
-    }
-
-    @Override
-    public void startAsynchronously(ActionListener<Void> listener) {
-        throw new UnsupportedOperationException("not supported");
-    }
-
-    @Override
     public void send(
         RequestManager requestCreator,
         InferenceInputs inferenceInputs,
@@ -115,7 +105,7 @@ public class AmazonBedrockMockRequestSender implements Sender {
     @Override
     public void sendWithoutQueuing(
         Logger logger,
-        Request request,
+        OutboundRequest outboundRequest,
         ResponseHandler responseHandler,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener

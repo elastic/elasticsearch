@@ -1,0 +1,5 @@
+Woodstox XML processor
+Copyright (c) 2004- Tatu Saloranta, tatu.saloranta@iki.fi
+
+This product includes software developed by
+FasterXML (http://fasterxml.com/).

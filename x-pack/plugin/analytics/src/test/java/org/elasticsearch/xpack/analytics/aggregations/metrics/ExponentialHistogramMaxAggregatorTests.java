@@ -41,7 +41,7 @@ public class ExponentialHistogramMaxAggregatorTests extends ExponentialHistogram
     public void testMatchesNumericDocValues() throws IOException {
 
         List<ExponentialHistogram> histograms = createRandomHistograms(randomIntBetween(1, 1000));
-        boolean anyNonEmpty = histograms.stream().anyMatch(histo -> histo.valueCount() > 0);
+        boolean anyNonEmpty = histograms.stream().anyMatch(histo -> histo.isEmpty() == false);
 
         double expectedMax = histograms.stream()
             .mapToDouble(ExponentialHistogram::max)
@@ -77,10 +77,10 @@ public class ExponentialHistogramMaxAggregatorTests extends ExponentialHistogram
             .map(histo -> Map.entry(histo, randomBoolean()))
             .toList();
 
-        boolean anyMatch = histogramsWithFilter.stream().filter(entry -> entry.getKey().valueCount() > 0).anyMatch(Map.Entry::getValue);
+        boolean anyMatch = histogramsWithFilter.stream().filter(entry -> entry.getKey().isEmpty() == false).anyMatch(Map.Entry::getValue);
         double filteredMax = histogramsWithFilter.stream()
             .filter(Map.Entry::getValue)
-            .filter(entry -> entry.getKey().valueCount() > 0)
+            .filter(entry -> entry.getKey().isEmpty() == false)
             .mapToDouble(entry -> entry.getKey().max())
             .max()
             .orElse(Double.NEGATIVE_INFINITY);

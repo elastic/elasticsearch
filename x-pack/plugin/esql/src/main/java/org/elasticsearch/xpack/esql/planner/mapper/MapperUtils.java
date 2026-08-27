@@ -18,20 +18,29 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
+import org.elasticsearch.xpack.esql.plan.logical.InsertEmptyBuckets;
+import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.SparklineGenerateEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
+import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
@@ -43,18 +52,27 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
+import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
+import org.elasticsearch.xpack.esql.plan.physical.InsertEmptyBucketsExec;
+import org.elasticsearch.xpack.esql.plan.physical.IpLocationExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
+import org.elasticsearch.xpack.esql.plan.physical.PackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampledAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
+import org.elasticsearch.xpack.esql.plan.physical.SparklineGenerateEmptyBucketsExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesCollapseExec;
+import org.elasticsearch.xpack.esql.plan.physical.UnpackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
+import org.elasticsearch.xpack.esql.plan.physical.UserAgentExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.DenseVectorExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 
@@ -92,6 +110,25 @@ public class MapperUtils {
             return new EvalExec(eval.source(), child, eval.fields());
         }
 
+        if (p instanceof PackDims pack) {
+            return new PackDimsExec(pack.source(), child, pack.dims(), pack.packed());
+        }
+
+        if (p instanceof UnpackDims unpack) {
+            return new UnpackDimsExec(unpack.source(), child, unpack.packed(), unpack.dims());
+        }
+
+        if (p instanceof InsertEmptyBuckets insertEmptyBuckets) {
+            return new InsertEmptyBucketsExec(
+                insertEmptyBuckets.source(),
+                child,
+                insertEmptyBuckets.buckets(),
+                insertEmptyBuckets.groups(),
+                insertEmptyBuckets.defaultValues(),
+                null
+            );
+        }
+
         if (p instanceof Dissect dissect) {
             return new DissectExec(dissect.source(), child, dissect.input(), dissect.parser(), dissect.extractedFields());
         }
@@ -107,7 +144,8 @@ public class MapperUtils {
                 rerank.inferenceId(),
                 rerank.queryText(),
                 rerank.rerankFields(),
-                rerank.scoreAttribute()
+                rerank.scoreAttribute(),
+                rerank.timeout()
             );
         }
 
@@ -118,7 +156,19 @@ public class MapperUtils {
                 completion.inferenceId(),
                 completion.prompt(),
                 completion.targetField(),
-                completion.taskSettings()
+                completion.taskSettings(),
+                completion.timeout()
+            );
+        }
+
+        if (p instanceof DenseVector denseVector) {
+            return new DenseVectorExec(
+                denseVector.source(),
+                child,
+                denseVector.inferenceId(),
+                denseVector.fields(),
+                denseVector.generatedAttributes(),
+                denseVector.timeout()
             );
         }
 
@@ -144,6 +194,31 @@ public class MapperUtils {
             return new MvExpandExec(mvExpand.source(), child, mvExpand.target(), mvExpand.expanded());
         }
 
+        if (p instanceof Highlight highlight) {
+            return new HighlightExec(
+                highlight.source(),
+                child,
+                highlight.prefix(),
+                highlight.query(),
+                highlight.fields(),
+                highlight.options(),
+                highlight.generatedAttributes()
+            );
+        }
+
+        if (p instanceof TimeSeriesCollapse collapse) {
+            return new TimeSeriesCollapseExec(
+                collapse.source(),
+                child,
+                collapse.value(),
+                collapse.step(),
+                collapse.dimensions(),
+                collapse.start(),
+                collapse.end(),
+                collapse.stepMillis()
+            );
+        }
+
         if (p instanceof ChangePoint changePoint) {
             return new ChangePointExec(
                 changePoint.source(),
@@ -151,7 +226,8 @@ public class MapperUtils {
                 changePoint.value(),
                 changePoint.key(),
                 changePoint.targetType(),
-                changePoint.targetPvalue()
+                changePoint.targetPvalue(),
+                changePoint.groupings()
             );
         }
 
@@ -161,6 +237,20 @@ public class MapperUtils {
 
         if (p instanceof Sample sample) {
             return new SampleExec(sample.source(), child, sample.probability());
+        }
+
+        if (p instanceof SparklineGenerateEmptyBuckets sparklineGenerateEmptyBuckets) {
+            return new SparklineGenerateEmptyBucketsExec(
+                sparklineGenerateEmptyBuckets.source(),
+                child,
+                sparklineGenerateEmptyBuckets.values(),
+                sparklineGenerateEmptyBuckets.groupings(),
+                sparklineGenerateEmptyBuckets.dateBucketRounding(),
+                sparklineGenerateEmptyBuckets.minDate(),
+                sparklineGenerateEmptyBuckets.maxDate(),
+                sparklineGenerateEmptyBuckets.passthroughAttributes(),
+                sparklineGenerateEmptyBuckets.output()
+            );
         }
 
         if (p instanceof Subquery) {
@@ -180,6 +270,30 @@ public class MapperUtils {
 
         if (p instanceof RegisteredDomain rd) {
             return new RegisteredDomainExec(rd.source(), child, rd.getInput(), rd.outputFieldNames(), rd.generatedAttributes());
+        }
+
+        if (p instanceof IpLocation ip) {
+            return new IpLocationExec(
+                ip.source(),
+                child,
+                ip.getInput(),
+                ip.outputFieldNames(),
+                ip.generatedAttributes(),
+                ip.databaseFile(),
+                ip.firstOnly()
+            );
+        }
+
+        if (p instanceof UserAgent ua) {
+            return new UserAgentExec(
+                ua.source(),
+                child,
+                ua.getInput(),
+                ua.outputFieldNames(),
+                ua.generatedAttributes(),
+                ua.extractDeviceType(),
+                ua.regexFile()
+            );
         }
 
         return unsupported(p);

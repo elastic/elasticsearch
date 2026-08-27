@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -53,7 +52,7 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
         final List<Attribute> attributes = new ArrayList<>();
         attributes.add(getDocAttribute(plan));
 
-        if (plan.indexMode() == IndexMode.TIME_SERIES) {
+        if (plan.indexMode().isTsdb()) {
             for (EsField field : EsQueryExec.TIME_SERIES_SOURCE_FIELDS) {
                 attributes.add(new FieldAttribute(plan.source(), null, null, field.getName(), field));
             }
@@ -85,12 +84,21 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
                 strippedOutput.add(attr);
             }
         }
-        return new ParameterizedQueryExec(plan.source(), strippedOutput, plan.matchFields(), plan.joinOnConditions(), plan.query());
+        return new ParameterizedQueryExec(
+            plan.source(),
+            strippedOutput,
+            plan.matchFields(),
+            plan.joinOnConditions(),
+            plan.query(),
+            plan.emptyResult(),
+            plan.bulkLookupLeft(),
+            plan.bulkLookupRight()
+        );
     }
 
     private static Attribute getDocAttribute(EsSourceExec plan) {
-        // The source (or doc) field is sometimes added to the relation output as a hack to enable late materialization in the reduce
-        // driver. In that case, we should take it instead of replacing it with a new one to ensure the same attribute is used throughout.
+        // Reuse the existing doc attribute from the relation output when present, rather than creating a new one,
+        // to ensure the same attribute instance is used throughout the plan (needed for late materialization in the reduce driver).
         var sourceAttributes = plan.output().stream().filter(EsQueryExec::isDocAttribute).toList();
         if (sourceAttributes.size() > 1) {
             throw new IllegalStateException("Expected at most one source attribute, found: " + sourceAttributes);

@@ -39,7 +39,7 @@ public class RestPutUserActionTests extends ESTestCase {
             .withParams(Map.of("username", "you-sir-naim"))
             .withContent(new BytesArray("{ \"password\":\"blah-blah-blah\" }"), XContentType.JSON)
             .build();
-        final FakeRestChannel channel = new FakeRestChannel(request, true, 1);
+        final FakeRestChannel channel = new FakeRestChannel(request, true);
 
         try (var threadPool = createThreadPool()) {
             final var nodeClient = new NoOpNodeClient(threadPool);

@@ -52,7 +52,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -312,7 +312,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
         @Override
         protected void doRun() {
-            final Queue<Tuple<DeleteByQueryRequest, ActionListener<BulkByScrollResponse>>> queue = new LinkedList<>();
+            final Queue<Tuple<DeleteByQueryRequest, ActionListener<BulkByPaginatedSearchResponse>>> queue = new LinkedList<>();
             final ClusterState state = event.state();
 
             for (Index deletedIndex : event.indicesDeleted()) {
@@ -344,7 +344,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
                         queue.add(Tuple.tuple(request, new ActionListener<>() {
                             @Override
-                            public void onResponse(BulkByScrollResponse response) {
+                            public void onResponse(BulkByPaginatedSearchResponse response) {
                                 logger.debug(
                                     "blob cache maintenance task deleted [{}] entries after deletion of {} (snapshot:{}, index:{})",
                                     response.getDeleted(),
@@ -376,9 +376,9 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
             }
         }
 
-        void executeNextCleanUp(final Queue<Tuple<DeleteByQueryRequest, ActionListener<BulkByScrollResponse>>> queue) {
+        void executeNextCleanUp(final Queue<Tuple<DeleteByQueryRequest, ActionListener<BulkByPaginatedSearchResponse>>> queue) {
             assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
-            final Tuple<DeleteByQueryRequest, ActionListener<BulkByScrollResponse>> next = queue.poll();
+            final Tuple<DeleteByQueryRequest, ActionListener<BulkByPaginatedSearchResponse>> next = queue.poll();
             if (next != null) {
                 cleanUp(next.v1(), next.v2(), queue);
             }
@@ -386,8 +386,8 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
         void cleanUp(
             final DeleteByQueryRequest request,
-            final ActionListener<BulkByScrollResponse> listener,
-            final Queue<Tuple<DeleteByQueryRequest, ActionListener<BulkByScrollResponse>>> queue
+            final ActionListener<BulkByPaginatedSearchResponse> listener,
+            final Queue<Tuple<DeleteByQueryRequest, ActionListener<BulkByPaginatedSearchResponse>>> queue
         ) {
             assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
             clientWithOrigin.execute(DeleteByQueryAction.INSTANCE, request, ActionListener.runAfter(listener, () -> {

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.generator;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.ChangePointGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.DedupGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.DissectGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.DropAllGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.DropGenerator;
@@ -17,8 +18,11 @@ import org.elasticsearch.xpack.esql.generator.command.pipe.EnrichGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EvalGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.ForkGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.GrokGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.HighlightGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.InlineStatsGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.IpLocationGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.LimitByGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LimitGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LookupJoinGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.MvExpandGenerator;
@@ -29,9 +33,11 @@ import org.elasticsearch.xpack.esql.generator.command.pipe.SortGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.StatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.TimeSeriesStatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.UriPartsGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.UserAgentGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.WhereGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.PromQLGenerator;
+import org.elasticsearch.xpack.esql.generator.command.source.RowGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.TimeSeriesGenerator;
 import org.elasticsearch.xpack.esql.parser.ParserUtils;
 
@@ -57,6 +63,7 @@ import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.caseFunct
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.cidrMatchFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.clampFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.coalesceFunction;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.compositeExpression;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.concatFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.conversionFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.dateDiffFunction;
@@ -87,7 +94,7 @@ public class EsqlQueryGenerator {
     /**
      * These are commands that are at the beginning of the query, eg. FROM
      */
-    static List<CommandGenerator> SOURCE_COMMANDS = List.of(FromGenerator.INSTANCE);
+    static List<CommandGenerator> SOURCE_COMMANDS = List.of(FromGenerator.INSTANCE, RowGenerator.INSTANCE);
 
     /**
      * Commands at the beginning of queries that begin queries on time series indices, eg. TS
@@ -105,14 +112,17 @@ public class EsqlQueryGenerator {
     public static List<CommandGenerator> PIPE_COMMANDS = List.of(
         ChangePointGenerator.INSTANCE,
         DissectGenerator.INSTANCE,
+        DedupGenerator.INSTANCE,
         DropGenerator.INSTANCE,
         DropAllGenerator.INSTANCE,
         EnrichGenerator.INSTANCE,
         EvalGenerator.INSTANCE,
         ForkGenerator.INSTANCE,
         GrokGenerator.INSTANCE,
+        HighlightGenerator.INSTANCE,
         KeepGenerator.INSTANCE,
         InlineStatsGenerator.INSTANCE,
+        LimitByGenerator.INSTANCE,
         LimitGenerator.INSTANCE,
         LookupJoinGenerator.INSTANCE,
         MvExpandGenerator.INSTANCE,
@@ -121,6 +131,8 @@ public class EsqlQueryGenerator {
         SortGenerator.INSTANCE,
         StatsGenerator.INSTANCE,
         UriPartsGenerator.INSTANCE,
+        UserAgentGenerator.INSTANCE,
+        IpLocationGenerator.INSTANCE,
         RegisteredDomainGenerator.INSTANCE,
         WhereGenerator.INSTANCE
     );
@@ -166,7 +178,8 @@ public class EsqlQueryGenerator {
         final CommandGenerator.QuerySchema schema,
         Executor executor,
         boolean isTimeSeries,
-        QueryExecutor queryExecutor
+        QueryExecutor queryExecutor,
+        GenerationContext context
     ) {
         boolean canGenerateTimeSeries = isTimeSeries;
         CommandGenerator.CommandDescription desc;
@@ -174,10 +187,10 @@ public class EsqlQueryGenerator {
         if (commandGenerator instanceof PromQLGenerator promQLGenerator) {
             String index = promQLGenerator.generateIndices(schema);
             List<Column> fieldSchema = discoverFieldsViaMetricsInfo(index, queryExecutor);
-            desc = promQLGenerator.generateWithIndices(List.of(), fieldSchema, schema, queryExecutor, index);
+            desc = promQLGenerator.generateWithIndices(List.of(), fieldSchema, schema, queryExecutor, context, index);
             canGenerateTimeSeries = false;
         } else {
-            desc = commandGenerator.generate(List.of(), List.of(), schema, queryExecutor);
+            desc = commandGenerator.generate(List.of(), List.of(), schema, queryExecutor, context);
         }
         executor.run(commandGenerator, desc);
         if (executor.continueExecuting() == false) {
@@ -206,7 +219,7 @@ public class EsqlQueryGenerator {
                 }
             }
 
-            desc = commandGenerator.generate(executor.previousCommands(), executor.currentSchema(), schema, queryExecutor);
+            desc = commandGenerator.generate(executor.previousCommands(), executor.currentSchema(), schema, queryExecutor, context);
             if (desc == CommandGenerator.EMPTY_DESCRIPTION) {
                 continue;
             }
@@ -282,7 +295,7 @@ public class EsqlQueryGenerator {
     }
 
     public static boolean needsQuoting(String rawName) {
-        return rawName.contains("`") || rawName.contains("-");
+        return rawName.contains("`") || rawName.contains("-") || rawName.contains("(") || rawName.contains(")");
     }
 
     /**
@@ -505,7 +518,16 @@ public class EsqlQueryGenerator {
                 if (sampleField == null) sampleField = anyName;
                 yield "sample(" + sampleField + ", " + randomIntBetween(1, 10) + ")";
             }
-            default -> "first(" + anyName + ", " + randomDateField(previousOutput) + ")";
+            default -> {
+                String dateField = randomDateField(previousOutput);
+                if (dateField == null) yield "count(*)";
+                // In a TS pipeline, first(field, datetime) is implicitly converted to FirstOverTime which requires
+                // numeric. Null previousCommands means we're in TimeSeriesStatsGenerator (always TS).
+                boolean isTimeSeries = previousCommands == null || previousCommands.stream().anyMatch(c -> "ts".equals(c.commandName()));
+                String firstField = isTimeSeries ? randomNumericField(previousOutput) : anyName;
+                if (firstField == null) firstField = anyName;
+                yield "first(" + firstField + ", " + dateField + ")";
+            }
         };
     }
 
@@ -636,7 +658,7 @@ public class EsqlQueryGenerator {
      */
     public static String functionExpression(List<Column> previousOutput, List<CommandGenerator.CommandDescription> previousCommands) {
         boolean allowUnmapped = areUnmappedFieldsAllowed(previousCommands);
-        return switch (randomIntBetween(0, 18)) {
+        return switch (randomIntBetween(0, 21)) {
             case 0, 1 -> mathFunction(previousOutput, allowUnmapped);
             case 2 -> binaryMathFunction(previousOutput, allowUnmapped);
             case 3, 4 -> stringFunction(previousOutput, allowUnmapped);
@@ -652,33 +674,58 @@ public class EsqlQueryGenerator {
             case 15 -> splitFunction(previousOutput, allowUnmapped);
             case 16 -> clampFunction(previousOutput);
             case 17 -> dateDiffFunction(previousOutput, allowUnmapped);
-            default -> ipPrefixFunction(previousOutput, allowUnmapped);
+            case 18 -> ipPrefixFunction(previousOutput, allowUnmapped);
+            case 19, 20 -> {
+                String t = randomCompositeTargetType(previousOutput);
+                yield t == null ? null : compositeExpression(previousOutput, allowUnmapped, t, 2);
+            }
+            default -> {
+                String t = randomCompositeTargetType(previousOutput);
+                yield t == null ? null : compositeExpression(previousOutput, allowUnmapped, t, 3);
+            }
         };
+    }
+
+    /**
+     * Picks a random ES|QL type from the available columns that the {@link GenerativeFunctionCatalog}
+     * knows how to produce via at least one function. Falling back to any column type if the
+     * registry has no functions for any available type.
+     */
+    private static String randomCompositeTargetType(List<Column> columns) {
+        if (columns.isEmpty()) {
+            return null;
+        }
+        GenerativeFunctionCatalog registry = GenerativeFunctionCatalog.getInstance();
+        List<String> producible = columns.stream()
+            .map(Column::type)
+            .filter(t -> t.startsWith("counter_") == false)
+            .filter(t -> "dense_vector".equals(t) == false)
+            .filter(t -> registry.scalarsReturning(t).isEmpty() == false)
+            .distinct()
+            .toList();
+        if (producible.isEmpty() == false) {
+            return randomFrom(producible);
+        }
+        // Fallback: pick any usable type — exclude counter and dense_vector types
+        List<String> anyTypes = columns.stream()
+            .map(Column::type)
+            .filter(t -> t.startsWith("counter_") == false)
+            .filter(t -> "dense_vector".equals(t) == false)
+            .distinct()
+            .toList();
+        return anyTypes.isEmpty() ? null : randomFrom(anyTypes);
     }
 
     public static String indexPattern(String indexName) {
         return randomBoolean() ? indexName : indexName.substring(0, randomIntBetween(0, indexName.length())) + "*";
     }
 
-    public static String row() {
-        StringBuilder cmd = new StringBuilder("row ");
-        int nFields = randomIntBetween(1, 10);
-        for (int i = 0; i < nFields; i++) {
-            String name = randomIdentifier();
-            String expression = constantExpression();
-            if (i > 0) {
-                cmd.append(",");
-            }
-            cmd.append(" ");
-            cmd.append(name);
-            cmd.append(" = ");
-            cmd.append(expression);
-        }
-        return cmd.toString();
-    }
-
     public static String constantExpression() {
         // TODO not only simple values, but also foldable expressions
+        if (randomIntBetween(0, 9) == 0) {
+            return multivalueConstant();
+        }
+        // TODO: Add more types (double, geo, ranges...)
         return switch (randomIntBetween(0, 4)) {
             case 0 -> "" + randomIntBetween(Integer.MIN_VALUE, Integer.MAX_VALUE);
             case 1 -> "" + randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE);
@@ -686,7 +733,45 @@ public class EsqlQueryGenerator {
             case 3 -> "" + randomBoolean();
             default -> "null";
         };
+    }
 
+    /**
+     * Generates a multivalue array literal of numeric, string, or boolean types.
+     */
+    public static String multivalueConstant() {
+        int n = randomIntBetween(1, 10);
+        StringBuilder sb = new StringBuilder("[");
+        // TODO: Add more types (double, geo, ranges...)
+        return switch (randomIntBetween(0, 3)) {
+            case 0 -> {
+                for (int i = 0; i < n; i++) {
+                    if (i > 0) sb.append(", ");
+                    sb.append(randomIntBetween(Integer.MIN_VALUE, Integer.MAX_VALUE));
+                }
+                yield sb.append("]").toString();
+            }
+            case 1 -> {
+                for (int i = 0; i < n; i++) {
+                    if (i > 0) sb.append(", ");
+                    sb.append(randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE));
+                }
+                yield sb.append("]").toString();
+            }
+            case 2 -> {
+                for (int i = 0; i < n; i++) {
+                    if (i > 0) sb.append(", ");
+                    sb.append("\"").append(randomAlphaOfLength(randomIntBetween(1, 10))).append("\"");
+                }
+                yield sb.append("]").toString();
+            }
+            default -> {
+                for (int i = 0; i < n; i++) {
+                    if (i > 0) sb.append(", ");
+                    sb.append(randomBoolean());
+                }
+                yield sb.append("]").toString();
+            }
+        };
     }
 
     /**

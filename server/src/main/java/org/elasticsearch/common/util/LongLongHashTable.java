@@ -40,4 +40,21 @@ public interface LongLongHashTable extends Releasable, Accountable {
 
     /** Returns the size (number of key/value pairs) in the table.*/
     long size();
+
+    /**
+     * Whether this table supports {@link #bulkAdd}. Implementations return {@code true} only
+     * when the table is large enough that prefetch-based bulk insertion outweighs its overhead.
+     */
+    default boolean supportBulkAdd() {
+        return false;
+    }
+
+    /**
+     * Adds {@code length} key pairs in bulk, writing each group id into {@code ids}.
+     * Ids are always non-negative (unlike {@link #add} which encodes duplicates as {@code -1-id}).
+     * Only valid when {@link #supportBulkAdd()} returns {@code true}.
+     */
+    default void bulkAdd(long[] key1s, long[] key2s, int[] ids, int length) {
+        throw new UnsupportedOperationException("bulkAdd is not supported");
+    }
 }

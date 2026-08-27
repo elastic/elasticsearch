@@ -314,7 +314,6 @@
   - gte: { nodes.$node_id.http.total_opened: 1 }
   - is_true:  nodes.$node_id.http.clients
   - gte: { nodes.$node_id.http.clients.0.id: 1 }
-  - match: { nodes.$node_id.http.clients.0.agent: "/.*/" }
   - match: { nodes.$node_id.http.clients.0.local_address: "/.*/" }
   - match: { nodes.$node_id.http.clients.0.remote_address: "/.*/" }
   - is_true:  nodes.$node_id.http.clients.0.last_uri
@@ -322,8 +321,7 @@
   - gte: { nodes.$node_id.http.clients.0.last_request_time_millis: 1614028911317 }
   - gte: { nodes.$node_id.http.clients.0.request_count: 1 }
   - gte: { nodes.$node_id.http.clients.0.request_size_bytes: 0 }
-  # values for clients.0.closed_time_millis, clients.0.x_forwarded_for, and clients.0.x_opaque_id are often
-  # null and cannot be tested here
+  # Values for clients.0.{agent, closed_time_millis, x_forwarded_for, x_opaque_id} can be null and cannot be tested here
 
 ---
 "Metric - blank for indices shard_stats":

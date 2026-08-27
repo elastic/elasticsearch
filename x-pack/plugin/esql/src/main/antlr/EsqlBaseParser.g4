@@ -13,6 +13,7 @@ parser grammar EsqlBaseParser;
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 }
 
 options {
@@ -45,7 +46,7 @@ sourceCommand
     | promqlCommand
     // in development
     | {this.isDevVersion()}? explainCommand
-    | {this.isDevVersion()}? externalCommand
+    | {EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled()}? externalCommand
     ;
 
 processingCommand
@@ -73,10 +74,15 @@ processingCommand
     | metricsInfoCommand
     | registeredDomainCommand
     | tsInfoCommand
+    | userAgentCommand
+    | tsCollapseCommand
+    | ipLocationCommand
     | mmrCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
-    | {this.isDevVersion()}? insistCommand
+    | dedupCommand
+    | {this.isDevVersion()}? highlightCommand
+    | {this.isDevVersion()}? denseVectorCommand
     ;
 
 whereCommand
@@ -117,11 +123,17 @@ indexPatternAndMetadataFields
 
 indexPatternOrSubquery
     : indexPattern
-    | {this.isDevVersion()}? subquery
+    | subquery
     ;
 
 subquery
-    : LP fromCommand (PIPE processingCommand)* RP
+    : LP subquerySourceCommand (PIPE processingCommand)* RP
+    ;
+
+subquerySourceCommand
+    : fromCommand
+    | rowCommand
+    | timeSeriesCommand
     ;
 
 indexPattern
@@ -225,7 +237,7 @@ limitCommand
     ;
 
 limitByGroupKey:
-    {this.isDevVersion()}? BY booleanExpression (COMMA booleanExpression)*
+    BY booleanExpression (COMMA booleanExpression)*
     ;
 
 sortCommand
@@ -308,7 +320,7 @@ sampleCommand
     ;
 
 changePointCommand
-    : CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
+    : CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)? (BY groupings+=booleanExpression (COMMA groupings+=booleanExpression)*)?
     ;
 
 forkCommand
@@ -369,6 +381,10 @@ tsInfoCommand
     : TS_INFO
     ;
 
+tsCollapseCommand
+    : TS_COLLAPSE
+    ;
+
 //
 // In development
 //
@@ -376,8 +392,16 @@ lookupCommand
     : DEV_LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
     ;
 
-insistCommand
-    : DEV_INSIST qualifiedNamePatterns
+dedupCommand
+    : DEDUP
+    ;
+
+highlightCommand
+    : DEV_HIGHLIGHT (prefixKeyword=identifier ASSIGN prefix=string)? queryExpression=booleanExpression ON highlightFields=qualifiedNames commandNamedParameters
+    ;
+
+qualifiedNames
+    : qualifiedName (COMMA qualifiedName)*
     ;
 
 uriPartsCommand
@@ -386,6 +410,14 @@ uriPartsCommand
 
 registeredDomainCommand
     : REGISTERED_DOMAIN qualifiedName ASSIGN primaryExpression
+    ;
+
+userAgentCommand
+    : USER_AGENT qualifiedName ASSIGN primaryExpression commandNamedParameters
+    ;
+
+ipLocationCommand
+    : IP_LOCATION qualifiedName ASSIGN primaryExpression commandNamedParameters
     ;
 
 setCommand
@@ -403,4 +435,8 @@ mmrCommand
 mmrQueryVectorParams
     : parameter                           # mmrQueryVectorParameter
     | primaryExpression                   # mmrQueryVectorExpression
+    ;
+
+denseVectorCommand
+    : DEV_DENSE_VECTOR qualifiedNames commandNamedParameters
     ;

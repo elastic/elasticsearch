@@ -9,21 +9,29 @@ package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -204,6 +212,10 @@ public class MetricsInfoOperator implements Operator {
     private boolean finished = false;
     private boolean outputProduced = false;
 
+    private int pagesReceived;
+    private long rowsReceived;
+    private long rowsEmitted;
+
     private MetricsInfoOperator(
         Mode mode,
         BlockFactory blockFactory,
@@ -228,6 +240,8 @@ public class MetricsInfoOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
+        pagesReceived++;
+        rowsReceived += page.getPositionCount();
         if (mode == Mode.FINAL) {
             addInputFinal(page);
         } else {
@@ -402,27 +416,35 @@ public class MetricsInfoOperator implements Operator {
      * {@code DataStream#getDefaultIndexName}: {@code .ds-{name}-{yyyy.MM.dd}-{000001}}
      * (or the {@code .fs-} variant).
      * <p>
+     * Index management can prepend dash-terminated prefixes to a backing index when it is
+     * mounted or rewritten in place, for example {@code partial-} and {@code restored-}
+     * (searchable snapshots), {@code shrink-{uuid}-}, and {@code downsample-{interval}-}.
+     * These prefixes can also be chained, e.g. {@code partial-restored-shrink-{uuid}-.ds-...}.
+     * The optional {@code (?:.*-)?} group ignores any such prefix while still requiring the
+     * {@code .ds-}/{@code .fs-} marker, so the captured data-stream name is unaffected.
+     * <p>
      * Group 1 captures the data-stream name.
      */
-    private static final Pattern BACKING_INDEX_PATTERN = Pattern.compile("^\\.(?:ds|fs)-(.+)-\\d{4}\\.\\d{2}\\.\\d{2}-\\d{6}$");
+    private static final Pattern BACKING_INDEX_PATTERN = Pattern.compile("^(?:.*-)?\\.(?:ds|fs)-(.+)-\\d{4}\\.\\d{2}\\.\\d{2}-\\d{6}$");
 
     /**
      * Resolves the data-stream name from a concrete backing-index name.
      * <p>
      * If the name matches the standard format produced by
      * {@code DataStream#getDefaultIndexName} ({@code .ds-{name}-{yyyy.MM.dd}-{000001}}),
-     * the data-stream name is extracted. Otherwise the raw index name is returned unchanged.
+     * including any dash-terminated prefixes added when a backing index is mounted or
+     * rewritten (e.g. {@code partial-}, {@code restored-}, {@code shrink-{uuid}-},
+     * {@code downsample-{interval}-}), the data-stream name is extracted. Otherwise the
+     * raw index name is returned unchanged.
      * <p>
      * Handles cluster-alias prefixed names (e.g. {@code remote:.ds-k8s-2024.01.15-000001})
      * so that the output preserves the cluster qualifier (e.g. {@code remote:k8s}).
      */
     static String resolveDataStreamName(String indexName) {
-        String[] split = RemoteClusterAware.splitIndexName(indexName);
-        String clusterAlias = split[0];
-        String localName = split[1];
-        Matcher m = BACKING_INDEX_PATTERN.matcher(localName);
-        String resolved = m.matches() ? m.group(1) : localName;
-        return RemoteClusterAware.buildRemoteIndexName(clusterAlias, resolved);
+        var split = RemoteClusterAware.splitIndexName(indexName);
+        Matcher m = BACKING_INDEX_PATTERN.matcher(split.indexExpression());
+        String resolved = m.matches() ? m.group(1) : split.indexExpression();
+        return RemoteClusterAware.buildRemoteIndexName(split.clusterAlias(), resolved);
     }
 
     private List<MetricInfoRow> mergeRowsBySignature(Map<MetricInfoKey, MetricInfo> metricsByKey) {
@@ -469,7 +491,9 @@ public class MetricsInfoOperator implements Operator {
             return createEmptyPage();
         }
 
-        return createOutputPageFromRows(mergeRowsBySignature(metricsByKey));
+        Page output = createOutputPageFromRows(mergeRowsBySignature(metricsByKey));
+        rowsEmitted = output.getPositionCount();
+        return output;
     }
 
     private Page createEmptyPage() {
@@ -573,7 +597,89 @@ public class MetricsInfoOperator implements Operator {
     }
 
     @Override
+    public Operator.Status status() {
+        return new Status(mode, pagesReceived, rowsReceived, rowsEmitted, metricsByKey.size());
+    }
+
+    @Override
     public String toString() {
         return "MetricsInfoOperator[mode=" + mode + "]";
+    }
+
+    public record Status(Mode mode, int pagesReceived, long rowsReceived, long rowsEmitted, int metricsAccumulated)
+        implements
+            Operator.Status {
+
+        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            Operator.Status.class,
+            "metrics_info",
+            Status::new
+        );
+
+        private static final TransportVersion ESQL_METRICS_INFO_OPERATOR_STATUS = TransportVersion.fromName(
+            "esql_metrics_info_operator_status"
+        );
+
+        Status(StreamInput in) throws IOException {
+            this(Mode.valueOf(in.readString()), in.readVInt(), in.readVLong(), in.readVLong(), in.readVInt());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(mode.name());
+            out.writeVInt(pagesReceived);
+            out.writeVLong(rowsReceived);
+            out.writeVLong(rowsEmitted);
+            out.writeVInt(metricsAccumulated);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("mode", mode);
+            builder.field("pages_received", pagesReceived);
+            builder.field("rows_received", rowsReceived);
+            builder.field("rows_emitted", rowsEmitted);
+            builder.field("metrics_accumulated", metricsAccumulated);
+            return builder.endObject();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Status other = (Status) o;
+            return mode == other.mode
+                && pagesReceived == other.pagesReceived
+                && rowsReceived == other.rowsReceived
+                && rowsEmitted == other.rowsEmitted
+                && metricsAccumulated == other.metricsAccumulated;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(mode, pagesReceived, rowsReceived, rowsEmitted, metricsAccumulated);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            assert false : "must not be called when overriding supportsVersion";
+            throw new UnsupportedOperationException("must not be called when overriding supportsVersion");
+        }
+
+        @Override
+        public boolean supportsVersion(TransportVersion version) {
+            return version.supports(ESQL_METRICS_INFO_OPERATOR_STATUS);
+        }
     }
 }

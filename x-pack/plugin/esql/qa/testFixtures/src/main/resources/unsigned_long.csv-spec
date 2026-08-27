@@ -164,21 +164,21 @@ warningRegex:java.lang.IllegalArgumentException: single-value function encounter
 16002960716282089759 | 2.79304354566432608E17
 ;
 
-signumOfPositiveUnsignedLong#[skip:-8.13.99,reason:new scalar function added in 8.14]
+signumOfPositiveUnsignedLong
 row l = to_ul(100) | eval s = signum(l);
 
 l:ul | s:double
 100  | 1.0
 ;
 
-signumOfZeroUnsignedLong#[skip:-8.13.99,reason:new scalar function added in 8.14]
+signumOfZeroUnsignedLong
 row l = to_ul(0) | eval s = signum(l);
 
 l:ul | s:double
 0    | 0.0
 ;
 
-signumWithEvalAndWhere#[skip:-8.13.99,reason:new scalar function added in 8.14]
+signumWithEvalAndWhere
 
 from ul_logs |
 where signum(bytes_in) >= 0.0 |

@@ -72,7 +72,7 @@ public class SortedSetOrdinalsBuilderTests extends ComputeTestCase {
                     var keysDV = ctx.reader().getNumericDocValues("k");
                     var valuesDV = ctx.reader().getSortedSetDocValues("f");
                     try (
-                        var valuesBuilder = new SortedSetOrdinalsBuilder(factory, valuesDV, ctx.reader().numDocs());
+                        var valuesBuilder = OrdinalsBuilder.sortedSet(factory, valuesDV, ctx.reader().numDocs());
                         var keysBuilder = factory.newIntVectorBuilder(ctx.reader().numDocs())
                     ) {
                         for (int i = 0; i < ctx.reader().maxDoc(); i++) {
@@ -131,7 +131,7 @@ public class SortedSetOrdinalsBuilderTests extends ComputeTestCase {
             try (IndexReader reader = indexWriter.getReader()) {
                 for (LeafReaderContext ctx : reader.leaves()) {
                     var docValues = ctx.reader().getSortedSetDocValues("f");
-                    try (var builder = new SortedSetOrdinalsBuilder(factory, docValues, ctx.reader().numDocs())) {
+                    try (var builder = OrdinalsBuilder.sortedSet(factory, docValues, ctx.reader().numDocs())) {
                         for (int i = 0; i < ctx.reader().maxDoc(); i++) {
                             if (ctx.reader().getLiveDocs() == null || ctx.reader().getLiveDocs().get(i)) {
                                 assertThat(docValues.advanceExact(i), equalTo(true));

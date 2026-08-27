@@ -56,6 +56,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -64,7 +65,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedRunnable;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -255,6 +255,61 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             pauseFollow("index2");
             assertMaxSeqNoOfUpdatesIsTransferred(resolveLeaderIndex("index1"), resolveFollowerIndex("index2"), numberOfPrimaryShards);
         }
+    }
+
+    public void testFollowIndexWithRouting() throws Exception {
+        final int numberOfPrimaryShards = randomIntBetween(1, 3);
+        final int numberOfReplicas = between(0, 1);
+        final boolean routingDocValues = randomBoolean();
+        final String leaderIndexSettings = getIndexSettingsWithRouting(numberOfPrimaryShards, numberOfReplicas, routingDocValues);
+        assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureLeaderYellow("index1");
+
+        final int firstBatchNumDocs = randomIntBetween(10, 64);
+        final int secondBatchNumDocs = randomIntBetween(2, 64);
+        final int totalDocs = firstBatchNumDocs + secondBatchNumDocs;
+        // a new routing value is generated after every 10% of total documents
+        final int bucketSize = Math.max(1, totalDocs / 10);
+        logger.info("Indexing [{}] docs as first batch, routingDocValues=[{}]", firstBatchNumDocs, routingDocValues);
+        final Map<String, String> routingPerDoc = new HashMap<>();
+        String currentRouting = "";
+        for (int i = 0; i < firstBatchNumDocs; i++) {
+            if (i % bucketSize == 0) {
+                currentRouting = randomAlphaOfLength(10);
+            }
+            routingPerDoc.put(Integer.toString(i), currentRouting);
+            leaderClient().prepareIndex("index1").setId(Integer.toString(i)).setRouting(currentRouting).setSource("f", i).get();
+        }
+
+        logger.info("Executing put follow");
+        PutFollowAction.Response response = followerClient().execute(
+            PutFollowAction.INSTANCE,
+            putFollow("index1", "index2", ActiveShardCount.ONE)
+        ).get();
+        assertTrue(response.isFollowIndexCreated());
+        assertTrue(response.isFollowIndexShardsAcked());
+        assertTrue(response.isIndexFollowingStarted());
+
+        logger.info("Indexing [{}] docs as second batch", secondBatchNumDocs);
+        for (int i = firstBatchNumDocs; i < totalDocs; i++) {
+            if (i % bucketSize == 0) {
+                currentRouting = randomAlphaOfLength(10);
+            }
+            routingPerDoc.put(Integer.toString(i), currentRouting);
+            leaderClient().prepareIndex("index1").setId(Integer.toString(i)).setRouting(currentRouting).setSource("f", i).get();
+        }
+
+        assertBusy(() -> {
+            for (var entry : routingPerDoc.entrySet()) {
+                final GetResponse getResponse = followerClient().prepareGet("index2", entry.getKey()).setRouting(entry.getValue()).get();
+                assertTrue("Doc with id [" + entry.getKey() + "] is missing", getResponse.isExists());
+            }
+            assertHitCount(leaderClient().prepareSearch("index1").setSize(0), totalDocs);
+            assertHitCount(followerClient().prepareSearch("index2").setSize(0), totalDocs);
+        });
+
+        pauseFollow("index2");
+        assertMaxSeqNoOfUpdatesIsTransferred(resolveLeaderIndex("index1"), resolveFollowerIndex("index2"), numberOfPrimaryShards);
     }
 
     public void testFollowIndexWithConcurrentMappingChanges() throws Exception {
@@ -1729,6 +1784,42 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                 assertThat(getResponse.getSource().get("f"), equalTo(value));
             }
         };
+    }
+
+    private String getIndexSettingsWithRouting(final int numberOfShards, final int numberOfReplicas, final boolean routingDocValues)
+        throws IOException {
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.startObject();
+            {
+                builder.startObject("settings");
+                {
+                    builder.field("index.number_of_shards", numberOfShards);
+                    builder.field("index.number_of_replicas", numberOfReplicas);
+                    builder.field(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s");
+                }
+                builder.endObject();
+                builder.startObject("mappings");
+                {
+                    // The Java client API (unlike the REST API) does not automatically wrap
+                    // the mapping under _doc, so we must do it explicitly here.
+                    builder.startObject("_doc");
+                    {
+                        builder.startObject("_routing");
+                        {
+                            builder.field("required", true);
+                            if (routingDocValues) {
+                                builder.field("doc_values", true);
+                            }
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            return Strings.toString(builder);
+        }
     }
 
     private String getIndexSettingsWithNestedMapping(

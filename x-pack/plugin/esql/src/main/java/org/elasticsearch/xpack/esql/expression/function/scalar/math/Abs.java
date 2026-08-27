@@ -12,35 +12,50 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 
 import java.io.IOException;
 import java.util.List;
 
-public class Abs extends UnaryScalarFunction {
+public class Abs extends UnaryScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Abs", Abs::new);
-    public static final FunctionDefinition DEFINITION = EsqlFunctionRegistry.unary(Abs.class, Abs::new, "abs")
-        .withSubCapabilities(
-            List.of(
-                /*
-                 * Produce a {@code warning} and {@code null} when you run
-                 * {@code ABS} on {@code Long.MIN_VALUE}.
-                 */
-                "min_warning"
-            )
-        );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Abs.class)
+        .unary(Abs::new)
+        .capabilities(
+            // Produce a {@code warning} and {@code null} when you run {@code ABS} on {@code Long.MIN_VALUE}.
+            "min_warning"
+        )
+        .name("abs");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .unaryValueTransformation(Abs::new)
+        .description("Returns the input vector with all sample values converted to their absolute value.")
+        .example("abs(rate(http_requests_total[5m]))")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(
+            "For the minimum `integer` or `long` value, whose absolute value cannot be represented, {{es}} returns "
+                + "`null` and emits a warning. Prometheus, which operates on floating-point values, returns the "
+                + "absolute value instead."
+        )
+        .name("abs");
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "double", "integer", "long", "unsigned_long" },
+        signatures = { @Signature(params = { "NUMERIC" }, returnType = "$0") },
+        briefSummary = "Returns the absolute value of a number.",
         description = "Returns the absolute value.",
         examples = { @Example(file = "math", tag = "abs"), @Example(file = "math", tag = "abs-employees") }
     )

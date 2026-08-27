@@ -31,7 +31,15 @@ public interface TriggerEngine<T extends Trigger, E extends TriggerEvent> {
 
     void register(Consumer<Iterable<TriggerEvent>> consumer);
 
-    void add(Watch job);
+    /**
+     * Schedule {@code job} on this engine.
+     *
+     * @return {@code true} if the job was actually scheduled, {@code false} if the engine was not in a state where it
+     *         could accept the job (typically: paused between {@link #pauseExecution} and {@link #start}). Callers can
+     *         use the return value to decide whether they need to retain the watch elsewhere (e.g. in a pending map)
+     *         so that the next {@link #start} run picks it up.
+     */
+    boolean add(Watch job);
 
     /**
      * Get into a pause state, implies clearing out existing jobs

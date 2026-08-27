@@ -40,7 +40,6 @@ import static org.hamcrest.Matchers.hasEntry;
 public class ES93FlatVectorFormatTests extends BaseKnnVectorsFormatTestCase {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 

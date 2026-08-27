@@ -48,6 +48,9 @@ public final class SearchCapabilities {
 
     private static final String HIGHLIGHT_MAX_ANALYZED_OFFSET_DEFAULT = "highlight_max_analyzed_offset_default";
 
+    /** {@code number_of_fragments} is bounded to reject oversized highlighter allocations. */
+    private static final String HIGHLIGHT_NUMBER_OF_FRAGMENTS_BOUNDED = "highlight_number_of_fragments_bounded";
+
     private static final String INDEX_SELECTOR_SYNTAX = "index_expression_selectors";
 
     private static final String SIGNIFICANT_TERMS_BACKGROUND_FILTER_AS_SUB = "significant_terms_background_filter_as_sub";
@@ -58,12 +61,17 @@ public final class SearchCapabilities {
     private static final String KNN_FILTER_ON_NESTED_FIELDS_CAPABILITY = "knn_filter_on_nested_fields";
     private static final String BUCKET_SCRIPT_PARENT_MULTI_BUCKET_ERROR = "bucket_script_parent_multi_bucket_error";
     private static final String PIPELINE_AGGS_PARENT_MULTI_BUCKET_ERROR = "pipeline_aggs_parent_multi_bucket_error";
+    /** Treat unresolvable bucket_sort paths as missing values controlled by gap_policy instead of NPE'ing. */
+    private static final String BUCKET_SORT_NULL_HANDLES_MISSING_BUCKET = "bucket_sort_null_handles_missing_bucket";
     private static final String EXCLUDE_SOURCE_VECTORS_SETTING = "exclude_source_vectors_setting";
     private static final String CLUSTER_STATS_EXTENDED_USAGE = "extended-search-usage-stats";
     private static final String REJECT_INVALID_REVERSE_NESTING = "reject_invalid_reverse_nesting";
     private static final String DENSE_VECTOR_DOCVALUE_FIELDS_FORMAT = "dense_vector_docvalue_fields_format";
     private static final String KNN_QUERY_VECTOR_BASE64 = "knn_query_vector_base64";
     private static final String AGGREGATE_METRIC_DOUBLE_DEFAULTS_TO_AVERAGE = "aggregate_metric_double_defaults_to_average";
+    private static final String KNN_RETRIEVER_OPTIONAL_NUM_CANDIDATES = "knn_retriever_optional_num_candidates";
+    /** Query types that keyed {@code flattened} subfields do not support are rejected with a 400 instead of a 500. */
+    private static final String KEYED_FLATTENED_UNSUPPORTED_QUERIES_BAD_REQUEST = "keyed_flattened_unsupported_queries_bad_request";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -83,6 +91,7 @@ public final class SearchCapabilities {
         capabilities.add(KQL_QUERY_SUPPORTED);
         capabilities.add(KQL_QUERY_BOOLEAN_FIELD_QUERY_SUPPORTED);
         capabilities.add(HIGHLIGHT_MAX_ANALYZED_OFFSET_DEFAULT);
+        capabilities.add(HIGHLIGHT_NUMBER_OF_FRAGMENTS_BOUNDED);
         capabilities.add(INDEX_SELECTOR_SYNTAX);
         capabilities.add(SIGNIFICANT_TERMS_BACKGROUND_FILTER_AS_SUB);
         capabilities.add(SIGNIFICANT_TERMS_ON_NESTED_FIELDS);
@@ -92,12 +101,15 @@ public final class SearchCapabilities {
         capabilities.add(KNN_FILTER_ON_NESTED_FIELDS_CAPABILITY);
         capabilities.add(BUCKET_SCRIPT_PARENT_MULTI_BUCKET_ERROR);
         capabilities.add(PIPELINE_AGGS_PARENT_MULTI_BUCKET_ERROR);
+        capabilities.add(BUCKET_SORT_NULL_HANDLES_MISSING_BUCKET);
         capabilities.add(EXCLUDE_SOURCE_VECTORS_SETTING);
         capabilities.add(CLUSTER_STATS_EXTENDED_USAGE);
         capabilities.add(REJECT_INVALID_REVERSE_NESTING);
         capabilities.add(DENSE_VECTOR_DOCVALUE_FIELDS_FORMAT);
         capabilities.add(KNN_QUERY_VECTOR_BASE64);
         capabilities.add(AGGREGATE_METRIC_DOUBLE_DEFAULTS_TO_AVERAGE);
+        capabilities.add(KNN_RETRIEVER_OPTIONAL_NUM_CANDIDATES);
+        capabilities.add(KEYED_FLATTENED_UNSUPPORTED_QUERIES_BAD_REQUEST);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

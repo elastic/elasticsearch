@@ -11,7 +11,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -27,24 +26,19 @@ import org.junit.Before;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class SearchRequestInterceptorTests extends ESTestCase {
 
     private ClusterService clusterService;
     private ThreadPool threadPool;
-    private MockLicenseState licenseState;
     private SearchRequestInterceptor interceptor;
 
     @Before
     public void init() {
         threadPool = new TestThreadPool("search request interceptor tests");
-        licenseState = mock(MockLicenseState.class);
-        when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
         clusterService = mock(ClusterService.class);
-        interceptor = new SearchRequestInterceptor(threadPool, licenseState);
+        interceptor = new SearchRequestInterceptor(threadPool);
     }
 
     @After

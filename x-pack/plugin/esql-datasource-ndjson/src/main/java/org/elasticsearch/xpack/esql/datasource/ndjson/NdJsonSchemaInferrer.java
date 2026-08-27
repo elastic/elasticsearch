@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.ndjson;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
+import com.fasterxml.jackson.core.exc.StreamConstraintsException;
 
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.logging.LogManager;
@@ -22,7 +23,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.EnumSet;
@@ -51,7 +51,7 @@ public class NdJsonSchemaInferrer {
     // The default format for date fields in ES is "strict_date_optional_time||epoch_millis".
     // Use the string part of this default for schema inference (we cannot assume that a number
     // is a date)
-    public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("strict_date_optional_time");
+    public static final DateFormatter STRICT_DATE_OPTIONAL_TIME = DateFormatter.forPattern("strict_date_optional_time");
 
     private static final Logger logger = LogManager.getLogger(NdJsonSchemaInferrer.class);
 
@@ -62,13 +62,18 @@ public class NdJsonSchemaInferrer {
     private final List<FieldInfo> fields = new ArrayList<>();
     private int lineCount = 0;
 
-    private NdJsonSchemaInferrer() {}
+    private final DateFormatter dateFormatter;
+
+    private NdJsonSchemaInferrer(DateFormatter dateFormatter) {
+        this.dateFormatter = dateFormatter != null ? dateFormatter : STRICT_DATE_OPTIONAL_TIME;
+    }
 
     /**
      * Infers schema from an NDJSON input stream, reading up to maxLines.
+     * When {@code datetimeFormatter} is null, falls back to {@link #STRICT_DATE_OPTIONAL_TIME}.
      */
-    public static List<Attribute> inferSchema(InputStream inputStream, int maxLines) throws IOException {
-        return new NdJsonSchemaInferrer().doInferSchema(inputStream, maxLines);
+    public static List<Attribute> inferSchema(InputStream inputStream, int maxLines, DateFormatter datetimeFormatter) throws IOException {
+        return new NdJsonSchemaInferrer(datetimeFormatter).doInferSchema(inputStream, maxLines);
     }
 
     private List<Attribute> doInferSchema(InputStream inputStream, int maxLines) throws IOException {
@@ -80,7 +85,15 @@ public class NdJsonSchemaInferrer {
                     if (parser.nextToken() == null) {
                         break; // End of stream
                     }
-                } catch (JsonParseException e) {
+                } catch (JsonParseException | StreamConstraintsException e) {
+                    // Schema inference is a best-effort sampling pass: malformed lines here are
+                    // safe to skip because every such line will be re-encountered during the
+                    // actual slice read (see NdJsonPageIterator), where the configured
+                    // ErrorPolicy decides whether to log/fail. Logging at debug avoids noisy
+                    // duplicate reports of the same issue. A StreamConstraintsException (an
+                    // over-long number or field name, nesting past the depth cap) is the same
+                    // scanner-level whole-line failure and defers to the slice read identically;
+                    // failing inference on it would deny the read's error_mode a say.
                     logger.debug("Malformed NDJSON at line {}: {}", lineCount, e);
                     inputStream = NdJsonUtils.moveToNextLine(parser, inputStream);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
@@ -90,7 +103,8 @@ public class NdJsonSchemaInferrer {
                 try {
                     inferObjectSchema(parser, root);
                     lineCount++;
-                } catch (JsonParseException e) {
+                } catch (JsonParseException | StreamConstraintsException e) {
+                    // See comment above: deferred to the slice read for policy-driven handling.
                     logger.debug("Malformed NDJSON at line {}: {}", lineCount, e);
                     inputStream = NdJsonUtils.moveToNextLine(parser, inputStream);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
@@ -115,7 +129,7 @@ public class NdJsonSchemaInferrer {
         return attributes;
     }
 
-    private static void inferObjectSchema(JsonParser parser, FieldInfo object) throws IOException {
+    private void inferObjectSchema(JsonParser parser, FieldInfo object) throws IOException {
         JsonToken token = parser.currentToken();
         if (token != JsonToken.START_OBJECT) {
             throw new NdJsonParseException(parser, "Expected JSON object");
@@ -130,7 +144,7 @@ public class NdJsonSchemaInferrer {
         }
     }
 
-    private static void inferValueSchema(JsonParser parser, FieldInfo field) throws IOException {
+    private void inferValueSchema(JsonParser parser, FieldInfo field) throws IOException {
         switch (parser.currentToken()) {
             case START_ARRAY -> {
                 field.isArray = true;
@@ -138,38 +152,61 @@ public class NdJsonSchemaInferrer {
                     inferValueSchema(parser, field);
                 }
             }
-            // Keep in sync with NdJsonPageIterator.Decoder
-            case START_OBJECT -> inferObjectSchema(parser, field);
+            // Keep in sync with NdJsonPageDecoder.BlockDecoder.decodeValue. A field seen as both a
+            // scalar and an object across sampled records resolves to whichever shape was observed
+            // first (mirrors core ES dynamic mapping's first-writer-wins); the other shape is ignored
+            // here for schema-inference purposes so buildSchema never emits both a scalar attribute
+            // and nested children for the same name (elastic/esql-planning#1028). The decoder applies
+            // ErrorPolicy to the actual conflicting value at read time.
+            case START_OBJECT -> {
+                if (field.types.isEmpty() == false) {
+                    parser.skipChildren();
+                } else {
+                    inferObjectSchema(parser, field);
+                }
+            }
             case VALUE_STRING -> {
-                try {
-                    DATE_FORMATTER.parse(parser.getText());
-                    field.addType(DataType.DATETIME);
-                } catch (DateTimeParseException | IllegalArgumentException e) {
-                    field.addType(DataType.KEYWORD);
+                if (field.children == null) {
+                    String text = parser.getText();
+                    if (field.types.contains(DataType.KEYWORD) == false && isDateTimeString(text)) {
+                        field.addType(DataType.DATETIME);
+                    } else {
+                        field.addType(DataType.KEYWORD);
+                    }
                 }
             }
             case VALUE_NUMBER_INT -> {
-                switch (parser.getNumberType()) {
-                    case INT:
-                        field.addType(DataType.INTEGER);
-                        return;
-                    case LONG:
-                        field.addType(DataType.LONG);
-                        return;
-                    case BIG_INTEGER: {
-                        field.addType(DataType.DOUBLE);
-                        var location = parser.getTokenLocation();
-                        logger.debug(
-                            "Big integers are not supported, falling back to double [{}, line: {}, column: {}]",
-                            parser.getText(),
-                            location.getLineNr(),
-                            location.getColumnNr()
-                        );
+                if (field.children == null) {
+                    switch (parser.getNumberType()) {
+                        case INT:
+                            field.addType(DataType.INTEGER);
+                            return;
+                        case LONG:
+                            field.addType(DataType.LONG);
+                            return;
+                        case BIG_INTEGER: {
+                            field.addType(DataType.DOUBLE);
+                            var location = parser.getTokenLocation();
+                            logger.debug(
+                                "Big integers are not supported, falling back to double [{}, line: {}, column: {}]",
+                                parser.getText(),
+                                location.getLineNr(),
+                                location.getColumnNr()
+                            );
+                        }
                     }
                 }
             } // conservative size
-            case VALUE_NUMBER_FLOAT -> field.addType(DataType.DOUBLE); // conservative size
-            case VALUE_TRUE, VALUE_FALSE -> field.addType(DataType.BOOLEAN);
+            case VALUE_NUMBER_FLOAT -> {
+                if (field.children == null) {
+                    field.addType(DataType.DOUBLE); // conservative size
+                }
+            }
+            case VALUE_TRUE, VALUE_FALSE -> {
+                if (field.children == null) {
+                    field.addType(DataType.BOOLEAN);
+                }
+            }
             case VALUE_NULL -> field.nullable = true;
             // Ignore all other events
         }
@@ -177,6 +214,12 @@ public class NdJsonSchemaInferrer {
 
     /** Build the list of Attribute by recursively traversing the FieldInfo tree */
     private static void buildSchema(FieldInfo field, String parentName, List<Attribute> attributes) {
+        if (field.children == null) {
+            // No children were ever observed. Happens for the root when every sampled line was
+            // malformed (so {@link FieldInfo#getChild} was never called), or legitimately for
+            // leaf fields during recursion. Nothing to contribute to the schema either way.
+            return;
+        }
         for (Map.Entry<String, FieldInfo> entry : field.children.entrySet()) {
             // TODO: disallow dots in names (or replace them) as it may cause issues when decoding
             var name = entry.getKey();
@@ -276,5 +319,19 @@ public class NdJsonSchemaInferrer {
         var copy = EnumSet.copyOf(values);
         copy.removeAll(from);
         return copy.isEmpty();
+    }
+
+    /**
+     * Check if a string parses as a datetime. We filter out 4-digit years accepted by strict_date_optional_time
+     * and other Iso8601 parsers where {@code MONTH_OF_YEAR} is optional. These are the only 4-digit values they
+     * accept, and we don't want to treat an all-4-digit column as DATETIME.
+     */
+    private boolean isDateTimeString(String text) {
+        if (dateFormatter == STRICT_DATE_OPTIONAL_TIME) {
+            if (text.length() == 4 && text.chars().allMatch(Character::isDigit)) {
+                return false;
+            }
+        }
+        return dateFormatter.tryParse(text) != null;
     }
 }

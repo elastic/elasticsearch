@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `COSH` function [esql-cosh]
 
-:::{include} ../../_snippets/functions/layout/cosh.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/cosh.md
 :::

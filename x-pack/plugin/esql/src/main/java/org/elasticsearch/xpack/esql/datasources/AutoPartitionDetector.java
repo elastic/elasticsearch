@@ -8,24 +8,21 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import java.util.List;
-import java.util.Map;
+import java.util.Objects;
 
 /**
  * Auto-detecting partition detector that tries Hive-style detection first,
  * then falls back to template-based detection if a path template is configured.
  */
-final class AutoPartitionDetector implements PartitionDetector {
+public final class AutoPartitionDetector implements PartitionDetector {
 
     private final PartitionConfig partitionConfig;
 
     AutoPartitionDetector(PartitionConfig partitionConfig) {
-        this.partitionConfig = partitionConfig;
+        this.partitionConfig = Objects.requireNonNull(partitionConfig, "partitionConfig cannot be null");
     }
 
-    static PartitionDetector fromConfig(PartitionConfig config) {
-        if (config == null) {
-            return HivePartitionDetector.INSTANCE;
-        }
+    public static PartitionDetector fromConfig(PartitionConfig config) {
         return new AutoPartitionDetector(config);
     }
 
@@ -35,18 +32,20 @@ final class AutoPartitionDetector implements PartitionDetector {
     }
 
     @Override
-    public PartitionMetadata detect(List<StorageEntry> files, Map<String, Object> config) {
+    public PartitionMetadata detect(List<StorageEntry> files) {
         // Try Hive first
-        PartitionMetadata hiveResult = HivePartitionDetector.INSTANCE.detect(files, config);
+        PartitionMetadata hiveResult = HivePartitionDetector.INSTANCE.detect(files);
         if (hiveResult.isEmpty() == false) {
             return hiveResult;
         }
 
         // Fall back to template if configured
-        String template = partitionConfig != null ? partitionConfig.pathTemplate() : null;
-        if (template != null && template.isEmpty() == false) {
+        // Same grammar guard as GlobExpander.resolveDetector: TemplatePartitionDetector's constructor rejects a
+        // template naming no whole-segment {name} placeholders, and this fallback is reachable with any stored value.
+        String template = partitionConfig.pathTemplate();
+        if (template != null && TemplatePartitionDetector.parseTemplateColumns(template).isEmpty() == false) {
             TemplatePartitionDetector templateDetector = new TemplatePartitionDetector(template);
-            return templateDetector.detect(files, config);
+            return templateDetector.detect(files);
         }
 
         return PartitionMetadata.EMPTY;

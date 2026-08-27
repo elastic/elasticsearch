@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.sql.qa.cli.EmbeddedCli.ApiKeySecurityConfig;
 
 import static org.elasticsearch.xpack.sql.qa.security.RestSqlIT.SSL_ENABLED;
 import static org.hamcrest.Matchers.containsString;
-import static org.junit.Assert.assertEquals;
 
 /**
  * Integration tests for CLI connections using API key authentication.
@@ -79,17 +78,7 @@ public class CliApiKeyIT extends SqlApiKeyTestCase {
         );
 
         try (EmbeddedCli cli = new EmbeddedCli(elasticsearchAddress(), false, apiKeyConfig)) {
-            String result = cli.command("SELECT 1");
-            StringBuilder fullError = new StringBuilder(result);
-            String line;
-            while ((line = cli.readLine()) != null && !line.isEmpty()) {
-                fullError.append(line);
-            }
-            String errorMessage = fullError.toString();
-            assertTrue(
-                "Expected authentication error but got: " + errorMessage,
-                errorMessage.contains("security_exception") || errorMessage.contains("Communication error")
-            );
+            assertThat(cli.command("SELECT 1"), containsString("Bad request"));
         }
     }
 

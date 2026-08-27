@@ -168,45 +168,45 @@ public class SecurityMigrations {
 
             client.admin()
                 .cluster()
-                .execute(UpdateByQueryAction.INSTANCE, updateByQueryRequest, ActionListener.wrap(bulkByScrollResponse -> {
+                .execute(UpdateByQueryAction.INSTANCE, updateByQueryRequest, ActionListener.wrap(bulkByPaginatedSearchResponse -> {
                     logger.debug(
                         "metadata_flattened update-by-query completed: total=[{}], updated=[{}], conflicts=[{}], failures=[{}], "
                             + "searchFailures=[{}], noops=[{}], timedOut=[{}]",
-                        bulkByScrollResponse.getTotal(),
-                        bulkByScrollResponse.getUpdated(),
-                        bulkByScrollResponse.getVersionConflicts(),
-                        bulkByScrollResponse.getBulkFailures().size(),
-                        bulkByScrollResponse.getSearchFailures().size(),
-                        bulkByScrollResponse.getNoops(),
-                        bulkByScrollResponse.isTimedOut()
+                        bulkByPaginatedSearchResponse.getTotal(),
+                        bulkByPaginatedSearchResponse.getUpdated(),
+                        bulkByPaginatedSearchResponse.getVersionConflicts(),
+                        bulkByPaginatedSearchResponse.getBulkFailures().size(),
+                        bulkByPaginatedSearchResponse.getSearchFailures().size(),
+                        bulkByPaginatedSearchResponse.getNoops(),
+                        bulkByPaginatedSearchResponse.isTimedOut()
                     );
-                    if (bulkByScrollResponse.getBulkFailures().isEmpty() == false) {
+                    if (bulkByPaginatedSearchResponse.getBulkFailures().isEmpty() == false) {
                         listener.onFailure(
                             new ElasticsearchException(
                                 "metadata_flattened migration update-by-query failed with bulk update failures [{}]",
-                                bulkByScrollResponse.getBulkFailures()
+                                bulkByPaginatedSearchResponse.getBulkFailures()
                             )
                         );
-                    } else if (bulkByScrollResponse.getSearchFailures().isEmpty() == false) {
+                    } else if (bulkByPaginatedSearchResponse.getSearchFailures().isEmpty() == false) {
                         listener.onFailure(
                             new ElasticsearchException(
                                 "metadata_flattened migration update-by-query failed with search failures [{}]",
-                                bulkByScrollResponse.getSearchFailures()
+                                bulkByPaginatedSearchResponse.getSearchFailures()
                             )
                         );
-                    } else if (bulkByScrollResponse.isTimedOut()) {
+                    } else if (bulkByPaginatedSearchResponse.isTimedOut()) {
                         listener.onFailure(
                             new ElasticsearchException(
                                 "metadata_flattened migration update-by-query failed with timeout after [{}] seconds",
-                                bulkByScrollResponse.getTook().seconds()
+                                bulkByPaginatedSearchResponse.getTook().seconds()
                             )
                         );
-                    } else if (bulkByScrollResponse.getVersionConflicts() > 0) {
+                    } else if (bulkByPaginatedSearchResponse.getVersionConflicts() > 0) {
                         listener.onFailure(
                             new ElasticsearchException("metadata_flattened migration update-by-query failed with version conflicts")
                         );
                     } else {
-                        logger.info("metadata_flattened migration updated [{}] roles", bulkByScrollResponse.getUpdated());
+                        logger.info("metadata_flattened migration updated [{}] roles", bulkByPaginatedSearchResponse.getUpdated());
                         listener.onResponse(null);
                     }
                 }, listener::onFailure));

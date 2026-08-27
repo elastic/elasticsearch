@@ -169,10 +169,15 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
      * Checks if an inactive primary shard should cause the cluster health to go RED.
      *
      * An inactive primary shard in an index should cause the cluster health to be RED to make it visible that some of the existing data is
-     * unavailable. In case of index creation, snapshot restore or index shrinking, which are unexceptional events in the cluster lifecycle,
-     * cluster health should not turn RED for the time where primaries are still in the initializing state but go to YELLOW instead.
-     * However, in case of exceptional events, for example when the primary shard cannot be assigned to a node or initialization fails at
-     * some point, cluster health should still turn RED.
+     * unavailable. In case of index creation, snapshot restore, index shrinking or reshard split, which are unexceptional events in the
+     * cluster lifecycle, cluster health should not turn RED for the time when primaries are still in the initializing state but go to
+     * YELLOW instead. However, in case of exceptional events, for example when the primary shard cannot be assigned to a node
+     * ({@link AllocationStatus#DECIDERS_NO}) or initialization fails at some point, cluster health should still turn RED.
+     * <p>
+     * Reshard-split targets are an exception to failed-initialization turning RED: while a target still has
+     * {@link RecoverySource.Type#RESHARD_SPLIT}, it remains YELLOW even after failed allocation attempts (for example when the source
+     * relocates and cancels an in-flight start-split). The source still serves the data until handoff. Once the target moves to STARTED,
+     * its recovery source is cleared; later failures use other recovery types and follow the normal RED rules.
      *
      * NB: this method should *not* be called on active shards nor on non-primary shards.
      */
@@ -183,11 +188,12 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         assert shardRouting.recoverySource() != null : "cannot invoke on a shard that has no recovery source" + shardRouting;
         final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
         RecoverySource.Type recoveryType = shardRouting.recoverySource().getType();
-        if (unassignedInfo.lastAllocationStatus() != AllocationStatus.DECIDERS_NO
-            && unassignedInfo.failedAllocations() == 0
-            && (recoveryType == RecoverySource.Type.EMPTY_STORE
-                || recoveryType == RecoverySource.Type.LOCAL_SHARDS
-                || recoveryType == RecoverySource.Type.SNAPSHOT)) {
+        if (recoveryType == RecoverySource.Type.RESHARD_SPLIT
+            || (unassignedInfo.lastAllocationStatus() != AllocationStatus.DECIDERS_NO
+                && unassignedInfo.failedAllocations() == 0
+                && (recoveryType == RecoverySource.Type.EMPTY_STORE
+                    || recoveryType == RecoverySource.Type.LOCAL_SHARDS
+                    || recoveryType == RecoverySource.Type.SNAPSHOT))) {
             return ClusterHealthStatus.YELLOW;
         } else {
             return ClusterHealthStatus.RED;

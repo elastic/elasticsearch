@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
@@ -30,30 +31,134 @@ import java.util.Objects;
 /**
  * {@link ShardRouting} immutably encapsulates information about shard
  * indexRoutings like id, state, version, etc.
- *
+ * <p>
  * Information about a particular shard instance.
  */
 public final class ShardRouting implements Writeable, ToXContentObject {
+
+    /// Describes the priority of a recovery. The [#ordinal()] is significant, with lower values indicating higher priorities.
+    public enum RecoveryPriority implements Writeable {
+
+        /// A primary shard which is unassigned because it is newly created.
+        ///
+        /// This is considered high priority because recovery should be fast, so we can get this out of the way and unblock writes to the
+        /// new index (including allowing bulk operations which auto-create an index to complete).
+        UNASSIGNED_NEW_PRIMARY(false, true),
+
+        /// A shard which is unassigned because of an unexpected condition, i.e. some kind of failure.
+        ///
+        /// Recovering this shard may be necessary to prevent the index being unavailable.
+        UNASSIGNED_UNEXPECTED(false, true),
+
+        /// A shard which is unassigned for an expected condition, i.e. because of a user operation such as opening or restoring an index,
+        /// but which is not an [#UNASSIGNED_NEW_PRIMARY].
+        UNASSIGNED_EXPECTED(false, true),
+
+        /// A shard which is assigned, and is being relocated because
+        /// [org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders#canRemain] returned
+        /// [org.elasticsearch.cluster.routing.allocation.decider.Decision#NO].
+        RELOCATION_CAN_REMAIN_NO(true, false),
+
+        /// A shard which is assigned, and is being relocated because
+        /// [org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders#canRemain] returned
+        /// [org.elasticsearch.cluster.routing.allocation.decider.Decision#NOT_PREFERRED].
+        RELOCATION_CAN_REMAIN_NOT_PREFERRED(true, false),
+
+        /// A shard which is assigned, and is being relocated for rebalancing.
+        RELOCATE_REBALANCING(true, false),
+
+        /// Placeholder value for unknown priorities. This can be used in a short-lived `ShardRouting` (for example, for use in a balancing
+        /// calculation) but it must _not_ be used in a `ShardRouting` which will be added to the `ClusterState`. It can also appear in a
+        /// [org.elasticsearch.indices.recovery.RecoveryState] received from an older node.
+        UNKNOWN(true, true);
+
+        private final boolean isValidForRelocation;
+        private final boolean isValidForUnassigned;
+
+        RecoveryPriority(boolean isValidForRelocation, boolean isValidForUnassigned) {
+            this.isValidForRelocation = isValidForRelocation;
+            this.isValidForUnassigned = isValidForUnassigned;
+        }
+
+        public static RecoveryPriority readFrom(StreamInput in) throws IOException {
+            if (in.getTransportVersion().supports(RECOVERY_PRIORITY_UNKNOWN_AND_UNASSIGNED_NEW_PRIMARY_TRANSPORT_VERSION)) {
+                return in.readEnum(RecoveryPriority.class);
+            } else {
+                // Deserialize using the ordinals from the enum prior to the introduction of the UNKNOWN and UNASSIGNED_NEW_PRIMARY values:
+                int legacyOrdinal = in.readVInt();
+                return switch (legacyOrdinal) {
+                    case 0 -> UNASSIGNED_UNEXPECTED;
+                    case 1 -> UNASSIGNED_EXPECTED;
+                    case 2 -> RELOCATION_CAN_REMAIN_NO;
+                    case 3 -> RELOCATION_CAN_REMAIN_NOT_PREFERRED;
+                    case 4 -> RELOCATE_REBALANCING;
+                    default -> throw new IllegalArgumentException("Unexpected value for legacy RecoveryPriority ordinal: " + legacyOrdinal);
+                };
+            }
+        }
+
+        // visible for testing
+        boolean isValidForRelocation() {
+            return isValidForRelocation;
+        }
+
+        // visible for testing
+        public boolean isValidForUnassigned() {
+            return isValidForUnassigned;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            if (out.getTransportVersion().supports(RECOVERY_PRIORITY_UNKNOWN_AND_UNASSIGNED_NEW_PRIMARY_TRANSPORT_VERSION)) {
+                out.writeEnum(this);
+            } else {
+                // Serialize using the ordinals from the enum prior to the introduction of the UNKNOWN and UNASSIGNED_NEW_PRIMARY values,
+                // or the nearest fallbacks:
+                int legacyOrdinal = switch (this) {
+                    case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED -> 0;
+                    case UNASSIGNED_EXPECTED -> 1;
+                    case RELOCATION_CAN_REMAIN_NO -> 2;
+                    case RELOCATION_CAN_REMAIN_NOT_PREFERRED -> 3;
+                    case RELOCATE_REBALANCING, UNKNOWN -> 4;
+                };
+                out.writeVInt(legacyOrdinal);
+            }
+        }
+    }
 
     /**
      * Used if shard size is not available
      */
     public static final long UNAVAILABLE_EXPECTED_SHARD_SIZE = -1;
 
+    // visible for testing
+    static final TransportVersion RECOVERY_PRIORITY_TRANSPORT_VERSION = TransportVersion.fromName("recovery_priority_in_shard_routing");
+
+    /// Introduced along with [RecoveryPriority#UNKNOWN] and [RecoveryPriority#UNASSIGNED_NEW_PRIMARY]
+    private static final TransportVersion RECOVERY_PRIORITY_UNKNOWN_AND_UNASSIGNED_NEW_PRIMARY_TRANSPORT_VERSION = TransportVersion
+        .fromName("recovery_priority_unknown_and_unassigned_new_primary");
+
     private final ShardId shardId;
     private final String currentNodeId;
-    /**
-     * This field contains
-     * - node id this shard is relocating to iff state == RELOCATING
-     * - node id this shard is relocating from iff state == INITIALIZING and this is relocation target
-     * - {@code null} in other cases
-     */
+    /// This field contains
+    /// - the node id this shard is relocating to if [#state()] is `RELOCATING`
+    /// - the node id this shard is relocating from if [#state()] is `INITIALIZING` and it is a relocation target
+    /// - null in other cases
     @Nullable
     private final String relocatingNodeId;
     private final boolean primary;
     private final ShardRoutingState state;
+    /// The [RecoverySource] if `state` is `UNASSIGNED` or `INITIALIZING`, else null
     @Nullable
     private final RecoverySource recoverySource;
+    /// This field contains:
+    /// - the priority for this recovery if [#state()] is `INITIALIZING`
+    /// - the priority to be used for recovery when assigned if [#state()] is `UNASSIGNED`
+    /// - the priority for the relocation if [#state()] is `RELOCATING`
+    /// - null if [#state()] is `STARTED`
+    @Nullable
+    private final RecoveryPriority recoveryPriority;
+    /// The [UnassignedInfo] if [#state()] is `UNASSIGNED`, or if [#state()] is `INITIALIZING` and it was previously `UNASSIGNED`
     @Nullable
     private final UnassignedInfo unassignedInfo;
     private final RelocationFailureInfo relocationFailureInfo;
@@ -73,8 +178,9 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         @Nullable String relocatingNodeId,
         boolean primary,
         ShardRoutingState state,
-        RecoverySource recoverySource,
-        UnassignedInfo unassignedInfo,
+        @Nullable RecoverySource recoverySource,
+        @Nullable RecoveryPriority recoveryPriority,
+        @Nullable UnassignedInfo unassignedInfo,
         RelocationFailureInfo relocationFailureInfo,
         AllocationId allocationId,
         long expectedShardSize,
@@ -86,6 +192,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         this.primary = primary;
         this.state = state;
         this.recoverySource = recoverySource;
+        this.recoveryPriority = recoveryPriority;
         this.unassignedInfo = unassignedInfo;
         this.relocationFailureInfo = relocationFailureInfo;
         this.allocationId = allocationId;
@@ -106,26 +213,35 @@ public final class ShardRouting implements Writeable, ToXContentObject {
                 assert relocatingNodeId == null : state + " shard must not be relocating to a node " + this;
                 assert unassignedInfo != null : state + " shard must be created with unassigned info " + this;
                 assert recoverySource != null : state + " shard must be created with a recovery source" + this;
-                assert primary ^ recoverySource == PeerRecoverySource.INSTANCE : "replica shards always recover from primary" + this;
+                assert primary ^ recoverySource == PeerRecoverySource.INSTANCE : "replica shards always recover from primary " + this;
+                assert recoveryPriority != null : state + " shard must be created with a recovery priority " + this;
+                assert recoveryPriority.isValidForUnassigned()
+                    : state + " shard must be created with a recovery priority consistent with its relocation status " + this;
             }
             case INITIALIZING -> {
                 assert currentNodeId != null : state + " shard must be assigned to a node " + this;
-                // relocatingNodeId is not set for initializing shard but set for relocating shard counterpart
-                // unassignedInfo is kept after starting unassigned shard but not present for relocating shard counterpart
-                assert recoverySource != null : state + "shard must be created with a recovery source" + this;
-                assert primary || recoverySource == PeerRecoverySource.INSTANCE : "replica shards always recover from primary" + this;
+                assert (relocatingNodeId == null) != (unassignedInfo == null) : state + " must be from unassigned or relocation " + this;
+                assert recoverySource != null : state + "shard must be created with a recovery source " + this;
+                assert primary || recoverySource == PeerRecoverySource.INSTANCE : "replica shards always recover from primary " + this;
+                assert recoveryPriority != null : state + " shard must be created with a recovery priority " + this;
+                assert (relocatingNodeId() != null) ? recoveryPriority.isValidForRelocation() : recoveryPriority.isValidForUnassigned()
+                    : state + " shard must be created with a recovery priority consistent with its unassigned/relocation status " + this;
             }
             case STARTED -> {
                 assert currentNodeId != null : state + " shard must be assigned to a node " + this;
                 assert relocatingNodeId == null : state + " shard must not be relocating to a node " + this;
                 assert unassignedInfo == null : state + " shard must be created without unassigned info " + this;
                 assert recoverySource == null : state + " shard must be created without a recovery source" + this;
+                assert recoveryPriority == null : state + " shard must be created without a recovery priority " + this;
             }
             case RELOCATING -> {
                 assert currentNodeId != null : state + " shard must be assigned to a node " + this;
                 assert relocatingNodeId != null : state + " shard must be relocating to a node " + this;
                 assert unassignedInfo == null : state + " shard must be created without unassigned info " + this;
-                assert recoverySource == null : state + " shard must be created without a recovery source" + this;
+                assert recoverySource == null : state + " shard must be created without a recovery source " + this;
+                assert recoveryPriority != null : state + " shard must be created with a recovery priority " + this;
+                assert recoveryPriority.isValidForRelocation()
+                    : state + " shard must be created with a recovery priority consistent with its relocation status " + this;
             }
         }
         return true;
@@ -134,14 +250,18 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     @Nullable
     private ShardRouting initializeTargetRelocatingShard() {
         if (state == ShardRoutingState.RELOCATING) {
+            assert unassignedInfo == null : this;
             return new ShardRouting(
                 shardId,
+                // The current and relocating node IDs are swapped:
                 relocatingNodeId,
                 currentNodeId,
                 primary,
                 ShardRoutingState.INITIALIZING,
                 PeerRecoverySource.INSTANCE,
-                unassignedInfo,
+                // The priority of the source (RELOCATING) shard routing is copied to the target (INITIALIZING) one:
+                recoveryPriority,
+                null,
                 RelocationFailureInfo.NO_FAILURES,
                 AllocationId.newTargetRelocation(allocationId),
                 expectedShardSize,
@@ -160,7 +280,8 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         boolean primary,
         RecoverySource recoverySource,
         UnassignedInfo unassignedInfo,
-        Role role
+        Role role,
+        RecoveryPriority recoveryPriority
     ) {
         return new ShardRouting(
             shardId,
@@ -169,6 +290,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             primary,
             ShardRoutingState.UNASSIGNED,
             recoverySource,
+            recoveryPriority,
             unassignedInfo,
             RelocationFailureInfo.NO_FAILURES,
             null,
@@ -326,6 +448,10 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         return new ShardIterator(shardId, List.of(this));
     }
 
+    private static final TransportVersion INITIALIZE_FROM_UNASSIGNED_XOR_RELOCATION = TransportVersion.fromName(
+        "shard_routing_initialize_from_unassigned_xor_relocation"
+    );
+
     public ShardRouting(ShardId shardId, StreamInput in) throws IOException {
         this.shardId = shardId;
         currentNodeId = DiscoveryNode.deduplicateNodeIdentifier(in.readOptionalString());
@@ -337,7 +463,35 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         } else {
             recoverySource = null;
         }
-        unassignedInfo = in.readOptionalWriteable(UnassignedInfo::fromStreamInput);
+        if (in.getTransportVersion().supports(RECOVERY_PRIORITY_TRANSPORT_VERSION)) {
+            if (state != ShardRoutingState.STARTED) {
+                recoveryPriority = RecoveryPriority.readFrom(in);
+            } else {
+                recoveryPriority = null;
+            }
+        } else {
+            // When the ShardRouting is too old to have the recoveryPriority field, it must have been created with master-side recovery
+            // throttling in place, so the priority is of limited significance. So use an arbitrary value which is valid for its state:
+            recoveryPriority = switch (state) {
+                case UNASSIGNED -> RecoveryPriority.UNASSIGNED_UNEXPECTED;
+                case INITIALIZING -> relocatingNodeId != null
+                    ? RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                    : RecoveryPriority.UNASSIGNED_UNEXPECTED;
+                case RELOCATING -> RecoveryPriority.RELOCATION_CAN_REMAIN_NO;
+                case STARTED -> null;
+            };
+        }
+        final var remoteUnassignedInfo = in.readOptionalWriteable(UnassignedInfo::fromStreamInput);
+        if (in.getTransportVersion().supports(INITIALIZE_FROM_UNASSIGNED_XOR_RELOCATION) == false
+            && state == ShardRoutingState.INITIALIZING
+            && remoteUnassignedInfo == null
+            && relocatingNodeId == null) {
+            // older versions could end up with both null, if the shard was originally a relocation target and then the relocation source
+            // failed, i.e. we used ShardRouting#removeRelocationSource; in this case we can fix it up locally as follows:
+            unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, null);
+        } else {
+            unassignedInfo = remoteUnassignedInfo;
+        }
         relocationFailureInfo = RelocationFailureInfo.readFrom(in);
         allocationId = in.readOptionalWriteable(AllocationId::new);
         if (state == ShardRoutingState.RELOCATING || state == ShardRoutingState.INITIALIZING || state == ShardRoutingState.STARTED) {
@@ -365,7 +519,14 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         out.writeBoolean(primary);
         out.writeByte(state.value());
         if (state == ShardRoutingState.UNASSIGNED || state == ShardRoutingState.INITIALIZING) {
+            assert recoverySource != null;
             recoverySource.writeTo(out);
+        }
+        if (state != ShardRoutingState.STARTED) {
+            if (out.getTransportVersion().supports(RECOVERY_PRIORITY_TRANSPORT_VERSION)) {
+                assert recoveryPriority != null;
+                recoveryPriority.writeTo(out);
+            }
         }
         out.writeOptionalWriteable(unassignedInfo);
         relocationFailureInfo.writeTo(out);
@@ -393,6 +554,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             primary,
             state,
             recoverySource,
+            recoveryPriority,
             unassignedInfo,
             relocationFailureInfo,
             allocationId,
@@ -410,6 +572,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             primary,
             state,
             recoverySource,
+            recoveryPriority,
             unassignedInfo,
             relocationFailureInfo,
             allocationId,
@@ -421,17 +584,17 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     /**
      * Moves the shard to unassigned state.
      */
-    public ShardRouting moveToUnassigned(UnassignedInfo unassignedInfo) {
+    public ShardRouting moveToUnassigned(UnassignedInfo newUnassignedInfo, RecoveryPriority newRecoveryPriority) {
         assert state != ShardRoutingState.UNASSIGNED : this;
-        final RecoverySource recoverySource;
+        final RecoverySource newRecoverySource;
         if (active()) {
             if (primary()) {
-                recoverySource = ExistingStoreRecoverySource.INSTANCE;
+                newRecoverySource = ExistingStoreRecoverySource.INSTANCE;
             } else {
-                recoverySource = PeerRecoverySource.INSTANCE;
+                newRecoverySource = PeerRecoverySource.INSTANCE;
             }
         } else {
-            recoverySource = recoverySource();
+            newRecoverySource = recoverySource();
         }
         return new ShardRouting(
             shardId,
@@ -439,8 +602,9 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             null,
             primary,
             ShardRoutingState.UNASSIGNED,
-            recoverySource,
-            unassignedInfo,
+            newRecoverySource,
+            newRecoveryPriority,
+            newUnassignedInfo,
             RelocationFailureInfo.NO_FAILURES,
             null,
             UNAVAILABLE_EXPECTED_SHARD_SIZE,
@@ -469,6 +633,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             primary,
             ShardRoutingState.INITIALIZING,
             recoverySource,
+            recoveryPriority,
             unassignedInfo,
             RelocationFailureInfo.NO_FAILURES,
             allocationId,
@@ -482,7 +647,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
      *
      * @param relocatingNodeId id of the node to relocate the shard
      */
-    public ShardRouting relocate(String relocatingNodeId, long expectedShardSize) {
+    public ShardRouting relocate(String relocatingNodeId, long expectedShardSize, RecoveryPriority recoveryPriority) {
         assert state == ShardRoutingState.STARTED : "current shard has to be started in order to be relocated " + this;
         return new ShardRouting(
             shardId,
@@ -491,6 +656,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             primary,
             ShardRoutingState.RELOCATING,
             recoverySource,
+            recoveryPriority,
             null,
             relocationFailureInfo,
             AllocationId.newRelocation(allocationId),
@@ -500,10 +666,27 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     }
 
     /**
-     * Cancel relocation of a shard. The shards state must be set
-     * to <code>RELOCATING</code>.
+     * Cancels relocation of a shard without counting it as a failure ({@code failedRelocations} will not be incremented).
+     * Use for intentional cancellations such as {@link UnassignedInfo.Reason#RECOVERY_CANCELLED}.
+     * The shard's state must be <code>RELOCATING</code>.
+     *
+     * @see #failRelocation()
      */
     public ShardRouting cancelRelocation() {
+        return abortRelocation(false);
+    }
+
+    /**
+     * Fails relocation of a shard, incrementing {@code failedRelocations}.
+     * The shard's state must be <code>RELOCATING</code>.
+     *
+     * @see #cancelRelocation()
+     */
+    public ShardRouting failRelocation() {
+        return abortRelocation(true);
+    }
+
+    private ShardRouting abortRelocation(boolean relocationFailed) {
         assert state == ShardRoutingState.RELOCATING : this;
         assert assignedToNode() : this;
         assert relocatingNodeId != null : this;
@@ -515,7 +698,8 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             ShardRoutingState.STARTED,
             recoverySource,
             null,
-            relocationFailureInfo.incFailedRelocations(),
+            null,
+            relocationFailed ? relocationFailureInfo.incFailedRelocations() : relocationFailureInfo,
             AllocationId.cancelRelocation(allocationId),
             UNAVAILABLE_EXPECTED_SHARD_SIZE,
             role
@@ -532,6 +716,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         assert state == ShardRoutingState.INITIALIZING : this;
         assert assignedToNode() : this;
         assert relocatingNodeId != null : this;
+        assert unassignedInfo == null : this;
         return new ShardRouting(
             shardId,
             currentNodeId,
@@ -539,7 +724,8 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             primary,
             state,
             recoverySource,
-            unassignedInfo,
+            RecoveryPriority.UNASSIGNED_UNEXPECTED, // increase the recovery priority to reflect the fact that this is now unassigned
+            new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, null),
             relocationFailureInfo,
             AllocationId.finishRelocation(allocationId),
             expectedShardSize,
@@ -554,6 +740,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         assert state == ShardRoutingState.INITIALIZING : this;
         assert primary == false : this;
         assert isRelocationTarget() == false : this;
+        assert unassignedInfo != null : this;
         return new ShardRouting(
             shardId,
             currentNodeId,
@@ -561,6 +748,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             primary,
             ShardRoutingState.INITIALIZING,
             recoverySource,
+            recoveryPriority,
             unassignedInfo,
             relocationFailureInfo,
             AllocationId.newInitializing(),
@@ -590,6 +778,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             ShardRoutingState.STARTED,
             null,
             null,
+            null,
             RelocationFailureInfo.NO_FAILURES,
             allocationId,
             expectedShardSize,
@@ -614,6 +803,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             true,
             state,
             recoverySource,
+            recoveryPriority,
             unassignedInfo,
             relocationFailureInfo,
             allocationId,
@@ -639,6 +829,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             false,
             state,
             PeerRecoverySource.INSTANCE,
+            recoveryPriority,
             unassignedInfo,
             relocationFailureInfo,
             allocationId,
@@ -773,6 +964,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             && Objects.equals(allocationId, other.allocationId)
             && state == other.state
             && Objects.equals(recoverySource, other.recoverySource)
+            && Objects.equals(recoveryPriority, other.recoveryPriority)
             && role == other.role;
     }
 
@@ -806,6 +998,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             h = 31 * h + (primary ? 1 : 0);
             h = 31 * h + (state != null ? state.hashCode() : 0);
             h = 31 * h + (recoverySource != null ? recoverySource.hashCode() : 0);
+            h = 31 * h + (recoveryPriority != null ? recoveryPriority.hashCode() : 0);
             h = 31 * h + (allocationId != null ? allocationId.hashCode() : 0);
             h = 31 * h + (unassignedInfo != null ? unassignedInfo.hashCode() : 0);
             h = 31 * h + (relocationFailureInfo != null ? relocationFailureInfo.hashCode() : 0);
@@ -841,6 +1034,9 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         if (recoverySource != null) {
             sb.append(", recovery_source[").append(recoverySource).append("]");
         }
+        if (recoveryPriority != null) {
+            sb.append(", recovery_priority[").append(recoveryPriority).append("]");
+        }
         sb.append(", s[").append(state).append("]");
         if (allocationId != null) {
             sb.append(", a").append(allocationId);
@@ -870,6 +1066,9 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         if (recoverySource != null) {
             builder.field("recovery_source", recoverySource);
         }
+        if (recoveryPriority != null) {
+            builder.field("recovery_priority", recoveryPriority);
+        }
         if (allocationId != null) {
             builder.field("allocation_id");
             allocationId.toXContent(builder, params);
@@ -898,6 +1097,21 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     @Nullable
     public RecoverySource recoverySource() {
         return recoverySource;
+    }
+
+    /// If this shard is [#initializing()], returns the priority for the recovery. If it is [#unassigned()], returns the priority that will
+    /// be used for the recovery when allocated. If it is [#relocating()], returns the priority for the relocation, which will become the
+    /// priority for the recovery on the target. If it is [#started()], returns null.
+    ///
+    /// In the [#initializing()] case, the priority will be one of the `UNASSIGNED_*` values if [#unassignedInfo()] is non-null, and one of
+    /// the `RELOCATION_*` values if [#relocatingNodeId()] is non-null (exactly one of which must be the true).
+    ///
+    /// In the [#unassigned()] case, the priority will be one of the `UNASSIGNED_*` values.
+    ///
+    /// In the [#relocating()] case, the priority will be one of the `RELOCATION_*` values.
+    @Nullable
+    public RecoveryPriority recoveryPriority() {
+        return recoveryPriority;
     }
 
     public Role role() {

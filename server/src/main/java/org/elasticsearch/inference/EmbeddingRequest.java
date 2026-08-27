@@ -40,12 +40,12 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * <pre>
  * "input": [
  *   {
- *     "content": {"type": "image", "format": "base64", "value": "image data"},
+ *     "content": {"type": "image", "format": "base64", "value": "data:image/png;base64,..."},
  *   },
  *   {
  *     "content": [
  *       {"type": "text", "value": "text input"},
- *       {"type": "image", "value": "image data"}
+ *       {"type": "image", "value": "data:image/png;base64,..."}
  *     ]
  *   }
  * ]</pre>
@@ -146,12 +146,22 @@ public record EmbeddingRequest(List<InferenceStringGroup> inputs, InputType inpu
         var token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_STRING || token == XContentParser.Token.START_OBJECT) {
             // Single input of String or content object
-            return singletonList(InferenceStringGroup.parse(parser));
+            return singletonList(parseStringOrContentObject(parser));
         } else if (token == XContentParser.Token.START_ARRAY) {
             // Array of String or content objects
-            return XContentParserUtils.parseList(parser, InferenceStringGroup::parse);
+            return XContentParserUtils.parseList(parser, EmbeddingRequest::parseStringOrContentObject);
         }
-
         throw new XContentParseException("Unsupported token [" + token + "]");
+    }
+
+    private static InferenceStringGroup parseStringOrContentObject(XContentParser parser) throws IOException {
+        var currentToken = parser.currentToken();
+        if (currentToken == XContentParser.Token.VALUE_STRING) {
+            return new InferenceStringGroup(parser.text());
+        } else if (currentToken == XContentParser.Token.START_OBJECT) {
+            return InferenceStringGroup.parse(parser);
+        } else {
+            throw new XContentParseException("Unsupported token [" + currentToken + "]");
+        }
     }
 }

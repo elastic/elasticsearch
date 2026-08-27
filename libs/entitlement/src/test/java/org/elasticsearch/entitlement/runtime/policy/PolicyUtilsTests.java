@@ -22,9 +22,11 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.WriteSystemProp
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.SEPARATOR;
@@ -35,6 +37,50 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class PolicyUtilsTests extends ESTestCase {
+
+    /** A plugin policy must be registered under the descriptor name, since the runtime lookup keys off it. */
+    public void testCreatePluginPoliciesKeyedByDescriptorNameNotDirectoryName() throws Exception {
+        Path pluginDir = createTempDir("dir-name-differs-from-descriptor");
+        Files.writeString(pluginDir.resolve(PolicyUtils.POLICY_FILE_NAME), """
+            ALL-UNNAMED:
+              - outbound_network
+            """);
+
+        String descriptorName = "myPlugin";
+        var pluginData = new PolicyUtils.PluginData(pluginDir, descriptorName, false, true);
+
+        var result = PolicyUtils.createPluginPolicies(List.of(pluginData), Map.of(), "9.0.0");
+
+        assertThat(result.keySet(), containsInAnyOrder(descriptorName));
+        assertThat(
+            result.get(descriptorName).scopes(),
+            containsInAnyOrder(new Scope("ALL-UNNAMED", List.of(new OutboundNetworkEntitlement())))
+        );
+        assertThat(result.get(pluginDir.getFileName().toString()), nullValue());
+    }
+
+    /** Policy patches are keyed by descriptor name, so the patch lookup must use it too. */
+    public void testCreatePluginPoliciesAppliesPatchByDescriptorName() throws Exception {
+        Path pluginDir = createTempDir("dir-name-differs-from-descriptor-patch");
+        Files.writeString(pluginDir.resolve(PolicyUtils.POLICY_FILE_NAME), """
+            ALL-UNNAMED:
+              - outbound_network
+            """);
+
+        String descriptorName = "myPlugin";
+        var patch = new String(Base64.getEncoder().encode("""
+            policy:
+              ALL-UNNAMED:
+                - manage_threads
+            """.getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8);
+
+        var pluginData = new PolicyUtils.PluginData(pluginDir, descriptorName, false, true);
+        var result = PolicyUtils.createPluginPolicies(List.of(pluginData), Map.of(descriptorName, patch), "9.0.0");
+
+        assertThat(result.keySet(), containsInAnyOrder(descriptorName));
+        var entitlements = result.get(descriptorName).scopes().stream().flatMap(s -> s.entitlements().stream()).toList();
+        assertThat(entitlements, containsInAnyOrder(new OutboundNetworkEntitlement(), new ManageThreadsEntitlement()));
+    }
 
     public void testCreatePluginPolicyWithPatch() {
 

@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.Servic
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
-import org.elasticsearch.xpack.security.PrivilegedFileWatcher;
+import org.elasticsearch.xpack.security.EntitledFileWatcher;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.FileLineParser;
 import org.elasticsearch.xpack.security.support.FileReloadListener;
@@ -63,7 +63,7 @@ public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStor
         super(env.settings(), threadPool);
         this.clusterService = clusterService;
         file = resolveFile(env);
-        FileWatcher watcher = new PrivilegedFileWatcher(file.getParent());
+        FileWatcher watcher = new EntitledFileWatcher(file.getParent());
         watcher.addListener(new FileReloadListener(file, this::tryReload));
         try {
             resourceWatcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);

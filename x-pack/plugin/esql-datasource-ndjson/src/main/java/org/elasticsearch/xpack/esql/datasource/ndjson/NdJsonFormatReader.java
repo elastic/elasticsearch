@@ -59,7 +59,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
     );
 
-    public static final String SCHEMA_SAMPLE_SIZE_SETTING = "esql.datasource.ndjson.schema_sample_size";
+    public static final String SCHEMA_SAMPLE_SIZE_SETTING = "esql.external.ndjson.schema_sample_size";
     public static final int DEFAULT_SCHEMA_SAMPLE_SIZE = 20_000;
 
     /**
@@ -67,7 +67,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
      * Java/Jackson per-segment setup cost; smaller segments enable parallelism on smaller files.
      * Also overridable per dataset via the {@code segment_size} setting.
      */
-    public static final String SEGMENT_SIZE_SETTING = "esql.datasource.ndjson.segment_size";
+    public static final String SEGMENT_SIZE_SETTING = "esql.external.ndjson.segment_size";
 
     /**
      * 4 MiB, larger than the SPI's 1 MiB. Each NDJSON segment pays a fixed Java/Jackson setup cost
@@ -551,6 +551,11 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     @Override
     public NdJsonReaderStatus statusSnapshot() {
         return counters.snapshot();
+    }
+
+    @Override
+    public void acceptReadCpuNanos(long nanos) {
+        counters.addReadCpuNanos(nanos);
     }
 
     @Override

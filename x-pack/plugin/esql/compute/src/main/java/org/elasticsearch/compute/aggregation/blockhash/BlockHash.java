@@ -230,9 +230,9 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
             var g1 = groups.get(0);
             var g2 = groups.get(1);
             if (g1.elementType == ElementType.LONG && g2.elementType == ElementType.INT) {
-                return new LongIntAdaptiveBlockHash(groups, blockFactory, emitBatchSize, false);
+                return new LongIntBlockHash(groups, blockFactory, emitBatchSize, false);
             } else if (g1.elementType == ElementType.INT && g2.elementType == ElementType.LONG) {
-                return new LongIntAdaptiveBlockHash(groups, blockFactory, emitBatchSize, true);
+                return new LongIntBlockHash(groups, blockFactory, emitBatchSize, true);
             }
             if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.BYTES_REF) {
                 return new LongBytesRefAdaptiveBlockHash(groups, blockFactory, emitBatchSize, false);
@@ -291,6 +291,7 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
             case INT -> new IntBlockHash(channel, blockFactory);
             case LONG -> new LongBlockHash(channel, blockFactory);
             case DOUBLE -> new DoubleBlockHash(channel, blockFactory);
+            case DOUBLE_RANGE -> new DoubleRangeBlockHash(channel, blockFactory);
             case BYTES_REF -> new BytesRefBlockHash(channel, blockFactory);
             default -> throw new IllegalArgumentException("unsupported grouping element type [" + type + "]");
         };

@@ -10,7 +10,6 @@
 package org.elasticsearch.action.update;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
@@ -29,7 +28,6 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -54,6 +52,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -65,7 +64,7 @@ import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.Mockito.mock;
 
-// This test suite mocks out a fair amount of TransportUpdateAction behaviour because it was ported from a more
+// This test suite mocks out a fair amount of TransportUpdateAction behavior because it was ported from a
 // more generic superclass (TransportInstancesSingleOperationActionTests) that only had a single subclass.
 // It deserves more coverage than it currently has.
 public class TransportUpdateActionTests extends ESTestCase {
@@ -79,25 +78,21 @@ public class TransportUpdateActionTests extends ESTestCase {
     private CapturingTransport transport;
     private TransportService transportService;
 
-    private TestTransportUpdateAction action;
-
     private static UpdateResponse RESPONSE = new UpdateResponse(new ShardId("index", "index_uuid", 0), "id", -2, 0, 0, NOT_FOUND);
 
     class TestTransportUpdateAction extends TransportUpdateAction {
-        TestTransportUpdateAction(
-            String actionName,
-            TransportService transportService,
-            ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver
-        ) {
+        TestTransportUpdateAction() {
+            this(new MyResolver());
+        }
+
+        private TestTransportUpdateAction(IndexNameExpressionResolver indexNameExpressionResolver) {
             super(
-                actionName,
                 THREAD_POOL,
                 TransportUpdateActionTests.this.clusterService,
                 TransportUpdateActionTests.this.projectResolver,
-                transportService,
+                TransportUpdateActionTests.this.transportService,
                 mock(UpdateHelper.class),
-                actionFilters,
+                new ActionFilters(new HashSet<>()),
                 indexNameExpressionResolver,
                 mock(IndicesService.class),
                 new AutoCreateIndex(
@@ -116,17 +111,7 @@ public class TransportUpdateActionTests extends ESTestCase {
         }
 
         @Override
-        protected void shardOperation(UpdateRequest request, ActionListener<UpdateResponse> listener) {
-            throw new UnsupportedOperationException("Not implemented in test class");
-        }
-
-        @Override
         protected void resolveRequest(ProjectState state, UpdateRequest request) {}
-
-        @Override
-        protected ShardIterator shards(ProjectState projectState, UpdateRequest request) {
-            return projectState.routingTable().index(request.concreteIndex()).shard(request.shardId.getId()).primaryShardIt();
-        }
     }
 
     static class MyResolver extends IndexNameExpressionResolver {
@@ -161,7 +146,6 @@ public class TransportUpdateActionTests extends ESTestCase {
         );
         transportService.start();
         transportService.acceptIncomingRequests();
-        action = new TestTransportUpdateAction("indices:admin/test", transportService, ActionFilters.EMPTY, new MyResolver());
     }
 
     @After
@@ -187,7 +171,7 @@ public class TransportUpdateActionTests extends ESTestCase {
             ClusterState.builder(clusterService.state()).putProjectMetadata(ProjectMetadata.builder(projectId)).blocks(block)
         );
         try {
-            action.new AsyncSingleAction(request, listener).start();
+            new TestTransportUpdateAction().new AsyncSingleAction(request, listener).start();
             listener.get();
             fail("expected ClusterBlockException");
         } catch (Exception e) {
@@ -199,23 +183,23 @@ public class TransportUpdateActionTests extends ESTestCase {
     }
 
     public void testBasicRequestWorks() throws InterruptedException, ExecutionException, TimeoutException {
-        UpdateRequest request = new UpdateRequest().index("test");
+        UpdateRequest request = new UpdateRequest("test", "id");
         request.shardId = new ShardId("test", "_na_", 0);
         PlainActionFuture<UpdateResponse> listener = new PlainActionFuture<>();
         setState(clusterService, ClusterStateCreationUtils.state(projectId, "test", randomBoolean(), ShardRoutingState.STARTED));
-        action.new AsyncSingleAction(request, listener).start();
+        new TestTransportUpdateAction().new AsyncSingleAction(request, listener).start();
         assertThat(transport.capturedRequests().length, equalTo(1));
         transport.handleResponse(transport.capturedRequests()[0].requestId(), RESPONSE);
         listener.get();
     }
 
     public void testFailureWithoutRetry() throws Exception {
-        UpdateRequest request = new UpdateRequest().index("test");
+        UpdateRequest request = new UpdateRequest("test", "id");
         request.shardId = new ShardId("test", "_na_", 0);
         PlainActionFuture<UpdateResponse> listener = new PlainActionFuture<>();
         setState(clusterService, ClusterStateCreationUtils.state(projectId, "test", randomBoolean(), ShardRoutingState.STARTED));
 
-        action.new AsyncSingleAction(request, listener).start();
+        new TestTransportUpdateAction().new AsyncSingleAction(request, listener).start();
         assertThat(transport.capturedRequests().length, equalTo(1));
         long requestId = transport.capturedRequests()[0].requestId();
         transport.clear();
@@ -239,12 +223,12 @@ public class TransportUpdateActionTests extends ESTestCase {
     }
 
     public void testSuccessAfterRetryWithClusterStateUpdate() throws Exception {
-        UpdateRequest request = new UpdateRequest().index("test");
+        UpdateRequest request = new UpdateRequest("test", "id");
         request.shardId = new ShardId("test", "_na_", 0);
         PlainActionFuture<UpdateResponse> listener = new PlainActionFuture<>();
         boolean local = randomBoolean();
         setState(clusterService, ClusterStateCreationUtils.state(projectId, "test", local, ShardRoutingState.INITIALIZING));
-        action.new AsyncSingleAction(request, listener).start();
+        new TestTransportUpdateAction().new AsyncSingleAction(request, listener).start();
         // this should fail because primary not initialized
         assertThat(transport.capturedRequests().length, equalTo(0));
         setState(clusterService, ClusterStateCreationUtils.state(projectId, "test", local, ShardRoutingState.STARTED));
@@ -255,12 +239,12 @@ public class TransportUpdateActionTests extends ESTestCase {
     }
 
     public void testSuccessAfterRetryWithExceptionFromTransport() throws Exception {
-        UpdateRequest request = new UpdateRequest().index("test");
+        UpdateRequest request = new UpdateRequest("test", "id");
         request.shardId = new ShardId("test", "_na_", 0);
         PlainActionFuture<UpdateResponse> listener = new PlainActionFuture<>();
         boolean local = randomBoolean();
         setState(clusterService, ClusterStateCreationUtils.state(projectId, "test", local, ShardRoutingState.STARTED));
-        action.new AsyncSingleAction(request, listener).start();
+        new TestTransportUpdateAction().new AsyncSingleAction(request, listener).start();
         assertThat(transport.capturedRequests().length, equalTo(1));
         long requestId = transport.capturedRequests()[0].requestId();
         transport.clear();
@@ -274,11 +258,11 @@ public class TransportUpdateActionTests extends ESTestCase {
     }
 
     public void testRetryOfAnAlreadyTimedOutRequest() throws Exception {
-        UpdateRequest request = new UpdateRequest().index("test").timeout(new TimeValue(0, TimeUnit.MILLISECONDS));
+        UpdateRequest request = new UpdateRequest("test", "id").timeout(new TimeValue(0, TimeUnit.MILLISECONDS));
         request.shardId = new ShardId("test", "_na_", 0);
         PlainActionFuture<UpdateResponse> listener = new PlainActionFuture<>();
         setState(clusterService, ClusterStateCreationUtils.state(projectId, "test", randomBoolean(), ShardRoutingState.STARTED));
-        action.new AsyncSingleAction(request, listener).start();
+        new TestTransportUpdateAction().new AsyncSingleAction(request, listener).start();
         assertThat(transport.capturedRequests().length, equalTo(1));
         long requestId = transport.capturedRequests()[0].requestId();
         transport.clear();
@@ -305,7 +289,7 @@ public class TransportUpdateActionTests extends ESTestCase {
     }
 
     public void testUnresolvableRequestDoesNotHang() throws InterruptedException, ExecutionException, TimeoutException {
-        action = new TestTransportUpdateAction("indices:admin/test_unresolvable", transportService, ActionFilters.EMPTY, new MyResolver()) {
+        final var action = new TestTransportUpdateAction() {
             @Override
             protected void resolveRequest(ProjectState state, UpdateRequest request) {
                 throw new IllegalStateException("request cannot be resolved");

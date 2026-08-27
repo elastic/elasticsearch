@@ -513,7 +513,8 @@ public class EsqlSession {
 
                     // Apply the out-of-band request filter to external-source (dataset) leaves, translated
                     // against each source's schema. Index leaves keep their existing filter path. Version-gated:
-                    // the translated predicate can contain mv_in_range, which older nodes cannot deserialize.
+                    // the translated predicate can contain mv_in_range / mv_greater / mv_less, which older
+                    // nodes cannot deserialize.
                     // Fail-closed by default: an unsupported construct throws VerificationException (a 400).
                     // With allow_partial_dsl_filter=true: applies only the translatable subset, emits a warning.
                     // This callback runs outside the SubscribableListener chain below, so a synchronous throw here

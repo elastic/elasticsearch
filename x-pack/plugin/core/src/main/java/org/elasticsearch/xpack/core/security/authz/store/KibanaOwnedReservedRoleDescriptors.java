@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.authz.store;
 
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
@@ -105,6 +106,9 @@ class KibanaOwnedReservedRoleDescriptors {
                 "cluster:admin/script/get",
                 // To allow Kibana to delete project routing expressions.
                 "cluster:admin/project_routing/delete",
+                // To allow Kibana to read project routing expressions.
+                // Already covered by "monitor"; granted explicitly to record the dependency.
+                "cluster:monitor/project_routing/get",
                 // To facilitate using the file uploader functionality
                 "monitor_text_structure",
                 // To cancel tasks and delete async searches
@@ -285,7 +289,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 // "Alerting V2" views prefix
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(ReservedRolesStore.ALERTING_V2_ALERT_VIEWS, ReservedRolesStore.ALERTING_V2_RULE_VIEWS)
-                    .privileges("indices:admin/esql/view/put") // TODO: use named index privilege when available in serverless
+                    .privileges("create_view")
                     .build(),
                 // "Alerts as data" public index aliases used in Security Solution,
                 // Observability, etc.
@@ -715,6 +719,14 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".entities.*reset*")
                     .privileges("create_index", "manage", "read", "write")
+                    .build(),
+                // Product aliases (entities-latest-{space}, etc.) are not .entities.* names.
+                // ES authorizes indices:admin/aliases against the alias name as well as the
+                // concrete index, so the upgrade migration cannot retarget
+                // entities-latest-{space} with only manage on .entities.*.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("entities-latest-*", "entities-updates-*", "entities-metadata-*")
+                    .privileges(TransportIndicesAliasesAction.NAME, GetAliasesAction.NAME)
                     .build(),
                 // For cloud_defend usageCollection
                 RoleDescriptor.IndicesPrivileges.builder()

@@ -58,6 +58,8 @@ import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -738,6 +740,15 @@ public class SplitSourceService {
         if (stateMachine != null) {
             stateMachine.cancel();
         }
+    }
+
+    // visible for testing: a split should leave this empty once it completes or is cancelled. Covers every map cancelSplits clears,
+    // not just the state machines, since a stale entry in any of them keeps the closed IndexShard from being collected.
+    Set<ShardId> getShardsWithActiveSplitState() {
+        return Stream.concat(
+            Stream.concat(activeSourceShards.keySet().stream(), activeTargetRequests.keySet().stream()).map(IndexShard::shardId),
+            shardsPreparingForHandoff.stream()
+        ).collect(Collectors.toSet());
     }
 
     private static IndexReshardingState.Split getSplit(ClusterState state, Index index) {

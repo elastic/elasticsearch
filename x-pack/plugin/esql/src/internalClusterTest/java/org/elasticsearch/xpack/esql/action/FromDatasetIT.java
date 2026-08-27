@@ -59,10 +59,13 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -223,6 +226,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "employees_extensionless",
         "logs_id_partition",
         "logs_partition_collide_nonstrict",
+        "logs_partition_collide_none",
         "logs_partition_collide_path",
         "employees_strict_coerce",
         "employees_strict_uncoercible",
@@ -286,7 +290,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "epoch_ovf_csv_fail",
         "epoch_ovf_nj_null",
         "epoch_ovf_nj_skip",
-        "epoch_ovf_nj_fail"
+        "epoch_ovf_nj_fail",
+        "employees_parquet_absent_warn",
+        "employees_ndjson_absent_warn"
     );
 
     /**
@@ -2656,6 +2662,48 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    /**
+     * Executes the given ES|QL query and returns the response {@code Warning} headers whose text
+     * contains {@code substring}. Waits up to 30 seconds and rethrows any query-level failure.
+     * <p>
+     * Do NOT close the {@link EsqlQueryResponse} inside the listener: the transport framework's
+     * {@code respondAndRelease} wrapper calls {@code decRef()} after {@code onResponse} returns,
+     * and a manual close causes a double-release error.
+     */
+    private List<String> collectWarningsContaining(String query, String substring) throws Exception {
+        List<String> warnings = new CopyOnWriteArrayList<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> queryFailure = new AtomicReference<>();
+        client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query), new ActionListener<>() {
+            @Override
+            public void onResponse(EsqlQueryResponse r) {
+                try {
+                    internalCluster().getInstance(TransportService.class)
+                        .getThreadPool()
+                        .getThreadContext()
+                        .getResponseHeaders()
+                        .getOrDefault("Warning", List.of())
+                        .stream()
+                        .filter(w -> w.contains(substring))
+                        .forEach(warnings::add);
+                } finally {
+                    latch.countDown();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                queryFailure.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue("query did not complete within timeout", latch.await(30, SECONDS));
+        if (queryFailure.get() != null) {
+            throw queryFailure.get();
+        }
+        return warnings;
+    }
+
     /** End-to-end: the absent-declared-column warning reaches the client as a response Warning header. */
     public void testAbsentDeclaredColumnEmitsResponseWarning() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
@@ -2680,29 +2728,82 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             )
         );
 
-        // Read the coordinator's accumulated response Warning headers at completion (same probe as the coercion tests).
-        List<String> warnings = new CopyOnWriteArrayList<>();
-        CountDownLatch latch = new CountDownLatch(1);
-        client().execute(
-            EsqlQueryAction.INSTANCE,
-            syncEsqlQueryRequest("FROM employees_absent_warn | SORT emp_no | LIMIT 5"),
-            ActionListener.running(() -> {
-                try {
-                    internalCluster().getInstance(TransportService.class)
-                        .getThreadPool()
-                        .getThreadContext()
-                        .getResponseHeaders()
-                        .getOrDefault("Warning", List.of())
-                        .stream()
-                        .filter(w -> w.contains("declared column [department] is not present"))
-                        .forEach(warnings::add);
-                } finally {
-                    latch.countDown();
-                }
-            })
+        List<String> warnings = collectWarningsContaining(
+            "FROM employees_absent_warn | SORT emp_no | LIMIT 5",
+            "declared column [department] is not present"
         );
-        assertTrue("query did not complete within timeout", latch.await(30, java.util.concurrent.TimeUnit.SECONDS));
         assertThat("the absent declared column must emit a response Warning header", warnings, not(empty()));
+    }
+
+    public void testAbsentDeclaredColumnEmitsResponseWarningParquet() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("emp_no", new DatasetFieldMapping("integer", null));
+        properties.put("first_name", new DatasetFieldMapping("keyword", null));
+        properties.put("department", new DatasetFieldMapping("keyword", null)); // absent from the 2-column Parquet fixture
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        Path parquet = createTempDir().resolve("employees.parquet");
+        Files.write(parquet, twoColumnParquetFixtureBytes());
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_parquet_absent_warn",
+                    "local_ds",
+                    parquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    mapping
+                )
+            )
+        );
+
+        List<String> warnings = collectWarningsContaining(
+            "FROM employees_parquet_absent_warn | SORT emp_no | LIMIT 5",
+            "declared column [department] is not present"
+        );
+        assertThat("the absent declared column must emit a response Warning header on Parquet", warnings, not(empty()));
+    }
+
+    public void testAbsentDeclaredColumnEmitsResponseWarningNdjson() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("emp_no", new DatasetFieldMapping("integer", null));
+        properties.put("first_name", new DatasetFieldMapping("keyword", null));
+        properties.put("department", new DatasetFieldMapping("keyword", null)); // absent from the 2-field NDJSON fixture
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        Path ndjson = createTempFile("dataset-absent-warn-", ".ndjson");
+        Files.writeString(
+            ndjson,
+            String.join("\n", "{\"emp_no\":1,\"first_name\":\"Alice\"}", "{\"emp_no\":2,\"first_name\":\"Bob\"}") + "\n"
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_ndjson_absent_warn",
+                    "local_ds",
+                    ndjson.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "ndjson")),
+                    mapping
+                )
+            )
+        );
+
+        // For NdJson with Dynamic.FALSE the reader receives the full declared schema (all 3
+        // columns). `department` is absent from every record, so NdJsonPageDecoder emits
+        // absentDeclaredColumnMessage ("is not present") at close() — a column absent from all
+        // records is effectively absent from the file, so the file-level message is accurate.
+        List<String> warnings = collectWarningsContaining(
+            "FROM employees_ndjson_absent_warn | SORT emp_no | LIMIT 5",
+            "declared column [department] is not present"
+        );
+        assertThat("the absent declared column must emit an absentDeclaredColumnMessage Warning header on NDJSON", warnings, not(empty()));
     }
 
     public void testDeclaredTypeConflictingWithPhysicalParquetTypeRejected() throws Exception {
@@ -3776,7 +3877,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     private void registerReal(String dataset, String realPath, @Nullable DatasetMapping.Dynamic mode) throws Exception {
-        // Copy into the allowlisted temp dir the harness permits (esql.datasource.local_allowed_paths); the real
+        // Copy into the allowlisted temp dir the harness permits (esql.external.local_allowed_paths); the real
         // download lives outside it. One copy is shared across the three registrations via a per-test cache.
         if (realClickBenchLocal == null) {
             realClickBenchLocal = createTempDir().resolve("hits.parquet");
@@ -3910,28 +4011,35 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     /**
      * Epoch-scaling overflow on the COLUMNAR (parquet) path: an int64 declared {@code {date, format: epoch_second}}
      * whose value cannot scale to millis ({@code Long.MAX_VALUE} seconds × 1000) must fail PER CELL — never abort the
-     * whole read on a bare {@code ArithmeticException}, never emit a wrong value. A columnar batch cannot drop a single
-     * row, so {@code skip_row} degrades to the same null+warn as {@code null_field} (see {@code ErrorPolicy}); only
-     * {@code fail_fast} aborts. This is the overflow leg of the error-mode matrix the string-token tests do not reach.
+     * whole read on a bare {@code ArithmeticException}, never emit a wrong value. {@code null_field} nulls the bad
+     * cell and retains every row; {@code skip_row} drops the entire bad row (the columnar reader reconstructs rows
+     * from column vectors and can omit a position); only {@code fail_fast} aborts. This is the overflow leg of the
+     * error-mode matrix the string-token tests do not reach.
      */
     public void testParquetDeclaredEpochSecondOverflowHonorsErrorPolicy() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         long good0 = 1704067200L, good2 = 1704067201L, overflow = Long.MAX_VALUE;
         Path parquet = writeScalingFixture("epoch_ovf", new long[] { good0, overflow, good2 });
 
-        // null_field and skip_row: the bad cell nulls, both good rows survive (skip_row cannot drop a columnar row).
-        for (String mode : List.of("null_field", "skip_row")) {
-            String ds = mode.equals("null_field") ? "epoch_ovf_pq_null" : "epoch_ovf_pq_skip";
-            putEpochOverflowDataset(ds, "parquet", parquet.toUri().toString(), mode, false);
-            try (var response = run(syncEsqlQueryRequest("FROM " + ds + " | SORT pri | EVAL v = ts::long | KEEP v"), TIMEOUT)) {
-                List<List<Object>> rows = getValuesList(response);
-                assertThat("columnar " + mode + " keeps every position", rows, hasSize(3));
-                assertThat(rows.get(0).get(0), equalTo(good0 * 1000L));
-                assertThat("the overflowing epoch-second cell nulls under " + mode, rows.get(1).get(0), equalTo(null));
-                assertThat(rows.get(2).get(0), equalTo(good2 * 1000L));
-            }
+        // null_field: the bad cell nulls, all three rows survive.
+        putEpochOverflowDataset("epoch_ovf_pq_null", "parquet", parquet.toUri().toString(), "null_field", false);
+        try (var response = run(syncEsqlQueryRequest("FROM epoch_ovf_pq_null | SORT pri | EVAL v = ts::long | KEEP v"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("columnar null_field keeps every position", rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(good0 * 1000L));
+            assertThat("the overflowing epoch-second cell nulls under null_field", rows.get(1).get(0), equalTo(null));
+            assertThat(rows.get(2).get(0), equalTo(good2 * 1000L));
         }
         assertLenientWarning("FROM epoch_ovf_pq_null | SORT pri | EVAL v = ts::long | KEEP v");
+
+        // skip_row: the bad row is dropped — only the two good rows survive.
+        putEpochOverflowDataset("epoch_ovf_pq_skip", "parquet", parquet.toUri().toString(), "skip_row", false);
+        try (var response = run(syncEsqlQueryRequest("FROM epoch_ovf_pq_skip | SORT pri | EVAL v = ts::long | KEEP v"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("columnar skip_row drops the bad row", rows, hasSize(2));
+            assertThat(rows.get(0).get(0), equalTo(good0 * 1000L));
+            assertThat(rows.get(1).get(0), equalTo(good2 * 1000L));
+        }
 
         // fail_fast: the read aborts with a sensible per-cell error, not a bare ArithmeticException.
         putEpochOverflowDataset("epoch_ovf_pq_fail", "parquet", parquet.toUri().toString(), "fail_fast", false);
@@ -3943,9 +4051,92 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * Epoch-scaling overflow on the CSV (text) path: same malformed value, same declaration. Text readers ARE
-     * row-oriented, so {@code skip_row} genuinely drops the bad record (two rows survive), while {@code null_field}
-     * keeps it with a null cell — the distinction columnar readers cannot make. {@code fail_fast} aborts.
+     * End-to-end: {@code skip_row} drops the bad row for a query that also filters. Exercises the whole stack —
+     * planner rules, operator factory, columnar reader — for the shape where the two features meet, and pins that
+     * the row count reflects the row-drop rather than the predicate.
+     * <p>
+     * The discriminating coverage for <em>why</em> this holds lives at the two ends and not here: the Parquet
+     * reader cannot drop rows once a filter is pushed into it
+     * ({@code ParquetFormatReaderTests#testSkipRowDoesNotDropUnderPushedFilterHencePushdownIsWithheld}), so
+     * {@code PushFiltersToSource} withholds the pushdown for this combination
+     * ({@code PushFiltersToSourceTests#testDoesNotPushWhenReaderCannotDropRowsUnderPushedFilter}). This test does
+     * not by itself prove the predicate reached the reader, so do not treat it as the regression test for that.
+     */
+    public void testParquetSkipRowDropsBadRowWithFilteredQuery() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        long good0 = 1704067200L, good2 = 1704067201L, overflow = Long.MAX_VALUE;
+        Path parquet = writeScalingFixture("epoch_ovf_filtered", new long[] { good0, overflow, good2 });
+        // `msg` is "m0"/"m1"/"m2" in the fixture, so the LIKE matches every row: the filter changes nothing about
+        // which rows qualify, leaving the row-drop as the only thing that can change the row count.
+        String suffix = " | WHERE msg LIKE \"m*\" | SORT pri | EVAL v = ts::long | KEEP v";
+
+        putEpochOverflowDataset("epoch_ovf_flt_skip", "parquet", parquet.toUri().toString(), "skip_row", false);
+        try (var response = run(syncEsqlQueryRequest("FROM epoch_ovf_flt_skip" + suffix), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("skip_row must drop the bad row for a filtered query too", rows, hasSize(2));
+            assertThat(rows.get(0).get(0), equalTo(good0 * 1000L));
+            assertThat(rows.get(1).get(0), equalTo(good2 * 1000L));
+        }
+
+        // Same query, same filter, null_field: all three rows survive with the bad cell nulled. Pins that the
+        // filter itself matches everything, so the row count above is the row-drop and not the predicate.
+        putEpochOverflowDataset("epoch_ovf_flt_null", "parquet", parquet.toUri().toString(), "null_field", false);
+        try (var response = run(syncEsqlQueryRequest("FROM epoch_ovf_flt_null" + suffix), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(good0 * 1000L));
+            assertThat(rows.get(1).get(0), equalTo(null));
+            assertThat(rows.get(2).get(0), equalTo(good2 * 1000L));
+        }
+    }
+
+    /**
+     * Pins how {@code skip_row} interacts with the metadata-statistics shortcuts
+     * ({@code PushStatsToExternalSource}'s fold and {@code ComputeService#canSkipSplitDiscovery}'s gate), because the
+     * answer is not the obvious one and the reasoning is worth not re-deriving.
+     * <ul>
+     *   <li>{@code COUNT(*)} returns 3, not 2 — and that is correct. It projects no column, so no value is decoded,
+     *       nothing can fail to coerce, and no row is dropped. A full scan returns 3 too. {@code skip_row}'s row set
+     *       is a function of the columns actually read, which is inherent to detecting a bad value only in a column
+     *       you decode. The footer {@code row_count} the fold serves therefore agrees with the scan.</li>
+     *   <li>{@code COUNT(ts)} and {@code MAX(ts)} return the post-drop answer, because {@code FileSplitProvider}
+     *       poisons declared-retyped and {@code format}-carrying columns out of the published per-column statistics
+     *       (their pre-coercion extrema are untrustworthy), so those aggregates safe-miss and re-scan.</li>
+     * </ul>
+     * Together those two mean the row-drop needs no extra gate on either shortcut: whatever the fold can still
+     * serve is exactly what the scan would have produced.
+     */
+    public void testParquetSkipRowAggregatesAgreeWithTheScan() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        long good0 = 1704067200L, good2 = 1704067201L, overflow = Long.MAX_VALUE;
+        Path parquet = writeScalingFixture("epoch_ovf_count", new long[] { good0, overflow, good2 });
+        putEpochOverflowDataset("epoch_ovf_cnt_skip", "parquet", parquet.toUri().toString(), "skip_row", false);
+
+        // Reads ts, so the bad row is dropped -- and the poisoned column stats keep the fold from saying otherwise.
+        try (var response = run(syncEsqlQueryRequest("FROM epoch_ovf_cnt_skip | STATS c = COUNT(ts)"), TIMEOUT)) {
+            assertThat("COUNT(ts) must not count the row skip_row drops", getValuesList(response).get(0).get(0), equalTo(2L));
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM epoch_ovf_cnt_skip | STATS mx = MAX(ts)"), TIMEOUT)) {
+            assertThat(
+                "the dropped row's value must not surface as the extremum",
+                getValuesList(response).get(0).get(0),
+                equalTo(dateTimeToString(good2 * 1000L))
+            );
+        }
+        // ...and the scan agrees with them.
+        try (var response = run(syncEsqlQueryRequest("FROM epoch_ovf_cnt_skip | SORT pri | EVAL v = ts::long | KEEP v"), TIMEOUT)) {
+            assertThat(getValuesList(response), hasSize(2));
+        }
+
+        // Reads nothing, so nothing is dropped: 3 is what both the footer and a scan report.
+        try (var response = run(syncEsqlQueryRequest("FROM epoch_ovf_cnt_skip | STATS c = COUNT(*)"), TIMEOUT)) {
+            assertThat("COUNT(*) decodes no column, so skip_row has nothing to drop", getValuesList(response).get(0).get(0), equalTo(3L));
+        }
+    }
+
+    /**
+     * Epoch-scaling overflow on the CSV (text) path: same malformed value, same declaration. {@code skip_row} drops
+     * the bad record (two rows survive), while {@code null_field} keeps it with a null cell. {@code fail_fast} aborts.
      */
     public void testCsvDeclaredEpochSecondOverflowHonorsErrorPolicy() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
@@ -4167,6 +4358,30 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             )
         );
         return run(syncEsqlQueryRequest("FROM " + dataset + " | EVAL v = ts::long | KEEP v | SORT v | LIMIT 1"), TIMEOUT);
+    }
+
+    private byte[] twoColumnParquetFixtureBytes() throws IOException {
+        MessageType schema = MessageTypeParser.parseMessageType(
+            "message employees { required int32 emp_no; required binary first_name (UTF8); }"
+        );
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            String[] names = { "Alice", "Bob", "Carol" };
+            for (int i = 0; i < names.length; i++) {
+                Group g = factory.newGroup();
+                g.add("emp_no", i + 1);
+                g.add("first_name", names[i]);
+                writer.write(g);
+            }
+        }
+        return baos.toByteArray();
     }
 
     private byte[] parquetRenameFixtureBytes() throws IOException {
@@ -5348,6 +5563,57 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertThat(e.getMessage(), containsString("region"));
         // Pin the partition branch specifically, not the sibling "no such column exists" reject (both embed [_id]+path).
         assertThat(e.getMessage(), containsString("not a data column"));
+    }
+
+    /**
+     * The declared-schema face of the partition-detection settings defect. A declared column colliding with a path-derived
+     * partition key is rejected ({@link #testNonStrictPartitionKeyCollisionRejected}), and on main
+     * {@code partition_detection: none} could not avoid that rejection because the setting never reached the read
+     * path — so a user whose data sat under {@code something=value/} could not declare a column of that name at
+     * all. With the setting honoured, {@code none} suppresses the detection that creates the collision, and the
+     * declaration resolves.
+     *
+     * <p>The fixture carries a physical {@code region} column holding {@code emea} while the directory says
+     * {@code region=east}, so the assertion distinguishes which one was read.
+     */
+    public void testPartitionKeyCollisionAcceptedWithDetectionNone() throws Exception {
+        Path root = createTempDir();
+        Path east = Files.createDirectories(root.resolve("region=east"));
+        // The file carries a real region column AND sits under region=east/. That is the shape the defect covers:
+        // on main the path-derived region shadowed the physical one and the declaration was rejected, with no
+        // opt-out. The physical values differ from the directory's so the assertion can tell which one was read.
+        Files.writeString(east.resolve("part1.csv"), "emp_no:integer,first_name:keyword,region:keyword\n1,Alice,emea\n2,Bob,emea\n");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("region", new DatasetFieldMapping("keyword", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, props));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "logs_partition_collide_none",
+                    "local_ds",
+                    root.toUri() + "**/*.csv",
+                    null,
+                    new HashMap<>(Map.of("format", "csv", "partition_detection", "none")),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM logs_partition_collide_none | KEEP region | LIMIT 5"), TIMEOUT)) {
+            List<String> columnNames = response.columns().stream().map(c -> c.name()).toList();
+            assertThat("the declared column must resolve rather than be rejected", columnNames, hasItem("region"));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("expect the file's rows", rows.size(), greaterThanOrEqualTo(2));
+            for (List<Object> row : rows) {
+                assertEquals("with detection off the file's own region is read, not the directory's", "emea", row.get(0));
+            }
+        }
     }
 
     public void testNonStrictPartitionKeyCollisionRejected() throws Exception {

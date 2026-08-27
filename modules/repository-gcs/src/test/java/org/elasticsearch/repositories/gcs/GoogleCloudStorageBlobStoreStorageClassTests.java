@@ -122,6 +122,9 @@ public class GoogleCloudStorageBlobStoreStorageClassTests extends ESTestCase {
             largeBlobThreshold,
             BackoffPolicy.noBackoff(),
             new GcsRepositoryStatsCollector(),
+            command -> command.run(),
+            GoogleCloudStorageBlobStore.MAX_DELETES_PER_BATCH,
+            1,
             dataStorageClass,
             metadataStorageClass
         );

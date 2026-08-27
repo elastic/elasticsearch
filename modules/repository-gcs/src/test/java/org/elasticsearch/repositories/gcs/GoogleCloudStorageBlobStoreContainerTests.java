@@ -109,6 +109,9 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
                 GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE,
                 BackoffPolicy.noBackoff(),
                 new GcsRepositoryStatsCollector(),
+                command -> command.run(),
+                GoogleCloudStorageBlobStore.MAX_DELETES_PER_BATCH,
+                1,
                 null,
                 null
             )
@@ -119,7 +122,7 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
                 IOException.class,
                 () -> container.deleteBlobsIgnoringIfNotExists(randomPurpose(), blobs.iterator())
             );
-            assertThat(e.getCause(), instanceOf(StorageException.class));
+            assertThat(e.getCause().getCause(), instanceOf(StorageException.class));
         }
     }
 
@@ -254,6 +257,9 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
             GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE,
             BackoffPolicy.noBackoff(),
             new GcsRepositoryStatsCollector(),
+            command -> command.run(),
+            GoogleCloudStorageBlobStore.MAX_DELETES_PER_BATCH,
+            1,
             null,
             null
         );

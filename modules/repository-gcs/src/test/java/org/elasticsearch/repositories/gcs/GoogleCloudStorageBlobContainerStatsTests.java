@@ -327,6 +327,9 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
             GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE,
             BackoffPolicy.constantBackoff(TimeValue.timeValueMillis(10), 10),
             new GcsRepositoryStatsCollector(),
+            command -> command.run(),
+            GoogleCloudStorageBlobStore.MAX_DELETES_PER_BATCH,
+            1,
             null,
             null
         );

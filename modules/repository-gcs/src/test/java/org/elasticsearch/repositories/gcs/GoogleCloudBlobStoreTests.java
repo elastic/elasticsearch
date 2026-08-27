@@ -165,6 +165,9 @@ public class GoogleCloudBlobStoreTests extends ESTestCase {
             GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE,
             BackoffPolicy.noBackoff(),
             mock(GcsRepositoryStatsCollector.class),
+            command -> command.run(),
+            GoogleCloudStorageBlobStore.MAX_DELETES_PER_BATCH,
+            1,
             dataStorageClass,
             metadataStorageClass
         );

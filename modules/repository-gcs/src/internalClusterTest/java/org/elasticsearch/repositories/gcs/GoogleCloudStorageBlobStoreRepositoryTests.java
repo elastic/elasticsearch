@@ -442,6 +442,9 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                             ByteSizeUnit.MB.toBytes(1),
                             BackoffPolicy.noBackoff(),
                             this.statsCollector(),
+                            command -> command.run(),
+                            GoogleCloudStorageBlobStore.MAX_DELETES_PER_BATCH,
+                            1,
                             null,
                             null
                         );

@@ -335,7 +335,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             ifPrimaryTerm,
             fetchSourceContext,
             false,
-            SplitShardCountSummary.UNSET,
+            splitShardCountSummary,
             false,
             indexShard::getForUpdate
         );

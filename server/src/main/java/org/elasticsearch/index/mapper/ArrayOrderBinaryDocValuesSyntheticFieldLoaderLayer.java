@@ -15,7 +15,6 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -43,24 +42,13 @@ public final class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements
     // Per-document decoded state. lengths[i] < 0 marks a null slot.
     private boolean hasField;
     private boolean binaryPresent;
-    private final boolean columnar;
-    private final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
     private int slotCount;
     private byte[] blobBytes;
     private int[] offsets = new int[8];
     private int[] lengths = new int[8];
 
     public ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(String name) {
-        this(name, Function.identity(), false);
-    }
-
-    /**
-     * @param columnar whether the field's blobs are {@link ColumnarBinaryDocValuesField} payloads, which carry their own slot count and
-     *                 write no companion field. Passed in rather than read off the segment because this layer also runs against the
-     *                 in-memory facade that builds {@code _source} at index time, which exposes no field infos.
-     */
-    public ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(String name, boolean columnar) {
-        this(name, Function.identity(), columnar);
+        this(name, Function.identity());
     }
 
     /**
@@ -68,14 +56,9 @@ public final class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements
      *                  serializable as utf8 (ex. the {@code IpFieldMapper} encoded form) supply a converter; others use the identity.
      */
     public ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(String name, Function<BytesRef, BytesRef> converter) {
-        this(name, converter, false);
-    }
-
-    public ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(String name, Function<BytesRef, BytesRef> converter, boolean columnar) {
         this.name = Objects.requireNonNull(name);
         this.countFieldName = name + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
         this.converter = Objects.requireNonNull(converter);
-        this.columnar = columnar;
     }
 
     @Override
@@ -85,12 +68,6 @@ public final class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements
 
     @Override
     public SourceLoader.SyntheticFieldLoader.DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-        if (columnar) {
-            // The payload carries its own slot count and is written for every shape, so it is its own presence signal.
-            counts = null;
-            values = DocValues.getBinary(leafReader, name);
-            return this::advanceToDoc;
-        }
         counts = leafReader.getNumericDocValues(countFieldName);
         if (counts == null) {
             hasField = false;
@@ -101,9 +78,6 @@ public final class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements
     }
 
     private boolean advanceToDoc(int docId) throws IOException {
-        if (columnar) {
-            return advanceToColumnarDoc(docId);
-        }
         // The .counts field is the presence signal: an all-null or empty array writes a count but no binary blob.
         hasField = counts.advanceExact(docId);
         if (hasField == false) {
@@ -149,35 +123,6 @@ public final class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements
             }
         }
 
-        return true;
-    }
-
-    /**
-     * The columnar codec's payload shape: one blob per present document, carrying its own slot count with nulls inline. There is no
-     * companion field, so the blob is the presence signal, and {@code binaryPresent} narrows to "holds at least one non-null value" —
-     * which is what {@link #valueCount()} and {@link #write} already branch on to force an array around an all-null one.
-     */
-    private boolean advanceToColumnarDoc(int docId) throws IOException {
-        hasField = values.advanceExact(docId);
-        if (hasField == false) {
-            return false;
-        }
-        final BytesRef bytes = values.binaryValue();
-        blobBytes = bytes.bytes;
-        slotCount = decoder.reset(bytes);
-        ensureCapacity(slotCount);
-        int nonNull = 0;
-        for (int i = 0; i < slotCount; i++) {
-            final BytesRef value = decoder.next();
-            if (value == null) {
-                lengths[i] = -1; // null slot
-            } else {
-                offsets[i] = value.offset;
-                lengths[i] = value.length;
-                nonNull++;
-            }
-        }
-        binaryPresent = nonNull > 0;
         return true;
     }
 

@@ -2174,12 +2174,11 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
             } else {
                 if (fieldType().usesArrayOrderBinaryDocValues()) {
-                    layers.add(
-                        new ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(
-                            fieldType().name(),
-                            fieldType().usesColumnarBinaryDocValues()
-                        )
-                    );
+                    if (fieldType().usesColumnarBinaryDocValues()) {
+                        layers.add(new ColumnarPayloadBinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name()));
+                    } else {
+                        layers.add(new ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name()));
+                    }
                 } else {
                     layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name(), indexCreatedVersion));
                 }

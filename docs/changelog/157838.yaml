@@ -1,7 +1,0 @@
-area: Team:ES|QL
-issues:
- - 156226
- - 156229
-pr: 157838
-summary: Fix flaky TS subquery `PackDims` analyzer tests
-type: bug

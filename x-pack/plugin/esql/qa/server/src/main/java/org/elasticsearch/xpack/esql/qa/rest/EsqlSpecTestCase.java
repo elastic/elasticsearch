@@ -200,6 +200,11 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     public void setup() throws IOException {
         assumeTrue("test clusters were broken", testClustersOk);
         INGEST.protectedBlock(() -> {
+            // wait until the cluster is ready to ingest data, otherwise tests in this JVM will fail
+            ensureHealth(client(), "", (request) -> {
+                request.addParameter("wait_for_status", "yellow");
+                request.addParameter("level", "shards");
+            });
             // Inference endpoints must be created before ingesting any datasets that rely on them (mapping of inference_id)
             // If multiple clusters are used, only create endpoints on the local cluster if it supports the inference test service.
             createInferenceEndpointsIfSupported();

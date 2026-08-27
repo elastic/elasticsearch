@@ -2475,18 +2475,25 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         final String field = "dense_value";
         // Lucene's default doc-values skip interval. Complete intervals force YES, MAYBE, and NO blocks for the range [1, 1].
         final int skipBlockSize = 4096;
-        final int numDocs = 3 * skipBlockSize + 17;
+        final int trailingDocs = randomIntBetween(1, skipBlockSize - 1);
+        final int numDocs = 3 * skipBlockSize + trailingDocs;
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD))) {
             for (int i = 0; i < numDocs; i++) {
                 var d = new Document();
                 d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, BASE_TIMESTAMP - i));
                 final long value;
-                if (i < skipBlockSize || i >= 3 * skipBlockSize) {
+                if (i < skipBlockSize) {
+                    // YES block
                     value = 1L;
                 } else if (i < 2 * skipBlockSize) {
+                    // MAYBE block
                     value = i % 2 == 0 ? 1L : 2L;
-                } else {
+                } else if (i < 3 * skipBlockSize) {
+                    // NO block
                     value = 2L;
+                } else {
+                    // Partial YES block
+                    value = 1L;
                 }
                 d.add(SortedNumericDocValuesField.indexedField(field, value));
                 iw.addDocument(d);
@@ -2498,7 +2505,8 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                 assertNotNull(leafReader.getDocValuesSkipper(field));
                 Set<Integer> expected = matchingDocs(leafReader, field, 1L, 1L);
                 assertLuceneRangeIterator(leafReader, field, expected, 0);
-                assertLuceneRangeIterator(leafReader, field, expected, 137);
+                int offset = randomIntBetween(1, skipBlockSize - 1);
+                assertLuceneRangeIterator(leafReader, field, expected, offset);
             }
         }
     }

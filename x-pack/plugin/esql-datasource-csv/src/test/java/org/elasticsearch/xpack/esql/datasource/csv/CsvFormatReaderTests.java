@@ -171,6 +171,62 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * The other half of elastic/esql-planning#1807, end to end: a schemaless column holding a bare
+     * number and a timestamp must come back as strings. Before, inference typed it datetime and the
+     * reader's epoch shortcut turned {@code 42} into an instant 42 milliseconds after 1970 — a value
+     * nobody wrote, served as data.
+     * <p>
+     * The epoch shortcut itself is deliberate and stays: for a declared {@code ts:datetime} column a
+     * bare number IS an epoch, which the sibling test below pins. The bug was only ever inference
+     * committing the column to datetime.
+     */
+    public void testInferredMixedNumericAndTimestampColumnReadsAsStrings() throws Exception {
+        String csv = """
+            v
+            42
+            2024-05-01T10:00:00Z
+            """;
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        StorageObject object = createStorageObject(csv);
+        List<Attribute> schema = reader.metadata(object).schema();
+        assertEquals(DataType.KEYWORD, schema.get(0).dataType());
+
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(schema).build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(2, page.getPositionCount());
+            BytesRefBlock v = page.getBlock(0);
+            BytesRef scratch = new BytesRef();
+            assertEquals("42", v.getBytesRef(v.getFirstValueIndex(0), scratch).utf8ToString());
+            assertEquals("2024-05-01T10:00:00Z", v.getBytesRef(v.getFirstValueIndex(1), scratch).utf8ToString());
+            page.releaseBlocks();
+        }
+    }
+
+    /** The epoch shortcut is correct where the type was declared rather than guessed. */
+    public void testDeclaredDatetimeColumnStillReadsABareNumberAsAnEpoch() throws Exception {
+        StorageObject object = createStorageObject("v:datetime\n42\n");
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        List<Attribute> schema = reader.metadata(object).schema();
+        assertEquals(DataType.DATETIME, schema.get(0).dataType());
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(schema).build()
+            )
+        ) {
+            Page page = it.next();
+            LongBlock v = page.getBlock(0);
+            assertEquals(42L, v.getLong(0));
+            page.releaseBlocks();
+        }
+    }
+
     public void testSchema() throws IOException {
         String csv = """
             id:long,name:keyword,age:integer,active:boolean

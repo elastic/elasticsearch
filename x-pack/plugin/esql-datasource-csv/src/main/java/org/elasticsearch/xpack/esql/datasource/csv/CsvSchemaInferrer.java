@@ -272,10 +272,13 @@ public class CsvSchemaInferrer {
                 if (temporal < 0) {
                     temporal = classifyTemporal(value, datetimeFormatter);
                 }
-                // DATETIME takes the timestamps it reads without dropping digits; DATE_NANOS takes any
-                // timestamp at all, including ones outside its own window. That asymmetry is why an
-                // out-of-window nanosecond value reads as datetime evidence and joins a date_nanos
-                // column back to date_nanos, instead of deciding the column is a string.
+                // DATETIME accepts the timestamps it reads without dropping digits; DATE_NANOS accepts
+                // any timestamp at all, including ones outside its own window. That second half is a
+                // recognition rule, not a lattice edge, and it is what stops a settled date_nanos
+                // column from treating an out-of-window timestamp as evidence that it is really a
+                // string: the value is recognised at the DATE_NANOS rung, so the column stays put.
+                // Such a cell then fails per-cell at decode, which is what a declared date_nanos
+                // schema does with the same file.
                 boolean fits = candidate == DataType.DATETIME ? temporal == TEMPORAL_DATETIME : temporal != NOT_TEMPORAL;
                 if (fits) {
                     return idx;

@@ -192,7 +192,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.failureStoreMetrics = failureStoreMetrics;
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
         this.clusterHasFailureStoreFeature = clusterHasFailureStoreFeature;
-        this.router = BatchModeRouter.create(bulkRequest, ShardBatchIndexer.isBatchIndexingSupported(clusterService));
+        this.router = BatchModeRouter.create(bulkRequest, ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService));
     }
 
     @Override

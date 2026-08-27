@@ -48,9 +48,8 @@ public final class ShardBatchIndexer {
         this.recycler = recycler;
     }
 
-    public static boolean isBatchIndexingSupported(ClusterService clusterService) {
-        return BATCH_INDEXING.get(clusterService.getSettings())
-            && BATCH_INDEXING_FEATURE_FLAG.isEnabled()
+    public static boolean isBatchIndexingSupported(BatchIndexingEnabled batchIndexingEnabled, ClusterService clusterService) {
+        return batchIndexingEnabled.isEnabled()
             && clusterService.state().getMinTransportVersion().supports(BulkShardRequest.BULK_SHARD_BATCH);
     }
 

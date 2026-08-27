@@ -56,6 +56,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.CustomBinaryDocValuesReader;
 import org.elasticsearch.lucene.queries.BinaryDocValuesContainsTermQuery;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -2430,6 +2431,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 private final BlockDecoder decoder = blockDecoder(entry, maxOrd);
                 private long currentBlockIndex = -1;
                 private final long[] currentBlock = new long[numericBlockSize];
+                private final FixedBitSet matches = new FixedBitSet(numericBlockSize);
                 private long lookaheadBlockIndex = -1;
                 private long[] lookaheadBlock;
                 private IndexInput lookaheadData = null;
@@ -2452,6 +2454,39 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     currentBlockIndex = blockIndex;
                     decoder.decode(valuesData, currentBlock);
                     return currentBlock[blockInIndex];
+                }
+
+                @Override
+                public void rangeIntoBitSet(int fromDoc, int toDoc, long minValue, long maxValue, FixedBitSet bitSet, int offset)
+                    throws IOException {
+                    toDoc = Math.min(toDoc, maxDoc);
+                    if (fromDoc >= toDoc) {
+                        return;
+                    }
+                    final int firstBlock = fromDoc >>> numericBlockShift;
+                    final int lastBlock = (toDoc - 1) >>> numericBlockShift;
+                    for (int blockId = firstBlock; blockId <= lastBlock; blockId++) {
+                        loadRangeBitmaskForBlock(blockId, minValue, maxValue, matches);
+                        final int firstInBlock = blockId == firstBlock ? fromDoc & numericBlockMask : 0;
+                        final int lastInBlock = blockId == lastBlock ? (toDoc - 1) & numericBlockMask : numericBlockMask;
+                        // shift by blockBase to matching bitSet's coordinate space
+                        final int blockBase = (blockId << numericBlockShift) - offset;
+                        matches.forEach(firstInBlock, lastInBlock + 1, blockBase, bitSet::set);
+                    }
+                }
+
+                private void loadRangeBitmaskForBlock(int blockIndex, long lowerValue, long upperValue, FixedBitSet matches)
+                    throws IOException {
+                    if (blockIndex != currentBlockIndex) {
+                        assert blockIndex > currentBlockIndex : blockIndex + " < " + currentBlockIndex;
+                        if (currentBlockIndex + 1 != blockIndex) {
+                            valuesData.seek(indexReader.get(blockIndex));
+                        }
+                        currentBlockIndex = blockIndex;
+                        decoder.decode(valuesData, currentBlock);
+                    }
+                    matches.clear();
+                    ESVectorUtil.inRangeBitmask(currentBlock, lowerValue, upperValue, matches.getBits());
                 }
 
                 @Override

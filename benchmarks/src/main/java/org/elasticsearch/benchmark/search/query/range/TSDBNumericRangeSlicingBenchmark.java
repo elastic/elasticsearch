@@ -66,7 +66,7 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @State(Scope.Benchmark)
-@Fork(1)
+@Fork(value = 1, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
 @Threads(1)
 @Warmup(iterations = 3)
 @Measurement(iterations = 5)
@@ -87,7 +87,7 @@ public class TSDBNumericRangeSlicingBenchmark {
     @Param({ "1", "64", "1024" })
     private int numSlices;
 
-    /** TSDB doc-values codec under test; both route through the shared tryRangeIterator. */
+    /** TSDB doc-values codec under test; both implement Lucene's bulk numeric range hook. */
     @Param({ "ES95", "ES819" })
     private String format;
 
@@ -119,7 +119,7 @@ public class TSDBNumericRangeSlicingBenchmark {
             }
         };
         // No index sort on FIELD: keeps data high-variance and avoids the primary-sort fast path,
-        // so the query exercises tryRangeIterator.
+        // so the query exercises NumericDocValues.rangeIntoBitSet.
         final IndexWriterConfig config = new IndexWriterConfig().setCodec(codec);
 
         final Random random = new Random(seed);

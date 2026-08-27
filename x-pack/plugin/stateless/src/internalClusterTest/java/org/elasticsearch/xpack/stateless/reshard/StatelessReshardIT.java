@@ -1851,9 +1851,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
     // test that updates apply correctly during resharding, including noops which could previously fail to revert changes
     public void testUpdate() {
         startMasterAndIndexNode();
-        startSearchNode();
         final var coordinator = startSearchNode();
-        ensureStableCluster(3);
+        ensureStableCluster(2);
 
         final String indexName = randomIndexName();
         createIndex(indexName, 1, 1);
@@ -1914,17 +1913,19 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         }
 
         safeAwait(getPrepared);
+
+        final var atHandoff = waitForClusterState(clusterState -> {
+            final var reshard = indexMetadata(clusterState, index).getReshardingMetadata();
+            return reshard != null && reshard.getSplit().targetStateAtLeast(1, IndexReshardingState.Split.TargetShardState.HANDOFF);
+        });
+
         final var reshardRequest = new ReshardIndexRequest(indexName, 2);
         client().execute(TransportReshardAction.TYPE, reshardRequest).actionGet(SAFE_AWAIT_TIMEOUT);
 
-        awaitClusterState(
-            coordinator,
-            clusterState -> indexMetadata(clusterState, index).getReshardingMetadata()
-                .getSplit()
-                .targetStateAtLeast(1, IndexReshardingState.Split.TargetShardState.HANDOFF)
-        );
+        // wait for handoff...
+        atHandoff.actionGet(SAFE_AWAIT_TIMEOUT);
 
-        // create conflicting writes for updated docs
+        // ... then create conflicting writes for updated docs on the destination shards
         for (final var docId : updatedDocs.keySet()) {
             indexDoc(indexName, docId, "field", "conflict");
         }

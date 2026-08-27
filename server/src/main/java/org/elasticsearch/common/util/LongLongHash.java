@@ -132,8 +132,9 @@ public final class LongLongHash extends AbstractHash implements LongLongHashTabl
     public long add(long key1, long key2) {
         if (size >= maxSize) {
             assert size == maxSize;
+            keys = bigArrays.resize(keys, maxSizeAfterGrow() * 2);
             grow();
-            keys = bigArrays.resize(keys, maxSize * 2);
+            assert keys.size() >= maxSize * 2;
         }
         assert size < maxSize;
         return set(key1, key2, size);

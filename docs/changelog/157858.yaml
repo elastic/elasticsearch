@@ -1,0 +1,5 @@
+area: Columnar
+issues: []
+pr: 157858
+summary: Fix BYTE_LENGTH returning 0 for keywords in columnar mode
+type: bug

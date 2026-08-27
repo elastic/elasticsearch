@@ -541,9 +541,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationBucketIncludeEmptyBucketsIT
   method: test {csv-spec:bucket_include_empty_buckets.Large number of buckets doesn't OOM - stats}
   issue: https://github.com/elastic/elasticsearch/issues/155921
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
-  method: testReshardWithDisruption
-  issue: https://github.com/elastic/elasticsearch/issues/156004
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testRelocatingTaskIsNotCancelledOnShutdownTimeout
   issue: https://github.com/elastic/elasticsearch/issues/155593
@@ -622,9 +619,6 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchErrorTraceIT
   method: testAsyncSearchFailingQueryErrorTraceFalseOnSubmitAndTrueOnGet
   issue: https://github.com/elastic/elasticsearch/issues/156435
-- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
-  method: testSearchShardShouldRecoverWhenWarmingFailsOnGetConnection
-  issue: https://github.com/elastic/elasticsearch/issues/156462
 - class: org.elasticsearch.xpack.stateless.recovery.PointInTimeRelocationIT
   method: testPointInTimeRelocationClosingSourceContexts
   issue: https://github.com/elastic/elasticsearch/issues/156463
@@ -772,9 +766,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
   method: testParquetFile {bad_ARROW-GH-43605}
   issue: https://github.com/elastic/elasticsearch/issues/157747
-- class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/157521
 - class: org.elasticsearch.snapshots.RestoreOverOpenIndexIT
   method: testOverlappingRestoreTransitionsDoNotCorruptTheSecondRestore
   issue: https://github.com/elastic/elasticsearch/issues/157793
@@ -784,24 +775,15 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
   method: testUploadedCommitPrefetchNeverHitsIndexingNode
   issue: https://github.com/elastic/elasticsearch/issues/157813
-- class: org.elasticsearch.xpack.esql.CsvColumnarIT
-  method: test {csv-spec:inlinestats.inlineStatsDroppingMultipleCommandsGroupingFields}
-  issue: https://github.com/elastic/elasticsearch/issues/157817
 - class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlGoldenTests
   method: testBinaryWithDifferentSelectors {historical}
   issue: https://github.com/elastic/elasticsearch/issues/157827
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=mapping/42_doc_values_on_failure/index.mapping.doc_values.on_failure=ignore applies to nullability violations (logsdb_columnar)}
   issue: https://github.com/elastic/elasticsearch/issues/157829
-- class: org.elasticsearch.index.codec.vectors.es94.ES94HnswScalarQuantizedVectorsFormatTests
-  method: testSimpleOffHeapSize
-  issue: https://github.com/elastic/elasticsearch/issues/157839
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohexTests
   method: testEvaluateInManyThreads {TestCase=geo_shape with literal precision and bounds}
   issue: https://github.com/elastic/elasticsearch/issues/157840
-- class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
-  method: testCommitPrefetchingDisabledDoesNotDownloadTheEntireCommit
-  issue: https://github.com/elastic/elasticsearch/issues/157843
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotResiliencyTests
   method: testSuccessfulSnapshotWithConcurrentDynamicMappingUpdates
   issue: https://github.com/elastic/elasticsearch/issues/157844
@@ -817,3 +799,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecDenseVectorIT
   method: test {csv-spec:dense_vector.limitByDenseVectorN2}
   issue: https://github.com/elastic/elasticsearch/issues/157875
+- class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlGoldenTests
+  method: testBinaryWithDifferentSelectors {current}
+  issue: https://github.com/elastic/elasticsearch/issues/157912
+- class: org.elasticsearch.cluster.metadata.MetadataCreateIndexServiceTests
+  method: testRegistryInstalledTemplateIsFalseForNonManagedTemplate
+  issue: https://github.com/elastic/elasticsearch/issues/157930
+- class: org.elasticsearch.xpack.esql.datasources.ReadConfigFingerprintDerivationSitesTests
+  method: testEveryDerivationSiteIsDeclared
+  issue: https://github.com/elastic/elasticsearch/issues/157937
+- class: org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDeciderIT
+  method: testEstimatedHeapAllocationDecider
+  issue: https://github.com/elastic/elasticsearch/issues/157939

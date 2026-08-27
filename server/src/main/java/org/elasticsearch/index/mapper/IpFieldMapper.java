@@ -12,7 +12,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -970,14 +969,7 @@ public class IpFieldMapper extends FieldMapper {
             ctx.addColumn(LuceneBinaryColumn.of(binaryDvs.finish(docCount), fieldType().name(), CustomDocValuesField.TYPE));
         }
         if (dvCounts.isEmpty() == false) {
-            ctx.addColumn(
-                LuceneLongColumn.of(
-                    dvCounts.finish(docCount),
-                    fieldType().name() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX,
-                    MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_TYPE,
-                    LongColumn.NumericKind.LONG
-                )
-            );
+            ctx.addColumn(LuceneLongColumn.counts(dvCounts.finish(docCount), fieldType().name()));
         }
     }
 

@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -89,7 +90,8 @@ import java.util.function.IntConsumer;
  *
  * <p>Both this iterator and the baseline {@code ParquetColumnIterator} share list-column
  * decoding and utility helpers via {@link ParquetColumnDecoding}. The baseline remains
- * the stable fallback when {@code optimized_reader=false} is explicitly set via config.
+ * a test oracle via {@link ParquetFormatReader#withBaselinePath()} and the package-private
+ * boolean constructor, not a dataset {@code optimized_reader=false} setting.
  *
  * <p><b>Memory:</b> Prefetched bytes live on the heap and are charged to the REQUEST circuit
  * breaker via {@link BlockFactory#breaker()}; the charge is released when the chunks'
@@ -1107,10 +1109,14 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         // counter would otherwise claim there is data when every remaining batch is empty.
         if (twoPhase != null) {
             long startNanos = System.nanoTime();
+            long startCpuNanos = ThreadCpuTimer.currentNanos();
             try {
                 drainEmptyTwoPhaseBatches();
             } finally {
                 counters.addTotalReadNanos(System.nanoTime() - startNanos);
+                if (startCpuNanos >= 0) {
+                    counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
+                }
             }
             if (twoPhase != null && twoPhase.hasMoreBatches() == false) {
                 rowsRemainingInGroup = 0;
@@ -1186,6 +1192,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      */
     private boolean advanceRowGroup() throws IOException {
         long startNanos = System.nanoTime();
+        long startCpuNanos = ThreadCpuTimer.currentNanos();
         try {
             closeTwoPhaseState();
             if (rowGroup != null) {
@@ -1284,6 +1291,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             }
         } finally {
             counters.addTotalReadNanos(System.nanoTime() - startNanos);
+            if (startCpuNanos >= 0) {
+                counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
+            }
         }
     }
 
@@ -2043,6 +2053,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             throw new NoSuchElementException();
         }
         long startNanos = System.nanoTime();
+        long startCpuNanos = ThreadCpuTimer.currentNanos();
         try {
             if (twoPhase != null) {
                 // Captured before nextTwoPhaseBatch decrements rowsRemainingInGroup: the in-block index
@@ -2076,6 +2087,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             return result;
         } finally {
             counters.addTotalReadNanos(System.nanoTime() - startNanos);
+            if (startCpuNanos >= 0) {
+                counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
+            }
         }
     }
 

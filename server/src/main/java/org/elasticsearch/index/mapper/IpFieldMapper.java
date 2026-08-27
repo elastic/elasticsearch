@@ -632,6 +632,11 @@ public class IpFieldMapper extends FieldMapper {
 
         @Override
         public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
+            // The fn/ pushdown readers (MV_MAX/MV_MIN/BYTE_LENGTH/LENGTH) decode the [len] SeparateCount format; they don't yet
+            // understand the in-order [len+1]/inline-null encoding, so disable pushdown and let the values be loaded and computed on.
+            if (useArrayOrderBinaryDocValues) {
+                return false;
+            }
             if (hasDocValues() && (preference != FieldExtractPreference.STORED || isSyntheticSource)) {
                 return switch (config.function()) {
                     case MV_MAX, MV_MIN -> true;

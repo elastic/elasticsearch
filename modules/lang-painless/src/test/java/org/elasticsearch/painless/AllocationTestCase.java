@@ -52,7 +52,7 @@ public abstract class AllocationTestCase extends ScriptTestCase {
     /** Compiles {@code source} recording into {@code metrics} and enforcing {@code limit}; {@code null} metrics records none. */
     protected PainlessTestScript compileWithMetricsAndLimit(String source, String limit, AllocationMetrics metrics) {
         Settings settings = Settings.builder().put(LIMIT_KEY, limit).build();
-        PainlessScriptEngine engine = new PainlessScriptEngine(settings, scriptContexts(), () -> metrics);
+        PainlessScriptEngine engine = new PainlessScriptEngine(settings, scriptContexts(), () -> metrics, metrics != null);
         PainlessTestScript.Factory factory = engine.compile("test", source, PainlessTestScript.CONTEXT, Map.of());
         return factory.newInstance(Map.of());
     }

@@ -58,27 +58,28 @@ public final class PainlessScriptEngine implements ScriptEngine {
     private final Map<ScriptContext<?>, CompilerSettings> contextsToDefaultCompilerSettings;
 
     /**
-     * Supplies the metrics to record into, or {@code null} to record none. A supplier because {@code PainlessPlugin} builds
-     * the engine before {@code createComponents} hands it a {@code MeterRegistry}. Read at construction to decide whether to
-     * compile the recording path, and again per compile for the instance to inject.
+     * Supplies the node's metrics, or {@code null} until there are any. A supplier because the engine is built during
+     * {@code getScriptEngine}, and nothing hands the plugin a {@code MeterRegistry} until {@code createComponents}; the
+     * instance is resolved per compile, by which time it normally exists.
      */
     private final Supplier<AllocationMetrics> allocationMetrics;
 
     /**
-     * Enablement comes from {@code allocationMetrics} rather than the system property, so the engine reads no global state
-     * and a test can turn recording on just by supplying an instance.
+     * Enablement is a separate argument from {@code allocationMetrics} because the two are known at different times: whether
+     * to record is settled before the engine exists, while what to record into is not. Passing it rather than reading the
+     * system property keeps the engine free of global state, and lets a test turn recording on directly.
      * @param settings The settings to initialize the engine with.
-     * @param allocationMetrics Supplies the metrics to record into, or {@code null} to record none. Must always answer
-     *                          {@code null} or never: the first answer decides whether generated classes carry the recording
-     *                          bytecode, so one that changed would read a field it never declared. {@link #compile} asserts.
+     * @param allocationMetrics Supplies the metrics to record into. May return {@code null} before telemetry is available;
+     *                          compiles until then record into {@link AllocationMetrics#NOOP}.
+     * @param allocationMetricsEnabled Whether generated classes carry the recording bytecode at all.
      */
     public PainlessScriptEngine(
         Settings settings,
         Map<ScriptContext<?>, List<Whitelist>> contexts,
-        Supplier<AllocationMetrics> allocationMetrics
+        Supplier<AllocationMetrics> allocationMetrics,
+        boolean allocationMetricsEnabled
     ) {
         this.allocationMetrics = allocationMetrics;
-        boolean allocationMetricsEnabled = allocationMetrics.get() != null;
         CompilerSettings.RegexEnabled regexEnabled = CompilerSettings.REGEX_ENABLED.get(settings);
         int regexLimitFactor = CompilerSettings.REGEX_LIMIT_FACTOR.get(settings);
 
@@ -137,11 +138,6 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
         final Loader loader = compiler.createLoader(getClass().getClassLoader());
 
-        AllocationMetrics metrics = allocationMetrics.get();
-        // A supplier that changed its answer since construction would read an undeclared $allocMetrics field.
-        assert (metrics != null) == contextsToDefaultCompilerSettings.get(context).isAllocationMetricsEnabled()
-            : "allocation metrics supplier changed nullness after construction";
-
         ScriptScope scriptScope = compile(
             compiler,
             contextsToDefaultCompilerSettings.get(context),
@@ -149,7 +145,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
             scriptName,
             scriptSource,
             params,
-            metrics == null ? null : metrics.forContext(context.name)
+            allocationRecorder(context)
         );
 
         if (context.statefulFactoryClazz != null) {
@@ -157,6 +153,21 @@ public final class PainlessScriptEngine implements ScriptEngine {
         } else {
             return generateFactory(loader, context, WriterConstants.CLASS_TYPE, scriptScope);
         }
+    }
+
+    /**
+     * The recorder to inject into a script of this context, or {@code null} when recording is off. Falls back to
+     * {@link AllocationMetrics#NOOP} rather than {@code null} when telemetry has not arrived yet, since the generated class
+     * reads the recorder unconditionally once it carries the recording bytecode.
+     */
+    private AllocationMetrics.ContextRecorder allocationRecorder(ScriptContext<?> context) {
+        if (contextsToDefaultCompilerSettings.get(context).isAllocationMetricsEnabled() == false) {
+            return null;
+        }
+
+        AllocationMetrics metrics = allocationMetrics.get();
+
+        return (metrics != null ? metrics : AllocationMetrics.NOOP).forContext(context.name);
     }
 
     @Override

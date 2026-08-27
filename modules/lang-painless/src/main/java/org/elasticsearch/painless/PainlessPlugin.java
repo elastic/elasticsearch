@@ -52,10 +52,11 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
 
     /**
      * Populated in {@link #createComponents}, the first hook handed a {@code MeterRegistry}. The engine is built earlier,
-     * in {@link #getScriptEngine}, so it gets {@link #allocationMetrics()}, which reads through on every compile.
+     * in {@link #getScriptEngine}, so it takes this holder's {@code get} and reads through it on every compile.
      */
     private final SetOnce<AllocationMetrics> allocationMetrics = new SetOnce<>();
 
+    /** Read at construction: whether to record is settled long before there is anything to record into. */
     private final boolean allocationMetricsEnabled = CompilerSettings.readAllocationMetricsEnabledProperty();
 
     public static List<Whitelist> baseWhiteList() {
@@ -101,21 +102,10 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
             }
             contextsWithWhitelists.put(context, mergedWhitelists);
         }
-        painlessScriptEngine.set(new PainlessScriptEngine(settings, contextsWithWhitelists, this::allocationMetrics));
+        painlessScriptEngine.set(
+            new PainlessScriptEngine(settings, contextsWithWhitelists, allocationMetrics::get, allocationMetricsEnabled)
+        );
         return painlessScriptEngine.get();
-    }
-
-    /**
-     * The node's metrics, or {@code null} when recording is off — which the engine reads as "compile no recording
-     * bytecode", so the answer must never change. {@link AllocationMetrics#NOOP} until telemetry arrives, so scripts
-     * compiled before {@link #createComponents} record nothing.
-     */
-    private AllocationMetrics allocationMetrics() {
-        if (allocationMetricsEnabled == false) {
-            return null;
-        }
-        AllocationMetrics metrics = allocationMetrics.get();
-        return metrics != null ? metrics : AllocationMetrics.NOOP;
     }
 
     @Override

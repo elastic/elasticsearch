@@ -42,23 +42,22 @@ public class CsvCompressedFormatSpecIT extends AbstractDelimitedTextSpecTestCase
         super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, format);
     }
 
+    /**
+     * This suite routes its own spec set, so its exclusions are declared under its own token.
+     * Without the override the lookup falls back to csv and would read another suite's
+     * exclusion set, silently applying entries never written for this suite.
+     */
+    @Override
+    protected String exclusionSuiteToken() {
+        return "csv-compressed";
+    }
+
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
         // external-basic / external-multifile read the multi-value employees fixture, which does not
         // parse as CSV under the default multi_value_syntax: none. Use the scalar twin (csv-basic),
         // csv-headerless, and csv-multifile (both opt into brackets explicitly where they read bracket
         // data) to restore the equivalent coverage.
-        return readExternalSpecTestsWithFormats(
-            COMPRESSED_FORMATS,
-            "/csv-basic.csv-spec",
-            "/csv-declared-schema.csv-spec",
-            "/external-declared-schema.csv-spec",
-            "/csv-declared-schema-multifile.csv-spec",
-            "/csv-headerless.csv-spec",
-            "/csv-multifile.csv-spec",
-            "/csv-multifile-resolution.csv-spec",
-            "/csv-multivalue.csv-spec",
-            "/csv-only-declared-dialect.csv-spec"
-        );
+        return readExternalSpecTestsWithFormatsForSuite(COMPRESSED_FORMATS, "csv-compressed");
     }
 }

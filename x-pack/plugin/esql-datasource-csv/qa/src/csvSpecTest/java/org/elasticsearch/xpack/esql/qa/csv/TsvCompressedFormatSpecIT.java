@@ -42,21 +42,22 @@ public class TsvCompressedFormatSpecIT extends AbstractDelimitedTextSpecTestCase
         super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, format);
     }
 
+    /**
+     * This suite routes its own spec set, so its exclusions are declared under its own token.
+     * Without the override the lookup falls back to tsv and would read another suite's
+     * exclusion set, silently applying entries never written for this suite.
+     */
+    @Override
+    protected String exclusionSuiteToken() {
+        return "tsv-compressed";
+    }
+
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
         // external-basic's multi-value queries assume brackets parsing, no longer the default. Use the
         // scalar twin (csv-basic); the multifile specs project only scalar columns, so they parse under
         // the default for TSV (tab delimiter — no misalignment). tsv-multivalue covers the explicit
         // brackets opt-in on bracket data plus the literal-string read under the new default.
-        return readExternalSpecTestsWithFormats(
-            COMPRESSED_FORMATS,
-            "/csv-basic.csv-spec",
-            "/csv-declared-schema.csv-spec",
-            "/external-declared-schema.csv-spec",
-            "/csv-declared-schema-multifile.csv-spec",
-            "/external-multifile.csv-spec",
-            "/external-multifile-resolution.csv-spec",
-            "/tsv-multivalue.csv-spec"
-        );
+        return readExternalSpecTestsWithFormatsForSuite(COMPRESSED_FORMATS, "tsv-compressed");
     }
 }

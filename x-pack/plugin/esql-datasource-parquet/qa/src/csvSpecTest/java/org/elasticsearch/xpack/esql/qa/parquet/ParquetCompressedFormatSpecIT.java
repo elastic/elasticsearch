@@ -56,8 +56,18 @@ public class ParquetCompressedFormatSpecIT extends AbstractParquetExternalSpecTe
     // The reader: "java" this IT injects is redundant with the .parquet extension default (the codec lives
     // inside the .parquet file, so the extension is unchanged), so FROM-on-S3 still uses the Java reader.
 
+    /**
+     * This suite routes its own spec set, so its exclusions are declared under its own token.
+     * Without the override the lookup falls back to parquet and would read another suite's
+     * exclusion set, silently applying entries never written for this suite.
+     */
+    @Override
+    protected String exclusionSuiteToken() {
+        return "parquet-compressed";
+    }
+
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTestsWithCodecs(CODECS, "/external-basic.csv-spec", "/external-multivalue.csv-spec");
+        return readExternalSpecTestsWithCodecsForSuite(CODECS, "parquet-compressed");
     }
 }

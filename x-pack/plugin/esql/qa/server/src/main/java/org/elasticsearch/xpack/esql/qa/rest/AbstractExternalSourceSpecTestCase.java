@@ -197,6 +197,17 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     /**
+     * Codec cross-product with the spec set read from the declaration rather than listed at the call site.
+     * The codec counterpart of {@link #readExternalSpecTestsWithFormatsForSuite}; see that method for why
+     * whole-spec exclusions are filtered here instead of being skipped per case at run time.
+     */
+    protected static List<Object[]> readExternalSpecTestsWithCodecsForSuite(List<String> codecs, String suiteToken) throws Exception {
+        Set<String> excluded = MATRIX.excludedSpecs(suiteToken);
+        List<Object[]> loaded = readExternalSpecTestsWithExtraParam(codecs, MATRIX.specPatterns(suiteToken).toArray(String[]::new));
+        return excluded.isEmpty() ? loaded : loaded.stream().filter(row -> excluded.contains(specNameOf(row)) == false).toList();
+    }
+
+    /**
      * Shared cross-product helper used by {@link #readExternalSpecTestsWithFormats} and
      * {@link #readExternalSpecTestsWithCodecs}. Builds the cross product on the un-expanded base tuple
      * (so the resulting array is always {@code (baseTest..., extraParam, backend)}) rather than splicing

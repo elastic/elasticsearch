@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.is;
@@ -51,12 +52,15 @@ public class HuggingFaceElserServiceSettingsTests extends AbstractWireSerializin
 
     public void testUpdateServiceSettings_OnlyRateLimit_IsUpdated() {
         var originalServiceSettings = new HuggingFaceElserServiceSettings(INITIAL_TEST_URI, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT));
-        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(buildServiceSettingsMap(null, TEST_RATE_LIMIT));
+        var updateMap = buildServiceSettingsMap(null, TEST_RATE_LIMIT);
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(updateMap);
 
         assertThat(
             updatedServiceSettings,
             is(new HuggingFaceElserServiceSettings(INITIAL_TEST_URI, new RateLimitSettings(TEST_RATE_LIMIT)))
         );
+        // The caller relies on updateServiceSettings consuming the parsed entries to verify that no unknown settings remain.
+        assertThat(updateMap, is(anEmptyMap()));
     }
 
     public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
@@ -101,12 +105,12 @@ public class HuggingFaceElserServiceSettingsTests extends AbstractWireSerializin
     }
 
     public void testFromMap_AllFields_Success() {
-        var serviceSettings = HuggingFaceElserServiceSettings.fromMap(
-            buildServiceSettingsMap(TEST_URI.toString(), TEST_RATE_LIMIT),
-            randomFrom(ConfigurationParseContext.values())
-        );
+        var settingsMap = buildServiceSettingsMap(TEST_URI.toString(), TEST_RATE_LIMIT);
+        var serviceSettings = HuggingFaceElserServiceSettings.fromMap(settingsMap, randomFrom(ConfigurationParseContext.values()));
 
         assertThat(serviceSettings, is(new HuggingFaceElserServiceSettings(TEST_URI, new RateLimitSettings(TEST_RATE_LIMIT))));
+        // The caller relies on fromMap consuming the parsed entries to verify that no unknown settings remain.
+        assertThat(settingsMap, is(anEmptyMap()));
     }
 
     public void testFromMap_OnlyMandatoryFields_Success() {
@@ -114,6 +118,15 @@ public class HuggingFaceElserServiceSettingsTests extends AbstractWireSerializin
             buildServiceSettingsMap(TEST_URI.toString(), null),
             randomFrom(ConfigurationParseContext.values())
         );
+
+        assertThat(serviceSettings, is(new HuggingFaceElserServiceSettings(TEST_URI.toString())));
+    }
+
+    public void testFromMap_ExplicitNullRateLimit_UsesDefault() {
+        var settings = buildServiceSettingsMap(TEST_URI.toString(), null);
+        settings.put(RateLimitSettings.FIELD_NAME, null);
+
+        var serviceSettings = HuggingFaceElserServiceSettings.fromMap(settings, randomFrom(ConfigurationParseContext.values()));
 
         assertThat(serviceSettings, is(new HuggingFaceElserServiceSettings(TEST_URI.toString())));
     }

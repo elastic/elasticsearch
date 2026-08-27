@@ -34,6 +34,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.lucene.queries.AbstractBinaryDocValuesQuery.BinaryFormat.ARRAY_ORDER_INLINE_NULL;
+import static org.elasticsearch.lucene.queries.AbstractBinaryDocValuesQuery.BinaryFormat.SEPARATE_COUNT;
 import static org.elasticsearch.lucene.queries.ScanningBinaryDocValuesWildcardQuery.getContainsPattern;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -54,12 +56,21 @@ public class ScanningBinaryDocValuesWildcardQueryTests extends ESTestCase {
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
                     // Automaton wildcard "be*" matches "beta" and "best"; the all-null doc preceding "best" must not be matched.
-                    assertEquals(2, searcher.count(new ScanningBinaryDocValuesWildcardQuery(fieldName, "be*", false, true)));
+                    assertEquals(
+                        2,
+                        searcher.count(new ScanningBinaryDocValuesWildcardQuery(fieldName, "be*", false, ARRAY_ORDER_INLINE_NULL))
+                    );
                     // "*et*" rewrites to a contains query: with a multi-valued doc present in the segment the contains fast path is gated
                     // off and the per-value decode fallback runs, so only "beta" (which contains "et") matches — not "best".
-                    assertEquals(1, searcher.count(new ScanningBinaryDocValuesWildcardQuery(fieldName, "*et*", false, true)));
+                    assertEquals(
+                        1,
+                        searcher.count(new ScanningBinaryDocValuesWildcardQuery(fieldName, "*et*", false, ARRAY_ORDER_INLINE_NULL))
+                    );
                     // "*ph*" contains-matches "alpha" only.
-                    assertEquals(1, searcher.count(new ScanningBinaryDocValuesWildcardQuery(fieldName, "*ph*", false, true)));
+                    assertEquals(
+                        1,
+                        searcher.count(new ScanningBinaryDocValuesWildcardQuery(fieldName, "*ph*", false, ARRAY_ORDER_INLINE_NULL))
+                    );
                 }
             }
         }
@@ -101,7 +112,7 @@ public class ScanningBinaryDocValuesWildcardQueryTests extends ESTestCase {
                     IndexSearcher searcher = newSearcher(reader);
                     for (var entry : expectedCounts.entrySet()) {
                         long count = searcher.count(
-                            new ScanningBinaryDocValuesWildcardQuery(fieldName, entry.getKey() + "*", false, false)
+                            new ScanningBinaryDocValuesWildcardQuery(fieldName, entry.getKey() + "*", false, SEPARATE_COUNT)
                         );
                         assertEquals(entry.getValue().longValue(), count);
                     }
@@ -119,7 +130,7 @@ public class ScanningBinaryDocValuesWildcardQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new ScanningBinaryDocValuesWildcardQuery(fieldName, "a*", false, false);
+                    Query query = new ScanningBinaryDocValuesWildcardQuery(fieldName, "a*", false, SEPARATE_COUNT);
                     assertEquals(0, searcher.count(query));
                 }
             }
@@ -144,7 +155,7 @@ public class ScanningBinaryDocValuesWildcardQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new ScanningBinaryDocValuesWildcardQuery(fieldName, "a*", false, false);
+                    Query query = new ScanningBinaryDocValuesWildcardQuery(fieldName, "a*", false, SEPARATE_COUNT);
                     assertEquals(1, searcher.count(query));
                 }
             }
@@ -188,7 +199,12 @@ public class ScanningBinaryDocValuesWildcardQueryTests extends ESTestCase {
                     );
                     TopDocs baselineResults = searcher.search(baselineQuery, 32);
 
-                    Query contenderQuery = new ScanningBinaryDocValuesWildcardQuery("contender_field", randomWildcard, false, false);
+                    Query contenderQuery = new ScanningBinaryDocValuesWildcardQuery(
+                        "contender_field",
+                        randomWildcard,
+                        false,
+                        SEPARATE_COUNT
+                    );
                     TopDocs contenderResults = searcher.search(contenderQuery, 32);
 
                     assertThat(contenderResults.totalHits, equalTo(baselineResults.totalHits));
@@ -231,7 +247,7 @@ public class ScanningBinaryDocValuesWildcardQueryTests extends ESTestCase {
 
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new ScanningBinaryDocValuesWildcardQuery(fieldName, "*search*", false, false);
+                    Query query = new ScanningBinaryDocValuesWildcardQuery(fieldName, "*search*", false, SEPARATE_COUNT);
                     Query rewritten = query.rewrite(searcher);
                     assertThat(rewritten, instanceOf(BinaryDocValuesContainsTermQuery.class));
                     assertEquals(3, searcher.count(rewritten));
@@ -251,7 +267,7 @@ public class ScanningBinaryDocValuesWildcardQueryTests extends ESTestCase {
 
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new ScanningBinaryDocValuesWildcardQuery(fieldName, "*ell*", false, false);
+                    Query query = new ScanningBinaryDocValuesWildcardQuery(fieldName, "*ell*", false, SEPARATE_COUNT);
                     Query rewritten = query.rewrite(searcher);
                     assertThat(rewritten, instanceOf(BinaryDocValuesContainsTermQuery.class));
                     assertEquals(2, searcher.count(rewritten));
@@ -268,7 +284,7 @@ public class ScanningBinaryDocValuesWildcardQueryTests extends ESTestCase {
 
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new ScanningBinaryDocValuesWildcardQuery(fieldName, "*search*", true, false);
+                    Query query = new ScanningBinaryDocValuesWildcardQuery(fieldName, "*search*", true, SEPARATE_COUNT);
                     Query rewritten = query.rewrite(searcher);
                     assertThat(rewritten, instanceOf(ScanningBinaryDocValuesWildcardQuery.class));
                     assertEquals(1, searcher.count(rewritten));
@@ -286,13 +302,13 @@ public class ScanningBinaryDocValuesWildcardQueryTests extends ESTestCase {
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
 
-                    Query prefixQuery = new ScanningBinaryDocValuesWildcardQuery(fieldName, "foo*", false, false);
+                    Query prefixQuery = new ScanningBinaryDocValuesWildcardQuery(fieldName, "foo*", false, SEPARATE_COUNT);
                     assertThat(prefixQuery.rewrite(searcher), instanceOf(ScanningBinaryDocValuesWildcardQuery.class));
 
-                    Query multiWildcard = new ScanningBinaryDocValuesWildcardQuery(fieldName, "*foo*bar*", false, false);
+                    Query multiWildcard = new ScanningBinaryDocValuesWildcardQuery(fieldName, "*foo*bar*", false, SEPARATE_COUNT);
                     assertThat(multiWildcard.rewrite(searcher), instanceOf(ScanningBinaryDocValuesWildcardQuery.class));
 
-                    Query singleCharWildcard = new ScanningBinaryDocValuesWildcardQuery(fieldName, "*fo?*", false, false);
+                    Query singleCharWildcard = new ScanningBinaryDocValuesWildcardQuery(fieldName, "*fo?*", false, SEPARATE_COUNT);
                     assertThat(singleCharWildcard.rewrite(searcher), instanceOf(ScanningBinaryDocValuesWildcardQuery.class));
                 }
             }

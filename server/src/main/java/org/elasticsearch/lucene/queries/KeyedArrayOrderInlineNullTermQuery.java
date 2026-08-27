@@ -32,7 +32,7 @@ public class KeyedArrayOrderInlineNullTermQuery extends AbstractBinaryDocValuesQ
     private final BytesRef term;
 
     public KeyedArrayOrderInlineNullTermQuery(String fieldName, BytesRef term) {
-        super(fieldName, term::equals, true);
+        super(fieldName, term::equals, BinaryFormat.ARRAY_ORDER_INLINE_NULL);
         this.term = Objects.requireNonNull(term);
     }
 

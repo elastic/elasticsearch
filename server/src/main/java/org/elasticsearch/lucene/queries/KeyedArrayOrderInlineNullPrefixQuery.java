@@ -31,7 +31,7 @@ public class KeyedArrayOrderInlineNullPrefixQuery extends AbstractBinaryDocValue
     private final BytesRef prefix;
 
     public KeyedArrayOrderInlineNullPrefixQuery(String fieldName, BytesRef prefix) {
-        super(fieldName, slot -> startsWith(slot, prefix), true);
+        super(fieldName, slot -> startsWith(slot, prefix), BinaryFormat.ARRAY_ORDER_INLINE_NULL);
         this.prefix = Objects.requireNonNull(prefix);
     }
 

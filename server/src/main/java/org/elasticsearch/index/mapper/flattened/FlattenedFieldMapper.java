@@ -101,6 +101,7 @@ import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.lucene.queries.AbstractBinaryDocValuesQuery.BinaryFormat;
 import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullPrefixQuery;
 import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullTermQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
@@ -730,7 +731,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                     if (usesArrayOrderBinaryDocValues) {
                         return new KeyedArrayOrderInlineNullTermQuery(name(), keyedValue);
                     }
-                    return new ScanningBinaryDocValuesTermQuery(name(), keyedValue, false);
+                    return new ScanningBinaryDocValuesTermQuery(name(), keyedValue, BinaryFormat.SEPARATE_COUNT);
                 } else {
                     return XSortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
                 }
@@ -760,7 +761,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                         return new KeyedArrayOrderInlineNullPrefixQuery(name(), new BytesRef(keyPrefix));
                     }
                     // Separate-count binary blob: slots are full key\0value, so a prefix scan finds any value under this key.
-                    return new ScanningBinaryDocValuesPrefixQuery(name(), keyPrefix, false, false);
+                    return new ScanningBinaryDocValuesPrefixQuery(name(), keyPrefix, false, BinaryFormat.SEPARATE_COUNT);
                 }
 
                 // SortedSet doc-values: match any ord in [key\0, key\1) i.e. any value stored under this key.

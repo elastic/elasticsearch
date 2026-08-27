@@ -29,6 +29,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
+import org.elasticsearch.lucene.queries.AbstractBinaryDocValuesQuery.BinaryFormat;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
@@ -45,13 +46,13 @@ import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.Sep
 public final class BinaryDocValuesContainsTermQuery extends Query {
     final String fieldName;
     final BytesRef containsTerm;
-    // See AbstractBinaryDocValuesQuery#arrayOrderInlineNull: selects the inline-null decoder for the multi-valued fallback path.
-    final boolean arrayOrderInlineNull;
+    // See AbstractBinaryDocValuesQuery.BinaryFormat: selects the decoder for the multi-valued fallback path.
+    final BinaryFormat binaryFormat;
 
-    BinaryDocValuesContainsTermQuery(String fieldName, BytesRef containsTerm, boolean arrayOrderInlineNull) {
+    BinaryDocValuesContainsTermQuery(String fieldName, BytesRef containsTerm, BinaryFormat binaryFormat) {
         this.fieldName = Objects.requireNonNull(fieldName);
         this.containsTerm = Objects.requireNonNull(containsTerm);
-        this.arrayOrderInlineNull = arrayOrderInlineNull;
+        this.binaryFormat = Objects.requireNonNull(binaryFormat);
     }
 
     @Override
@@ -88,7 +89,9 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
                         // on tryContainsIterator). ConstantScoreScorerSupplier unwraps the TwoPhase so Lucene's
                         // BulkScorer drives approximation.advance(min) + matches() within [min, max), giving
                         // linear scaling under sub-segment slicing (DataPartitioning.DOC).
-                        if (ColumnarBinaryDocValuesField.isColumnarStringPayload(context.reader(), fieldName)) {
+                        if (binaryFormat == BinaryFormat.COLUMNAR_STRING_PAYLOAD) {
+                            assert ColumnarBinaryDocValuesField.isColumnarStringPayload(context.reader(), fieldName)
+                                : "field [" + fieldName + "] is mapped as a columnar payload but this segment does not carry one";
                             // The payload carries its own count, and its framing means the blob can never be scanned whole.
                             return AbstractBinaryDocValuesQuery.columnarPayloadIterator(
                                 values,
@@ -111,7 +114,7 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
                         }
                         Predicate<BytesRef> predicate = bytes -> contains(bytes, containsTerm);
                         final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
-                        return arrayOrderInlineNull
+                        return binaryFormat == BinaryFormat.ARRAY_ORDER_INLINE_NULL
                             ? AbstractBinaryDocValuesQuery.arrayOrderInlineNullIterator(values, counts, predicate, matchCost())
                             : AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, predicate, matchCost());
                     }

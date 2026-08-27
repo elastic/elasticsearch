@@ -182,6 +182,42 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
         }
     }
 
+    /**
+     * With no inverted index to fall back on, the term-family queries scan the binary doc values themselves. The columnar payload is not
+     * one of the encodings those queries are told about up front — {@code KeywordFieldType} hands them
+     * {@code usesArrayOrderInlineNull()}, which is false for it — so they have to recognise it per segment from the field's own
+     * attributes. This pins that, including the empty-term case, which rewrites to a length query and has to recognise the payload again.
+     */
+    public void testDocValuesOnlyQueriesReadTheColumnarPayload() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
+
+        final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        final String mapping = """
+            {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword","index":false}}}""";
+        indicesAdmin().prepareCreate(INDEX).setSettings(columnarSettings(mode)).setMapping(mapping).get();
+
+        final List<String> docs = List.of("[\"red\", null, \"blue\"]", "[\"green\"]", "[\"\"]", "[null]", "[]");
+        for (int i = 0; i < docs.size(); i++) {
+            prepareIndex(INDEX).setId(Integer.toString(i))
+                .setSource("{\"@timestamp\":\"2024-01-01T00:00:0" + i + "Z\",\"kw\":" + docs.get(i) + "}", XContentType.JSON)
+                .get();
+        }
+        indicesAdmin().prepareRefresh(INDEX).get();
+
+        assertKeywordFieldUsesColumnarFormat();
+
+        // A value in a multi-valued document, one in a single-valued document, and one that is not there at all.
+        assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.termQuery("kw", "red")), 1);
+        assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.termQuery("kw", "blue")), 1);
+        assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.termQuery("kw", "green")), 1);
+        assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.termQuery("kw", "yellow")), 0);
+        assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.termsQuery("kw", "red", "green")), 2);
+        assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.prefixQuery("kw", "bl")), 1);
+        assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.wildcardQuery("kw", "gr*n")), 1);
+        // The empty string is a real value here; a null slot and an empty array are not, and must not match it.
+        assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.termQuery("kw", "")), 1);
+    }
+
     /** The values of {@code array}, as {@code _source} renders them: a lone value is not wrapped in a list. */
     private static Object expectedValues(String array) {
         final List<Object> values = new ArrayList<>();

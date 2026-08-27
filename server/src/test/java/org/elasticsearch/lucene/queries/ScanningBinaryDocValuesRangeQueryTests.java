@@ -24,6 +24,9 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
+import static org.elasticsearch.lucene.queries.AbstractBinaryDocValuesQuery.BinaryFormat.ARRAY_ORDER_INLINE_NULL;
+import static org.elasticsearch.lucene.queries.AbstractBinaryDocValuesQuery.BinaryFormat.SEPARATE_COUNT;
+
 public class ScanningBinaryDocValuesRangeQueryTests extends ESTestCase {
 
     public void testRangeUsesBytesRefOrdering() throws Exception {
@@ -34,7 +37,14 @@ public class ScanningBinaryDocValuesRangeQueryTests extends ESTestCase {
                 writer.addDocument(docWithValue(fieldName, "\uF000"));
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new ScanningBinaryDocValuesRangeQuery(fieldName, new BytesRef("\uE000"), null, true, true, false);
+                    Query query = new ScanningBinaryDocValuesRangeQuery(
+                        fieldName,
+                        new BytesRef("\uE000"),
+                        null,
+                        true,
+                        true,
+                        SEPARATE_COUNT
+                    );
                     assertEquals(2, searcher.count(query));
                 }
             }
@@ -56,14 +66,28 @@ public class ScanningBinaryDocValuesRangeQueryTests extends ESTestCase {
                         new BytesRef("gamma"),
                         true,
                         true,
-                        false
+                        SEPARATE_COUNT
                     );
                     assertEquals(3, searcher.count(closed));
 
-                    Query lowerOpen = new ScanningBinaryDocValuesRangeQuery(fieldName, null, new BytesRef("gamma"), true, false, false);
+                    Query lowerOpen = new ScanningBinaryDocValuesRangeQuery(
+                        fieldName,
+                        null,
+                        new BytesRef("gamma"),
+                        true,
+                        false,
+                        SEPARATE_COUNT
+                    );
                     assertEquals(2, searcher.count(lowerOpen));
 
-                    Query upperOpen = new ScanningBinaryDocValuesRangeQuery(fieldName, new BytesRef("alpha"), null, false, true, false);
+                    Query upperOpen = new ScanningBinaryDocValuesRangeQuery(
+                        fieldName,
+                        new BytesRef("alpha"),
+                        null,
+                        false,
+                        true,
+                        SEPARATE_COUNT
+                    );
                     assertEquals(2, searcher.count(upperOpen));
                 }
             }
@@ -83,10 +107,20 @@ public class ScanningBinaryDocValuesRangeQueryTests extends ESTestCase {
                     IndexSearcher searcher = newSearcher(reader);
                     // [alpha, beta] matches "alpha"/"beta" in the multi-value doc and "beta" in the single-value doc; the all-null doc
                     // preceding the latter must not be matched.
-                    var alphaToBeta = new ScanningBinaryDocValuesRangeQuery(fieldName, new BytesRef("alpha"), new BytesRef("beta"), true);
+                    var alphaToBeta = new ScanningBinaryDocValuesRangeQuery(
+                        fieldName,
+                        new BytesRef("alpha"),
+                        new BytesRef("beta"),
+                        ARRAY_ORDER_INLINE_NULL
+                    );
                     assertEquals(2, searcher.count(alphaToBeta));
                     // [delta, gamma] matches only the last doc ("delta"/"gamma").
-                    var deltaToGamma = new ScanningBinaryDocValuesRangeQuery(fieldName, new BytesRef("delta"), new BytesRef("gamma"), true);
+                    var deltaToGamma = new ScanningBinaryDocValuesRangeQuery(
+                        fieldName,
+                        new BytesRef("delta"),
+                        new BytesRef("gamma"),
+                        ARRAY_ORDER_INLINE_NULL
+                    );
                     assertEquals(1, searcher.count(deltaToGamma));
                 }
             }
@@ -140,7 +174,7 @@ public class ScanningBinaryDocValuesRangeQueryTests extends ESTestCase {
                 writer.addDocument(docWithIps("10.0.0.3", "10.0.0.4"));
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new ScanningBinaryDocValuesRangeQuery(fieldName, lower, upper, false);
+                    Query query = new ScanningBinaryDocValuesRangeQuery(fieldName, lower, upper, SEPARATE_COUNT);
                     assertEquals(2, searcher.count(query));
                 }
             }
@@ -163,14 +197,28 @@ public class ScanningBinaryDocValuesRangeQueryTests extends ESTestCase {
                         new BytesRef("delta"),
                         true,
                         true,
-                        false
+                        SEPARATE_COUNT
                     );
                     assertEquals(2, searcher.count(closed));
 
-                    Query lowerOpen = new ScanningBinaryDocValuesRangeQuery(fieldName, null, new BytesRef("beta"), true, true, false);
+                    Query lowerOpen = new ScanningBinaryDocValuesRangeQuery(
+                        fieldName,
+                        null,
+                        new BytesRef("beta"),
+                        true,
+                        true,
+                        SEPARATE_COUNT
+                    );
                     assertEquals(2, searcher.count(lowerOpen));
 
-                    Query upperOpen = new ScanningBinaryDocValuesRangeQuery(fieldName, new BytesRef("delta"), null, true, true, false);
+                    Query upperOpen = new ScanningBinaryDocValuesRangeQuery(
+                        fieldName,
+                        new BytesRef("delta"),
+                        null,
+                        true,
+                        true,
+                        SEPARATE_COUNT
+                    );
                     assertEquals(2, searcher.count(upperOpen));
                 }
             }
@@ -186,7 +234,7 @@ public class ScanningBinaryDocValuesRangeQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new ScanningBinaryDocValuesRangeQuery(fieldName, lower, upper, false);
+                    Query query = new ScanningBinaryDocValuesRangeQuery(fieldName, lower, upper, SEPARATE_COUNT);
                     assertEquals(0, searcher.count(query));
                 }
             }
@@ -199,7 +247,7 @@ public class ScanningBinaryDocValuesRangeQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new ScanningBinaryDocValuesRangeQuery(fieldName, lower, upper, false);
+                    Query query = new ScanningBinaryDocValuesRangeQuery(fieldName, lower, upper, SEPARATE_COUNT);
                     assertEquals(1, searcher.count(query));
                 }
             }
@@ -208,12 +256,12 @@ public class ScanningBinaryDocValuesRangeQueryTests extends ESTestCase {
 
     public void testRewriteToTermQueryWhenBoundsEqual() throws Exception {
         BytesRef term = new BytesRef("alpha");
-        ScanningBinaryDocValuesRangeQuery range = new ScanningBinaryDocValuesRangeQuery("field", term, term, false);
+        ScanningBinaryDocValuesRangeQuery range = new ScanningBinaryDocValuesRangeQuery("field", term, term, SEPARATE_COUNT);
         try (Directory dir = newDirectory()) {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    assertEquals(new ScanningBinaryDocValuesTermQuery("field", term, false), range.rewrite(searcher));
+                    assertEquals(new ScanningBinaryDocValuesTermQuery("field", term, SEPARATE_COUNT), range.rewrite(searcher));
                 }
             }
         }
@@ -221,7 +269,7 @@ public class ScanningBinaryDocValuesRangeQueryTests extends ESTestCase {
 
     public void testRewriteKeepsExclusiveEqualBoundsRange() throws Exception {
         BytesRef term = new BytesRef("alpha");
-        ScanningBinaryDocValuesRangeQuery range = new ScanningBinaryDocValuesRangeQuery("field", term, term, false, true, false);
+        ScanningBinaryDocValuesRangeQuery range = new ScanningBinaryDocValuesRangeQuery("field", term, term, false, true, SEPARATE_COUNT);
         try (Directory dir = newDirectory()) {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
                 try (IndexReader reader = writer.getReader()) {
@@ -235,7 +283,7 @@ public class ScanningBinaryDocValuesRangeQueryTests extends ESTestCase {
     public void testRewriteKeepsTrueRange() throws Exception {
         BytesRef lower = encodeIp("192.168.1.0");
         BytesRef upper = encodeIp("192.168.1.255");
-        ScanningBinaryDocValuesRangeQuery range = new ScanningBinaryDocValuesRangeQuery("field", lower, upper, false);
+        ScanningBinaryDocValuesRangeQuery range = new ScanningBinaryDocValuesRangeQuery("field", lower, upper, SEPARATE_COUNT);
         try (Directory dir = newDirectory()) {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
                 try (IndexReader reader = writer.getReader()) {

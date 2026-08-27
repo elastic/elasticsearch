@@ -29,6 +29,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
+import org.elasticsearch.lucene.queries.AbstractBinaryDocValuesQuery.BinaryFormat;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
@@ -41,13 +42,13 @@ final class BinaryDocValuesLengthQuery extends Query {
 
     final String fieldName;
     final int length;
-    // See AbstractBinaryDocValuesQuery#arrayOrderInlineNull: selects the inline-null decoder for the multi-valued fallback path.
-    final boolean arrayOrderInlineNull;
+    // See AbstractBinaryDocValuesQuery.BinaryFormat: selects the decoder for the multi-valued fallback path.
+    final BinaryFormat binaryFormat;
 
-    BinaryDocValuesLengthQuery(String fieldName, int length, boolean arrayOrderInlineNull) {
+    BinaryDocValuesLengthQuery(String fieldName, int length, BinaryFormat binaryFormat) {
         this.fieldName = Objects.requireNonNull(fieldName);
         this.length = length;
-        this.arrayOrderInlineNull = arrayOrderInlineNull;
+        this.binaryFormat = Objects.requireNonNull(binaryFormat);
     }
 
     @Override
@@ -80,10 +81,12 @@ final class BinaryDocValuesLengthQuery extends Query {
                             return DocIdSetIterator.empty();
                         }
 
-                        Predicate<BytesRef> payloadPredicate = bytes -> bytes.length == length;
-                        if (ColumnarBinaryDocValuesField.isColumnarStringPayload(context.reader(), fieldName)) {
+                        Predicate<BytesRef> lengthPredicate = bytes -> bytes.length == length;
+                        if (binaryFormat == BinaryFormat.COLUMNAR_STRING_PAYLOAD) {
+                            assert ColumnarBinaryDocValuesField.isColumnarStringPayload(context.reader(), fieldName)
+                                : "field [" + fieldName + "] is mapped as a columnar payload but this segment does not carry one";
                             // The payload carries its own count; its blob is never a bare value, so no fast path applies.
-                            return AbstractBinaryDocValuesQuery.columnarPayloadIterator(values, payloadPredicate, matchCost);
+                            return AbstractBinaryDocValuesQuery.columnarPayloadIterator(values, lengthPredicate, matchCost);
                         }
                         String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
                         final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
@@ -94,8 +97,7 @@ final class BinaryDocValuesLengthQuery extends Query {
                             // BlockLoader.OptionalLengthReader), so sub-segment slicing scales with cores.
                             return direct.tryLengthIterator(length);
                         }
-                        Predicate<BytesRef> lengthPredicate = bytes -> bytes.length == length;
-                        if (arrayOrderInlineNull) {
+                        if (binaryFormat == BinaryFormat.ARRAY_ORDER_INLINE_NULL) {
                             return AbstractBinaryDocValuesQuery.arrayOrderInlineNullIterator(values, counts, lengthPredicate, matchCost);
                         } else if (countsSkipper != null) {
                             return AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, lengthPredicate, matchCost);

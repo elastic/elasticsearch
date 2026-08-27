@@ -17,6 +17,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
+import org.elasticsearch.lucene.queries.AbstractBinaryDocValuesQuery.BinaryFormat;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -42,10 +43,11 @@ public class ScanningBinaryDocValuesTermInSetQueryTests extends ESTestCase {
                     // {beta, zeta}: beta is in the multi-value and single-value docs (the all-null doc preceding the latter must not be
                     // matched), zeta is absent.
                     var betaOrZeta = List.of(new BytesRef("beta"), new BytesRef("zeta"));
-                    assertEquals(2, searcher.count(new ScanningBinaryDocValuesTermInSetQuery(fieldName, betaOrZeta, true)));
+                    var format = BinaryFormat.ARRAY_ORDER_INLINE_NULL;
+                    assertEquals(2, searcher.count(new ScanningBinaryDocValuesTermInSetQuery(fieldName, betaOrZeta, format)));
                     // {alpha, delta}: alpha is in the first doc, delta in the last.
                     var alphaOrDelta = List.of(new BytesRef("alpha"), new BytesRef("delta"));
-                    assertEquals(2, searcher.count(new ScanningBinaryDocValuesTermInSetQuery(fieldName, alphaOrDelta, true)));
+                    assertEquals(2, searcher.count(new ScanningBinaryDocValuesTermInSetQuery(fieldName, alphaOrDelta, format)));
                 }
             }
         }
@@ -87,7 +89,9 @@ public class ScanningBinaryDocValuesTermInSetQueryTests extends ESTestCase {
                     IndexSearcher searcher = newSearcher(reader);
                     for (var entry : expectedCounts.entrySet()) {
                         List<BytesRef> terms = List.of(new BytesRef(entry.getKey()));
-                        long count = searcher.count(new ScanningBinaryDocValuesTermInSetQuery(fieldName, terms, false));
+                        long count = searcher.count(
+                            new ScanningBinaryDocValuesTermInSetQuery(fieldName, terms, BinaryFormat.SEPARATE_COUNT)
+                        );
                         assertEquals(entry.getValue().longValue(), count);
                     }
                 }
@@ -98,12 +102,12 @@ public class ScanningBinaryDocValuesTermInSetQueryTests extends ESTestCase {
 
                     // Query for "a" or "b" should return count of a + count of b
                     List<BytesRef> terms = List.of(new BytesRef("a"), new BytesRef("b"));
-                    long count = searcher.count(new ScanningBinaryDocValuesTermInSetQuery(fieldName, terms, false));
+                    long count = searcher.count(new ScanningBinaryDocValuesTermInSetQuery(fieldName, terms, BinaryFormat.SEPARATE_COUNT));
                     assertEquals(expectedCounts.get("a") + expectedCounts.get("b"), count);
 
                     // Query for "c", "d", "e" should return sum of their counts
                     List<BytesRef> terms2 = List.of(new BytesRef("c"), new BytesRef("d"), new BytesRef("e"));
-                    long count2 = searcher.count(new ScanningBinaryDocValuesTermInSetQuery(fieldName, terms2, false));
+                    long count2 = searcher.count(new ScanningBinaryDocValuesTermInSetQuery(fieldName, terms2, BinaryFormat.SEPARATE_COUNT));
                     assertEquals(expectedCounts.get("c") + expectedCounts.get("d") + expectedCounts.get("e"), count2);
                 }
 
@@ -111,7 +115,7 @@ public class ScanningBinaryDocValuesTermInSetQueryTests extends ESTestCase {
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
                     List<BytesRef> terms = List.of(new BytesRef("nonexistent"));
-                    long count = searcher.count(new ScanningBinaryDocValuesTermInSetQuery(fieldName, terms, false));
+                    long count = searcher.count(new ScanningBinaryDocValuesTermInSetQuery(fieldName, terms, BinaryFormat.SEPARATE_COUNT));
                     assertEquals(0, count);
                 }
 
@@ -119,7 +123,7 @@ public class ScanningBinaryDocValuesTermInSetQueryTests extends ESTestCase {
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
                     List<BytesRef> terms = List.of(new BytesRef("a"), new BytesRef("nonexistent"));
-                    long count = searcher.count(new ScanningBinaryDocValuesTermInSetQuery(fieldName, terms, false));
+                    long count = searcher.count(new ScanningBinaryDocValuesTermInSetQuery(fieldName, terms, BinaryFormat.SEPARATE_COUNT));
                     assertEquals(expectedCounts.get("a").longValue(), count);
                 }
             }
@@ -135,7 +139,11 @@ public class ScanningBinaryDocValuesTermInSetQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new ScanningBinaryDocValuesTermInSetQuery(fieldName, List.of(new BytesRef("a")), false);
+                    Query query = new ScanningBinaryDocValuesTermInSetQuery(
+                        fieldName,
+                        List.of(new BytesRef("a")),
+                        BinaryFormat.SEPARATE_COUNT
+                    );
                     assertEquals(0, searcher.count(query));
                 }
             }
@@ -160,7 +168,11 @@ public class ScanningBinaryDocValuesTermInSetQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new ScanningBinaryDocValuesTermInSetQuery(fieldName, List.of(new BytesRef("a")), false);
+                    Query query = new ScanningBinaryDocValuesTermInSetQuery(
+                        fieldName,
+                        List.of(new BytesRef("a")),
+                        BinaryFormat.SEPARATE_COUNT
+                    );
                     assertEquals(1, searcher.count(query));
                 }
             }
@@ -168,7 +180,10 @@ public class ScanningBinaryDocValuesTermInSetQueryTests extends ESTestCase {
     }
 
     public void testNullTermsThrows() {
-        expectThrows(NullPointerException.class, () -> new ScanningBinaryDocValuesTermInSetQuery("field", null, false));
+        expectThrows(
+            NullPointerException.class,
+            () -> new ScanningBinaryDocValuesTermInSetQuery("field", null, BinaryFormat.SEPARATE_COUNT)
+        );
     }
 
     public void testEqualsAndHashCode() {
@@ -177,10 +192,11 @@ public class ScanningBinaryDocValuesTermInSetQueryTests extends ESTestCase {
         List<BytesRef> terms2 = List.of(new BytesRef("a"), new BytesRef("b"));
         List<BytesRef> terms3 = List.of(new BytesRef("a"), new BytesRef("c"));
 
-        ScanningBinaryDocValuesTermInSetQuery query1 = new ScanningBinaryDocValuesTermInSetQuery(fieldName, terms1, false);
-        ScanningBinaryDocValuesTermInSetQuery query2 = new ScanningBinaryDocValuesTermInSetQuery(fieldName, terms2, false);
-        ScanningBinaryDocValuesTermInSetQuery query3 = new ScanningBinaryDocValuesTermInSetQuery(fieldName, terms3, false);
-        ScanningBinaryDocValuesTermInSetQuery query4 = new ScanningBinaryDocValuesTermInSetQuery("other", terms1, false);
+        var format = BinaryFormat.SEPARATE_COUNT;
+        ScanningBinaryDocValuesTermInSetQuery query1 = new ScanningBinaryDocValuesTermInSetQuery(fieldName, terms1, format);
+        ScanningBinaryDocValuesTermInSetQuery query2 = new ScanningBinaryDocValuesTermInSetQuery(fieldName, terms2, format);
+        ScanningBinaryDocValuesTermInSetQuery query3 = new ScanningBinaryDocValuesTermInSetQuery(fieldName, terms3, format);
+        ScanningBinaryDocValuesTermInSetQuery query4 = new ScanningBinaryDocValuesTermInSetQuery("other", terms1, format);
 
         // Same terms, same field
         assertEquals(query1, query2);
@@ -207,8 +223,9 @@ public class ScanningBinaryDocValuesTermInSetQueryTests extends ESTestCase {
         );
         List<BytesRef> termsWithoutDuplicates = List.of(new BytesRef("a"), new BytesRef("b"));
 
-        ScanningBinaryDocValuesTermInSetQuery query1 = new ScanningBinaryDocValuesTermInSetQuery("field", termsWithDuplicates, false);
-        ScanningBinaryDocValuesTermInSetQuery query2 = new ScanningBinaryDocValuesTermInSetQuery("field", termsWithoutDuplicates, false);
+        var format = BinaryFormat.SEPARATE_COUNT;
+        ScanningBinaryDocValuesTermInSetQuery query1 = new ScanningBinaryDocValuesTermInSetQuery("field", termsWithDuplicates, format);
+        ScanningBinaryDocValuesTermInSetQuery query2 = new ScanningBinaryDocValuesTermInSetQuery("field", termsWithoutDuplicates, format);
 
         assertEquals(query1, query2);
         assertEquals(query1.hashCode(), query2.hashCode());

@@ -43,7 +43,7 @@ public final class ScanningBinaryDocValuesRegexpQuery extends AbstractBinaryDocV
         int syntaxFlags,
         int matchFlags,
         int maxDeterminizedStates,
-        boolean arrayOrderInlineNull,
+        BinaryFormat binaryFormat,
         @Nullable CircuitBreaker circuitBreaker
     ) {
         super(
@@ -56,7 +56,7 @@ public final class ScanningBinaryDocValuesRegexpQuery extends AbstractBinaryDocV
                 maxDeterminizedStates,
                 circuitBreaker
             ),
-            arrayOrderInlineNull
+            binaryFormat
         );
         this.pattern = Objects.requireNonNull(pattern);
         this.syntaxFlags = syntaxFlags;

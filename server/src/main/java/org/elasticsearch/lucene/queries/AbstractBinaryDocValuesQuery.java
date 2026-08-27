@@ -39,18 +39,30 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 
-abstract class AbstractBinaryDocValuesQuery extends Query {
+public abstract class AbstractBinaryDocValuesQuery extends Query {
+
+    /**
+     * How a field lays out its binary doc values, and so which decoder reads them back. The three are not interchangeable — decoding one
+     * as another silently returns wrong hits rather than failing — so a query is told which to expect when it is built, from the mapping
+     * that decided how to write it.
+     */
+    public enum BinaryFormat {
+        /** {@code [len][value]...} with the count in a {@code .counts} companion; a lone value stored raw. */
+        SEPARATE_COUNT,
+        /** {@code [len+1][value]...} with inline nulls and the slot count in {@code .counts}; a lone value stored raw. */
+        ARRAY_ORDER_INLINE_NULL,
+        /** {@code [slotCount][len+1][value]...} — the ColumNAR codec's payload, which carries its own count and has no companion. */
+        COLUMNAR_STRING_PAYLOAD
+    }
 
     protected final String fieldName;
     protected final Predicate<BytesRef> matcher;
-    // Whether the field stores its multi-valued binary doc values in the ArrayOrderInlineNull format rather than the SeparateCount format.
-    // The two encodings are not interchangeable, so the decoder must be chosen up front.
-    final boolean arrayOrderInlineNull;
+    protected final BinaryFormat binaryFormat;
 
-    AbstractBinaryDocValuesQuery(String fieldName, Predicate<BytesRef> matcher, boolean arrayOrderInlineNull) {
+    AbstractBinaryDocValuesQuery(String fieldName, Predicate<BytesRef> matcher, BinaryFormat binaryFormat) {
         this.fieldName = Objects.requireNonNull(fieldName);
         this.matcher = Objects.requireNonNull(matcher);
-        this.arrayOrderInlineNull = arrayOrderInlineNull;
+        this.binaryFormat = Objects.requireNonNull(binaryFormat);
     }
 
     @Override
@@ -99,22 +111,38 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
         if (values == null) {
             return null;
         }
-        if (ColumnarBinaryDocValuesField.isColumnarStringPayload(context.reader(), fieldName)) {
-            // The payload carries its own count, so the binary column drives iteration on its own.
-            return columnarPayloadIterator(values, matcher, matchCost);
-        }
-        final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + COUNT_FIELD_SUFFIX);
-        if (arrayOrderInlineNull) {
-            // ArrayOrderInlineNull always writes the .counts field (even for an all-null or empty array, which writes no blob), so when
-            // this flag is set the counts column drives iteration and count==1 is handled inside the inline-null reader as the raw case.
-            assert counts != null : "ArrayOrderInlineNull field [" + fieldName + "] must have a " + COUNT_FIELD_SUFFIX + " companion";
-            return arrayOrderInlineNullIterator(values, counts, matcher, matchCost);
-        }
-        if (counts != null) {
-            return multiValuedIterator(values, counts, matcher, matchCost);
-        } else {
-            return singleValuedIterator(values, matcher, matchCost);
-        }
+        return switch (binaryFormat) {
+            case COLUMNAR_STRING_PAYLOAD -> {
+                assert assertColumnarPayload(context, fieldName);
+                // The payload carries its own count, so the binary column drives iteration on its own.
+                yield columnarPayloadIterator(values, matcher, matchCost);
+            }
+            case ARRAY_ORDER_INLINE_NULL -> {
+                // ArrayOrderInlineNull always writes the .counts field (even for an all-null or empty array, which writes no blob), so
+                // the counts column drives iteration and count==1 is handled inside the inline-null reader as the raw case.
+                final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + COUNT_FIELD_SUFFIX);
+                assert counts != null : "ArrayOrderInlineNull field [" + fieldName + "] must have a " + COUNT_FIELD_SUFFIX + " companion";
+                yield arrayOrderInlineNullIterator(values, counts, matcher, matchCost);
+            }
+            case SEPARATE_COUNT -> {
+                final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + COUNT_FIELD_SUFFIX);
+                yield counts != null
+                    ? multiValuedIterator(values, counts, matcher, matchCost)
+                    : singleValuedIterator(values, matcher, matchCost);
+            }
+        };
+    }
+
+    /**
+     * Cross-checks the mapping's claim that this field is written as a columnar payload against what the segment actually holds, which
+     * the codec records on the field itself. The two are settled independently — the mapping decides what to write, the
+     * {@code FieldInfo} attribute records what was written — so they can only disagree if a segment predates the mapping, and decoding
+     * a bare value as a payload would silently return wrong hits rather than fail.
+     */
+    private static boolean assertColumnarPayload(LeafReaderContext context, String fieldName) {
+        assert ColumnarBinaryDocValuesField.isColumnarStringPayload(context.reader(), fieldName)
+            : "field [" + fieldName + "] is mapped as a columnar payload but this segment does not carry one";
+        return true;
     }
 
     protected abstract float matchCost();

@@ -58,6 +58,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFro
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.queries.AbstractBinaryDocValuesQuery.BinaryFormat;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRangeQuery;
 import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.script.IpFieldScript;
@@ -491,7 +492,12 @@ public class IpFieldMapper extends FieldMapper {
             final BytesRef upper = new BytesRef(pointRangeQuery.getUpperPoint());
 
             if (usesBinaryDocValues) {
-                return new ScanningBinaryDocValuesRangeQuery(field, lower, upper, arrayOrderInlineNull);
+                return new ScanningBinaryDocValuesRangeQuery(
+                    field,
+                    lower,
+                    upper,
+                    arrayOrderInlineNull ? BinaryFormat.ARRAY_ORDER_INLINE_NULL : BinaryFormat.SEPARATE_COUNT
+                );
             } else {
                 return XSortedSetDocValuesRangeQuery.newSlowRangeQuery(field, lower, upper, true, true);
             }

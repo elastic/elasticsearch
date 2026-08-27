@@ -17,7 +17,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -40,15 +39,15 @@ public class ScanningBinaryDocValuesTermQuery extends AbstractBinaryDocValuesQue
 
     private final BytesRef term;
 
-    public ScanningBinaryDocValuesTermQuery(String fieldName, BytesRef term, boolean arrayOrderInlineNull) {
-        super(fieldName, term::equals, arrayOrderInlineNull);
+    public ScanningBinaryDocValuesTermQuery(String fieldName, BytesRef term, BinaryFormat binaryFormat) {
+        super(fieldName, term::equals, binaryFormat);
         this.term = Objects.requireNonNull(term);
     }
 
     @Override
     public Query rewrite(IndexSearcher searcher) throws IOException {
         if (term.length == 0) {
-            return new BinaryDocValuesLengthQuery(fieldName, 0, arrayOrderInlineNull);
+            return new BinaryDocValuesLengthQuery(fieldName, 0, binaryFormat);
         }
         return this;
     }
@@ -60,7 +59,7 @@ public class ScanningBinaryDocValuesTermQuery extends AbstractBinaryDocValuesQue
             return null;
         }
         // A payload blob is never a bare term, so the direct comparison below can never apply to one.
-        final boolean columnarPayload = ColumnarBinaryDocValuesField.isColumnarStringPayload(context.reader(), fieldName);
+        final boolean columnarPayload = binaryFormat == BinaryFormat.COLUMNAR_STRING_PAYLOAD;
         String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
         DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
         // tryTermEqualIterator is only valid for single-valued fields (see its javadoc on

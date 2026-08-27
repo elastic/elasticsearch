@@ -92,6 +92,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.fn.Utf8CodePointsFro
 import org.elasticsearch.index.query.AutomatonQueryWithDescription;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.lucene.queries.AbstractBinaryDocValuesQuery.BinaryFormat;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRangeQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
@@ -864,12 +865,21 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         /**
-         * Whether the blobs carry the inline-null framing, which is the one thing the doc-values queries need to
-         * know to pick a decoder. A columnar field is not one of these: those queries recognise its payload from
-         * the field's own attributes instead.
+         * Whether the blobs carry the inline-null framing. Only fielddata still asks in these terms, because it
+         * predates the columnar payload and has no reader for one; the doc-values queries take {@link #binaryFormat()}
+         * and the block loaders {@link #arrayOrderSource()}, both of which name all three framings.
          */
         private boolean usesArrayOrderInlineNull() {
             return diskFormat == DocValuesDiskFormat.BINARY_ARRAY_ORDER_INLINE_NULL;
+        }
+
+        /** Which framing a doc-values query has to decode for this field. */
+        public BinaryFormat binaryFormat() {
+            return switch (diskFormat) {
+                case BINARY_COLUMNAR_PAYLOAD -> BinaryFormat.COLUMNAR_STRING_PAYLOAD;
+                case BINARY_ARRAY_ORDER_INLINE_NULL -> BinaryFormat.ARRAY_ORDER_INLINE_NULL;
+                case NONE, SORTED_SET, BINARY_SEPARATE_COUNT -> BinaryFormat.SEPARATE_COUNT;
+            };
         }
 
         /**
@@ -919,7 +929,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (indexType.hasTerms()) {
                 return super.termQuery(value, context);
             } else if (usesBinaryDocValues()) {
-                return new ScanningBinaryDocValuesTermQuery(name(), indexedValueForSearch(value), usesArrayOrderInlineNull());
+                return new ScanningBinaryDocValuesTermQuery(name(), indexedValueForSearch(value), binaryFormat());
             } else {
                 return XSortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
             }
@@ -932,7 +942,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return super.termsQuery(values, context);
             } else if (usesBinaryDocValues()) {
                 List<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
-                return new ScanningBinaryDocValuesTermInSetQuery(name(), bytesRefs, usesArrayOrderInlineNull());
+                return new ScanningBinaryDocValuesTermInSetQuery(name(), bytesRefs, binaryFormat());
             } else {
                 Collection<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
                 return SortedSetDocValuesField.newSlowSetQuery(name(), bytesRefs);
@@ -957,7 +967,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     upperTerm == null ? null : indexedValueForSearch(upperTerm),
                     includeLower,
                     includeUpper,
-                    usesArrayOrderInlineNull()
+                    binaryFormat()
                 );
             } else {
                 return XSortedSetDocValuesRangeQuery.newSlowRangeQuery(
@@ -1023,7 +1033,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     name(),
                     indexedValueForSearch(value).utf8ToString(),
                     caseInsensitive,
-                    usesArrayOrderInlineNull()
+                    binaryFormat()
                 );
             } else {
                 if (caseInsensitive == false) {
@@ -1384,7 +1394,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
 
                 if (usesBinaryDocValues()) {
-                    return new ScanningBinaryDocValuesWildcardQuery(name(), value, caseInsensitive, usesArrayOrderInlineNull());
+                    return new ScanningBinaryDocValuesWildcardQuery(name(), value, caseInsensitive, binaryFormat());
                 }
 
                 if (caseInsensitive == false) {
@@ -1453,7 +1463,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                         syntaxFlags,
                         matchFlags,
                         maxDeterminizedStates,
-                        usesArrayOrderInlineNull(),
+                        binaryFormat(),
                         context.getCircuitBreaker()
                     );
                 } else {

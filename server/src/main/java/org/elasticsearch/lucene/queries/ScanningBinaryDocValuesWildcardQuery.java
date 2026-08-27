@@ -34,8 +34,8 @@ public final class ScanningBinaryDocValuesWildcardQuery extends AbstractBinaryDo
     private final String pattern;
     private final boolean caseInsensitive;
 
-    public ScanningBinaryDocValuesWildcardQuery(String fieldName, String pattern, boolean caseInsensitive, boolean arrayOrderInlineNull) {
-        super(fieldName, buildByteRunAutomaton(fieldName, pattern, caseInsensitive), arrayOrderInlineNull);
+    public ScanningBinaryDocValuesWildcardQuery(String fieldName, String pattern, boolean caseInsensitive, BinaryFormat binaryFormat) {
+        super(fieldName, buildByteRunAutomaton(fieldName, pattern, caseInsensitive), binaryFormat);
         this.pattern = Objects.requireNonNull(pattern);
         this.caseInsensitive = caseInsensitive;
     }
@@ -56,7 +56,7 @@ public final class ScanningBinaryDocValuesWildcardQuery extends AbstractBinaryDo
         if (caseInsensitive == false) {
             var innerPattern = getContainsPattern(pattern);
             if (innerPattern != null) {
-                return new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef(innerPattern), arrayOrderInlineNull);
+                return new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef(innerPattern), binaryFormat);
             }
         }
         return super.rewrite(indexSearcher);

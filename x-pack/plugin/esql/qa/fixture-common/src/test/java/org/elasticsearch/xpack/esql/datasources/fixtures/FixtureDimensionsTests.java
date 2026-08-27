@@ -401,18 +401,42 @@ public class FixtureDimensionsTests extends ESTestCase {
     /**
      * The counts the live vector suites are built on. A silent move here changes what CI runs.
      *
-     * <p>tsv is 9 rather than 18 because the baseline is filled with the format's OWN default. The
-     * reader reads .tsv as plain, so a vector carrying quoted is off-default there and needs a
-     * quoted-tsv fixture that nothing writes. While the baseline was filled globally those nine vectors
-     * were selected anyway and ran with no mode injected -- asserting quoted while the reader used
-     * plain. They were not testing what their name said.
+     * <p>tsv is 18, but not for the reason it was 18 before. A per-format default has to be applied in
+     * all three places that consult one -- the baseline fill, the rendered name, and this selection --
+     * or they disagree and the disagreement decides. Filled globally, tsv vectors carried quoted and ran
+     * as plain: right count, wrong configuration. Filled per format while the predicate stayed global,
+     * the same vectors were rejected: wrong count. Consistent, they carry plain, which IS tsv's default,
+     * and are selected because nothing about them is off-default.
      */
     public void testDirectiveExpressibleCountsPerFormat() {
         FixtureDimensions d = FixtureDimensions.get();
         assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(24));
-        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(9));
+        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(18));
         assertThat(d.directiveExpressibleVectors("ndjson").size(), equalTo(18));
         assertThat(d.directiveExpressibleVectors("parquet").size(), equalTo(9));
+    }
+
+    /**
+     * The slot values a vector actually carries must agree with the format it names. A vector that says
+     * tsv while carrying csv's text_mode is a misbind: the suite injects nothing, the reader applies its
+     * own per-extension default, and the case asserts a configuration it never ran.
+     */
+    public void testEveryVectorCarriesItsOwnFormatsDefaults() {
+        FixtureDimensions d = FixtureDimensions.get();
+        for (String format : d.values("format")) {
+            for (Map<String, String> vector : d.directiveExpressibleVectors(format)) {
+                for (String name : d.names()) {
+                    if (d.render(vector).contains(name + "=")) {
+                        continue;
+                    }
+                    assertThat(
+                        "slot [" + name + "] of an unrendered vector must sit at " + format + " default",
+                        vector.get(name),
+                        equalTo(d.defaultValue(name, format))
+                    );
+                }
+            }
+        }
     }
 
     /**

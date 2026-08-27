@@ -690,9 +690,12 @@ public final class FixtureDimensions {
      */
     public String render(Map<String, String> vector) {
         StringBuilder out = new StringBuilder();
+        String format = vector.get("format");
         for (String name : names) {
             String value = vector.get(name);
-            if (value == null || value.equals(defaultValue(name))) {
+            // Against the vector's OWN format: quoted is the baseline on csv and a variation on tsv, so a
+            // global comparison names the wrong slots off-default and hides the ones that are.
+            if (value == null || value.equals(defaultValue(name, format))) {
                 continue;
             }
             out.append(out.isEmpty() ? "" : ",").append(name).append('=').append(value);
@@ -750,7 +753,7 @@ public final class FixtureDimensions {
             }
             for (Map.Entry<String, String> slot : vector.entrySet()) {
                 String dimension = slot.getKey();
-                if (dimension.equals("format") || slot.getValue().equals(defaultValue(dimension))) {
+                if (dimension.equals("format") || slot.getValue().equals(defaultValue(dimension, format))) {
                     continue;
                 }
                 if (directiveKeyByName.containsKey(dimension) == false) {

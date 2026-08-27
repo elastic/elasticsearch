@@ -230,7 +230,6 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
     }
 
     void startRelocation(Task task, StatelessPrimaryRelocationAction.Request request, ActionListener<StartRelocationResponse> listener) {
-        assert lifecycle.started();
         // Note that we trigger prewarm on the target before the source-side throttle queue. Indeed, by the relocation
         // has already passed through the own target-side recovery throttle (the concurrency limit on incoming recoveries),
         // so the target node cannot be overloaded by prewarm requests. Starting early overlaps cache warming with any
@@ -732,6 +731,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             }
         }
 
+        // visible for testing
         void cancelPendingRelocationsWithTargetNode(DiscoveryNode node) {
             cancelPendingRelocations(pending -> pending.request().targetNode().equals(node), new NodeClosedException(node));
         }
@@ -749,6 +749,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             cancelPendingRelocations(ignored -> true, new NodeClosedException(clusterService.localNode()));
         }
 
+        // visible for testing
         void updateMaxConcurrentOutgoingRelocations(int newMax) {
             final int oldMax;
             synchronized (this) {
@@ -757,7 +758,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             }
             if (oldMax < newMax) {
                 // Move off the cluster applier thread. The generic executor has an unbounded queue and the cluster
-                // applier thread stops before the thread pool shuts down so this can never be rejected.
+                // applier thread stops before the thread pool shuts down so this should never be rejected.
                 executor.execute(this::startRelocationsUpToLimit);
             }
         }

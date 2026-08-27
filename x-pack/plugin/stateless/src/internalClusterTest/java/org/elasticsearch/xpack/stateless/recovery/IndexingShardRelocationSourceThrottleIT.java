@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.shard.IndexShard;
@@ -40,7 +41,7 @@ import java.util.function.Predicate;
 import static org.hamcrest.Matchers.lessThan;
 
 /// Integration tests for source-side relocation throttling in stateless Elasticsearch.
-public class StatelessIndexThrottlingRecoveryIT extends AbstractStatelessPluginIntegTestCase {
+public class IndexingShardRelocationSourceThrottleIT extends AbstractStatelessPluginIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -205,7 +206,7 @@ public class StatelessIndexThrottlingRecoveryIT extends AbstractStatelessPluginI
         ensureGreen(indexName);
     }
 
-    public void testSourceNodeShutdown() throws IOException {
+    public void testSourceNodeShutdown() throws InterruptedException {
         startMasterOnlyNode();
         final var sourceNode = startIndexNode(
             Settings.builder()
@@ -226,21 +227,35 @@ public class StatelessIndexThrottlingRecoveryIT extends AbstractStatelessPluginI
         ensureGreen(indexName);
 
         // Stall the active relocation so the source slot stays occupied and the second shard is queued.
+        final var handoffReached = new CountDownLatch(1);
         final var proceedWithHandoff = new CountDownLatch(1);
-        MockTransportService.getInstance(targetNode)
-            .addRequestHandlingBehavior(
-                TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME,
-                (handler, request, channel, task) -> {
-                    safeAwait(proceedWithHandoff);
-                    handler.messageReceived(request, channel, task);
-                }
-            );
+        MockTransportService.getInstance(sourceNode).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME)) {
+                handoffReached.countDown();
+                safeAwait(proceedWithHandoff, TimeValue.THIRTY_SECONDS);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
 
         updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", sourceNode), indexName);
         awaitRecoveryCountStats(Map.of(sourceNode, stats -> stats.currentAsSource() == 1 && stats.currentAsSourceQueued() == 1));
+        safeAwait(handoffReached);
 
-        internalCluster().stopNode(sourceNode);
+        // Stop the node in a background thread. The shutdown should block inside awaitEmpty() in doClose()
+        // because the relocation thread is parked in the send behavior and still holds an active slot.
+        final var shuttingDownThread = new Thread(() -> {
+            try {
+                internalCluster().stopNode(sourceNode);
+            } catch (IOException e) {
+                fail(e);
+            }
+        });
+        shuttingDownThread.start();
+        safeSleep(5_000);
+        assertTrue("node stop should be blocking on awaitEmpty() while the relocation is in-flight", shuttingDownThread.isAlive());
         proceedWithHandoff.countDown();
+        shuttingDownThread.join(30_000);
+        assertFalse(shuttingDownThread.isAlive());
         startIndexNode();
         ensureGreen(indexName);
     }

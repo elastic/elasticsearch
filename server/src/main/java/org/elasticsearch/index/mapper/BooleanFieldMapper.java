@@ -430,7 +430,7 @@ public class BooleanFieldMapper extends FieldMapper {
                 }
 
                 @Override
-                protected void parseNonNullValue(XContentParser parser, List<Boolean> accumulator) throws IOException {
+                protected void parseNonNullValue(XContentParser parser, List<Boolean> accumulator) {
                     // Aligned with implementation of `parseCreateField(XContentParser)`
                     try {
                         var value = parser.booleanValue();
@@ -581,7 +581,7 @@ public class BooleanFieldMapper extends FieldMapper {
         this.docValuesParameters = builder.docValuesParameters.getValue();
         this.dvFactory = new DocValuesFieldFactory(
             docValuesParameters.multiValue(),
-            ((BooleanFieldType) mappedFieldType).indexType.hasDocValuesSkipper(),
+            mappedFieldType.indexType.hasDocValuesSkipper(),
             builder.indexSettings.getIndexVersionCreated()
         );
         this.script = builder.script.get();

@@ -11,52 +11,34 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
-import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
-import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.EmptySystemIndices;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.recovery.RecoveryFeatures;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.reservedstate.service.FileSettingsService;
-import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -70,7 +52,6 @@ import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -683,208 +664,53 @@ public class RestoreServiceTests extends ESTestCase {
         assertTrue(RestoreService.isRestoringShard(initRestore, s.primary()));
     }
 
-    // ---- restore-over-open-index tests ---------------------------------------------
+    // ---- restore-over-open-index guard tests ---------------------------------------------
 
     /**
      * A restore over an open index must refuse to publish the transition until every node in the cluster supports
-     * {@link RecoveryFeatures#RESTORE_OVER_OPEN_INDEX_RECREATES_INDEX_SERVICE}, since a node without it cannot safely
-     * recreate the {@code IndexService} for the resulting open-to-open history-UUID change.
+     * {@link RecoveryFeatures#RESTORE_OVER_OPEN_INDEX_RECREATES_INDEX_SERVICE}, since a node without it cannot safely recreate the
+     * {@code IndexService} for the resulting open-to-open history-UUID change.
      */
-    public void testRestoreOverOpenIndicesRejectsWhenNodeFeatureMissing() throws Exception {
-        withOpenIndexRestoreHarness(false, fixture -> {
-            PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
-            fixture.restoreService()
-                .restoreOverOpenIndices(
-                    ProjectId.DEFAULT,
-                    fixture.snapshot(),
-                    fixture.snapshotInfo(),
-                    TEST_REQUEST_TIMEOUT,
-                    UUIDs.randomBase64UUID(),
-                    List.of(fixture.target()),
-                    future
-                );
-            SnapshotRestoreException e = expectThrows(
-                SnapshotRestoreException.class,
-                () -> future.actionGet(TimeValue.timeValueSeconds(10))
-            );
-            assertThat(e.getMessage(), containsString("not every node"));
-        });
+    public void testRestoreOverOpenIndexRejectsWhenNodeFeatureMissing() {
+        final FeatureService featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), eq(RecoveryFeatures.RESTORE_OVER_OPEN_INDEX_RECREATES_INDEX_SERVICE))).thenReturn(
+            false
+        );
+        final Snapshot snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("test-snap", randomUUID()));
+
+        final SnapshotRestoreException e = expectThrows(
+            SnapshotRestoreException.class,
+            () -> RestoreService.ensureClusterSupportsRestoreOverOpenIndex(featureService, ClusterState.EMPTY_STATE, snapshot)
+        );
+        assertThat(e.getMessage(), containsString("not every node"));
     }
 
     /**
-     * The caller resolves the exact destination {@link Index} (name and UUID) before submitting the restore, precisely so that an
-     * index deleted and recreated under the same name is never silently adopted as the destination.
+     * The caller resolves the exact destination {@link Index} (name and UUID) before submitting the restore, precisely so that an index
+     * deleted and recreated under the same name is never silently adopted as the destination: the exact-identity check must reject a
+     * resolved identity that no longer matches the index now present under that name.
      */
-    public void testRestoreOverOpenIndicesRejectsExactIdentityMismatch() throws Exception {
-        withOpenIndexRestoreHarness(true, fixture -> {
-            Index staleIndex = new Index(fixture.index().getName(), UUIDs.randomBase64UUID());
-            PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
-            fixture.restoreService()
-                .restoreOverOpenIndices(
-                    ProjectId.DEFAULT,
-                    fixture.snapshot(),
-                    fixture.snapshotInfo(),
-                    TEST_REQUEST_TIMEOUT,
-                    UUIDs.randomBase64UUID(),
-                    List.of(fixture.target(staleIndex)),
-                    future
-                );
-            SnapshotRestoreException e = expectThrows(
-                SnapshotRestoreException.class,
-                () -> future.actionGet(TimeValue.timeValueSeconds(10))
-            );
-            assertThat(e.getMessage(), containsString("no longer exists in the cluster state"));
-        });
-    }
+    public void testRestoreOverOpenIndexRejectsExactIdentityMismatch() {
+        final IndexMetadata currentIndexMetadata = IndexMetadata.builder("test-idx")
+            .settings(indexSettings(IndexVersion.current(), 1, 0))
+            .build();
+        final Snapshot snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("test-snap", randomUUID()));
+        // same name, different UUID: the identity the caller resolved is stale relative to the index now present
+        final Index staleIndex = new Index(currentIndexMetadata.getIndex().getName(), UUIDs.randomBase64UUID());
 
-    /**
-     * A retry that supplies the same restore UUID as an already-applied restore observes the correlated
-     * {@link RestoreInProgress} entry and must be a no-op rather than a second initialization.
-     */
-    public void testRestoreOverOpenIndicesIdempotentRetryIsANoOp() throws Exception {
-        final String restoreUUID = UUIDs.randomBase64UUID();
-        withOpenIndexRestoreHarness(true, fixture -> {
-            PlainActionFuture<RestoreService.RestoreCompletionResponse> first = new PlainActionFuture<>();
-            fixture.restoreService()
-                .restoreOverOpenIndices(
-                    ProjectId.DEFAULT,
-                    fixture.snapshot(),
-                    fixture.snapshotInfo(),
-                    TEST_REQUEST_TIMEOUT,
-                    restoreUUID,
-                    List.of(fixture.target()),
-                    first
-                );
-            first.actionGet(TimeValue.timeValueSeconds(10));
-
-            final ClusterState afterFirstCall = fixture.clusterService().state();
-            final String historyUuidAfterFirstCall = historyUuid(afterFirstCall, fixture.index().getName());
-            assertThat(historyUuidAfterFirstCall, notNullValue());
-            assertThat(Iterables.size(RestoreInProgress.get(afterFirstCall)), equalTo(1L));
-
-            PlainActionFuture<RestoreService.RestoreCompletionResponse> second = new PlainActionFuture<>();
-            fixture.restoreService()
-                .restoreOverOpenIndices(
-                    ProjectId.DEFAULT,
-                    fixture.snapshot(),
-                    fixture.snapshotInfo(),
-                    TEST_REQUEST_TIMEOUT,
-                    restoreUUID,
-                    List.of(fixture.target()),
-                    second
-                );
-            second.actionGet(TimeValue.timeValueSeconds(10));
-
-            final ClusterState afterSecondCall = fixture.clusterService().state();
-            assertThat(historyUuid(afterSecondCall, fixture.index().getName()), equalTo(historyUuidAfterFirstCall));
-            assertThat(Iterables.size(RestoreInProgress.get(afterSecondCall)), equalTo(1L));
-        });
-    }
-
-    private static String historyUuid(ClusterState state, String indexName) {
-        return state.metadata().getProject(ProjectId.DEFAULT).index(indexName).getSettings().get(IndexMetadata.SETTING_HISTORY_UUID);
-    }
-
-    private record OpenIndexRestoreFixture(
-        RestoreService restoreService,
-        ClusterService clusterService,
-        Index index,
-        Snapshot snapshot,
-        SnapshotInfo snapshotInfo,
-        IndexId snapshotIndexId,
-        IndexMetadata snapshotIndexMetadata
-    ) {
-        RestoreService.OpenIndexRestoreTarget target() {
-            return target(index);
-        }
-
-        RestoreService.OpenIndexRestoreTarget target(Index destinationIndex) {
-            return new RestoreService.OpenIndexRestoreTarget(destinationIndex, snapshotIndexId, snapshotIndexMetadata);
-        }
-    }
-
-    private interface OpenIndexRestoreTestBody {
-        void run(OpenIndexRestoreFixture fixture) throws Exception;
-    }
-
-    /**
-     * Builds a real, single-node {@link ClusterService} (via {@link ClusterServiceUtils}) with one open index, and a {@link RestoreService}
-     * wired to it. Dependencies that the open-index restore validation path never reaches (index creation, mapping/version verification
-     * beyond a pass-through, shard limits, system indices, file settings) are mocked or stubbed with no-ops; constructing the real
-     * equivalents would require an unrelated mapper/x-content registry setup this test does not exercise.
-     */
-    private void withOpenIndexRestoreHarness(boolean nodeFeatureSupported, OpenIndexRestoreTestBody body) throws Exception {
-        final ThreadPool threadPool = new TestThreadPool(getTestName());
-        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool)) {
-            final ClusterState initial = clusterService.state();
-            final DiscoveryNode localNode = initial.nodes().getLocalNode();
-
-            final IndexMetadata indexMetadata = IndexMetadata.builder("test-idx")
-                .settings(indexSettings(IndexVersion.current(), 1, 0))
-                .build();
-            final Index index = indexMetadata.getIndex();
-
-            final IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index);
-            indexRoutingTable.addShard(
-                TestShardRouting.newShardRouting(new ShardId(index, 0), localNode.getId(), true, ShardRoutingState.STARTED)
-            );
-
-            final ClusterState state = ClusterState.builder(initial)
-                .putProjectMetadata(ProjectMetadata.builder(initial.metadata().getProject(ProjectId.DEFAULT)).put(indexMetadata, true))
-                .putRoutingTable(
-                    ProjectId.DEFAULT,
-                    RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, initial.routingTable(ProjectId.DEFAULT))
-                        .add(indexRoutingTable)
-                        .build()
-                )
-                .build();
-            ClusterServiceUtils.setState(clusterService, state);
-
-            final RepositoriesService repositoriesService = mock(RepositoriesService.class);
-            when(repositoriesService.getPreRestoreVersionChecks()).thenReturn(List.of());
-
-            final AllocationService allocationService = mock(AllocationService.class);
-            when(allocationService.getShardRoutingRoleStrategy()).thenReturn(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
-            when(allocationService.reroute(any(), any(), any())).thenAnswer(invocation -> {
-                ActionListener<Void> rerouteListener = invocation.getArgument(2);
-                rerouteListener.onResponse(null);
-                return invocation.getArgument(0);
-            });
-
-            final IndexMetadataVerifier indexMetadataVerifier = mock(IndexMetadataVerifier.class);
-            when(indexMetadataVerifier.verifyIndexMetadata(any(), any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
-
-            final FeatureService featureService = mock(FeatureService.class);
-            when(featureService.clusterHasFeature(any(), eq(RecoveryFeatures.RESTORE_OVER_OPEN_INDEX_RECREATES_INDEX_SERVICE))).thenReturn(
-                nodeFeatureSupported
-            );
-
-            final RestoreService restoreService = new RestoreService(
-                clusterService,
-                repositoriesService,
-                allocationService,
-                mock(MetadataCreateIndexService.class),
-                indexMetadataVerifier,
-                mock(ShardLimitValidator.class),
-                EmptySystemIndices.INSTANCE,
-                mock(IndicesService.class),
-                mock(FileSettingsService.class),
-                threadPool,
-                false,
-                IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance(),
-                featureService
-            );
-
-            final Snapshot snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("test-snap", randomUUID()));
-            final SnapshotInfo snapshotInfo = createSnapshotInfo(snapshot, Boolean.FALSE);
-            final IndexId snapshotIndexId = new IndexId(index.getName(), randomUUID());
-
-            body.run(
-                new OpenIndexRestoreFixture(restoreService, clusterService, index, snapshot, snapshotInfo, snapshotIndexId, indexMetadata)
-            );
-        } finally {
-            terminate(threadPool);
-        }
+        final SnapshotRestoreException e = expectThrows(
+            SnapshotRestoreException.class,
+            () -> RestoreService.validateExistingOpenIndexForRestore(
+                snapshot,
+                ClusterState.EMPTY_STATE,
+                ProjectId.DEFAULT,
+                currentIndexMetadata,
+                currentIndexMetadata,
+                staleIndex,
+                false
+            )
+        );
+        assertThat(e.getMessage(), containsString("no longer exists in the cluster state"));
     }
 
     private static SnapshotInfo createSnapshotInfo(Snapshot snapshot, Boolean includeGlobalState) {

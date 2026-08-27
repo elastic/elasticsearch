@@ -76,11 +76,11 @@ import static org.hamcrest.Matchers.nullValue;
  * recreate its index service with reopened-index semantics rather than update it in place, while keeping the shard store on disk so that
  * the restore file diff can reuse identical local Lucene files.
  * <p>
- * {@link #initializeRestoreOverOpenIndex} drives this through the {@link RestoreService#restoreOverOpenIndices} restore path,
- * except for {@link #testOverlappingRestoreTransitionsDoNotCorruptTheSecondRestore}, which instead publishes the equivalent
- * transition directly via {@link #initializeRestoreOverOpenIndexBypassingMasterGuard}: that test simulates a hypothetical caller that
- * isn't protected against overlapping restores the way {@link RestoreService#restoreOverOpenIndices} itself now is, so the node-side
- * transition's own robustness needs to be verified independently of any single caller's protection.
+ * {@link #initializeRestoreOverOpenIndex} drives this through the public {@link RestoreService#restoreSnapshot} API, opting in via
+ * {@link RestoreSnapshotRequest#restoreOverOpenIndex()}, except for {@link #testOverlappingRestoreTransitionsDoNotCorruptTheSecondRestore},
+ * which instead publishes the equivalent transition directly via {@link #initializeRestoreOverOpenIndexBypassingMasterGuard}: that test
+ * simulates a hypothetical caller that isn't protected against overlapping restores the way {@link RestoreService#restoreSnapshot} is, so
+ * the node-side transition's own robustness needs to be verified independently of any single caller's protection.
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
@@ -149,13 +149,12 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startDataOnlyNode();
 
         final int docCount = createRepositoryAndSnapshottedIndex();
-        // resolve the snapshot before breaking the repository, since resolving it reads from the repository too
-        final RestoreTarget restoreTarget = resolveRestoreTarget();
 
         try {
-            // make every repository read fail, so the restore recovery of the recreated index service cannot succeed
-            setControlIOExceptionRate(1.0);
-            initializeRestoreOverOpenIndex(restoreTarget);
+            // fail every repository read on the data node so the restore recovery of the recreated index service cannot succeed, while
+            // leaving the master able to resolve the snapshot and publish the restore transition
+            setDataNodeControlIOExceptionRate(1.0);
+            initializeRestoreOverOpenIndex();
 
             // the transition is published regardless of the recovery outcome, and the shard exhausts its allocation retries
             assertThat("the transition is published before any recovery is attempted", historyUuid(), notNullValue());
@@ -163,7 +162,7 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
                 () -> assertThat(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, INDEX_NAME).get().getUnassignedShards(), greaterThan(0))
             );
         } finally {
-            setControlIOExceptionRate(0.0);
+            setDataNodeControlIOExceptionRate(0.0);
         }
 
         // the failed attempt must not have discarded the local store, so retrying restores without downloading anything again
@@ -272,7 +271,7 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
                 equalTo(ShardRoutingState.INITIALIZING)
             );
 
-            // publish a second transition over the same, still-recovering shard, bypassing RestoreService#restoreOverOpenIndices' own
+            // publish a second transition over the same, still-recovering shard, bypassing RestoreService#restoreSnapshot's own
             // guard against overlapping restores of the same index, to prove the node-side transition itself tolerates this
             initializeRestoreOverOpenIndexBypassingMasterGuard(restoreTarget);
 
@@ -315,7 +314,6 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
         final String dataNode = internalCluster().startDataOnlyNode();
 
         createRepositoryAndSnapshottedIndex();
-        final RestoreTarget restoreTarget = resolveRestoreTarget();
 
         // block on any file write, not just data files: a second snapshot of an unchanged index writes no new data blobs (the
         // segments are unchanged and deduplicated), but it always rewrites its shard-level snapshot metadata files
@@ -323,7 +321,7 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
         final ActionFuture<CreateSnapshotResponse> blockingSnapshot = startFullSnapshot(REPOSITORY_NAME, "blocking-snap");
         waitForBlock(dataNode, REPOSITORY_NAME);
         try {
-            final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = restoreOverOpenIndexFuture(restoreTarget);
+            final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = restoreOverOpenIndexFuture();
             final SnapshotInProgressException e = expectThrows(
                 SnapshotInProgressException.class,
                 () -> future.actionGet(TEST_REQUEST_TIMEOUT)
@@ -337,7 +335,7 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
         assertThat("a rejected restore must leave the destination unchanged", historyUuid(), nullValue());
 
         // the conflict is transient: a plain retry after the snapshot finishes succeeds
-        initializeRestoreOverOpenIndex(restoreTarget);
+        initializeRestoreOverOpenIndex();
         awaitRestoreCompleted();
         assertThat(historyUuid(), notNullValue());
     }
@@ -357,9 +355,6 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
         ensureGreen(INDEX_NAME, otherIndex);
         createFullSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME);
 
-        final RestoreTarget target = resolveRestoreTarget(INDEX_NAME);
-        final RestoreTarget otherTarget = resolveRestoreTarget(otherIndex);
-
         // only "otherIndex" conflicts; INDEX_NAME would pass validation on its own, so leaving it unchanged too demonstrates that the
         // restore is genuinely all-or-nothing rather than skipping just the conflicting target
         blockNodeOnAnyFiles(REPOSITORY_NAME, dataNode);
@@ -371,24 +366,10 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
         waitForBlock(dataNode, REPOSITORY_NAME);
         try {
             final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
-            restoreService().restoreOverOpenIndices(
+            restoreService().restoreSnapshot(
                 ProjectId.DEFAULT,
-                target.snapshot(),
-                target.snapshotInfo(),
-                TEST_REQUEST_TIMEOUT,
-                UUIDs.randomBase64UUID(),
-                List.of(
-                    new RestoreService.OpenIndexRestoreTarget(
-                        resolveDestinationIndex(INDEX_NAME),
-                        target.indexId(),
-                        target.snapshotIndexMetadata()
-                    ),
-                    new RestoreService.OpenIndexRestoreTarget(
-                        resolveDestinationIndex(otherIndex),
-                        otherTarget.indexId(),
-                        otherTarget.snapshotIndexMetadata()
-                    )
-                ),
+                new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(INDEX_NAME, otherIndex)
+                    .restoreOverOpenIndex(true),
                 future
             );
             expectThrows(SnapshotInProgressException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
@@ -463,13 +444,9 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
     private record RestoreTarget(Snapshot snapshot, SnapshotInfo snapshotInfo, IndexId indexId, IndexMetadata snapshotIndexMetadata) {}
 
     private RestoreTarget resolveRestoreTarget() throws IOException {
-        return resolveRestoreTarget(INDEX_NAME);
-    }
-
-    private RestoreTarget resolveRestoreTarget(String indexName) throws IOException {
         final SnapshotInfo snapshotInfo = getSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME);
         final RepositoryData repositoryData = getRepositoryData(REPOSITORY_NAME);
-        final IndexId indexId = repositoryData.resolveIndexId(indexName);
+        final IndexId indexId = repositoryData.resolveIndexId(INDEX_NAME);
         final Repository repository = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(REPOSITORY_NAME);
         return new RestoreTarget(
             new Snapshot(REPOSITORY_NAME, snapshotInfo.snapshotId()),
@@ -479,38 +456,28 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
-    private void initializeRestoreOverOpenIndex() throws IOException {
-        initializeRestoreOverOpenIndex(resolveRestoreTarget());
-    }
-
     /**
-     * Drives the node-side transition under test, through the real {@link RestoreService#restoreOverOpenIndices} production entry point:
-     * the data node holding the shard must apply, as a single change, an index that stays open and keeps its index UUID but gains a new
-     * history UUID together with a restoring shard assigned to it.
+     * Drives the transition under test through the real public restore API: an ordinary {@link RestoreService#restoreSnapshot} that opts
+     * into overwriting the open destination via {@link RestoreSnapshotRequest#restoreOverOpenIndex()}. The data node holding the shard
+     * must apply, as a single change, an index that stays open and keeps its index UUID but gains a new history UUID together with a
+     * restoring shard assigned to it.
      */
-    private void initializeRestoreOverOpenIndex(RestoreTarget restoreTarget) {
+    private void initializeRestoreOverOpenIndex() {
         final ShardRouting startedPrimary = primaryShardRouting();
         assertThat(startedPrimary.state(), equalTo(ShardRoutingState.STARTED));
-        safeGet(restoreOverOpenIndexFuture(restoreTarget));
+        safeGet(restoreOverOpenIndexFuture());
     }
 
     /**
-     * Submits the restore without waiting for it, so that callers expecting a specific failure (via {@link #expectThrows}) can
-     * observe the real exception type through {@link PlainActionFuture#actionGet} instead of {@link #safeGet}, which converts every
+     * Submits the restore-over-open-index without waiting for it, so that callers expecting a specific failure (via {@link #expectThrows})
+     * can observe the real exception type through {@link PlainActionFuture#actionGet} instead of {@link #safeGet}, which converts every
      * failure into a generic {@link AssertionError}.
      */
-    private PlainActionFuture<RestoreService.RestoreCompletionResponse> restoreOverOpenIndexFuture(RestoreTarget restoreTarget) {
-        final Index destinationIndex = resolveDestinationIndex(INDEX_NAME);
+    private PlainActionFuture<RestoreService.RestoreCompletionResponse> restoreOverOpenIndexFuture() {
         final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
-        restoreService().restoreOverOpenIndices(
+        restoreService().restoreSnapshot(
             ProjectId.DEFAULT,
-            restoreTarget.snapshot(),
-            restoreTarget.snapshotInfo(),
-            TEST_REQUEST_TIMEOUT,
-            UUIDs.randomBase64UUID(),
-            List.of(
-                new RestoreService.OpenIndexRestoreTarget(destinationIndex, restoreTarget.indexId(), restoreTarget.snapshotIndexMetadata())
-            ),
+            new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(INDEX_NAME).restoreOverOpenIndex(true),
             future
         );
         return future;
@@ -520,19 +487,9 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
         return internalCluster().getCurrentMasterNodeInstance(RestoreService.class);
     }
 
-    private Index resolveDestinationIndex(String indexName) {
-        return clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
-            .get()
-            .getState()
-            .metadata()
-            .getProject(ProjectId.DEFAULT)
-            .index(indexName)
-            .getIndex();
-    }
-
     /**
-     * Publishes, in a single cluster-state update, the same transition {@link RestoreService#restoreOverOpenIndices} publishes, but
-     * without going through that method's own guard against overlapping restores of the same index. Retained solely for
+     * Publishes, in a single cluster-state update, the same transition the open-index restore path publishes, but without going through
+     * {@link RestoreService#restoreSnapshot}'s own guard against overlapping restores of the same index. Retained solely for
      * {@link #testOverlappingRestoreTransitionsDoNotCorruptTheSecondRestore}, which needs to publish two overlapping transitions over the
      * same index to verify that the node-side transition itself is robust to that, independent of any caller's guard against it.
      */
@@ -678,8 +635,8 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
         return state.metadata().getProject(ProjectId.DEFAULT).index(indexName).getSettings().get(IndexMetadata.SETTING_HISTORY_UUID);
     }
 
-    private static void setControlIOExceptionRate(double rate) {
-        for (RepositoriesService repositoriesService : internalCluster().getDataOrMasterNodeInstances(RepositoriesService.class)) {
+    private static void setDataNodeControlIOExceptionRate(double rate) {
+        for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
             ((MockRepository) repositoriesService.repository(REPOSITORY_NAME)).setRandomControlIOExceptionRate(rate);
         }
     }

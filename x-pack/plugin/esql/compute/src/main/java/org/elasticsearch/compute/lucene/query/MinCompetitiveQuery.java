@@ -35,7 +35,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * Infrastructure to provide {@link LeafCollector#competitiveIterator} from a
@@ -89,7 +88,12 @@ public class MinCompetitiveQuery implements Releasable {
     }
 
     private DocIdSetIterator updatedDisi(ShardContext ctx, LeafReaderContext leaf) throws IOException {
-        return perIndex(ctx).perMinValue(minCompetitive.get(blockFactory)).perLeaf(leaf).disi();
+        PerIndex index = perIndex(ctx);
+        long generation = minCompetitive.generation();
+        if (index.perMinValue == null || index.cachedGeneration != generation) {
+            index.updatePerMinValue(minCompetitive.get(blockFactory), generation);
+        }
+        return index.perMinValue.perLeaf(leaf).disi();
     }
 
     private PerIndex perIndex(ShardContext ctx) {
@@ -110,20 +114,19 @@ public class MinCompetitiveQuery implements Releasable {
 
     private class PerIndex {
         private final ShardContext ctx;
+        private long cachedGeneration = -1;
         private PerMinValue perMinValue;
 
         private PerIndex(ShardContext ctx) {
             this.ctx = ctx;
         }
 
-        public PerMinValue perMinValue(Page value) throws IOException {
-            if (perMinValue == null) {
-                perMinValue = newPerMinValue(value);
-            } else if (Objects.equals(perMinValue.value, value) == false) {
+        private void updatePerMinValue(Page value, long generation) throws IOException {
+            if (perMinValue != null) {
                 perMinValue.close();
-                perMinValue = newPerMinValue(value);
             }
-            return perMinValue;
+            perMinValue = newPerMinValue(value);
+            cachedGeneration = generation;
         }
 
         private PerMinValue newPerMinValue(Page value) throws IOException {

@@ -14,8 +14,8 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
@@ -58,36 +58,14 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.Strings.format;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.BlobFileWithLength;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.ID_LOOKUP_RECENCY_THRESHOLD_SETTING;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PrewarmRelocationRequest;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PrimaryContextHandoffRequest;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING;
 
 /// Source-side stateless primary relocation protocol. Mirrors [PeerRecoverySourceService].
-///
-/// Transport sends (prewarm / primary-context handoff) are supplied as callbacks by [TransportStatelessPrimaryRelocationAction].
-/// Target-side handlers live on [StatelessPrimaryRelocationTargetService].
+/// See [StatelessPrimaryRelocationTargetService] for target side logic.
 public class StatelessPrimaryRelocationSourceService {
 
     private static final Logger logger = LogManager.getLogger(StatelessPrimaryRelocationSourceService.class);
-
-    /// Triggers a prewarm request on the relocation target. Implemented by [TransportStatelessPrimaryRelocationAction].
-    @FunctionalInterface
-    public interface TargetPrewarmTrigger {
-        void sendToTarget(Task task, DiscoveryNode targetNode, PrewarmRelocationRequest request);
-    }
-
-    /// Triggers a primary-context handoff on the relocation target. Implemented by [TransportStatelessPrimaryRelocationAction].
-    @FunctionalInterface
-    public interface PrimaryContextHandoffTrigger {
-        void sendToTarget(
-            Task task,
-            DiscoveryNode targetNode,
-            PrimaryContextHandoffRequest request,
-            ActionListener<ActionResponse.Empty> listener
-        );
-    }
 
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
@@ -98,8 +76,7 @@ public class StatelessPrimaryRelocationSourceService {
     private final StatelessCommitServiceProvider statelessCommitServiceProvider;
     private final IndexShardCacheWarmer indexShardCacheWarmer;
     private final HollowShardsMetrics hollowShardsMetrics;
-    private volatile TargetPrewarmTrigger targetPrewarmTrigger;
-    private volatile PrimaryContextHandoffTrigger primaryContextHandoffTrigger;
+    private final Client client;
     private volatile CompositeRecoverySchedulingListener schedulingListeners;
 
     private volatile TimeValue slowRelocationWarningThreshold;
@@ -112,7 +89,8 @@ public class StatelessPrimaryRelocationSourceService {
         HollowShardsService hollowShardsService,
         StatelessCommitServiceProvider statelessCommitServiceProvider,
         IndexShardCacheWarmer indexShardCacheWarmer,
-        HollowShardsMetrics hollowShardsMetrics
+        HollowShardsMetrics hollowShardsMetrics,
+        Client client
     ) {
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -123,6 +101,7 @@ public class StatelessPrimaryRelocationSourceService {
         this.statelessCommitServiceProvider = statelessCommitServiceProvider;
         this.indexShardCacheWarmer = indexShardCacheWarmer;
         this.hollowShardsMetrics = hollowShardsMetrics;
+        this.client = client;
 
         clusterService.getClusterSettings()
             .initializeAndWatch(SLOW_RELOCATION_THRESHOLD_SETTING, value -> this.slowRelocationWarningThreshold = value);
@@ -136,17 +115,6 @@ public class StatelessPrimaryRelocationSourceService {
         // is called exactly once. The assert is a test-time safety net — assertions are disabled in production JVMs.
         assert this.schedulingListeners == null : "already registered scheduling listeners";
         this.schedulingListeners = schedulingListeners;
-    }
-
-    /// Register the target-side transport triggers (available when the transport action is constructed).
-    public void registerTargetTriggers(
-        TargetPrewarmTrigger targetPrewarmTrigger,
-        PrimaryContextHandoffTrigger primaryContextHandoffTrigger
-    ) {
-        // Same Guice singleton guarantee as registerRecoverySchedulingListeners: called exactly once.
-        assert this.targetPrewarmTrigger == null && this.primaryContextHandoffTrigger == null : "already registered target triggers";
-        this.targetPrewarmTrigger = targetPrewarmTrigger;
-        this.primaryContextHandoffTrigger = primaryContextHandoffTrigger;
     }
 
     void startRelocation(Task task, StatelessPrimaryRelocationAction.Request request, ActionListener<StartRelocationResponse> listener) {
@@ -193,14 +161,15 @@ public class StatelessPrimaryRelocationSourceService {
             // If the shard is not about to be hollowed, then send an action to the target node to begin warming the cache immediately.
             // Note that if the shard is already hollow, the target warming will just read a single region.
             if (hollowShardsService.isHollowableIndexShard(indexShard) == false) {
-                targetPrewarmTrigger.sendToTarget(
-                    task,
-                    request.targetNode(),
-                    new PrewarmRelocationRequest(
+                client.execute(
+                    TransportStatelessPrimaryRelocationPrewarmAction.TYPE,
+                    new TransportStatelessPrimaryRelocationPrewarmAction.Request(
+                        request.targetNode(),
                         shardId,
                         new BlobFileWithLength(latestBcc.toBlobFile(), latestBcc.calculateBccBlobLength()),
                         hasRecentIdLookup
-                    )
+                    ),
+                    ActionListener.noop()
                 );
             }
         } catch (Exception e) {
@@ -451,10 +420,10 @@ public class StatelessPrimaryRelocationSourceService {
                     latestBccBlobLength.set(blobLength);
                     otherBlobFilesCount.set(otherBlobFiles.size());
 
-                    primaryContextHandoffTrigger.sendToTarget(
-                        task,
-                        request.targetNode(),
-                        new PrimaryContextHandoffRequest(
+                    client.execute(
+                        TransportStatelessPrimaryRelocationHandoffAction.TYPE,
+                        new TransportStatelessPrimaryRelocationHandoffAction.Request(
+                            request.targetNode(),
                             request.recoveryId(),
                             request.shardId(),
                             new ReplicationTracker.PrimaryContext(

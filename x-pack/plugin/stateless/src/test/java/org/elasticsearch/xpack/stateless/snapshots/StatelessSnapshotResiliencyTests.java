@@ -146,7 +146,6 @@ import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHand
 import org.elasticsearch.xpack.stateless.recovery.RemoveRefreshClusterBlockService;
 import org.elasticsearch.xpack.stateless.recovery.StatelessIndexNodeRecoveryListener;
 import org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationSourceService;
-import org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationTargetService;
 import org.elasticsearch.xpack.stateless.recovery.StatelessSearchNodeRecoveryListener;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
@@ -539,15 +538,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                             testStatelessPlugin.hollowShardsService,
                             new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
                             mock(IndexShardCacheWarmer.class),
-                            HollowShardsMetrics.NOOP
-                        ),
-                        new StatelessPrimaryRelocationTargetService(
-                            clusterService(),
-                            transportService().getThreadPool(),
-                            indicesService,
-                            new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
-                            mock(IndexShardCacheWarmer.class),
-                            new StatelessPrimaryRelocationMetricsCollectorProvider(StatelessPrimaryRelocationMetricsCollector.NOOP)
+                            HollowShardsMetrics.NOOP,
+                            client
                         ),
                         peerRecoveryTargetService,
                         new StatelessPrimaryRelocationMetricsCollectorProvider(StatelessPrimaryRelocationMetricsCollector.NOOP)

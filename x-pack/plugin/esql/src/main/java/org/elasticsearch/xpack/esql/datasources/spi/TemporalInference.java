@@ -81,9 +81,11 @@ public final class TemporalInference {
      * Whether an already-parsed timestamp must be read as {@code date_nanos} to be read losslessly:
      * it has a non-zero sub-millisecond component and falls inside the {@code date_nanos} window.
      *
-     * <p>Callers pass the accessor their existing parse produced. Returning {@code false} always means
-     * "{@code datetime} is a faithful reading of this value" &mdash; either it is millisecond-exact, or
-     * it is out of range and {@code date_nanos} could not hold it anyway.
+     * <p>Callers pass the accessor their existing parse produced. {@code false} means "leave this value
+     * at {@code datetime}", which covers two different situations: the value is millisecond-exact and
+     * loses nothing there, or it carries sub-millisecond digits but falls outside the window, where
+     * {@code datetime} is merely the best available reading &mdash; it still drops those digits, and
+     * {@code date_nanos} could not have held the value at all.
      *
      * @param parsed the result of the caller's own successful datetime parse
      */

@@ -66,9 +66,12 @@ public class CsvSchemaInferrer {
 
     /** A value is not a timestamp at all. */
     private static final int NOT_TEMPORAL = 0;
-    /** A timestamp that {@code datetime} reads without loss. */
-    private static final int TEMPORAL_MILLIS = 1;
-    /** A timestamp that only {@code date_nanos} reads without loss. */
+    /** A timestamp the column reads as {@code datetime}. */
+    private static final int TEMPORAL_DATETIME = 1;
+    /**
+     * A timestamp that {@code datetime} cannot read without dropping digits, and that {@code date_nanos}
+     * can both represent and decode &mdash; so it moves the column.
+     */
     private static final int TEMPORAL_NANOS_FORCED = 2;
 
     private CsvSchemaInferrer() {}
@@ -234,9 +237,9 @@ public class CsvSchemaInferrer {
                 if (temporal < 0) {
                     temporal = classifyTemporal(value, datetimeFormatter);
                 }
-                // DATETIME holds only what it can read losslessly; DATE_NANOS takes any timestamp,
-                // including out-of-window ones — see the acceptance note below.
-                boolean fits = current == DataType.DATETIME ? temporal == TEMPORAL_MILLIS : temporal != NOT_TEMPORAL;
+                // DATETIME holds every timestamp that does not move the column; DATE_NANOS takes any
+                // timestamp at all, including out-of-window ones — see the acceptance note below.
+                boolean fits = current == DataType.DATETIME ? temporal == TEMPORAL_DATETIME : temporal != NOT_TEMPORAL;
                 if (fits) {
                     return currentIdx;
                 }
@@ -312,7 +315,7 @@ public class CsvSchemaInferrer {
      */
     private static int classifyTemporal(String value, @Nullable DateFormatter datetimeFormatter) {
         if (datetimeFormatter != null) {
-            return datetimeFormatter.tryParse(value) != null ? TEMPORAL_MILLIS : NOT_TEMPORAL;
+            return datetimeFormatter.tryParse(value) != null ? TEMPORAL_DATETIME : NOT_TEMPORAL;
         }
         try {
             ZonedDateTime parsed = DateUtils.asDateTime(value);
@@ -323,7 +326,7 @@ public class CsvSchemaInferrer {
             if (TemporalInference.forcesDateNanos(parsed) && value.indexOf(' ') < 0) {
                 return TEMPORAL_NANOS_FORCED;
             }
-            return TEMPORAL_MILLIS;
+            return TEMPORAL_DATETIME;
         } catch (DateTimeParseException e) {
             return NOT_TEMPORAL;
         }

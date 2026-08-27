@@ -43,7 +43,7 @@ public class EmbeddingOutputBuilderTests extends ComputeTestCase {
         final int size = between(10, 100);
         final Page inputPage = randomInputPage(size, between(1, 20));
 
-        EmbeddingOutputBuilder outputBuilder = new EmbeddingOutputBuilder(blockFactory());
+        EmbeddingOutputBuilder outputBuilder = new EmbeddingOutputBuilder(blockFactory(), false);
         List<BulkInferenceResponseItem> responses = new ArrayList<>();
 
         for (int currentPos = 0; currentPos < inputPage.getPositionCount(); currentPos++) {
@@ -82,7 +82,7 @@ public class EmbeddingOutputBuilderTests extends ComputeTestCase {
         final int size = between(10, 100);
         final Page inputPage = randomInputPage(size, 2);
 
-        EmbeddingOutputBuilder outputBuilder = new EmbeddingOutputBuilder(blockFactory());
+        EmbeddingOutputBuilder outputBuilder = new EmbeddingOutputBuilder(blockFactory(), false);
         List<BulkInferenceResponseItem> responses = new ArrayList<>();
 
         for (int currentPos = 0; currentPos < inputPage.getPositionCount(); currentPos++) {
@@ -119,7 +119,7 @@ public class EmbeddingOutputBuilderTests extends ComputeTestCase {
         final int size = 5;
         final Page inputPage = randomInputPage(size, 2);
 
-        EmbeddingOutputBuilder outputBuilder = new EmbeddingOutputBuilder(blockFactory());
+        EmbeddingOutputBuilder outputBuilder = new EmbeddingOutputBuilder(blockFactory(), false);
         List<BulkInferenceResponseItem> responses = new ArrayList<>();
 
         // Create a single response that covers all 5 positions with all nulls
@@ -139,11 +139,55 @@ public class EmbeddingOutputBuilderTests extends ComputeTestCase {
         allBreakersEmpty();
     }
 
+    /**
+     * A null response for positions that carried input is how a tolerated inference failure reaches the output builder: the
+     * rows become null and the query keeps going. Distinct from {@link #testBuildOutputWithEmptyEmbeddings()}, where the
+     * positions contributed no values in the first place and never reach this branch.
+     */
+    public void testBuildOutputWithNullResponseWhenFailuresTolerated() throws Exception {
+        final int size = 3;
+        final Page inputPage = randomInputPage(size, 1);
+
+        EmbeddingOutputBuilder outputBuilder = new EmbeddingOutputBuilder(blockFactory(), true);
+        List<BulkInferenceResponseItem> responses = List.of(new BulkInferenceResponseItem(null, new int[] { 1, 1, 1 }, 0));
+
+        try (Page outputPage = outputBuilder.buildOutputPage(inputPage, responses)) {
+            assertThat(outputPage.getPositionCount(), equalTo(size));
+
+            FloatBlock outputBlock = outputPage.getBlock(outputPage.getBlockCount() - 1);
+            for (int pos = 0; pos < size; pos++) {
+                assertTrue(outputBlock.isNull(pos));
+            }
+        }
+
+        allBreakersEmpty();
+    }
+
+    /**
+     * The same shape on a builder that does not tolerate failures can only mean a response went missing without anyone
+     * deciding to swallow it, so it is reported instead of producing silent nulls.
+     */
+    public void testBuildOutputWithNullResponseWhenFailuresNotTolerated() throws Exception {
+        final Page inputPage = randomInputPage(3, 1);
+
+        EmbeddingOutputBuilder outputBuilder = new EmbeddingOutputBuilder(blockFactory(), false);
+        List<BulkInferenceResponseItem> responses = List.of(new BulkInferenceResponseItem(null, new int[] { 1, 1, 1 }, 0));
+
+        try {
+            IllegalStateException e = expectThrows(IllegalStateException.class, () -> outputBuilder.buildOutputPage(inputPage, responses));
+            assertThat(e.getMessage(), equalTo("Expected embeddings but response was null"));
+        } finally {
+            inputPage.releaseBlocks();
+        }
+
+        allBreakersEmpty();
+    }
+
     public void testBuildOutputVerifyEmbeddingValues() throws Exception {
         final int size = 10;
         final Page inputPage = randomInputPage(size, 1);
 
-        EmbeddingOutputBuilder outputBuilder = new EmbeddingOutputBuilder(blockFactory());
+        EmbeddingOutputBuilder outputBuilder = new EmbeddingOutputBuilder(blockFactory(), false);
         List<BulkInferenceResponseItem> responses = new ArrayList<>();
         List<float[]> expectedEmbeddings = new ArrayList<>();
 
@@ -183,7 +227,7 @@ public class EmbeddingOutputBuilderTests extends ComputeTestCase {
     private void assertBuildOutput(int size) throws Exception {
         final Page inputPage = randomInputPage(size, between(1, 20));
 
-        EmbeddingOutputBuilder outputBuilder = new EmbeddingOutputBuilder(blockFactory());
+        EmbeddingOutputBuilder outputBuilder = new EmbeddingOutputBuilder(blockFactory(), false);
         List<BulkInferenceResponseItem> responses = new ArrayList<>();
 
         for (int currentPos = 0; currentPos < inputPage.getPositionCount(); currentPos++) {

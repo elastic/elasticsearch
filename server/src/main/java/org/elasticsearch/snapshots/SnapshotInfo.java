@@ -503,6 +503,37 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
     }
 
     /**
+     * Returns {@code true} if {@code indexName} is completely captured in this snapshot — i.e.,
+     * every shard of the index was successfully stored.
+     * <p>
+     * An index is complete when all of the following hold:
+     * <ul>
+     *   <li>The index appears in {@link #indices()}.</li>
+     *   <li>The index was not skipped: its {@link IndexSnapshotDetails#getShardCount()} is greater
+     *       than zero (or the entry is absent, indicating a legacy snapshot where shard details
+     *       were not recorded).</li>
+     *   <li>None of {@link #shardFailures()} reference the index.</li>
+     * </ul>
+     * Callers should already exclude snapshots in state {@link SnapshotState#FAILED} or
+     * {@link SnapshotState#IN_PROGRESS} before calling this method.
+     *
+     * @param indexName the index to evaluate
+     */
+    public boolean isIndexComplete(String indexName) {
+        if (indices().contains(indexName) == false) {
+            return false;
+        }
+        IndexSnapshotDetails details = indexSnapshotDetails().get(indexName);
+        if (details != null && details.getShardCount() == 0) {
+            return false;
+        }
+        if (state() == SnapshotState.SUCCESS) {
+            return true;
+        }
+        return shardFailures().stream().noneMatch(f -> indexName.equals(f.index()));
+    }
+
+    /**
      * Compares two snapshots by their start time; if the start times are the same, then
      * compares the two snapshots by their snapshot ids.
      */

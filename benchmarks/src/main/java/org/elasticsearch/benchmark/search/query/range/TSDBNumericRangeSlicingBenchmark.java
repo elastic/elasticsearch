@@ -19,6 +19,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
@@ -29,7 +30,6 @@ import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormat;
-import org.elasticsearch.lucene.queries.SortedNumericDocValuesRangeQuery;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -138,7 +138,7 @@ public class TSDBNumericRangeSlicingBenchmark {
         // data the per-block skipper still straddles it, forcing the over-scan path in the old iterator.
         final long lower = VALUE_BOUND / 2;
         final long upper = lower + (long) (VALUE_BOUND * selectivity);
-        final SortedNumericDocValuesRangeQuery query = new SortedNumericDocValuesRangeQuery(FIELD, lower, upper);
+        final Query query = SortedNumericDocValuesField.newSlowRangeQuery(FIELD, lower, upper);
         weight = new IndexSearcher(reader).createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1f);
     }
 

@@ -43,7 +43,6 @@ import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatFactory;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.MetricRole;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor.DataType;
-import org.elasticsearch.lucene.queries.SortedNumericDocValuesRangeQuery;
 import org.openjdk.jmh.infra.Blackhole;
 
 import java.io.IOException;
@@ -110,7 +109,7 @@ public enum NumericFormat {
 
     Query rangeQuery(String field, long lower, long upper) {
         return switch (this) {
-            case LUCENE, ES819, ES95 -> new SortedNumericDocValuesRangeQuery(field, lower, upper);
+            case LUCENE, ES819, ES95 -> SortedNumericDocValuesField.newSlowRangeQuery(field, lower, upper);
             case COLUMNAR -> new ColumnarNumericRangeQuery(field, lower, upper);
         };
     }

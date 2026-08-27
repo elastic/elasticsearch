@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -34,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry.GA_TEXT_CODECS;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -136,6 +138,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
      */
     private void assertCompressedDataset(String name, CheckedBiConsumer<Path, String, IOException> writer, boolean splittable)
         throws IOException {
+        assumeTrue("Codec disabled in release", Build.current().isSnapshot() || GA_TEXT_CODECS.contains(name));
         Path dir = createTempDir();
         lastMetrics = null;
         // CSV
@@ -170,6 +173,21 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    record CompressionTestCase(CheckedBiConsumer<Path, String, IOException> writer, boolean splittable) {}
+
+    private static final Map<String, CompressionTestCase> COMPRESSION_TESTS = Map.of(
+        "bz2",
+        // bzip2: SPLITTABLE_OR_INDEXED_COMPRESSED — producer thread does the full parse, so read_nanos is populated
+        new CompressionTestCase(AbstractExternalDataSourceIT::writeBzip2, true),
+        // gzip/zstd/lz4: STREAM_ONLY_COMPRESSED — producer only polls the streaming coordinator queue, read_nanos is near-zero
+        "gzip",
+        new CompressionTestCase(AbstractExternalDataSourceIT::writeGzipped, false),
+        "zstd",
+        new CompressionTestCase(AbstractExternalDataSourceIT::writeZstd, false),
+        "lz4",
+        new CompressionTestCase(AbstractExternalDataSourceIT::writeLz4, false)
+    );
+
     /**
      * Covers all three compression dispatch modes across both CSV and NDJSON:
      * <ul>
@@ -183,12 +201,13 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
      * </ul>
      */
     public void testMetricsCompression() throws IOException {
-        // bzip2: SPLITTABLE_OR_INDEXED_COMPRESSED — producer thread does the full parse, so read_nanos is populated
-        assertCompressedDataset("bz2", AbstractExternalDataSourceIT::writeBzip2, true);
-        // gzip/zstd/lz4: STREAM_ONLY_COMPRESSED — producer only polls the streaming coordinator queue, read_nanos is near-zero
-        assertCompressedDataset("gz", AbstractExternalDataSourceIT::writeGzipped, false);
-        assertCompressedDataset("zst", AbstractExternalDataSourceIT::writeZstd, false);
-        assertCompressedDataset("lz4", AbstractExternalDataSourceIT::writeLz4, false);
+        for (var name : GA_TEXT_CODECS) {
+            // All release codecs should be present in the compression tests
+            assertTrue(name, COMPRESSION_TESTS.containsKey(name));
+        }
+        for (var testCase : COMPRESSION_TESTS.entrySet()) {
+            assertCompressedDataset(testCase.getKey(), testCase.getValue().writer, testCase.getValue().splittable);
+        }
     }
 
     /**

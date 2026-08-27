@@ -2247,8 +2247,8 @@ public class BatchBulkIT extends ESIntegTestCase {
         }
 
         // Item has inline source bytes — no row reference — but we also set preBuiltBatches.
-        // The sharder should reject this item because it lacks a source-row reference.
-        // The error surfaces as a per-item failure in the BulkResponse.
+        // The coordinator rejects the whole bulk eagerly (at routing time) because every item in a
+        // provided-batch bulk must carry a source-row reference.
         BulkRequest bulkRequest = new BulkRequest();
         XContentBuilder inlineDoc = JsonXContent.contentBuilder();
         inlineDoc.startObject();
@@ -2258,11 +2258,11 @@ public class BatchBulkIT extends ESIntegTestCase {
         bulkRequest.add(new IndexRequest(index).id("doc-0").opType(DocWriteRequest.OpType.INDEX).source(inlineDoc));
         bulkRequest.setPreBuiltBatches(Map.of(index, batch));
 
-        BulkResponse response = client(coordinatingNode).bulk(bulkRequest).actionGet();
-        assertTrue("expected bulk failure for item with no source-row reference", response.hasFailures());
-        BulkItemResponse item = response.getItems()[0];
-        assertTrue(item.isFailed());
-        assertThat(item.getFailureMessage(), containsString("must carry a source-row reference"));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client(coordinatingNode).bulk(bulkRequest).actionGet()
+        );
+        assertThat(e.getMessage(), containsString("must carry a source-row reference"));
     }
 
     public void testPreBuiltBatchTargetsDataStreamName() throws Exception {

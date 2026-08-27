@@ -61,9 +61,12 @@ public class IncrementalBulkService {
 
     /**
      * Overall wall-clock timeout for a single incremental bulk request, measured from the moment the
-     * request session is created. A non-positive value (the default) disables the timeout. When it
-     * elapses the request's {@link Handler#bulkSessionTask} is cancelled, which causes the next chunk
-     * to fail with a {@link org.elasticsearch.tasks.TaskCancelledException}.
+     * request session is created. A non-positive value (the default) disables the timeout, and no
+     * {@link Handler#bulkSessionTask} is registered at all: without a timeout there is no bound on how
+     * long a session may stay open, so a registration whose handler is abandoned could never be
+     * reclaimed. When the timeout is configured and elapses, the task is cancelled and then
+     * unregistered, which causes the next chunk to fail with a
+     * {@link org.elasticsearch.tasks.TaskCancelledException}.
      */
     public static final Setting<TimeValue> REQUEST_TIMEOUT = Setting.timeSetting(
         "rest.incremental_bulk.request_timeout",
@@ -146,11 +149,12 @@ public class IncrementalBulkService {
             chunkWaitTimeMillisHistogram,
             paramsUsed,
             taskManager,
-            threadPool
+            threadPool,
+            requestTimeout
         );
         // Scheduled after construction (rather than in the Handler constructor) so the timeout callback
         // never captures a partially-initialized Handler.
-        handler.scheduleTimeout(requestTimeout);
+        handler.scheduleTimeout();
         return handler;
     }
 
@@ -205,7 +209,12 @@ public class IncrementalBulkService {
         private BulkRequest bulkRequest = null;
         private final TaskManager taskManager;
         private final ThreadPool threadPool;
+        // Registered only when the request timeout is active; see REQUEST_TIMEOUT.
+        @Nullable
         private final CancellableTask bulkSessionTask;
+        @Nullable
+        private final TimeValue requestTimeout;
+        private final AtomicBoolean sessionTaskUnregistered = new AtomicBoolean();
         // Cancels the request after REQUEST_TIMEOUT elapses; null when no timeout is configured.
         private volatile Scheduler.Cancellable pendingTimeout;
 
@@ -218,31 +227,37 @@ public class IncrementalBulkService {
             LongHistogram chunkWaitTimeMillisHistogram,
             Set<String> paramsUsed,
             TaskManager taskManager,
-            ThreadPool threadPool
+            ThreadPool threadPool,
+            @Nullable TimeValue requestTimeout
         ) {
             this.taskManager = taskManager;
-            try (var ignored = threadPool.getThreadContext().newTraceContext()) {
-                bulkSessionTask = (CancellableTask) taskManager.register(
-                    BULK_SESSION_TASK_TYPE,
-                    BULK_SESSION_ACTION,
-                    new TaskAwareRequest() {
-                        @Override
-                        public void setParentTask(TaskId taskId) {}
+            this.requestTimeout = requestTimeout;
+            if (timeoutIsActive(requestTimeout)) {
+                try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+                    bulkSessionTask = (CancellableTask) taskManager.register(
+                        BULK_SESSION_TASK_TYPE,
+                        BULK_SESSION_ACTION,
+                        new TaskAwareRequest() {
+                            @Override
+                            public void setParentTask(TaskId taskId) {}
 
-                        @Override
-                        public void setRequestId(long requestId) {}
+                            @Override
+                            public void setRequestId(long requestId) {}
 
-                        @Override
-                        public TaskId getParentTask() {
-                            return TaskId.EMPTY_TASK_ID;
+                            @Override
+                            public TaskId getParentTask() {
+                                return TaskId.EMPTY_TASK_ID;
+                            }
+
+                            @Override
+                            public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                                return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
+                            }
                         }
-
-                        @Override
-                        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-                            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
-                        }
-                    }
-                );
+                    );
+                }
+            } else {
+                bulkSessionTask = null;
             }
 
             this.client = client;
@@ -257,18 +272,62 @@ public class IncrementalBulkService {
         }
 
         /**
-         * Schedules cancellation of this request once {@code requestTimeout} elapses. A no-op when the
-         * timeout is null or non-positive. Called once, immediately after construction.
+         * Whether {@code requestTimeout} enables the overall request timeout. This is the single predicate
+         * deciding both whether {@link #bulkSessionTask} is registered and whether the timeout is scheduled;
+         * the two must never disagree, or a session would be registered with nothing to reclaim it.
+         *
+         * <p>Guards on millis(), not nanos(): {@link ThreadPool#schedule} floors the delay to whole
+         * milliseconds, so a sub-millisecond timeout would otherwise arm a zero-delay task that cancels the
+         * request immediately.
          */
-        private void scheduleTimeout(@Nullable TimeValue requestTimeout) {
-            // Guard on millis(), not nanos(): ThreadPool#schedule floors the delay to whole milliseconds, so a
-            // sub-millisecond timeout would otherwise arm a zero-delay task that cancels the request immediately.
-            if (requestTimeout != null && requestTimeout.millis() > 0) {
-                pendingTimeout = threadPool.schedule(
-                    () -> cancel("request timed out after [" + requestTimeout + "]", () -> {}),
-                    requestTimeout,
-                    threadPool.generic()
-                );
+        private static boolean timeoutIsActive(@Nullable TimeValue requestTimeout) {
+            return requestTimeout != null && requestTimeout.millis() > 0;
+        }
+
+        /**
+         * Schedules cancellation of this request once the request timeout elapses. A no-op when the timeout
+         * is inactive, in which case no session task was registered either. Called once, immediately after
+         * construction.
+         */
+        private void scheduleTimeout() {
+            if (timeoutIsActive(requestTimeout)) {
+                pendingTimeout = threadPool.schedule(this::onTimeout, requestTimeout, threadPool.generic());
+            }
+        }
+
+        private void onTimeout() {
+            cancelAndUnregisterSessionTask("request timed out after [" + requestTimeout + "]");
+        }
+
+        /**
+         * Reclaims the session registration, at most once for the lifetime of this handler. Several paths can
+         * end a session and more than one may run for the same session, but
+         * {@link TaskManager#unregister} must not be called twice for one task.
+         */
+        private void unregisterSessionTask() {
+            if (bulkSessionTask != null && sessionTaskUnregistered.compareAndSet(false, true)) {
+                taskManager.unregister(bulkSessionTask);
+            }
+        }
+
+        /**
+         * Cancels the session and then reclaims it, for the paths that end a session before its response was
+         * produced. The reclaim runs even if the cancellation throws, because this is the terminal reclaim
+         * for a handler that may already have been abandoned: no further chunk will arrive, so neither
+         * {@link #close()} nor {@code lastItems} will run again. A session already reclaimed by
+         * {@code lastItems} completing is left alone.
+         *
+         * <p>The cancellation must precede the reclaim: cancelling a task that is already unregistered
+         * silently does nothing while still reporting success.
+         */
+        private void cancelAndUnregisterSessionTask(String reason) {
+            if (bulkSessionTask == null || sessionTaskUnregistered.get()) {
+                return;
+            }
+            try {
+                cancel(reason, () -> {});
+            } finally {
+                unregisterSessionTask();
             }
         }
 
@@ -288,6 +347,12 @@ public class IncrementalBulkService {
          * {@link org.elasticsearch.tasks.TaskCancellationService} sending {@code cancel_child}.
          */
         public void cancel(String reason, Runnable listener) {
+            if (bulkSessionTask == null) {
+                // No session task is registered unless the request timeout is active, so there is nothing to
+                // cancel and the cancellation is vacuously complete.
+                listener.run();
+                return;
+            }
             try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
                 threadPool.getThreadContext().markAsSystemContext();
                 taskManager.cancelTaskAndDescendants(bulkSessionTask, reason, false, ActionListener.running(listener));
@@ -352,7 +417,7 @@ public class IncrementalBulkService {
             assert bulkInProgress == false;
             ActionListener<BulkResponse> finalListener = ActionListener.runBefore(listener, () -> {
                 cancelTimeout();
-                taskManager.unregister(bulkSessionTask);
+                unregisterSessionTask();
             });
             if (bulkActionLevelFailure != null) {
                 shortCircuitDueToTopLevelFailure(items, releasable);
@@ -398,9 +463,7 @@ public class IncrementalBulkService {
                 incrementalOperation.close();
                 releasables.forEach(Releasable::close);
                 releasables.clear();
-                if (taskManager.getCancellableTask(bulkSessionTask.getId()) != null) {
-                    cancel("handler closed", () -> taskManager.unregister(bulkSessionTask));
-                }
+                cancelAndUnregisterSessionTask("handler closed");
             }
         }
 
@@ -451,7 +514,7 @@ public class IncrementalBulkService {
         private boolean internalAddItems(List<DocWriteRequest<?>> items, Releasable releasable) {
             bulkRequest.add(items);
             releasables.add(releasable);
-            if (bulkSessionTask.isCancelled()) {
+            if (bulkSessionTask != null && bulkSessionTask.isCancelled()) {
                 failAndRelease(bulkSessionTask.getTaskCancelledException());
                 return false;
             } else {
@@ -478,10 +541,11 @@ public class IncrementalBulkService {
 
         private void createNewBulkRequest(BulkRequest.IncrementalState incrementalState) {
             assert bulkRequest == null;
-            assert bulkSessionTask != null;
             assert taskManager != null;
             bulkRequest = new BulkRequest();
-            bulkRequest.setParentTask(new TaskId(taskManager.getNodeId(), bulkSessionTask.getId()));
+            if (bulkSessionTask != null) {
+                bulkRequest.setParentTask(new TaskId(taskManager.getNodeId(), bulkSessionTask.getId()));
+            }
             bulkRequest.incrementalState(incrementalState);
 
             if (waitForActiveShards != null) {
@@ -496,7 +560,8 @@ public class IncrementalBulkService {
             bulkRequest.requestParamsUsed(paramsUsed);
         }
 
-        // Visible for testing
+        // Visible for testing; null unless the request timeout is active
+        @Nullable
         protected Task getBulkSessionTask() {
             return bulkSessionTask;
         }

@@ -482,7 +482,8 @@ public class RestBulkActionTests extends ESTestCase {
                 LongHistogram.NOOP,
                 emptySet(),
                 new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY),
-                threadPool
+                threadPool,
+                null
             ) {
 
                 @Override

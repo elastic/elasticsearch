@@ -555,12 +555,15 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         ExecutorService executorService = Executors.newFixedThreadPool(1);
 
         // Artificially low watermarks to force incrementalOperation.maybeSplit() always split batches.
+        // The session task is only registered when the request timeout is active, so this test configures a
+        // timeout far longer than it can run: it needs the task to exist, not the timeout to fire.
         final String nodeName = internalCluster().startNode(
             Settings.builder()
                 .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), "1b")
                 .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), "1b")
                 .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), "1b")
                 .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "1b")
+                .put(IncrementalBulkService.REQUEST_TIMEOUT.getKey(), TimeValue.timeValueHours(1))
                 .build()
         );
 
@@ -763,8 +766,16 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         try {
             updateClusterSettings(Settings.builder().put(IncrementalBulkService.REQUEST_TIMEOUT.getKey(), timeout));
             try (var handler = service.newBulkRequest()) {
-                // Wait for the scheduled timeout to cancel the session task before touching the handler.
-                assertBusy(() -> assertTrue(isSessionTaskCancelled(taskManager)));
+                // Hold the task: the timeout unregisters it as well as cancelling it, so it cannot be looked
+                // up in the TaskManager afterwards.
+                CancellableTask sessionTask = (CancellableTask) handler.getBulkSessionTask();
+                assertNotNull("a session task must be registered while the request timeout is active", sessionTask);
+
+                // Wait for the scheduled timeout to cancel and unregister the session task.
+                assertBusy(() -> {
+                    assertTrue(sessionTask.isCancelled());
+                    assertTrue("the timeout must unregister the session task", sessionTask(taskManager).isEmpty());
+                });
 
                 AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
                 PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
@@ -775,7 +786,8 @@ public class IncrementalBulkIT extends ESIntegTestCase {
                 assertThat(ex.getMessage(), containsString("request timed out after"));
                 assertThat(ExceptionsHelper.unwrap(ex, TaskCancelledException.class), notNullValue());
                 assertFalse(refCounted.hasReferences());
-                // lastItems() unregisters the session task synchronously inside its finalListener, before the future resolves.
+                // Already reclaimed by the timeout; the handler's single-shot guard stops lastItems() from
+                // unregistering a second time and emitting a spurious removal event.
                 assertTrue(sessionTask(taskManager).isEmpty());
             }
         } finally {
@@ -819,6 +831,11 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
             AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
             try (var handler = service.newBulkRequest()) {
+                // Hold the task: the timeout unregisters it as well as cancelling it, so it cannot be looked
+                // up in the TaskManager afterwards.
+                CancellableTask sessionTask = (CancellableTask) handler.getBulkSessionTask();
+                assertNotNull("a session task must be registered while the request timeout is active", sessionTask);
+
                 // First chunk: the 1b watermarks force an immediate split, which submits the sub-request and
                 // sets incrementalRequestSubmitted = true. Wait until the sub-request fully completes so the
                 // doc is durable and will not be caught by descendant-cancellation when the timeout fires.
@@ -831,11 +848,14 @@ public class IncrementalBulkIT extends ESIntegTestCase {
                 // call onFailure instead of onResponse; fail fast here rather than with a cryptic safeGet error.
                 assertFalse(
                     "timeout fired before the first sub-request completed; increase the timeout for this test",
-                    isSessionTaskCancelled(taskManager)
+                    sessionTask.isCancelled()
                 );
 
-                // Let the scheduled timeout cancel the session.
-                assertBusy(() -> assertTrue(isSessionTaskCancelled(taskManager)));
+                // Let the scheduled timeout cancel and unregister the session.
+                assertBusy(() -> {
+                    assertTrue(sessionTask.isCancelled());
+                    assertTrue("the timeout must unregister the session task", sessionTask(taskManager).isEmpty());
+                });
 
                 // Final chunk: observes cancellation -> per-item failure, no top-level exception.
                 PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
@@ -855,7 +875,8 @@ public class IncrementalBulkIT extends ESIntegTestCase {
                 assertThat(rootCause.getMessage(), containsString("request timed out after"));
                 assertThat(byFailed.get(true).get(0).getFailure().getStatus(), equalTo(RestStatus.TOO_MANY_REQUESTS));
                 assertFalse(refCounted.hasReferences());
-                // lastItems() unregisters the session task synchronously inside its finalListener, before the future resolves.
+                // Already reclaimed by the timeout; the handler's single-shot guard stops lastItems() from
+                // unregistering a second time and emitting a spurious removal event.
                 assertTrue(sessionTask(taskManager).isEmpty());
             }
         } finally {
@@ -908,10 +929,6 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             .stream()
             .filter(t -> t.getAction().equals(IncrementalBulkService.BULK_SESSION_ACTION))
             .findAny();
-    }
-
-    private static boolean isSessionTaskCancelled(TaskManager taskManager) {
-        return sessionTask(taskManager).map(CancellableTask::isCancelled).orElse(false);
     }
 
     private static void blockWriteCoordinationPool(ThreadPool threadPool, CountDownLatch finishLatch) {

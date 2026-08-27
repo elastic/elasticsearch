@@ -135,6 +135,30 @@ public class MultiTermsAggregationBuilderTests extends AbstractXContentSerializi
         return new NamedXContentRegistry(namedXContent);
     }
 
+    public void testTooManyTerms() {
+        MultiValuesSourceFieldConfig field = new MultiValuesSourceFieldConfig.Builder().setFieldName("field").build();
+        int tooMany = MultiTermsAggregationBuilder.MAX_TERMS_SIZE + 1;
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MultiTermsAggregationBuilder("my_terms").terms(Collections.nCopies(tooMany, field))
+        );
+        assertEquals(
+            "The [terms] parameter in the aggregation [my_terms] cannot have more than "
+                + MultiTermsAggregationBuilder.MAX_TERMS_SIZE
+                + " fields or scripts. Found ["
+                + tooMany
+                + "].",
+            ex.getMessage()
+        );
+    }
+
+    public void testMaxTermsAccepted() {
+        MultiValuesSourceFieldConfig field = new MultiValuesSourceFieldConfig.Builder().setFieldName("field").build();
+        new MultiTermsAggregationBuilder("my_terms").terms(
+            Collections.nCopies(MultiTermsAggregationBuilder.MAX_TERMS_SIZE, field)
+        );
+    }
+
     public void testSupportsParallelCollection() {
         {
             AggregatorFactories.Builder builder = new AggregatorFactories.Builder();

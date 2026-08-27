@@ -200,6 +200,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     public void setup() throws IOException {
         assumeTrue("test clusters were broken", testClustersOk);
         INGEST.protectedBlock(() -> {
+            ensureRemoteClustersConnected();
             // wait until the cluster is ready to ingest data, otherwise tests in this JVM will fail
             ensureHealth(client(), "", (request) -> {
                 request.addParameter("wait_for_status", "yellow");
@@ -241,6 +242,12 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             VIEWS.reset();
         }
     }
+
+    /**
+     * Hook, run once per JVM at the start of data ingestion, for suites that need a remote cluster to be connected before
+     * any data load or query is issued.
+     */
+    protected void ensureRemoteClustersConnected() throws Exception {}
 
     public boolean logResults() {
         return false;

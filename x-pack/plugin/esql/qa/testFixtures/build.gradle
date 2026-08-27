@@ -55,3 +55,36 @@ tasks.register("loadCsvSpecData", JavaExec) {
   classpath = sourceSets.main.runtimeClasspath
   mainClass = "org.elasticsearch.xpack.esql.CsvTestsDataLoader"
 }
+
+/**
+ * Fails the build when a csv-spec test asserts an ordered result that its query does not fully
+ * order, either because there is no top-level SORT or because the SORT keys tie between adjacent
+ * expected rows. Such tests pass or fail depending on shard layout and executor scheduling.
+ *
+ * This runs as a precommit check rather than during test execution so the specs are parsed once per
+ * build, and not once per test case in each of the csv-spec test tasks.
+ */
+def specDir = file("src/main/resources")
+def validateCsvSpecOrdering = tasks.register("validateCsvSpecOrdering", JavaExec) {
+  group = "verification"
+  description = "Checks that csv-spec tests with ordered expectations have a deterministic SORT"
+  classpath = sourceSets.main.runtimeClasspath
+  mainClass = "org.elasticsearch.xpack.esql.CsvSpecOrderingValidator"
+  args specDir.absolutePath
+
+  inputs.dir(specDir).withPropertyName("csvSpecFiles").withPathSensitivity(PathSensitivity.RELATIVE)
+  inputs.files(sourceSets.main.runtimeClasspath).withNormalizer(ClasspathNormalizer)
+  // Marker output so the check is skipped entirely when no spec file changed.
+  outputs.file(layout.buildDirectory.file("markers/validateCsvSpecOrdering"))
+  outputs.cacheIf { true }
+  doLast {
+    layout.buildDirectory.file("markers/validateCsvSpecOrdering").get().asFile.with {
+      parentFile.mkdirs()
+      text = ""
+    }
+  }
+}
+
+tasks.named("precommit").configure {
+  dependsOn validateCsvSpecOrdering
+}

@@ -552,13 +552,6 @@ public abstract class CrossIndexModeGenerativeRestTest extends GenerativeRestTes
         if (cmdText.contains("NOW(") || cmdText.contains("RANDOM(") || cmdText.contains("SAMPLE(")) {
             return false;
         }
-        // BYTE_LENGTH on keyword fields returns 0 in columnar mode due to a known columnar
-        // doc-values read bug. Affects both WHERE predicates (wrong row count) and aggregations
-        // like TOP/STATS (wrong computed values). Close the gate whenever BYTE_LENGTH appears.
-        // TODO: remove once the columnar BYTE_LENGTH doc-values bug is fixed.
-        if (cmdText.contains("BYTE_LENGTH(")) {
-            return false;
-        }
         // Full-text search functions and the `:` operator rely on the inverted index. Columnar
         // mode stores keyword fields exclusively via doc values (index_disabled_by_default=true
         // disables the inverted index for fields that lack an explicit "index: true" mapping), so

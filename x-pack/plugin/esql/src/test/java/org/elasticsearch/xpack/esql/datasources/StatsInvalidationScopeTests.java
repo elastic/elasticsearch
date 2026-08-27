@@ -15,6 +15,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -128,6 +129,123 @@ public class StatsInvalidationScopeTests extends ESTestCase {
                 + "BOOKKEEPING after deciding what invalidates it",
             unclassified.isEmpty()
         );
+    }
+
+    /**
+     * The second axis: how each key must behave when a MULTI-FILE read folds its files' statistics together. The
+     * classification above says what invalidates a key; this one says what happens to it in a merge, and the two are
+     * independent. A fold that rebuilds its output map from a fixed list of recognised keys drops everything else in
+     * silence — no exception, no wrong value at the fold, just a key that stops existing. The damage lands later and
+     * somewhere else: an identity key that vanishes turns a configuration-bound measurement into a configuration-less
+     * one, and the serve gate then hands it to a read that could never have produced it.
+     *
+     * <p>That is not hypothetical. It is exactly how the multi-file merge came to serve one dataset another dataset's
+     * row count and extrema, and the mechanism had been found twice before by review and fixed twice at a single site
+     * without anyone enumerating the rest. Hence a gate rather than a memory: a new key must declare its fold
+     * behaviour, and the declaration is checked against the merge that actually runs.
+     */
+    private enum FoldBehaviour {
+        /** Summed across files — the fold's value is the total. */
+        SUM,
+        /** Must be equal across every input, and is carried through unchanged. Absent inputs make the fold absent. */
+        CARRIED_IF_UNANIMOUS,
+        /** A licence: true for the fold only when true for every input. */
+        AND,
+        /** Re-attached by the CALLER after the merge, because its correct fold is caller-specific. */
+        CALLER_REATTACHED,
+        /** Per-column families and cache-internal bookkeeping, folded or dropped by the compact model's own rules. */
+        MODEL_INTERNAL
+    }
+
+    private static final Map<String, FoldBehaviour> FOLD_BEHAVIOUR = Map.ofEntries(
+        Map.entry(SourceStatisticsSerializer.STATS_ROW_COUNT, FoldBehaviour.SUM),
+        Map.entry(SourceStatisticsSerializer.STATS_SIZE_BYTES, FoldBehaviour.SUM),
+        Map.entry(SourceStatisticsSerializer.STATS_FILE_COUNT, FoldBehaviour.MODEL_INTERNAL),
+        Map.entry(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, FoldBehaviour.CARRIED_IF_UNANIMOUS),
+        Map.entry(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, FoldBehaviour.AND),
+        // The cache-identity pair: stripes within one entry share an mtime, files in a glob do not, so the right
+        // fold depends on who is calling. mergeStripesAndRekey re-attaches them from the entry it is committing to.
+        Map.entry(ExternalStats.MTIME_MILLIS_KEY, FoldBehaviour.CALLER_REATTACHED),
+        Map.entry(ExternalStats.CONFIG_FINGERPRINT_KEY, FoldBehaviour.CALLER_REATTACHED),
+        Map.entry(SourceStatisticsSerializer.STATS_KEY_PREFIX, FoldBehaviour.MODEL_INTERNAL),
+        Map.entry(SourceStatisticsSerializer.STATS_COL_PREFIX, FoldBehaviour.MODEL_INTERNAL),
+        Map.entry(SourceStatisticsSerializer.STATS_PARTIAL, FoldBehaviour.MODEL_INTERNAL),
+        Map.entry(ExternalStats.PARTIAL_CHUNK_KEY, FoldBehaviour.MODEL_INTERNAL),
+        Map.entry(ExternalStats.COVERAGE_START_KEY, FoldBehaviour.MODEL_INTERNAL),
+        Map.entry(ExternalStats.COVERAGE_END_KEY, FoldBehaviour.MODEL_INTERNAL),
+        Map.entry(ExternalStats.COVERAGE_IS_LAST_KEY, FoldBehaviour.MODEL_INTERNAL),
+        Map.entry(ExternalStats.CHUNK_HAD_ERRORS_KEY, FoldBehaviour.MODEL_INTERNAL),
+        Map.entry(ExternalStats.STRIPE_SIZE_KEY, FoldBehaviour.MODEL_INTERNAL),
+        Map.entry(ExternalStats.STRIPE_ORDINAL_KEY, FoldBehaviour.MODEL_INTERNAL),
+        Map.entry(ExternalStats.STRIPE_AT_START_KEY, FoldBehaviour.MODEL_INTERNAL),
+        Map.entry(ExternalStats.STRIPE_AT_END_KEY, FoldBehaviour.MODEL_INTERNAL),
+        Map.entry(ExternalStats.STRIPE_ENTRY_PREFIX, FoldBehaviour.MODEL_INTERNAL),
+        Map.entry(ExternalStats.STRIPE_LAST_INDEX_KEY, FoldBehaviour.MODEL_INTERNAL),
+        Map.entry(ExternalStats.STRIPE_GRID_KEY, FoldBehaviour.MODEL_INTERNAL)
+    );
+
+    /** Every classified key must also declare what the multi-file merge does to it. */
+    public void testEveryStatsKeyDeclaresFoldBehaviour() {
+        Set<String> classified = new HashSet<>();
+        classified.addAll(ROW_SCOPED_WHOLE_SOURCE);
+        classified.addAll(BYTE_OR_LISTING_SCOPED);
+        classified.addAll(IDENTITY_SCOPED);
+        classified.addAll(BOOKKEEPING);
+
+        Set<String> undeclared = new TreeSet<>(classified);
+        undeclared.removeAll(FOLD_BEHAVIOUR.keySet());
+        assertTrue(
+            "stats key(s) "
+                + undeclared
+                + " have no declared fold behaviour: add each to FOLD_BEHAVIOUR after deciding"
+                + " what a multi-file merge must do with it — a key nobody decided about is a key the merge drops",
+            undeclared.isEmpty()
+        );
+    }
+
+    /**
+     * The declaration checked against the merge that actually runs. Two single-file maps carrying the key go through
+     * {@code mergeStatistics}, and the fold's output must match what the key declared — so a fold that silently stops
+     * carrying a key fails here rather than in production, and a key whose declaration drifts from the code fails too.
+     */
+    public void testDeclaredFoldBehaviourMatchesTheMerge() {
+        for (Map.Entry<String, FoldBehaviour> declared : FOLD_BEHAVIOUR.entrySet()) {
+            String key = declared.getKey();
+            switch (declared.getValue()) {
+                case SUM -> {
+                    Map<String, Object> merged = mergeTwo(Map.of(key, 100L), Map.of(key, 200L));
+                    assertEquals(key + " must sum across files", 300L, merged.get(key));
+                }
+                case CARRIED_IF_UNANIMOUS -> {
+                    Map<String, Object> agreed = mergeTwo(Map.of(key, "same"), Map.of(key, "same"));
+                    assertEquals(key + " must survive a merge every input agreed on", "same", agreed.get(key));
+                    Map<String, Object> absent = mergeTwo(Map.of(), Map.of());
+                    assertFalse(key + " must not be invented when no input carried it", absent.containsKey(key));
+                    Map<String, Object> disagreeing = mergeTwo(Map.of(key, "a"), Map.of(key, "b"));
+                    assertNotEquals(key + " must not present a disagreeing fold as either input's value", "a", disagreeing.get(key));
+                    assertNotEquals(key + " must not present a disagreeing fold as either input's value", "b", disagreeing.get(key));
+                }
+                case AND -> {
+                    Map<String, Object> both = mergeTwo(Map.of(key, Boolean.TRUE), Map.of(key, Boolean.TRUE));
+                    assertEquals(key + " holds for the fold when it held for every input", Boolean.TRUE, both.get(key));
+                    Map<String, Object> one = mergeTwo(Map.of(key, Boolean.TRUE), Map.of());
+                    assertFalse(key + " must not survive an input that did not carry it", one.containsKey(key));
+                }
+                // Deliberately unchecked here: the merge is not their author. CALLER_REATTACHED keys are written by
+                // the caller afterwards, and MODEL_INTERNAL keys are the compact model's own, covered by its tests.
+                case CALLER_REATTACHED, MODEL_INTERNAL -> {
+                }
+            }
+        }
+    }
+
+    private static Map<String, Object> mergeTwo(Map<String, Object> first, Map<String, Object> second) {
+        Map<String, Object> a = new HashMap<>(first);
+        Map<String, Object> b = new HashMap<>(second);
+        // A row count in both, so the merge has a measurement to fold and does not short-circuit on empty input.
+        a.putIfAbsent(SourceStatisticsSerializer.STATS_ROW_COUNT, 1L);
+        b.putIfAbsent(SourceStatisticsSerializer.STATS_ROW_COUNT, 1L);
+        return SourceStatisticsSerializer.mergeStatistics(List.of(a, b));
     }
 
     /**

@@ -88,9 +88,7 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
                 && optimizedPlan.output()
                     .subList(expectedOutputAttributes.size(), optimizedPlan.output().size())
                     .stream()
-                    .allMatch(
-                        a -> ApproximationPlan.isApproximationColumn(a.name())
-                    );
+                    .allMatch(a -> ApproximationPlan.isApproximationColumn(a.name()));
 
             boolean ignoreError = hasProjectAwayColumns
                 || hasLookupJoinExec

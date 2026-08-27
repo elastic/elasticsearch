@@ -141,7 +141,20 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     protected static List<Object[]> readExternalSpecTests(String... specPatterns) throws Exception {
         List<URL> urls = new ArrayList<>();
         for (String pattern : specPatterns) {
-            urls.addAll(classpathResources(pattern));
+            List<URL> matched = classpathResources(pattern);
+            // Per pattern, not just in aggregate. A literal route to a spec that no longer exists
+            // matches nothing and contributes nothing, and the aggregate check cannot see it while any
+            // sibling pattern still resolves -- which is how suite.csv-compressed kept routing a spec
+            // this branch had already deleted, losing 13 cases with every gate green.
+            if (matched.isEmpty()) {
+                throw new IllegalStateException(
+                    "spec pattern ["
+                        + pattern
+                        + "] matches no file on this suite's classpath; "
+                        + "the routing in fixture-matrix.properties names a spec that does not exist"
+                );
+            }
+            urls.addAll(matched);
         }
         if (urls.isEmpty()) {
             throw new IllegalStateException("No csv-spec files found for patterns: " + List.of(specPatterns));
@@ -216,7 +229,20 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     private static List<Object[]> readExternalSpecTestsWithExtraParam(List<String> extraParams, String... specPatterns) throws Exception {
         List<URL> urls = new ArrayList<>();
         for (String pattern : specPatterns) {
-            urls.addAll(classpathResources(pattern));
+            List<URL> matched = classpathResources(pattern);
+            // Per pattern, not just in aggregate. A literal route to a spec that no longer exists
+            // matches nothing and contributes nothing, and the aggregate check cannot see it while any
+            // sibling pattern still resolves -- which is how suite.csv-compressed kept routing a spec
+            // this branch had already deleted, losing 13 cases with every gate green.
+            if (matched.isEmpty()) {
+                throw new IllegalStateException(
+                    "spec pattern ["
+                        + pattern
+                        + "] matches no file on this suite's classpath; "
+                        + "the routing in fixture-matrix.properties names a spec that does not exist"
+                );
+            }
+            urls.addAll(matched);
         }
         if (urls.isEmpty()) {
             throw new IllegalStateException("No csv-spec files found for patterns: " + List.of(specPatterns));

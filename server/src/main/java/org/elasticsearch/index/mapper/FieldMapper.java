@@ -21,9 +21,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.escf.EscfColumn;
@@ -123,22 +121,6 @@ public abstract class FieldMapper extends Mapper {
         Property.Final,
         Property.ServerlessPublic
     );
-
-    /**
-     * Guards {@code doc_values.on_failure=ignore}. The {@code ._on_failure} sidecar is surfaced in synthetic {@code _source} only —
-     * not block loaders, ESQL, or aggregations, since {@code multi_value=false} advertises a single-valued column to those paths.
-     */
-    public static final FeatureFlag DOC_VALUES_ON_FAILURE_FEATURE_FLAG = new FeatureFlag("doc_values_on_failure");
-
-    /**
-     * Resolves {@link #DOC_VALUES_ON_FAILURE_SETTING}, falling back to {@link DocValuesParameter.Values.OnFailure#FAIL} while
-     * {@link #DOC_VALUES_ON_FAILURE_FEATURE_FLAG} is disabled.
-     */
-    public static DocValuesParameter.Values.OnFailure resolveOnFailureSetting(Settings settings) {
-        return DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled()
-            ? DOC_VALUES_ON_FAILURE_SETTING.get(settings)
-            : DocValuesParameter.Values.OnFailure.FAIL;
-    }
 
     protected static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldMapper.class);
     @SuppressWarnings("rawtypes")
@@ -1729,7 +1711,7 @@ public abstract class FieldMapper extends Mapper {
             }
             boolean multiValue = DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
             boolean nullability = DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
-            var onFailure = resolveOnFailureSetting(indexSettings.getSettings());
+            var onFailure = DOC_VALUES_ON_FAILURE_SETTING.get(indexSettings.getSettings());
             return new Values(true, columnarCardinality, multiValue, nullability, onFailure);
         }
 
@@ -1786,11 +1768,7 @@ public abstract class FieldMapper extends Mapper {
                 m -> initializer.apply(m).onFailure,
                 subParameterDefaults.onFailure,
                 Values.OnFailure.class
-            ).addValidator(v -> {
-                if (v == Values.OnFailure.IGNORE && DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled() == false) {
-                    throw new MapperParsingException("[doc_values.on_failure=ignore] is not yet supported");
-                }
-            });
+            );
         }
 
         /**
@@ -1806,7 +1784,7 @@ public abstract class FieldMapper extends Mapper {
          *   <li>{@code "doc_values": { "nullability": false }} - reject any document that omits the field or supplies null (sealed)</li>
          *   <li>{@code "doc_values": { "on_failure": "fail" }} - reject the document if it violates multi_value/nullability (default)</li>
          *   <li>{@code "doc_values": { "on_failure": "ignore" }} - route the offending value to a per-field failure column
-         *       (see {@link DocumentParserContext#enforceSingleValue}). Requires {@link #DOC_VALUES_ON_FAILURE_FEATURE_FLAG}.
+         *       (see {@link DocumentParserContext#enforceSingleValue}).
          *       Surfaced in synthetic {@code _source} only; not exposed to block loaders, ESQL, or aggregations.</li>
          * </ul>
          * <p>

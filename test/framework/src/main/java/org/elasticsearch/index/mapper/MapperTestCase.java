@@ -2487,7 +2487,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     private void assumeOnFailureIgnoreSupported() {
         assumeTrue("supports doc_values on_failure parameter", supportsOnFailureParameter());
-        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
     }
 
     private XContentBuilder onFailureIgnoreMapping(String enforcedParameter) throws IOException {

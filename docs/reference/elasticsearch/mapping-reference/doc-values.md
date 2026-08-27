@@ -221,7 +221,7 @@ PUT my-on-failure-index/_doc/1
 
 GET my-on-failure-index/_doc/1?stored_fields=_ignored
 ```
-% TEST[skip:requires the doc_values_on_failure feature flag]
+% TEST[skip:requires logsdb_columnar or columnar index mode which is not yet available in the docs test cluster]
 
 The response returns `_source.kw: ["val1","val2","val3"]` and `_ignored: ["kw"]`. A `term` query on `val2` or `val3` returns zero hits.
 

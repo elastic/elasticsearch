@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class CsvSchemaInferrerTests extends ESTestCase {
@@ -293,6 +295,113 @@ public class CsvSchemaInferrerTests extends ESTestCase {
 
         List<Attribute> result = CsvSchemaInferrer.widenSchema(schema, List.of(), null);
         assertSame(schema, result);
+    }
+
+    // -- date_nanos inference (elastic/esql-planning#1798) --
+
+    private static DataType inferOne(String... values) {
+        List<String[]> rows = new ArrayList<>(values.length);
+        for (String value : values) {
+            rows.add(new String[] { value });
+        }
+        return CsvSchemaInferrer.inferSchema(new String[] { "ts" }, rows, null).get(0).dataType();
+    }
+
+    public void testNanosecondTimestampInfersDateNanos() {
+        assertEquals(DataType.DATE_NANOS, inferOne("2023-10-23T12:15:03.360103847Z"));
+    }
+
+    public void testTrailingZeroFractionStaysDatetime() {
+        // Nine digits of text, but millisecond-exact as a value: datetime loses nothing.
+        assertEquals(DataType.DATETIME, inferOne("2023-10-23T12:15:03.360000000Z"));
+    }
+
+    /**
+     * The order-independence pin. Nanos-first works through the plain ladder; millis-first only works
+     * because the confirmed-DATETIME skip rule excepts the step to DATE_NANOS. Both must agree, or a
+     * file's column type would depend on which row the writer happened to emit first.
+     */
+    public void testMixedPrecisionWidensToDateNanosBothOrders() {
+        assertEquals(DataType.DATE_NANOS, inferOne("2023-10-23T12:15:03.360103847Z", "2023-10-23T12:15:03.360Z"));
+        assertEquals(DataType.DATE_NANOS, inferOne("2023-10-23T12:15:03.360Z", "2023-10-23T12:15:03.360103847Z"));
+    }
+
+    public void testConfirmedDatetimeGarbageStillJumpsToKeyword() {
+        // The skip rule is excepted only for the nanos step; everything else still collapses.
+        assertEquals(DataType.KEYWORD, inferOne("2023-10-23T12:15:03.360Z", "not a date"));
+    }
+
+    public void testConfirmedDateNanosGarbageJumpsToKeyword() {
+        assertEquals(DataType.KEYWORD, inferOne("2023-10-23T12:15:03.360103847Z", "not a date"));
+    }
+
+    public void testPreEpochNanosecondStaysDatetime() {
+        assertEquals(DataType.DATETIME, inferOne("1969-12-31T23:59:59.999999999Z"));
+    }
+
+    public void testPostWindowNanosecondStaysDatetime() {
+        assertEquals(DataType.DATETIME, inferOne("2263-01-01T00:00:00.123456789Z"));
+    }
+
+    /**
+     * Once a value has established the column is nanosecond-precision, an out-of-window timestamp is a
+     * bad cell rather than evidence the column is a string — and it must read that way whichever row
+     * came first, which is why the DATE_NANOS rung accepts any timestamp.
+     */
+    public void testOutOfWindowValueInDateNanosColumnStaysDateNanosBothOrders() {
+        assertEquals(DataType.DATE_NANOS, inferOne("2023-10-23T12:15:03.360103847Z", "2263-01-01T00:00:00.123456789Z"));
+        assertEquals(DataType.DATE_NANOS, inferOne("2263-01-01T00:00:00.123456789Z", "2023-10-23T12:15:03.360103847Z"));
+    }
+
+    /**
+     * The whitespace-separated dialect parses here but not on the date_nanos decode rail, so it must
+     * never be the value that flips a column: doing so would turn a cell that reads today into a
+     * per-cell error.
+     */
+    public void testSpaceSeparatedNanosecondFractionStaysDatetime() {
+        assertEquals(DataType.DATETIME, inferOne("2023-10-23 12:15:03.360103847"));
+    }
+
+    public void testCustomDatetimeFormatNeverInfersDateNanos() {
+        DateFormatter custom = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSSXX");
+        List<String[]> rows = List.<String[]>of(new String[] { "2023-10-23T12:15:03.360103847Z" });
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(new String[] { "ts" }, rows, custom);
+        assertEquals(DataType.DATETIME, schema.get(0).dataType());
+    }
+
+    /**
+     * The widening window runs every column as already-confirmed, so this is the path where the
+     * skip-rule exception is the only thing standing between a nanosecond value and KEYWORD.
+     */
+    public void testWidenSchemaNanosOnlyInWideningWindow() {
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(
+            new String[] { "ts" },
+            List.<String[]>of(new String[] { "2023-10-23T12:15:03.360Z" }),
+            null
+        );
+        assertEquals(DataType.DATETIME, schema.get(0).dataType());
+
+        List<Attribute> widened = CsvSchemaInferrer.widenSchema(
+            schema,
+            List.<String[]>of(new String[] { "2023-10-23T12:15:03.360103847Z" }),
+            null
+        );
+        assertEquals(DataType.DATE_NANOS, widened.get(0).dataType());
+    }
+
+    public void testWidenSchemaOutOfWindowNanosStaysDatetime() {
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(
+            new String[] { "ts" },
+            List.<String[]>of(new String[] { "2023-10-23T12:15:03.360Z" }),
+            null
+        );
+        List<Attribute> widened = CsvSchemaInferrer.widenSchema(
+            schema,
+            List.<String[]>of(new String[] { "2263-01-01T00:00:00.123456789Z" }),
+            null
+        );
+        assertEquals(DataType.DATETIME, widened.get(0).dataType());
+        assertSame("nothing widened, so the original list is returned", schema, widened);
     }
 
     public void testSynthesizeColumnNames() {

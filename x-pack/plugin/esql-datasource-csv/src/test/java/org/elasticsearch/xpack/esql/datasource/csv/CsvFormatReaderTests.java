@@ -122,6 +122,55 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * The whole point of the fix, end to end on an untyped header — the real-world CSV shape, since
+     * the {@code name:type} header is a house fixture convention rather than a CSV norm. Inference
+     * types the column date_nanos and the read returns the full epoch-nanos value; before, the column
+     * came back datetime with everything below the millisecond gone.
+     */
+    public void testInferredDateNanosKeepsNanoPrecision() throws Exception {
+        String csv = """
+            id,ts
+            1,2023-10-23T12:15:03.360103847Z
+            2,2023-10-23T12:15:03.360Z
+            """;
+        assertInferredDateNanosRoundTrips(new CsvFormatReader(blockFactory), csv);
+    }
+
+    /**
+     * TSV is the same reader class with different dialect options, so it inherits the fix; this pins
+     * that rather than leaving it to a claim in a commit message.
+     */
+    public void testInferredDateNanosKeepsNanoPrecisionTsv() throws Exception {
+        String tsv = "id\tts\n1\t2023-10-23T12:15:03.360103847Z\n2\t2023-10-23T12:15:03.360Z\n";
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("delimiter", "\t"));
+        assertInferredDateNanosRoundTrips(reader, tsv);
+    }
+
+    private void assertInferredDateNanosRoundTrips(CsvFormatReader reader, String text) throws Exception {
+        StorageObject object = createStorageObject(text);
+        List<Attribute> schema = reader.metadata(object).schema();
+        assertEquals(2, schema.size());
+        assertEquals("ts", schema.get(1).name());
+        assertEquals(DataType.DATE_NANOS, schema.get(1).dataType());
+
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(schema).build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(2, page.getPositionCount());
+            LongBlock ts = page.getBlock(1);
+            assertEquals(EsqlDataTypeConverter.dateNanosToLong("2023-10-23T12:15:03.360103847Z"), ts.getLong(0));
+            // The millisecond row rides the same rail without loss — what makes widening a
+            // mixed-precision column to date_nanos safe.
+            assertEquals(EsqlDataTypeConverter.dateNanosToLong("2023-10-23T12:15:03.360Z"), ts.getLong(1));
+            page.releaseBlocks();
+        }
+    }
+
     public void testSchema() throws IOException {
         String csv = """
             id:long,name:keyword,age:integer,active:boolean

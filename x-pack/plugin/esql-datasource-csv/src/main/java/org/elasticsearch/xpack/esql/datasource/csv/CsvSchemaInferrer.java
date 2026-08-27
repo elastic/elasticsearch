@@ -16,7 +16,9 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
+import org.elasticsearch.xpack.esql.datasources.spi.TemporalInference;
 
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,13 +35,18 @@ import java.util.Locale;
  *   <li>{@code LONG} — fits in {@code long}</li>
  *   <li>{@code DOUBLE} — any floating-point number</li>
  *   <li>{@code DATETIME} — ISO-8601, date-only, zone-less timestamps</li>
+ *   <li>{@code DATE_NANOS} — timestamps carrying sub-millisecond digits, which {@code DATETIME}
+ *       would silently truncate (see {@link TemporalInference})</li>
  *   <li>{@code KEYWORD} — universal fallback (everything is a string)</li>
  * </ol>
  * Null and empty values are compatible with every type. Columns with only null/empty values
  * default to KEYWORD. When a value doesn't fit the current candidate, the column widens to the
- * next candidate. Boolean and datetime columns that were confirmed by at least one value skip
+ * next candidate. Boolean and temporal columns that were confirmed by at least one value skip
  * directly to KEYWORD on mismatch (since a column with both "true" and "42" is most likely a
- * string column, not numeric).
+ * string column, not numeric) — with one exception: a confirmed DATETIME column that meets a
+ * nanosecond timestamp steps to DATE_NANOS rather than collapsing to KEYWORD, because the two are
+ * the same kind of thing and the column is simply more precise than its first value suggested.
+ * Without that exception a mixed-precision column's type would depend on which row came first.
  * <p>
  * For files smaller than the sample size, all rows are used. The inference runs in a single
  * sequential pass over the sample.
@@ -54,7 +61,15 @@ public class CsvSchemaInferrer {
         DataType.LONG,
         DataType.DOUBLE,
         DataType.DATETIME,
+        DataType.DATE_NANOS,
         DataType.KEYWORD };
+
+    /** A value is not a timestamp at all. */
+    private static final int NOT_TEMPORAL = 0;
+    /** A timestamp that {@code datetime} reads without loss. */
+    private static final int TEMPORAL_MILLIS = 1;
+    /** A timestamp that only {@code date_nanos} reads without loss. */
+    private static final int TEMPORAL_NANOS_FORCED = 2;
 
     private CsvSchemaInferrer() {}
 
@@ -185,18 +200,49 @@ public class CsvSchemaInferrer {
 
     /**
      * Finds the narrowest type candidate that can represent the given value, starting from the
-     * current candidate index. When a column has been confirmed as BOOLEAN or DATETIME by previous
-     * values and a new value doesn't fit, skip directly to KEYWORD (since a column with "true" and
-     * "42" is most likely a string column, not numeric).
+     * current candidate index. When a column has been confirmed as BOOLEAN, DATETIME or DATE_NANOS by
+     * previous values and a new value doesn't fit, skip directly to KEYWORD (since a column with
+     * "true" and "42" is most likely a string column, not numeric).
      * For unconfirmed columns or numeric types, narrow one step at a time.
+     * <p>
+     * The one exception to the skip rule is DATETIME meeting a nanosecond timestamp: that steps to
+     * DATE_NANOS. Both are timestamps, and which one the column needs is not knowable until a value
+     * demands the extra precision — so collapsing to KEYWORD there would make the column's type
+     * depend on row order, with millis-first landing KEYWORD and nanos-first landing DATE_NANOS.
+     * <p>
+     * The value is classified as temporal at most once per call, however many rungs are walked: both
+     * temporal rungs read the same answer, so adding DATE_NANOS costs no additional parse.
+     * <p>
+     * DATE_NANOS accepts <em>any</em> timestamp, including ones outside the {@code date_nanos} window
+     * that no value could ever have forced. That is deliberate. Once some value has established that
+     * the column is nanosecond-precision, an out-of-window timestamp elsewhere in it is a bad cell,
+     * not evidence that the column is really a string — and the error policy already handles bad
+     * cells at read time, exactly as it would for the same file under a declared {@code date_nanos}
+     * schema. Rejecting it here instead would make the column's type depend on whether the
+     * out-of-window row came before or after the forcing one.
      */
     private static int narrowCandidate(int currentIdx, boolean confirmed, String value, @Nullable DateFormatter datetimeFormatter) {
+        int temporal = -1; // computed on demand, at most once, and only if a temporal rung is reached
         while (currentIdx < TYPE_CANDIDATES.length - 1) {
-            if (canParse(TYPE_CANDIDATES[currentIdx], value, datetimeFormatter)) {
+            DataType current = TYPE_CANDIDATES[currentIdx];
+            if (current == DataType.DATETIME || current == DataType.DATE_NANOS) {
+                if (temporal < 0) {
+                    temporal = classifyTemporal(value, datetimeFormatter);
+                }
+                // DATETIME holds only what it can read losslessly; DATE_NANOS takes any timestamp,
+                // including out-of-window ones — see the acceptance note below.
+                boolean fits = current == DataType.DATETIME ? temporal == TEMPORAL_MILLIS : temporal != NOT_TEMPORAL;
+                if (fits) {
+                    return currentIdx;
+                }
+                if (confirmed && current == DataType.DATETIME && temporal == TEMPORAL_NANOS_FORCED) {
+                    currentIdx++; // the exception: widen to DATE_NANOS instead of collapsing
+                    continue;
+                }
+            } else if (canParse(current, value)) {
                 return currentIdx;
             }
-            DataType current = TYPE_CANDIDATES[currentIdx];
-            if (confirmed && (current == DataType.BOOLEAN || current == DataType.DATETIME)) {
+            if (confirmed && (current == DataType.BOOLEAN || current == DataType.DATETIME || current == DataType.DATE_NANOS)) {
                 return TYPE_CANDIDATES.length - 1;
             }
             currentIdx++;
@@ -204,14 +250,18 @@ public class CsvSchemaInferrer {
         return currentIdx;
     }
 
-    private static boolean canParse(DataType type, String value, @Nullable DateFormatter datetimeFormatter) {
+    /**
+     * Whether a value fits one of the non-temporal candidate types. The temporal rungs are settled by
+     * {@link #classifyTemporal} instead, which has to tell the two precisions apart rather than just
+     * answering yes or no, and KEYWORD is never asked because the walk stops before it.
+     */
+    private static boolean canParse(DataType type, String value) {
         return switch (type) {
             case BOOLEAN -> Booleans.isBoolean(value.toLowerCase(Locale.ROOT));
             case INTEGER -> canParseInt(value);
             case LONG -> canParseLong(value);
             case DOUBLE -> canParseDouble(value);
-            case DATETIME -> canParseDatetime(value, datetimeFormatter);
-            default -> true;
+            default -> throw new IllegalStateException("not a non-temporal candidate type: " + type);
         };
     }
 
@@ -242,15 +292,34 @@ public class CsvSchemaInferrer {
         }
     }
 
-    private static boolean canParseDatetime(String value, @Nullable DateFormatter datetimeFormatter) {
+    /**
+     * Classifies a value as not-a-timestamp, a timestamp {@code datetime} reads losslessly, or one
+     * that only {@code date_nanos} reads losslessly.
+     * <p>
+     * Which values are <em>accepted</em> as timestamps is unchanged: the parse below is the same one
+     * this method has always done, and its result — previously discarded — is what decides the
+     * precision. So the extra rung costs no extra parse.
+     * <p>
+     * A declared {@code datetime_format} never yields DATE_NANOS. The user has said how their
+     * timestamps are written, declaring the schema is the way to ask for nanoseconds, and we would
+     * otherwise be routing the column onto a decode rail their pattern may not parse.
+     */
+    private static int classifyTemporal(String value, @Nullable DateFormatter datetimeFormatter) {
         if (datetimeFormatter != null) {
-            return datetimeFormatter.tryParse(value) != null;
+            return datetimeFormatter.tryParse(value) != null ? TEMPORAL_MILLIS : NOT_TEMPORAL;
         }
         try {
-            DateUtils.asDateTime(value);
-            return true;
+            ZonedDateTime parsed = DateUtils.asDateTime(value);
+            // The whitespace-separated dialect is accepted here but rejected by the date_nanos decode
+            // rail, so such a value must not be what flips a column onto that rail — it would turn a
+            // readable cell into a per-cell error. Checked only for values already carrying
+            // sub-millisecond digits, so ordinary timestamps never pay for it.
+            if (TemporalInference.forcesDateNanos(parsed) && value.indexOf(' ') < 0) {
+                return TEMPORAL_NANOS_FORCED;
+            }
+            return TEMPORAL_MILLIS;
         } catch (DateTimeParseException e) {
-            return false;
+            return NOT_TEMPORAL;
         }
     }
 }

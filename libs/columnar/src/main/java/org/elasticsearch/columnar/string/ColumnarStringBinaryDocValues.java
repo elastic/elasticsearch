@@ -18,20 +18,15 @@ import org.elasticsearch.columnar.substrate.ColumnIterator;
 import java.io.IOException;
 
 /**
- * A string column at the {@code BINARY} surface. The API carries one {@link BytesRef} per document, so a
- * document's slots are re-encoded on the way out: {@link #binaryValue} rebuilds the {@link StringBinaryPayload}
- * the mapper wrote, count and all, which is what every reader of these fields decodes.
- *
- * <p>Ingest is the mirror image — {@link #decodePayloads} splits the payload the mapper writes.
- *
- * <p>Which {@link StringColumnLayout} the segment used is invisible here — a layout resolves its own encoding
- * inside the reader, so nothing layout-specific reaches this surface.
+ * A string column at the {@code BINARY} surface: {@link #binaryValue} hands back a document's value as the
+ * bytes it was given, which is what a keyword field writes for a lone value. Which {@link StringColumnLayout}
+ * the segment used is invisible here — a layout resolves its own encoding inside the reader, so nothing
+ * layout-specific reaches this surface.
  */
 public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
 
     private final StringColumnReader reader;
     private final ColumnIterator iterator;
-    private final StringBinaryPayload.Encoder encoder = new StringBinaryPayload.Encoder();
 
     public ColumnarStringBinaryDocValues(StringColumnReader reader, ColumnIterator iterator) {
         this.reader = reader;
@@ -39,21 +34,21 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
     }
 
     /**
-     * The document's slots, re-encoded as the {@link StringBinaryPayload} they arrived as. Rebuilt from the
-     * column rather than stored, so the bytes are equal to what the mapper wrote without ever having been
-     * kept in that form.
+     * The document's value, as the bytes the mapper handed over. A keyword field writes a lone value as its
+     * raw bytes — no count, no length prefix — under both of the encodings the mapper uses, so a
+     * single-valued column needs no encoding of its own here and hands the value straight back.
+     *
+     * <p>A column holding several values for one document has no representation at this surface. The writer
+     * refuses to build one, so this cannot be reached; the assert says so for whoever lifts that.
      */
     @Override
     public BytesRef binaryValue() throws IOException {
         final int rank = iterator.rank();
-        final long first = reader.firstValueAddress(rank);
-        final long count = reader.valueCount(rank);
-        encoder.begin((int) count);
-        for (long i = 0; i < count; i++) {
-            final long address = first + i;
-            encoder.append(reader.isNullSlot(address) ? null : reader.valueAt(address));
-        }
-        return encoder.get();
+        assert reader.valueCount(rank) == 1
+            : "multi-valued string column reached binaryValue with "
+                + reader.valueCount(rank)
+                + " values; this surface carries one value per document";
+        return reader.valueAt(reader.firstValueAddress(rank));
     }
 
     @Override
@@ -87,8 +82,8 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
     }
 
     /**
-     * A streaming cursor that reads this column's slots directly off the data input — block-decoded, without
-     * a payload round-trip, nulls included. Used on merge to feed one segment's slots into the writer.
+     * A streaming cursor that reads this column's values directly off the data input — block-decoded, without
+     * a payload round-trip. Used on merge to feed one segment's values into the writer.
      */
     public StringColumnValues directValues() {
         return new StringColumnValues() {
@@ -102,21 +97,8 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
             }
 
             @Override
-            public int nullCount() {
-                // Only the null-slot table is touched, so the counting pass costs no block decoding.
-                int nulls = 0;
-                for (long i = 0; i < count; i++) {
-                    if (reader.isNullSlot(first + i)) {
-                        nulls++;
-                    }
-                }
-                return nulls;
-            }
-
-            @Override
             public BytesRef nextValue() throws IOException {
-                final long address = first + upto++;
-                return reader.isNullSlot(address) ? null : reader.valueAt(address);
+                return reader.valueAt(first + upto++);
             }
 
             @Override
@@ -152,30 +134,21 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
     }
 
     /**
-     * Wraps a foreign {@link BinaryDocValues} as a write-path cursor by splitting each document's
-     * {@link StringBinaryPayload}. This is the ingest path — the mapper writes that format precisely so the
-     * count travels with the bytes — and the merge fallback for a segment written by some other
-     * implementation of this surface.
+     * Wraps a foreign {@link BinaryDocValues} as a write-path cursor, one value per document, the value
+     * being the bytes themselves. This is the ingest path — a keyword field writes a lone value as its raw
+     * bytes — and the merge fallback for a segment written by some other implementation of this surface.
      */
-    public static StringColumnValues decodePayloads(BinaryDocValues binary) {
+    public static StringColumnValues singleValues(BinaryDocValues binary) {
         return new StringColumnValues() {
-
-            private final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
-            private int count;
 
             @Override
             public int valueCount() {
-                return count;
-            }
-
-            @Override
-            public int nullCount() throws IOException {
-                return decoder.nullSlotCount();
+                return 1;
             }
 
             @Override
             public BytesRef nextValue() throws IOException {
-                return decoder.next();
+                return binary.binaryValue();
             }
 
             @Override
@@ -185,12 +158,12 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
 
             @Override
             public int nextDoc() throws IOException {
-                return position(binary.nextDoc());
+                return binary.nextDoc();
             }
 
             @Override
             public int advance(int target) throws IOException {
-                return position(binary.advance(target));
+                return binary.advance(target);
             }
 
             @Override
@@ -198,13 +171,6 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
                 return binary.cost();
             }
 
-            private int position(int doc) throws IOException {
-                if (doc != DocIdSetIterator.NO_MORE_DOCS) {
-                    count = decoder.reset(binary.binaryValue());
-                }
-                return doc;
-            }
         };
     }
-
 }

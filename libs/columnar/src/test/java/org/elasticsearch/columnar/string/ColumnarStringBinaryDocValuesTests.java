@@ -13,12 +13,8 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.columnar.substrate.ColumnIterator;
 
 import java.io.IOException;
-import java.util.Arrays;
-
-import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
 
 /**
  * The {@code BinaryDocValues} surface of a string column, beyond the {@code nextDoc} + {@code binaryValue} scan
@@ -160,84 +156,46 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
     }
 
     /**
-     * The ingest cursor over a foreign binary field: it splits each document's payload back into the slots
-     * that went into it, and hands every position it is asked for to the field it wraps.
+     * The ingest cursor over a foreign binary field: one value per document, the value being the bytes
+     * themselves, and every position it is asked for handed to the field it wraps.
      */
-    public void testDecodePayloadsSplitsWhatTheMapperWrote() throws IOException {
-        final BytesRef[][] docSlots = randomDocSlots(between(20, 300), 5, true, true);
-        final StringColumnValues cursor = ColumnarStringBinaryDocValues.decodePayloads(payloadsOver(docSlots));
-        assertEquals("cost", present(docSlots), cursor.cost());
+    public void testSingleValuesReadsTheBytesItIsGiven() throws IOException {
+        final BytesRef[] docValues = new BytesRef[between(20, 300)];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = randomBoolean() ? null : new BytesRef(randomAlphaOfLengthBetween(0, 40));
+        }
+        final StringColumnValues cursor = ColumnarStringBinaryDocValues.singleValues(binaryOver(docValues));
+        assertEquals("cost", present(docValues), cursor.cost());
         int seen = 0;
         for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
             assertEquals("docID follows the field", doc, cursor.docID());
-            assertEquals("slot count at doc " + doc, docSlots[doc].length, cursor.valueCount());
-            assertEquals("null count at doc " + doc, nulls(docSlots[doc]), cursor.nullCount());
-            for (int slot = 0; slot < docSlots[doc].length; slot++) {
-                assertEquals("doc " + doc + " slot " + slot, docSlots[doc][slot], cursor.nextValue());
-            }
+            assertEquals("one value per document", 1, cursor.valueCount());
+            assertEquals("value at doc " + doc, docValues[doc], cursor.nextValue());
             seen++;
         }
-        assertEquals("documents with a value", present(docSlots), seen);
+        assertEquals("documents with a value", present(docValues), seen);
     }
 
     /** The same cursor driven by {@code advance}, which ingest and merge never use. */
-    public void testDecodePayloadsAdvances() throws IOException {
-        final BytesRef[][] docSlots = randomDocSlots(between(50, 400), 3, true, true);
-        final StringColumnValues cursor = ColumnarStringBinaryDocValues.decodePayloads(payloadsOver(docSlots));
+    public void testSingleValuesAdvances() throws IOException {
+        final BytesRef[] docValues = new BytesRef[between(50, 400)];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = randomBoolean() ? null : new BytesRef("v" + d);
+        }
+        final StringColumnValues cursor = ColumnarStringBinaryDocValues.singleValues(binaryOver(docValues));
         int target = 0;
-        while (target < docSlots.length) {
-            final int expected = nextPresent(docSlots, target);
+        while (target < docValues.length) {
+            final int expected = nextPresent(docValues, target);
             final int landed = cursor.advance(target);
             if (expected == DocIdSetIterator.NO_MORE_DOCS) {
                 assertEquals("past the last value", DocIdSetIterator.NO_MORE_DOCS, landed);
                 break;
             }
             assertEquals("advance(" + target + ")", expected, landed);
-            assertEquals("slot count", docSlots[landed].length, cursor.valueCount());
-            assertEquals("first slot at doc " + landed, docSlots[landed][0], cursor.nextValue());
+            assertEquals("value at doc " + landed, docValues[landed], cursor.nextValue());
             target = landed + 1;
         }
-        assertEquals("past the end", DocIdSetIterator.NO_MORE_DOCS, cursor.advance(docSlots.length));
-    }
-
-    /**
-     * The surface hands back the payload the mapper wrote — rebuilt from the stored slots rather than kept, so the bytes have to match
-     * what an independent encoding of the same slots produces.
-     */
-    public void testBinaryValueRebuildsThePayload() throws IOException {
-        final BytesRef[][] docSlots = randomDocSlots(between(20, 300), 6, true, true);
-        withColumn(docSlots, (metadata, reader) -> {
-            final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator());
-            for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
-                assertEquals("doc " + doc, StringBinaryPayload.encode(Arrays.asList(docSlots[doc])), dv.binaryValue());
-            }
-        });
-    }
-
-    /** A null slot survives the column and comes back distinguishable from the empty string beside it. */
-    public void testNullSlotsSurviveTheColumn() throws IOException {
-        final BytesRef empty = new BytesRef("");
-        final BytesRef[][] docSlots = {
-            { null, new BytesRef("a") },
-            { empty, null, empty },
-            { new BytesRef("b") },
-            { null, null, new BytesRef("c"), null },
-            { new BytesRef("d"), empty } };
-        withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), 64, (metadata, reader) -> {
-            assertEquals("null slots recorded", numNullSlots(docSlots), metadata.numNullSlots());
-            assertEquals("null slots counted by hand", 5L, numNullSlots(docSlots));
-            final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator());
-            for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
-                assertEquals("doc " + doc, StringBinaryPayload.encode(Arrays.asList(docSlots[doc])), dv.binaryValue());
-            }
-            // Asked out of order, which is what sends the null cursor back through its binary search.
-            final ColumnIterator iterator = reader.iterator();
-            assertTrue(iterator.advanceExact(3));
-            final long first = reader.firstValueAddress(iterator.rank());
-            assertTrue("doc 3 slot 0 is null", reader.isNullSlot(first));
-            assertFalse("doc 3 slot 2 is a value", reader.isNullSlot(first + 2));
-            assertTrue("re-asking behind the cursor", reader.isNullSlot(first + 1));
-        });
+        assertEquals("past the end", DocIdSetIterator.NO_MORE_DOCS, cursor.advance(docValues.length));
     }
 
     /** The merge cursor over a written column, driven by {@code advance} rather than a walk. */
@@ -275,48 +233,25 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
         return count;
     }
 
-    private static int present(BytesRef[][] docSlots) {
-        int count = 0;
-        for (BytesRef[] slots : docSlots) {
-            if (slots != null) {
-                count++;
-            }
-        }
-        return count;
-    }
-
-    private static int nulls(BytesRef[] slots) {
-        int count = 0;
-        for (BytesRef slot : slots) {
-            if (slot == null) {
-                count++;
-            }
-        }
-        return count;
-    }
-
-    /**
-     * An in-memory binary field carrying each document's slots as the payload a columnar keyword field
-     * writes, standing in for the mapper on the other side of the ingest hop.
-     */
-    private static BinaryDocValues payloadsOver(BytesRef[][] docSlots) {
+    /** An in-memory binary field over {@code docValues}, standing in for one another format wrote. */
+    private static BinaryDocValues binaryOver(BytesRef[] docValues) {
         return new BinaryDocValues() {
             private int doc = -1;
 
             @Override
             public BytesRef binaryValue() {
-                return StringBinaryPayload.encode(Arrays.asList(docSlots[doc]));
+                return docValues[doc];
             }
 
             @Override
             public boolean advanceExact(int target) {
                 doc = target;
-                return docSlots[target] != null;
+                return docValues[target] != null;
             }
 
             @Override
             public int docID() {
-                return doc >= docSlots.length ? NO_MORE_DOCS : doc;
+                return doc >= docValues.length ? NO_MORE_DOCS : doc;
             }
 
             @Override
@@ -326,8 +261,8 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
 
             @Override
             public int advance(int target) {
-                for (doc = target; doc < docSlots.length; doc++) {
-                    if (docSlots[doc] != null) {
+                for (doc = target; doc < docValues.length; doc++) {
+                    if (docValues[doc] != null) {
                         return doc;
                     }
                 }
@@ -337,7 +272,7 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
 
             @Override
             public long cost() {
-                return present(docSlots);
+                return present(docValues);
             }
         };
     }
@@ -347,26 +282,15 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
         withColumn(docValues, (metadata, reader) -> check.check(new ColumnarStringBinaryDocValues(reader, reader.iterator())));
     }
 
-    /** The current document's only value, decoded out of the one-slot payload the surface hands back. */
+    /** The current document's only value, which the surface hands back as the bytes it was given. */
     private static BytesRef single(ColumnarStringBinaryDocValues dv) throws IOException {
-        final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
-        assertEquals("one slot", 1, decoder.reset(dv.binaryValue()));
-        return BytesRef.deepCopyOf(decoder.next());
+        return BytesRef.deepCopyOf(dv.binaryValue());
     }
 
     /** The first document at or after {@code target} that has a value, or {@code NO_MORE_DOCS}. */
     private static int nextPresent(BytesRef[] docValues, int target) {
         for (int doc = target; doc < docValues.length; doc++) {
             if (docValues[doc] != null) {
-                return doc;
-            }
-        }
-        return DocIdSetIterator.NO_MORE_DOCS;
-    }
-
-    private static int nextPresent(BytesRef[][] docSlots, int target) {
-        for (int doc = target; doc < docSlots.length; doc++) {
-            if (docSlots[doc] != null) {
                 return doc;
             }
         }

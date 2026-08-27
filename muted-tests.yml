@@ -787,3 +787,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvColumnarIT
   method: test {csv-spec:inlinestats.inlineStatsDroppingMultipleCommandsGroupingFields}
   issue: https://github.com/elastic/elasticsearch/issues/157817
+- class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlGoldenTests
+  method: testBinaryWithDifferentSelectors {historical}
+  issue: https://github.com/elastic/elasticsearch/issues/157827
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=mapping/42_doc_values_on_failure/index.mapping.doc_values.on_failure=ignore applies to nullability violations (logsdb_columnar)}
+  issue: https://github.com/elastic/elasticsearch/issues/157829

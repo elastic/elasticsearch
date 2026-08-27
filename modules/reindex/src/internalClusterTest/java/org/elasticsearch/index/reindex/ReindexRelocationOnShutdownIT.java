@@ -33,7 +33,6 @@ import org.elasticsearch.reindex.RethrottleRequestBuilder;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.reindex.management.ReindexManagementPlugin;
 import org.elasticsearch.search.SearchContextMissingException;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
@@ -120,7 +119,6 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
      * all documents and that the relocated task's reported {@code Status#total} equals the source doc count.
      */
     public void testReindexTaskRelocatesOnNodeShutdown() throws Exception {
-        assumeTrue("pit relocation must be enabled", SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled());
 
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
@@ -241,7 +239,6 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
      * </ol>
      */
     public void testReindexFailsWhenPitRelocationFails() throws Exception {
-        assumeTrue("pit relocation must be enabled", SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled());
 
         internalCluster().startMasterOnlyNode();
 
@@ -372,7 +369,6 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
      * and so an error is returned to the client
      */
     public void testReindexTaskFailsWhenDataNodeIsShuttingDownAndTaskDoesNotFinishInTime() throws Exception {
-        assumeTrue("pit relocation must be enabled", SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled());
 
         final String masterNodeName = internalCluster().startMasterOnlyNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();
@@ -459,7 +455,6 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
      * the task attempts to complete before node shutdown. Here we allow the test to complete and expect no errors
      */
     public void testReindexTaskFinishesBeforeNodeShutsDown() throws Exception {
-        assumeTrue("pit relocation must be enabled", SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled());
 
         final String masterNodeName = internalCluster().startMasterOnlyNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();
@@ -682,7 +677,6 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         reason = "So we can know when the task cancellation was attempted"
     )
     public void testRelocatingTaskIsNotCancelledOnShutdownTimeout() throws Exception {
-        assumeTrue("pit relocation must be enabled", SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled());
 
         internalCluster().startMasterOnlyNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();
@@ -769,11 +763,8 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
             mockLog.awaitAllExpectationsMatched();
 
             // Release the transport block. With the fix the task was NOT cancelled, so the destination
-            // handler runs and the relocation completes normally.
+            // handler runs, and the relocation completes normally.
             resumeBlocked.countDown();
-
-            // We've seen everything we need to see, rethrottle to allow the task to finish
-            rethrottleRunningRootReindex(numDocs);
 
             // The source task should complete via TaskRelocatedException (relocated, not cancelled).
             safeAwait(listenerDone);
@@ -782,6 +773,9 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
             // Wait for prepareForShutdown to return (it will see the task is gone and exit its inner loop).
             safeGet(shutdownFuture);
+
+            // We've seen everything we need to see, rethrottle to allow the task to finish
+            rethrottleRunningRootReindex(numDocs);
 
             // The relocated task should complete successfully on the data node.
             final GetTaskResponse relocatedResult = clusterAdmin().prepareGetTask(new TaskId(relocatedTaskIdString))

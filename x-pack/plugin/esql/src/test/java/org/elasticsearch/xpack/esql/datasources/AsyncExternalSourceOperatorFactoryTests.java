@@ -516,7 +516,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
 
         // Unified attributes: data columns followed by the appended partition 'year' (shadows physical).
-        List<Attribute> attributes = List.of(ref("id", DataType.INTEGER), ref("value", DataType.INTEGER), ref("year", DataType.INTEGER));
+        // id is LONG because the mapping casts INT -> LONG; attributes carry the plan's output type, not the file's physical type.
+        List<Attribute> attributes = List.of(ref("id", DataType.LONG), ref("value", DataType.INTEGER), ref("year", DataType.INTEGER));
 
         // Non-identity, data-only mapping (cast id INT->LONG) so adaptSchema does not short-circuit.
         ExternalSchema fileSchema = new ExternalSchema(List.of(ref("id", DataType.INTEGER), ref("value", DataType.INTEGER)));
@@ -2757,6 +2758,75 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         );
         assertEquals("decompress failed", thrown.getMessage());
         assertTrue("raw stream must be aborted when decompression fails", tracking.aborted.get());
+        assertEquals("abortStream must be invoked exactly once", 1, tracking.abortCalls.get());
+    }
+
+    /**
+     * Regression guard: if {@code parallelRead} construction fails after the decompressing wrapper
+     * is created (e.g. the streaming iterator constructor throws), the wrapper must be
+     * closed to release codec-specific native handles (e.g. the {@code PanamaZstdInputStream}'s
+     * native {@code ZSTD_DStream} and {@code Arena.ofShared()} — resources with no JDK Cleaner
+     * fallback, unlike gzip's {@code Inflater}) and the raw stream must be aborted without a drain.
+     */
+    public void testOpenWithParallelismDecompressorReleasedOnParallelReadFailure() throws IOException {
+        AsyncExternalSourceOperatorFactory factory = factoryForOpenParallelismStreamingTests(
+            dummyFormatReaderForOpenParallelismTests(),
+            Runnable::run
+        );
+        // Force StreamingParallelIterator constructor to fail after the codec has successfully
+        // opened the decompressing stream — simulating an unexpected error mid-construction.
+        SegmentableFormatReader inner = mockInnerForParallelDescribeAndOpen();
+        when(inner.minimumSegmentSize()).thenThrow(new RuntimeException("simulated parallelRead construction failure"));
+
+        // Codec that passes bytes through but tracks whether close() was called on its stream.
+        // The close-tracking stream is what DecompressingStorageObject.abortStream() must close
+        // first (before aborting raw) — this is the layer holding any codec-specific native handle.
+        AtomicBoolean wrapperClosed = new AtomicBoolean(false);
+        DecompressionCodec trackingPassThroughCodec = new DecompressionCodec() {
+            @Override
+            public String name() {
+                return "test-pass-through";
+            }
+
+            @Override
+            public List<String> extensions() {
+                return List.of(".gz");
+            }
+
+            @Override
+            public InputStream decompress(InputStream raw) {
+                return new InputStream() {
+                    @Override
+                    public int read() throws IOException {
+                        return raw.read();
+                    }
+
+                    @Override
+                    public int read(byte[] buf, int off, int len) throws IOException {
+                        return raw.read(buf, off, len);
+                    }
+
+                    @Override
+                    public void close() throws IOException {
+                        wrapperClosed.set(true);
+                        raw.close();
+                    }
+                };
+            }
+        };
+        CompressionDelegatingFormatReader cdr = new CompressionDelegatingFormatReader(inner, trackingPassThroughCodec);
+
+        byte[] payload = "{\"a\":1}\n".repeat(100).getBytes(StandardCharsets.UTF_8);
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject object = DrainSimulatingStorageObject.create(payload, tracking);
+
+        RuntimeException thrown = expectThrows(
+            RuntimeException.class,
+            () -> factory.openWithParallelism(cdr, object, List.of("a"), ErrorPolicy.STRICT, false, true, true, null, 0L, null, null, null)
+        );
+        assertEquals("simulated parallelRead construction failure", thrown.getMessage());
+        assertTrue("decompressor wrapper must be closed to release codec-specific native handles (e.g. zstd Arena)", wrapperClosed.get());
+        assertTrue("raw stream must be aborted when parallelRead fails", tracking.aborted.get());
         assertEquals("abortStream must be invoked exactly once", 1, tracking.abortCalls.get());
     }
 

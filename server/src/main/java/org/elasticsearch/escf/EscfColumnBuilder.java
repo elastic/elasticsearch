@@ -103,6 +103,10 @@ public final class EscfColumnBuilder {
      * Hints that this column is an array with elements of {@code childKind}.
      */
     public void hintArray(byte childKind) {
+        assert childKind == EscfColumnKind.LONG
+            || childKind == EscfColumnKind.DOUBLE
+            || childKind == EscfColumnKind.STRING
+            || childKind == EscfColumnKind.BINARY : "invalid array child kind: " + EscfColumnKind.name(childKind);
         if (canHint()) {
             ArrayBuilder ab = new ArrayBuilder(childKind, policy == CollisionPolicy.SPLIT, recycler);
             backfillLeadingAbsents(ab);
@@ -301,6 +305,48 @@ public final class EscfColumnBuilder {
         lastWrittenRow = row;
     }
 
+    /**
+     * Positional raw-bits write for a fixed-64 (LONG or DOUBLE) column. The {@code bits} parameter
+     * is the raw 64-bit little-endian word: for LONG that is the value itself; for DOUBLE it is
+     * {@link Double#doubleToRawLongBits(double)}.
+     */
+    public void setRawFixed64(int row, byte kind, long bits) {
+        assert kind == EscfColumnKind.LONG || kind == EscfColumnKind.DOUBLE;
+        if (row == lastWrittenRow) {
+            sameRowScalar(kind, bits, Double.longBitsToDouble(bits), null, 0, 0);
+            return;
+        }
+        newRowScalar(row, kind, bits, Double.longBitsToDouble(bits), null, 0, 0);
+    }
+
+    /**
+     * Appends a raw UNION row verbatim, bypassing all type-dispatch and value decoding. The column
+     * must have been primed as a UNION via {@link #hintUnion()} before any row is written.
+     *
+     * <p>The type byte is stamped directly into the type vector; the payload bytes are copied into the
+     * data buffer without interpretation. Zero-payload types ({@link SourceValueType#NULL},
+     * {@link SourceValueType#TRUE}, {@link SourceValueType#FALSE}, {@link SourceValueType#ABSENT})
+     * must be passed with a zero-length {@code payload}; numeric types must carry exactly 8 bytes.
+     *
+     * <p>Absent rows do not advance the write cursor ({@code lastWrittenRow} is not updated), matching
+     * the convention of {@link #addAbsent()}.
+     */
+    public void addRawUnionRow(byte type, BytesRef payload) {
+        assert current instanceof UnionBuilder : "addRawUnionRow requires hintUnion() to have been called first";
+        UnionBuilder ub = (UnionBuilder) current;
+        int row = ub.rowsConsumed();
+        ub.beginInlineSlot(type);
+        if (payload.length > 0) {
+            ub.slotBytes(payload.bytes, payload.offset, payload.length);
+        }
+        if (type == SourceValueType.ABSENT) {
+            ub.endAbsentSlot();
+        } else {
+            ub.endInlineSlot();
+            lastWrittenRow = row;
+        }
+    }
+
     private void setBytes(int row, byte kind, byte[] bytes, int off, int len) {
         if (row == lastWrittenRow) {
             sameRowScalar(kind, 0L, 0.0, bytes, off, len);
@@ -355,6 +401,36 @@ public final class EscfColumnBuilder {
 
     public void appendString(XContentString.UTF8Bytes value) {
         appendBytesElement(EscfColumnKind.STRING, SourceValueType.STRING, value.bytes(), value.offset(), value.length());
+    }
+
+    /**
+     * Appends a BINARY element to the current array row. Counterpart to {@link #appendString(BytesRef)}.
+     */
+    public void appendBinary(BytesRef value) {
+        appendBytesElement(EscfColumnKind.BINARY, SourceValueType.BINARY, value.bytes, value.offset, value.length);
+    }
+
+    /**
+     * Appends a raw 64-bit element to the current array row. Unlike {@link #appendLong} and
+     * {@link #appendDouble}, takes a raw bit pattern and passes it through to the builder without a
+     * {@code Double.longBitsToDouble → doubleToRawLongBits} round trip.
+     *
+     * @param childKind the element kind ({@link EscfColumnKind#LONG} or {@link EscfColumnKind#DOUBLE})
+     * @param bits      the raw 64-bit value (for DOUBLE: {@link Double#doubleToRawLongBits(double)})
+     */
+    public void appendFixedBits(byte childKind, long bits) {
+        assert childKind == EscfColumnKind.LONG || childKind == EscfColumnKind.DOUBLE;
+        if (current instanceof ArrayBuilder ab) {
+            if (ab.childKind() == UNSET_ARRAY_KIND || ab.childKind() == childKind) {
+                ab.appendFixedBits(childKind, bits);
+                return;
+            }
+            byte typeByte = childKind == EscfColumnKind.LONG ? SourceValueType.LONG : SourceValueType.DOUBLE;
+            heterogeneousArrayElement(typeByte, bits, Double.longBitsToDouble(bits), null, 0, 0);
+        } else {
+            byte typeByte = childKind == EscfColumnKind.LONG ? SourceValueType.LONG : SourceValueType.DOUBLE;
+            appendUnionArrayElement(typeByte, bits, Double.longBitsToDouble(bits), null, 0, 0);
+        }
     }
 
     private void appendBytesElement(byte childKind, byte typeByte, byte[] bytes, int off, int len) {
@@ -705,7 +781,8 @@ public final class EscfColumnBuilder {
      * array, or {@link #UNION_CHILD_KIND} if the array must go inline.
      */
     private static byte arrayChildKind(byte arrayType, byte[] packed) {
-        if (packed.length == 0) {
+        int len = packed.length;
+        if (len == 0) {
             return UNSET_ARRAY_KIND;
         }
         if (arrayType != SourceValueType.FIXED_ARRAY) {
@@ -1380,6 +1457,11 @@ public final class EscfColumnBuilder {
 
         void endInlineSlot() {
             advancePresent();
+        }
+
+        /** Counterpart to {@link #endInlineSlot()} for absent rows. */
+        void endAbsentSlot() {
+            advanceAbsent();
         }
 
         @Override

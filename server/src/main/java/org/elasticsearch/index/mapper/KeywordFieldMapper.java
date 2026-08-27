@@ -91,13 +91,12 @@ import org.elasticsearch.index.query.AutomatonQueryWithDescription;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRangeQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesWildcardQuery;
-import org.elasticsearch.lucene.queries.SortedSetDocValuesRangeQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
-import org.elasticsearch.lucene.search.XDocValuesRewriteMethod;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.SortedBinaryDocValuesStringFieldScript;
@@ -109,7 +108,6 @@ import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.StringScriptFieldFuzzyQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
-import org.elasticsearch.search.runtime.StringScriptFieldRangeQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -782,6 +780,15 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         /**
+         * Returns true when this field stores keyword values through binary doc values and can store
+         * more than one value for a document. Lucene term statistics do not describe value counts
+         * for this representation, so callers must load the field to count values.
+         */
+        public boolean usesMultivaluedBinaryDocValues() {
+            return usesBinaryDocValues && docValuesParams != null && docValuesParams.multiValue();
+        }
+
+        /**
          * Whether this field stores its (high-cardinality) binary doc values in document order with inline nulls
          * ({@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull}) rather than via a sidecar offsets field.
          */
@@ -806,7 +813,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             } else if (usesBinaryDocValues) {
                 return new ScanningBinaryDocValuesTermQuery(name(), indexedValueForSearch(value), useArrayOrderBinaryDocValues);
             } else {
-                return SortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
+                return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
             }
         }
 
@@ -836,17 +843,16 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (indexType.hasTerms()) {
                 return super.rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, context);
             } else if (usesBinaryDocValues) {
-                return new StringScriptFieldRangeQuery(
-                    new Script(""),
-                    ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx, indexVersion),
+                return new ScanningBinaryDocValuesRangeQuery(
                     name(),
-                    lowerTerm == null ? null : indexedValueForSearch(lowerTerm).utf8ToString(),
-                    upperTerm == null ? null : indexedValueForSearch(upperTerm).utf8ToString(),
+                    lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
+                    upperTerm == null ? null : indexedValueForSearch(upperTerm),
                     includeLower,
-                    includeUpper
+                    includeUpper,
+                    useArrayOrderBinaryDocValues
                 );
             } else {
-                return SortedSetDocValuesRangeQuery.newSlowRangeQuery(
+                return SortedSetDocValuesField.newSlowRangeQuery(
                     name(),
                     lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
                     upperTerm == null ? null : indexedValueForSearch(upperTerm),
@@ -887,7 +893,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     prefixLength,
                     maxExpansions,
                     transpositions,
-                    XDocValuesRewriteMethod.DOC_VALUES_REWRITE,
+                    MultiTermQuery.DOC_VALUES_REWRITE,
                     context,
                     name()
                 );
@@ -914,7 +920,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             } else {
                 if (caseInsensitive == false) {
                     Term prefix = new Term(name(), indexedValueForSearch(value));
-                    return new PrefixQuery(prefix, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                    return new PrefixQuery(prefix, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
                 return new StringScriptFieldPrefixQuery(
                     new Script(""),
@@ -957,7 +963,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                 terms = MultiTerms.getTerms(reader, name());
             } else if (hasDocValues()) {
                 if (usesBinaryDocValues) {
-                    throw new UnsupportedOperationException("TODO");
+                    // Not possible to support terms enum api as underlying doc values lacks the capabilities to support it.
+                    throw new IllegalArgumentException("terms enum is unsupported for field [" + name() + "]");
                 } else {
                     terms = SortedSetDocValuesTerms.getTerms(reader, name());
                 }
@@ -1273,9 +1280,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                     Term term = new Term(name(), value);
                     if (context.getCircuitBreaker() != null) {
                         Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
-                        return new AutomatonQuery(term, dfa, false, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                        return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
                     }
-                    return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                    return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
 
                 StringFieldScript.LeafFactory leafFactory = ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx);
@@ -1307,9 +1314,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                     Term term = new Term(name(), value);
                     if (context.getCircuitBreaker() != null) {
                         Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
-                        return new AutomatonQuery(term, dfa, false, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                        return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
                     }
-                    return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                    return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
             }
         }
@@ -1348,7 +1355,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                             maxDeterminizedStates,
                             context.getCircuitBreaker()
                         );
-                        return new AutomatonQuery(term, dfa, false, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                        return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
                     }
                     return new RegexpQuery(
                         new Term(name(), indexedValueForSearch(value)),
@@ -1356,7 +1363,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                         matchFlags,
                         RegexpQuery.DEFAULT_PROVIDER,
                         maxDeterminizedStates,
-                        XDocValuesRewriteMethod.DOC_VALUES_REWRITE
+                        MultiTermQuery.DOC_VALUES_REWRITE
                     );
                 }
             }
@@ -1485,8 +1492,8 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean isSingleValueEnforced() {
-        return docValuesParameters.multiValue() == false;
+    protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
+        return docValuesParameters.multiValue() == false && (token != XContentParser.Token.VALUE_NULL || fieldType().nullValue != null);
     }
 
     @Override
@@ -1497,20 +1504,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     @Override
     public boolean isNullable() {
         return docValuesParameters.nullability() || fieldType().nullValue != null;
-    }
-
-    @Override
-    public boolean supportsBatchIndexing() {
-        // Plain keyword mappers can be driven through parseCreateField by the bulk batch path.
-        // ignore_above is allowed — it's handled by indexValue and only needs addIgnoredField on
-        // the context, which BatchDocumentParserContext records. Dimensions, non-default
-        // normalizers, copy_to, multi-fields, and scripts all pull in behavior that the v1 batch
-        // path does not support.
-        return hasScript() == false
-            && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false
-            && normalizerName == null
-            && fieldType().isDimension() == false;
     }
 
     @Override
@@ -2133,6 +2126,10 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     public CompositeSyntheticFieldLoader syntheticFieldLoader(String fullFieldName, String leafFieldName) {
-        return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, syntheticFieldLoaderLayers());
+        var layers = syntheticFieldLoaderLayers();
+        if (onFailureColumnEnabled()) {
+            layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexCreatedVersion));
+        }
+        return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, layers);
     }
 }

@@ -123,9 +123,13 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
         return Maths.round(val, 0).doubleValue();
     }
 
-    @Evaluator(extraName = "Int")
+    // An int argument selects Maths#round(long, long) by widening rather than Maths#round(Number, long),
+    // which needs boxing, so the Integer range check in Maths#convertToIntegerType is never reached. A
+    // plain intValue() then truncates a value rounded past Integer.MAX_VALUE into a negative one. Narrow
+    // explicitly instead, and report the overflow the way the unsigned_long path does: a warning and a null.
+    @Evaluator(extraName = "Int", warnExceptions = ArithmeticException.class)
     static int process(int val, long decimals) {
-        return Maths.round(val, decimals).intValue();
+        return Math.toIntExact(Maths.round(val, decimals));
     }
 
     @Evaluator(extraName = "Long")

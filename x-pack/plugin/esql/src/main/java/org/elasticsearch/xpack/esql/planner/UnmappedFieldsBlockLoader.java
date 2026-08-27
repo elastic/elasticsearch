@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -31,8 +32,12 @@ import java.util.Set;
  *
  * <p>For each document it reads {@code _source}, retains only top-level keys
  * that match the {@link UnmappedFieldsPattern} (matching at least one pattern in every include
- * group and not matching any exclude pattern), and re-serialises the surviving key/value
- * pairs as a JSON object. Documents where nothing survives get a null.
+ * group and not matching any exclude pattern) and hold a value, and re-serialises the surviving
+ * key/value pairs as a JSON object. Documents where nothing survives get a null.
+ *
+ * <p>Dropping the value-less keys here rather than on the coordinator keeps them off the wire entirely, and is what lets the
+ * coordinator turn every key it receives into an output column without producing one that is null in every row - see
+ * {@code UnmappedFields#carriesValue} and {@code ExpandUnmappedFieldsPostProcessor}.
  *
  * <p>Field-level security needs no handling here: it strips denied fields from the {@code _source} this reads, so they never
  * reach the pattern. {@code EsqlSecurityIT#testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoadAll} holds that down.
@@ -109,16 +114,16 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
                     .v2();
                 try (XContentBuilder json = XContentFactory.jsonBuilder()) {
                     json.startObject();
-                    boolean anyMatch = false;
+                    boolean anyValue = false;
                     for (Map.Entry<String, Object> entry : sourceMap.entrySet()) {
-                        if (pattern.matches(entry.getKey())) {
-                            anyMatch = true;
+                        if (pattern.matches(entry.getKey()) && carriesValue(entry.getValue())) {
+                            anyValue = true;
                             json.field(entry.getKey(), entry.getValue());
                         }
                     }
                     json.endObject();
                     // An empty object would carry no more information than a null, and the coordinator treats the two the same.
-                    if (anyMatch) {
+                    if (anyValue) {
                         ((BytesRefBuilder) builder).appendBytesRef(BytesReference.bytes(json).toBytesRef());
                     } else {
                         builder.appendNull();
@@ -127,6 +132,28 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
             } finally {
                 breaker.addWithoutBreaking(-reservation);
             }
+        }
+
+        /**
+         * Whether a {@code _source} value says anything about the field it sits under. {@code null}, {@code []}, {@code [null]} and any
+         * nesting of those do not: a document writing one of them tells us as little about the field as a document omitting it
+         * altogether, and Elasticsearch indexes nothing for either. Shipping such a value to the coordinator would only cost bytes and
+         * a parse to arrive at the same {@code null} - and, worse, would earn the field a whole output column that is {@code null} in
+         * every row, which {@code ExpandUnmappedFieldsPostProcessor#assertNoAllNullExpandedColumn} asserts against.
+         */
+        private static boolean carriesValue(Object value) {
+            if (value == null) {
+                return false;
+            }
+            if (value instanceof List<?> values) {
+                for (Object element : values) {
+                    if (carriesValue(element)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            return true;
         }
 
         @Override

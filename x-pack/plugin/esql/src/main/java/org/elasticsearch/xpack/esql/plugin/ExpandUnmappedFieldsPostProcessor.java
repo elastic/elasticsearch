@@ -45,6 +45,9 @@ import java.util.TreeSet;
  * all rows, then replaces that column with one dedicated {@code keyword} column per
  * unique field name. Rows that do not carry a given field get {@code null} in that column.
  * <p>
+ * The data node only puts keys into the column that hold a value, so no expanded column comes out null in every row -
+ * {@link #assertNoAllNullExpandedColumn} holds that end of the contract down.
+ * <p>
  * TODO every row's {@code _source} ends up parsed three times: the data node parses it to filter the column, then the
  *  coordinator parses the column once to collect field names and once more to expand them. A columnar shape — one block of
  *  names and one of values — would let us build the union while reading and expand without re-parsing.
@@ -94,6 +97,9 @@ class ExpandUnmappedFieldsPostProcessor {
 
     /**
      * Collect the unique field names (sorted) carried by {@code _unmapped_fields} across all pages.
+     * <p>
+     * Every key here earns an output column, which is why the data node drops the keys that carry no value - see
+     * {@code UnmappedFieldsBlockLoader} and {@link #assertNoAllNullExpandedColumn}.
      * <p>
      * TODO cap this set. Every distinct key in any row's {@code _source} becomes an output column, so a wide or
      *  heterogeneous index can blow the response up into thousands of columns.
@@ -178,6 +184,7 @@ class ExpandUnmappedFieldsPostProcessor {
             for (Page p : result.pages()) {
                 newPages.add(rewritePage(unmappedIdx, fieldNames, factory, p, originalColumnCount, reservationFactor));
             }
+            assert assertNoAllNullExpandedColumn(newPages, originalColumnCount - 1, fieldNames);
             success = true;
             return newPages;
         } finally {
@@ -185,6 +192,37 @@ class ExpandUnmappedFieldsPostProcessor {
                 Releasables.closeExpectNoException(newPages);
             }
         }
+    }
+
+    /**
+     * Guard rail for what {@code UnmappedFieldsBlockLoader} promises this class: every key it writes into {@code _unmapped_fields}
+     * holds a value, and that value is what {@link #appendRow} writes back, so no expanded column can come out {@code null} in every
+     * row. An all-null column would be a silent lie about the data - it reads as "every document has this field, with no value" where
+     * the truth is "no document has this field" - so a violation is a bug on one side of that contract rather than anything the user
+     * can provoke.
+     * <p>
+     * Only the expanded columns are checked: a retained column can legitimately be all null, e.g. {@code KEEP field_absent_everywhere}
+     * resolves to a {@code null} literal.
+     *
+     * @return {@code true}, so this can be called from an {@code assert} and skipped entirely in production
+     */
+    private static boolean assertNoAllNullExpandedColumn(List<Page> pages, int retainedBlockCount, List<String> fieldNames) {
+        for (int i = 0; i < fieldNames.size(); i++) {
+            int column = retainedBlockCount + i;
+            boolean allNull = true;
+            for (Page page : pages) {
+                if (page.getBlock(column).areAllValuesNull() == false) {
+                    allNull = false;
+                    break;
+                }
+            }
+            if (allNull) {
+                throw new AssertionError(
+                    Strings.format("Expanded unmapped field '%s' into a column that is null in every row", fieldNames.get(i))
+                );
+            }
+        }
+        return true;
     }
 
     private static Page rewritePage(

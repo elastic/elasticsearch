@@ -1,0 +1,120 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all, optional_fields_load_all_skips_valueless_fields ]
+      reason: "under SET unmapped_fields=\"load_all\", a source field that is null, [] or [null] everywhere expands into no column"
+
+  # dynamic:false keeps specific_unmapped_field unmapped no matter what the documents write to it, so it is only ever discoverable
+  # by reading _source on the data node - which is the path this test is about.
+  - do:
+      indices.create:
+        index: load-all-valueless
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+
+  - do:
+      indices.create:
+        index: load-all-valueless-mixed
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+
+  # Every way a document can mention specific_unmapped_field without saying anything about it, plus one document that omits it.
+  - do:
+      bulk:
+        index: load-all-valueless
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "id": "1", "specific_unmapped_field": null }
+          - { "index": { } }
+          - { "id": "2", "specific_unmapped_field": [ ] }
+          - { "index": { } }
+          - { "id": "3", "specific_unmapped_field": [ null ] }
+          - { "index": { } }
+          - { "id": "4", "specific_unmapped_field": [ null, [ ], [ null ] ] }
+          - { "index": { } }
+          - { "id": "5" }
+
+  # The same documents plus one that does carry a value, so here the column exists and the valueless documents fall into it.
+  - do:
+      bulk:
+        index: load-all-valueless-mixed
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "id": "1", "specific_unmapped_field": null }
+          - { "index": { } }
+          - { "id": "2", "specific_unmapped_field": [ ] }
+          - { "index": { } }
+          - { "id": "3", "specific_unmapped_field": [ null ] }
+          - { "index": { } }
+          - { "id": "4" }
+          - { "index": { } }
+          - { "id": "5", "specific_unmapped_field": "present" }
+
+---
+'valueless unmapped field expands into no column':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load_all"; FROM load-all-valueless | SORT id | LIMIT 10'
+  - length: { columns: 1 }
+  - match: { columns.0.name: id }
+  - match: { columns.0.type: keyword }
+  - length: { values: 5 }
+
+---
+'explicitly kept valueless unmapped field is a null column':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load_all"; FROM load-all-valueless | KEEP specific_unmapped_field | LIMIT 10'
+  - length: { columns: 1 }
+  - match: { columns.0.name: specific_unmapped_field }
+  - match: { columns.0.type: keyword }
+  - match: { values.0: [ null ] }
+  - match: { values.1: [ null ] }
+  - match: { values.2: [ null ] }
+  - match: { values.3: [ null ] }
+  - match: { values.4: [ null ] }
+
+---
+'valueless values are null in a column another document filled':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load_all"; FROM load-all-valueless-mixed | SORT id | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: specific_unmapped_field }
+  - match: { columns.1.type: keyword }
+  - match: { values.0: [ "1", null ] }
+  - match: { values.1: [ "2", null ] }
+  - match: { values.2: [ "3", null ] }
+  - match: { values.3: [ "4", null ] }
+  - match: { values.4: [ "5", "present" ] }
+
+---
+'a column one index brings into existence still covers the valueless index':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load_all"; FROM load-all-valueless,load-all-valueless-mixed | LIMIT 20'
+  - length: { columns: 2 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: specific_unmapped_field }
+  - match: { columns.1.type: keyword }
+  - length: { values: 10 }

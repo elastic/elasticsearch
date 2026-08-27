@@ -27,6 +27,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -35,7 +37,8 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * Tests that {@link UnmappedFieldsBlockLoader} reads {@code _source} and keeps only the top-level keys
  * selected by its {@link UnmappedFieldsPattern}, dropping everything else: the mapped fields (which the
- * analyzer adds to the pattern's excludes) and any key that does not match the includes.
+ * analyzer adds to the pattern's excludes), any key that does not match the includes, and any key whose
+ * value carries no information for the coordinator to turn into a column.
  */
 public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
 
@@ -110,12 +113,32 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
         assertThat(load(UnmappedFieldsPattern.ALL, Map.of()), nullValue());
     }
 
-    public void testNullSourceValueIsKeptNotDropped() throws IOException {
+    /**
+     * A key whose value is null, an empty array or an array of nulls says as little about the field as omitting the key would, so it
+     * is not worth a trip to the coordinator - where it would earn the field an output column that is null in every row.
+     */
+    public void testValuelessSourceValuesAreDropped() throws IOException {
         Map<String, Object> source = new HashMap<>();
-        source.put("first_pet", null);
+        source.put("null_value", null);
+        source.put("empty_array", List.of());
+        source.put("array_of_null", singletonList(null));
+        source.put("nested_emptiness", List.of(singletonList(null), List.of()));
         source.put("hobby", "chess");
         Map<String, Object> filtered = load(UnmappedFieldsPattern.ALL, source);
-        assertMap(filtered, matchesMap().entry("first_pet", nullValue()).entry("hobby", "chess"));
+        assertMap(filtered, matchesMap().entry("hobby", "chess"));
+    }
+
+    public void testOnlyValuelessSourceValuesEmitsNull() throws IOException {
+        Map<String, Object> source = new HashMap<>();
+        source.put("first_pet", null);
+        source.put("tags", List.of());
+        assertThat(load(UnmappedFieldsPattern.ALL, source), nullValue());
+    }
+
+    /** Only arrays that bottom out in nothing but nulls are valueless; one real element makes the whole array worth keeping. */
+    public void testArrayWithAValueIsKept() throws IOException {
+        Map<String, Object> filtered = load(UnmappedFieldsPattern.ALL, Map.of("tags", asList(null, "a")));
+        assertMap(filtered, matchesMap().entry("tags", asList(null, "a")));
     }
 
     public void testReaderToStringIsDistinctFromLoader() throws IOException {

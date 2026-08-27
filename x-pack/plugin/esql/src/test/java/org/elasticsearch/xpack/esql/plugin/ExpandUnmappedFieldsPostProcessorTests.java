@@ -199,6 +199,26 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         }
     }
 
+    /**
+     * The coordinator trusts the data node to only send keys that hold a value - {@code UnmappedFieldsBlockLoaderTests} pins down that
+     * end of the contract. This is the guard rail for the other end: were a value-less key to arrive anyway, it would expand into a
+     * column that is null in every row, which reads as "every document has this field, with no value" where the truth is "no document
+     * has this field". That must not pass silently.
+     */
+    public void testAllNullExpandedColumnTripsGuardRail() {
+        BlockFactory bf = blockFactory();
+        Result result = result(
+            List.of(intAttr(), unmappedAttr()),
+            List.of(page(bf, List.of(row(1, jsonObject("{'a':null}")), row(2, jsonObject("{'a':null,'b':'y'}")))))
+        );
+
+        AssertionError e = expectThrows(AssertionError.class, () -> expand(result, bf));
+        assertThat(e.getMessage(), containsString("Expanded unmapped field 'a' into a column that is null in every row"));
+
+        // No manual release here: the point is that expand must have released both the input pages and the half-built expansion.
+        assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
+    }
+
     public void testNonStringJsonValuesAreStringified() {
         BlockFactory bf = blockFactory();
         Result result = result(

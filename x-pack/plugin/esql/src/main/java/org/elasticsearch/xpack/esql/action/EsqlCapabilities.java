@@ -3384,6 +3384,15 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_STATS(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
 
         /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, a {@code _source} value of {@code null}, {@code []} or {@code [null]} is dropped
+         * where the data node extracts unmapped fields, so a field written that way by every document no longer expands into a column
+         * that is null in every row, and where such a value sits in a column another document did fill it reads as {@code null}
+         * instead of a stringified {@code "[]"}.
+         * Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL} is available.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_SKIPS_VALUELESS_FIELDS(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
+
+        /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_EQUALS_FLATTENED,

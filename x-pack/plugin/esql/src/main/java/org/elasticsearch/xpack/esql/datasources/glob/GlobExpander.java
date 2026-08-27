@@ -123,10 +123,10 @@ public final class GlobExpander {
         int maxGlobExpansion
     ) throws IOException {
         PartitionConfig partitionConfig = PartitionConfig.fromConfig(config);
-        ExclusionConfig.Matchers exclusion = ExclusionConfig.fromConfig(config).compile();
+        ExclusionConfig.NameFilter nameFilter = ExclusionConfig.fromConfig(config).compile();
         return path.indexOf(',') >= 0
-            ? doExpandCommaSeparated(path, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, exclusion)
-            : expandGlobWithRewriteFallback(path, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, exclusion);
+            ? doExpandCommaSeparated(path, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, nameFilter)
+            : expandGlobWithRewriteFallback(path, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, nameFilter);
     }
 
     /**
@@ -149,23 +149,23 @@ public final class GlobExpander {
         PartitionConfig partitionConfig,
         int maxDiscoveredFiles,
         int maxGlobExpansion,
-        ExclusionConfig.Matchers exclusion
+        ExclusionConfig.NameFilter nameFilter
     ) throws IOException {
         if (effectivePattern(pattern, hints, partitionConfig).equals(pattern)) {
-            return doExpandGlob(pattern, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, exclusion);
+            return doExpandGlob(pattern, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, nameFilter);
         }
         // The retry drops the rewrite but keeps the exact _file.* filters, so it can only come back empty when the
         // un-rewritten glob genuinely matches nothing.
         List<PartitionFilterHint> fileHintsOnly = fileMetadataHints(hints);
         FileList expanded;
         try {
-            expanded = doExpandGlob(pattern, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, exclusion);
+            expanded = doExpandGlob(pattern, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, nameFilter);
         } catch (IOException e) {
             // The rewritten prefix may name a folder that does not exist; the local filesystem throws where object
             // stores return empty. Both mean the rewrite, not the dataset, emptied the listing — retry either way.
             logger.debug(() -> "Rewritten listing of [" + pattern + "] failed; re-listing without the glob rewrite", e);
             try {
-                return doExpandGlob(pattern, provider, fileHintsOnly, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, exclusion);
+                return doExpandGlob(pattern, provider, fileHintsOnly, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, nameFilter);
             } catch (IOException retryFailure) {
                 retryFailure.addSuppressed(e);
                 throw retryFailure;
@@ -175,7 +175,7 @@ public final class GlobExpander {
             logger.debug("Rewrite of [{}] narrowed to an empty listing; re-listing without the glob rewrite", pattern);
             // A full re-list can exceed max_discovered_files and throw, exactly as the un-filtered query would; that
             // cap error is preserved deliberately — deciding spelling-miss vs genuinely-empty needs the full listing.
-            return doExpandGlob(pattern, provider, fileHintsOnly, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, exclusion);
+            return doExpandGlob(pattern, provider, fileHintsOnly, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, nameFilter);
         }
         return expanded;
     }
@@ -245,8 +245,8 @@ public final class GlobExpander {
         @Nullable List<PartitionFilterHint> hints,
         @Nullable Map<String, Object> config
     ) throws IOException {
-        ExclusionConfig.Matchers exclusion = ExclusionConfig.fromConfig(config).compile();
-        return doExpandGlob(pattern, provider, hints, PartitionConfig.fromConfig(config), Integer.MAX_VALUE, Integer.MAX_VALUE, exclusion);
+        ExclusionConfig.NameFilter nameFilter = ExclusionConfig.fromConfig(config).compile();
+        return doExpandGlob(pattern, provider, hints, PartitionConfig.fromConfig(config), Integer.MAX_VALUE, Integer.MAX_VALUE, nameFilter);
     }
 
     public static FileList expandGlob(
@@ -257,8 +257,8 @@ public final class GlobExpander {
         int maxDiscoveredFiles,
         int maxGlobExpansion
     ) throws IOException {
-        ExclusionConfig.Matchers exclusion = ExclusionConfig.fromConfig(config).compile();
-        return doExpandGlob(pattern, provider, hints, PartitionConfig.fromConfig(config), maxDiscoveredFiles, maxGlobExpansion, exclusion);
+        ExclusionConfig.NameFilter nameFilter = ExclusionConfig.fromConfig(config).compile();
+        return doExpandGlob(pattern, provider, hints, PartitionConfig.fromConfig(config), maxDiscoveredFiles, maxGlobExpansion, nameFilter);
     }
 
     static FileList doExpandGlob(
@@ -268,7 +268,7 @@ public final class GlobExpander {
         PartitionConfig partitionConfig,
         int maxDiscoveredFiles,
         int maxGlobExpansion,
-        ExclusionConfig.Matchers exclusion
+        ExclusionConfig.NameFilter nameFilter
     ) throws IOException {
         Check.notNull(pattern, "pattern cannot be null");
         Check.notNull(provider, "provider cannot be null");
@@ -341,13 +341,18 @@ public final class GlobExpander {
                     // TODO: investigate which providers hit this branch and whether they can be fixed upstream.
                     relativePath = entry.path().objectName();
                 }
-                if (relativePath.endsWith("/")) {
-                    // Zero-byte directory placeholder key (e.g. the S3 console "folder" object). Always skipped as
-                    // listing normalization, not exclusion policy: a segment name never carries its trailing slash,
-                    // so no name glob could express this.
+                if (relativePath.isEmpty() || relativePath.endsWith("/")) {
+                    // Directory placeholder key (e.g. the S3 console "folder" object). Always skipped as listing
+                    // normalization, not exclusion policy: a segment name never carries its trailing slash, so no
+                    // name glob could express this.
+                    //
+                    // The empty case is the placeholder for the listing prefix ITSELF — listing `s3://b/data/*`
+                    // returns the key `s3://b/data/`, whose path relative to the prefix is "". It is not caught by
+                    // the endsWith check, and a `*` glob matches the empty string, so without this the marker
+                    // reaches the reader and fails the query naming an object the user never referenced.
                     continue;
                 }
-                if (matcher.matches(relativePath) && exclusion.keeps(relativePath)) {
+                if (matcher.matches(relativePath) && nameFilter.keeps(relativePath)) {
                     matched.add(entry);
                     checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles);
                 }
@@ -459,7 +464,7 @@ public final class GlobExpander {
         PartitionConfig partitionConfig,
         int maxDiscoveredFiles,
         int maxGlobExpansion,
-        ExclusionConfig.Matchers exclusion
+        ExclusionConfig.NameFilter nameFilter
     ) throws IOException {
         Check.notNull(pathList, "pathList cannot be null");
         Check.notNull(provider, "provider cannot be null");
@@ -479,7 +484,7 @@ public final class GlobExpander {
                     partitionConfig,
                     remainingBudget,
                     maxGlobExpansion,
-                    exclusion
+                    nameFilter
                 );
                 if (expanded instanceof GenericFileList g && expanded.fileCount() > 0) {
                     allEntries.addAll(g.files());

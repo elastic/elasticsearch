@@ -220,6 +220,24 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
+     * The placeholder for the listing prefix ITSELF. Listing `s3://bucket/data/*` returns the console-created
+     * folder marker `s3://bucket/data/`, whose path relative to the prefix is the EMPTY string — it does not end
+     * in a slash, and a `*` glob matches empty, so it survived both the placeholder skip and the name filter and
+     * reached the reader, failing the query on an object the user never referenced.
+     *
+     * <p>The nested case ({@code data/subdir/}) was already covered; only the self-referential one was not.
+     */
+    public void testExpandGlobExcludesThePlaceholderForTheListingPrefixItself() throws IOException {
+        List<StorageEntry> listing = List.of(entry("s3://bucket/data/", 0), entry("s3://bucket/data/part1.csv", 42));
+        StubProvider provider = new StubProvider(listing);
+
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*", provider, null, HIVE_OFF);
+        assertTrue(result.isResolved());
+        assertEquals("the prefix's own folder marker must not reach the reader", 1, result.fileCount());
+        assertEquals("s3://bucket/data/part1.csv", result.path(0).toString());
+    }
+
+    /**
      * Files under a _delta_log directory must not appear in the expansion result.
      * A directory whose name begins with '_' and all its descendants are hidden by convention (esql-planning#1544).
      */

@@ -282,11 +282,24 @@ or `_delta_log/` subtree, or a folder placeholder the S3 console created all sit
 to read, and any object no reader can claim fails the whole query.
 
 By default a dataset skips them, following the convention Spark, Hive and Trino use: a path segment beginning
-with `_` or `.` is not data. The exception is a segment carrying a `=`, which is a Hive partition directory —
-`_dept=alpha/` is read, `_SUCCESS` is not.
+with `_` or `.` is not data. There is one exception, and it applies to underscores only — a segment starting
+with `_` that also contains an `=` is a Hive partition directory and is kept, so `_dept=alpha/` is read while
+`_SUCCESS` is not. A segment starting with `.` is always skipped, `=` or no `=`, so `.key=value/` is dropped.
 
-That default is expressed as the two settings above, so you can change it. To drop something the convention
-does not cover, restate the default and add your own entry:
+That default is expressed as the two settings above, so you can change it.
+
+Note that the `resource` pattern is your first filter: a dataset on `**/*.parquet` never sees a `README.md` at
+all, so there is nothing to exclude. These settings are for objects the `resource` pattern *does* match — most
+often data-shaped files in a directory you do not want read. A retired partition kept alongside the live ones
+is the common case:
+
+```
+access/year=2024/part-0.parquet      <- read
+access/year=2025/part-0.parquet      <- read
+access/backup_2024/part-0.parquet    <- also matches **/*.parquet, but is not current data
+```
+
+Restate the default and name the directory:
 
 ```console
 PUT /_query/dataset/access_logs
@@ -294,7 +307,7 @@ PUT /_query/dataset/access_logs
   "data_source": "prod_s3_logs",
   "resource": "s3://logs-bucket/access/**/*.parquet",
   "settings": {
-    "file_exclusions": ["_*", ".*", "README.md", "*.tmp"],
+    "file_exclusions": ["_*", ".*", "backup_2024"],
     "file_inclusions": ["_*=*"]
   }
 }

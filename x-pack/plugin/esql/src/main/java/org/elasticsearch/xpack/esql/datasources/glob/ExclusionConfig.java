@@ -48,7 +48,7 @@ public record ExclusionConfig(List<String> fileExclusions, List<String> fileIncl
     public static final ExclusionConfig DEFAULT = new ExclusionConfig(DEFAULT_FILE_EXCLUSIONS, DEFAULT_FILE_INCLUSIONS);
 
     /** Pre-compiled matchers for {@link #DEFAULT}, the case on every expansion that configures nothing. */
-    private static final Matchers DEFAULT_MATCHERS = DEFAULT.compileUnchecked();
+    private static final NameFilter DEFAULT_FILTER = DEFAULT.compileUnchecked();
 
     public ExclusionConfig {
         Objects.requireNonNull(fileExclusions, "fileExclusions cannot be null");
@@ -141,11 +141,17 @@ public record ExclusionConfig(List<String> fileExclusions, List<String> fileIncl
         if (config == null || config.isEmpty()) {
             return;
         }
-        validateKey(config, CONFIG_FILE_EXCLUSIONS);
-        validateKey(config, CONFIG_FILE_INCLUSIONS);
+        // Both keys are checked before anything is thrown, so a registration with a mistake in each one reports
+        // both rather than making the user fix them one round-trip at a time.
+        List<String> problems = new ArrayList<>();
+        collectProblems(config, CONFIG_FILE_EXCLUSIONS, problems);
+        collectProblems(config, CONFIG_FILE_INCLUSIONS, problems);
+        if (problems.isEmpty() == false) {
+            throw new IllegalArgumentException(String.join("; ", problems));
+        }
     }
 
-    private static void validateKey(Map<String, Object> config, String field) {
+    private static void collectProblems(Map<String, Object> config, String field, List<String> problems) {
         Object value = config.get(field);
         if (value == null) {
             return;
@@ -163,20 +169,19 @@ public record ExclusionConfig(List<String> fileExclusions, List<String> fileIncl
                 continue;
             }
             if (entry.indexOf('/') >= 0 || entry.contains("**")) {
-                throw new IllegalArgumentException(
+                problems.add(
                     "["
                         + field
                         + "] must contain only single path-segment name globs — entries cannot contain '/' or '**', got ["
                         + entry
                         + "]"
                 );
+                continue;
             }
             try {
                 new GlobMatcher(entry);
             } catch (RuntimeException e) {
-                throw new IllegalArgumentException(
-                    "[" + field + "] must contain only valid glob patterns (" + e.getMessage() + "), got [" + entry + "]"
-                );
+                problems.add("[" + field + "] must contain only valid glob patterns (" + e.getMessage() + "), got [" + entry + "]");
             }
         }
     }
@@ -185,12 +190,12 @@ public record ExclusionConfig(List<String> fileExclusions, List<String> fileIncl
      * Compiles both lists once, for reuse across every candidate object of one expansion. Never throws on a
      * config {@link #fromConfig} produced.
      */
-    public Matchers compile() {
-        return this.equals(DEFAULT) ? DEFAULT_MATCHERS : compileUnchecked();
+    public NameFilter compile() {
+        return this.equals(DEFAULT) ? DEFAULT_FILTER : compileUnchecked();
     }
 
-    private Matchers compileUnchecked() {
-        return new Matchers(compileAll(fileExclusions), compileAll(fileInclusions));
+    private NameFilter compileUnchecked() {
+        return new NameFilter(compileAll(fileExclusions), compileAll(fileInclusions));
     }
 
     private static List<GlobMatcher> compileAll(List<String> globs) {
@@ -202,12 +207,12 @@ public record ExclusionConfig(List<String> fileExclusions, List<String> fileIncl
     }
 
     /** The compiled form, evaluated once per candidate object during a listing. */
-    public static final class Matchers {
+    public static final class NameFilter {
 
         private final List<GlobMatcher> exclusions;
         private final List<GlobMatcher> inclusions;
 
-        private Matchers(List<GlobMatcher> exclusions, List<GlobMatcher> inclusions) {
+        private NameFilter(List<GlobMatcher> exclusions, List<GlobMatcher> inclusions) {
             this.exclusions = exclusions;
             this.inclusions = inclusions;
         }
@@ -222,6 +227,9 @@ public record ExclusionConfig(List<String> fileExclusions, List<String> fileIncl
             if (exclusions.isEmpty()) {
                 return true;
             }
+            // Exclusions are tested first deliberately. Almost every segment matches no exclusion at all, and the
+            // && short-circuits there without touching the inclusion list — testing inclusions first would evaluate
+            // them on every segment and then still have to evaluate the exclusions.
             int start = 0;
             for (int i = 0; i <= relativePath.length(); i++) {
                 if (i == relativePath.length() || relativePath.charAt(i) == '/') {

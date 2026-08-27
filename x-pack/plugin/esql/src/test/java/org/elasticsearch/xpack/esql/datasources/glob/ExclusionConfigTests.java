@@ -17,6 +17,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig.CONFIG_FILE_EXCLUSIONS;
 import static org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig.CONFIG_FILE_INCLUSIONS;
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * The two halves of the settings contract: {@link ExclusionConfig#fromConfig} runs on every query against every
@@ -109,6 +110,16 @@ public class ExclusionConfigTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> ExclusionConfig.validate(Map.of(CONFIG_FILE_INCLUSIONS, List.of("a/b"))));
     }
 
+    /** A mistake in each key is reported in one go, rather than one round-trip at a time. */
+    public void testValidateReportsProblemsInBothKeysAtOnce() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ExclusionConfig.validate(Map.of(CONFIG_FILE_EXCLUSIONS, List.of("_temporary/**"), CONFIG_FILE_INCLUSIONS, List.of("[")))
+        );
+        assertThat(e.getMessage(), containsString("[file_exclusions]"));
+        assertThat(e.getMessage(), containsString("[file_inclusions]"));
+    }
+
     /**
      * An empty entry is a shape problem, and the caller's string-list check already reports it. Reporting it here
      * as well would put two validation errors on one setting for one mistake, so this returns silently — the same
@@ -145,7 +156,7 @@ public class ExclusionConfigTests extends ESTestCase {
     // -- the compiled evaluator --
 
     public void testInclusionsWinOnTheSegmentTheyMatch() {
-        ExclusionConfig.Matchers matchers = ExclusionConfig.DEFAULT.compile();
+        ExclusionConfig.NameFilter matchers = ExclusionConfig.DEFAULT.compile();
         assertTrue(matchers.keeps("_dept=alpha/part1.csv"));
         assertFalse(matchers.keeps("_dept=alpha/_SUCCESS"));
         assertFalse(matchers.keeps("_hidden/part1.csv"));
@@ -154,13 +165,13 @@ public class ExclusionConfigTests extends ESTestCase {
     /** An inclusion rescues only the segment it matches — another segment's exclusion still drops the object. */
     public void testInclusionDoesNotRescueOtherSegments() {
         ExclusionConfig config = new ExclusionConfig(List.of("_*"), List.of("_keep"));
-        ExclusionConfig.Matchers matchers = config.compile();
+        ExclusionConfig.NameFilter matchers = config.compile();
         assertTrue(matchers.keeps("_keep/data.csv"));
         assertFalse(matchers.keeps("_keep/_other/data.csv"));
     }
 
     public void testCustomExclusionsReplaceRatherThanAugmentTheDefault() {
-        ExclusionConfig.Matchers matchers = ExclusionConfig.fromConfig(
+        ExclusionConfig.NameFilter matchers = ExclusionConfig.fromConfig(
             Map.of(CONFIG_FILE_EXCLUSIONS, List.of("*.tmp"), CONFIG_FILE_INCLUSIONS, List.of())
         ).compile();
         assertFalse(matchers.keeps("staging/a.tmp"));

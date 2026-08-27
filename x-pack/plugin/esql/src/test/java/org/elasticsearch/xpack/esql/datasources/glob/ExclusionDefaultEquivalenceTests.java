@@ -27,7 +27,7 @@ import java.util.List;
  */
 public class ExclusionDefaultEquivalenceTests extends ESTestCase {
 
-    private static final ExclusionConfig.Matchers DEFAULT_MATCHERS = ExclusionConfig.DEFAULT.compile();
+    private static final ExclusionConfig.NameFilter DEFAULT_FILTER = ExclusionConfig.DEFAULT.compile();
 
     /** Frozen pre-#1765 predicate. DO NOT EDIT — it is the oracle this change is measured against. */
     private static boolean oracleExcludes(String relativePath) {
@@ -58,7 +58,7 @@ public class ExclusionDefaultEquivalenceTests extends ESTestCase {
 
     /** The shipped composition, exactly as {@code doExpandGlob} composes it. */
     private static boolean newModelExcludes(String relativePath) {
-        return relativePath.endsWith("/") || DEFAULT_MATCHERS.keeps(relativePath) == false;
+        return relativePath.endsWith("/") || DEFAULT_FILTER.keeps(relativePath) == false;
     }
 
     private void assertSame(String relativePath, boolean expectedExcluded) {

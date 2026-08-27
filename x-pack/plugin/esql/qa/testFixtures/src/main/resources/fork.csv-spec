@@ -1470,3 +1470,30 @@ FROM employees
 max_max:integer
 5
 ;
+
+// Regression: PruneColumns used to descend past the branch root into an inner projection when the
+// branch root was not a Project (e.g. Aggregate from a double-STATS branch), silently dropping
+// columns consumed by inner nodes such as the packed dimension grouping feeding UnpackDims.
+forkWithTsDoubleStatsAndPrunedForkOutput
+required_capability: fork_v9
+required_capability: ts_command_v0
+required_capability: tdigest_time_series_metric
+required_capability: fork_prune_columns_inner_project_fix
+
+TS tdigest_timeseries_index
+| WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td"
+| FORK
+    (STATS cnt = COUNT(responseTime) BY instance | STATS cnt = MAX(cnt) BY instance)
+    (STATS cnt = COUNT(responseTime) BY instance)
+| KEEP _fork, instance, cnt
+| SORT _fork, instance
+;
+
+_fork:keyword | instance:keyword | cnt:long
+fork1         | instance-0       | 8841
+fork1         | instance-1       | 3250
+fork1         | instance-2       | 3380
+fork2         | instance-0       | 8841
+fork2         | instance-1       | 3250
+fork2         | instance-2       | 3380
+;

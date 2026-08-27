@@ -31,12 +31,12 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TYPE
 /**
  * A tool call within a {@link ChatCompletionMessageResponse}.
  */
-public record ChatCompletionToolCall(int index, @Nullable String id, @Nullable Function function, @Nullable String type)
+public record ChatCompletionToolCallResponse(int index, @Nullable String id, @Nullable Function function, @Nullable String type)
     implements
         ChunkedToXContentObject,
         Writeable {
 
-    public ChatCompletionToolCall(StreamInput in) throws IOException {
+    public ChatCompletionToolCallResponse(StreamInput in) throws IOException {
         this(in.readInt(), in.readOptionalString(), in.readOptional(Function::new), in.readOptionalString());
     }
 

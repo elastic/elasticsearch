@@ -32,7 +32,7 @@ public class ChatCompletionMessageResponseTests extends AbstractBWCWireSerializa
             randomAlphaOfLengthOrNull(FIELD_LENGTH),
             randomAlphaOfLengthOrNull(FIELD_LENGTH),
             randomAlphaOfLengthOrNull(FIELD_LENGTH),
-            randomBoolean() ? null : randomList(randomInt(5), ChatCompletionToolCallTests::randomChatCompletionToolCall),
+            randomBoolean() ? null : randomList(randomInt(5), ChatCompletionToolCallResponseTests::randomChatCompletionToolCallResponse),
             randomAlphaOfLengthOrNull(FIELD_LENGTH),
             randomBoolean() ? null : randomList(randomInt(5), ReasoningDetailTests::randomReasoningDetail)
         );
@@ -80,7 +80,7 @@ public class ChatCompletionMessageResponseTests extends AbstractBWCWireSerializa
             case 2 -> role = randomValueOtherThan(role, () -> randomAlphaOfLengthOrNull(FIELD_LENGTH));
             case 3 -> toolCalls = randomValueOtherThan(
                 toolCalls,
-                () -> randomBoolean() ? null : randomList(1, 3, ChatCompletionToolCallTests::randomChatCompletionToolCall)
+                () -> randomBoolean() ? null : randomList(1, 3, ChatCompletionToolCallResponseTests::randomChatCompletionToolCallResponse)
             );
             case 4 -> reasoning = randomValueOtherThan(reasoning, () -> randomAlphaOfLengthOrNull(FIELD_LENGTH));
             case 5 -> reasoningDetails = randomValueOtherThan(
@@ -97,7 +97,7 @@ public class ChatCompletionMessageResponseTests extends AbstractBWCWireSerializa
             "Hello!",
             null,
             "assistant",
-            List.of(new ChatCompletionToolCall(0, "call_abc", new ChatCompletionToolCall.Function("{}", "get_weather"), "function")),
+            List.of(new ChatCompletionToolCallResponse(0, "call_abc", new ChatCompletionToolCallResponse.Function("{}", "get_weather"), "function")),
             null,
             null
         );

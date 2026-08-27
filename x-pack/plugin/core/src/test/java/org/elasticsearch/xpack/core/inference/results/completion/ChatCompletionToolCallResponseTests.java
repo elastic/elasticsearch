@@ -18,38 +18,38 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.is;
 
-public class ChatCompletionToolCallTests extends AbstractBWCWireSerializationTestCase<ChatCompletionToolCall> {
+public class ChatCompletionToolCallResponseTests extends AbstractBWCWireSerializationTestCase<ChatCompletionToolCallResponse> {
 
     private static final int FIELD_LENGTH = 5;
 
-    public static ChatCompletionToolCall randomChatCompletionToolCall() {
-        return new ChatCompletionToolCall(
+    public static ChatCompletionToolCallResponse randomChatCompletionToolCallResponse() {
+        return new ChatCompletionToolCallResponse(
             randomInt(5),
             randomAlphaOfLengthOrNull(FIELD_LENGTH),
             randomBoolean()
                 ? null
-                : new ChatCompletionToolCall.Function(randomAlphaOfLengthOrNull(FIELD_LENGTH), randomAlphaOfLengthOrNull(FIELD_LENGTH)),
+                : new ChatCompletionToolCallResponse.Function(randomAlphaOfLengthOrNull(FIELD_LENGTH), randomAlphaOfLengthOrNull(FIELD_LENGTH)),
             randomAlphaOfLengthOrNull(FIELD_LENGTH)
         );
     }
 
     @Override
-    protected Writeable.Reader<ChatCompletionToolCall> instanceReader() {
-        return ChatCompletionToolCall::new;
+    protected Writeable.Reader<ChatCompletionToolCallResponse> instanceReader() {
+        return ChatCompletionToolCallResponse::new;
     }
 
     @Override
-    protected ChatCompletionToolCall createTestInstance() {
-        return randomChatCompletionToolCall();
+    protected ChatCompletionToolCallResponse createTestInstance() {
+        return randomChatCompletionToolCallResponse();
     }
 
     @Override
-    protected ChatCompletionToolCall mutateInstanceForVersion(ChatCompletionToolCall instance, TransportVersion version) {
+    protected ChatCompletionToolCallResponse mutateInstanceForVersion(ChatCompletionToolCallResponse instance, TransportVersion version) {
         return instance;
     }
 
     @Override
-    protected ChatCompletionToolCall mutateInstance(ChatCompletionToolCall instance) {
+    protected ChatCompletionToolCallResponse mutateInstance(ChatCompletionToolCallResponse instance) {
         var index = instance.index();
         var id = instance.id();
         var function = instance.function();
@@ -62,16 +62,16 @@ public class ChatCompletionToolCallTests extends AbstractBWCWireSerializationTes
                 function,
                 () -> randomBoolean()
                     ? null
-                    : new ChatCompletionToolCall.Function(randomAlphaOfLengthOrNull(FIELD_LENGTH), randomAlphaOfLengthOrNull(FIELD_LENGTH))
+                    : new ChatCompletionToolCallResponse.Function(randomAlphaOfLengthOrNull(FIELD_LENGTH), randomAlphaOfLengthOrNull(FIELD_LENGTH))
             );
             case 3 -> type = randomValueOtherThan(type, () -> randomAlphaOfLengthOrNull(FIELD_LENGTH));
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new ChatCompletionToolCall(index, id, function, type);
+        return new ChatCompletionToolCallResponse(index, id, function, type);
     }
 
     public void testToXContentChunked_WithFunction() throws IOException {
-        var toolCall = new ChatCompletionToolCall(0, "call_abc", new ChatCompletionToolCall.Function("{}", "get_weather"), "function");
+        var toolCall = new ChatCompletionToolCallResponse(0, "call_abc", new ChatCompletionToolCallResponse.Function("{}", "get_weather"), "function");
 
         assertThat(toXContent(toolCall), is(XContentHelper.stripWhitespace("""
             {
@@ -87,7 +87,7 @@ public class ChatCompletionToolCallTests extends AbstractBWCWireSerializationTes
     }
 
     public void testToXContentChunked_NullFunction_FunctionObjectOmitted() throws IOException {
-        var toolCall = new ChatCompletionToolCall(1, "call_xyz", null, "function");
+        var toolCall = new ChatCompletionToolCallResponse(1, "call_xyz", null, "function");
 
         assertThat(toXContent(toolCall), is(XContentHelper.stripWhitespace("""
             {
@@ -100,7 +100,7 @@ public class ChatCompletionToolCallTests extends AbstractBWCWireSerializationTes
 
     public void testToXContentChunked_NullType_TypeEmittedAsNull() throws IOException {
         // type uses chunk() rather than chunkNullable(), so null is always emitted explicitly
-        var toolCall = new ChatCompletionToolCall(0, null, null, null);
+        var toolCall = new ChatCompletionToolCallResponse(0, null, null, null);
 
         assertThat(toXContent(toolCall), is(XContentHelper.stripWhitespace("""
             {
@@ -110,7 +110,7 @@ public class ChatCompletionToolCallTests extends AbstractBWCWireSerializationTes
             """)));
     }
 
-    static String toXContent(ChatCompletionToolCall toolCall) throws IOException {
+    static String toXContent(ChatCompletionToolCallResponse toolCall) throws IOException {
         var builder = JsonXContent.contentBuilder();
         toolCall.toXContentChunked(null).forEachRemaining(chunk -> {
             try {

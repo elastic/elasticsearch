@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatComple
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessageResponse;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCall;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCallResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
@@ -265,8 +265,8 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
                 contentBlockIndexToToolCallIndex.put(blockIndex, toolCallIndex);
                 // A tool_use content block start always carries an empty input object; the actual tool input arrives
                 // as input_json_delta fragments, which clients concatenate onto the arguments, so seed them empty.
-                var function = new ChatCompletionToolCall.Function("", name);
-                var toolCall = new ChatCompletionToolCall(toolCallIndex, id, function, FUNCTION_TYPE);
+                var function = new ChatCompletionToolCallResponse.Function("", name);
+                var toolCall = new ChatCompletionToolCallResponse(toolCallIndex, id, function, FUNCTION_TYPE);
                 delta = new ChatCompletionMessageResponse(null, null, null, List.of(toolCall));
             }
             case THINKING_TYPE -> {
@@ -340,8 +340,8 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
                     logger.debug("Received [{}] for unknown content block index [{}].", INPUT_JSON_DELTA_TYPE, blockIndex);
                     return Stream.empty();
                 }
-                var function = new ChatCompletionToolCall.Function(partialJson, null);
-                var toolCall = new ChatCompletionToolCall(toolCallIndex, null, function, null);
+                var function = new ChatCompletionToolCallResponse.Function(partialJson, null);
+                var toolCall = new ChatCompletionToolCallResponse(toolCallIndex, null, function, null);
                 delta = new ChatCompletionMessageResponse(null, null, null, List.of(toolCall), null, null);
             }
             case THINKING_DELTA_TYPE -> {

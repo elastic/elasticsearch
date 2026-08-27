@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionExcep
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessageResponse;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCall;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCallResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage.PromptTokensDetails;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.translation.ChatCompletionRole;
@@ -281,10 +281,10 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
      * @param start the ContentBlockStart data
      * @return a ToolCall
      */
-    private ChatCompletionToolCall handleToolUseStart(ContentBlockStart start) {
+    private ChatCompletionToolCallResponse handleToolUseStart(ContentBlockStart start) {
         var toolUse = start.toolUse();
-        var function = new ChatCompletionToolCall.Function(null, toolUse.name());
-        return new ChatCompletionToolCall(0, toolUse.toolUseId(), function, FUNCTION_TYPE);
+        var function = new ChatCompletionToolCallResponse.Function(null, toolUse.name());
+        return new ChatCompletionToolCallResponse(0, toolUse.toolUseId(), function, FUNCTION_TYPE);
     }
 
     /**
@@ -294,10 +294,10 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
      * @param delta the ContentBlockDelta data
      * @return a ToolCall
      */
-    private ChatCompletionToolCall handleToolUseDelta(ContentBlockDelta delta) {
+    private ChatCompletionToolCallResponse handleToolUseDelta(ContentBlockDelta delta) {
         var toolUse = delta.toolUse();
-        var function = new ChatCompletionToolCall.Function(toolUse.input(), null);
-        return new ChatCompletionToolCall(0, null, function, FUNCTION_TYPE);
+        var function = new ChatCompletionToolCallResponse.Function(toolUse.input(), null);
+        return new ChatCompletionToolCallResponse(0, null, function, FUNCTION_TYPE);
     }
 
     /**

@@ -18,7 +18,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessageResponse;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCall;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCallResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage.CompletionTokenDetails;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage.PromptTokensDetails;
@@ -81,12 +81,12 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public final class OpenAiUnifiedChatCompletionParser {
 
     /**
-     * Sentinel value stored in {@link ChatCompletionToolCall#index()} when the field was absent in the JSON.
+     * Sentinel value stored in {@link ChatCompletionToolCallResponse#index()} when the field was absent in the JSON.
      * Replaced by the positional index in {@link #parseToolCallsWithPositionalIndex}.
      */
     private static final int UNSET_INDEX = -1;
 
-    private static final ConstructingObjectParser<ChatCompletionToolCall.Function, Void> FUNCTION_PARSER;
+    private static final ConstructingObjectParser<ChatCompletionToolCallResponse.Function, Void> FUNCTION_PARSER;
     private static final ConstructingObjectParser<CompletionTokenDetails, Void> COMPLETION_TOKENS_DETAILS_PARSER;
     private static final ConstructingObjectParser<PromptTokensDetails, Void> PROMPT_TOKENS_DETAILS_PARSER;
     private static final ConstructingObjectParser<ChatCompletionUsage, Void> USAGE_PARSER;
@@ -98,7 +98,7 @@ public final class OpenAiUnifiedChatCompletionParser {
         FUNCTION_PARSER = new ConstructingObjectParser<>(
             FUNCTION_FIELD,
             true,
-            args -> new ChatCompletionToolCall.Function((String) args[0], (String) args[1])
+            args -> new ChatCompletionToolCallResponse.Function((String) args[0], (String) args[1])
         );
         FUNCTION_PARSER.declareString(optionalConstructorArg(), new ParseField(FUNCTION_ARGUMENTS_FIELD));
         FUNCTION_PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField(FUNCTION_NAME_FIELD));
@@ -211,7 +211,7 @@ public final class OpenAiUnifiedChatCompletionParser {
 
     @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<ChatCompletionMessageResponse, Void> buildMessageParser(
-        ConstructingObjectParser<ChatCompletionToolCall, Void> toolCallParser,
+        ConstructingObjectParser<ChatCompletionToolCallResponse, Void> toolCallParser,
         boolean indexRequired
     ) {
         var parser = new ConstructingObjectParser<ChatCompletionMessageResponse, Void>(
@@ -221,7 +221,7 @@ public final class OpenAiUnifiedChatCompletionParser {
                 (String) args[0],
                 (String) args[1],
                 (String) args[2],
-                (List<ChatCompletionToolCall>) args[3],
+                (List<ChatCompletionToolCallResponse>) args[3],
                 (String) args[4],
                 (List<ReasoningDetail>) args[5]
             )
@@ -251,14 +251,14 @@ public final class OpenAiUnifiedChatCompletionParser {
         return parser;
     }
 
-    private static ConstructingObjectParser<ChatCompletionToolCall, Void> buildToolCallParser(boolean indexRequired) {
-        var parser = new ConstructingObjectParser<ChatCompletionToolCall, Void>(
+    private static ConstructingObjectParser<ChatCompletionToolCallResponse, Void> buildToolCallParser(boolean indexRequired) {
+        var parser = new ConstructingObjectParser<ChatCompletionToolCallResponse, Void>(
             TOOL_CALLS_FIELD,
             true,
-            args -> new ChatCompletionToolCall(
+            args -> new ChatCompletionToolCallResponse(
                 args[0] == null ? UNSET_INDEX : (int) args[0],
                 (String) args[1],
-                (ChatCompletionToolCall.Function) args[2],
+                (ChatCompletionToolCallResponse.Function) args[2],
                 (String) args[3]
             )
         );
@@ -277,7 +277,7 @@ public final class OpenAiUnifiedChatCompletionParser {
      * Intermediate holder used by the non-streaming parser so that a missing {@code index} is
      * representable as {@code null}.
      */
-    private record ParsedToolCall(@Nullable Integer index, String id, ChatCompletionToolCall.Function function, String type) {}
+    private record ParsedToolCall(@Nullable Integer index, String id, ChatCompletionToolCallResponse.Function function, String type) {}
 
     /**
      * Parses a {@code tool_calls} array, assigning positional indices when none are declared.
@@ -290,9 +290,9 @@ public final class OpenAiUnifiedChatCompletionParser {
      *
      * A fresh counter starts at 0 for each call, so numbering restarts per-choice.
      */
-    private static List<ChatCompletionToolCall> parseToolCallsWithPositionalIndex(
+    private static List<ChatCompletionToolCallResponse> parseToolCallsWithPositionalIndex(
         XContentParser parser,
-        ConstructingObjectParser<ChatCompletionToolCall, Void> toolParser
+        ConstructingObjectParser<ChatCompletionToolCallResponse, Void> toolParser
     ) throws IOException {
         var position = new AtomicInteger();
         var parsed = new ArrayList<ParsedToolCall>();
@@ -313,7 +313,7 @@ public final class OpenAiUnifiedChatCompletionParser {
 
         return parsed.stream().map(p -> {
             var idx = p.index() == null ? position.getAndIncrement() : p.index();
-            return new ChatCompletionToolCall(idx, p.id(), p.function(), p.type());
+            return new ChatCompletionToolCallResponse(idx, p.id(), p.function(), p.type());
         }).toList();
     }
 

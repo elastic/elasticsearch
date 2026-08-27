@@ -39,7 +39,7 @@ public record ChatCompletionMessageResponse(
     @Nullable String content,
     @Nullable String refusal,
     @Nullable String role,
-    @Nullable List<ChatCompletionToolCall> toolCalls,
+    @Nullable List<ChatCompletionToolCallResponse> toolCalls,
     @Nullable String reasoning,
     @Nullable List<ReasoningDetail> reasoningDetails
 ) implements Writeable {
@@ -48,7 +48,7 @@ public record ChatCompletionMessageResponse(
         @Nullable String content,
         @Nullable String refusal,
         @Nullable String role,
-        @Nullable List<ChatCompletionToolCall> toolCalls
+        @Nullable List<ChatCompletionToolCallResponse> toolCalls
     ) {
         this(content, refusal, role, toolCalls, null, null);
     }
@@ -58,7 +58,7 @@ public record ChatCompletionMessageResponse(
             in.readOptionalString(),
             in.readOptionalString(),
             in.readOptionalString(),
-            in.readOptionalCollectionAsList(ChatCompletionToolCall::new),
+            in.readOptionalCollectionAsList(ChatCompletionToolCallResponse::new),
             in.getTransportVersion().supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED) ? in.readOptionalString() : null,
             in.getTransportVersion().supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED)
                 ? in.readOptionalNamedWriteableCollectionAsList(ReasoningDetail.class)

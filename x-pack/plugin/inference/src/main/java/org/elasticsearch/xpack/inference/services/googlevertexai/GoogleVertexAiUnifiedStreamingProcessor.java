@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatComple
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessageResponse;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCall;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCallResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
@@ -112,7 +112,7 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
 
         private static ChatCompletionChoiceResponse candidateToChoice(Candidate candidate) {
             var contentTextBuilder = new StringBuilder();
-            List<ChatCompletionToolCall> toolCalls = new ArrayList<>();
+            List<ChatCompletionToolCallResponse> toolCalls = new ArrayList<>();
 
             String role = null;
 
@@ -128,9 +128,9 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
                     }
                     if (part.functionCall() != null) {
                         var fc = part.functionCall();
-                        var function = new ChatCompletionToolCall.Function(fc.args(), fc.name());
+                        var function = new ChatCompletionToolCallResponse.Function(fc.args(), fc.name());
                         toolCalls.add(
-                            new ChatCompletionToolCall(
+                            new ChatCompletionToolCallResponse(
                                 0, // No explicit ID from VertexAI so we use 0
                                 function.name(), // VertexAI does not provide an id for the function call so we use the name
                                 function,
@@ -141,7 +141,7 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
                 }
             }
 
-            List<ChatCompletionToolCall> finalToolCalls = toolCalls.isEmpty() ? null : toolCalls;
+            List<ChatCompletionToolCallResponse> finalToolCalls = toolCalls.isEmpty() ? null : toolCalls;
 
             var message = new ChatCompletionMessageResponse(
                 contentTextBuilder.isEmpty() ? null : contentTextBuilder.toString(),

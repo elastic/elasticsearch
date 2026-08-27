@@ -18,7 +18,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCall;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCallResponse;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiUnifiedChatCompletionParser;
 
 import java.io.IOException;
@@ -89,9 +89,9 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals("stop", choice.finishReason());
             assertEquals(0, choice.index());
 
-            List<ChatCompletionToolCall> toolCalls = choice.message().toolCalls();
+            List<ChatCompletionToolCallResponse> toolCalls = choice.message().toolCalls();
             assertEquals(1, toolCalls.size());
-            ChatCompletionToolCall toolCall = toolCalls.get(0);
+            ChatCompletionToolCallResponse toolCall = toolCalls.get(0);
             assertEquals(1, toolCall.index());
             assertEquals("tool_call_id", toolCall.id());
             assertEquals("example_function_name", toolCall.function().name());
@@ -174,9 +174,9 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals("stop", secondChoice.finishReason());
             assertEquals(1, secondChoice.index());
 
-            List<ChatCompletionToolCall> toolCalls = secondChoice.message().toolCalls();
+            List<ChatCompletionToolCallResponse> toolCalls = secondChoice.message().toolCalls();
             assertEquals(1, toolCalls.size());
-            ChatCompletionToolCall toolCall = toolCalls.get(0);
+            ChatCompletionToolCallResponse toolCall = toolCalls.get(0);
             assertEquals(1, toolCall.index());
             assertNull(toolCall.id());
             assertEquals("example_function_name", toolCall.function().name());
@@ -240,10 +240,10 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertNull(firstChoice.finishReason());
             assertThat(firstChoice.index(), is(0));
 
-            List<ChatCompletionToolCall> toolCalls = firstChoice.message().toolCalls();
+            List<ChatCompletionToolCallResponse> toolCalls = firstChoice.message().toolCalls();
             assertThat(toolCalls.size(), is(1));
 
-            ChatCompletionToolCall toolCall = toolCalls.get(0);
+            ChatCompletionToolCallResponse toolCall = toolCalls.get(0);
             assertThat(toolCall.index(), is(0));
             assertThat(toolCall.id(), is("8f7c27be-6803-48e6-bba4-8cdcbcd2ff9a"));
             assertThat(toolCall.type(), is("function"));
@@ -331,9 +331,9 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals(choiceFinishReason, choice.finishReason());
             assertEquals(choiceIndex, choice.index());
 
-            List<ChatCompletionToolCall> toolCalls = choice.message().toolCalls();
+            List<ChatCompletionToolCallResponse> toolCalls = choice.message().toolCalls();
             assertEquals(1, toolCalls.size());
-            ChatCompletionToolCall toolCall = toolCalls.get(0);
+            ChatCompletionToolCallResponse toolCall = toolCalls.get(0);
             assertEquals(toolCallIndex, toolCall.index());
             assertEquals(toolCallId, toolCall.id());
             assertEquals(toolCallFunctionName, toolCall.function().name());

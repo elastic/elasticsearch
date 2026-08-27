@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionC
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponseTests;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessageResponse;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCall;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCallResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
@@ -144,10 +144,10 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractBWCWireS
                         "example_refusal",
                         "assistant",
                         List.of(
-                            new ChatCompletionToolCall(
+                            new ChatCompletionToolCallResponse(
                                 1,
                                 "tool1",
-                                new ChatCompletionToolCall.Function("example_arguments", "example_function"),
+                                new ChatCompletionToolCallResponse.Function("example_arguments", "example_function"),
                                 "function"
                             )
                         ),
@@ -261,10 +261,10 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractBWCWireS
                 "example_refusal",
                 "assistant",
                 List.of(
-                    new ChatCompletionToolCall(
+                    new ChatCompletionToolCallResponse(
                         1,
                         "tool1",
-                        new ChatCompletionToolCall.Function("example_arguments", "example_function"),
+                        new ChatCompletionToolCallResponse.Function("example_arguments", "example_function"),
                         "function"
                     )
                 ),
@@ -316,10 +316,10 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractBWCWireS
             }
             """;
 
-        var toolCall = new ChatCompletionToolCall(
+        var toolCall = new ChatCompletionToolCallResponse(
             1,
             "tool1",
-            new ChatCompletionToolCall.Function("example_arguments", "example_function"),
+            new ChatCompletionToolCallResponse.Function("example_arguments", "example_function"),
             "function"
         );
 

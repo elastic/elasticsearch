@@ -217,7 +217,7 @@ public class HuggingFaceElserServiceSettings extends FilteredXContentObject
 
         public HuggingFaceElserServiceSettings build() {
             validateStringIsNotNullOrEmpty(url, ServiceFields.URL);
-            return new HuggingFaceElserServiceSettings(createUri(url), rateLimitSettings);
+            return new HuggingFaceElserServiceSettings(createUri(url, ServiceFields.URL), rateLimitSettings);
         }
     }
 

@@ -167,7 +167,14 @@ public class HuggingFaceElserServiceSettingsTests extends AbstractWireSerializin
 
         assertThat(
             thrownException.getMessage(),
-            is(Strings.format("unable to parse url [%s]. Reason: Illegal character in authority", invalidTestUrl))
+            is(
+                Strings.format(
+                    "[service_settings] Invalid url [%s] received for field [url]. "
+                        + "Error: unable to parse url [%s]. Reason: Illegal character in authority",
+                    invalidTestUrl,
+                    invalidTestUrl
+                )
+            )
         );
     }
 

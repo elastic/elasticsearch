@@ -214,12 +214,17 @@ public class CsvSchemaInferrer {
      * temporal rungs read the same answer, so adding DATE_NANOS costs no additional parse.
      * <p>
      * DATE_NANOS accepts <em>any</em> timestamp, including ones outside the {@code date_nanos} window
-     * that no value could ever have forced. That is deliberate. Once some value has established that
-     * the column is nanosecond-precision, an out-of-window timestamp elsewhere in it is a bad cell,
-     * not evidence that the column is really a string — and the error policy already handles bad
-     * cells at read time, exactly as it would for the same file under a declared {@code date_nanos}
-     * schema. Rejecting it here instead would make the column's type depend on whether the
-     * out-of-window row came before or after the forcing one.
+     * that no value could ever have forced. That is deliberate: rejecting them here would make the
+     * column's type depend on whether the out-of-window row came before or after the forcing one.
+     * Once some value has established that the column is nanosecond-precision, an out-of-window
+     * timestamp elsewhere in it is a bad cell rather than evidence the column is really a string.
+     * <p>
+     * Be clear about what that costs. Such a cell fails at read time under the error policy, and the
+     * default policy is {@code FAIL_FAST} — so a schemaless file mixing in-window nanosecond
+     * timestamps with out-of-window ones goes from a silently-truncating success to a failed query.
+     * That is the same thing that happens to the same file under a declared {@code date_nanos}
+     * schema today, and the value that forced the column always decodes; but it is a real change in
+     * outcome, not merely a change in which cells are marked bad.
      */
     private static int narrowCandidate(int currentIdx, boolean confirmed, String value, @Nullable DateFormatter datetimeFormatter) {
         int temporal = -1; // computed on demand, at most once, and only if a temporal rung is reached

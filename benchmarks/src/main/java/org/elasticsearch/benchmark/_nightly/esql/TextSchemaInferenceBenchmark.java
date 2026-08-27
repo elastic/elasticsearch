@@ -53,8 +53,9 @@ import java.util.concurrent.TimeUnit;
  *   <li>{@code millis} — timestamps that stay {@code datetime}. The common temporal case, and the one
  *       that must not pay for the new capability.</li>
  *   <li>{@code nanos} — timestamps that become {@code date_nanos}: the new behavior's own cost.</li>
- *   <li>{@code mixed} — alternating precisions, which walks the rung transition repeatedly on the CSV
- *       ladder rather than settling after the first row.</li>
+ *   <li>{@code mixed} — alternating precisions. It settles at the first nanosecond value and costs the
+ *       same per value as {@code nanos} thereafter; it is here because it is the cell that would
+ *       catch the column resolving to something other than {@code date_nanos}.</li>
  * </ul>
  * The sibling {@code NdJsonReadBenchmark} and {@code CsvReadBenchmark} remain the end-to-end controls:
  * the former also runs inference (non-temporal fixture), the latter reads a typed header and so

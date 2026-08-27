@@ -404,10 +404,14 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
      * incompatible (e.g. Long + Double) — callers should treat this as "unknown" and clear
      * the stat so it is not fed into stats-driven optimizations with a wrong value.
      * <p>
-     * Covers {@link SchemaReconciliation#schemaWiden} cases at the stats-value level
-     * (Integer+Long→Long, Integer+Double→Double), plus Parquet FLOAT vs DOUBLE which both
-     * map to ESQL {@code DOUBLE} at the schema level but retain distinct Java stat types.
-     * Long+Double and Long+Float are intentionally incompatible (lossy above 2^53).
+     * This folds Java stat values by runtime class, which is a different relation from the ES|QL type
+     * lattice in {@link org.elasticsearch.xpack.esql.datasources.spi.TypeWidening} — Parquet FLOAT and
+     * DOUBLE are distinct here and both {@code DOUBLE} there — so it cannot delegate to it. It must
+     * still agree with it: a pair folds to a value exactly when the corresponding types have a
+     * lossless common supertype, which is why Long+Double and Long+Float are intentionally
+     * incompatible (lossy above 2^53), matching the lattice's own exclusion of that pair.
+     * {@code MergedSplitStatsTests#testStatFoldingAgreesWithTheWideningLattice} holds the two together
+     * so neither can gain a promotion the other lacks.
      * <p>
      * DATETIME (epoch-millis) and DATE_NANOS (epoch-nanos) stats are both {@code Long} at the Java level, so
      * this same-class fast path merges them numerically. That is correct because per-file/per-split stats are

@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class MergedSplitStatsTests extends ESTestCase {
@@ -294,4 +297,45 @@ public class MergedSplitStatsTests extends ESTestCase {
         b.addColumn(name, 0L, minEpoch, maxEpoch, 400);
         return b.build();
     }
+
+    /**
+     * Stat folding and schema widening are different relations — this one folds Java stat values by
+     * runtime class, that one combines ES|QL types — so {@link SplitStats} cannot simply call
+     * {@link TypeWidening}. What it must not do is disagree with it: a pair of stat values folds to a
+     * value exactly when the corresponding types have a lossless common supertype.
+     * <p>
+     * That correspondence is the whole reason {@code crossTypeExtremum} carries its own
+     * "Long + Double is intentionally incompatible" rule. Written down here, a future edit that adds a
+     * promotion to the lattice without adding it to the stat fold — or the reverse — fails instead of
+     * quietly serving a warm answer a scan would disagree with.
+     */
+    public void testStatFoldingAgreesWithTheWideningLattice() {
+        record Sample(Object value, DataType type) {}
+        List<Sample> samples = List.of(
+            new Sample(1, DataType.INTEGER),
+            new Sample(2L, DataType.LONG),
+            new Sample(3.5f, DataType.DOUBLE),
+            new Sample(4.5d, DataType.DOUBLE)
+        );
+        List<String> mismatches = new ArrayList<>();
+        for (Sample a : samples) {
+            for (Sample b : samples) {
+                boolean statsFold = SplitStats.mergedMin(a.value(), b.value()) != null;
+                boolean typesWiden = TypeWidening.widenLossless(a.type(), b.type()) != null;
+                if (statsFold != typesWiden) {
+                    mismatches.add(
+                        a.value().getClass().getSimpleName()
+                            + "+"
+                            + b.value().getClass().getSimpleName()
+                            + ": stats fold="
+                            + statsFold
+                            + " but types widen="
+                            + typesWiden
+                    );
+                }
+            }
+        }
+        assertTrue(String.join("\n", mismatches), mismatches.isEmpty());
+    }
+
 }

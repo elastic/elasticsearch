@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.empty;
@@ -368,6 +369,40 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
             keepOrderFor("FROM test | KEEP emp_no, unmapped.* | WHERE emp_no > 0 | LIMIT 5"),
             equalTo(List.of(lit("emp_no"), pat("unmapped.*")))
         );
+    }
+
+    public void testRenamesAboveKeepMapSurvivingColumnToItsAtKeepName() {
+        assertThat(renamesFor("FROM test | KEEP emp_no, unmapped.*"), equalTo(Map.of()));
+        assertThat(renamesFor("FROM test | KEEP emp_no, unmapped.* | RENAME emp_no AS id"), equalTo(Map.of("id", "emp_no")));
+        // A RENAME below the KEEP is already reflected in the KEEP's own terms, so the walk stops before it.
+        assertThat(renamesFor("FROM test | RENAME emp_no AS id | KEEP id, unmapped.*"), equalTo(Map.of()));
+        assertThat(
+            renamesFor("FROM test | KEEP emp_no, first_name, unmapped.* | RENAME emp_no AS id, first_name AS fn"),
+            equalTo(Map.of("id", "emp_no", "fn", "first_name"))
+        );
+    }
+
+    public void testChainedRenamesAboveKeepCollapseToTheSurvivingColumn() {
+        assertThat(renamesFor("FROM test | KEEP emp_no, unmapped.* | RENAME emp_no AS a | RENAME a AS b"), equalTo(Map.of("b", "emp_no")));
+        assertThat(
+            renamesFor("FROM test | KEEP emp_no, unmapped.* | RENAME emp_no AS a | RENAME a AS b | RENAME b AS c"),
+            equalTo(Map.of("c", "emp_no"))
+        );
+        // Chained inside a single RENAME: the analyzer collapses it to one alias, so only the survivor is ever seen.
+        assertThat(renamesFor("FROM test | KEEP emp_no, unmapped.* | RENAME emp_no AS a, a AS b"), equalTo(Map.of("b", "emp_no")));
+    }
+
+    public void testShadowingRenameAboveKeepKeepsTheOuterBinding() {
+        assertThat(
+            renamesFor("FROM test | KEEP emp_no, first_name, unmapped.* | RENAME emp_no AS x | RENAME first_name AS x"),
+            equalTo(Map.of("x", "first_name"))
+        );
+    }
+
+    private static Map<String, String> renamesFor(String query) {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll(query));
+        EsRelation relation = EsqlTestUtils.singleValue(plan.collect(EsRelation.class));
+        return EsqlTestUtils.singleValue(CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)).renames();
     }
 
     private static List<UnmappedFieldsPattern.KeepTerm> keepOrderFor(String query) {

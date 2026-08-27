@@ -87,8 +87,11 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
                     if (ne instanceof Alias alias && alias.child() instanceof NamedExpression orig) {
                         String newName = alias.name();
                         String originalName = orig.name();
+                        boolean boundByOuterRename = renames.containsKey(newName) || renames.containsValue(newName);
                         renames.replaceAll((k, v) -> v.equals(newName) ? originalName : v);
-                        renames.put(newName, originalName);
+                        if (boundByOuterRename == false) {
+                            renames.put(newName, originalName);
+                        }
                     }
                 }
             }

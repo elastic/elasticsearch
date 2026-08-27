@@ -46,6 +46,8 @@ import java.util.Objects;
  * The coordinator replays {@code KEEP}'s ordering over the real columns plus the discovered leaves (see
  * {@link UnmappedFieldsPattern#keepOrdered}) so the output honors the left-to-right {@code KEEP} contract; it is empty when no
  * top {@code KEEP} governs the order, in which case the leaves keep their natural (real-then-alphabetical) position.
+ * {@link #renames()} maps each column renamed above that {@code KEEP} to its at-{@code KEEP} name, so those terms still
+ * resolve against the post-rename schema.
  */
 public final class UnmappedFieldsAttribute extends TypedAttribute {
     public static final String ATTRIBUTE_NAME = Attribute.rawTemporaryName("unmapped_fields");
@@ -190,16 +192,7 @@ public final class UnmappedFieldsAttribute extends TypedAttribute {
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(
-            this,
-            (src, tp, nl, id, syn, pat, ko) -> new UnmappedFieldsAttribute(src, tp, nl, id, syn, pat, ko, renames),
-            dataType(),
-            nullable(),
-            id(),
-            synthetic(),
-            pattern,
-            keepOrder
-        );
+        return NodeInfo.create(this, UnmappedFieldsAttribute::new, dataType(), nullable(), id(), synthetic(), pattern, keepOrder, renames);
     }
 
     @Override

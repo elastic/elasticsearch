@@ -1347,14 +1347,14 @@ FROM partial_mapping_sample_data
 | SORT @timestamp
 ;
 
-@timestamp:datetime      | dur_secs:long | nested_upper:keyword | event_duration:long | message:keyword        | client_ip:ip | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
-2024-10-23T12:15:03.360Z | 3450          | G                    | 3450232             | Connected to 10.1.0.3! | 173.21.2.162 | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
-2024-10-23T12:27:28.948Z | 2764          | F                    | 2764888             | Connected to 10.1.0.2! | 173.21.2.113 | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
-2024-10-23T13:33:34.937Z | 1232          | E                    | 1232381             | 42                     | 173.21.0.5   | 2                     | e                       | 1232383                         | 43
-2024-10-23T13:51:54.732Z | 725           | D                    | 725447              | Connection error?      | 173.21.3.15  | 1                     | d                       | 725449                          | Disconnection error
-2024-10-23T13:52:55.015Z | 8268          | C                    | 8268152             | Connection error?      | 173.21.3.15  | 3                     | c                       | 8268154                         | Disconnection error
-2024-10-23T13:53:55.832Z | 5033          | B                    | 5033754             | Connection error?      | 173.21.3.15  | 2                     | b                       | 5033756                         | Disconnection error
-2024-10-23T13:55:01.543Z | 1756          | A                    | 1756466             | Connected to 10.1.0.1! | 173.21.3.15  | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+@timestamp:datetime      | dur_secs:long | nested_upper:keyword | client_ip:ip | event_duration:long | message:keyword        | unmapped.nested:keyword | language_code:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | 3450          | G                    | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | g                       | 4                     | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 2764          | F                    | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | f                       | 3                     | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 1232          | E                    | 173.21.0.5   | 1232381             | 42                     | e                       | 2                     | 1232383                         | 43
+2024-10-23T13:51:54.732Z | 725           | D                    | 173.21.3.15  | 725447              | Connection error?      | d                       | 1                     | 725449                          | Disconnection error
+2024-10-23T13:52:55.015Z | 8268          | C                    | 173.21.3.15  | 8268152             | Connection error?      | c                       | 3                     | 8268154                         | Disconnection error
+2024-10-23T13:53:55.832Z | 5033          | B                    | 173.21.3.15  | 5033754             | Connection error?      | b                       | 2                     | 5033756                         | Disconnection error
+2024-10-23T13:55:01.543Z | 1756          | A                    | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | a                       | 1                     | 1756468                         | Disconnected from 10.1.0.1
 ;
 
 evalOnUnmappedThenEvalOnResult
@@ -1389,14 +1389,86 @@ FROM partial_mapping_sample_data
 | SORT @timestamp
 ;
 
-@timestamp:datetime      | event_duration:long | client_ip:ip | unmapped_message:keyword   | combined:keyword                                        | unmapped.nested:keyword | unmapped_event_duration:keyword | msg:keyword            | lang:keyword
-2024-10-23T12:15:03.360Z | 3450232             | 173.21.2.162 | Disconnected from 10.1.0.3 | Connected to 10.1.0.3! -> Disconnected from 10.1.0.3   | g                       | 3450234                         | Connected to 10.1.0.3! | 4
-2024-10-23T12:27:28.948Z | 2764888             | 173.21.2.113 | Disconnected from 10.1.0.2 | Connected to 10.1.0.2! -> Disconnected from 10.1.0.2   | f                       | 2764890                         | Connected to 10.1.0.2! | 3
-2024-10-23T13:33:34.937Z | 1232381             | 173.21.0.5   | 43                         | 42 -> 43                                                | e                       | 1232383                         | 42                     | 2
-2024-10-23T13:51:54.732Z | 725447              | 173.21.3.15  | Disconnection error        | Connection error? -> Disconnection error                | d                       | 725449                          | Connection error?      | 1
-2024-10-23T13:52:55.015Z | 8268152             | 173.21.3.15  | Disconnection error        | Connection error? -> Disconnection error                | c                       | 8268154                         | Connection error?      | 3
-2024-10-23T13:53:55.832Z | 5033754             | 173.21.3.15  | Disconnection error        | Connection error? -> Disconnection error                | b                       | 5033756                         | Connection error?      | 2
-2024-10-23T13:55:01.543Z | 1756466             | 173.21.3.15  | Disconnected from 10.1.0.1 | Connected to 10.1.0.1! -> Disconnected from 10.1.0.1   | a                       | 1756468                         | Connected to 10.1.0.1! | 1
+@timestamp:datetime      | client_ip:ip | event_duration:long | unmapped_message:keyword   | combined:keyword                                        | unmapped.nested:keyword | unmapped_event_duration:keyword | msg:keyword            | lang:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Disconnected from 10.1.0.3 | Connected to 10.1.0.3! -> Disconnected from 10.1.0.3   | g                       | 3450234                         | Connected to 10.1.0.3! | 4
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Disconnected from 10.1.0.2 | Connected to 10.1.0.2! -> Disconnected from 10.1.0.2   | f                       | 2764890                         | Connected to 10.1.0.2! | 3
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 43                         | 42 -> 43                                                | e                       | 1232383                         | 42                     | 2
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Disconnection error        | Connection error? -> Disconnection error                | d                       | 725449                          | Connection error?      | 1
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Disconnection error        | Connection error? -> Disconnection error                | c                       | 8268154                         | Connection error?      | 3
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Disconnection error        | Connection error? -> Disconnection error                | b                       | 5033756                         | Connection error?      | 2
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Disconnected from 10.1.0.1 | Connected to 10.1.0.1! -> Disconnected from 10.1.0.1   | a                       | 1756468                         | Connected to 10.1.0.1! | 1
+;
+
+// Two chained RENAMEs above a KEEP leave a stale intermediate name in the rename map the coordinator replays; it used to
+// collide with the live entry on inversion and win or lose on map iteration order.
+chainedRenamesAcrossTwoCommandsAboveKeep
+required_capability: optional_fields_load_all_v2
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| KEEP @timestamp, message, *
+| RENAME message AS renamed_once
+| RENAME renamed_once AS renamed_twice
+| SORT @timestamp
+;
+
+@timestamp:datetime      | renamed_twice:keyword  | client_ip:ip | event_duration:long | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! | 173.21.2.162 | 3450232             | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | Connected to 10.1.0.2! | 173.21.2.113 | 2764888             | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 42                     | 173.21.0.5   | 1232381             | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:51:54.732Z | Connection error?      | 173.21.3.15  | 725447              | 1                     | d                       | 725449                          | Disconnection error
+2024-10-23T13:52:55.015Z | Connection error?      | 173.21.3.15  | 8268152             | 3                     | c                       | 8268154                         | Disconnection error
+2024-10-23T13:53:55.832Z | Connection error?      | 173.21.3.15  | 5033754             | 2                     | b                       | 5033756                         | Disconnection error
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | 173.21.3.15  | 1756466             | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+;
+
+// Root cause: outermostRenames composes the accumulated map once per alias instead of once per RENAME node, so the second
+// alias of a swap rewrites the first one's value and the map collapses to {client_ip: client_ip}. The KEEP's original names
+// are then unrecoverable and the order replays as identity. Expected results below are the correct ones.
+swapRenamesAboveKeep-Ignore
+required_capability: optional_fields_load_all_v2
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| KEEP message, client_ip, @timestamp, *
+| RENAME message AS temp, client_ip AS message, temp AS client_ip
+| SORT @timestamp
+;
+
+client_ip:keyword      | message:ip   | @timestamp:datetime      | event_duration:long | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+Connected to 10.1.0.3! | 173.21.2.162 | 2024-10-23T12:15:03.360Z | 3450232             | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+Connected to 10.1.0.2! | 173.21.2.113 | 2024-10-23T12:27:28.948Z | 2764888             | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
+42                     | 173.21.0.5   | 2024-10-23T13:33:34.937Z | 1232381             | 2                     | e                       | 1232383                         | 43
+Connection error?      | 173.21.3.15  | 2024-10-23T13:51:54.732Z | 725447              | 1                     | d                       | 725449                          | Disconnection error
+Connection error?      | 173.21.3.15  | 2024-10-23T13:52:55.015Z | 8268152             | 3                     | c                       | 8268154                         | Disconnection error
+Connection error?      | 173.21.3.15  | 2024-10-23T13:53:55.832Z | 5033754             | 2                     | b                       | 5033756                         | Disconnection error
+Connected to 10.1.0.1! | 173.21.3.15  | 2024-10-23T13:55:01.543Z | 1756466             | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+;
+
+// Root cause: the walk only inspects RENAME/KEEP/DROP nodes, so an EVAL that re-creates a renamed-away name is invisible to it.
+// Both b and c end up mapped to the same original (message), and inverting that map picks a winner by iteration order - on half
+// the JVMs c is emitted twice and b is dropped. Expected results below are the correct ones.
+renameOfEvalRecreatedNameAboveKeep-Ignore
+required_capability: optional_fields_load_all_v2
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| KEEP @timestamp, message, *
+| RENAME message AS a
+| RENAME a AS b
+| EVAL message = "x"
+| RENAME message AS c
+| SORT @timestamp
+;
+
+@timestamp:datetime      | b:keyword              | client_ip:ip | event_duration:long | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword   | c:keyword
+2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! | 173.21.2.162 | 3450232             | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3 | x
+2024-10-23T12:27:28.948Z | Connected to 10.1.0.2! | 173.21.2.113 | 2764888             | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2 | x
+2024-10-23T13:33:34.937Z | 42                     | 173.21.0.5   | 1232381             | 2                     | e                       | 1232383                         | 43                         | x
+2024-10-23T13:51:54.732Z | Connection error?      | 173.21.3.15  | 725447              | 1                     | d                       | 725449                          | Disconnection error        | x
+2024-10-23T13:52:55.015Z | Connection error?      | 173.21.3.15  | 8268152             | 3                     | c                       | 8268154                         | Disconnection error        | x
+2024-10-23T13:53:55.832Z | Connection error?      | 173.21.3.15  | 5033754             | 2                     | b                       | 5033756                         | Disconnection error        | x
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | 173.21.3.15  | 1756466             | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1 | x
 ;
 
 renameTwoMappedFieldsSimultaneously
@@ -1628,7 +1700,7 @@ FROM partial_mapping_sample_data
 // placing it BEFORE the $$unmapped_fields synthetic column. DetermineUnmappedFieldsToKeep then adds it to the pattern's exact-excludes
 // so it is not re-expanded from _unmapped_fields. The remaining unmapped leaves (unmapped.nested, unmapped_message) are appended after
 // the demand-loaded column by the coordinator's ExpandUnmappedFieldsPostProcessor, yielding
-// unmapped_event_duration | unmapped.nested | unmapped_message — a different order than the all-expansion case above
+// unmapped_event_duration | unmapped.nested | unmapped_message ï¿½ a different order than the all-expansion case above
 // (unmapped.nested | unmapped_event_duration | unmapped_message).
 twoSuccessiveDropsThenSortOnUnmappedField
 required_capability: optional_fields_load_all_v2

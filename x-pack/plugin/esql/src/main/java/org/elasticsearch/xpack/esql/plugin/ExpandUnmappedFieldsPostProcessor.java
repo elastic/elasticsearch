@@ -201,8 +201,8 @@ class ExpandUnmappedFieldsPostProcessor {
         List<String> keptRealNames = new ArrayList<>();
         List<String> appendedRealNames = new ArrayList<>();
         Map<String, Integer> nameToSchemaIdx = new HashMap<>();
-        // DetermineUnmappedFieldsToKeep pins the synthetic attribute right after the governing KEEP's projections, so a real column
-        // before unmappedIdx was KEEP-selected (its order is replayable) and one after it was appended by a later EVAL (must trail).
+        // ResolvingProject.computeProjections pins the synthetic attribute right after the governing KEEP's projections, so a real
+        // column before unmappedIdx was KEEP-selected (order is replayable) and one after it was appended by a later EVAL (must trail).
         for (int i = 0; i < originalColumnCount; i++) {
             if (i != unmappedIdx) {
                 String name = schema.get(i).name();
@@ -234,7 +234,9 @@ class ExpandUnmappedFieldsPostProcessor {
             // Translate original names back to actual (post-rename) names so the schema lookup below works.
             Map<String, String> originalToActual = new HashMap<>(renames.size());
             for (Map.Entry<String, String> e : renames.entrySet()) {
-                originalToActual.put(e.getValue(), e.getKey()); // original → actual
+                if (nameToSchemaIdx.containsKey(e.getKey())) {
+                    originalToActual.put(e.getValue(), e.getKey()); // original → actual
+                }
             }
             orderedNames = new ArrayList<>(orderedOriginals.size() + appendedRealNames.size());
             for (String orig : orderedOriginals) {

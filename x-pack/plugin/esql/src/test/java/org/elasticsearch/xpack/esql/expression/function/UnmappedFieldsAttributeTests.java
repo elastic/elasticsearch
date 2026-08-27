@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -36,6 +37,10 @@ public class UnmappedFieldsAttributeTests extends AbstractNamedExpressionSeriali
             );
     }
 
+    private static Map<String, String> randomRenames() {
+        return randomBoolean() ? Map.of() : randomMap(1, 3, () -> Tuple.tuple(randomAlphaOfLength(4), randomAlphaOfLength(5)));
+    }
+
     @Override
     protected UnmappedFieldsAttribute createTestInstance() {
         return new UnmappedFieldsAttribute(
@@ -46,7 +51,7 @@ public class UnmappedFieldsAttributeTests extends AbstractNamedExpressionSeriali
             randomBoolean(),
             patternWithIntersectedOrGroupsAndExcludes(),
             randomKeepOrder(),
-            Map.of()
+            randomRenames()
         );
     }
 
@@ -59,15 +64,17 @@ public class UnmappedFieldsAttributeTests extends AbstractNamedExpressionSeriali
         boolean synthetic = instance.synthetic();
         UnmappedFieldsPattern pattern = instance.pattern();
         List<UnmappedFieldsPattern.KeepTerm> keepOrder = instance.keepOrder();
-        switch (between(0, 5)) {
+        Map<String, String> renames = instance.renames();
+        switch (between(0, 6)) {
             case 0 -> type = randomValueOtherThan(type, () -> randomFrom(DataType.types()));
             case 1 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.values()));
             case 2 -> id = new NameId();
             case 3 -> synthetic = false == synthetic;
             case 4 -> pattern = randomValueOtherThan(pattern, () -> UnmappedFieldsPattern.excludes(List.of(randomAlphaOfLength(4) + "*")));
             case 5 -> keepOrder = randomValueOtherThan(keepOrder, UnmappedFieldsAttributeTests::randomKeepOrder);
+            case 6 -> renames = randomValueOtherThan(renames, UnmappedFieldsAttributeTests::randomRenames);
         }
-        return new UnmappedFieldsAttribute(source, type, nullability, id, synthetic, pattern, keepOrder, Map.of());
+        return new UnmappedFieldsAttribute(source, type, nullability, id, synthetic, pattern, keepOrder, renames);
     }
 
     @Override
@@ -80,7 +87,7 @@ public class UnmappedFieldsAttributeTests extends AbstractNamedExpressionSeriali
             instance.synthetic(),
             instance.pattern(),
             instance.keepOrder(),
-            Map.of()
+            instance.renames()
         );
     }
 

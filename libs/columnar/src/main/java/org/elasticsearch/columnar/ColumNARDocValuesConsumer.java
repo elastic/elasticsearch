@@ -34,7 +34,6 @@ import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.numeric.NumericPipelineSelector;
 import org.elasticsearch.columnar.numeric.SkipIndexCodec;
 import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
-import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringColumnMetadata;
 import org.elasticsearch.columnar.string.StringColumnValues;
 import org.elasticsearch.columnar.string.StringColumnWriter;
@@ -150,7 +149,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             case STRING -> writeStringColumn(
                 field,
                 type,
-                () -> ColumnarStringBinaryDocValues.decodePayloads(valuesProducer.getBinary(field), framingOf(field))
+                () -> ColumnarStringBinaryDocValues.decodePayloads(valuesProducer.getBinary(field))
             );
         }
     }
@@ -276,7 +275,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             // Read decoded values directly for our own columns; fall back to the payload for anything else.
             StringColumnValues values = binary instanceof ColumnarStringBinaryDocValues columnar
                 ? columnar.directValues()
-                : ColumnarStringBinaryDocValues.decodePayloads(binary, framingOf(readerField));
+                : ColumnarStringBinaryDocValues.decodePayloads(binary);
             cost += values.cost();
             subs.add(new ColumnMergeSub<>(mergeState.docMaps[i], values));
         }
@@ -380,7 +379,6 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             numDocsWithField,
             numValues,
             numNullSlots,
-            framingOf(field),
             cursors,
             ValueStream.VALUES_PER_BLOCK,
             ChunkCodec.ZSTD,
@@ -390,16 +388,6 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             data
         );
         fields.add(new FieldEntry(field.number, type.id(), metadata));
-    }
-
-    /**
-     * The framing {@code field}'s column re-encodes into on read. Absent the attribute a field takes
-     * {@code SEPARATE_COUNT}, the framing with no length bias — the shape a caller that has no inline nulls
-     * to express would have written anyway.
-     */
-    private static StringBinaryPayload.Framing framingOf(FieldInfo field) {
-        String value = field.getAttribute(ColumNARDocValuesFormat.STRING_FRAMING_ATTRIBUTE);
-        return value == null ? StringBinaryPayload.Framing.SEPARATE_COUNT : StringBinaryPayload.Framing.valueOf(value);
     }
 
     @Override

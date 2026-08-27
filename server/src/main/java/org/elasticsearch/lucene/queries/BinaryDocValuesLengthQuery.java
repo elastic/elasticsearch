@@ -28,6 +28,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
@@ -79,6 +80,11 @@ final class BinaryDocValuesLengthQuery extends Query {
                             return DocIdSetIterator.empty();
                         }
 
+                        Predicate<BytesRef> payloadPredicate = bytes -> bytes.length == length;
+                        if (ColumnarBinaryDocValuesField.isColumnarPayload(context.reader(), fieldName)) {
+                            // The payload carries its own count; its blob is never a bare value, so no fast path applies.
+                            return AbstractBinaryDocValuesQuery.columnarPayloadIterator(values, payloadPredicate, matchCost);
+                        }
                         String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
                         final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
                         DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);

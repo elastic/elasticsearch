@@ -21,7 +21,6 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
@@ -32,8 +31,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.columnar.ColumnarTestUtils.columnarBinaryFieldType;
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
-import static org.elasticsearch.columnar.ColumnarTestUtils.columnarStringFieldType;
 
 /**
  * Drives string columns through the real Lucene write path — {@link IndexWriter}, several segments, deletions,
@@ -53,7 +52,7 @@ public class StringColumnMergeTests extends ESTestCase {
     /** A handful of terms repeated across every segment, including the empty value. */
     public void testRepeatedValuesRoundTripAndMerge() throws IOException {
         String[] terms = { "nginx", "apache", "kafka", "elasticsearch", "" };
-        assertRoundTripAndMerge(StringBinaryPayload.Framing.SEPARATE_COUNT, numDocs -> {
+        assertRoundTripAndMerge(numDocs -> {
             String[][] values = new String[numDocs][];
             for (int d = 0; d < numDocs; d++) {
                 values[d] = new String[] { randomFrom(terms) };
@@ -64,7 +63,7 @@ public class StringColumnMergeTests extends ESTestCase {
 
     /** Every value distinct, so nothing repeats within or across segments. */
     public void testDistinctValuesRoundTripAndMerge() throws IOException {
-        assertRoundTripAndMerge(StringBinaryPayload.Framing.SEPARATE_COUNT, numDocs -> {
+        assertRoundTripAndMerge(numDocs -> {
             String[][] values = new String[numDocs][];
             for (int d = 0; d < numDocs; d++) {
                 values[d] = new String[] { "term-" + d + "-" + randomAlphaOfLength(between(1, 20)) };
@@ -75,7 +74,7 @@ public class StringColumnMergeTests extends ESTestCase {
 
     /** A spread of slot counts, so the merged column carries a value-address table the sources may not have. */
     public void testMultiValuedRoundTripAndMerge() throws IOException {
-        assertRoundTripAndMerge(StringBinaryPayload.Framing.SEPARATE_COUNT, numDocs -> {
+        assertRoundTripAndMerge(numDocs -> {
             String[][] values = new String[numDocs][];
             for (int d = 0; d < numDocs; d++) {
                 values[d] = new String[between(1, 6)];
@@ -88,11 +87,11 @@ public class StringColumnMergeTests extends ESTestCase {
     }
 
     /**
-     * Null slots among the values, which only the array-order framing can carry. Most documents hold none, so
-     * a segment may well have no null table at all while the segment it merges with does.
+     * Null slots among the values. Most documents hold none, so a segment may well have no null table at all
+     * while the segment it merges with does.
      */
     public void testNullSlotsRoundTripAndMerge() throws IOException {
-        assertRoundTripAndMerge(StringBinaryPayload.Framing.ARRAY_ORDER, numDocs -> {
+        assertRoundTripAndMerge(numDocs -> {
             String[][] values = new String[numDocs][];
             for (int d = 0; d < numDocs; d++) {
                 if (rarely()) {
@@ -121,12 +120,12 @@ public class StringColumnMergeTests extends ESTestCase {
         String[][] generate(int numDocs);
     }
 
-    private void assertRoundTripAndMerge(StringBinaryPayload.Framing framing, ValueGenerator generator) throws IOException {
+    private void assertRoundTripAndMerge(ValueGenerator generator) throws IOException {
         for (int iter = 0; iter < 4; iter++) {
             final int numDocs = between(200, 3000);
             final String[][] values = generator.generate(numDocs);
             final boolean[] deleted = new boolean[numDocs];
-            final FieldType type = columnarStringFieldType(framing);
+            final FieldType type = columnarBinaryFieldType(ColumnarFieldType.STRING);
 
             try (Directory dir = newDirectory()) {
                 // LogDocMergePolicy merges adjacent segments, so the merged order stays insertion order and the
@@ -150,7 +149,7 @@ public class StringColumnMergeTests extends ESTestCase {
                         for (var leaf : reader.leaves()) {
                             blobs.addAll(readBlobs(leaf.reader()));
                         }
-                        assertSlots(expected(values, new boolean[numDocs]), blobs, framing);
+                        assertSlots(expected(values, new boolean[numDocs]), blobs);
                     }
 
                     for (int d = 0; d < numDocs; d++) {
@@ -164,7 +163,7 @@ public class StringColumnMergeTests extends ESTestCase {
 
                 try (DirectoryReader reader = DirectoryReader.open(dir)) {
                     assertEquals("force-merged to one segment", 1, reader.leaves().size());
-                    assertSlots(expected(values, deleted), readBlobs(reader.leaves().get(0).reader()), framing);
+                    assertSlots(expected(values, deleted), readBlobs(reader.leaves().get(0).reader()));
                 }
             }
         }
@@ -190,42 +189,18 @@ public class StringColumnMergeTests extends ESTestCase {
         return blobs;
     }
 
-    /**
-     * Decodes each blob against the slot count the document was written with — standing in for the
-     * {@code .counts} companion the mapper writes, which is what a real reader consults.
-     */
-    private static void assertSlots(List<List<String>> expected, List<BytesRef> blobs, StringBinaryPayload.Framing framing)
-        throws IOException {
+    /** Decodes each blob back into the slots it was built from. */
+    private static void assertSlots(List<List<String>> expected, List<BytesRef> blobs) {
         assertEquals("documents with a value", expected.size(), blobs.size());
+        final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
         for (int i = 0; i < expected.size(); i++) {
-            assertEquals("document " + i, expected.get(i), decodeLegacy(blobs.get(i), expected.get(i).size(), framing));
-        }
-    }
-
-    /**
-     * The framing readers expect, decoded longhand: a lone slot is the whole blob, otherwise a length per slot
-     * biased by one where the framing can carry a null.
-     */
-    private static List<String> decodeLegacy(BytesRef blob, int slotCount, StringBinaryPayload.Framing framing) throws IOException {
-        if (slotCount == 1) {
-            return List.of(blob.utf8ToString());
-        }
-        final int bias = framing == StringBinaryPayload.Framing.ARRAY_ORDER ? 1 : 0;
-        final ByteArrayDataInput in = new ByteArrayDataInput(blob.bytes, blob.offset, blob.length);
-        final List<String> slots = new ArrayList<>(slotCount);
-        for (int i = 0; i < slotCount; i++) {
-            final int encodedLength = in.readVInt();
-            if (encodedLength == 0 && bias == 1) {
-                slots.add(null);
-                continue;
+            final List<String> slots = new ArrayList<>();
+            for (int slot = decoder.reset(blobs.get(i)); slot > 0; slot--) {
+                final BytesRef value = decoder.next();
+                slots.add(value == null ? null : value.utf8ToString());
             }
-            final int length = encodedLength - bias;
-            final BytesRef slot = new BytesRef(blob.bytes, in.getPosition(), length);
-            in.setPosition(in.getPosition() + length);
-            slots.add(slot.utf8ToString());
+            assertEquals("document " + i, expected.get(i), slots);
         }
-        assertTrue("blob fully consumed", in.eof());
-        return slots;
     }
 
     private static BytesRef encode(String[] slots) {

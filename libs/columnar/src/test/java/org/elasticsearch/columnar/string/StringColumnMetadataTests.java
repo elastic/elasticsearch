@@ -16,8 +16,6 @@ import org.elasticsearch.columnar.FormatVersion;
 
 import java.io.IOException;
 
-import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
-
 /** What a string column records about itself, written and read back on its own. */
 public class StringColumnMetadataTests extends ColumnarStringTestCase {
 
@@ -47,18 +45,6 @@ public class StringColumnMetadataTests extends ColumnarStringTestCase {
         }
     }
 
-    /** The framing is recorded, not inferred, so a column re-encodes into the one its field was written with. */
-    public void testFramingSurvivesTheRoundTrip() throws IOException {
-        for (StringBinaryPayload.Framing framing : StringBinaryPayload.Framing.values()) {
-            final BytesRef[][] docSlots = randomDocSlots(between(20, 200), 4, false, false);
-            withColumn(docSlots, framing, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), (metadata, reader) -> {
-                assertEquals("recorded framing", framing, metadata.framing());
-                assertEquals("framing survives", framing, roundTrip(metadata, docSlots.length).framing());
-                assertEquals("reader agrees", framing, reader.framing());
-            });
-        }
-    }
-
     /**
      * A column no document has a value in stops after the document count, so nothing else it might have
      * recorded is written or read.
@@ -73,6 +59,17 @@ public class StringColumnMetadataTests extends ColumnarStringTestCase {
             assertEquals("numNullSlots", 0L, read.numNullSlots());
             assertFalse("single-valued", read.multiValued());
             assertFalse("no null slots", read.hasNullSlots());
+        });
+    }
+
+    /** An empty array is a document with no slots, which puts the slots out of step with the documents too. */
+    public void testEmptyArrayNeedsValueAddresses() throws IOException {
+        final BytesRef[][] docSlots = randomDocSlots(between(2, 50), 1, false, false);
+        docSlots[between(0, docSlots.length - 1)] = new BytesRef[0];
+        withColumn(docSlots, (metadata, reader) -> {
+            assertFalse("fewer slots than documents", metadata.multiValued());
+            assertTrue("still needs a value-address table", metadata.hasValueAddresses());
+            assertRoundTrips(metadata, docSlots.length);
         });
     }
 
@@ -95,7 +92,6 @@ public class StringColumnMetadataTests extends ColumnarStringTestCase {
         assertEquals("numValues", metadata.numValues(), read.numValues());
         assertEquals("numNullSlots", metadata.numNullSlots(), read.numNullSlots());
         assertEquals("layout", metadata.layout(), read.layout());
-        assertEquals("framing", metadata.framing(), read.framing());
         assertEquals("stream values", metadata.values().numValues(), read.values().numValues());
         assertEquals("values per block", metadata.values().valuesPerBlock(), read.values().valuesPerBlock());
         assertEquals("multi-valued", metadata.multiValued(), read.multiValued());

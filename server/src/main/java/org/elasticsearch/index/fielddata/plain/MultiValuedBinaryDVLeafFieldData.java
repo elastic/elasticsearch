@@ -12,10 +12,12 @@ package org.elasticsearch.index.fielddata.plain;
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.fielddata.ColumnarPayloadSortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingArrayOrderBinaryDocValues;
+import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 
@@ -69,6 +71,10 @@ public class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
         try {
             // Need to return a new instance each time this gets invoked,
             // otherwise a positioned or exhausted instance can be returned:
+            if (ColumnarBinaryDocValuesField.isColumnarPayload(leafReader, fieldName)) {
+                // The ColumNAR codec's fields carry their slot count in the blob and write no companion field.
+                return ColumnarPayloadSortedBinaryDocValues.from(leafReader, fieldName);
+            }
             if (arrayOrder) {
                 // High-cardinality columnar fields store values in document order with inline nulls (ArrayOrderInlineNull).
                 return SortingArrayOrderBinaryDocValues.from(leafReader, fieldName);

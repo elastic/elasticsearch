@@ -42,8 +42,7 @@ import java.io.IOException;
  *
  * <p>{@link #layout()} says how a block is encoded. Only {@link StringColumnLayout#PLAIN} exists today; the
  * recorded layout id is the extension point a later ordinal layout arrives on, so which trailing fields are
- * meaningful can vary by layout. {@link #framing()} is separate and orthogonal: it is not how the column
- * stores anything, but which of the mapper's framings {@code binaryValue()} re-encodes into.
+ * meaningful can vary by layout.
  */
 public record StringColumnMetadata(
     ColumnIteratorMetadata iterator,
@@ -51,7 +50,6 @@ public record StringColumnMetadata(
     long numValues,
     long numNullSlots,
     StringColumnLayout layout,
-    StringBinaryPayload.Framing framing,
     ValueStream.Metadata values,
     long valueAddressesDataOffset,
     long valueAddressesDataLength,
@@ -64,26 +62,21 @@ public record StringColumnMetadata(
     private static final byte[] NONE = new byte[0];
 
     static StringColumnMetadata empty(ColumnIteratorMetadata iterator) {
-        return new StringColumnMetadata(
-            iterator,
-            0,
-            0,
-            0,
-            StringColumnLayout.PLAIN,
-            StringBinaryPayload.Framing.SEPARATE_COUNT,
-            ValueStream.Metadata.empty(),
-            0,
-            0,
-            NONE,
-            0,
-            0,
-            NONE
-        );
+        return new StringColumnMetadata(iterator, 0, 0, 0, StringColumnLayout.PLAIN, ValueStream.Metadata.empty(), 0, 0, NONE, 0, 0, NONE);
     }
 
     /** True when at least one document has more than one slot. */
     public boolean multiValued() {
         return numValues > numDocsWithField;
+    }
+
+    /**
+     * Whether a document's value address has to be looked up rather than being its rank. That is any column
+     * where the slots and the documents are not in step, which a document holding several slots causes and a
+     * document holding none — an empty array — causes just as much.
+     */
+    public boolean hasValueAddresses() {
+        return numValues != numDocsWithField;
     }
 
     /** True when at least one slot in the column is null. */
@@ -101,9 +94,8 @@ public record StringColumnMetadata(
         out.writeVLong(numValues);
         out.writeVLong(numNullSlots);
         out.writeByte(layout.id());
-        out.writeByte(framing.id());
         values.writeTo(out);
-        if (multiValued()) {
+        if (hasValueAddresses()) {
             writeTable(out, valueAddressesDataOffset, valueAddressesDataLength, valueAddressesMeta);
         }
         if (hasNullSlots()) {
@@ -135,12 +127,11 @@ public record StringColumnMetadata(
         long numValues = in.readVLong();
         long numNullSlots = in.readVLong();
         StringColumnLayout layout = StringColumnLayout.fromId(in.readByte());
-        StringBinaryPayload.Framing framing = StringBinaryPayload.Framing.forId(in.readByte());
         ValueStream.Metadata values = ValueStream.Metadata.readFrom(in);
         long valueAddressesDataOffset = 0;
         long valueAddressesDataLength = 0;
         byte[] valueAddressesMeta = NONE;
-        if (numValues > numDocsWithField) {
+        if (numValues != numDocsWithField) {
             valueAddressesDataOffset = in.readVLong();
             valueAddressesDataLength = in.readVLong();
             valueAddressesMeta = readBytes(in);
@@ -159,7 +150,6 @@ public record StringColumnMetadata(
             numValues,
             numNullSlots,
             layout,
-            framing,
             values,
             valueAddressesDataOffset,
             valueAddressesDataLength,

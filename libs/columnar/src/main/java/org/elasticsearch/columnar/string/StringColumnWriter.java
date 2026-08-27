@@ -55,7 +55,6 @@ public final class StringColumnWriter {
      * @param numValues        total number of slots across all documents, null slots included
      * @param numNullSlots     how many of those slots are null; the null-slot table is written only when
      *                         this is positive
-     * @param framing          which of the mapper's framings the column re-encodes into on read
      * @param cursors          supplies fresh forward cursors over the documents that have a slot; called
      *                         once for the iterator and once for the values
      * @param valuesPerBlock   values behind one offset in the byte stream
@@ -70,7 +69,6 @@ public final class StringColumnWriter {
         int numDocsWithField,
         long numValues,
         long numNullSlots,
-        StringBinaryPayload.Framing framing,
         IOSupplier<StringColumnValues> cursors,
         int valuesPerBlock,
         ChunkCodec chunkCodec,
@@ -84,11 +82,13 @@ public final class StringColumnWriter {
             return StringColumnMetadata.empty(iterator);
         }
 
-        final boolean multiValued = numValues > numDocsWithField;
+        // A document holding several slots and one holding none both put the slots out of step with the
+        // documents, and either way a rank stops being its own value address.
+        final boolean valueAddresses = numValues != numDocsWithField;
         final boolean hasNullSlots = numNullSlots > 0;
 
         ValueStream.Writer stream = null;
-        MonotonicWriter valueAddresses = null;
+        MonotonicWriter addresses = null;
         MonotonicWriter nullSlots = null;
         try {
             stream = new ValueStream.Writer(
@@ -101,8 +101,8 @@ public final class StringColumnWriter {
                 data.getName(),
                 data
             );
-            if (multiValued) {
-                valueAddresses = new MonotonicWriter(directory, context, data.getName(), numDocsWithField + 1L);
+            if (valueAddresses) {
+                addresses = new MonotonicWriter(directory, context, data.getName(), numDocsWithField + 1L);
             }
             if (hasNullSlots) {
                 nullSlots = new MonotonicWriter(directory, context, data.getName(), numNullSlots);
@@ -112,8 +112,8 @@ public final class StringColumnWriter {
             long valueAddress = 0;
             StringColumnValues values = cursors.get();
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                if (multiValued) {
-                    valueAddresses.add(valueAddress);
+                if (valueAddresses) {
+                    addresses.add(valueAddress);
                 }
                 for (int i = 0, count = values.valueCount(); i < count; i++) {
                     BytesRef value = values.nextValue();
@@ -126,13 +126,13 @@ public final class StringColumnWriter {
                     valueAddress++;
                 }
             }
-            if (multiValued) {
-                valueAddresses.add(valueAddress);
+            if (valueAddresses) {
+                addresses.add(valueAddress);
             }
             assert valueAddress == numValues : "wrote " + valueAddress + " slots, counted " + numValues;
 
             final ValueStream.Metadata written = stream.finish();
-            MonotonicWriter.Table addresses = multiValued ? valueAddresses.finish(data) : MonotonicWriter.Table.NONE;
+            MonotonicWriter.Table addressTable = valueAddresses ? addresses.finish(data) : MonotonicWriter.Table.NONE;
             MonotonicWriter.Table nulls = hasNullSlots ? nullSlots.finish(data) : MonotonicWriter.Table.NONE;
 
             return new StringColumnMetadata(
@@ -141,17 +141,16 @@ public final class StringColumnWriter {
                 numValues,
                 numNullSlots,
                 StringColumnLayout.PLAIN,
-                framing,
                 written,
-                addresses.dataOffset(),
-                addresses.dataLength(),
-                addresses.meta(),
+                addressTable.dataOffset(),
+                addressTable.dataLength(),
+                addressTable.meta(),
                 nulls.dataOffset(),
                 nulls.dataLength(),
                 nulls.meta()
             );
         } finally {
-            IOUtils.close(stream, valueAddresses, nullSlots);
+            IOUtils.close(stream, addresses, nullSlots);
         }
     }
 

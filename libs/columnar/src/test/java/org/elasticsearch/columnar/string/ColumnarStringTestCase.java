@@ -60,7 +60,7 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
      * <p>The block size, the chunk codec and the bytes a chunk holds are all random, so repeated runs land the
      * values on different block boundaries and different chunk boundaries, and read them back both verbatim
      * and compressed. A test that needs particular boundaries fixes them with
-     * {@link #withColumn(BytesRef[][], StringBinaryPayload.Framing, int, ChunkCodec, int, ColumnCheck)}.
+     * {@link #withColumn(BytesRef[][], int, ChunkCodec, int, ColumnCheck)}.
      */
     protected void withColumn(final BytesRef[] docValues, final ColumnCheck check) throws IOException {
         withColumn(singleValued(docValues), check);
@@ -79,24 +79,22 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         final int targetChunkBytes,
         final ColumnCheck check
     ) throws IOException {
-        final BytesRef[][] docSlots = singleValued(docValues);
-        withColumn(docSlots, framingFor(docSlots), blockSize, chunkCodec, targetChunkBytes, check);
+        withColumn(singleValued(docValues), blockSize, chunkCodec, targetChunkBytes, check);
     }
 
     /** As {@link #withColumn(BytesRef[], ColumnCheck)}, over a column whose documents may hold several slots. */
     protected void withColumn(final BytesRef[][] docSlots, final ColumnCheck check) throws IOException {
-        withColumn(docSlots, framingFor(docSlots), randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), check);
+        withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), check);
     }
 
     /** As {@link #withColumn(BytesRef[][], ColumnCheck)}, with the block size fixed. */
     protected void withColumn(final BytesRef[][] docSlots, final int blockSize, final ColumnCheck check) throws IOException {
-        withColumn(docSlots, framingFor(docSlots), blockSize, randomChunkCodec(), randomTargetChunkBytes(), check);
+        withColumn(docSlots, blockSize, randomChunkCodec(), randomTargetChunkBytes(), check);
     }
 
     /** As {@link #withColumn(BytesRef[][], ColumnCheck)}, with every layout choice fixed. */
     protected void withColumn(
         final BytesRef[][] docSlots,
-        final StringBinaryPayload.Framing framing,
         final int blockSize,
         final ChunkCodec chunkCodec,
         final int targetChunkBytes,
@@ -105,7 +103,7 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         final byte[] segmentId = new byte[16];
         random().nextBytes(segmentId);
         try (Directory dir = newDirectory()) {
-            final StringColumnMetadata metadata = writeColumn(dir, segmentId, docSlots, framing, blockSize, chunkCodec, targetChunkBytes);
+            final StringColumnMetadata metadata = writeColumn(dir, segmentId, docSlots, blockSize, chunkCodec, targetChunkBytes);
             try (IndexInput data = openData(dir, segmentId)) {
                 check.check(metadata, new StringColumnReader(metadata, data));
             }
@@ -162,35 +160,6 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         return docSlots;
     }
 
-    /**
-     * A framing the column can actually express: only {@code ARRAY_ORDER} biases a length, so only it can carry
-     * a null slot, and only {@code PLAIN} needs every document to hold exactly one. Where several would do, all
-     * of them are exercised across runs.
-     */
-    protected static StringBinaryPayload.Framing framingFor(final BytesRef[][] docSlots) {
-        if (hasNullSlot(docSlots)) {
-            return StringBinaryPayload.Framing.ARRAY_ORDER;
-        }
-        if (numValues(docSlots) > numDocsWithField(docSlots)) {
-            // PLAIN has nowhere to put a count, so it only describes a column of one slot per document.
-            return randomFrom(StringBinaryPayload.Framing.SEPARATE_COUNT, StringBinaryPayload.Framing.ARRAY_ORDER);
-        }
-        return randomFrom(StringBinaryPayload.Framing.values());
-    }
-
-    private static boolean hasNullSlot(final BytesRef[][] docSlots) {
-        for (BytesRef[] slots : docSlots) {
-            if (slots != null) {
-                for (BytesRef slot : slots) {
-                    if (slot == null) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
-    }
-
     /** The number of documents in {@code docValues} that have a value. */
     protected static int numDocsWithField(final BytesRef[] docValues) {
         int numDocsWithField = 0;
@@ -243,7 +212,6 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         final Directory dir,
         final byte[] segmentId,
         final BytesRef[][] docSlots,
-        final StringBinaryPayload.Framing framing,
         final int blockSize,
         final ChunkCodec chunkCodec,
         final int targetChunkBytes
@@ -256,7 +224,6 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
                 numDocsWithField(docSlots),
                 numValues(docSlots),
                 numNullSlots(docSlots),
-                framing,
                 () -> cursor(docSlots),
                 blockSize,
                 chunkCodec,

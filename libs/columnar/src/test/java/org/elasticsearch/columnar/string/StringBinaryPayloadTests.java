@@ -9,22 +9,20 @@
 
 package org.elasticsearch.columnar.string;
 
-import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 /**
- * The payload format on its own, away from any column: the self-describing shape the mapper writes for a
- * columnar field, and the re-encode back into the framing readers expect.
+ * The payload format on its own, away from any column: the shape the mapper writes for a columnar field and the
+ * codec rebuilds on read.
  *
- * <p>Both directions are checked against encoders written out longhand here rather than against the ones under
- * test, since the whole point of the re-encode is that it produces bytes some other code already reads.
+ * <p>The format is the contract between the mapper and the codec, so what these pin is that whatever goes in comes
+ * back out — slot for slot, nulls included, in order.
  */
 public class StringBinaryPayloadTests extends ESTestCase {
 
@@ -120,50 +118,12 @@ public class StringBinaryPayloadTests extends ESTestCase {
         }
     }
 
-    /** The re-encode, against the framing spelled out longhand — what a reader consulting {@code .counts} sees. */
-    public void testLegacyEncoderMatchesTheMappersFraming() throws IOException {
-        for (StringBinaryPayload.Framing framing : new StringBinaryPayload.Framing[] {
-            StringBinaryPayload.Framing.SEPARATE_COUNT,
-            StringBinaryPayload.Framing.ARRAY_ORDER }) {
-            final boolean nulls = framing == StringBinaryPayload.Framing.ARRAY_ORDER;
-            final StringBinaryPayload.LegacyEncoder encoder = new StringBinaryPayload.LegacyEncoder();
-            for (int iter = 0; iter < 200; iter++) {
-                final List<BytesRef> slots = new ArrayList<>();
-                for (int i = 0; i < between(1, 30); i++) {
-                    slots.add(nulls && randomBoolean() ? null : new BytesRef(randomAlphaOfLengthBetween(0, 200)));
-                }
-                if (slots.size() == 1 && slots.get(0) == null) {
-                    slots.set(0, new BytesRef("kept"));
-                }
-                encoder.begin(framing, slots.size());
-                for (BytesRef slot : slots) {
-                    encoder.append(slot);
-                }
-                assertEquals("under " + framing, legacyEncode(slots, framing), encoder.get());
-            }
-        }
-    }
-
-    /** A lone slot is handed back as its own bytes under both framings, with no prefix at all. */
-    public void testLoneSlotIsRaw() {
-        for (StringBinaryPayload.Framing framing : StringBinaryPayload.Framing.values()) {
-            final BytesRef only = new BytesRef(randomAlphaOfLengthBetween(0, 200));
-            final StringBinaryPayload.LegacyEncoder encoder = new StringBinaryPayload.LegacyEncoder();
-            encoder.begin(framing, 1);
-            encoder.append(only);
-            assertEquals("raw under " + framing, only, encoder.get());
-        }
-    }
-
-    public void testFramingIdsAreFrozen() {
-        assertEquals(0, StringBinaryPayload.Framing.SEPARATE_COUNT.id());
-        assertEquals(1, StringBinaryPayload.Framing.ARRAY_ORDER.id());
-        assertEquals(2, StringBinaryPayload.Framing.PLAIN.id());
-        assertFalse("a plain field carries no count", StringBinaryPayload.Framing.PLAIN.isSelfDescribing());
-        for (StringBinaryPayload.Framing framing : StringBinaryPayload.Framing.values()) {
-            assertEquals(framing, StringBinaryPayload.Framing.forId(framing.id()));
-        }
-        expectThrows(IllegalArgumentException.class, () -> StringBinaryPayload.Framing.forId((byte) 7));
+    /** An empty array is a count of zero and nothing after it, which no other shape produces. */
+    public void testRoundTripsNoSlots() {
+        assertRoundTrip(List.of());
+        final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
+        assertEquals("the empty payload", 0, decoder.reset(StringBinaryPayload.EMPTY));
+        assertEquals(StringBinaryPayload.EMPTY, StringBinaryPayload.encode(List.of()));
     }
 
     private static void assertRoundTrip(List<BytesRef> slots) {
@@ -179,29 +139,4 @@ public class StringBinaryPayloadTests extends ESTestCase {
         return Arrays.asList(slots);
     }
 
-    /**
-     * The framing the mapper writes: a lone slot raw, otherwise a length per slot, biased by one where the
-     * framing can carry a null.
-     */
-    private static BytesRef legacyEncode(List<BytesRef> slots, StringBinaryPayload.Framing framing) throws IOException {
-        if (slots.size() == 1) {
-            return slots.get(0);
-        }
-        final int bias = framing == StringBinaryPayload.Framing.ARRAY_ORDER ? 1 : 0;
-        int upperBound = 0;
-        for (BytesRef slot : slots) {
-            upperBound += StringBinaryPayload.VINT_MAX_BYTES + (slot == null ? 0 : slot.length);
-        }
-        final byte[] buffer = new byte[upperBound];
-        final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
-        for (BytesRef slot : slots) {
-            if (slot == null) {
-                out.writeVInt(0);
-            } else {
-                out.writeVInt(slot.length + bias);
-                out.writeBytes(slot.bytes, slot.offset, slot.length);
-            }
-        }
-        return new BytesRef(buffer, 0, out.getPosition());
-    }
 }

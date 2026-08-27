@@ -34,6 +34,7 @@ import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.plain.MultiValuedBinaryDocValuesSortField;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.lucene.comparators.XLongComparator;
 import org.elasticsearch.lucene.comparators.XNumericComparator;
@@ -317,6 +318,10 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         BinaryDocValues bdv = reader.getBinaryDocValues("host.name");
         if (bdv.advanceExact(doc) == false) {
             return null;
+        }
+        if (ColumnarBinaryDocValuesField.isColumnarPayload(reader, "host.name")) {
+            // The payload carries its own count, so there is no companion field to consult.
+            return MultiValuedBinaryDocValuesSortField.decodePayloadExtreme(bdv.binaryValue(), maxMode);
         }
         NumericDocValues counts = reader.getNumericDocValues(
             "host.name" + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX

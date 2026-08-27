@@ -19,13 +19,10 @@ import java.io.IOException;
 
 /**
  * A string column at the {@code BINARY} surface. The API carries one {@link BytesRef} per document, so a
- * document's slots are re-encoded on the way out: {@link #binaryValue} hands back the framing the mapper
- * would have written, which is what lets a reader that still consults the {@code <field>.counts} companion
- * work against this column unchanged.
+ * document's slots are re-encoded on the way out: {@link #binaryValue} rebuilds the {@link StringBinaryPayload}
+ * the mapper wrote, count and all, which is what every reader of these fields decodes.
  *
- * <p>Ingest is the mirror image — {@link #decodePayloads} splits the self-describing
- * {@link StringBinaryPayload} the mapper writes for a columnar field, which is the one framing that carries
- * its own slot count and so is the one a {@code DocValuesConsumer} can split at flush.
+ * <p>Ingest is the mirror image — {@link #decodePayloads} splits the payload the mapper writes.
  *
  * <p>Which {@link StringColumnLayout} the segment used is invisible here — a layout resolves its own encoding
  * inside the reader, so nothing layout-specific reaches this surface.
@@ -34,7 +31,7 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
 
     private final StringColumnReader reader;
     private final ColumnIterator iterator;
-    private final StringBinaryPayload.LegacyEncoder encoder = new StringBinaryPayload.LegacyEncoder();
+    private final StringBinaryPayload.Encoder encoder = new StringBinaryPayload.Encoder();
 
     public ColumnarStringBinaryDocValues(StringColumnReader reader, ColumnIterator iterator) {
         this.reader = reader;
@@ -42,16 +39,16 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
     }
 
     /**
-     * The document's slots, re-encoded into the framing recorded on the column: a lone slot raw, several
-     * length-prefixed, a null slot as a zero length. Only a document with at least one non-null slot is ever
-     * stored, so a lone slot is never null.
+     * The document's slots, re-encoded as the {@link StringBinaryPayload} they arrived as. Rebuilt from the
+     * column rather than stored, so the bytes are equal to what the mapper wrote without ever having been
+     * kept in that form.
      */
     @Override
     public BytesRef binaryValue() throws IOException {
         final int rank = iterator.rank();
         final long first = reader.firstValueAddress(rank);
         final long count = reader.valueCount(rank);
-        encoder.begin(reader.framing(), (int) count);
+        encoder.begin((int) count);
         for (long i = 0; i < count; i++) {
             final long address = first + i;
             encoder.append(reader.isNullSlot(address) ? null : reader.valueAt(address));
@@ -155,17 +152,12 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
     }
 
     /**
-     * Wraps a foreign {@link BinaryDocValues} as a write-path cursor, reading each document's payload in the
-     * framing its field declares. This is the ingest path — a columnar keyword field writes a self-describing
-     * payload precisely so the count travels with the bytes — and the merge fallback for a segment written by
-     * some other implementation of this surface.
-     *
-     * <p>A {@link StringBinaryPayload.Framing#PLAIN} field has no framing to read: its blob is the value.
+     * Wraps a foreign {@link BinaryDocValues} as a write-path cursor by splitting each document's
+     * {@link StringBinaryPayload}. This is the ingest path — the mapper writes that format precisely so the
+     * count travels with the bytes — and the merge fallback for a segment written by some other
+     * implementation of this surface.
      */
-    public static StringColumnValues decodePayloads(BinaryDocValues binary, StringBinaryPayload.Framing framing) {
-        if (framing.isSelfDescribing() == false) {
-            return plainValues(binary);
-        }
+    public static StringColumnValues decodePayloads(BinaryDocValues binary) {
         return new StringColumnValues() {
 
             private final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
@@ -209,51 +201,10 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
             private int position(int doc) throws IOException {
                 if (doc != DocIdSetIterator.NO_MORE_DOCS) {
                     count = decoder.reset(binary.binaryValue());
-                    assert count > 0 : "document [" + doc + "] wrote a payload with no slots";
                 }
                 return doc;
             }
         };
     }
 
-    /** One value per document, the value being the blob itself. */
-    private static StringColumnValues plainValues(BinaryDocValues binary) {
-        return new StringColumnValues() {
-
-            @Override
-            public int valueCount() {
-                return 1;
-            }
-
-            @Override
-            public int nullCount() {
-                return 0;
-            }
-
-            @Override
-            public BytesRef nextValue() throws IOException {
-                return binary.binaryValue();
-            }
-
-            @Override
-            public int docID() {
-                return binary.docID();
-            }
-
-            @Override
-            public int nextDoc() throws IOException {
-                return binary.nextDoc();
-            }
-
-            @Override
-            public int advance(int target) throws IOException {
-                return binary.advance(target);
-            }
-
-            @Override
-            public long cost() {
-                return binary.cost();
-            }
-        };
-    }
 }

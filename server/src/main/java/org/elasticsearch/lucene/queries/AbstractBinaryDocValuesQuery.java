@@ -27,7 +27,9 @@ import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueArrayOrderInlineNullBinaryDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueColumnarPayloadBinaryDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 
@@ -97,6 +99,10 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
         if (values == null) {
             return null;
         }
+        if (ColumnarBinaryDocValuesField.isColumnarPayload(context.reader(), fieldName)) {
+            // The payload carries its own count, so the binary column drives iteration on its own.
+            return columnarPayloadIterator(values, matcher, matchCost);
+        }
         final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + COUNT_FIELD_SUFFIX);
         if (arrayOrderInlineNull) {
             // ArrayOrderInlineNull always writes the .counts field (even for an all-null or empty array, which writes no blob), so when
@@ -118,6 +124,26 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
         if (visitor.acceptField(fieldName)) {
             visitor.visitLeaf(this);
         }
+    }
+
+    /**
+     * Iterator for the columnar codec's payload. The blob is written for every present document and carries its own slot count, so it is
+     * both the approximation and the source of the values; a document whose slots are all null simply matches nothing.
+     */
+    static DocIdSetIterator columnarPayloadIterator(BinaryDocValues values, Predicate<BytesRef> predicate, float cost) {
+        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(values) {
+            final MultiValueColumnarPayloadBinaryDocValuesReader reader = new MultiValueColumnarPayloadBinaryDocValuesReader();
+
+            @Override
+            public boolean matches() throws IOException {
+                return reader.match(values.binaryValue(), predicate);
+            }
+
+            @Override
+            public float matchCost() {
+                return cost;
+            }
+        });
     }
 
     static DocIdSetIterator multiValuedIterator(

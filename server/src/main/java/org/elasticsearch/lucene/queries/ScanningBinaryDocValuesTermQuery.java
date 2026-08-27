@@ -17,6 +17,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -58,12 +59,16 @@ public class ScanningBinaryDocValuesTermQuery extends AbstractBinaryDocValuesQue
         if (values == null) {
             return null;
         }
+        // A payload blob is never a bare term, so the direct comparison below can never apply to one.
+        final boolean columnarPayload = ColumnarBinaryDocValuesField.isColumnarPayload(context.reader(), fieldName);
         String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
         DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
         // tryTermEqualIterator is only valid for single-valued fields (see its javadoc on
         // BlockLoader.OptionalColumnAtATimeReader). It returns a TwoPhaseIterator-backed iterator,
         // so sub-segment slicing (DataPartitioning.DOC) scales with cores.
-        if ((countsSkipper == null || countsSkipper.maxValue() <= 1) && values instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
+        if (columnarPayload == false
+            && (countsSkipper == null || countsSkipper.maxValue() <= 1)
+            && values instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
             DocIdSetIterator iter = direct.tryTermEqualIterator(term);
             if (iter != null) {
                 return iter;

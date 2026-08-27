@@ -21,6 +21,8 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.string.StringBinaryPayload;
+import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 
 import java.io.IOException;
@@ -68,6 +70,10 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
     @Override
     protected BinaryDocValues getSortKeyDocValues(LeafReader reader) throws IOException {
         BinaryDocValues values = DocValues.getBinary(reader, getField());
+        if (ColumnarBinaryDocValuesField.isColumnarPayload(reader, getField())) {
+            // The payload carries its own count, so there is nothing to advance alongside it.
+            return new ColumnarPayloadMinMaxBinaryDocValues(values, maxMode);
+        }
         String countsFieldName = getField() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
         NumericDocValues counts = reader.getNumericDocValues(countsFieldName);
         if (counts == null) {
@@ -108,6 +114,38 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
             return MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.decodeExtreme(raw, (int) count, maxMode);
         }
         return MultiValuedBinaryDocValuesField.SeparateCount.decodeExtreme(raw, maxMode);
+    }
+
+    /**
+     * Decodes the extreme non-null value from a columnar payload, whose slot count travels in the blob. Returns the blob unchanged when
+     * the document has no non-null value, matching what the other encodings hand back for a document with nothing to sort on.
+     */
+    public static BytesRef decodePayloadExtreme(BytesRef raw, boolean maxMode) {
+        final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
+        BytesRef extreme = null;
+        for (int slot = decoder.reset(raw); slot > 0; slot--) {
+            final BytesRef value = decoder.next();
+            // Copy out: the decoder points into the blob but reuses one BytesRef across slots.
+            if (value != null && (extreme == null || (maxMode ? value.compareTo(extreme) > 0 : value.compareTo(extreme) < 0))) {
+                extreme = BytesRef.deepCopyOf(value);
+            }
+        }
+        return extreme == null ? raw : extreme;
+    }
+
+    /** Wraps a columnar payload field, returning either the minimum or maximum non-null value as the sort key. */
+    private static final class ColumnarPayloadMinMaxBinaryDocValues extends FilterBinaryDocValues {
+        private final boolean maxMode;
+
+        ColumnarPayloadMinMaxBinaryDocValues(BinaryDocValues values, boolean maxMode) {
+            super(values);
+            this.maxMode = maxMode;
+        }
+
+        @Override
+        public BytesRef binaryValue() throws IOException {
+            return decodePayloadExtreme(in.binaryValue(), maxMode);
+        }
     }
 
     /**

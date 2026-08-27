@@ -18,6 +18,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader.ArrayOrderSource;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueArrayOrderInlineNullBinaryDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueColumnarPayloadBinaryDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.BinaryAndCounts;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
@@ -49,6 +50,11 @@ public class MvMinBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.Do
 
     @Override
     public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        if (arrayOrderSource == ArrayOrderSource.PAYLOAD) {
+            // The count travels in the blob, so there is no companion column to load or advance on.
+            TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);
+            return binary == null ? ConstantNull.COLUMN_READER : new MinFromColumnarPayload(binary);
+        }
         BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, true);
         if (bc == null) {
             return ConstantNull.COLUMN_READER;
@@ -65,6 +71,29 @@ public class MvMinBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.Do
     @Override
     public String toString() {
         return "MvMinBytesRefsFromBinary[" + fieldName + "]";
+    }
+
+    /** Reader for the columnar codec's payload, which carries its own slot count and needs no companion column. */
+    private static class MinFromColumnarPayload extends AbstractBytesRefsFromBinaryReader {
+        private final MultiValueColumnarPayloadBinaryDocValuesReader reader = new MultiValueColumnarPayloadBinaryDocValuesReader();
+
+        MinFromColumnarPayload(TrackingBinaryDocValues values) {
+            super(values);
+        }
+
+        @Override
+        public void read(int doc, BytesRefBuilder builder) throws IOException {
+            if (false == docValues.docValues().advanceExact(doc)) {
+                builder.appendNull();
+                return;
+            }
+            reader.readMin(docValues.docValues().binaryValue(), builder);
+        }
+
+        @Override
+        public String toString() {
+            return "MinFromColumnarPayload";
+        }
     }
 
     private static class MinFromBinarySeparateCount extends AbstractBytesRefsFromBinaryReader {

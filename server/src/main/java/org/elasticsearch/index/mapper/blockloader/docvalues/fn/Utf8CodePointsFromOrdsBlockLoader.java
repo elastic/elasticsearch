@@ -91,6 +91,11 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             }
             return new SortedSet(warnings, dv.set());
         }
+        if (arrayOrderSource == ArrayOrderSource.PAYLOAD) {
+            // The count travels in the blob, so there is no companion column to load or advance on.
+            TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);
+            return binary == null ? ConstantNull.COLUMN_READER : new MultiValuedBinaryColumnarPayload(warnings, binary);
+        }
         BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, false);
         if (bc == null) {
             return ConstantNull.COLUMN_READER;
@@ -566,6 +571,22 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
         @Override
         public String toString() {
             return "Utf8CodePointsFromOrds.MultiValuedBinaryWithSeparateCounts";
+        }
+    }
+
+    private static class MultiValuedBinaryColumnarPayload extends MultiValuedBinaryColumnarPayloadLengthReader {
+        MultiValuedBinaryColumnarPayload(Warnings warnings, TrackingBinaryDocValues values) {
+            super(warnings, values);
+        }
+
+        @Override
+        int length(BytesRef bytesRef) {
+            return codePointCountProvider.applyAsInt(bytesRef);
+        }
+
+        @Override
+        public String toString() {
+            return "Utf8CodePointsFromOrds.MultiValuedBinaryColumnarPayload";
         }
     }
 

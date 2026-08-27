@@ -18,6 +18,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader.ArrayOrderSource;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueArrayOrderInlineNullBinaryDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueColumnarPayloadBinaryDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.BinaryAndCounts;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
@@ -42,6 +43,11 @@ public class MvMaxBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.Do
 
     @Override
     public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        if (arrayOrderSource == ArrayOrderSource.PAYLOAD) {
+            // The count travels in the blob, so there is no companion column to load or advance on.
+            TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);
+            return binary == null ? ConstantNull.COLUMN_READER : new MvMaxBytesRefsFromColumnarPayload(binary);
+        }
         BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, true);
         if (bc == null) {
             return ConstantNull.COLUMN_READER;
@@ -58,6 +64,29 @@ public class MvMaxBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.Do
     @Override
     public Builder builder(BlockFactory factory, int expectedCount) {
         return factory.bytesRefs(expectedCount);
+    }
+
+    /** Reader for the columnar codec's payload, which carries its own slot count and needs no companion column. */
+    private static class MvMaxBytesRefsFromColumnarPayload extends AbstractBytesRefsFromBinaryReader {
+        private final MultiValueColumnarPayloadBinaryDocValuesReader reader = new MultiValueColumnarPayloadBinaryDocValuesReader();
+
+        MvMaxBytesRefsFromColumnarPayload(TrackingBinaryDocValues values) {
+            super(values);
+        }
+
+        @Override
+        public void read(int doc, BytesRefBuilder builder) throws IOException {
+            if (false == docValues.docValues().advanceExact(doc)) {
+                builder.appendNull();
+                return;
+            }
+            reader.readMax(docValues.docValues().binaryValue(), builder);
+        }
+
+        @Override
+        public String toString() {
+            return "MvMaxBytesRefsFromColumnarPayload";
+        }
     }
 
     private static class MvMaxBytesRefsFromBinarySeparateCount extends AbstractBytesRefsFromBinaryReader {

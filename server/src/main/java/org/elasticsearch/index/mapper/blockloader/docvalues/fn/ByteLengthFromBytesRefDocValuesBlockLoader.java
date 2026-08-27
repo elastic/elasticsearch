@@ -48,6 +48,11 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
 
     @Override
     public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        if (arrayOrderSource == ArrayOrderSource.PAYLOAD) {
+            // The count travels in the blob, so there is no companion column to load or advance on.
+            TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);
+            return binary == null ? ConstantNull.COLUMN_READER : new MultiValuedBinaryColumnarPayload(warnings, binary);
+        }
         BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, true);
         if (bc == null) {
             return ConstantNull.COLUMN_READER;
@@ -125,6 +130,23 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
         @Override
         public String toString() {
             return "ByteLengthFromBytesRef.MultiValuedBinaryWithSeparateCounts";
+        }
+    }
+
+    private static final class MultiValuedBinaryColumnarPayload extends MultiValuedBinaryColumnarPayloadLengthReader {
+
+        MultiValuedBinaryColumnarPayload(Warnings warnings, TrackingBinaryDocValues values) {
+            super(warnings, values);
+        }
+
+        @Override
+        int length(BytesRef bytesRef) {
+            return bytesRef.length;
+        }
+
+        @Override
+        public String toString() {
+            return "ByteLengthFromBytesRef.MultiValuedBinaryColumnarPayload";
         }
     }
 

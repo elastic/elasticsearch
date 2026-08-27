@@ -62,7 +62,7 @@ public final class StringColumnReader {
             return;
         }
         this.values = meta.values().open(data);
-        this.valueAddresses = meta.multiValued()
+        this.valueAddresses = meta.hasValueAddresses()
             ? MonotonicReader.open(
                 data,
                 meta.valueAddressesMeta(),
@@ -84,16 +84,11 @@ public final class StringColumnReader {
     }
 
     /**
-     * Whether any document holds more than one slot. A single-valued column maps a rank straight to a value
-     * address.
+     * Whether a document's value address has to be looked up rather than being its rank. False only when the
+     * column holds exactly one slot per document.
      */
-    public boolean multiValued() {
+    public boolean hasValueAddresses() {
         return valueAddresses != null;
-    }
-
-    /** Which of the mapper's framings this column re-encodes into at the {@code BinaryDocValues} surface. */
-    public StringBinaryPayload.Framing framing() {
-        return meta.framing();
     }
 
     /** The value address of a document's first slot, given its rank. */

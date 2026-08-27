@@ -20,80 +20,66 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * What the mapper hands the ColumNAR codec for a keyword field: a payload carrying its own slot count, so the
- * codec can split a document's values apart at flush, alongside the unchanged {@code .counts} companion every
- * reader still consults.
+ * What the mapper hands the ColumNAR codec for a keyword field: one payload per present document, carrying its own slot count with nulls
+ * inline, and no companion count field for any shape.
  */
 public class ColumnarBinaryDocValuesFieldTests extends ESTestCase {
 
     private static final String FIELD = "kw";
     private static final String COUNTS = FIELD + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 
-    public void testArrayOrderValuesTravelWithTheirCount() {
+    public void testValuesTravelWithTheirCount() {
         final LuceneDocument doc = new LuceneDocument();
         final List<BytesRef> values = new ArrayList<>();
         for (int i = 0; i < between(2, 20); i++) {
             values.add(new BytesRef(randomAlphaOfLengthBetween(0, 30)));
         }
         for (BytesRef value : values) {
-            ColumnarBinaryDocValuesField.recordValue(
-                doc,
-                FIELD,
-                value,
-                StringBinaryPayload.Framing.ARRAY_ORDER,
-                MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED
-            );
+            ColumnarBinaryDocValuesField.recordValue(doc, FIELD, value, MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED);
         }
         assertSlots(doc, values);
-        assertEquals("counts", (long) values.size(), counts(doc));
+        assertNoCounts(doc);
     }
 
-    /** A null slot keeps its position and is counted, which is what array-order reconstruction needs. */
-    public void testNullSlotsKeepTheirPositionAndCount() {
+    /** A null slot keeps its position, which is what array-order reconstruction needs. */
+    public void testNullSlotsKeepTheirPosition() {
         final LuceneDocument doc = new LuceneDocument();
         final List<BytesRef> slots = new ArrayList<>();
         for (int i = 0; i < between(2, 20); i++) {
             final BytesRef slot = randomBoolean() ? null : new BytesRef(randomAlphaOfLengthBetween(0, 30));
             slots.add(slot);
             if (slot == null) {
-                ColumnarBinaryDocValuesField.recordNull(doc, FIELD, StringBinaryPayload.Framing.ARRAY_ORDER);
+                ColumnarBinaryDocValuesField.recordNull(doc, FIELD);
             } else {
-                ColumnarBinaryDocValuesField.recordValue(
-                    doc,
-                    FIELD,
-                    slot,
-                    StringBinaryPayload.Framing.ARRAY_ORDER,
-                    MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED
-                );
+                ColumnarBinaryDocValuesField.recordValue(doc, FIELD, slot, MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED);
             }
         }
-        assertEquals("counts include nulls", (long) slots.size(), counts(doc));
-        if (slots.stream().anyMatch(s -> s != null)) {
-            assertSlots(doc, slots);
-        } else {
-            assertNull("an all-null document writes no blob", doc.getField(FIELD));
-        }
+        assertSlots(doc, slots);
+        assertNoCounts(doc);
     }
 
     /**
-     * A document with no non-null value writes the {@code .counts} companion alone, so the codec never sees a
-     * document with nothing to store.
+     * A document with no non-null value still writes a payload — the count describes it — which is what keeps an all-null array
+     * distinguishable from a field that is simply absent.
      */
-    public void testAllNullDocumentWritesNoBlob() {
+    public void testAllNullDocumentStillWritesAPayload() {
         final LuceneDocument doc = new LuceneDocument();
-        final int nulls = between(1, 5);
-        for (int i = 0; i < nulls; i++) {
-            ColumnarBinaryDocValuesField.recordNull(doc, FIELD, StringBinaryPayload.Framing.ARRAY_ORDER);
+        final List<BytesRef> slots = new ArrayList<>();
+        for (int i = 0; i < between(1, 5); i++) {
+            slots.add(null);
+            ColumnarBinaryDocValuesField.recordNull(doc, FIELD);
         }
-        assertNull("no binary field", doc.getField(FIELD));
-        assertEquals("counts", (long) nulls, counts(doc));
+        assertSlots(doc, slots);
+        assertNoCounts(doc);
     }
 
-    public void testEmptyArrayWritesCountsOnly() {
+    /** An empty array is a count of zero and nothing after it. */
+    public void testEmptyArrayIsACountOfZero() {
         final LuceneDocument doc = new LuceneDocument();
-        ColumnarBinaryDocValuesField.recordEmptyArray(doc, FIELD, StringBinaryPayload.Framing.ARRAY_ORDER);
-        assertNull("no binary field", doc.getField(FIELD));
-        assertEquals("counts", 0L, counts(doc));
+        ColumnarBinaryDocValuesField.recordEmptyArray(doc, FIELD);
+        assertSlots(doc, List.of());
+        assertEquals("the empty payload", StringBinaryPayload.EMPTY, doc.getField(FIELD).binaryValue());
+        assertNoCounts(doc);
     }
 
     /** The single-value fast path must land on the same shape as the general one. */
@@ -101,67 +87,41 @@ public class ColumnarBinaryDocValuesFieldTests extends ESTestCase {
         final BytesRef value = new BytesRef(randomAlphaOfLengthBetween(1, 30));
 
         final LuceneDocument viaSingle = new LuceneDocument();
-        ColumnarBinaryDocValuesField.recordSingleValue(
-            viaSingle,
-            FIELD,
-            value,
-            StringBinaryPayload.Framing.ARRAY_ORDER,
-            MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED
-        );
+        ColumnarBinaryDocValuesField.recordSingleValue(viaSingle, FIELD, value, MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED);
 
         final LuceneDocument viaGeneral = new LuceneDocument();
-        ColumnarBinaryDocValuesField.recordValue(
-            viaGeneral,
-            FIELD,
-            value,
-            StringBinaryPayload.Framing.ARRAY_ORDER,
-            MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED
-        );
+        ColumnarBinaryDocValuesField.recordValue(viaGeneral, FIELD, value, MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED);
 
         assertEquals(viaGeneral.getField(FIELD).binaryValue(), viaSingle.getField(FIELD).binaryValue());
-        assertEquals(counts(viaGeneral), counts(viaSingle));
+    }
+
+    /** Even a lone value carries its count, so the blob is never the bare value. */
+    public void testALoneValueStillCarriesItsCount() {
+        final LuceneDocument doc = new LuceneDocument();
+        final BytesRef value = new BytesRef(randomAlphaOfLengthBetween(1, 30));
+        ColumnarBinaryDocValuesField.recordSingleValue(doc, FIELD, value, MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED);
+        assertNotEquals("not the bare value", value, doc.getField(FIELD).binaryValue());
+        assertSlots(doc, List.of(value));
     }
 
     /** Sorted-unique collection still applies; the payload just records however many survived it. */
-    public void testSeparateCountFramingDeduplicates() {
+    public void testSortedUniqueOrderingDeduplicates() {
         final LuceneDocument doc = new LuceneDocument();
         for (String value : new String[] { "b", "a", "b", "c", "a" }) {
             ColumnarBinaryDocValuesField.recordValue(
                 doc,
                 FIELD,
                 new BytesRef(value),
-                StringBinaryPayload.Framing.SEPARATE_COUNT,
                 MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
             );
         }
         assertSlots(doc, List.of(new BytesRef("a"), new BytesRef("b"), new BytesRef("c")));
-        assertEquals("counts", 3L, counts(doc));
     }
 
-    /**
-     * A field declared single-valued has nothing for a count to say, so its blob is the value itself and no
-     * companion is written — byte for byte what a plain {@code BinaryDocValuesField} would have carried.
-     */
-    public void testSingleValuedFieldWritesTheValueItself() {
-        final LuceneDocument doc = new LuceneDocument();
-        final BytesRef value = new BytesRef(randomAlphaOfLengthBetween(0, 30));
-        ColumnarBinaryDocValuesField.recordSingleValuedField(doc, FIELD, value);
-        assertEquals("the blob is the value", value, doc.getField(FIELD).binaryValue());
-        assertNull("no counts companion", doc.getField(COUNTS));
-    }
-
-    /** The codec reads its type and framing off the field's attributes, so every shape has to carry them. */
-    public void testFieldTypeCarriesTheCodecAttributes() {
-        for (StringBinaryPayload.Framing framing : StringBinaryPayload.Framing.values()) {
-            final var field = new ColumnarBinaryDocValuesField(FIELD, framing, MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED);
-            final var attributes = field.fieldType().getAttributes();
-            assertEquals(
-                "column type under " + framing,
-                ColumnarFieldType.STRING.name(),
-                attributes.get(ColumNARDocValuesFormat.TYPE_ATTRIBUTE)
-            );
-            assertEquals("framing", framing.name(), attributes.get(ColumNARDocValuesFormat.STRING_FRAMING_ATTRIBUTE));
-        }
+    /** The codec reads its column type off the field's attributes, and readers dispatch on the same one. */
+    public void testFieldTypeCarriesTheCodecAttribute() {
+        final var field = new ColumnarBinaryDocValuesField(FIELD, MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED);
+        assertEquals(ColumnarFieldType.STRING.name(), field.fieldType().getAttributes().get(ColumNARDocValuesFormat.TYPE_ATTRIBUTE));
     }
 
     /** The blob decodes back to exactly the slots that went in, in order. */
@@ -175,9 +135,7 @@ public class ColumnarBinaryDocValuesFieldTests extends ESTestCase {
         }
     }
 
-    private static long counts(LuceneDocument doc) {
-        final IndexableField counts = doc.getField(COUNTS);
-        assertNotNull("counts companion", counts);
-        return counts.numericValue().longValue();
+    private static void assertNoCounts(LuceneDocument doc) {
+        assertNull("no counts companion", doc.getField(COUNTS));
     }
 }

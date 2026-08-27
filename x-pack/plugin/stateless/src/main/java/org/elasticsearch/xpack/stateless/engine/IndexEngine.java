@@ -254,14 +254,13 @@ public class IndexEngine extends InternalEngine {
                 if (terms == null) {
                     continue; // no-op segment
                 }
-                var termsEnum = terms.iterator();
                 BytesRef min = terms.getMin();
                 if (min != null) {
-                    termsEnum.prepareSeekExact(min);
+                    terms.iterator().prepareSeekExact(min);
                 }
                 BytesRef max = terms.getMax();
                 if (max != null) {
-                    termsEnum.prepareSeekExact(max);
+                    terms.iterator().prepareSeekExact(max);
                 }
             }
             return null;

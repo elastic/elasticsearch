@@ -238,46 +238,35 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * Delta's {@code _delta_log/} is the same shape as {@code _temporary/}: a junk directory holding real files.
-     * Read by default now, and excluded once named. Kept as its own case because it is the other writer people
-     * actually hit, and because its contents are JSON rather than the dataset's format, so a narrower resource
-     * pattern often hides the problem — which is exactly why the explicit line is worth documenting.
+     * A Delta transaction log sits in a directory holding real data files, so no file-name rule can reach it. The default names the
+     * directory instead, which covers the junk without the wildcard-over-directories shape that would also
+     * swallow partition directories.
      */
-    public void testDeltaLogContentIsReadUntilNamed() throws IOException {
+    public void testDeltaLogContentIsExcludedByDefault() throws IOException {
         List<StorageEntry> listing = List.of(
             entry("s3://bucket/data/_delta_log/00000000000000000001.json", 100),
             entry("s3://bucket/data/file1.parquet", 200)
         );
 
-        FileList byDefault = GlobExpander.expandGlob("s3://bucket/data/**", new StubProvider(listing), null, HIVE_OFF);
-        assertEquals("the log entries are listed by default", 2, byDefault.fileCount());
-
-        Map<String, Object> named = new HashMap<>(HIVE_OFF);
-        named.put(ExclusionConfig.CONFIG_FILE_EXCLUSIONS, List.of("**/_*", "**/.*", "**/_delta_log/**"));
-        FileList excluded = GlobExpander.expandGlob("s3://bucket/data/**", new StubProvider(listing), null, named);
-        assertEquals("and excluded once the directory is named", 1, excluded.fileCount());
-        assertEquals("s3://bucket/data/file1.parquet", excluded.path(0).toString());
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/**", new StubProvider(listing), null, HIVE_OFF);
+        assertEquals("only the data file survives", 1, result.fileCount());
+        assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
     }
 
     /**
-     * A failed job's {@code _temporary/} holds real data files, and the default no longer excludes them: the
-     * default matches only the file name, which is what keeps it from ever touching a partition directory. Naming
-     * the directory is one line, and unlike a wildcard over directory names it cannot swallow somebody's partition.
+     * A failed job's leftovers sits in a directory holding real data files, so no file-name rule can reach it. The default names the
+     * directory instead, which covers the junk without the wildcard-over-directories shape that would also
+     * swallow partition directories.
      */
-    public void testTemporaryDirContentIsReadUntilNamed() throws IOException {
+    public void testTemporaryDirContentIsExcludedByDefault() throws IOException {
         List<StorageEntry> listing = List.of(
             entry("s3://bucket/data/_temporary/task_0/part.parquet", 100),
             entry("s3://bucket/data/file1.parquet", 200)
         );
 
-        FileList byDefault = GlobExpander.expandGlob("s3://bucket/data/**", new StubProvider(listing), null, HIVE_OFF);
-        assertEquals("the leftovers are listed by default", 2, byDefault.fileCount());
-
-        Map<String, Object> named = new HashMap<>(HIVE_OFF);
-        named.put(ExclusionConfig.CONFIG_FILE_EXCLUSIONS, List.of("**/_*", "**/.*", "**/_temporary/**"));
-        FileList excluded = GlobExpander.expandGlob("s3://bucket/data/**", new StubProvider(listing), null, named);
-        assertEquals("and excluded once the directory is named", 1, excluded.fileCount());
-        assertEquals("s3://bucket/data/file1.parquet", excluded.path(0).toString());
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/**", new StubProvider(listing), null, HIVE_OFF);
+        assertEquals("only the data file survives", 1, result.fileCount());
+        assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
     }
 
     /**

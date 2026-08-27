@@ -133,15 +133,21 @@ public class ExclusionConfigTests extends ESTestCase {
         assertTrue("a name merely containing an underscore", filter.keeps("foo_bar.parquet"));
     }
 
-    /** The cost of a leaf-only default, pinned so it is a decision rather than a surprise. */
-    public void testJunkDirectoriesAreReadUntilNamed() {
-        assertTrue("a failed job's leftovers are read by default", ExclusionConfig.DEFAULT.compile().keeps("_temporary/t/part.parquet"));
+    /**
+     * The two directory rules in the default. They hold real data files — a failed job's part-files, a Delta
+     * transaction log — so a file-name rule cannot reach them, and a wildcard over directory names would also
+     * swallow partitions. Naming them is the only shape that covers the junk without endangering data.
+     */
+    public void testTheDefaultCoversTheTwoNamedJunkDirectories() {
+        ExclusionConfig.NameFilter filter = ExclusionConfig.DEFAULT.compile();
 
-        ExclusionConfig.NameFilter named = ExclusionConfig.fromConfig(
-            Map.of(CONFIG_FILE_EXCLUSIONS, List.of("**/_*", "**/.*", "**/_temporary/**"))
-        ).compile();
-        assertFalse("and are excluded once named", named.keeps("_temporary/t/part.parquet"));
-        assertTrue("without endangering a partition directory", named.keeps("_dept=alpha/part1.csv"));
+        assertFalse("a failed job's leftovers", filter.keeps("_temporary/task_0/part.parquet"));
+        assertFalse("nested anywhere in the tree", filter.keeps("year=2024/_temporary/task_0/part.parquet"));
+        assertFalse("a delta transaction log", filter.keeps("_delta_log/00001.json"));
+
+        assertTrue("a directory that merely starts the same way", filter.keeps("_temporaryX/part.parquet"));
+        assertTrue("and no partition directory is touched", filter.keeps("_dept=alpha/part1.csv"));
+        assertTrue("including a template value", filter.keeps("_foo/part1.csv"));
     }
 
     public void testCustomEntriesReplaceRatherThanAugmentTheDefault() {

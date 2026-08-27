@@ -22,9 +22,11 @@ import java.util.List;
  * hive}. Under {@code template} the directories are bare values with no {@code =}, nothing was rescued, and a
  * partition named {@code _foo/} disappeared along with its rows.
  *
- * <p>The default now matches only the final path segment, so it cannot touch a directory at all. Two families of
- * path therefore change, and both are recorded below rather than left to be discovered: partition directories are
- * KEPT_NOW, which is the bug fix, and junk directories are also KEPT_NOW, which is the cost.
+ * <p>The default's file-name rules match only the final path segment, so they cannot touch a directory at all —
+ * which is what makes every partition directory safe under every detection mode. Junk directories that hold real
+ * data files are covered separately, by naming them: {@code _temporary} and {@code _delta_log}. Naming is the only
+ * shape that reaches a directory without also reaching a partition, and the difference between the two is why the
+ * default has both kinds of rule.
  */
 public class ExclusionDefaultDeltaTests extends ESTestCase {
 
@@ -102,9 +104,9 @@ public class ExclusionDefaultDeltaTests extends ESTestCase {
         new Case("__HIVE_DEFAULT_PARTITION__/part.csv", Delta.KEPT_NOW, "hive's bare null sentinel as a template value"),
         new Case(".2024/part.csv", Delta.KEPT_NOW, "a partition value starting with a dot"),
 
-        // -- THE COST: junk directories are read until the dataset names them
-        new Case("_temporary/task_0/part.parquet", Delta.KEPT_NOW, "a failed job's leftovers, now read until named"),
-        new Case("_delta_log/00001.json", Delta.KEPT_NOW, "delta log entries, now read until named"),
+        // -- junk directories the default still covers, by naming them rather than wildcarding directory names
+        new Case("_temporary/task_0/part.parquet", Delta.SAME, "a failed job's leftovers, named explicitly in the default"),
+        new Case("_delta_log/00001.json", Delta.SAME, "delta log entries, named explicitly in the default"),
         new Case(".hidden/data.parquet", Delta.KEPT_NOW, "a dot directory's contents, now read until named"),
         new Case("year=2024/.git/config", Delta.KEPT_NOW, "a nested dot directory's contents"),
 

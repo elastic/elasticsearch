@@ -23,9 +23,11 @@ import java.util.Set;
  * is no second dialect and no separate matching rule — an exclusion entry is the same kind of object as the
  * pattern that selected the file in the first place.
  *
- * <p>The default is {@code ["**}{@code /_*", "**}{@code /.*"]}: names beginning with {@code _} or {@code .}, which
- * is the Spark and Hive convention for markers, sidecars and job leftovers — {@code _SUCCESS}, {@code _metadata},
- * {@code .part-0.crc}.
+ * <p>The default covers two shapes. Two file-name rules, {@code **}{@code /_*} and {@code **}{@code /.*}, for the
+ * Spark and Hive convention of marking non-data with a leading {@code _} or {@code .} — {@code _SUCCESS},
+ * {@code _metadata}, {@code .part-0.crc}. And two directory rules naming {@code _temporary/} and
+ * {@code _delta_log/}, which hold real data files that are not the dataset's data: a failed job's part-files, and
+ * a Delta transaction log.
  *
  * <p><b>Why that spelling and not {@code _*}.</b> A full-match pattern of {@code **}{@code /_*} matches exactly the
  * paths whose FINAL segment starts with an underscore, because {@code *} cannot cross a separator. It therefore
@@ -33,10 +35,11 @@ import java.util.Set;
  * {@code partition_detection} mode. That is the whole of the partition-safety argument: the default is not
  * permitted anywhere a partition could be, so there is no exception to carve out and no mode to special-case.
  *
- * <p>The cost, stated plainly: junk <em>directories</em> are no longer excluded by default. A failed Spark job's
- * {@code _temporary/} holds real data files, and they will be read until the dataset names it —
- * {@code "**}{@code /_temporary/**"} — which is one line and, unlike a wildcard over directory names, cannot
- * swallow somebody's partition.
+ * <p><b>Why those two directories are named rather than matched by a wildcard.</b> A directory rule with a
+ * wildcard, {@code **}{@code /_*}{@code /**}, would catch every junk directory and also {@code _dept=alpha/} and
+ * any template partition value starting with an underscore — the same trampling the file-name rules exist to
+ * avoid. Naming a directory cannot do that: {@code **}{@code /_temporary/**} removes real data only if a partition
+ * is literally called {@code _temporary}. Coverage where it is safe, and nowhere else.
  *
  * <p>Exclusion applies to wildcard discovery only. An object named explicitly — a resource with no wildcard, a
  * member of a comma-separated resource, or an enumerable brace pattern — is always read, because naming an object
@@ -49,7 +52,7 @@ public record ExclusionConfig(List<String> fileExclusions) {
     /** The keys {@link #fromConfig} reads. */
     public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_FILE_EXCLUSIONS);
 
-    public static final List<String> DEFAULT_FILE_EXCLUSIONS = List.of("**/_*", "**/.*");
+    public static final List<String> DEFAULT_FILE_EXCLUSIONS = List.of("**/_*", "**/.*", "**/_temporary/**", "**/_delta_log/**");
 
     public static final ExclusionConfig DEFAULT = new ExclusionConfig(DEFAULT_FILE_EXCLUSIONS);
 

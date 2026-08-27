@@ -59,8 +59,6 @@ excludeList.add('aggregations/adjacency_matrix/Terms lookup')
 excludeList.add('aggregations/filter/Standard queries get cached')
 excludeList.add('aggregations/filter/Terms lookup gets cached')
 excludeList.add('aggregations/filters_bucket/cache hits')
-// This tests the stateless shards_availability JSON shape so skipping for a stateful test runner
-excludeList.add('health/50_stateless_shards_availability/*')
 
 // These tests check setting validations in the desired_node API.
 // Validation (and associated tests) are supposed to be skipped/have

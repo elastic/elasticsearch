@@ -15,5 +15,4 @@ dependencies {
     testImplementation project(':test:framework')
     internalClusterTestImplementation testArtifact(project(':x-pack:plugin:stateless'))
     internalClusterTestImplementation testArtifact(project(':x-pack:plugin:stateless'), 'internalClusterTest')
-    internalClusterTestImplementation project(':test:external-modules:test-multi-project')
 }

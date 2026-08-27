@@ -28,8 +28,6 @@ tasks.named("yamlRestTest").configure {
     'cat.templates/10_basic/No templates',
     'cat.templates/10_basic/Sort templates',
     'cat.templates/10_basic/Multiple template',
-    // This tests the stateless shards_availability JSON shape so skipping for a stateful test runner
-    'health/50_stateless_shards_availability/*',
   ]
   systemProperty 'tests.rest.blacklist', blacklist.join(',')
 }

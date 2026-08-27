@@ -50,11 +50,6 @@ tasks.register('enforceYamlTestConvention').configure {
   }
 }
 
-tasks.named("yamlRestTest").configure {
-  // This tests the stateless shards_availability JSON shape so skipping for a stateful test runner
-  systemProperty 'tests.rest.blacklist', 'health/50_stateless_shards_availability/*'
-}
-
 tasks.named("precommit").configure {
   dependsOn 'enforceYamlTestConvention'
 }

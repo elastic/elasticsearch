@@ -84,9 +84,6 @@ tasks.named("yamlRestTest").configure {
 
     // Default Repo via ClusterSettings are not currently supported in multi-project
     '^repositories/10_default_repository/*',
-
-    // This tests the stateless shards_availability JSON shape so skipping for a stateful test runner
-    '^health/50_stateless_shards_availability/*',
   ];
   if (buildParams.snapshotBuild == false) {
     blacklist += [];

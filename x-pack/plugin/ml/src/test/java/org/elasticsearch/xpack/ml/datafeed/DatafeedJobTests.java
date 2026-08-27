@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -449,6 +451,114 @@ public class DatafeedJobTests extends ESTestCase {
         assertEquals(2000L, endTimeCaptor.getAllValues().get(1).longValue());
         assertThat(flushJobRequests.getAllValues().isEmpty(), is(true));
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
+    }
+
+    public void testSkippedClustersStatsUpdatedOnExtractionFailure() throws Exception {
+        when(dataExtractor.hasNext()).thenReturn(true);
+        when(dataExtractor.next()).thenThrow(new ResourceNotFoundException("remote cluster skipped"));
+        List<LinkedClusterState> skippedStates = List.of(new LinkedClusterState("remote1", LinkedClusterState.Status.SKIPPED, null, 10));
+        when(dataExtractor.getLinkedClusterStates()).thenReturn(skippedStates);
+
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime));
+        DatafeedJob datafeedJob = createDatafeedJob(
+            1000,
+            500,
+            -1,
+            -1,
+            randomBoolean(),
+            DELAYED_DATA_CHECK_FREQ.get(Settings.EMPTY).millis(),
+            stats
+        );
+
+        expectThrows(DatafeedJob.ExtractionProblemException.class, () -> datafeedJob.runLookBack(0L, 1000L));
+        assertThat(stats.getSkippedClusters(), equalTo(1));
+    }
+
+    public void testCloudCredentialFailureShouldAuditOncePerFailureEpisode() throws Exception {
+        currentTime = 3001;
+        ElasticsearchSecurityException securityFailure = new ElasticsearchSecurityException("invalid key", RestStatus.UNAUTHORIZED);
+        IOException extractionFailure = new IOException(securityFailure);
+        when(dataExtractor.hasNext()).thenReturn(true, true);
+        doThrow(extractionFailure).doThrow(extractionFailure).when(dataExtractor).next();
+
+        DatafeedJob datafeedJob = createDatafeedJob(
+            1000,
+            500,
+            -1,
+            -1,
+            false,
+            DELAYED_DATA_CHECK_FREQ.get(Settings.EMPTY).millis(),
+            new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime)),
+            "key-abc"
+        );
+        ProblemTracker problemTracker = new ProblemTracker(auditor, jobId, datafeedJob.numberOfSearchesIn24Hours());
+        String enrichedMessage = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_CPS_KEY_RUNTIME_FAILURE, "key-abc");
+
+        DatafeedJob.ExtractionProblemException firstFailure = expectThrows(
+            DatafeedJob.ExtractionProblemException.class,
+            datafeedJob::runRealtime
+        );
+        problemTracker.reportExtractionProblem(firstFailure);
+        currentTime = 6001;
+        DatafeedJob.ExtractionProblemException secondFailure = expectThrows(
+            DatafeedJob.ExtractionProblemException.class,
+            datafeedJob::runRealtime
+        );
+        problemTracker.reportExtractionProblem(secondFailure);
+        problemTracker.finishReport();
+
+        verify(auditor, times(1)).error(
+            eq(jobId),
+            eq(Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_DATA_EXTRACTION_ERROR, enrichedMessage))
+        );
+    }
+
+    public void testCloudCredentialFailureShouldReAuditAfterSuccessfulExtraction() throws Exception {
+        currentTime = 3001;
+        ElasticsearchSecurityException securityFailure = new ElasticsearchSecurityException("invalid key", RestStatus.UNAUTHORIZED);
+        IOException extractionFailure = new IOException(securityFailure);
+        byte[] contentBytes = "content".getBytes(StandardCharsets.UTF_8);
+        InputStream inputStream = new ByteArrayInputStream(contentBytes);
+        when(dataExtractor.hasNext()).thenReturn(true, true, false, true);
+        doThrow(extractionFailure).doAnswer(
+            invocation -> new DataExtractor.Result(new SearchInterval(1000L, 2000L), Optional.of(inputStream), List.of())
+        ).doThrow(extractionFailure).when(dataExtractor).next();
+
+        DatafeedJob datafeedJob = createDatafeedJob(
+            1000,
+            500,
+            -1,
+            -1,
+            false,
+            DELAYED_DATA_CHECK_FREQ.get(Settings.EMPTY).millis(),
+            new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime)),
+            "key-abc"
+        );
+        ProblemTracker problemTracker = new ProblemTracker(auditor, jobId, datafeedJob.numberOfSearchesIn24Hours());
+        String enrichedMessage = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_CPS_KEY_RUNTIME_FAILURE, "key-abc");
+
+        DatafeedJob.ExtractionProblemException firstFailure = expectThrows(
+            DatafeedJob.ExtractionProblemException.class,
+            datafeedJob::runRealtime
+        );
+        problemTracker.reportExtractionProblem(firstFailure);
+        problemTracker.finishReport();
+        currentTime = 6001;
+        datafeedJob.runRealtime();
+        problemTracker.reportNonEmptyDataCount();
+        problemTracker.finishReport();
+        currentTime = 9001;
+        DatafeedJob.ExtractionProblemException secondFailure = expectThrows(
+            DatafeedJob.ExtractionProblemException.class,
+            datafeedJob::runRealtime
+        );
+        problemTracker.reportExtractionProblem(secondFailure);
+        problemTracker.finishReport();
+
+        verify(auditor, times(2)).error(
+            eq(jobId),
+            eq(Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_DATA_EXTRACTION_ERROR, enrichedMessage))
+        );
     }
 
     public void testPostAnalysisProblem() {

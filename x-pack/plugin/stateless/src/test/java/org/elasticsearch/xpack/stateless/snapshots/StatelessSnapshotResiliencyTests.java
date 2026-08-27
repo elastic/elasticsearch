@@ -89,6 +89,7 @@ import org.elasticsearch.snapshots.SnapshotResiliencyTestHelper.TestClusterNodes
 import org.elasticsearch.snapshots.SnapshotResiliencyTestHelper.TestClusterNodes.TransportInterceptorFactory;
 import org.elasticsearch.snapshots.SnapshotResiliencyTests;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -144,6 +145,8 @@ import org.elasticsearch.xpack.stateless.recovery.PitRelocationMetrics;
 import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHandler;
 import org.elasticsearch.xpack.stateless.recovery.RemoveRefreshClusterBlockService;
 import org.elasticsearch.xpack.stateless.recovery.StatelessIndexNodeRecoveryListener;
+import org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationSourceService;
+import org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationTargetService;
 import org.elasticsearch.xpack.stateless.recovery.StatelessSearchNodeRecoveryListener;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
@@ -234,7 +237,14 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 // Schedule a task immediately if the delay is within 10ms. A current known case for this is to schedule
                 // translog upload right away so that indexing operations, which wait for translog upload, can complete
                 // with `runAllRunnableTasks` without advancing time.
-                final var actualDelay = delay.compareTo(SHORT_TRANSLOG_FLUSH_INTERVAL) <= 0 ? TimeValue.ZERO : delay;
+                // Exception: in case wall clock time moves back, SnapshotFinalization reschedules itself to wait for the clock to advance
+                // so snapshots don't look as if they finished into the future. Collapsing that delay to zero causes an infinite spin loop.
+                final boolean isSnapshotFinalization = command.getClass()
+                    .getName()
+                    .equals(SnapshotsService.class.getName() + "$SnapshotFinalization");
+                final var actualDelay = delay.compareTo(SHORT_TRANSLOG_FLUSH_INTERVAL) <= 0 && isSnapshotFinalization == false
+                    ? TimeValue.ZERO
+                    : delay;
                 return super.schedule(command, actualDelay, executor);
             }
         }
@@ -265,7 +275,12 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
     }
 
     @Override
-    protected void setupTestCluster(int masterNodes, int dataNodes, TransportInterceptorFactory transportInterceptorFactory) {
+    protected void setupTestCluster(
+        int masterNodes,
+        int dataNodes,
+        TransportInterceptorFactory transportInterceptorFactory,
+        boolean monotonicSnapshotEndTime
+    ) {
         testClusterNodes = new StatelessNodes(
             masterNodes,
             dataNodes,
@@ -273,7 +288,15 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             deterministicTaskQueue,
             transportInterceptorFactory,
             expectedWarnings -> assertWarnings(expectedWarnings)
-        );
+        ) {
+            @Override
+            protected Settings nodeSettings(DiscoveryNode node) {
+                return Settings.builder()
+                    .put(super.nodeSettings(node))
+                    .put(SnapshotsService.SNAPSHOT_MONOTONIC_END_TIME_SETTING.getKey(), monotonicSnapshotEndTime)
+                    .build();
+            }
+        };
         startCluster();
     }
 
@@ -506,15 +529,27 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     StatelessPrimaryRelocationAction.TYPE,
                     new TransportStatelessPrimaryRelocationAction(
                         transportService(),
-                        clusterService(),
                         actionFilters,
                         indicesService,
                         new CompositeRecoverySchedulingListener(),
+                        new StatelessPrimaryRelocationSourceService(
+                            clusterService(),
+                            transportService().getThreadPool(),
+                            indicesService,
+                            testStatelessPlugin.hollowShardsService,
+                            new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
+                            mock(IndexShardCacheWarmer.class),
+                            HollowShardsMetrics.NOOP
+                        ),
+                        new StatelessPrimaryRelocationTargetService(
+                            clusterService(),
+                            transportService().getThreadPool(),
+                            indicesService,
+                            new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
+                            mock(IndexShardCacheWarmer.class),
+                            new StatelessPrimaryRelocationMetricsCollectorProvider(StatelessPrimaryRelocationMetricsCollector.NOOP)
+                        ),
                         peerRecoveryTargetService,
-                        new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
-                        mock(IndexShardCacheWarmer.class),
-                        testStatelessPlugin.hollowShardsService,
-                        HollowShardsMetrics.NOOP,
                         new StatelessPrimaryRelocationMetricsCollectorProvider(StatelessPrimaryRelocationMetricsCollector.NOOP)
                     ),
                     StatelessUnpromotableRelocationAction.TYPE,
@@ -1091,7 +1126,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         translogConfig.getBigArrays(),
                         translogConfig.getBufferSize(),
                         translogConfig.getDiskIoBufferPool(),
-                        (operation, seqNo, location) -> translogReplicator.add(translogConfig.getShardId(), operation, seqNo, location),
+                        translogReplicator.listenerFor(translogConfig.getShardId()),
                         false // translog is replicated to the object store, no need fsync that
                     );
 

@@ -2625,7 +2625,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             // Assert all commits are uploaded
             assertBusy(() -> {
                 assertThat(testHarness.commitService.getCurrentVirtualBcc(testHarness.shardId), nullValue());
-                assertThat(testHarness.commitService.hasPendingBccUploads(testHarness.shardId), is(false));
+                assertThat(testHarness.commitService.hasBccUploadInProgress(testHarness.shardId), is(false));
                 final BlobContainer blobContainer = testHarness.objectStoreService.getProjectBlobContainer(
                     testHarness.shardId,
                     primaryTerm
@@ -3055,33 +3055,111 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
-    public void testPendingUploadSizeCalculation() throws IOException {
-        var commitUploadStarted = new CountDownLatch(1);
-        var commitUploadBlocked = new CountDownLatch(1);
+    public void testOldestPendingUploadCommitCalculation() throws IOException {
+        var time = new AtomicLong(1000);
 
-        try (var testHarness = createNode((n, r) -> r.run(), (n, r) -> {
-            commitUploadStarted.countDown();
-            safeAwait(commitUploadBlocked);
-            r.run();
-        }, 2)) {
-            StatelessCommitRef commitRef = testHarness.generateIndexCommits(1).get(0);
-            testHarness.commitService.onCommitCreation(commitRef);
-            var vbcc = testHarness.commitService.getCurrentVirtualBcc(testHarness.shardId);
-            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commitRef.getGeneration());
+        var commitUploadStarted = new CyclicBarrier(2);
+        var commitUploadBlocked = new CyclicBarrier(2);
+
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                class WrappedBlobContainer extends FilterBlobContainer {
+                    WrappedBlobContainer(BlobContainer delegate) {
+                        super(delegate);
+                    }
+
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return new WrappedBlobContainer(child);
+                    }
+
+                    @Override
+                    public void writeBlobAtomic(
+                        OperationPurpose purpose,
+                        String blobName,
+                        InputStream inputStream,
+                        long blobSize,
+                        boolean failIfAlreadyExists
+                    ) throws IOException {
+                        assertTrue(blobName, StatelessCompoundCommit.startsWithBlobPrefix(blobName));
+                        safeAwait(commitUploadStarted);
+                        safeAwait(commitUploadBlocked);
+                        super.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+                    }
+                }
+
+                return new WrappedBlobContainer(innerContainer);
+            }
+
+            @Override
+            protected ThreadPool createThreadPool(Settings nodeSettings) {
+                return new TestThreadPool("test", nodeSettings, StatelessPlugin.statelessExecutorBuilders(nodeSettings, true)) {
+                    @Override
+                    public long relativeTimeInMillis() {
+                        return time.get();
+                    }
+                };
+            }
+
+            @Override
+            protected Settings nodeSettings() {
+                // Disable commit uploads unless we trigger them in the test.
+                return Settings.builder().put(super.nodeSettings()).put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 100).build();
+            }
+        }) {
+            time.set(10);
+
+            StatelessCommitRef commit1Ref = testHarness.generateIndexCommits(1).get(0);
+            testHarness.commitService.onCommitCreation(commit1Ref);
+            testHarness.commitService.getCurrentVirtualBcc(testHarness.shardId);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commit1Ref.getGeneration());
 
             safeAwait(commitUploadStarted);
 
-            var shardStats = testHarness.commitService.getShardCommitStats().findFirst().get();
-            assertEquals(vbcc.getTotalSizeInBytes(), shardStats.pendingUploadBytes());
+            // There is only one pending upload commit so it is also the oldest.
+            var shardStatsCommit1Pending = testHarness.commitService.getShardCommitStats().findFirst().get();
+            assertEquals(Long.valueOf(10), shardStatsCommit1Pending.oldestCommitUploadStartTimeRelativeMillis());
 
-            commitUploadBlocked.countDown();
-            waitUntilBCCIsUploaded(testHarness.commitService, testHarness.shardId, commitRef.getGeneration());
+            safeAwait(commitUploadBlocked);
+            waitUntilBCCIsUploaded(testHarness.commitService, testHarness.shardId, commit1Ref.getGeneration());
 
-            var shardStatsAfterUpload = testHarness.commitService.getShardCommitStats().findFirst().get();
-            assertEquals(0, shardStatsAfterUpload.pendingUploadBytes());
+            // Since there are no commits pending upload, the oldest commit is now undefined.
+            var shardStatsCommit1Uploaded = testHarness.commitService.getShardCommitStats().findFirst().get();
+            assertEquals(null, shardStatsCommit1Uploaded.oldestCommitUploadStartTimeRelativeMillis());
+
+            time.set(20);
+
+            StatelessCommitRef commit2Ref = testHarness.generateIndexCommits(1).get(0);
+            testHarness.commitService.onCommitCreation(commit2Ref);
+            testHarness.commitService.getCurrentVirtualBcc(testHarness.shardId);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commit2Ref.getGeneration());
+
+            // Same idea as above
+            safeAwait(commitUploadStarted);
+            var shardStatsCommit2Pending = testHarness.commitService.getShardCommitStats().findFirst().get();
+            assertEquals(Long.valueOf(20), shardStatsCommit2Pending.oldestCommitUploadStartTimeRelativeMillis());
+
+            // But now we'll create another commit that should become the oldest after upload of previous generation.
+            time.set(30);
+
+            StatelessCommitRef commit3Ref = testHarness.generateIndexCommits(1).get(0);
+            testHarness.commitService.onCommitCreation(commit3Ref);
+            testHarness.commitService.getCurrentVirtualBcc(testHarness.shardId);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commit3Ref.getGeneration());
+
+            safeAwait(commitUploadBlocked);
+            waitUntilBCCIsUploaded(testHarness.commitService, testHarness.shardId, commit2Ref.getGeneration());
+
+            // Commit3 should now be the oldest
+            var shardStatsCommit2Uploaded = testHarness.commitService.getShardCommitStats().findFirst().get();
+            assertEquals(Long.valueOf(30), shardStatsCommit2Uploaded.oldestCommitUploadStartTimeRelativeMillis());
+
+            // Unblock commit3 upload.
+            safeAwait(commitUploadStarted);
+            safeAwait(commitUploadBlocked);
 
             testHarness.commitService.closeShard(testHarness.shardId);
-
             var shardStatsAfterClose = testHarness.commitService.getShardCommitStats().findFirst();
             // No stats for closed shards.
             assertTrue(shardStatsAfterClose.isEmpty());

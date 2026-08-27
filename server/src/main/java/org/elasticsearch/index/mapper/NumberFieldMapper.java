@@ -2212,12 +2212,16 @@ public class NumberFieldMapper extends FieldMapper {
             String fieldName,
             String fieldSimpleName,
             boolean ignoreMalformed,
-            IndexVersion indexVersion
+            IndexVersion indexVersion,
+            boolean writesOnFailureColumn
         ) {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
             layers.add(new SortedNumericDocValuesSyntheticFieldLoaderLayer(fieldName, NumberType.this::writeValue));
             if (ignoreMalformed) {
                 layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fieldName, indexVersion));
+            }
+            if (writesOnFailureColumn) {
+                layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fieldName, indexVersion));
             }
             return new CompositeSyntheticFieldLoader(fieldSimpleName, fieldName, layers);
         }
@@ -2811,8 +2815,9 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean isSingleValueEnforced() {
-        return allowMultipleValues == false || docValuesParameters.multiValue() == false;
+    protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
+        return (allowMultipleValues == false || docValuesParameters.multiValue() == false)
+            && (token != XContentParser.Token.VALUE_NULL || nullValue != null);
     }
 
     @Override
@@ -2848,18 +2853,6 @@ public class NumberFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return fieldType.type.typeName();
-    }
-
-    @Override
-    public boolean supportsBatchIndexing() {
-        // Plain number mappers can be driven through parseCreateField by the bulk batch path.
-        // ignore_malformed is allowed — parseCreateField handles it and only needs
-        // addIgnoredField on the context. Dimensions, copy_to, multi-fields, and scripts pull
-        // in behavior that the v1 batch path does not support.
-        return hasScript() == false
-            && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false
-            && dimension == false;
     }
 
     // FieldType constants for the Lucene field variants emitted by the columnar parse path.
@@ -3136,9 +3129,18 @@ public class NumberFieldMapper extends FieldMapper {
             if (ignoreMalformed.value()) {
                 layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
             }
+            if (onFailureColumnEnabled()) {
+                layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
+            }
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         } else {
-            return type.syntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value(), indexSettings.getIndexVersionCreated());
+            return type.syntheticFieldLoader(
+                fullPath(),
+                leafName(),
+                ignoreMalformed.value(),
+                indexSettings.getIndexVersionCreated(),
+                onFailureColumnEnabled()
+            );
         }
     }
 

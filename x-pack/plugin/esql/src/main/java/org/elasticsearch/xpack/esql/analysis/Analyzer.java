@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Lambda;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -84,6 +85,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.LambdaAccepting;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
@@ -1108,6 +1110,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 childrenOutput.addAll(output);
             }
 
+            // TODO lambdas: some dedicated resolvers below (Completion, Fork, Enrich, MvExpand, Fuse,
+            // Lookup/LookupJoin) do not call resolveAllLambdas; a lambda-accepting function there
+            // would surface as "Unknown column" instead of resolving. Revisit when lambda-accepting
+            // functions become usable in those contexts.
             var resolved = switch (plan) {
                 case Aggregate a -> resolveAggregate(a, childrenOutput);
                 case Completion c -> resolveCompletion(c, childrenOutput);
@@ -1126,7 +1132,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Row row -> resolveRow(row);
                 case MMR mmr -> resolveMMR(mmr, childrenOutput);
                 case DenseVector e -> resolveDenseVector(e, childrenOutput);
-                default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+                default -> {
+                    LogicalPlan p = plan.transformExpressionsOnly(
+                        UnresolvedAttribute.class,
+                        ua -> maybeResolveAttribute(ua, childrenOutput)
+                    );
+                    yield resolveAllLambdas(p, childrenOutput);
+                }
             };
 
             return resolved;
@@ -1142,9 +1154,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             boolean changed = newGroupings != aggregate.groupings() || newAggregates != aggregate.aggregates();
             LogicalPlan maybeNewAggregate = changed ? aggregate.with(aggregate.child(), newGroupings, newAggregates) : aggregate;
 
-            return maybeNewAggregate instanceof TimeSeriesAggregate ts && ts.timestamp() instanceof UnresolvedAttribute unresolvedTimestamp
-                ? ts.withTimestamp(maybeResolveAttribute(unresolvedTimestamp, childrenOutput))
-                : maybeNewAggregate;
+            LogicalPlan afterTimestamp = maybeNewAggregate instanceof TimeSeriesAggregate ts
+                && ts.timestamp() instanceof UnresolvedAttribute unresolvedTimestamp
+                    ? ts.withTimestamp(maybeResolveAttribute(unresolvedTimestamp, childrenOutput))
+                    : maybeNewAggregate;
+            return resolveAllLambdas(afterTimestamp, childrenOutput);
         }
 
         private List<Expression> maybeResolveGroupings(Aggregate aggregate, List<Attribute> childrenOutput) {
@@ -1967,7 +1981,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 rerank = rerank.withScoreAttribute(resolved);
             }
 
-            return rerank;
+            return resolveAllLambdas(rerank, childrenOutput);
         }
 
         private List<Attribute> resolveUsingColumns(List<Attribute> cols, List<Attribute> output, String side) {
@@ -2157,6 +2171,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Alias> newFields = new ArrayList<>();
             boolean changed = false;
             for (Alias field : fields) {
+                // Pass 1: resolve upstream attribute references
                 Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> {
                     Attribute resolved = resolveAttribute(ua, allResolvedInputs);
                     // If the unresolved attribute references another EVAL field, give it another opportunity to resolve
@@ -2166,14 +2181,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                     return resolved;
                 });
+                // Pass 2: resolve lambda parameters for lambda-accepting functions
+                result = (Alias) resolveAllLambdas(result, allResolvedInputs);
 
                 changed |= result != field;
                 newFields.add(result);
 
                 if (result.resolved()) {
                     // for proper resolution, duplicate attribute names are problematic, only last occurrence matters
+                    final Alias finalResult = result;
                     Attribute existing = allResolvedInputs.stream()
-                        .filter(attr -> attr.name().equals(result.name()))
+                        .filter(attr -> attr.name().equals(finalResult.name()))
                         .findFirst()
                         .orElse(null);
                     if (existing != null) {
@@ -2183,6 +2201,180 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
             return changed ? newFields : null;
+        }
+
+        /**
+         * Applies lambda-parameter resolution to every lambda-accepting function in the plan's
+         * expression trees. Uses pre-order traversal so outer functions are resolved before
+         * inner ones, enabling correct nested-lambda scoping.
+         */
+        private LogicalPlan resolveAllLambdas(LogicalPlan plan, List<Attribute> upstream) {
+            return plan.transformExpressionsOnly(
+                org.elasticsearch.xpack.esql.core.expression.function.Function.class,
+                f -> f instanceof LambdaAccepting la ? resolveLambdas(la, f, upstream) : f
+            );
+        }
+
+        /**
+         * Expression-level variant of {@link #resolveAllLambdas(LogicalPlan, List)}, for callers
+         * that resolve individual expressions (e.g. Eval/Row fields) rather than a whole plan node.
+         */
+        private Expression resolveAllLambdas(Expression expression, List<Attribute> upstream) {
+            return expression.transformDown(
+                org.elasticsearch.xpack.esql.core.expression.function.Function.class,
+                f -> f instanceof LambdaAccepting la ? resolveLambdas(la, f, upstream) : f
+            );
+        }
+
+        /**
+         * Resolves the lambda parameters for each direct {@link Lambda} child of {@code f}.
+         * Only direct children are processed; the outer pre-order traversal handles nested functions.
+         */
+        private org.elasticsearch.xpack.esql.core.expression.function.Function resolveLambdas(
+            LambdaAccepting la,
+            org.elasticsearch.xpack.esql.core.expression.function.Function f,
+            List<Attribute> upstream
+        ) {
+            List<Expression> newChildren = new ArrayList<>(f.children().size());
+            boolean changed = false;
+            for (Expression child : f.children()) {
+                if (child instanceof Lambda lambda) {
+                    Lambda resolved = resolveLambda(la, lambda, upstream);
+                    newChildren.add(resolved);
+                    changed = changed || resolved != lambda;
+                } else {
+                    newChildren.add(child);
+                }
+            }
+            return changed ? (org.elasticsearch.xpack.esql.core.expression.function.Function) f.replaceChildren(newChildren) : f;
+        }
+
+        /**
+         * Resolves the parameters of a single lambda and substitutes them into the lambda body.
+         * If {@link LambdaAccepting#resolveLambdaParams} returns empty (non-lambda args not yet
+         * resolved), the lambda is returned unchanged and the Analyzer will retry.
+         * Once all parameters are already resolved, the lambda is returned as-is to avoid
+         * creating new attribute instances with different ids on every iteration.
+         */
+        private Lambda resolveLambda(LambdaAccepting la, Lambda lambda, List<Attribute> upstream) {
+            // A lambda is already resolved by us only if all params are ReferenceAttributes whose ids
+            // do NOT come from upstream. Pass 1 of resolveFields can mis-bind a param declaration slot
+            // to an upstream attribute of the same name (e.g. an EVAL alias, which is itself a
+            // ReferenceAttribute); such a binding must be overwritten, not treated as resolved.
+            if (lambda.parameters().isEmpty() == false && lambda.parameters().stream().allMatch(p -> p instanceof ReferenceAttribute)) {
+                Set<NameId> upstreamIds = new HashSet<>(upstream.size());
+                for (Attribute a : upstream) {
+                    upstreamIds.add(a.id());
+                }
+                if (lambda.parameters().stream().noneMatch(p -> upstreamIds.contains(p.id()))) {
+                    return lambda;
+                }
+            }
+            List<Attribute> typedParams = la.resolveLambdaParams(lambda, upstream);
+            if (typedParams.isEmpty()) {
+                return lambda;
+            }
+            if (typedParams.size() != lambda.parameters().size()) {
+                throw new IllegalStateException(
+                    "resolveLambdaParams for ["
+                        + la.getClass().getSimpleName()
+                        + "] returned "
+                        + typedParams.size()
+                        + " params for a lambda with "
+                        + lambda.parameters().size()
+                );
+            }
+            // Params shadow upstream columns of the same name: exclude the shadowed upstream entries
+            // so name lookups in the scope are unambiguous.
+            Set<String> paramNames = new HashSet<>(typedParams.size());
+            for (Attribute p : typedParams) {
+                paramNames.add(p.name());
+            }
+            List<Attribute> scope = new ArrayList<>(upstream.size() + typedParams.size());
+            scope.addAll(typedParams);
+            for (Attribute a : upstream) {
+                if (paramNames.contains(a.name()) == false) {
+                    scope.add(a);
+                }
+            }
+            Expression newBody = substituteInBody(lambda.body(), typedParams, scope);
+            // Always rebuild the lambda with typed params — even if the body didn't change,
+            // the params themselves need to be replaced with ReferenceAttributes (e.g. when
+            // the lambda param is never referenced inside the body).
+            List<Expression> newChildren = new ArrayList<>(typedParams.size() + 1);
+            newChildren.addAll(typedParams);
+            newChildren.add(newBody);
+            return lambda.replaceChildren(newChildren);
+        }
+
+        /**
+         * Recursively substitutes typed lambda parameters into an expression tree. When an inner
+         * {@link Lambda} is encountered, parameters that the inner lambda re-declares are excluded
+         * from outer substitution, preserving lexical scoping.
+         */
+        private Expression substituteInBody(Expression expr, List<Attribute> outerParams, List<Attribute> scope) {
+            if (expr instanceof Lambda innerLambda) {
+                // Names declared by the inner lambda shadow outer params — exclude them.
+                Set<String> innerParamNames = new HashSet<>();
+                for (Attribute p : innerLambda.parameters()) {
+                    innerParamNames.add(p.name());
+                }
+                List<Attribute> filteredParams = new ArrayList<>(outerParams.size());
+                for (Attribute p : outerParams) {
+                    if (innerParamNames.contains(p.name()) == false) {
+                        filteredParams.add(p);
+                    }
+                }
+                List<Attribute> filteredScope = new ArrayList<>(scope.size());
+                for (Attribute a : scope) {
+                    if (innerParamNames.contains(a.name()) == false) {
+                        filteredScope.add(a);
+                    }
+                }
+                Expression newBody = substituteInBody(innerLambda.body(), filteredParams, filteredScope);
+                if (newBody == innerLambda.body()) {
+                    return innerLambda;
+                }
+                List<Expression> newChildren = new ArrayList<>(innerLambda.parameters().size() + 1);
+                newChildren.addAll(innerLambda.parameters());
+                newChildren.add(newBody);
+                return innerLambda.replaceChildren(newChildren);
+            }
+            if (expr instanceof UnresolvedAttribute ua) {
+                // Only resolve if the name is actually present in scope. Calling resolveAttribute
+                // when the name is absent stamps a "customMessage" error onto the UA, which then
+                // permanently blocks resolution in subsequent passes (potentialCandidatesIfNoMatchesFound
+                // short-circuits on customMessage()). Inner lambda params that are not yet bound
+                // will be resolved in a later resolveLambda pass; leave them alone here.
+                for (Attribute a : scope) {
+                    if (a.name().equals(ua.name())) {
+                        return resolveAttribute(ua, scope);
+                    }
+                }
+                return ua;
+            }
+            if (expr instanceof Attribute a) {
+                // Overwrite a wrong pass-1 resolution when the name matches an outer lambda param.
+                for (Attribute p : outerParams) {
+                    if (p.name().equals(a.name())) {
+                        return p;
+                    }
+                }
+                return a;
+            }
+            // Recurse into children of any other expression type.
+            List<Expression> children = expr.children();
+            if (children.isEmpty()) {
+                return expr;
+            }
+            List<Expression> newChildren = new ArrayList<>(children.size());
+            boolean changed = false;
+            for (Expression child : children) {
+                Expression newChild = substituteInBody(child, outerParams, scope);
+                newChildren.add(newChild);
+                changed = changed || newChild != child;
+            }
+            return changed ? expr.replaceChildren(newChildren) : expr;
         }
 
         /**
@@ -2516,7 +2708,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Expression queryVector = resolved.queryVector();
 
             if (queryVector != null && (queryVector.dataType().isNumeric() || queryVector.dataType() == KEYWORD)) {
-                return new MMR(
+                resolved = new MMR(
                     resolved.source(),
                     resolved.child(),
                     resolved.diversifyField(),
@@ -2526,7 +2718,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
             }
 
-            return resolved;
+            return resolveAllLambdas(resolved, childrenOutput);
         }
 
         private static final List<DataType> GEO_TYPES = List.of(GEO_POINT, GEO_SHAPE);

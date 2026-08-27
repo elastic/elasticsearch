@@ -334,6 +334,10 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.AbsErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.AbsSerializationTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.AbsTests is missing")
+                // TODO: AnyMatch is a snapshot-only stub; full tests come with the evaluator implementation
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AnyMatchErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AnyMatchSerializationTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AnyMatchTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersectionErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.nulls.CoalesceErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.string.ContainsErrorTests is missing")

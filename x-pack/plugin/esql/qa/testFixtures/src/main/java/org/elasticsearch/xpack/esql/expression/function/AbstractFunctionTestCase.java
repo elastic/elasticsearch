@@ -316,6 +316,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 // By definition, functions never support UNSUPPORTED
                 return false;
             }
+            if (t == DataType.LAMBDA) {
+                // Lambda is a special type for lambda expressions, not a value type
+                return false;
+            }
             if (t == DataType.DOC_DATA_TYPE) {
                 /*
                  * Doc is special and functions aren't

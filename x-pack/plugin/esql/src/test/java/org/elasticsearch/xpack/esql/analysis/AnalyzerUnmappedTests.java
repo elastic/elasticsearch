@@ -1159,7 +1159,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             DataType.OBJECT,            // not a leaf field type
             DataType.GEOHASH,           // ESQL-internal grid type, not a real ES mapped field type
             DataType.GEOTILE,           // ESQL-internal grid type, not a real ES mapped field type
-            DataType.GEOHEX             // ESQL-internal grid type, not a real ES mapped field type
+            DataType.GEOHEX,            // ESQL-internal grid type, not a real ES mapped field type
+            DataType.LAMBDA             // ESQL-internal, not an ES mapping type
         );
 
         Set<DataType> noConverterTypes = new HashSet<>();

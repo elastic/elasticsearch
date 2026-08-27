@@ -99,12 +99,12 @@ public class FallbackSyntheticSourceBlockLoaderTests extends MapperServiceTestCa
         BlockLoader loader
     ) throws IOException {
         var sourceLoader = mapperService.mappingLookup()
-            .newSourceLoader(new SourceFilter(new String[] { "field" }, null), SourceFieldMetrics.NOOP, null);
+            .newSourceLoader(new SourceFilter(new String[] { "field" }, null), SourceFieldMetrics.NOOP);
         StoredFieldsSpec spec = loader.rowStrideStoredFieldSpec()
             .merge(new StoredFieldsSpec(false, false, sourceLoader.requiredStoredFields()));
         return new BlockLoaderStoredFieldsFromLeafLoader(
             StoredFieldLoader.fromSpec(spec).getLoader(ctx, null),
-            sourceLoader.leaf(ctx, null)
+            sourceLoader.leaf(ctx.reader(), null)
         );
     }
 

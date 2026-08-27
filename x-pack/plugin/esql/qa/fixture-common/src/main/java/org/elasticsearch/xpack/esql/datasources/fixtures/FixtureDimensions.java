@@ -786,9 +786,15 @@ public final class FixtureDimensions {
                 continue;
             }
             for (Map<String, String> assignment : crossProduct(new ArrayList<>(group), formats)) {
+                // The baseline has to be filled with THIS format's defaults, not the global ones. A
+                // reader default can be per-extension -- .tsv reads plain where .csv reads quoted -- so a
+                // globally-filled baseline hands every tsv vector an off-default text_mode it never asked
+                // for. That stays invisible while the selection predicate makes the same mistake, and the
+                // two cancel; it surfaces as a silent drop the moment either side is corrected alone.
+                String format = assignment.get("format");
                 Map<String, String> vector = new LinkedHashMap<>();
                 for (String d : names) {
-                    vector.put(d, defaultValue(d));
+                    vector.put(d, defaultValue(d, format));
                 }
                 vector.putAll(assignment);
                 if (seen.add(Map.copyOf(vector))) {

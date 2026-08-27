@@ -398,13 +398,32 @@ public class FixtureDimensionsTests extends ESTestCase {
         assertThat("a pragma slot contributes no WITH settings", d.directiveSettings(varied), equalTo(Map.of()));
     }
 
-    /** The counts the four live vector suites are built on. A silent move here changes what CI runs. */
-    public void testDirectiveExpressibleCountsAreUnchanged() {
+    /**
+     * The counts the live vector suites are built on. A silent move here changes what CI runs.
+     *
+     * <p>tsv is 9 rather than 18 because the baseline is filled with the format's OWN default. The
+     * reader reads .tsv as plain, so a vector carrying quoted is off-default there and needs a
+     * quoted-tsv fixture that nothing writes. While the baseline was filled globally those nine vectors
+     * were selected anyway and ran with no mode injected -- asserting quoted while the reader used
+     * plain. They were not testing what their name said.
+     */
+    public void testDirectiveExpressibleCountsPerFormat() {
         FixtureDimensions d = FixtureDimensions.get();
         assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(24));
-        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(18));
+        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(9));
         assertThat(d.directiveExpressibleVectors("ndjson").size(), equalTo(18));
         assertThat(d.directiveExpressibleVectors("parquet").size(), equalTo(9));
+    }
+
+    /**
+     * The universe is a property of the contract, not of any format's defaults. Correcting the baseline
+     * fill must not add or drop a single vector -- if it does, the per-format default has leaked into
+     * the derivation rather than only into what is selectable from it.
+     */
+    public void testTheVectorUniverseIsUnchangedByPerFormatDefaults() {
+        int[] seen = { 0 };
+        FixtureDimensions.get().forEachVector(v -> seen[0]++);
+        assertThat(seen[0], equalTo(11685));
     }
 
     /** The reader default is per-extension: a .tsv is read plain where a .csv is read quoted. */

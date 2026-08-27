@@ -70,7 +70,7 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
     @Override
     protected BinaryDocValues getSortKeyDocValues(LeafReader reader) throws IOException {
         BinaryDocValues values = DocValues.getBinary(reader, getField());
-        if (ColumnarBinaryDocValuesField.isColumnarPayload(reader, getField())) {
+        if (ColumnarBinaryDocValuesField.isColumnarStringPayload(reader, getField())) {
             // The payload carries its own count, so there is nothing to advance alongside it.
             return new ColumnarPayloadMinMaxBinaryDocValues(values, maxMode);
         }

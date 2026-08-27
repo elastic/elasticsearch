@@ -99,7 +99,7 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
         if (values == null) {
             return null;
         }
-        if (ColumnarBinaryDocValuesField.isColumnarPayload(context.reader(), fieldName)) {
+        if (ColumnarBinaryDocValuesField.isColumnarStringPayload(context.reader(), fieldName)) {
             // The payload carries its own count, so the binary column drives iteration on its own.
             return columnarPayloadIterator(values, matcher, matchCost);
         }

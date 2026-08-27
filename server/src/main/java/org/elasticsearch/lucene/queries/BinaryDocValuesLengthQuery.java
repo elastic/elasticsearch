@@ -81,7 +81,7 @@ final class BinaryDocValuesLengthQuery extends Query {
                         }
 
                         Predicate<BytesRef> payloadPredicate = bytes -> bytes.length == length;
-                        if (ColumnarBinaryDocValuesField.isColumnarPayload(context.reader(), fieldName)) {
+                        if (ColumnarBinaryDocValuesField.isColumnarStringPayload(context.reader(), fieldName)) {
                             // The payload carries its own count; its blob is never a bare value, so no fast path applies.
                             return AbstractBinaryDocValuesQuery.columnarPayloadIterator(values, payloadPredicate, matchCost);
                         }

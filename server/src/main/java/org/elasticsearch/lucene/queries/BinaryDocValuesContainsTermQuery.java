@@ -88,7 +88,7 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
                         // on tryContainsIterator). ConstantScoreScorerSupplier unwraps the TwoPhase so Lucene's
                         // BulkScorer drives approximation.advance(min) + matches() within [min, max), giving
                         // linear scaling under sub-segment slicing (DataPartitioning.DOC).
-                        if (ColumnarBinaryDocValuesField.isColumnarPayload(context.reader(), fieldName)) {
+                        if (ColumnarBinaryDocValuesField.isColumnarStringPayload(context.reader(), fieldName)) {
                             // The payload carries its own count, and its framing means the blob can never be scanned whole.
                             return AbstractBinaryDocValuesQuery.columnarPayloadIterator(
                                 values,

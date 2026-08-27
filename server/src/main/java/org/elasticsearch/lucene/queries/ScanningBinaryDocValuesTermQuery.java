@@ -60,7 +60,7 @@ public class ScanningBinaryDocValuesTermQuery extends AbstractBinaryDocValuesQue
             return null;
         }
         // A payload blob is never a bare term, so the direct comparison below can never apply to one.
-        final boolean columnarPayload = ColumnarBinaryDocValuesField.isColumnarPayload(context.reader(), fieldName);
+        final boolean columnarPayload = ColumnarBinaryDocValuesField.isColumnarStringPayload(context.reader(), fieldName);
         String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
         DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
         // tryTermEqualIterator is only valid for single-valued fields (see its javadoc on

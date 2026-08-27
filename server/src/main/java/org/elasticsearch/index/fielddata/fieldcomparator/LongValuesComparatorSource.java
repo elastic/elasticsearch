@@ -319,7 +319,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         if (bdv.advanceExact(doc) == false) {
             return null;
         }
-        if (ColumnarBinaryDocValuesField.isColumnarPayload(reader, "host.name")) {
+        if (ColumnarBinaryDocValuesField.isColumnarStringPayload(reader, "host.name")) {
             // The payload carries its own count, so there is no companion field to consult.
             return MultiValuedBinaryDocValuesSortField.decodeColumnarPayloadExtreme(bdv.binaryValue(), maxMode);
         }

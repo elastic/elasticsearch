@@ -62,13 +62,19 @@ public class ColumnarBinaryDocValuesField extends MultiValuedBinaryDocValuesFiel
     }
 
     /**
-     * Whether {@code fieldName}'s binary doc values in this segment are payloads. Read off the field's own
-     * attributes rather than passed down from the mapping, so a reader decodes what the segment actually
-     * holds — which is also what keeps a reader honest across segments written under different settings.
+     * Whether {@code fieldName}'s binary doc values in this segment are payloads of this format. Read off the
+     * field's own attributes rather than passed down from the mapping, so a reader decodes what the segment
+     * actually holds — which is also what keeps a reader honest across segments written under different
+     * settings.
+     *
+     * <p>The column type is checked, not merely the presence of the attribute: the codec also stores
+     * {@link ColumnarFieldType#LONG} and {@link ColumnarFieldType#DOUBLE} columns, whose blobs are a numeric
+     * payload with no slot count in front of them. Reading one of those as a string payload would decode
+     * something rather than fail.
      */
-    public static boolean isColumnarPayload(LeafReader leafReader, String fieldName) {
+    public static boolean isColumnarStringPayload(LeafReader leafReader, String fieldName) {
         final FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(fieldName);
-        return fieldInfo != null && fieldInfo.getAttribute(ColumNARDocValuesFormat.TYPE_ATTRIBUTE) != null;
+        return fieldInfo != null && ColumnarFieldType.STRING.name().equals(fieldInfo.getAttribute(ColumNARDocValuesFormat.TYPE_ATTRIBUTE));
     }
 
     public ColumnarBinaryDocValuesField(String name, ValueOrdering ordering) {

@@ -71,7 +71,7 @@ public class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
         try {
             // Need to return a new instance each time this gets invoked,
             // otherwise a positioned or exhausted instance can be returned:
-            if (ColumnarBinaryDocValuesField.isColumnarPayload(leafReader, fieldName)) {
+            if (ColumnarBinaryDocValuesField.isColumnarStringPayload(leafReader, fieldName)) {
                 // The ColumNAR codec's fields carry their slot count in the blob and write no companion field.
                 return ColumnarPayloadSortedBinaryDocValues.from(leafReader, fieldName);
             }

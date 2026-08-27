@@ -50,6 +50,7 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
             timeValueMillis(ShutdownPrepareService.AWAIT_TASKS_POLL_INTERVAL.millis() * 3),
             mock(),
             actionName,
+            false,
             taskManager,
             null,
             null
@@ -84,6 +85,7 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
             timeValueMillis(ShutdownPrepareService.AWAIT_TASKS_POLL_INTERVAL.millis() * 3),
             mock(),
             actionName,
+            false,
             taskManager,
             null,
             null
@@ -141,6 +143,7 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
             timeValueMillis(ShutdownPrepareService.AWAIT_TASKS_POLL_INTERVAL.millis() * 3),
             mock(),
             actionName,
+            false,
             taskManager,
             notified::add,
             null

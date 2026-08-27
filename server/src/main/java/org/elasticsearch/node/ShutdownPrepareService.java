@@ -199,18 +199,24 @@ public class ShutdownPrepareService {
         @Nullable Consumer<Task> taskNotifier,
         @Nullable Consumer<List<Task>> onTimeout
     ) {
-        return awaitTasksCompleteInternal(timeout, sleeper, taskName, taskManager, taskNotifier, onTimeout);
+        return awaitTasksCompleteInternal(timeout, sleeper, taskName, false, taskManager, taskNotifier, onTimeout);
+    }
+
+    protected boolean awaitTasksCancellation(TimeValue timeout, Sleeper sleeper, String taskName, TaskManager taskManager) {
+        return awaitTasksCompleteInternal(timeout, sleeper, taskName, true, taskManager, null, null);
     }
 
     /// Repeatedly polls the `taskManager` to list tasks whose action name is `taskName`, invoking `sleeper` to sleep for
     /// [#AWAIT_TASKS_POLL_INTERVAL] between each poll, until either no matching tasks are returned or the total time waited reaches
     /// `timeout`. Invokes `taskNotifier` exactly once for each matching task encountered. Returns true if it found no matching tasks, false
-    /// if it timed out or was interrupted.
+    /// if it timed out or was interrupted. Set `isWaitForCancel` if we've cancelled the task, and we're waiting for it to actually complete
+    /// (this will be reflected in the logging).
     // package-private for testing
     static boolean awaitTasksCompleteInternal(
         TimeValue timeout,
         Sleeper sleeper,
         String taskName,
+        boolean isWaitForCancel,
         TaskManager taskManager,
         @Nullable Consumer<Task> taskNotifier,
         @Nullable Consumer<List<Task>> onTimeout
@@ -235,23 +241,36 @@ public class ShutdownPrepareService {
                 // literally just want to wait and not take up resources on this thread for now.
                 millisWaited += AWAIT_TASKS_POLL_INTERVAL.millis();
                 if (TimeValue.ZERO.equals(timeout) == false && millisWaited >= timeout.millis()) {
-                    logger.warn("timed out after waiting [{}] for [{}] {} tasks to finish", timeout, tasksRemaining.size(), taskName);
+                    logger.warn(
+                        "timed out after waiting [{}] for [{}] {} tasks to {}",
+                        timeout,
+                        tasksRemaining.size(),
+                        taskName,
+                        isWaitForCancel ? "finish" : "cancel"
+                    );
                     if (onTimeout != null) {
                         onTimeout.accept(tasksRemaining);
                     }
                     return false;
                 }
                 logger.debug(
-                    "waiting for [{}] {} tasks to finish, next poll in [{}]",
+                    "waiting for [{}] {} tasks to {}, next poll in [{}]",
                     tasksRemaining.size(),
                     taskName,
+                    isWaitForCancel ? "finish" : "cancel",
                     AWAIT_TASKS_POLL_INTERVAL
                 );
                 try {
                     sleeper.sleep(AWAIT_TASKS_POLL_INTERVAL);
                 } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
-                    logger.warn("interrupted while waiting [{}] for [{}] {} tasks to finish", timeout, tasksRemaining.size(), taskName);
+                    logger.warn(
+                        "interrupted while waiting [{}] for [{}] {} tasks to {}",
+                        timeout,
+                        tasksRemaining.size(),
+                        taskName,
+                        isWaitForCancel ? "finish" : "cancel"
+                    );
                     return false;
                 }
             }
@@ -295,7 +314,7 @@ public class ShutdownPrepareService {
                         assert false : "Expected reindex tasks to be cancellable";
                     }
                 });
-                awaitTasksComplete(REINDEXING_CANCELLATION_TIMEOUT, sleeper, ReindexAction.NAME, taskManager, null, null);
+                awaitTasksCancellation(REINDEXING_CANCELLATION_TIMEOUT, sleeper, ReindexAction.NAME, taskManager);
             }
         );
     }

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import com.github.luben.zstd.ZstdOutputStream;
+
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
@@ -384,6 +386,14 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
     /** Writes {@code content} to {@code target} as a bzip2-compressed file. */
     protected static Path writeBzip2(Path target, String content) throws IOException {
         try (OutputStream out = new BZip2CompressorOutputStream(Files.newOutputStream(target))) {
+            out.write(content.getBytes(StandardCharsets.UTF_8));
+        }
+        return target;
+    }
+
+    /** Writes {@code content} to {@code target} as a zstd-compressed file. */
+    protected static Path writeZstd(Path target, String content) throws IOException {
+        try (OutputStream out = new ZstdOutputStream(Files.newOutputStream(target))) {
             out.write(content.getBytes(StandardCharsets.UTF_8));
         }
         return target;

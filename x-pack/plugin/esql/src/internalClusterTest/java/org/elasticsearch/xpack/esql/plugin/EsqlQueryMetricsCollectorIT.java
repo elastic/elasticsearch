@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -19,9 +20,11 @@ import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDataSourcePlugin;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -79,6 +82,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
             NdJsonDataSourcePlugin.class,
             GzipDataSourcePlugin.class,
             Bzip2DataSourcePlugin.class,
+            ZstdDataSourcePlugin.class,
             ParquetDataSourcePlugin.class
         );
     }
@@ -93,11 +97,8 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
 
     public void testMetricsCollectorCsv() throws Exception {
         Path dir = createTempDir();
-        StringBuilder csv = new StringBuilder("emp_no:integer,name:keyword\n");
-        for (int i = 0; i < 5; i++) {
-            csv.append(i).append(",name_").append(i).append('\n');
-        }
-        Files.writeString(dir.resolve("data.csv"), csv.toString());
+        String csv = createCsv(5);
+        Files.writeString(dir.resolve("data.csv"), csv);
 
         String datasetName = registerDataset("metrics_test_ds", dir.resolve("data.csv").toUri().toString(), Map.of("format", "csv"));
 
@@ -115,11 +116,8 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
     /** NdJson plain file — exercises the single-pass NdJson reader path. */
     public void testMetricsCollectorNdJson() throws Exception {
         Path dir = createTempDir();
-        StringBuilder ndjson = new StringBuilder();
-        for (int i = 0; i < 5; i++) {
-            ndjson.append("{\"emp_no\":").append(i).append(",\"name\":\"name_").append(i).append("\"}\n");
-        }
-        Files.writeString(dir.resolve("data.ndjson"), ndjson.toString());
+        String ndjson = createNdjson(5);
+        Files.writeString(dir.resolve("data.ndjson"), ndjson);
 
         registerDataset("metrics_ndjson_ds", dir.resolve("data.ndjson").toUri().toString(), Map.of());
 
@@ -129,47 +127,65 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * Gzip-compressed CSV — exercises the {@link org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinator}
-     * path where decompression and parsing run on background threads.
-     * <p>
-     * On this path the producer thread only polls the result queue, so {@code read_nanos} reflects minimal queue-poll
-     * wall time (may be near zero). {@code read_cpu_nanos} captures the real CPU via the coordinator's background-thread
-     * accumulator, so only that counter is asserted here.
+     * @param splittable true for codecs that use {@code SPLITTABLE_OR_INDEXED_COMPRESSED} (e.g. bzip2), which run the full parse on
+     *                   the producer thread so both {@code read_nanos} and {@code read_cpu_nanos} are populated; false for
+     *                   {@code STREAM_ONLY_COMPRESSED} (e.g. zstd, gzip), where the producer only polls a queue and
+     *                   {@code read_nanos} is near-zero.
      */
-    public void testMetricsCollectorGzipCsv() throws Exception {
+    private void assertCompressedDataset(String name, CheckedBiConsumer<Path, String, IOException> writer, boolean splittable)
+        throws IOException {
         Path dir = createTempDir();
-        StringBuilder csv = new StringBuilder("emp_no:integer,name:keyword\n");
-        for (int i = 0; i < 100; i++) {
-            csv.append(i).append(",name_").append(i).append('\n');
+        lastMetrics = null;
+        // CSV
+        String csv = createCsv(100);
+        writer.accept(dir.resolve("data.csv." + name), csv);
+
+        registerDataset("metrics_csv_ds_" + name, dir.resolve("data.csv." + name).toUri().toString(), Map.of());
+
+        try (var ignored = run(syncEsqlQueryRequest("FROM metrics_csv_ds_" + name + " | LIMIT 200"), TIMEOUT)) {}
+
+        if (splittable) {
+            assertReadCpuNanos(name + "-csv");
+        } else {
+            assertThat(name + "-csv: metrics must be set", lastMetrics, notNullValue());
+            assertThat(name + "-csv: read_cpu_nanos > 0", lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS), greaterThan(0L));
         }
-        writeGzipped(dir.resolve("data.csv.gz"), csv.toString());
 
-        registerDataset("metrics_gzip_ds", dir.resolve("data.csv.gz").toUri().toString(), Map.of());
+        lastMetrics = null;
+        // NDJSON
+        String ndjson = createNdjson(100);
+        writer.accept(dir.resolve("data.ndjson." + name), ndjson);
 
-        try (var ignored = run(syncEsqlQueryRequest("FROM metrics_gzip_ds | LIMIT 200"), TIMEOUT)) {}
+        registerDataset("metrics_ndjson_ds_" + name, dir.resolve("data.ndjson." + name).toUri().toString(), Map.of());
 
-        assertThat("gzip-csv: metrics must be set", lastMetrics, notNullValue());
-        assertThat("gzip-csv: read_cpu_nanos > 0", lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS), greaterThan(0L));
+        try (var ignored = run(syncEsqlQueryRequest("FROM metrics_ndjson_ds_" + name + " | LIMIT 200"), TIMEOUT)) {}
+
+        if (splittable) {
+            assertReadCpuNanos(name + "-ndjson");
+        } else {
+            assertThat(name + "-ndjson: metrics must be set", lastMetrics, notNullValue());
+            assertThat(name + "-ndjson: read_cpu_nanos > 0", lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS), greaterThan(0L));
+        }
     }
 
     /**
-     * Gzip-compressed NDJSON — same {@link org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinator}
-     * path as gzip CSV but exercises the NdJson codec wiring through {@code CompressionDelegatingFormatReader}.
+     * Covers all three compression dispatch modes across both CSV and NDJSON:
+     * <ul>
+     *   <li><b>bzip2</b> ({@code SPLITTABLE_OR_INDEXED_COMPRESSED}): falls back to single-threaded
+     *       {@code CompressionDelegatingFormatReader.read()}. The producer thread runs the full format parse
+     *       directly, so both {@code read_nanos} and {@code read_cpu_nanos} are populated.</li>
+     *   <li><b>gzip / zstd</b> ({@code STREAM_ONLY_COMPRESSED}): routes through
+     *       {@link org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinator}. The producer
+     *       thread only polls the result queue, so {@code read_nanos} is near-zero; {@code read_cpu_nanos}
+     *       captures the real CPU via the coordinator's background-thread accumulator.</li>
+     * </ul>
      */
-    public void testMetricsCollectorGzipNdJson() throws Exception {
-        Path dir = createTempDir();
-        StringBuilder ndjson = new StringBuilder();
-        for (int i = 0; i < 100; i++) {
-            ndjson.append("{\"emp_no\":").append(i).append(",\"name\":\"name_").append(i).append("\"}\n");
-        }
-        writeGzipped(dir.resolve("data.ndjson.gz"), ndjson.toString());
-
-        registerDataset("metrics_gzip_ndjson_ds", dir.resolve("data.ndjson.gz").toUri().toString(), Map.of());
-
-        try (var ignored = run(syncEsqlQueryRequest("FROM metrics_gzip_ndjson_ds | LIMIT 200"), TIMEOUT)) {}
-
-        assertThat("gzip-ndjson: metrics must be set", lastMetrics, notNullValue());
-        assertThat("gzip-ndjson: read_cpu_nanos > 0", lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS), greaterThan(0L));
+    public void testMetricsCompression() throws IOException {
+        // bzip2: SPLITTABLE_OR_INDEXED_COMPRESSED — producer thread does the full parse, so read_nanos is populated
+        assertCompressedDataset("bz2", AbstractExternalDataSourceIT::writeBzip2, true);
+        // gzip/zstd: STREAM_ONLY_COMPRESSED — producer only polls the streaming coordinator queue, read_nanos is near-zero
+        assertCompressedDataset("gz", AbstractExternalDataSourceIT::writeGzipped, false);
+        assertCompressedDataset("zst", AbstractExternalDataSourceIT::writeZstd, false);
     }
 
     /**
@@ -198,25 +214,20 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         assertThat("brackets-csv: read_cpu_nanos > 0", lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS), greaterThan(0L));
     }
 
-    /**
-     * Bzip2-compressed CSV — exercises the {@code SPLITTABLE_OR_INDEXED_COMPRESSED} dispatch mode, which falls back to
-     * a single-threaded read through {@code CompressionDelegatingFormatReader}. Unlike the gzip/brackets streaming
-     * paths, the producer thread runs the full CSV parse directly, so both {@code read_nanos} and
-     * {@code read_cpu_nanos} are populated from the CSV format reader's own timing regions.
-     */
-    public void testMetricsCollectorBzip2Csv() throws Exception {
-        Path dir = createTempDir();
+    private static String createNdjson(int x) {
+        StringBuilder ndjson = new StringBuilder();
+        for (int i = 0; i < x; i++) {
+            ndjson.append("{\"emp_no\":").append(i).append(",\"name\":\"name_").append(i).append("\"}\n");
+        }
+        return ndjson.toString();
+    }
+
+    private static String createCsv(int x) {
         StringBuilder csv = new StringBuilder("emp_no:integer,name:keyword\n");
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < x; i++) {
             csv.append(i).append(",name_").append(i).append('\n');
         }
-        writeBzip2(dir.resolve("data.csv.bz2"), csv.toString());
-
-        registerDataset("metrics_bzip2_ds", dir.resolve("data.csv.bz2").toUri().toString(), Map.of());
-
-        try (var ignored = run(syncEsqlQueryRequest("FROM metrics_bzip2_ds | LIMIT 200"), TIMEOUT)) {}
-
-        assertReadCpuNanos("bzip2-csv");
+        return csv.toString();
     }
 
     /** Parquet file — exercises the Parquet format reader path. */

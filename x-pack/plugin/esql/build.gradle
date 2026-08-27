@@ -121,6 +121,8 @@ dependencies {
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-compression-libs'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-bzip2'))
   internalClusterTestImplementation "org.apache.commons:commons-compress:${versions.esql_commons_compress}"
+  internalClusterTestImplementation project(path: xpackModule('esql-datasource-zstd'))
+  internalClusterTestImplementation "com.github.luben:zstd-jni:${versions.zstdJni}"
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-gzip'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-http'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-parquet'))

@@ -303,7 +303,7 @@ public final class Authentication implements ToXContentObject {
         }
         // Keyed on metadata presence rather than subject type: an uncapped cloud subject must keep rewriting as it did before, but a
         // cap that an older node would silently ignore must never be forwarded.
-        if (hasCloudLimitedByRoles(authenticatingSubject)
+        if (authenticatingSubject.hasCloudLimitedByRoles()
             && olderVersion.supports(SECURITY_CLOUD_SERVICE_ACCOUNT_AND_LIMITED_BY_ROLES) == false) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
@@ -595,14 +595,6 @@ public final class Authentication implements ToXContentObject {
         return effectiveSubject.getType() == Subject.Type.CLOUD_SERVICE_ACCOUNT;
     }
 
-    /**
-     * Whether the authenticating subject carries a cap on its assigned roles, as reported by the cloud identity provider. Only nodes on
-     * the transport version that introduced the cap enforce it, so it must never be serialized to an older node.
-     */
-    private static boolean hasCloudLimitedByRoles(Subject authenticatingSubject) {
-        return authenticatingSubject.getMetadata().containsKey(AuthenticationField.CLOUD_LIMITED_BY_ROLES_KEY);
-    }
-
     public boolean isCrossClusterAccess() {
         return effectiveSubject.getType() == Subject.Type.CROSS_CLUSTER_ACCESS;
     }
@@ -742,7 +734,7 @@ public final class Authentication implements ToXContentObject {
         }
         // Keyed on metadata presence rather than subject type: an uncapped cloud subject must keep serializing as it did before, but a
         // cap that an older node would silently ignore must never be sent.
-        if (hasCloudLimitedByRoles(authenticatingSubject)
+        if (authenticatingSubject.hasCloudLimitedByRoles()
             && out.getTransportVersion().supports(SECURITY_CLOUD_SERVICE_ACCOUNT_AND_LIMITED_BY_ROLES) == false) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["

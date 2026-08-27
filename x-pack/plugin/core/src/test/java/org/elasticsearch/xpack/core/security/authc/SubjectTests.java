@@ -200,6 +200,25 @@ public class SubjectTests extends ESTestCase {
         assertThat(((NamedRoleReference) roleReferences.get(0)).getRoleNames(), equalTo(apiKeyUser.roles()));
     }
 
+    public void testHasCloudLimitedByRoles() {
+        final User user = new User("joe", "role_a");
+        final Subject uncapped = new Subject(
+            user,
+            new Authentication.RealmRef(randomAlphaOfLength(5), randomAlphaOfLength(5), "node"),
+            TransportVersion.current(),
+            Map.of()
+        );
+        assertThat(uncapped.hasCloudLimitedByRoles(), equalTo(false));
+
+        final Subject capped = new Subject(
+            user,
+            new Authentication.RealmRef(randomAlphaOfLength(5), randomAlphaOfLength(5), "node"),
+            TransportVersion.current(),
+            Map.of(AuthenticationField.CLOUD_LIMITED_BY_ROLES_KEY, List.of("role_b"))
+        );
+        assertThat(capped.hasCloudLimitedByRoles(), equalTo(true));
+    }
+
     public void testGetRoleReferencesForCloudUserWithLimitedByRoles() {
         final User user = new User("joe", "role_a", "role_b");
         final List<String> limitedByRoleNames = randomBoolean() ? List.of("role_b", "role_c") : List.of();

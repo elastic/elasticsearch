@@ -126,6 +126,14 @@ public class Subject {
             && Boolean.TRUE.equals(user.metadata().get(ServiceAccountSettings.USER_MANAGED_SERVICE_ACCOUNT_FIELD));
     }
 
+    /**
+     * Whether this subject carries a cloud identity-provider cap on its assigned roles. A capped subject produces two
+     * role references, which the API-key owner-snapshot path cannot represent without dropping the cap.
+     */
+    public boolean hasCloudLimitedByRoles() {
+        return metadata.containsKey(AuthenticationField.CLOUD_LIMITED_BY_ROLES_KEY);
+    }
+
     public RoleReferenceIntersection getRoleReferenceIntersection(@Nullable AnonymousUser anonymousUser) {
         assert type == CLOUD_API_KEY
             || type == Type.USER

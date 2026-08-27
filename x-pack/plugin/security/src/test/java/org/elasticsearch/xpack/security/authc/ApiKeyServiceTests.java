@@ -1027,6 +1027,27 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("authentication via API key not supported: only the owner user can update an API key"));
     }
 
+    public void testBulkUpdateFailsIfAuthenticationIsCappedCloudSubject() {
+        final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
+        final ApiKeyService service = createApiKeyService(settings);
+        final var limitedBy = AuthenticationTestHelper.randomCloudLimitedByRoleNames();
+        final Authentication authentication = randomFrom(
+            AuthenticationTestHelper.randomCloudApiKeyAuthentication(null, null, limitedBy),
+            AuthenticationTestHelper.randomCloudUserAuthentication(limitedBy),
+            AuthenticationTestHelper.randomCloudServiceAccountAuthentication(randomAlphanumericOfLength(20), limitedBy)
+        );
+
+        final PlainActionFuture<BulkUpdateApiKeyResponse> listener = new PlainActionFuture<>();
+        service.updateApiKeys(authentication, BulkUpdateApiKeyRequest.usingApiKeyIds("id"), Set.of(), listener);
+
+        final var ex = expectThrows(ExecutionException.class, listener::get);
+        assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(
+            ex.getMessage(),
+            containsString("updating elasticsearch api keys using a cloud subject with limited-by roles is not supported")
+        );
+    }
+
     public void testCloneApiKeySuccess() throws Exception {
         final ApiKeyService service = createApiKeyService();
 
@@ -2907,16 +2928,23 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(iae.getMessage(), equalTo("cross-cluster API keys cannot be created with a cloud API key"));
     }
 
-    public void testCreationFailsIfAuthenticationIsCloudServiceAccount() throws IOException {
-        final Authentication authentication = AuthenticationTestHelper.randomCloudServiceAccountAuthentication();
-        final AbstractCreateApiKeyRequest createApiKeyRequest = randomBoolean()
-            ? new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null)
-            : CreateCrossClusterApiKeyRequest.withNameAndAccess(randomAlphaOfLengthBetween(3, 8), randomCrossClusterApiKeyAccessField());
+    public void testCreationFailsIfAuthenticationIsCappedCloudSubject() {
+        final var limitedBy = AuthenticationTestHelper.randomCloudLimitedByRoleNames();
+        final Authentication authentication = randomFrom(
+            AuthenticationTestHelper.randomCloudServiceAccountAuthentication(randomAlphanumericOfLength(20), limitedBy),
+            AuthenticationTestHelper.randomCloudApiKeyAuthentication(null, null, limitedBy),
+            AuthenticationTestHelper.randomCloudUserAuthentication(limitedBy)
+        );
+        // REST only: a cloud API key creating a cross-cluster key is rejected by a dedicated check first
+        final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null);
         ApiKeyService service = createApiKeyService(Settings.EMPTY);
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
         service.createApiKey(authentication, createApiKeyRequest, Set.of(), future);
         final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, future);
-        assertThat(iae.getMessage(), equalTo("creating elasticsearch api keys using cloud service accounts is not supported"));
+        assertThat(
+            iae.getMessage(),
+            equalTo("creating elasticsearch api keys using a cloud subject with limited-by roles is not supported")
+        );
     }
 
     public void testCachedApiKeyValidationWillNotBeBlockedByUnCachedApiKey() throws IOException, ExecutionException, InterruptedException {

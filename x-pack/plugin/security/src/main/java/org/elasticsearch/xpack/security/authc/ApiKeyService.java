@@ -404,9 +404,9 @@ public class ApiKeyService implements Closeable {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
         } else if (authentication.isCloudApiKey() && request.getType() == ApiKey.Type.CROSS_CLUSTER) {
             listener.onFailure(new IllegalArgumentException("cross-cluster API keys cannot be created with a cloud API key"));
-        } else if (authentication.isCloudServiceAccount()) {
+        } else if (authentication.getEffectiveSubject().hasCloudLimitedByRoles()) {
             listener.onFailure(
-                new IllegalArgumentException("creating elasticsearch api keys using cloud service accounts is not supported")
+                new IllegalArgumentException("creating elasticsearch api keys using a cloud subject with limited-by roles is not supported")
             );
         } else {
             final TransportVersion transportVersion = getMinTransportVersion();
@@ -814,6 +814,11 @@ public class ApiKeyService implements Closeable {
         } else if (authentication.isApiKey()) {
             listener.onFailure(
                 new IllegalArgumentException("authentication via API key not supported: only the owner user can update an API key")
+            );
+            return;
+        } else if (authentication.getEffectiveSubject().hasCloudLimitedByRoles()) {
+            listener.onFailure(
+                new IllegalArgumentException("updating elasticsearch api keys using a cloud subject with limited-by roles is not supported")
             );
             return;
         }

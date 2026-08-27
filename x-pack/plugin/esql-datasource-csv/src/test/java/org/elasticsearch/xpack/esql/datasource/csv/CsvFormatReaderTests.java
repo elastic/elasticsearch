@@ -7189,6 +7189,26 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertTrue(CsvFormatReader.isBlankOrComment("   ", "//", '\t'));
     }
 
+    public void testIsBlankOrCommentMixedWhitespaceAndDelimiterIsBlank() {
+        // TAB delimiter: spaces mixed with TAB delimiter → still blank (has non-delimiter whitespace)
+        assertTrue(CsvFormatReader.isBlankOrComment("  \t  ", "//", '\t'));
+        assertTrue(CsvFormatReader.isBlankOrComment(" \t", "//", '\t'));
+        // Comma (0x2C > ' ') is not ASCII whitespace, so " , " is data, not blank
+        assertFalse(CsvFormatReader.isBlankOrComment(" , ", "//", ','));
+    }
+
+    public void testIsBlankOrCommentLeadingDelimiterDoesNotBlockComment() {
+        // isBlankOrComment is a whole-line predicate used in header discovery and bracket collectors.
+        // It mirrors the old record.trim() behavior: a leading TAB is treated like other whitespace,
+        // so "\t// x" is detected as a comment. This is intentionally different from
+        // isBlankOrCommentFirstCell (char[], direct walker), which follows Jackson's first-cell rule
+        // and treats "\t// c" as data (empty first cell → not a comment).
+        assertTrue(CsvFormatReader.isBlankOrComment("\t// a comment", "//", '\t'));
+        assertTrue(CsvFormatReader.isBlankOrComment("\t\t// x", "//", '\t'));
+        // a leading delimiter alone (no comment prefix follows) is NOT a comment — it is data
+        assertFalse(CsvFormatReader.isBlankOrComment("\t", "//", '\t'));
+    }
+
     // --- Phase 1A: emitField ---
 
     public void testEmitFieldCleanValue() {

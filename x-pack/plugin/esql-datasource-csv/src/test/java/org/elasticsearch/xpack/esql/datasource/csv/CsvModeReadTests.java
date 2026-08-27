@@ -374,10 +374,7 @@ public class CsvModeReadTests extends ESTestCase {
      * Core parity fix: a TSV row whose only content is TAB characters (the delimiter) must produce
      * empty/null fields on every read path — it must NOT be silently dropped as a "blank" row.
      * This covers the no-trim house path (direct walkers grammar) and the trim=true Jackson path.
-     *
-     * <p>The primary invariant is row count: 3 data rows must survive, not 2. Field values from a
-     * separator-only row are empty for keyword columns (the null_value="" path produces null; the
-     * default stores an empty BytesRef), so we assert null-or-empty rather than strictly null.
+     * The two paths must also agree with each other on row count and field values.
      */
     public void testTsvSeparatorOnlyRowEmitsNullFieldsNotDropped() throws IOException {
         // \t\t is TAB TAB — with a TAB delimiter this is 3 fields (all null/empty), not a blank line.
@@ -386,16 +383,31 @@ public class CsvModeReadTests extends ESTestCase {
         // no-trim quoted path (house splitter)
         List<List<String>> plain = readAll(tsvReader(Map.of("mode", "quoted")), tsv);
         assertEquals("separator-only row must not be dropped (plain/house path)", 3, plain.size());
-        assertNullOrEmpty(plain.get(1).get(0));
-        assertNullOrEmpty(plain.get(1).get(1));
-        assertNullOrEmpty(plain.get(1).get(2));
 
         // trim_spaces=true (Jackson path)
         List<List<String>> trimmed = readAll(tsvReader(Map.of("mode", "quoted", "trim_spaces", true)), tsv);
         assertEquals("separator-only row must not be dropped (trim_spaces path)", 3, trimmed.size());
-        assertNullOrEmpty(trimmed.get(1).get(0));
-        assertNullOrEmpty(trimmed.get(1).get(1));
-        assertNullOrEmpty(trimmed.get(1).get(2));
+
+        // both paths must agree on row count and field values
+        assertEquals("plain and trim_spaces paths must agree on row count", plain.size(), trimmed.size());
+        for (int row = 0; row < plain.size(); row++) {
+            assertEquals("row " + row + " field values must agree between paths", plain.get(row), trimmed.get(row));
+        }
+    }
+
+    /**
+     * Escaped-mode separator-only row: {@code \t\t} in TSV with mode=escaped must also emit
+     * null/empty fields — not be dropped. Mode=escaped has {@code decodesEscapes=true}, so
+     * {@code jacksonGrammarApplies()} is true and Jackson handles the record.
+     */
+    public void testTsvEscapedModeSeparatorOnlyRowEmitsNullFields() throws IOException {
+        String tsv = "a:keyword\tb:keyword\tc:keyword\nreal\tdata\trow\n\t\t\nmore\treal\tdata\n";
+
+        List<List<String>> rows = readAll(tsvReader(Map.of("mode", "escaped")), tsv);
+        assertEquals("escaped-mode separator-only row must not be dropped", 3, rows.size());
+        assertNullOrEmpty(rows.get(1).get(0));
+        assertNullOrEmpty(rows.get(1).get(1));
+        assertNullOrEmpty(rows.get(1).get(2));
     }
 
     /**
@@ -415,15 +427,32 @@ public class CsvModeReadTests extends ESTestCase {
 
     /**
      * CSV separator-only row (comma-only). A row like {@code ","} with comma delimiter must produce
-     * two empty/null fields, not be dropped, on the quoted CSV path.
+     * two empty/null fields, not be dropped, on both the house path and the Jackson (trim_spaces) path.
      */
     public void testCsvSeparatorOnlyRowEmitsNullFields() throws IOException {
         String csv = "a:keyword,b:keyword\nreal,data\n,\nmore,data\n";
 
-        List<List<String>> rows = readAll(csvReader(Map.of()), csv);
-        assertEquals("separator-only CSV row must not be dropped", 3, rows.size());
-        assertNullOrEmpty(rows.get(1).get(0));
-        assertNullOrEmpty(rows.get(1).get(1));
+        List<List<String>> plain = readAll(csvReader(Map.of()), csv);
+        assertEquals("separator-only CSV row must not be dropped (plain path)", 3, plain.size());
+
+        List<List<String>> trimmed = readAll(csvReader(Map.of("trim_spaces", true)), csv);
+        assertEquals("separator-only CSV row must not be dropped (trim_spaces path)", 3, trimmed.size());
+
+        assertEquals("plain and trim_spaces paths must agree on row count and values", plain, trimmed);
+    }
+
+    /**
+     * Regression: a TSV header that starts with a leading TAB (e.g. {@code "\ta\tb"}) must produce
+     * 3 columns, not 2. Before the fix, {@code record.trim()} stripped the leading TAB and collapsed
+     * the header from 3 fields to 2, making subsequent data rows appear too wide.
+     */
+    public void testTsvLeadingTabHeaderPreservesColumnCount() throws IOException {
+        // Untyped header with leading TAB: split by TAB → ["", "a", "b"] → 3 columns (inferred schema).
+        String tsv = "\ta\tb\n\tx\ty\n";
+
+        List<List<String>> rows = readAll(tsvReader(Map.of()), tsv);
+        assertEquals("leading-TAB TSV header must yield 3 columns, not 2", 1, rows.size());
+        assertEquals("data row must have 3 fields (including the empty-named first column)", 3, rows.get(0).size());
     }
 
     private static void assertNullOrEmpty(String value) {

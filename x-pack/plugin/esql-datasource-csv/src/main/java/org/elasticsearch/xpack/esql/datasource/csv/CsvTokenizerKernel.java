@@ -228,7 +228,7 @@ class CsvTokenizerKernel {
      * character was found in the unquoted field span. Callers test with
      * {@link #scanHasEscape(long)}.
      */
-    static final long HAS_ESCAPE = 1L << 32;
+    private static final long HAS_ESCAPE = 1L << 32;
 
     /** True when the {@link #scanUnquotedField} result indicates at least one escape character. */
     static boolean scanHasEscape(long result) {
@@ -243,10 +243,10 @@ class CsvTokenizerKernel {
     /**
      * Scans an unquoted field in {@code src[from, to)} to its end delimiter, skipping
      * {@code esc+any-char} pairs when {@code escapeAware} (so an escaped delimiter is not treated
-     * as a field boundary). Returns a packed value: bit {@link #HAS_ESCAPE} is set if any escape
-     * character was seen; the low 32 bits hold the field-end position — the index of the delimiter
-     * that ended the scan, or {@code to} if the scan reached the end without finding one. Extract
-     * with {@code (int)(result & 0xFFFFFFFFL)}.
+     * as a field boundary). Returns a packed value: bit 32 is set if any escape character was seen
+     * (test with {@link #scanHasEscape}); the low 32 bits hold the field-end position — the index of
+     * the delimiter that ended the scan, or {@code to} if the scan reached the end without finding
+     * one (extract with {@link #scanFieldEnd}).
      *
      * <p>The plain (no-escape) fast path is not routed here — callers that already know there are
      * no escapes use a direct delimiter scan.

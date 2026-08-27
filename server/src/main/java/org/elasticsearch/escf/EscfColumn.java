@@ -127,21 +127,6 @@ public abstract class EscfColumn implements SliceableColumn {
     }
 
     /**
-     * Returns {@code true} if this column contains any explicit JSON {@code null} element values
-     * inside an array. For non-array columns this always returns {@code false}; for
-     * {@link EscfArrayColumn} it returns {@code true} when the child sub-column's validity bitset
-     * is non-null (i.e. at least one element slot is marked null).
-     *
-     * <p>Unlike row-level absence (clear bits in the outer {@link #validity}), an element null means
-     * "this array element is explicitly {@code null}" — a clear bit in the <em>inner</em> (child)
-     * validity bitset. The two bitsets serve different semantics: the outer expresses absent rows;
-     * the inner expresses in-array JSON nulls.
-     */
-    public boolean hasNullLeafValues() {
-        return false;
-    }
-
-    /**
      * Returns the {@link SourceValueType} byte for document {@code row}. Returns
      * {@link SourceValueType#ABSENT} when the row is out of bounds or absent.
      */

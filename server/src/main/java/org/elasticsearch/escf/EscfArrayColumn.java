@@ -50,6 +50,10 @@ final class EscfArrayColumn extends EscfColumn {
         return rowOffsets;
     }
 
+    public boolean hasNullElements() {
+        return child.isDense() == false;
+    }
+
     @Override
     public byte kind() {
         return EscfColumnKind.ARRAY;
@@ -62,11 +66,6 @@ final class EscfArrayColumn extends EscfColumn {
     @Override
     public byte leafValueKind() {
         return child.kind();
-    }
-
-    @Override
-    public boolean hasNullLeafValues() {
-        return child.isDense() == false;
     }
 
     @Override
@@ -105,7 +104,7 @@ final class EscfArrayColumn extends EscfColumn {
         final int numRows = docCount;
         final int[] offs = rowOffsets.ints;
         final int base = rowOffsets.offset;
-        final AbstractFixed64Column.DenseLongValuesCursor values = fixedChild.longValuesCursor();
+        final AbstractFixed64Column.DenseLongValuesCursor values = fixedChild.rawLongValuesCursor();
         final int startElem = offs[base];
         if (numRows > 0 && startElem > 0) {
             values.skip(startElem); // this window starts mid-child because sliceInternal keeps the child unsliced
@@ -166,7 +165,7 @@ final class EscfArrayColumn extends EscfColumn {
         final int numRows = docCount;
         final int[] offs = rowOffsets.ints;
         final int base = rowOffsets.offset;
-        final AbstractVarColumn.DenseBytesRefValuesCursor values = varChild.bytesRefValuesCursor(retainValues);
+        final AbstractVarColumn.DenseBytesRefValuesCursor values = varChild.rawBytesRefValuesCursor(retainValues);
         final int startElem = offs[base];
         if (numRows > 0 && startElem > 0) {
             values.skip(startElem); // this window starts mid-child because sliceInternal keeps the child unsliced

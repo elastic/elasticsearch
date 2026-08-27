@@ -56,10 +56,6 @@ public class ArrayReaderTests extends ESTestCase {
         }
     }
 
-    /**
-     * A long array with a null element: {@link ColumnarArrayReader#isNull()} returns {@code true} at
-     * the null position and {@code false} at the non-null positions.
-     */
     public void testNullElementIsNull() {
         // Build a nullable-child ARRAY column directly via the builder.
         EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);

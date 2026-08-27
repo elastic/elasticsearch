@@ -39,14 +39,23 @@ abstract class AbstractFixed64Column extends EscfColumn {
 
     /**
      * Returns a new dense {@link DenseLongValuesCursor} positioned before the first row of this
-     * column's window. This cursor is purely positional — it always advances exactly one word per
-     * call and is unaware of the validity bitset. The caller is responsible for consulting the
-     * validity (or child bitset) to determine whether each slot is meaningful. For absent rows in a
-     * standalone column, each absent slot holds a zero placeholder; for null elements in an array
-     * child, each null slot also holds a zero placeholder (required so that the column length stays
-     * {@code elemCount * 8}).
+     * column's window. The column must be fully present ({@link #validity} {@code == null}); call
+     * this only on dense columns (e.g. array children).
      */
     DenseLongValuesCursor longValuesCursor() {
+        if (validity != null) {
+            throw new IllegalStateException("longValuesCursor() requires a dense column");
+        }
+        return rawLongValuesCursor();
+    }
+
+    /**
+     * Returns a new dense {@link DenseLongValuesCursor} without asserting that the column is dense.
+     * Use this when accessing an array child column whose element-validity bitset may be non-{@code null}
+     * (null elements occupy an 8-byte zero placeholder slot so positional access stays valid); the
+     * caller is responsible for consulting the child validity bitset to distinguish null elements.
+     */
+    DenseLongValuesCursor rawLongValuesCursor() {
         return new DenseLongValuesCursor(docCount, this);
     }
 

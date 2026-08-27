@@ -832,9 +832,6 @@ public class EscfColumnBuilderTests extends ESTestCase {
         return out;
     }
 
-    /** Builds in SPLIT mode; scalar/union cases behave identically under MERGE. */
-    // ----- appendNull: element validity in array columns -----
-
     /**
      * A long array with a null element stays as an ARRAY column (not a UNION). The null element
      * occupies an 8-byte zero placeholder in the child; the child validity bitset marks it null.
@@ -853,7 +850,7 @@ public class EscfColumnBuilderTests extends ESTestCase {
         assertNotNull("child must carry a validity bitset for the null element", data.child().validity());
 
         EscfColumn col = EscfColumn.from(data);
-        assertTrue(col.hasNullLeafValues());
+        assertTrue(((EscfArrayColumn) col).hasNullElements());
 
         ArrayReader reader = col.getArrayValue(0);
         // element 0: non-null long
@@ -890,7 +887,7 @@ public class EscfColumnBuilderTests extends ESTestCase {
         assertNotNull("child must carry a validity bitset", data.child().validity());
 
         EscfColumn col = EscfColumn.from(data);
-        assertTrue(col.hasNullLeafValues());
+        assertTrue(((EscfArrayColumn) col).hasNullElements());
 
         ArrayReader reader = col.getArrayValue(0);
         assertTrue(reader.next());
@@ -989,7 +986,7 @@ public class EscfColumnBuilderTests extends ESTestCase {
         b.endArray();
         EscfColumnData data = b.finish(1);
         EscfColumn col = EscfColumn.from(data);
-        assertFalse("dense child → no null leaf values", col.hasNullLeafValues());
+        assertFalse("dense child → no null leaf values", ((EscfArrayColumn) col).hasNullElements());
 
         EscfColumnBuilder b2 = builder();
         b2.beginArray(0);
@@ -998,9 +995,10 @@ public class EscfColumnBuilderTests extends ESTestCase {
         b2.endArray();
         EscfColumnData data2 = b2.finish(1);
         EscfColumn col2 = EscfColumn.from(data2);
-        assertTrue("non-null child validity → has null leaf values", col2.hasNullLeafValues());
+        assertTrue("non-null child validity → has null leaf values", ((EscfArrayColumn) col).hasNullElements());
     }
 
+    /** Builds in SPLIT mode; scalar/union cases behave identically under MERGE. */
     private static EscfColumnBuilder builder() {
         return new EscfColumnBuilder(CollisionPolicy.SPLIT);
     }

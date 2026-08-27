@@ -434,7 +434,7 @@ public final class EscfColumnBuilder {
     }
 
     /**
-     * Appends an explicit JSON {@code null} element to the current array row. Requires an open array
+     * Appends an explicit {@code null} element to the current array row. Requires an open array
      * (i.e. {@link #beginArray} has been called and {@link #endArray} has not). The element kind must
      * match the already-resolved child kind when one is set; a null as the very first element
      * conservatively promotes the row to an inline {@code UNION_ARRAY} (since the child kind is
@@ -1255,11 +1255,6 @@ public final class EscfColumnBuilder {
         private boolean sealed;
         /** Set once {@code childData} has been closed by a rewrite/replay; makes {@link #discard()} idempotent. */
         private boolean consumed;
-        /**
-         * Element-level validity bitset (bit set = element non-null); {@code null} when every element is
-         * non-null. Lazily materialised on the first null element, mirroring the pattern in
-         * {@link BaseBuilder#advanceAbsent()}.
-         */
         private FixedBitSet childValidity;
 
         ArrayBuilder(byte childKind, boolean splitValidity, Recycler<BytesRef> recycler) {
@@ -1360,7 +1355,7 @@ public final class EscfColumnBuilder {
         }
 
         /**
-         * Appends an explicit JSON {@code null} element of the given {@code elemKind}. A null element
+         * Appends an explicit {@code null} element of the given {@code elemKind}. A null element
          * occupies a placeholder slot in the child data so that positional cursors stay in step: 8 zero
          * bytes for fixed-64 kinds (reuses {@link #ZERO_BYTES}), a zero-length range for var-width kinds.
          * The child validity bitset is materialised and the bit for this slot is left clear (null).

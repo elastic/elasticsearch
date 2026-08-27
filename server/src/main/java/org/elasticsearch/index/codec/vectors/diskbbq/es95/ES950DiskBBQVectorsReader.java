@@ -826,6 +826,7 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
             int i = 0;
             // read Docs
             for (; i < limit; i += BULK_SIZE) {
+                // read the doc ids
                 long docIdStartNs = collectProfile ? System.nanoTime() : 0;
                 readDocIds(BULK_SIZE);
                 if (collectProfile) {
@@ -948,28 +949,16 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
         }
 
         @Override
-        public long getDocIdReadTimeNs() {
-            return profileDocIdReadTimeNs;
-        }
-
-        @Override
-        public long getScoringTimeNs() {
-            return profileScoringTimeNs;
-        }
-
-        @Override
-        public long getQueryQuantizationTimeNs() {
-            return profileQueryQuantizationTimeNs;
-        }
-
-        @Override
-        public long getCentroidReadTimeNs() {
-            return profileCentroidReadTimeNs;
-        }
-
-        @Override
-        public String getScorerImplementation() {
-            return KnnSearchProfileData.scorerImplementation(osqVectorsScorer);
+        public Profile profile() {
+            return collectProfile
+                ? new Profile(
+                    profileDocIdReadTimeNs,
+                    profileScoringTimeNs,
+                    profileQueryQuantizationTimeNs,
+                    profileCentroidReadTimeNs,
+                    KnnSearchProfileData.scorerImplementation(osqVectorsScorer)
+                )
+                : null;
         }
     }
 

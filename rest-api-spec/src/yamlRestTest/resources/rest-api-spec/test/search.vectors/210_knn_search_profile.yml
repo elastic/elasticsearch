@@ -186,9 +186,12 @@ setup:
   # Assert the hnsw sub-block internals, not just its presence
   - gte: { profile.shards.0.dfs.knn.0.knn_profile.hnsw.k: 1 }
   - gte: { profile.shards.0.dfs.knn.0.knn_profile.hnsw.num_candidates: 1 }
-  - gte: { profile.shards.0.dfs.knn.0.knn_profile.hnsw.leaf_searches: 1 }
   - gte: { profile.shards.0.dfs.knn.0.knn_profile.hnsw.nodes_visited: 1 }
+  - gte: { profile.shards.0.dfs.knn.0.knn_profile.hnsw.results_found_before_merge: 1 }
   - match: { profile.shards.0.dfs.knn.0.knn_profile.hnsw.has_filter: false }
+  # Per-segment HNSW counters are only emitted for HNSW leaves
+  - gte: { profile.shards.0.dfs.knn.0.knn_profile.segments.0.nodes_visited: 1 }
+  - gte: { profile.shards.0.dfs.knn.0.knn_profile.segments.0.results_found: 1 }
 
 ---
 "Detailed knn_profile breakdown for a knn query in the query DSL":
@@ -226,7 +229,7 @@ setup:
   - match: { profile.shards.0.searches.0.knn_profile.quantization: bbq_hnsw }
   - exists: profile.shards.0.searches.0.knn_profile.hnsw
   - gte: { profile.shards.0.searches.0.knn_profile.total_time_ns: 0 }
-  - gte: { profile.shards.0.searches.0.knn_profile.hnsw.leaf_searches: 1 }
+  - gte: { profile.shards.0.searches.0.knn_profile.segments_searched: 1 }
   - gte: { profile.shards.0.searches.0.knn_profile.hnsw.nodes_visited: 1 }
   - gte: { profile.shards.0.searches.0.vector_operations_count: 1 }
 

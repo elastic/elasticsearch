@@ -30,12 +30,19 @@ public interface QueryProfilerProvider {
 
     /**
      * Enables detailed profiling data collection for this query, allocating the timing breakdown state.
+     * Must be called before {@code rewrite()} to take effect.
      * <p>
-     * On the normal search path this does not need to be called explicitly: a kNN query auto-enables when
-     * it discovers a {@link QueryProfiler} on the {@link org.elasticsearch.search.internal.ContextIndexSearcher}
-     * during {@code rewrite()}. This method remains the explicit entry point for direct callers and tests
-     * that run against a plain {@code IndexSearcher}, and for {@link PostFilterKnnQuery} which enables its
-     * inner per-round queries by hand. Must be called before {@code rewrite()} to take effect.
+     * On the normal search path this is not called at all: a kNN query enables itself when it discovers a
+     * {@link QueryProfiler} on the {@link ContextIndexSearcher} during {@code rewrite()}. This is the explicit
+     * entry point for a caller that drives the query itself - tests running against a plain
+     * {@code IndexSearcher}, and {@link PostFilterKnnQuery}, which profiles each of its per-round inner
+     * searches in isolation.
+     * <p>
+     * Calling this transfers ownership of the breakdown to the caller: a query enabled this way collects but
+     * never publishes itself to the profiler on the searcher, because whoever enabled it is expected to
+     * harvest it through {@link #profile}. That is what keeps a post-filter round's inner breakdown nested
+     * under {@code post_filter.rounds[]} instead of also appearing as a top-level {@code knn_profile} entry,
+     * with its vector ops counted twice.
      */
     default void enableProfiling() {}
 
@@ -45,15 +52,6 @@ public interface QueryProfilerProvider {
      * mapper at query-build time, since only it knows the configured index options. No-op by default.
      */
     default void setQuantization(String quantization) {}
-
-    /**
-     * When {@code true}, this query must not auto-publish its breakdown to the profiler attached to the
-     * searcher during {@code rewrite()}. Used by {@link PostFilterKnnQuery}, which drives its inner
-     * per-round searches (initial / retry / fallback) itself and captures each round's breakdown
-     * explicitly, so those inner searches must not append a separate {@code knn_profile} entry. No-op
-     * by default.
-     */
-    default void setProfilingSuppressed(boolean suppressed) {}
 
     /**
      * Returns the {@link QueryProfiler} attached to the given searcher, or {@code null} when the searcher is

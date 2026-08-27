@@ -113,7 +113,7 @@ public class ESDiversifyingChildrenKnnVectorQueryProfileTests extends ESTestCase
         assertThat(hnsw, notNullValue());
         assertThat(hnsw.get("k"), equalTo(5));
         assertThat(hnsw.get("num_candidates"), equalTo(10));
-        assertThat((int) hnsw.get("leaf_searches"), greaterThan(0));
+        assertThat((int) breakdown.get("segments_searched"), greaterThan(0));
 
         @SuppressWarnings("unchecked")
         Map<String, Object> timings = (Map<String, Object>) hnsw.get("timings");

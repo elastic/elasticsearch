@@ -10,10 +10,12 @@
 package org.elasticsearch.search.profile.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.profile.AbstractProfiler;
 import org.elasticsearch.search.profile.Timer;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -104,11 +106,21 @@ public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown,
 
     /**
      * Returns the accumulated kNN breakdowns collapsed into the single {@code knn_profile} map that is
-     * serialized: {@code null} when none, the single breakdown when there is one, and a
-     * {@code {"knn_queries": [...]}} wrapper when a search carried several kNN queries.
+     * serialized: {@code null} when none, the single breakdown when there is exactly one, and a
+     * {@code {"knn_queries": [...]}} wrapper when a single search carried several kNN queries (e.g. a
+     * {@code bool} with multiple {@code knn} clauses).
      */
+    @Nullable
     public Map<String, Object> getKnnProfileBreakdown() {
-        return QueryProfileShardResult.collapseKnnProfileBreakdowns(knnProfileBreakdowns);
+        if (knnProfileBreakdowns.isEmpty()) {
+            return null;
+        }
+        if (knnProfileBreakdowns.size() == 1) {
+            return knnProfileBreakdowns.get(0);
+        }
+        Map<String, Object> combined = new LinkedHashMap<>();
+        combined.put("knn_queries", new ArrayList<>(knnProfileBreakdowns));
+        return combined;
     }
 
     /** Set the collector result that is associated with this profiler. */

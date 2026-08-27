@@ -56,6 +56,56 @@ setup:
 
   - do:
       indices.refresh: {}
+
+  # auto_calibrate is opt-in, and it moves the exact rescore inside the IVF query itself, so it needs its
+  # own index to cover.
+  - do:
+      indices.create:
+        index: bbq_disk_profile_auto_calibrate
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 8
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: bbq_disk
+                  auto_calibrate: true
+
+  - do:
+      bulk:
+        index: bbq_disk_profile_auto_calibrate
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"vector": [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}'
+          - '{"index": {"_id": "2"}}'
+          - '{"vector": [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}'
+          - '{"index": {"_id": "3"}}'
+          - '{"vector": [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]}'
+          - '{"index": {"_id": "4"}}'
+          - '{"vector": [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]}'
+          - '{"index": {"_id": "5"}}'
+          - '{"vector": [0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]}'
+          - '{"index": {"_id": "6"}}'
+          - '{"vector": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0]}'
+          - '{"index": {"_id": "7"}}'
+          - '{"vector": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0]}'
+          - '{"index": {"_id": "8"}}'
+          - '{"vector": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]}'
+
+  - do:
+      indices.forcemerge:
+        index: bbq_disk_profile_auto_calibrate
+        max_num_segments: 1
+
+  - do:
+      indices.refresh: {}
 ---
 "Detailed knn_profile breakdown for an IVF (bbq_disk) search":
   # The top-level `knn` option runs in the DFS phase, so the breakdown surfaces under dfs.knn[].
@@ -78,6 +128,30 @@ setup:
   - exists: profile.shards.0.dfs.knn.0.knn_profile.ivf.visit_ratio_used
   - exists: profile.shards.0.dfs.knn.0.knn_profile.ivf.timings
   - gte: { profile.shards.0.dfs.knn.0.knn_profile.ivf.timings.posting_visit_ns: 1 }
+  # Per-segment work outside the codec search window (collector drain, doc ID dedup) plus rewrite overhead.
+  - gte: { profile.shards.0.dfs.knn.0.knn_profile.ivf.timings.overhead_ns: 0 }
   - exists: profile.shards.0.dfs.knn.0.knn_profile.segments
   - exists: profile.shards.0.dfs.knn.0.knn_profile.segments.0.name
   - gte: { profile.shards.0.dfs.knn.0.knn_profile.segments.0.doc_count: 1 }
+
+---
+"Auto-calibrated IVF reports its internal exact rescore":
+  # With auto_calibrate the exact rescore runs inside the IVF query rather than in a mapper-built wrapper.
+  # It still has to surface, since it is the most expensive step after the approximate search.
+  - do:
+      search:
+        index: bbq_disk_profile_auto_calibrate
+        body:
+          profile: true
+          knn:
+            field: vector
+            query_vector: [0.707107, 0.707107, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            k: 3
+            num_candidates: 5
+
+  - match: { profile.shards.0.dfs.knn.0.knn_profile.algorithm: ivf }
+  - exists: profile.shards.0.dfs.knn.0.knn_profile.rescore
+  # `late`, because the IVF query hands its candidates over in a KnnScoreDocQuery.
+  - match: { profile.shards.0.dfs.knn.0.knn_profile.rescore.type: late }
+  - gte: { profile.shards.0.dfs.knn.0.knn_profile.rescore.time_ns: 1 }
+  - gte: { profile.shards.0.dfs.knn.0.knn_profile.rescore.doc_count: 1 }

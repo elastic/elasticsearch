@@ -3685,15 +3685,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (filter != null && postFilterSelectivityThreshold < 1.0f && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
                 knnQuery = new PostFilterKnnQuery(pfknnQuery, filter, k, name(), parentFilter, postFilterSelectivityThreshold);
             }
-            if (indexOptions != null && knnQuery instanceof QueryProfilerProvider queryProfilerProvider) {
-                queryProfilerProvider.setQuantization(indexOptions.getType().getName());
-            }
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
                     knnQuery,
                     similarityThreshold,
                     similarity.score(similarityThreshold, element.elementType(), dims)
                 );
+            }
+            // Applied to the outermost query: every wrapper built above (post-filter, rescore, similarity
+            // threshold) forwards it down to the query that actually collects the breakdown.
+            if (indexOptions != null && knnQuery instanceof QueryProfilerProvider queryProfilerProvider) {
+                queryProfilerProvider.setQuantization(indexOptions.getType().getName());
             }
             return knnQuery;
         }
@@ -3805,15 +3807,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (rescore) {
                 knnQuery = RescoreKnnVectorQuery.fromInnerQuery(name(), queryVector, k, adjustedK, knnQuery);
             }
-            if (indexOptions != null && knnQuery instanceof QueryProfilerProvider queryProfilerProvider) {
-                queryProfilerProvider.setQuantization(indexOptions.getType().getName());
-            }
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
                     knnQuery,
                     similarityThreshold,
                     similarity.score(similarityThreshold, element.elementType(), dims)
                 );
+            }
+            // Applied to the outermost query: every wrapper built above (post-filter, rescore, similarity
+            // threshold) forwards it down to the query that actually collects the breakdown.
+            if (indexOptions != null && knnQuery instanceof QueryProfilerProvider queryProfilerProvider) {
+                queryProfilerProvider.setQuantization(indexOptions.getType().getName());
             }
             return knnQuery;
         }
@@ -3932,15 +3936,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (rescore) {
                 knnQuery = RescoreKnnVectorQuery.fromInnerQuery(name(), queryVector, k, adjustedK, knnQuery);
             }
-            if (indexOptions != null && knnQuery instanceof QueryProfilerProvider queryProfilerProvider) {
-                queryProfilerProvider.setQuantization(indexOptions.getType().getName());
-            }
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
                     knnQuery,
                     similarityThreshold,
                     similarity.score(similarityThreshold, element.elementType(), dims)
                 );
+            }
+            // Applied to the outermost query: every wrapper built above (post-filter, rescore, similarity
+            // threshold) forwards it down to the query that actually collects the breakdown.
+            if (indexOptions != null && knnQuery instanceof QueryProfilerProvider queryProfilerProvider) {
+                queryProfilerProvider.setQuantization(indexOptions.getType().getName());
             }
             return knnQuery;
         }

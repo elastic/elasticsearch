@@ -22,12 +22,15 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.TestIvfQueryConfigResolver;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 public class IVFKnnFloatVectorQueryTests extends AbstractIVFKnnVectorQueryTestCase<float[]> {
 
@@ -120,33 +123,36 @@ public class IVFKnnFloatVectorQueryTests extends AbstractIVFKnnVectorQueryTestCa
             searcher.rewrite(query);
 
             assertNotNull("profileData should be set after rewrite", query.profileData);
-            assertEquals("ivf", query.profileData.toMap().get("algorithm"));
-            assertEquals("field", query.profileData.toMap().get("field"));
-            assertTrue("total_time_ns should be > 0", (long) query.profileData.toMap().get("total_time_ns") > 0);
-            assertTrue("segments_searched should be > 0", (int) query.profileData.toMap().get("segments_searched") > 0);
-            assertNotNull("ivf section should be present", query.profileData.toMap().get("ivf"));
+            Map<String, Object> map = query.profileData.toMap();
+            assertEquals("ivf", map.get("algorithm"));
+            assertEquals("field", map.get("field"));
+            assertTrue("total_time_ns should be > 0", (long) map.get("total_time_ns") > 0);
+            assertTrue("segments_searched should be > 0", (int) map.get("segments_searched") > 0);
+            assertNotNull("ivf section should be present", map.get("ivf"));
+            assertFalse("no filter was set, so no filter time should be reported", map.containsKey("filter_time_ns"));
 
             @SuppressWarnings("unchecked")
-            java.util.List<java.util.Map<String, Object>> segments = (java.util.List<java.util.Map<String, Object>>) query.profileData
-                .toMap()
-                .get("segments");
+            List<Map<String, Object>> segments = (List<Map<String, Object>>) map.get("segments");
             assertNotNull("per-segment breakdown should be present", segments);
             assertFalse("at least one segment should be recorded", segments.isEmpty());
             assertNotNull("segment name should be present", segments.get(0).get("name"));
             assertTrue("doc_count should be > 0", (int) segments.get(0).get("doc_count") > 0);
+            // The codec reports the ratio it actually used back through the per-leaf search strategy.
+            assertTrue("visit_ratio_used should be > 0", (float) segments.get(0).get("visit_ratio_used") > 0f);
 
             @SuppressWarnings("unchecked")
-            java.util.Map<String, Object> ivf = (java.util.Map<String, Object>) query.profileData.toMap().get("ivf");
+            Map<String, Object> ivf = (Map<String, Object>) map.get("ivf");
             assertTrue("centroids_evaluated should be > 0", (int) ivf.get("centroids_evaluated") > 0);
             assertTrue("postings_scored should be > 0", (long) ivf.get("postings_scored") > 0);
+            assertTrue("visit_ratio_used should be > 0", (float) ivf.get("visit_ratio_used") > 0f);
 
             @SuppressWarnings("unchecked")
-            java.util.Map<String, Object> timings = (java.util.Map<String, Object>) ivf.get("timings");
+            Map<String, Object> timings = (Map<String, Object>) ivf.get("timings");
             assertNotNull("timings should be present", timings);
             assertTrue("posting_visit_ns should be > 0", (long) timings.get("posting_visit_ns") > 0);
             assertTrue("scoring_ns should be > 0", (long) timings.get("scoring_ns") > 0);
 
-            String scorer = (String) query.profileData.toMap().get("scorer");
+            String scorer = (String) map.get("scorer");
             assertNotNull("scorer implementation should be captured", scorer);
             assertTrue(
                 "scorer should be native/panama/scalar, got: " + scorer,
@@ -167,7 +173,7 @@ public class IVFKnnFloatVectorQueryTests extends AbstractIVFKnnVectorQueryTestCa
             searcher.rewrite(query);
 
             assertNotNull("profileData should be set after rewrite", query.profileData);
-            java.util.Map<String, Object> map = query.profileData.toMap();
+            Map<String, Object> map = query.profileData.toMap();
             assertTrue("filter_time_ns should be > 0", (long) map.get("filter_time_ns") > 0);
         }
     }
@@ -189,10 +195,55 @@ public class IVFKnnFloatVectorQueryTests extends AbstractIVFKnnVectorQueryTestCa
             AbstractIVFKnnVectorQuery query = getKnnVectorQuery("field", new float[] { 0, 0 }, 3, new MatchNoDocsQuery());
             searcher.rewrite(query);
 
-            java.util.Map<String, Object> breakdown = profiler.getKnnProfileBreakdown();
+            Map<String, Object> breakdown = profiler.getKnnProfileBreakdown();
             assertNotNull("knn_profile must be published even when the filter matches nothing", breakdown);
             assertEquals("ivf", breakdown.get("algorithm"));
             assertEquals("field", breakdown.get("field"));
+        }
+    }
+
+    /**
+     * With auto-calibrate the field mapper builds no outer rescore, so the exact-rescore pass this query
+     * starts itself is the only one that runs. It executes after the IVF breakdown has been published -
+     * when the searcher rewrites the query we returned - so it has to report itself, otherwise the most
+     * expensive step after the approximate search would be missing from the profile entirely.
+     */
+    public void testAutoCalibrateRescoreIsProfiled() throws IOException {
+        try (
+            Directory indexStore = getIndexStore("field", new float[] { 0, 1 }, new float[] { 1, 2 }, new float[] { 0, 0 });
+            IndexReader reader = DirectoryReader.open(indexStore)
+        ) {
+            ContextIndexSearcher searcher = new ContextIndexSearcher(
+                reader,
+                IndexSearcher.getDefaultSimilarity(),
+                IndexSearcher.getDefaultQueryCache(),
+                TrivialQueryCachingPolicy.ALWAYS,
+                true
+            );
+            QueryProfiler profiler = new QueryProfiler();
+            searcher.setProfiler(profiler);
+            AbstractIVFKnnVectorQuery query = new IVFKnnFloatVectorQuery(
+                "field",
+                new float[] { 0, 0 },
+                3,
+                3,
+                null,
+                0.05f,
+                new IvfQueryConfigResolver(true, false, 4, 1.0f, null)
+            );
+            searcher.rewrite(query);
+
+            Map<String, Object> breakdown = profiler.getKnnProfileBreakdown();
+            assertNotNull("knn_profile should be published", breakdown);
+            assertEquals("ivf", breakdown.get("algorithm"));
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> rescore = (Map<String, Object>) breakdown.get("rescore");
+            assertNotNull("the auto-calibrate rescore must report itself onto the IVF breakdown", rescore);
+            // The candidates are handed over in a KnnScoreDocQuery, so this is the `late` strategy.
+            assertEquals("late", rescore.get("type"));
+            assertTrue("rescore time_ns should be > 0", (long) rescore.get("time_ns") > 0);
+            assertTrue("rescore doc_count should be > 0", (int) rescore.get("doc_count") > 0);
         }
     }
 

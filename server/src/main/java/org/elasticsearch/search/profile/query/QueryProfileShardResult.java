@@ -22,7 +22,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -172,25 +171,6 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
     @Nullable
     public Map<String, Object> getKnnProfileBreakdown() {
         return knnProfileBreakdown;
-    }
-
-    /**
-     * Collapses the per-subtree kNN breakdowns a {@link QueryProfiler} accumulated into the single
-     * {@code knn_profile} map that is serialized. Returns {@code null} when empty, the single breakdown
-     * when there is exactly one, and a {@code {"knn_queries": [...]}} wrapper when a single search carried
-     * several kNN queries (e.g. a {@code bool} with multiple {@code knn} clauses).
-     */
-    @Nullable
-    public static Map<String, Object> collapseKnnProfileBreakdowns(@Nullable List<Map<String, Object>> breakdowns) {
-        if (breakdowns == null || breakdowns.isEmpty()) {
-            return null;
-        }
-        if (breakdowns.size() == 1) {
-            return breakdowns.get(0);
-        }
-        Map<String, Object> combined = new LinkedHashMap<>();
-        combined.put("knn_queries", new ArrayList<>(breakdowns));
-        return combined;
     }
 
     public Long getVectorOperationsCount() {

@@ -21,6 +21,7 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
     private final SetOnce<AbstractMaxScoreKnnCollector> collector = new SetOnce<>();
     private final LongAccumulator accumulator;
     private final KnnSearchProfileData profileData;
+    private volatile float resolvedVisitRatio = Float.NaN;
 
     public IVFKnnSearchStrategy(float visitRatio, int numCands, int k, LongAccumulator accumulator) {
         this(visitRatio, numCands, k, accumulator, null);
@@ -51,6 +52,21 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
 
     public float getVisitRatio() {
         return visitRatio;
+    }
+
+    /**
+     * Records the visit ratio the codec actually used. When {@link #getVisitRatio()} is {@code 0.0f} the
+     * codec derives the ratio per segment, so it is only known after the search has run. One strategy is
+     * built per leaf search, which is what lets the query attribute the ratio back to the right segment
+     * without any thread-affinity assumptions.
+     */
+    public void setResolvedVisitRatio(float resolvedVisitRatio) {
+        this.resolvedVisitRatio = resolvedVisitRatio;
+    }
+
+    /** The ratio the codec used, or {@link Float#NaN} if it did not report one. */
+    public float getResolvedVisitRatio() {
+        return resolvedVisitRatio;
     }
 
     public int getNumCands() {

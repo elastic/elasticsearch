@@ -62,7 +62,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     protected final IvfQueryConfigResolver ivfQueryConfigResolver;
     protected KnnSearchProfileData profileData;
     protected String quantization;
-    private boolean profilingSuppressed;
 
     protected AbstractIVFKnnVectorQuery(
         String field,
@@ -117,7 +116,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     @Override
     public void enableProfiling() {
         profileData = new KnnSearchProfileData();
-        profileData.setAlgorithmType("ivf");
+        profileData.setAlgorithm(KnnSearchProfileData.Algorithm.IVF);
         profileData.setQuantization(quantization);
         profileData.setField(field);
     }
@@ -128,25 +127,22 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     }
 
     @Override
-    public void setProfilingSuppressed(boolean suppressed) {
-        this.profilingSuppressed = suppressed;
-    }
-
-    @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
         // Self-enable when a profiler is attached to the searcher, so profiling works in both the DFS and
-        // query phases without an explicit enableProfiling() call. Suppressed when driven by PostFilterKnnQuery.
-        QueryProfiler profiler = QueryProfilerProvider.activeProfiler(indexSearcher);
-        if (profiler != null && profilingSuppressed == false && profileData == null) {
+        // query phases without an explicit enableProfiling() call. Doing so is also what earns us the right to
+        // publish: if profiling was already on, a caller enabled it and will harvest us itself, so profiler
+        // stays null and we only collect.
+        QueryProfiler profiler = profileData == null ? QueryProfilerProvider.activeProfiler(indexSearcher) : null;
+        if (profiler != null) {
             enableProfiling();
         }
         long rewriteStartNs = profileData != null ? System.nanoTime() : 0;
         vectorOpsCount = 0;
         IndexReader reader = indexSearcher.getIndexReader();
 
-        long filterStartNs = profileData != null ? System.nanoTime() : 0;
         final Weight filterWeight;
         if (filter != null) {
+            long filterStartNs = profileData != null ? System.nanoTime() : 0;
             BooleanQuery booleanQuery = new BooleanQuery.Builder().add(filter, BooleanClause.Occur.FILTER)
                 .add(new FieldExistsQuery(field), BooleanClause.Occur.FILTER)
                 .build();
@@ -156,17 +152,15 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                     profileData.setFilterTimeNs(System.nanoTime() - filterStartNs);
                     profileData.setTotalSearchTimeNs(System.nanoTime() - rewriteStartNs);
                 }
-                if (profiler != null && profilingSuppressed == false) {
-                    profile(profiler);
-                }
+                publishProfile(profiler);
                 return rewritten;
             }
             filterWeight = indexSearcher.createWeight(rewritten, ScoreMode.COMPLETE_NO_SCORES, 1f);
+            if (profileData != null) {
+                profileData.setFilterTimeNs(System.nanoTime() - filterStartNs);
+            }
         } else {
             filterWeight = null;
-        }
-        if (profileData != null) {
-            profileData.setFilterTimeNs(System.nanoTime() - filterStartNs);
         }
 
         TaskExecutor taskExecutor = indexSearcher.getTaskExecutor();
@@ -217,14 +211,16 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             profileData.setTotalSearchTimeNs(System.nanoTime() - rewriteStartNs);
         }
         // Self-publish before the branching returns; an auto-rescore query (below) later merges its
-        // rescore section onto this breakdown. rewrite() runs once per query instance.
-        if (profiler != null && profilingSuppressed == false) {
-            profile(profiler);
-        }
+        // rescore section onto this breakdown.
+        publishProfile(profiler);
         if (topK.scoreDocs.length == 0) {
             return Queries.NO_DOCS_INSTANCE;
         }
         if (ivfQueryConfigResolver.isAutoCalibrate()) {
+            // The exact-rescore pass does not run here: it runs when the searcher rewrites the query we
+            // return, by which point our own total_time_ns is already sealed. Nobody enables it, so it
+            // discovers the profiler itself and merges a `rescore` section onto the breakdown we just
+            // published - the same shape the mapper-built rescore produces for every other kNN query.
             return getAutoRescoreQuery(indexSearcher, topK, mergeK);
         }
         return new KnnScoreDocQuery(topK.scoreDocs, reader);
@@ -304,6 +300,20 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     protected IVFCollectorManager getKnnCollectorManager(int k, LongAccumulator longAccumulator) {
         return new IVFCollectorManager(k, longAccumulator);
+    }
+
+    /**
+     * Publishes this query's counters and breakdown onto {@code profiler}, if there is one to publish to.
+     * <p>
+     * {@link Query#rewrite} carries no once-only contract - {@code IndexSearcher} rewrites to a fixpoint and
+     * nesting constructs can re-enter - but a duplicate breakdown cannot result: {@code rewrite} resolves a
+     * non-null profiler only on the invocation that enabled collection, and only one of the two call sites
+     * below is reached per invocation.
+     */
+    private void publishProfile(QueryProfiler profiler) {
+        if (profiler != null) {
+            profile(profiler);
+        }
     }
 
     @Override

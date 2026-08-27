@@ -28,7 +28,6 @@ import java.util.function.Predicate;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class QueryProfileShardResultTests extends AbstractXContentSerializingTestCase<QueryProfileShardResult> {
     public static QueryProfileShardResult createTestItem() {
@@ -124,30 +123,5 @@ public class QueryProfileShardResultTests extends AbstractXContentSerializingTes
 
         QueryProfileShardResult newCopy = copyInstance(original, TransportVersionUtils.randomVersionSupporting(gate));
         assertThat(newCopy, equalTo(original));
-    }
-
-    public void testCollapseKnnProfileBreakdownsEmptyOrNull() {
-        assertThat(QueryProfileShardResult.collapseKnnProfileBreakdowns(null), nullValue());
-        assertThat(QueryProfileShardResult.collapseKnnProfileBreakdowns(List.of()), nullValue());
-    }
-
-    public void testCollapseKnnProfileBreakdownsSingle() {
-        Map<String, Object> only = createRandomKnnProfile();
-        // A single kNN query surfaces its breakdown directly, not wrapped in a knn_queries list.
-        assertThat(QueryProfileShardResult.collapseKnnProfileBreakdowns(List.of(only)), sameInstance(only));
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testCollapseKnnProfileBreakdownsMultiple() {
-        Map<String, Object> ivf = new LinkedHashMap<>();
-        ivf.put("algorithm", "ivf");
-        Map<String, Object> hnsw = new LinkedHashMap<>();
-        hnsw.put("algorithm", "hnsw");
-
-        Map<String, Object> collapsed = QueryProfileShardResult.collapseKnnProfileBreakdowns(List.of(ivf, hnsw));
-        List<Map<String, Object>> queries = (List<Map<String, Object>>) collapsed.get("knn_queries");
-        assertThat(queries.size(), equalTo(2));
-        assertThat(queries.get(0).get("algorithm"), equalTo("ivf"));
-        assertThat(queries.get(1).get("algorithm"), equalTo("hnsw"));
     }
 }

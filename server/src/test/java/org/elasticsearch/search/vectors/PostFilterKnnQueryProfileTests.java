@@ -81,6 +81,7 @@ public class PostFilterKnnQueryProfileTests extends ESTestCase {
 
                 @SuppressWarnings("unchecked")
                 Map<String, Object> postFilter = (Map<String, Object>) breakdown.get("post_filter");
+                assertThat(postFilter.get("engaged"), equalTo(true));
                 assertThat((float) postFilter.get("selectivity"), equalTo(1.0f));
                 assertThat((float) postFilter.get("threshold"), equalTo(0.0f));
                 assertThat(postFilter, hasKey("early_exit"));
@@ -99,6 +100,55 @@ public class PostFilterKnnQueryProfileTests extends ESTestCase {
                 assertThat(inner0, notNullValue());
                 assertThat(inner0.get("algorithm"), equalTo("hnsw"));
                 assertThat(inner0.get("quantization"), equalTo("bbq_hnsw"));
+            }
+        }
+    }
+
+    /**
+     * When the filter is not selective enough, post-filtering is declined and the bare inner query runs.
+     * The breakdown must then keep the plain kNN shape (so the output does not depend on whether the
+     * post-filter wrapper happened to be inserted) plus a compact section explaining the decision.
+     */
+    public void testNotEngagedBreakdownExplainsTheDecision() throws IOException {
+        try (Directory dir = newDirectory()) {
+            // Half the docs match the filter, so selectivity (0.5) falls below the threshold below.
+            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+                for (int i = 0; i < 8; i++) {
+                    Document doc = new Document();
+                    doc.add(new KnnFloatVectorField("vector", new float[] { (float) i }, VectorSimilarityFunction.EUCLIDEAN));
+                    doc.add(new KeywordField("tag", i % 2 == 0 ? "pass" : "drop", Field.Store.NO));
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+                writer.commit();
+            }
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                ContextIndexSearcher searcher = contextSearcher(reader);
+                QueryProfiler profiler = new QueryProfiler();
+                searcher.setProfiler(profiler);
+
+                int k = 4;
+                Query filter = new TermQuery(new Term("tag", "pass"));
+                ESKnnFloatVectorQuery inner = new ESKnnFloatVectorQuery("vector", new float[] { 0f }, k, 10, filter, null);
+                PostFilterKnnQuery pfq = new PostFilterKnnQuery(inner, filter, k, "vector", null, 0.9f);
+
+                searcher.rewrite(pfq);
+
+                Map<String, Object> breakdown = profiler.getKnnProfileBreakdown();
+                assertThat(breakdown, notNullValue());
+                // The inner query's own breakdown is surfaced, so the shape matches an unwrapped kNN query.
+                assertThat(breakdown.get("algorithm"), equalTo("hnsw"));
+                assertThat(breakdown.get("field"), equalTo("vector"));
+                assertThat(breakdown, hasKey("hnsw"));
+
+                @SuppressWarnings("unchecked")
+                Map<String, Object> postFilter = (Map<String, Object>) breakdown.get("post_filter");
+                assertThat(postFilter.get("engaged"), equalTo(false));
+                assertThat((float) postFilter.get("selectivity"), equalTo(0.5f));
+                assertThat((float) postFilter.get("threshold"), equalTo(0.9f));
+                // No rounds ran, so the round-specific keys are omitted rather than reported as zeroes.
+                assertFalse(postFilter.containsKey("rounds"));
             }
         }
     }

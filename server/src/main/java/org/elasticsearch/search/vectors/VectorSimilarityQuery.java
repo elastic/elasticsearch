@@ -101,13 +101,6 @@ public class VectorSimilarityQuery extends Query implements QueryProfilerProvide
     }
 
     @Override
-    public void setProfilingSuppressed(boolean suppressed) {
-        if (innerKnnQuery instanceof QueryProfilerProvider queryProfilerProvider) {
-            queryProfilerProvider.setProfilingSuppressed(suppressed);
-        }
-    }
-
-    @Override
     public String toString(String field) {
         return "VectorSimilarityQuery["
             + "similarity="

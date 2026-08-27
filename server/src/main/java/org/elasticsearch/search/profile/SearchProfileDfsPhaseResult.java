@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ParserConstructor;
@@ -20,6 +21,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -98,5 +100,27 @@ public class SearchProfileDfsPhaseResult implements Writeable, ToXContentObject 
 
     public List<QueryProfileShardResult> getQueryProfileShardResult() {
         return queryProfileShardResult;
+    }
+
+    QueryProfileShardResult combineQueryProfileShardResults() {
+        if (queryProfileShardResult == null) {
+            return null;
+        }
+        List<CollectorResult> subCollectorResults = new ArrayList<>(queryProfileShardResult.size());
+        long totalRewriteTime = 0;
+        long totalCollectionTime = 0;
+        List<ProfileResult> profileResults = new ArrayList<>();
+        for (QueryProfileShardResult queryProfiler : queryProfileShardResult) {
+            totalRewriteTime += queryProfiler.getRewriteTime();
+            profileResults.addAll(queryProfiler.getQueryResults());
+            subCollectorResults.add(queryProfiler.getCollectorResult());
+            totalCollectionTime += queryProfiler.getCollectorResult().getTime();
+        }
+        return new QueryProfileShardResult(
+            profileResults,
+            totalRewriteTime,
+            new CollectorResult("KnnQueryCollector", CollectorResult.REASON_SEARCH_MULTI, totalCollectionTime, subCollectorResults),
+            null
+        );
     }
 }

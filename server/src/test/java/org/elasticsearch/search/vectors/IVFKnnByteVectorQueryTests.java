@@ -26,6 +26,7 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class IVFKnnByteVectorQueryTests extends AbstractIVFKnnVectorQueryTestCase<byte[]> {
 
@@ -108,7 +109,7 @@ public class IVFKnnByteVectorQueryTests extends AbstractIVFKnnVectorQueryTestCas
             searcher.rewrite(query);
 
             assertNotNull("profileData should be set after rewrite", query.profileData);
-            java.util.Map<String, Object> map = query.profileData.toMap();
+            Map<String, Object> map = query.profileData.toMap();
             assertEquals("ivf", map.get("algorithm"));
             assertEquals("field", map.get("field"));
             assertTrue("total_time_ns should be > 0", (long) map.get("total_time_ns") > 0);
@@ -116,13 +117,14 @@ public class IVFKnnByteVectorQueryTests extends AbstractIVFKnnVectorQueryTestCas
             assertNotNull("per-segment breakdown should be present", map.get("segments"));
 
             @SuppressWarnings("unchecked")
-            java.util.Map<String, Object> ivf = (java.util.Map<String, Object>) map.get("ivf");
+            Map<String, Object> ivf = (Map<String, Object>) map.get("ivf");
             assertNotNull("ivf section should be present", ivf);
             assertTrue("centroids_evaluated should be > 0", (int) ivf.get("centroids_evaluated") > 0);
             assertTrue("postings_scored should be > 0", (long) ivf.get("postings_scored") > 0);
+            assertTrue("visit_ratio_used should be > 0", (float) ivf.get("visit_ratio_used") > 0f);
 
             @SuppressWarnings("unchecked")
-            java.util.Map<String, Object> timings = (java.util.Map<String, Object>) ivf.get("timings");
+            Map<String, Object> timings = (Map<String, Object>) ivf.get("timings");
             assertNotNull("timings should be present", timings);
             assertTrue("posting_visit_ns should be > 0", (long) timings.get("posting_visit_ns") > 0);
             assertTrue("scoring_ns should be > 0", (long) timings.get("scoring_ns") > 0);
@@ -146,7 +148,7 @@ public class IVFKnnByteVectorQueryTests extends AbstractIVFKnnVectorQueryTestCas
             AbstractIVFKnnVectorQuery query = getKnnVectorQuery("field", new byte[] { 0, 0 }, 3, new MatchNoDocsQuery());
             searcher.rewrite(query);
 
-            java.util.Map<String, Object> breakdown = profiler.getKnnProfileBreakdown();
+            Map<String, Object> breakdown = profiler.getKnnProfileBreakdown();
             assertNotNull("knn_profile must be published even when the filter matches nothing", breakdown);
             assertEquals("ivf", breakdown.get("algorithm"));
             assertEquals("field", breakdown.get("field"));

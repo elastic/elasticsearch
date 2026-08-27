@@ -17,7 +17,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TimeLimitingKnnCollectorManager;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.DiversifyingChildrenByteKnnVectorQuery;
@@ -41,9 +40,9 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
     private final int[][] seedDocsPerLeaf;
     private List<LeafReaderContext> leaves;
     private TopDocs[] rawPerLeafResults;
-    private KnnSearchProfileData profileData;
     private String quantization;
-    private boolean profilingSuppressed;
+    /** Non-null only while this query is being profiled; see {@link HnswKnnProfileSupport}. */
+    private HnswKnnProfileSupport profiling;
 
     public ESDiversifyingChildrenByteKnnVectorQuery(
         String field,
@@ -91,29 +90,21 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
 
     @Override
     public void enableProfiling() {
-        profileData = new KnnSearchProfileData();
-        profileData.setAlgorithmType("hnsw");
-        profileData.setQuantization(quantization);
-        profileData.setField(field);
+        profiling = new HnswKnnProfileSupport(field, quantization, kParam, getK(), getFilter() != null);
     }
 
     @Override
     public void setQuantization(String quantization) {
+        assert profiling == null : "quantization must be set before profiling is enabled, it is snapshotted when it is";
         this.quantization = quantization;
     }
 
     @Override
-    public void setProfilingSuppressed(boolean suppressed) {
-        this.profilingSuppressed = suppressed;
-    }
-
-    @Override
     protected TopDocs searchLeaf(LeafReaderContext ctx, Weight filterWeight, TimeLimitingKnnCollectorManager cm) throws IOException {
-        long start = profileData != null ? System.nanoTime() : 0;
+        long start = profiling == null ? 0 : System.nanoTime();
         TopDocs result = super.searchLeaf(ctx, filterWeight, cm);
-        if (profileData != null) {
-            // totalHits.value() is KnnCollector.visitedCount() — the number of HNSW graph nodes visited
-            profileData.addHnswLeafSearch(ctx, field, System.nanoTime() - start, result.totalHits.value(), result.scoreDocs.length);
+        if (profiling != null) {
+            profiling.recordLeafSearch(ctx, start, result);
         }
         return result;
     }
@@ -121,11 +112,10 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
     @Override
     protected TopDocs mergeLeafResults(TopDocs[] perLeafResults) {
         this.rawPerLeafResults = perLeafResults;
-        long start = profileData != null ? System.nanoTime() : 0;
+        long start = profiling == null ? 0 : System.nanoTime();
         TopDocs topK = TopDocs.merge(kParam, perLeafResults);
-        if (profileData != null) {
-            profileData.setMergeTimeNs(System.nanoTime() - start);
-            profileData.setEarlyTerminated(topK.totalHits.relation() == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
+        if (profiling != null) {
+            profiling.recordMerge(start, topK);
         }
         vectorOpsCount = topK.totalHits.value();
         return topK;
@@ -134,22 +124,17 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
     @Override
     public Query rewrite(IndexSearcher searcher) throws IOException {
         this.leaves = searcher.getIndexReader().leaves();
-        // Self-enable when a profiler is attached, so profiling works in both the DFS and query phases without
-        // an explicit enableProfiling() call. Suppressed when driven by PostFilterKnnQuery.
-        QueryProfiler profiler = QueryProfilerProvider.activeProfiler(searcher);
-        if (profiler != null && profilingSuppressed == false && profileData == null) {
+        // Enabling ourselves here is also what earns us the right to publish: if profiling was already on, a
+        // caller enabled it and will harvest us itself, so profiler stays null and we only collect.
+        QueryProfiler profiler = profiling == null ? QueryProfilerProvider.activeProfiler(searcher) : null;
+        if (profiler != null) {
             enableProfiling();
         }
-        if (profileData != null) {
-            profileData.setHnswQueryParams(kParam, getK(), getFilter() != null);
-        }
-        long start = profileData != null ? System.nanoTime() : 0;
+        long start = profiling == null ? 0 : System.nanoTime();
         Query result = super.rewrite(searcher);
-        if (profileData != null) {
-            profileData.setTotalSearchTimeNs(System.nanoTime() - start);
-        }
-        if (profiler != null && profilingSuppressed == false) {
-            profile(profiler);
+        if (profiling != null) {
+            profiling.recordTotalSearchTime(start);
+            profiling.publish(profiler, this);
         }
         return result;
     }
@@ -157,8 +142,8 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
     @Override
     public void profile(QueryProfiler queryProfiler) {
         queryProfiler.addVectorOpsCount(vectorOpsCount);
-        if (profileData != null) {
-            queryProfiler.addKnnProfileBreakdown(profileData.toMap());
+        if (profiling != null) {
+            profiling.addBreakdownTo(queryProfiler);
         }
     }
 

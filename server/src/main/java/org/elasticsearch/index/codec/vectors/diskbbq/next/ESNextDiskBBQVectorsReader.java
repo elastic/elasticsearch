@@ -1017,28 +1017,16 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         }
 
         @Override
-        public long getDocIdReadTimeNs() {
-            return profileDocIdReadTimeNs;
-        }
-
-        @Override
-        public long getScoringTimeNs() {
-            return profileScoringTimeNs;
-        }
-
-        @Override
-        public long getQueryQuantizationTimeNs() {
-            return profileQueryQuantizationTimeNs;
-        }
-
-        @Override
-        public long getCentroidReadTimeNs() {
-            return profileCentroidReadTimeNs;
-        }
-
-        @Override
-        public String getScorerImplementation() {
-            return KnnSearchProfileData.scorerImplementation(osqVectorsScorer);
+        public Profile profile() {
+            return collectProfile
+                ? new Profile(
+                    profileDocIdReadTimeNs,
+                    profileScoringTimeNs,
+                    profileQueryQuantizationTimeNs,
+                    profileCentroidReadTimeNs,
+                    KnnSearchProfileData.scorerImplementation(osqVectorsScorer)
+                )
+                : null;
         }
     }
 

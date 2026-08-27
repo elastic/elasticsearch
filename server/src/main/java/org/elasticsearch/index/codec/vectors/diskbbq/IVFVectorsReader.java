@@ -31,6 +31,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringVectorValues;
@@ -458,7 +459,8 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         float visitRatio = dynamicVisitRatio;
         KnnSearchProfileData profileData = null;
         // Search strategy may be null if this is being called from checkIndex (e.g. from a test)
-        if (knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfSearchStrategy) {
+        final IVFKnnSearchStrategy ivfSearchStrategy = knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy s ? s : null;
+        if (ivfSearchStrategy != null) {
             visitRatio = ivfSearchStrategy.getVisitRatio();
             numCands = ivfSearchStrategy.getNumCands();
             k = ivfSearchStrategy.getK();
@@ -471,8 +473,10 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
                 computeSegmentSizeCap(numVectors)
             );
         }
-        if (profileData != null) {
-            profileData.setVisitRatioUsed(visitRatio);
+        if (ivfSearchStrategy != null) {
+            // Report the ratio back on the strategy rather than straight onto the shared profile data: one
+            // strategy exists per leaf search, so the query can attribute it to the right segment.
+            ivfSearchStrategy.setResolvedVisitRatio(visitRatio);
         }
         long maxVectorVisited = maxVectorsToVisit(entry, visitRatio, numVectors);
         IndexInput postListSlice = entry.postingListSlice(ivfClusters);
@@ -560,11 +564,14 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             profileData.addPostingVisitTimeNs(postingVisitTimeNs);
             profileData.addPostingsScored(actualDocs);
             profileData.addExpectedDocs(expectedDocs);
-            profileData.addDocIdReadTimeNs(scorer.getDocIdReadTimeNs());
-            profileData.addScoringTimeNs(scorer.getScoringTimeNs());
-            profileData.addQueryQuantizationTimeNs(scorer.getQueryQuantizationTimeNs());
-            profileData.addCentroidReadTimeNs(scorer.getCentroidReadTimeNs());
-            profileData.setScorer(scorer.getScorerImplementation());
+            PostingVisitor.Profile visitorProfile = scorer.profile();
+            if (visitorProfile != null) {
+                profileData.addDocIdReadTimeNs(visitorProfile.docIdReadTimeNs());
+                profileData.addScoringTimeNs(visitorProfile.scoringTimeNs());
+                profileData.addQueryQuantizationTimeNs(visitorProfile.queryQuantizationTimeNs());
+                profileData.addCentroidReadTimeNs(visitorProfile.centroidReadTimeNs());
+                profileData.setScorer(visitorProfile.scorerImplementation());
+            }
         }
     }
 
@@ -831,30 +838,32 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
          */
         default void enableProfiling() {}
 
-        /** Accumulated time reading and decoding doc IDs. */
-        default long getDocIdReadTimeNs() {
-            return 0;
-        }
-
-        /** Accumulated time in quantized scoring (SIMD bulk + individual). */
-        default long getScoringTimeNs() {
-            return 0;
-        }
-
-        /** Accumulated time quantizing the query vector against each centroid. */
-        default long getQueryQuantizationTimeNs() {
-            return 0;
-        }
-
-        /** Accumulated time reading centroid vectors in resetPostingsScorer. */
-        default long getCentroidReadTimeNs() {
-            return 0;
-        }
-
-        /** The scorer implementation family that ran: {@code native}, {@code panama}, or {@code scalar}. */
-        default String getScorerImplementation() {
+        /**
+         * The timings accumulated since {@link #enableProfiling()}, or {@code null} when this visitor does
+         * not collect them. Read once, after the search loop has finished draining postings.
+         */
+        @Nullable
+        default Profile profile() {
             return null;
         }
+
+        /**
+         * A visitor's timing breakdown, harvested once at the end of a search.
+         *
+         * @param docIdReadTimeNs         accumulated time reading and decoding doc IDs
+         * @param scoringTimeNs           accumulated time in quantized scoring (SIMD bulk + individual)
+         * @param queryQuantizationTimeNs accumulated time quantizing the query vector against each centroid
+         * @param centroidReadTimeNs      accumulated time reading centroid vectors in resetPostingsScorer
+         * @param scorerImplementation    the scorer implementation family that ran: {@code native},
+         *                                {@code panama}, or {@code scalar}
+         */
+        record Profile(
+            long docIdReadTimeNs,
+            long scoringTimeNs,
+            long queryQuantizationTimeNs,
+            long centroidReadTimeNs,
+            String scorerImplementation
+        ) {}
     }
 
 }

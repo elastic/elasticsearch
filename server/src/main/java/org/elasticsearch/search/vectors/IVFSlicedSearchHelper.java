@@ -177,9 +177,9 @@ final class IVFSlicedSearchHelper {
             }
         }
         if (profileData != null) {
-            long elapsed = System.nanoTime() - leafSearchStart;
-            profileData.addApproximateSearchTimeNs(elapsed);
-            profileData.addSegmentSearched(ctx, field, elapsed);
+            // The codec resolves the visit ratio it actually used onto the (per-leaf) strategy; when several
+            // slices are searched for this leaf, the ratio of the last one searched is reported.
+            profileData.addIvfLeafSearch(ctx, System.nanoTime() - leafSearchStart, strategy.getResolvedVisitRatio());
         }
         TopDocs results = knnCollector instanceof BulkKnnCollector bulkKnnCollector
             ? bulkKnnCollector.unsortedTopK()

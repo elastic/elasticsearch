@@ -176,12 +176,7 @@ public class IVFKnnByteVectorQuery extends AbstractIVFKnnVectorQuery {
     @Override
     Query getAutoRescoreQuery(IndexSearcher indexSearcher, TopDocs topOversampled, int effectiveK) {
         Query topDocsQuery = new KnnScoreDocQuery(topOversampled.scoreDocs, indexSearcher.getIndexReader());
-        RescoreKnnVectorQuery rescore = RescoreKnnVectorQuery.fromInnerQuery(field, query, k, effectiveK, topDocsQuery);
-        // The IVF query has already published its own breakdown; the auto-calibrate rescore is an internal
-        // step that is not separately profiled (mirrors the float path and the DFS path), so suppress its
-        // self-push to avoid adding a rescore section and double-counting vector ops.
-        rescore.setProfilingSuppressed(true);
-        return rescore;
+        return RescoreKnnVectorQuery.fromInnerQuery(field, query, k, effectiveK, topDocsQuery);
     }
 
     private TopDocs approximateSearch(
@@ -202,9 +197,9 @@ public class IVFKnnByteVectorQuery extends AbstractIVFKnnVectorQuery {
         long leafSearchStart = profileData != null ? System.nanoTime() : 0;
         reader.searchNearestVectors(field, leafQuery, knnCollector, acceptDocs);
         if (profileData != null) {
-            long elapsed = System.nanoTime() - leafSearchStart;
-            profileData.addApproximateSearchTimeNs(elapsed);
-            profileData.addSegmentSearched(context, field, elapsed);
+            // The codec resolves the visit ratio it actually used onto the (per-leaf) strategy, which may
+            // differ from the requested one when the ratio is computed dynamically.
+            profileData.addIvfLeafSearch(context, System.nanoTime() - leafSearchStart, strategy.getResolvedVisitRatio());
         }
         TopDocs results = knnCollector instanceof BulkKnnCollector bulkKnnCollector
             ? bulkKnnCollector.unsortedTopK()

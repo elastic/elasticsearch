@@ -73,6 +73,9 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
     private final BitSetProducer parentsFilter;
     private final float postFilterSelectivityThreshold;
     private String quantization;
+    private boolean profilingEnabled;
+    private boolean profilePublished;
+    private Map<String, Object> knnProfileBreakdown;
 
     public PostFilterKnnQuery(
         PostFilterableKnnQuery innerQuery,
@@ -97,28 +100,29 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         // post-filter round is profiled in isolation and captured here, rather than letting the rounds
         // clobber the shared breakdown. See PostFilterProfiler.
         QueryProfiler profiler = QueryProfilerProvider.activeProfiler(searcher);
-        PostFilterProfiler postFilterProfiler = profiler != null ? new PostFilterProfiler() : null;
+        PostFilterProfiler postFilterProfiler = profiler != null || profilingEnabled
+            ? new PostFilterProfiler(postFilterSelectivityThreshold)
+            : null;
 
         var filterResult = createFilterWeight(searcher, filter, field);
         if (filterResult == KnnQueryUtils.FilterWeight.MATCH_NO_DOCS) {
             if (postFilterProfiler != null) {
                 postFilterProfiler.matchNoDocs = true;
-                Map<String, Object> breakdown = postFilterProfiler.toBreakdown(0);
-                breakdown.put("field", field);
-                profiler.addKnnProfileBreakdown(breakdown);
+                publishBreakdown(profiler, postFilterProfiler.toBreakdown(0, field));
             }
             return MatchNoDocsQuery.INSTANCE;
         }
         Weight filterWeight = filterResult == null ? null : filterResult.weight();
         // need to check if this is actually a valid candidate for post filtering
         PostFilterRewriteMeta rewriteMeta = maybeCreatePostFilterQuery(searcher, filterWeight);
-        if (rewriteMeta != null) {
+        boolean engaged = rewriteMeta.postFilterQuery() != null;
+        if (postFilterProfiler != null) {
+            postFilterProfiler.engaged = engaged;
+            postFilterProfiler.selectivity = rewriteMeta.selectivity();
+        }
+        if (engaged) {
             assert rewriteMeta.postFilterQuery() instanceof PostFilterableKnnQuery
                 : "[createPostFilterQuery] should have generated a PostFilterableKnnQuery";
-            if (postFilterProfiler != null) {
-                postFilterProfiler.selectivity = rewriteMeta.selectivity();
-                postFilterProfiler.threshold = postFilterSelectivityThreshold;
-            }
             var rewritten = postFilterRewrite(
                 searcher,
                 (PostFilterableKnnQuery) rewriteMeta.postFilterQuery(),
@@ -128,38 +132,45 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             );
             if (rewritten != null) {
                 if (postFilterProfiler != null) {
-                    pushPostFilterProfile(profiler, postFilterProfiler);
+                    publishBreakdown(profiler, postFilterProfiler.toBreakdown(totalVectorOps, field));
                 }
                 return rewritten;
-            }
-            // Post-filtering engaged but fell short; the bare inner query below produces the final result.
-            // Suppress its self-publish so it does not overwrite our post_filter breakdown, and record it as
-            // a final fallthrough round instead.
-            if (postFilterProfiler != null) {
-                PostFilterProfiler.prepare((Query) innerQuery);
             }
         }
         // We fall back to the bare inner query either when the filter does not meet the
         // necessary selectivity (no post-filter rounds ran at all) or when post-filtering
         // produced zero results (so no docs were available to seed the augmented fallback).
+        // Either way the bare inner query produces the final result; enable it ourselves so it does not publish
+        // alongside our breakdown, and fold what it collected into ours instead.
+        if (postFilterProfiler != null) {
+            PostFilterProfiler.prepare((Query) innerQuery);
+        }
         Query rewritten = ((Query) innerQuery).rewrite(searcher);
         this.totalVectorOps += innerQuery.totalVectorOps();
-        if (rewriteMeta != null && postFilterProfiler != null) {
-            // Engaged path fell through: the bare inner search was suppressed above; capture it as the final
-            // round and publish the accumulated post_filter breakdown.
-            postFilterProfiler.record("fallthrough", (Query) innerQuery, -1, null, innerQuery.totalVectorOps());
-            pushPostFilterProfile(profiler, postFilterProfiler);
+        if (postFilterProfiler != null) {
+            if (engaged) {
+                // Engaged but fell short: capture the bare inner search as a final round.
+                postFilterProfiler.record("fallthrough", (Query) innerQuery, -1, null, innerQuery.totalVectorOps());
+                publishBreakdown(profiler, postFilterProfiler.toBreakdown(totalVectorOps, field));
+            } else {
+                publishBreakdown(profiler, postFilterProfiler.notEngagedBreakdown((Query) innerQuery, field));
+            }
         }
-        // When post-filtering never engaged (rewriteMeta == null), the bare inner query self-publishes a
-        // normal (non post_filter) breakdown during its own rewrite above, so nothing more to do here.
         return rewritten;
     }
 
-    private void pushPostFilterProfile(QueryProfiler profiler, PostFilterProfiler postFilterProfiler) {
-        profiler.addVectorOpsCount(totalVectorOps);
-        Map<String, Object> breakdown = postFilterProfiler.toBreakdown(totalVectorOps);
-        breakdown.put("field", field);
-        profiler.addKnnProfileBreakdown(breakdown);
+    /**
+     * Records the breakdown for this subtree and publishes it, unless a caller enabled profiling on us and so
+     * owns the result - in which case the breakdown is only stored, for that caller to harvest through
+     * {@link #profile}. Publishing is idempotent: {@link Query#rewrite} carries no once-only contract, so a
+     * second invocation would otherwise append a duplicate breakdown and double-count vector ops.
+     */
+    private void publishBreakdown(QueryProfiler profiler, Map<String, Object> breakdown) {
+        this.knnProfileBreakdown = breakdown;
+        if (profiler != null && profilingEnabled == false && profilePublished == false) {
+            profilePublished = true;
+            profile(profiler);
+        }
     }
 
     private Query postFilterRewrite(
@@ -269,22 +280,31 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
 
     /**
      * Collects a structured {@code post_filter} breakdown across the post-filter rounds (initial, retry,
-     * fallback, and a bare fallthrough). Each round's inner kNN query is profiled in isolation: we suppress
-     * its auto-publish (so it does not clobber the shared breakdown) but enable its own collection via
-     * {@link #prepare}, then harvest it in {@link #record}. This keeps {@link PostFilterKnnQuery} the single
-     * authority for its subtree's {@code knn_profile} and avoids double-counting vector ops.
+     * fallback, and a bare fallthrough). Each round's inner kNN query is profiled in isolation: {@link #prepare}
+     * enables its collection, which by that same act withholds its own publication, and {@link #record} then
+     * harvests it. This keeps {@link PostFilterKnnQuery} the single authority for its subtree's
+     * {@code knn_profile} and avoids double-counting vector ops.
      */
     private static final class PostFilterProfiler {
         private final List<Map<String, Object>> rounds = new ArrayList<>();
-        private float selectivity;
-        private float threshold;
+        private final float threshold;
+        private float selectivity = Float.NaN;
+        private boolean engaged;
         private boolean earlyExit;
         private boolean matchNoDocs;
 
-        /** Let a round's inner query collect its own breakdown without publishing it to the shared profiler. */
+        PostFilterProfiler(float threshold) {
+            this.threshold = threshold;
+        }
+
+        /**
+         * Let a round's inner query collect its own breakdown without publishing it to the shared profiler.
+         * Enabling it explicitly is what withholds publication: the round's breakdown belongs nested under
+         * {@code post_filter.rounds[]}, harvested by {@link #record}, not appended as a second top-level
+         * {@code knn_profile} entry.
+         */
         static void prepare(Query roundQuery) {
             if (roundQuery instanceof QueryProfilerProvider queryProfilerProvider) {
-                queryProfilerProvider.setProfilingSuppressed(true);
                 queryProfilerProvider.enableProfiling();
             }
         }
@@ -299,21 +319,33 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
                 round.put("docs_passing_filter", docsPassingFilter);
             }
             round.put("vector_ops", vectorOps);
+            Map<String, Object> inner = harvest(roundQuery);
+            if (inner.isEmpty() == false) {
+                round.put("inner", inner);
+            }
+            rounds.add(round);
+        }
+
+        /** The breakdown a {@link #prepare}d query collected, or an empty map when it collected none. */
+        private static Map<String, Object> harvest(Query roundQuery) {
             if (roundQuery instanceof QueryProfilerProvider queryProfilerProvider) {
                 QueryProfiler roundProfiler = new QueryProfiler();
                 queryProfilerProvider.profile(roundProfiler);
                 // The round query publishes at most one breakdown onto this throwaway profiler.
                 List<Map<String, Object>> innerBreakdowns = roundProfiler.getKnnProfileBreakdowns();
                 if (innerBreakdowns.isEmpty() == false) {
-                    round.put("inner", innerBreakdowns.get(0));
+                    return innerBreakdowns.get(0);
                 }
             }
-            rounds.add(round);
+            return Map.of();
         }
 
-        Map<String, Object> toBreakdown(long totalVectorOps) {
+        Map<String, Object> toBreakdown(long totalVectorOps, String field) {
             Map<String, Object> postFilter = new LinkedHashMap<>();
-            postFilter.put("selectivity", selectivity);
+            postFilter.put("engaged", engaged);
+            if (Float.isNaN(selectivity) == false) {
+                postFilter.put("selectivity", selectivity);
+            }
             postFilter.put("threshold", threshold);
             postFilter.put("early_exit", earlyExit);
             if (matchNoDocs) {
@@ -326,6 +358,28 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             if (algorithm != null) {
                 breakdown.put("algorithm", algorithm);
             }
+            if (field != null) {
+                breakdown.put("field", field);
+            }
+            breakdown.put("post_filter", postFilter);
+            return breakdown;
+        }
+
+        /**
+         * Breakdown for the case where the filter was not selective enough for post-filtering to run. The
+         * inner query's own breakdown is surfaced at the top level - it is what actually executed, so the
+         * shape stays the same as an unwrapped kNN query - annotated with a compact {@code post_filter}
+         * section recording that post-filtering was skipped and the numbers behind that decision.
+         */
+        Map<String, Object> notEngagedBreakdown(Query innerQuery, String field) {
+            Map<String, Object> breakdown = new LinkedHashMap<>(harvest(innerQuery));
+            breakdown.putIfAbsent("field", field);
+            Map<String, Object> postFilter = new LinkedHashMap<>();
+            postFilter.put("engaged", false);
+            if (Float.isNaN(selectivity) == false) {
+                postFilter.put("selectivity", selectivity);
+            }
+            postFilter.put("threshold", threshold);
             breakdown.put("post_filter", postFilter);
             return breakdown;
         }
@@ -528,11 +582,18 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         return seedsPerLeaf;
     }
 
+    /**
+     * @param postFilterQuery the oversampled delegate to drive the post-filter rounds with, or {@code null}
+     *                        when post-filtering should not be attempted
+     * @param selectivity     the measured fraction of vectors passing the filter, or {@link Float#NaN} when
+     *                        there is no filter to measure. Reported even when post-filtering is declined, so
+     *                        the profile can explain the decision.
+     */
     private record PostFilterRewriteMeta(Query postFilterQuery, float selectivity) {}
 
     private PostFilterRewriteMeta maybeCreatePostFilterQuery(IndexSearcher searcher, Weight filterWeight) throws IOException {
         if (filterWeight == null) {
-            return null;
+            return new PostFilterRewriteMeta(null, Float.NaN);
         }
         var leaves = searcher.getIndexReader().leaves();
         int totalVectors = innerQuery.countTotalVectors(leaves);
@@ -540,12 +601,21 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         if (selectivity >= postFilterSelectivityThreshold) {
             return new PostFilterRewriteMeta(innerQuery.createPostFilterDelegate(selectivity), selectivity);
         }
-        return null;
+        return new PostFilterRewriteMeta(null, selectivity);
     }
 
     Query innerQuery() {
         assert innerQuery instanceof Query : "[innerQuery] should always be a Query instance";
         return (Query) innerQuery;
+    }
+
+    @Override
+    public void enableProfiling() {
+        // Collection is normally self-enabled from the profiler on the searcher; this covers callers that
+        // drive the query through a plain IndexSearcher and harvest the breakdown themselves, which is why it
+        // also withholds publication. The per-round inner queries are enabled individually in
+        // postFilterRewrite, so there is nothing to forward here.
+        profilingEnabled = true;
     }
 
     @Override
@@ -569,6 +639,9 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
     @Override
     public void profile(QueryProfiler queryProfiler) {
         queryProfiler.addVectorOpsCount(totalVectorOps);
+        if (knnProfileBreakdown != null) {
+            queryProfiler.addKnnProfileBreakdown(knnProfileBreakdown);
+        }
     }
 
     @Override

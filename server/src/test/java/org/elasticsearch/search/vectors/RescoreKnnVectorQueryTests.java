@@ -281,6 +281,9 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
     private void checkProfiling(int k, int numDocs, float[] queryVector, IndexReader reader, Query innerQuery) throws IOException {
         var rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(FIELD_NAME, queryVector, k, k, innerQuery);
         IndexSearcher searcher = newSearcher(reader, true, false);
+        // A plain IndexSearcher carries no profiler for the query to discover, so collection has to be
+        // requested explicitly; without it the rescore steps are not timed at all.
+        rescoreKnnVectorQuery.enableProfiling();
         searcher.search(rescoreKnnVectorQuery, numDocs);
 
         QueryProfiler queryProfiler = new QueryProfiler();
@@ -318,6 +321,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                 Query innerQuery = new KnnFloatVectorQuery(FIELD_NAME, randomFloatVector(numDims), k);
                 var rescoreQuery = RescoreKnnVectorQuery.fromInnerQuery(FIELD_NAME, queryVector, k, k, innerQuery);
                 IndexSearcher searcher = newSearcher(reader, true, false);
+                rescoreQuery.enableProfiling();
                 searcher.search(rescoreQuery, numDocs);
 
                 QueryProfiler profiler = new QueryProfiler();
@@ -340,7 +344,9 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         int numDocs = 80;
         int numDims = 8;
         int k = 5;
-        final long innerRewriteDelayMs = 25L;
+        // Generous relative to the exact pass over 80 docs (microseconds), so the assertion below has a wide
+        // margin and does not turn into a wall-clock race on a loaded machine.
+        final long innerRewriteDelayMs = 200L;
 
         try (Directory d = newDirectory()) {
             addRandomDocuments(numDocs, d, numDims);
@@ -378,8 +384,9 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                 assertThat(rescore.get("type"), equalTo("inline"));
                 long rescoreTimeNs = (long) rescore.get("time_ns");
                 assertThat(rescoreTimeNs, greaterThan(0L));
-                // Inner rewrite sleeps first; if that sleep were inside the rescore timer this would fail.
-                assertThat(rescoreTimeNs, lessThan(TimeUnit.MILLISECONDS.toNanos(innerRewriteDelayMs)));
+                // The inner rewrite sleeps first; if that sleep were inside the rescore timer, rescoreTimeNs
+                // would be at least innerRewriteDelayMs. Half the delay leaves a wide margin either way.
+                assertThat(rescoreTimeNs, lessThan(TimeUnit.MILLISECONDS.toNanos(innerRewriteDelayMs / 2)));
             }
         }
     }
@@ -395,6 +402,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                 float[] queryVector = randomFloatVector(numDims);
                 var rescoreQuery = RescoreKnnVectorQuery.fromInnerQuery(FIELD_NAME, queryVector, k, k, Queries.ALL_DOCS_INSTANCE);
                 IndexSearcher searcher = newSearcher(reader, true, false);
+                rescoreQuery.enableProfiling();
                 searcher.search(rescoreQuery, numDocs);
 
                 QueryProfiler profiler = new QueryProfiler();

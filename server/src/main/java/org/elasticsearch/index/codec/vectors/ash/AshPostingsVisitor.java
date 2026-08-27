@@ -377,22 +377,17 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
     }
 
     @Override
-    public long getDocIdReadTimeNs() {
-        return profileDocIdReadTimeNs;
-    }
-
-    @Override
-    public long getScoringTimeNs() {
-        return profileScoringTimeNs;
-    }
-
-    @Override
-    public long getCentroidReadTimeNs() {
-        return profileCentroidReadTimeNs;
-    }
-
-    @Override
-    public String getScorerImplementation() {
-        return KnnSearchProfileData.scorerImplementation(dotProductScorer);
+    public Profile profile() {
+        // ASH quantizes the query once per search rather than per centroid, so it reports no
+        // query-quantization time of its own.
+        return collectProfile
+            ? new Profile(
+                profileDocIdReadTimeNs,
+                profileScoringTimeNs,
+                0L,
+                profileCentroidReadTimeNs,
+                KnnSearchProfileData.scorerImplementation(dotProductScorer)
+            )
+            : null;
     }
 }

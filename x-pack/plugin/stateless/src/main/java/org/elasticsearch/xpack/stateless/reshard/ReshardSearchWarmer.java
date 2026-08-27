@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.stateless.reshard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexEventListener;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 
 import java.util.concurrent.atomic.AtomicBoolean;

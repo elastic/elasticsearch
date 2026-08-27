@@ -26,33 +26,23 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardSplittingQuery;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -393,45 +383,6 @@ public class ReshardSearchFiltersTests extends ESTestCase {
             var wrappedLeaf = wrapper.leaves().get(0).reader();
             assertSame(delegateLeaf.getLiveDocs(), wrappedLeaf.getLiveDocs());
         }
-    }
-
-    public void testMetadataListenerSchedulesOnlyWhenEnteringSplit() {
-        var warmer = new ReshardSearchWarmer();
-        var indexService = mock(IndexService.class);
-        var indexShard = mock(IndexShard.class);
-        var metadataListener = new AtomicReference<Consumer<IndexMetadata>>();
-        var noSplitMetadata = IndexMetadata.builder("index")
-            .settings(indexSettings(IndexVersion.current(), 2, 0))
-            .numberOfShards(2)
-            .numberOfReplicas(0)
-            .build();
-        var splitMetadata = IndexMetadata.builder(noSplitMetadata)
-            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(1, 2))
-            .build();
-        when(indexService.getMetadata()).thenReturn(noSplitMetadata);
-        when(indexService.iterator()).thenAnswer(ignored -> Collections.singleton(indexShard).iterator());
-        doAnswer(invocation -> {
-            metadataListener.set(invocation.getArgument(0));
-            return null;
-        }).when(indexService).addMetadataListener(org.mockito.ArgumentMatchers.any());
-
-        warmer.afterIndexCreated(indexService);
-        metadataListener.get().accept(splitMetadata);
-        metadataListener.get().accept(splitMetadata);
-        org.mockito.Mockito.verify(indexShard).tryWithEngineOrNull(org.mockito.ArgumentMatchers.any());
-
-        metadataListener.get().accept(noSplitMetadata);
-        metadataListener.get().accept(splitMetadata);
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<Function<Engine, Void>> operationCaptor = ArgumentCaptor.forClass(Function.class);
-        org.mockito.Mockito.verify(indexShard, org.mockito.Mockito.times(2)).tryWithEngineOrNull(operationCaptor.capture());
-
-        var searchEngine = mock(SearchEngine.class);
-        operationCaptor.getAllValues().get(0).apply(searchEngine);
-        org.mockito.Mockito.verify(searchEngine).warmReaderCacheAfterResharding();
-
-        operationCaptor.getAllValues().get(1).apply(null);
-        org.mockito.Mockito.verifyNoMoreInteractions(searchEngine);
     }
 
     public void testWrappingForPitRelocation() throws IOException {

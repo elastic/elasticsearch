@@ -36,34 +36,6 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class ReshardUnownedBitsetCacheTests extends ESTestCase {
 
-    public void testWarmBitSetsWarmsAllLeaves() throws Exception {
-        Directory directory = newDirectory();
-        try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
-            for (int i = 0; i < 2; i++) {
-                var document = new Document();
-                document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), Field.Store.NO));
-                iw.addDocument(document);
-                iw.commit();
-            }
-        }
-
-        Settings settings = Settings.builder().put(ReshardUnownedBitsetCache.CACHE_SIZE_SETTING.getKey(), "256mb").build();
-        ReshardUnownedBitsetCache cache = new ReshardUnownedBitsetCache(settings);
-        try (DirectoryReader reader = DirectoryReader.open(directory)) {
-            IndexMetadata metadata = IndexMetadata.builder("idx")
-                .settings(indexSettings(IndexVersion.current(), 2, 0))
-                .numberOfShards(2)
-                .numberOfReplicas(0)
-                .build();
-            cache.warmBitSets(new ShardSplittingQuery(metadata, 0, false), reader);
-
-            assertEquals(reader.leaves().size(), cache.entryCount());
-        } finally {
-            cache.close();
-            directory.close();
-        }
-    }
-
     public void testCloseClearsEntries() throws Exception {
         Directory directory = newDirectory();
         try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {

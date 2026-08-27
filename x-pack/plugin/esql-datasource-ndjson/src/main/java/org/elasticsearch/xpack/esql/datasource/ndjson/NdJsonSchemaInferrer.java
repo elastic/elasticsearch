@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.TemporalInference;
+import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -59,10 +60,6 @@ public class NdJsonSchemaInferrer {
     public static final DateFormatter STRICT_DATE_OPTIONAL_TIME = DateFormatter.forPattern("strict_date_optional_time");
 
     private static final Logger logger = LogManager.getLogger(NdJsonSchemaInferrer.class);
-
-    private static final EnumSet<DataType> NUMBER_TYPES = EnumSet.of(DataType.DOUBLE, DataType.LONG, DataType.INTEGER);
-
-    private static final EnumSet<DataType> TEMPORAL_TYPES = EnumSet.of(DataType.DATETIME, DataType.DATE_NANOS);
 
     // Fields that we've actually seen in the current json document
     private final BitSet fieldsSeen = new BitSet();
@@ -292,54 +289,32 @@ public class NdJsonSchemaInferrer {
         }
 
         DataType resolveType() {
-            if (types.isEmpty()) {
-                // Can happen with parent and always-empty array
-                return DataType.UNSUPPORTED;
-            }
-
-            // Note: BOOLEAN will only be selected if it's the only type; DATETIME also unless the
-            // field mixes both temporal types, which widens (see below).
-            if (types.size() == 1) {
-                return types.iterator().next();
-            }
-
-            // Multiple types - use the widest type
-            // Nullability is handled separately and not part of type resolution
-            if (types.contains(DataType.KEYWORD)) {
-                return DataType.KEYWORD;
-            }
-
-            // A field carrying both precisions widens to the wider one, losslessly: the decoder reads
-            // millisecond strings onto the nanos rail without complaint. Mirrors what
-            // SchemaReconciliation.widenOrdered does when two files disagree the same way.
-            if (hasOnly(types, TEMPORAL_TYPES)) {
-                return DataType.DATE_NANOS;
-            }
-
-            if (hasOnly(types, NUMBER_TYPES)) {
-                if (types.contains(DataType.DOUBLE)) {
-                    return DataType.DOUBLE;
-                }
-                if (types.contains(DataType.LONG)) {
-                    return DataType.LONG;
-                }
-                if (types.contains(DataType.INTEGER)) {
-                    return DataType.INTEGER;
-                }
-            }
-
-            // Widest type
-            return DataType.KEYWORD;
+            return resolveObservedTypes(types);
         }
     }
 
-    private static <E extends Enum<E>> boolean hasOnly(EnumSet<E> values, EnumSet<E> from) {
-        if (values.isEmpty()) {
-            return false;
+    /**
+     * The single type that represents everything observed for one field.
+     * <p>
+     * The rule is {@link TypeWidening}'s, folded over the observed set: this rail decides which types
+     * it saw, not what they combine to, and the combining is the same question reconciliation answers
+     * when two files disagree. Folding in any order is safe because the lattice is a join-semilattice,
+     * which matters here — a JSON field's types arrive in whatever order the file happens to list them.
+     * <p>
+     * An empty set means the field was only ever an object or an always-empty array, which is not a
+     * scalar column at all; that is this method's answer to give because the lattice has no bottom
+     * element to represent "nothing observed".
+     */
+    static DataType resolveObservedTypes(EnumSet<DataType> observed) {
+        if (observed.isEmpty()) {
+            // Can happen with parent and always-empty array
+            return DataType.UNSUPPORTED;
         }
-        var copy = EnumSet.copyOf(values);
-        copy.removeAll(from);
-        return copy.isEmpty();
+        DataType resolved = null;
+        for (DataType type : observed) {
+            resolved = resolved == null ? type : TypeWidening.join(resolved, type, TypeWidening.Policy.INFERENCE);
+        }
+        return resolved;
     }
 
     /**

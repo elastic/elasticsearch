@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.EnumSet;
 import java.util.List;
 
 public class NdJsonSchemaInferrerTests extends ESTestCase {
@@ -313,6 +314,80 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
             [1, 2]
             {"v": 2}
             """, field("v", DataType.INTEGER, true));
+    }
+
+    /**
+     * Every type set this rail can produce, resolved by the lattice fold, must land exactly where the
+     * hand-written rules landed it. The old rules are reproduced verbatim below rather than described,
+     * so this compares implementations instead of comparing an implementation to a summary of itself.
+     * <p>
+     * All 127 non-empty subsets of the seven types the inferrer can observe, not a sample: the whole
+     * point of moving the rule is that no set quietly changes answer.
+     */
+    public void testLatticeFoldMatchesTheReplacedRulesOnEverySubset() {
+        DataType[] observable = {
+            DataType.KEYWORD,
+            DataType.INTEGER,
+            DataType.LONG,
+            DataType.DOUBLE,
+            DataType.BOOLEAN,
+            DataType.DATETIME,
+            DataType.DATE_NANOS };
+        int checked = 0;
+        for (int mask = 1; mask < (1 << observable.length); mask++) {
+            EnumSet<DataType> set = EnumSet.noneOf(DataType.class);
+            for (int bit = 0; bit < observable.length; bit++) {
+                if ((mask & (1 << bit)) != 0) {
+                    set.add(observable[bit]);
+                }
+            }
+            assertEquals(set.toString(), replacedRules(set), NdJsonSchemaInferrer.resolveObservedTypes(set));
+            checked++;
+        }
+        assertEquals("every non-empty subset of the observable types", 127, checked);
+    }
+
+    public void testEmptyObservedSetIsNotAScalarColumn() {
+        // A field only ever seen as an object or an always-empty array. The lattice has no bottom, so
+        // this answer belongs to the caller and is asserted here rather than assumed.
+        assertEquals(DataType.UNSUPPORTED, NdJsonSchemaInferrer.resolveObservedTypes(EnumSet.noneOf(DataType.class)));
+    }
+
+    /** Verbatim copy of the resolution rules this change replaced. */
+    private static DataType replacedRules(EnumSet<DataType> types) {
+        if (types.isEmpty()) {
+            return DataType.UNSUPPORTED;
+        }
+        if (types.size() == 1) {
+            return types.iterator().next();
+        }
+        if (types.contains(DataType.KEYWORD)) {
+            return DataType.KEYWORD;
+        }
+        if (hasOnly(types, EnumSet.of(DataType.DATETIME, DataType.DATE_NANOS))) {
+            return DataType.DATE_NANOS;
+        }
+        if (hasOnly(types, EnumSet.of(DataType.DOUBLE, DataType.LONG, DataType.INTEGER))) {
+            if (types.contains(DataType.DOUBLE)) {
+                return DataType.DOUBLE;
+            }
+            if (types.contains(DataType.LONG)) {
+                return DataType.LONG;
+            }
+            if (types.contains(DataType.INTEGER)) {
+                return DataType.INTEGER;
+            }
+        }
+        return DataType.KEYWORD;
+    }
+
+    private static boolean hasOnly(EnumSet<DataType> values, EnumSet<DataType> from) {
+        if (values.isEmpty()) {
+            return false;
+        }
+        EnumSet<DataType> copy = EnumSet.copyOf(values);
+        copy.removeAll(from);
+        return copy.isEmpty();
     }
 
     private void check(String ndjson, Attribute... expected) throws IOException {

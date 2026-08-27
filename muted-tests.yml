@@ -802,3 +802,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlGoldenTests
   method: testBinaryWithDifferentSelectors {current}
   issue: https://github.com/elastic/elasticsearch/issues/157912
+- class: org.elasticsearch.cluster.metadata.MetadataCreateIndexServiceTests
+  method: testRegistryInstalledTemplateIsFalseForNonManagedTemplate
+  issue: https://github.com/elastic/elasticsearch/issues/157930

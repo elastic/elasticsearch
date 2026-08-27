@@ -145,6 +145,52 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         assertThat("gzip-csv: read_cpu_nanos > 0", lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS), greaterThan(0L));
     }
 
+    /**
+     * Gzip-compressed NDJSON — same {@link org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinator}
+     * path as gzip CSV but exercises the NdJson codec wiring through {@code CompressionDelegatingFormatReader}.
+     */
+    public void testMetricsCollectorGzipNdJson() throws Exception {
+        Path dir = createTempDir();
+        StringBuilder ndjson = new StringBuilder();
+        for (int i = 0; i < 100; i++) {
+            ndjson.append("{\"emp_no\":").append(i).append(",\"name\":\"name_").append(i).append("\"}\n");
+        }
+        writeGzipped(dir.resolve("data.ndjson.gz"), ndjson.toString());
+
+        registerDataset("metrics_gzip_ndjson_ds", dir.resolve("data.ndjson.gz").toUri().toString(), Map.of());
+
+        try (var ignored = run(syncEsqlQueryRequest("FROM metrics_gzip_ndjson_ds | LIMIT 200"), TIMEOUT)) {}
+
+        assertThat("gzip-ndjson: metrics must be set", lastMetrics, notNullValue());
+        assertThat("gzip-ndjson: read_cpu_nanos > 0", lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS), greaterThan(0L));
+    }
+
+    /**
+     * Bracket multi-value CSV — exercises {@code SEGMENTABLE_UNCOMPRESSED_SEQUENTIAL} via
+     * {@link org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinator} from an uncompressed input.
+     * <p>
+     * Default CSV has {@code quoting=true} (CsvRecordSplitter, supportsStridedProbing=false → SEQUENTIAL). Brackets mode
+     * additionally sets {@code supportsProvenProbing()=false}, so the sequential dispatcher falls through to the streaming
+     * coordinator instead of ParallelParsingCoordinator. This is the only uncompressed path through that coordinator.
+     * <p>
+     * Same as the gzip tests, {@code read_nanos} is near-zero on the producer thread; only {@code read_cpu_nanos} is asserted.
+     */
+    public void testMetricsCollectorBracketsCsv() throws Exception {
+        Path dir = createTempDir();
+        StringBuilder csv = new StringBuilder("id:integer,tags:keyword\n");
+        for (int i = 0; i < 100; i++) {
+            csv.append(i).append(",[tag_a_").append(i).append(",tag_b_").append(i).append("]\n");
+        }
+        Files.writeString(dir.resolve("data.csv"), csv.toString());
+
+        registerDataset("metrics_brackets_csv_ds", dir.resolve("data.csv").toUri().toString(), Map.of("multi_value_syntax", "brackets"));
+
+        try (var ignored = run(syncEsqlQueryRequest("FROM metrics_brackets_csv_ds | LIMIT 200"), TIMEOUT)) {}
+
+        assertThat("brackets-csv: metrics must be set", lastMetrics, notNullValue());
+        assertThat("brackets-csv: read_cpu_nanos > 0", lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS), greaterThan(0L));
+    }
+
     /** Parquet file — exercises the Parquet format reader path. */
     public void testMetricsCollectorParquet() throws Exception {
         Path dir = createTempDir();
@@ -158,10 +204,6 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
     }
 
     public void testNoCollectionWithoutExternalData() throws Exception {
-        // We're using local data source here, which needs the flag
-        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
-        lastMetrics = null;
-
         try (var ignored = run(syncEsqlQueryRequest("ROW a=1 | LIMIT 10"), TIMEOUT)) {
             // run the query — result discarded, only the collector side-effect matters
         }

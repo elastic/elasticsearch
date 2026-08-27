@@ -1412,7 +1412,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return innerGet(get, false, splitShardCountSummary, this::wrapSearcher);
     }
 
-    public Engine.GetResult getForUpdate(Engine.Get get, SplitShardCountSummary splitShardCountSummary) {
+    /// Reads a document specifically in the context of performing an update operation.
+    /// `SplitShardCountSummary` is not used here because this is always a realtime get
+    /// (or a read using internal searcher), and we don't need to pass `SplitShardCountSummary`
+    /// to a directory reader to apply resharding filters for unowned documents.
+    /// It _is_ possible that this read is stale due to ongoing resharding split
+    /// (e.g. when executed by `TransportUpdateAction`), this is handled in the caller,
+    /// specifically in `ShardGetService`.
+    public Engine.GetResult getForUpdate(Engine.Get get) {
         assert get.realtime() && get.isReadFromTranslog();
 
         readAllowed();
@@ -1421,7 +1428,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return GetResult.NOT_EXISTS;
         }
         return withEngine(
-            // TODO use SplitShardCountSummary
             engine -> engine.getForUpdate(get, mapperService.mappingLookup(), mapperService.documentParser(), this::wrapSearcher)
         );
     }

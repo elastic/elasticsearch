@@ -1030,6 +1030,9 @@ public abstract class Engine implements Closeable {
         Function<Engine.Searcher, Engine.Searcher> searcherWrapper
     );
 
+    /**
+     * Reads a document specifically in the context of performing an update operation.
+     */
     public abstract GetResult getForUpdate(
         Get get,
         MappingLookup mappingLookup,

@@ -87,9 +87,10 @@ public final class MultiValueColumnarPayloadBinaryDocValuesReader {
         BytesRef extreme = null;
         for (int slot = decoder.reset(bytes); slot > 0; slot--) {
             final BytesRef value = decoder.next();
-            // Copy out: the decoder points into the blob but reuses one BytesRef across slots.
+            // clone, not deepCopyOf: the decoder reuses one BytesRef across slots so the winner cannot be held onto, but the bytes
+            // behind it are the blob's own and outlive this call. The builder copies them out.
             if (value != null && (extreme == null || predicate.test(value, extreme))) {
-                extreme = BytesRef.deepCopyOf(value);
+                extreme = value.clone();
             }
         }
         if (extreme == null) {

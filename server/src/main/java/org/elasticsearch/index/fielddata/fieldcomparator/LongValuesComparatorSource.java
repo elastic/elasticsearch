@@ -321,7 +321,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         }
         if (ColumnarBinaryDocValuesField.isColumnarPayload(reader, "host.name")) {
             // The payload carries its own count, so there is no companion field to consult.
-            return MultiValuedBinaryDocValuesSortField.decodePayloadExtreme(bdv.binaryValue(), maxMode);
+            return MultiValuedBinaryDocValuesSortField.decodeColumnarPayloadExtreme(bdv.binaryValue(), maxMode);
         }
         NumericDocValues counts = reader.getNumericDocValues(
             "host.name" + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX

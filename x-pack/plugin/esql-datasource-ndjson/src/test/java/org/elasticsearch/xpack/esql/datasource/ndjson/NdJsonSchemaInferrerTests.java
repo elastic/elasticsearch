@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
-import org.elasticsearch.cluster.metadata.DatasetMapping.Subobjects;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -129,19 +128,17 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
     }
 
     /**
-     * Under DISABLED a dot is a literal character, so a scalar {@code user} and an object {@code user} are not the
-     * same field at all: the object flattens to {@code user.id}/{@code user.tier} and coexists with the scalar. Both
-     * are nullable because neither shape appears in every record. This is what an index with
-     * {@code subobjects: false} does with the same two documents.
+     * A dot is a literal character in a column name, so a scalar {@code user} and an object {@code user} are not the
+     * same field: the object flattens to {@code user.id}/{@code user.tier} and coexists with the scalar. Both are
+     * nullable because neither shape appears in every record.
      */
-    public void testScalarAndObjectCoexistWhenSubobjectsDisabled() throws IOException {
+    public void testScalarAndObjectCoexist() throws IOException {
         check(
             """
                 {"event":1,"user":"alice"}
                 {"event":2,"user":{"id":"bob","tier":"gold"}}
                 {"event":3,"user":"carol"}
                 """,
-            Subobjects.DISABLED,
             field("event", DataType.INTEGER),
             field("user", DataType.KEYWORD, true),
             field("user.id", DataType.KEYWORD, true),
@@ -150,18 +147,17 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
     }
 
     /**
-     * Shape order does not matter under DISABLED: object first still coexists with the later scalar. {@code user}
-     * precedes its dotted siblings because the object record already claimed that name as a node, and the scalar
-     * observed later fills that same slot rather than appending a new one.
+     * Shape order does not matter: object first still coexists with the later scalar. {@code user} precedes its dotted
+     * siblings because the object record already claimed that name as a node, and the scalar observed later fills that
+     * same slot rather than appending a new one.
      */
-    public void testObjectAndScalarCoexistWhenSubobjectsDisabled() throws IOException {
+    public void testObjectAndScalarCoexist() throws IOException {
         check(
             """
                 {"event":1,"user":{"id":"bob","tier":"gold"}}
                 {"event":2,"user":"alice"}
                 {"event":3,"user":{"id":"carol","tier":"silver"}}
                 """,
-            Subobjects.DISABLED,
             field("event", DataType.INTEGER),
             field("user", DataType.KEYWORD, true),
             field("user.id", DataType.KEYWORD, true),
@@ -169,53 +165,12 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
         );
     }
 
-    /**
-     * Under ENABLED a dot is a path separator, so a scalar {@code user} and an object {@code user} are one field
-     * disagreeing about its shape. It resolves to exactly one shape, the first observed, mirroring what an index with
-     * {@code subobjects: true} does (the first document decides, the second is rejected). The decoder applies
-     * {@code ErrorPolicy} to the conflicting value at read time.
-     */
-    public void testScalarThenObjectConflictResolvesToScalarShape() throws IOException {
-        check("""
-            {"event":1,"user":"alice"}
-            {"event":2,"user":{"id":"bob","tier":"gold"}}
-            {"event":3,"user":"carol"}
-            """, Subobjects.ENABLED, field("event", DataType.INTEGER), field("user", DataType.KEYWORD, true));
-    }
-
-    /**
-     * Mirror of {@link #testScalarThenObjectConflictResolvesToScalarShape}: when the object shape is observed
-     * first, a later scalar value for the same field name must not resurrect a duplicate scalar attribute
-     * alongside the already-committed nested children.
-     */
-    public void testObjectThenScalarConflictResolvesToObjectShape() throws IOException {
-        check(
-            """
-                {"event":1,"user":{"id":"bob","tier":"gold"}}
-                {"event":2,"user":"alice"}
-                {"event":3,"user":{"id":"carol","tier":"silver"}}
-                """,
-            Subobjects.ENABLED,
-            field("event", DataType.INTEGER),
-            field("user.id", DataType.KEYWORD, true),
-            field("user.tier", DataType.KEYWORD, true)
-        );
-    }
-
-    /** Under ENABLED both spellings of one column resolve to the same field, so the dotted key is not a new column. */
-    public void testDottedKeyAndNestedObjectAreOneFieldWhenSubobjectsEnabled() throws IOException {
+    /** Both spellings of a dotted column ({@code "user.id"} flat and {@code {"user":{"id":...}}} nested) are one column. */
+    public void testDottedKeyAndNestedObjectAreOneColumn() throws IOException {
         check("""
             {"user.id":"alice"}
             {"user":{"id":"bob"}}
-            """, Subobjects.ENABLED, field("user.id", DataType.KEYWORD));
-    }
-
-    /** And under DISABLED, where a nested object flattens into the dotted name, they are also the same column. */
-    public void testDottedKeyAndNestedObjectAreOneColumnWhenSubobjectsDisabled() throws IOException {
-        check("""
-            {"user.id":"alice"}
-            {"user":{"id":"bob"}}
-            """, Subobjects.DISABLED, field("user.id", DataType.KEYWORD));
+            """, field("user.id", DataType.KEYWORD));
     }
 
     public void testDateTime() throws Exception {
@@ -276,12 +231,8 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
     }
 
     private void check(String ndjson, Attribute... expected) throws IOException {
-        check(ndjson, Subobjects.DISABLED, expected);
-    }
-
-    private void check(String ndjson, Subobjects subobjects, Attribute... expected) throws IOException {
         try (ByteArrayInputStream inputStream = new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8))) {
-            List<Attribute> result = NdJsonSchemaInferrer.inferSchema(inputStream, 100, null, subobjects);
+            List<Attribute> result = NdJsonSchemaInferrer.inferSchema(inputStream, 100, null);
 
             assertEquals(expected.length, result.size());
             for (int i = 0; i < expected.length; i++) {

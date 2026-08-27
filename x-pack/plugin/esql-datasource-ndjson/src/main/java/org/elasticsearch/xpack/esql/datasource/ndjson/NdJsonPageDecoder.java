@@ -19,7 +19,6 @@ import com.fasterxml.jackson.core.io.JsonEOFException;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.cluster.metadata.DatasetMapping.Subobjects;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.AbstractBlockBuilder;
@@ -64,7 +63,6 @@ import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
@@ -246,15 +244,6 @@ public class NdJsonPageDecoder implements Closeable {
     /** Informational warning sink for absent declared columns; {@code null} when no sink is wired. */
     @Nullable
     private Consumer<String> absentColumnWarningSink;
-    /**
-     * How a dotted field name is read. Decides only what a scalar-versus-object mismatch means: under
-     * {@link Subobjects#ENABLED} a name is either an object or a leaf, so the other shape contradicts the schema and
-     * takes {@link ErrorPolicy}; under {@link Subobjects#DISABLED} a nested object flattens into dotted names, so the
-     * mismatched shape simply addresses names this projection does not have and is skipped like an unprojected field.
-     * The decoder tree is the same either way (see {@link #prepareSchema}), so this is settable after construction, next
-     * to the other per-read settings the iterator applies.
-     */
-    private Subobjects subobjects = Subobjects.DISABLED;
     private final ErrorPolicy errorPolicy;
     private final SkipWarnings skipWarnings;
     private final NdJsonReaderCounters counters;
@@ -896,8 +885,8 @@ public class NdJsonPageDecoder implements Closeable {
     /**
      * Throws when the non-strict error budget ({@code max_errors}/{@code max_error_ratio}) has been
      * exceeded, after first surfacing a client warning describing what tripped it. Shared by every
-     * non-strict error path ({@link #onNdjsonLineParseError}, {@link BlockDecoder#coercionFailure} and
-     * {@link BlockDecoder#shapeConflict}) so the budget is enforced consistently regardless of which kind of
+     * non-strict error path ({@link #onNdjsonLineParseError} and {@link BlockDecoder#coercionFailure})
+     * so the budget is enforced consistently regardless of which kind of
      * error incremented {@link #errorCount}. Callers must have already settled the current error's charge via
      * {@link #chargeErrorBudget}, or deliberately suppressed it.
      */
@@ -944,11 +933,6 @@ public class NdJsonPageDecoder implements Closeable {
      * nothing — see issue 965). The {@link InputStream} path has no such bound, so it always enforces
      * when a finite cap is configured.
      */
-    /** See {@link #subobjects}. */
-    void setSubobjects(Subobjects subobjects) {
-        this.subobjects = Objects.requireNonNull(subobjects, "subobjects must not be null");
-    }
-
     void setMaxRecordBytes(int maxRecordBytes) {
         Check.isTrue(maxRecordBytes > 0, "maxRecordBytes must be positive, got: {}", maxRecordBytes);
         this.maxRecordBytes = maxRecordBytes;
@@ -1335,8 +1319,8 @@ public class NdJsonPageDecoder implements Closeable {
      * ({@link BlockDecoder#resolveDottedPath}).
      * <p>
      * A node can be both a leaf and a prefix — a scalar column {@code a} beside a column {@code a.b} — which is what
-     * {@link Subobjects#DISABLED} means by a dot being an ordinary character in a column name. Nothing about the tree
-     * shape depends on the setting; only what a shape mismatch means at read time does (see
+     * treating a dot as an ordinary character in a column name means. Nothing about the tree shape depends on whether
+     * a value is spelled flat or nested; only what a shape mismatch means at read time does (see
      * {@link BlockDecoder#decodeValue}).
      */
     private BlockDecoder prepareSchema(List<Attribute> projected) {
@@ -1444,16 +1428,6 @@ public class NdJsonPageDecoder implements Closeable {
      * its inner-class outer-{@code this} binding is irrelevant.
      */
     private final BlockDecoder unprojected = new BlockDecoder();
-
-    /**
-     * Sentinel returned by {@link BlockDecoder#lookupChild} for a dotted field name whose descent ran into a scalar
-     * column with path left to walk (key {@code "a.b"} where the schema has {@code a} as a scalar). The record is
-     * naming {@code a} as an object, so under {@link Subobjects#ENABLED} this is the same contradiction a scalar leaf
-     * receiving {@code START_OBJECT} is, only spelled flat; under {@link Subobjects#DISABLED} it is an ordinary
-     * unprojected name. Distinct from {@link #unprojected} so the identity cache keeps the two apart and the walk
-     * happens once per name, not once per occurrence.
-     */
-    private final BlockDecoder shadowedScalarPath = new BlockDecoder();
 
     /**
      * Which of a node's position entries the enclosing JSON array opened, and therefore what that node may append
@@ -1583,9 +1557,7 @@ public class NdJsonPageDecoder implements Closeable {
             while ((fieldName = parser.nextFieldName()) != null) {
                 var childDecoder = lookupChild(fieldName);
                 parser.nextToken();
-                if (childDecoder == shadowedScalarPath && poisoned == false && subobjects == Subobjects.ENABLED) {
-                    shadowedScalarConflict(parser, fieldName);
-                } else if (childDecoder == unprojected || childDecoder == shadowedScalarPath || poisoned) {
+                if (childDecoder == unprojected || poisoned) {
                     // Unknown/unprojected field: advance to its value then skip (no decode).
                     // For string values nextFieldName() uses _skipString() internally on the next
                     // call, so we avoid _finishString2 for non-projected string fields.
@@ -1660,56 +1632,6 @@ public class NdJsonPageDecoder implements Closeable {
         }
 
         /**
-         * Raise the shape conflict for a dotted key that names a scalar column as an object. Re-walks the path to
-         * recover the shadowed column for the message, which {@link #lookupChild} discards to keep one shared sentinel
-         * in the identity cache. The walk is affordable here because it runs only on a genuine conflict, which is
-         * either fatal ({@link ErrorPolicy#isStrict()}) or charged against the bounded error budget.
-         */
-        private void shadowedScalarConflict(JsonParser parser, String fieldName) throws IOException {
-            if (rowDroppedBySkipRow) {
-                // Already being dropped by an earlier skip_row error: consume the value without charging the budget a
-                // second time, so one bad record costs one budget unit however many ways it is bad.
-                parser.skipChildren();
-                return;
-            }
-            BlockDecoder node = this;
-            int start = 0;
-            // Repeats resolveDottedPath's descent and stops where it did. Every segment it consumed there had a
-            // following dot and a present child, or it would have resolved the name instead of shadowing it.
-            while (node.children != null) {
-                int dot = fieldName.indexOf('.', start);
-                assert dot >= 0 : "shadowed path [" + fieldName + "] ran out of segments before reaching a scalar column";
-                node = node.children.get(fieldName.substring(start, dot));
-                assert node != null : "shadowed path [" + fieldName + "] lost a segment that resolveDottedPath found";
-                start = dot + 1;
-            }
-            boolean skipRow = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW;
-            // Distinct from shapeConflict's wording because the contradiction is inside this one record rather than
-            // between records, and because the scalar spelling is decoded before this key is reached, so under
-            // null_field the column keeps that value instead of being nulled.
-            String message = "field ["
-                + node.name
-                + "] at line ["
-                + totalRowCount
-                + "]: key ["
-                + fieldName
-                + "] names ["
-                + node.name
-                + "] as an object, but ["
-                + node.name
-                + "] is scalar type ["
-                + node.dataType.typeName()
-                + "] — "
-                + (skipRow ? "this record is skipped" : "this record's [" + fieldName + "] is dropped")
-                + ". With [subobjects: true] a dot is a path separator, so one field cannot be both a scalar and an "
-                + "object; set [subobjects: false] to read ["
-                + fieldName
-                + "] as a field name of its own, or model the two as separate fields.";
-            parser.skipChildren();
-            applyShapeConflictPolicy(skipRow, message);
-        }
-
-        /**
          * Resolve a flat dotted field name (e.g. {@code "a.b"} or {@code "a.b.c"}) as a path through this
          * decoder's {@code children} subtree, splitting on {@code .} and descending one segment at a time.
          * The walk is relative to {@code this} node, so a caller on the {@code x} structural node resolves
@@ -1719,17 +1641,13 @@ public class NdJsonPageDecoder implements Closeable {
          * against schema {@code a.b.c}). The caller then decodes the value into that node exactly as it would
          * for the nested spelling. Returns {@code null} when any segment is missing: the field is unreachable and
          * treated as unprojected, which null-fills the cell exactly as an unknown field does.
-         * <p>
-         * When the path continues past a node that is a scalar column, that column is being named as an object, and the
-         * walk returns {@link #shadowedScalarPath} so the caller can raise the shape conflict. A structural node with no
-         * column of its own is not shadowing anything, so a missing segment under it is plain unprojected.
          */
         private BlockDecoder resolveDottedPath(String fieldName) {
             BlockDecoder node = this;
             int start = 0;
             while (true) {
                 if (node.children == null) {
-                    return node.blockBuilder != null ? shadowedScalarPath : null;
+                    return null;
                 }
                 int dot = fieldName.indexOf('.', start);
                 String segment = dot < 0 ? fieldName.substring(start) : fieldName.substring(start, dot);
@@ -1873,11 +1791,10 @@ public class NdJsonPageDecoder implements Closeable {
          * </ul>
          * A cell that genuinely cannot be REPRESENTED under the column's type, by contrast, is governed by
          * {@code error_mode} — identically for a declared or an inferred column: a bad value or a cross-kind token
-         * ({@link #coercionFailure} / {@link #crossKindDrift}), and a top-level scalar/object shape conflict — a field
-         * that is a scalar in some records and an object in others ({@link #shapeConflict}) — all route through
-         * {@link ErrorPolicy}: {@code FAIL_FAST} fails the query, {@code SKIP_ROW} drops the whole record,
-         * {@code NULL_FIELD} nulls the cell and warns. Core ES dynamic mapping treats the shape ambiguity as a hard
-         * document-parsing conflict.
+         * ({@link #coercionFailure} / {@link #crossKindDrift}) routes through {@link ErrorPolicy}: {@code FAIL_FAST}
+         * fails the query, {@code SKIP_ROW} drops the whole record, {@code NULL_FIELD} nulls the cell and warns.
+         * A scalar and an object at one name are NOT such a conflict here: a dot is an ordinary character in a column
+         * name, so {@code a} and {@code a.b} are independent columns and neither shape contradicts the other.
          */
         private void decodeValue(JsonParser parser, ArrayEntry entry) throws IOException {
             JsonToken token = parser.currentToken();
@@ -2013,22 +1930,11 @@ public class NdJsonPageDecoder implements Closeable {
                         parser.skipChildren();
                         return;
                     }
-                    if (subobjects == Subobjects.DISABLED) {
-                        // The object's members address flattened names under this one (a.b, a.b.c), none of which is a
-                        // column here — this node has no children. They are unreachable exactly as an unprojected
-                        // field is, so they are skipped silently and this node's cell is left for the end-of-record
-                        // fill. The scalar this column resolved to is not contradicted by an object at the same name:
-                        // under a flattened reading the two never denote the same value.
-                        parser.skipChildren();
-                        return;
-                    }
-                    // Scalar leaf receiving an object value outside an array: a genuine scalar/object schema
-                    // conflict, not routine schema-on-read flattening. With
-                    // single-shape schema inference (see NdJsonSchemaInferrer) this can only happen when
-                    // the actual data diverges from the shape observed during sampling, so — unlike the
-                    // routine mismatches above — it is routed through ErrorPolicy instead of silently
-                    // decoded (which would otherwise skip the object's fields with no trace).
-                    shapeConflict(parser, name, "an object", "scalar type [" + dataType.typeName() + "]");
+                    // The object's members address flattened names under this one (a.b, a.b.c), none of which is a
+                    // column here — this node has no children. They are unreachable exactly as an unprojected
+                    // field is, so they are skipped silently and this node's cell is left for the end-of-record
+                    // fill. The scalar this column resolved to is not contradicted by an object at the same name.
+                    parser.skipChildren();
                     return;
                 }
                 decodeObject(parser, entry);
@@ -2056,23 +1962,10 @@ public class NdJsonPageDecoder implements Closeable {
                                 parser.getTokenLocation()
                             );
                         }
-                    } else if (subobjects == Subobjects.ENABLED) {
-                        // Genuine scalar/object schema conflict: route
-                        // through ErrorPolicy instead of silently null-filling. Structural nodes never
-                        // receive setAttribute(), so `name` is null here; derive the JSON path (e.g.
-                        // /userIdentity/sessionContext) from the parser context to identify the field.
-                        shapeConflict(
-                            parser,
-                            parser.getParsingContext().pathAsPointer().toString(),
-                            describeScalarShape(token),
-                            "an object"
-                        );
-                        return;
                     }
-                    // Under Subobjects.DISABLED this node's name is a prefix of column names, never a column itself,
-                    // so a scalar spelled at it is an unprojected field rather than a contradiction of the columns
-                    // below: they are named a.b, and nothing names a. Skipped silently, and their cells are left for
-                    // the end-of-record fill.
+                    // This node's name is a prefix of column names, never a column itself, so a scalar spelled at
+                    // it is an unprojected field rather than a contradiction of the columns below: they are named
+                    // a.b, and nothing names a. Skipped silently, and their cells are left for the end-of-record fill.
                 }
                 parser.skipChildren();
                 return;
@@ -2393,9 +2286,9 @@ public class NdJsonPageDecoder implements Closeable {
          * matters across formats: {@link ErrorPolicy.Mode#FAIL_FAST} fails the query with an
          * actionable message; {@link ErrorPolicy.Mode#NULL_FIELD} nulls this cell only and warns; and
          * {@link ErrorPolicy.Mode#SKIP_ROW} drops the whole record and warns (both subject to the error budget). Every
-         * unrepresentable cell reaches this one sink — a bad value here, a cross-kind token ({@link #crossKindDrift}),
-         * or an object where a scalar was expected ({@link #shapeConflict}) — for a DECLARED or an INFERRED column
-         * alike, so the observable outcome depends only on {@code error_mode}, never on where the type came from.
+         * unrepresentable cell reaches this one sink — a bad value here, or a cross-kind token
+         * ({@link #crossKindDrift}) — for a DECLARED or an INFERRED column alike, so the observable outcome depends
+         * only on {@code error_mode}, never on where the type came from.
          */
         private void coercionFailure(Block.Builder builder, JsonParser parser, boolean inArray, DataType target) throws IOException {
             if (rowDroppedBySkipRow) {
@@ -2435,8 +2328,8 @@ public class NdJsonPageDecoder implements Closeable {
             }
             // A value coercion failure under skip_row drops the whole record (matching CsvFormatReader and the
             // Mode.SKIP_ROW "drop the entire bad row" contract); null_field keeps the record and nulls this one cell.
-            // Both warn. crossKindDrift and shapeConflict route here too, for declared and inferred columns alike, so
-            // every unrepresentable cell drops under skip_row uniformly.
+            // Both warn. crossKindDrift routes here too, for declared and inferred columns alike, so every
+            // unrepresentable cell drops under skip_row uniformly.
             boolean skipRow = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW;
             String message = base + (skipRow ? " — this record is skipped" : " — this record's [" + name + "] is null");
             if (inArray == false) {
@@ -2457,72 +2350,6 @@ public class NdJsonPageDecoder implements Closeable {
             }
         }
 
-        /**
-         * Handles a value whose JSON shape (scalar vs. object) conflicts with the shape {@code fieldLabel}
-         * resolved to from earlier records: a scalar-typed leaf receiving {@code START_OBJECT}, or an
-         * object-shaped (structural) node receiving a non-null scalar. Core ES dynamic mapping treats this
-         * as a hard document-parsing conflict; here it is routed through {@link ErrorPolicy} instead of the
-         * pre-#1028 silent {@code skipChildren()}, exactly the same policy sink {@link #crossKindDrift} routes a
-         * cross-kind scalar value to — a DECLARED and an INFERRED column behave identically, because {@code error_mode}
-         * is one axis independent of where the type came from: {@link ErrorPolicy.Mode#FAIL_FAST} fails the query with
-         * an actionable message naming both shapes; {@link ErrorPolicy.Mode#SKIP_ROW} drops the whole record; and
-         * {@link ErrorPolicy.Mode#NULL_FIELD} nulls this field only (schema-on-read tolerance, the row's other columns
-         * already decoded — this is the mode that means "keep the record"). Both non-strict modes warn and budget. A
-         * structural-node path with no attributable field name ({@code fieldLabel == null}) cannot drop a row, so it
-         * null-fills regardless of mode.
-         */
-        private void shapeConflict(JsonParser parser, String fieldLabel, String actualShape, String resolvedShape) throws IOException {
-            if (rowDroppedBySkipRow) {
-                // This record is already being dropped by an earlier skip_row error; skip the conflicting value and do
-                // not double-count it against the error budget (one error per dropped record, matching CsvFormatReader).
-                parser.skipChildren();
-                return;
-            }
-            // A scalar column receiving an object cannot be represented, so error_mode decides the outcome the same
-            // way for a declared or an inferred column (crossKindDrift routes to the same coercionFailure sink): under
-            // skip_row the whole record is dropped, under null_field the cell is nulled + warned. A structural-node
-            // path with no field name cannot be attributed to a single row, so it falls back to null-fill.
-            boolean skipRow = fieldLabel != null && errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW;
-            // Built via concatenation, not LoggerMessageFormat.format: a String-typed first vararg
-            // would resolve to the ambiguous format(String prefix, String pattern, Object... args)
-            // overload instead of format(String pattern, Object... args), silently mangling the message.
-            String message = "field ["
-                + fieldLabel
-                + "] at line ["
-                + totalRowCount
-                + "]: value is "
-                + actualShape
-                + ", but ["
-                + fieldLabel
-                + "] resolved to "
-                + resolvedShape
-                + " from earlier records — "
-                + (skipRow ? "this record is skipped" : "this record's [" + fieldLabel + "] is null")
-                + ". A field that appears as both a scalar and an object across NDJSON "
-                + "records cannot be represented as one type; make the field's shape consistent, or "
-                + "model it as separate fields.";
-            parser.skipChildren();
-            applyShapeConflictPolicy(skipRow, message);
-        }
-
-        /**
-         * The {@link ErrorPolicy} outcome shared by every scalar-versus-object conflict, whichever wording described it:
-         * fail the query, or warn and charge the budget, dropping the record when {@code skipRow}. The conflicting value
-         * must already have been consumed from {@code parser} by the caller.
-         */
-        private void applyShapeConflictPolicy(boolean skipRow, String message) {
-            if (errorPolicy.isStrict()) {
-                // Client-class: a field that is a scalar in one record and an object in another is bad input.
-                throw new ParsingException(Source.EMPTY, "{}", message);
-            }
-            if (skipRow) {
-                rowDroppedBySkipRow = true;
-            }
-            chargeErrorBudget();
-            skipWarnings.add(message);
-            checkErrorBudgetOrThrow();
-            logger.log(errorPolicy.logErrors() ? Level.INFO : Level.DEBUG, message);
-        }
     }
 
     /**
@@ -2543,23 +2370,5 @@ public class NdJsonPageDecoder implements Closeable {
         private PoisonedPositionException() {
             super(null, null, true, false);
         }
-    }
-
-    /**
-     * Short description of a scalar {@link JsonToken}'s JSON type, for {@link BlockDecoder#shapeConflict} messages.
-     * Only called for a token that reached the structural-node scalar branch of {@link BlockDecoder#decodeValue},
-     * which has already excluded {@code VALUE_NULL}, {@code START_ARRAY}/{@code START_OBJECT} (handled earlier) and
-     * {@code END_ARRAY}/{@code END_OBJECT}/{@code FIELD_NAME} (never the current token where a value is expected);
-     * {@code VALUE_EMBEDDED_OBJECT} cannot occur either, since {@link NdJsonUtils#JSON_FACTORY} only ever parses
-     * text JSON, never a binary format (CBOR/Smile) that could produce one. The remaining {@link JsonToken} values
-     * are exactly the five enumerated below, so the {@code default} is unreachable.
-     */
-    private static String describeScalarShape(JsonToken token) {
-        return switch (token) {
-            case VALUE_STRING -> "a string";
-            case VALUE_NUMBER_INT, VALUE_NUMBER_FLOAT -> "a number";
-            case VALUE_TRUE, VALUE_FALSE -> "a boolean";
-            default -> throw new AssertionError("Unreachable: unexpected scalar token [" + token + "]");
-        };
     }
 }

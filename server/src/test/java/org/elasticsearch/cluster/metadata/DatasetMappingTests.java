@@ -9,11 +9,9 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -77,13 +75,12 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
     }
 
     /**
-     * The {@code mappings} block deliberately supports only {@code dynamic}, {@code subobjects}, {@code properties} and
-     * {@code _id}. Every other core mapping-level key must be rejected, so we cannot silently diverge from (or
-     * accidentally absorb a divergent reading of) the core mapping vocabulary — supporting a new key has to be a
-     * deliberate, test-breaking change.
+     * The {@code mappings} block deliberately supports only {@code dynamic} and {@code properties}. Every other
+     * core mapping-level key must be rejected, so we cannot silently diverge from (or accidentally absorb a divergent
+     * reading of) the core mapping vocabulary — supporting a new key has to be a deliberate, test-breaking change.
      */
     public void testRejectsCoreMappingsKeysWeDoNotSupport() throws IOException {
-        for (String key : List.of("runtime", "dynamic_templates", "_routing", "_meta", "_field_names", "_size")) {
+        for (String key : List.of("runtime", "dynamic_templates", "_routing", "_meta", "_field_names", "subobjects", "_size")) {
             String json = "{\"dynamic\":\"true\",\"" + key + "\":{}}";
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
                 parser.nextToken(); // advance to START_OBJECT, where parseMappings expects to begin
@@ -112,78 +109,6 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
             parser.nextToken();
             Exception e = expectThrows(Exception.class, () -> DatasetMapping.parseMappings(parser));
             assertThat(e.getMessage(), containsString("_id"));
-        }
-    }
-
-    /**
-     * Guard against vocabulary drift from the index mapper's {@code subobjects} parameter, the same way
-     * {@link #testDynamicStaysInSyncWithIndexMapperDynamic} guards {@code dynamic}. The two vocabularies are currently
-     * identical, and a dataset declaration means what the index mapping means, so a value added to the index mapper has
-     * to be consciously supported or consciously excluded here rather than silently diverging.
-     */
-    public void testSubobjectsStaysInSyncWithIndexMapperSubobjects() {
-        Set<String> esValues = Arrays.stream(ObjectMapper.Subobjects.values()).map(Enum::name).collect(Collectors.toSet());
-        Set<String> ourValues = Arrays.stream(DatasetMapping.Subobjects.values()).map(Enum::name).collect(Collectors.toSet());
-        assertEquals("DatasetMapping.Subobjects must cover exactly ObjectMapper.Subobjects", esValues, ourValues);
-
-        // The boolean spelling must agree too: a declaration reading `false` must mean what `"subobjects": false` means
-        // on an index, since a query naming a dotted column cannot tell the two readings apart.
-        for (DatasetMapping.Subobjects ours : DatasetMapping.Subobjects.values()) {
-            assertEquals(ObjectMapper.Subobjects.valueOf(ours.name()), ObjectMapper.Subobjects.from(ours.asBoolean()));
-        }
-    }
-
-    /**
-     * The setting is written the way an Elasticsearch mapping writes it, as a JSON boolean, and read back from either a
-     * boolean or its string spelling: an ES|QL request body is hand-written far more often than an index mapping, so a
-     * quoted {@code "false"} is a likely and harmless spelling.
-     */
-    public void testSubobjectsParsesBothBooleanAndStringSpelling() throws IOException {
-        for (String literal : List.of("true", "\"true\"")) {
-            assertEquals(DatasetMapping.Subobjects.ENABLED, parsedMappings("{\"subobjects\":" + literal + "}").subobjects());
-        }
-        for (String literal : List.of("false", "\"false\"")) {
-            assertEquals(DatasetMapping.Subobjects.DISABLED, parsedMappings("{\"subobjects\":" + literal + "}").subobjects());
-        }
-    }
-
-    /**
-     * An absent {@code subobjects} reads dotted names flat, which is the reading a columnar engine addressing columns by
-     * flat dotted name wants, and matches {@code ObjectMapper.Defaults.SUBOBJECTS_COLUMNAR} rather than the
-     * general-purpose index default.
-     */
-    public void testSubobjectsDefaultsToDisabled() throws IOException {
-        assertEquals(DatasetMapping.Subobjects.DISABLED, parsedMappings("{\"dynamic\":\"true\"}").subobjects());
-        assertEquals(DatasetMapping.Subobjects.DISABLED, new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, Map.of()).subobjects());
-    }
-
-    public void testSubobjectsRejectsUnknownValue() throws IOException {
-        Exception e = expectThrows(Exception.class, () -> parsedMappings("{\"subobjects\":\"auto\"}"));
-        assertThat(e.getMessage(), containsString("auto"));
-    }
-
-    /** Round-trips through XContent as a boolean, so a GET of the dataset renders what a PUT accepts. */
-    public void testSubobjectsRoundTripsThroughXContent() throws IOException {
-        for (DatasetMapping.Subobjects subobjects : DatasetMapping.Subobjects.values()) {
-            DatasetMapping.Mappings mappings = new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, subobjects, Map.of(), null);
-            XContentBuilder builder = JsonXContent.contentBuilder().startObject();
-            new DatasetMapping(mappings).toXContentFragment(builder);
-            String rendered = Strings.toString(builder.endObject());
-            assertThat(rendered, containsString("\"subobjects\":" + subobjects.asBoolean()));
-
-            try (XContentParser parser = createParser(JsonXContent.jsonXContent, rendered)) {
-                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-                assertEquals("mappings", parser.nextFieldName());
-                parser.nextToken();
-                assertEquals(mappings, DatasetMapping.parseMappings(parser));
-            }
-        }
-    }
-
-    private DatasetMapping.Mappings parsedMappings(String json) throws IOException {
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-            parser.nextToken(); // advance to START_OBJECT, where parseMappings expects to begin
-            return DatasetMapping.parseMappings(parser);
         }
     }
 

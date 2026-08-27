@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.cluster.metadata.DatasetMapping.Subobjects;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
@@ -17,7 +16,6 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -32,17 +30,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Compares the NDJSON reader against real Elasticsearch ingest on the same document, at both values of
- * {@code subobjects}. Every case runs one JSON object through {@link DocumentMapper#parse} with dynamic mapping and
- * through {@link NdJsonFormatReader}, then asserts the two agree on the set of leaf names produced and the values
- * landing on each. Agreement here is the whole contract of the setting: a dotted key, a nested object, and the two
- * mixed in one document must all resolve to the same leaves a matching index would create, so a query can name a
- * column by the same path either way.
+ * Compares the NDJSON reader against real Elasticsearch ingest on the same document.
+ * Every case runs one JSON object through {@link DocumentMapper#parse} with dynamic mapping and through
+ * {@link NdJsonFormatReader}, then asserts the two agree on the set of leaf names produced and the values landing on
+ * each. A dotted key, a nested object, and the two mixed in one document must all resolve to the same leaves a
+ * matching index would create, so a query can name a column by the same path either way.
  *
  * <p>All fixtures use integer values, because ingest maps a dynamic string to {@code text} plus a {@code .keyword}
  * multi-field. That would compare a mapping detail rather than the flattening behavior under test.
@@ -84,7 +79,6 @@ public class NdJsonIngestParityTests extends MapperServiceTestCase {
     /**
      * Both spellings of one leaf in one document. Ingest emits two values for the leaf and the mapper builds a
      * multivalue from them; the reader must do the same rather than let the second occurrence overwrite or be dropped.
-     * This holds at both settings, because both spellings converge on one leaf either way.
      */
     public void testBothSpellingsOfOneLeafBecomeAMultivalue() throws IOException {
         assertParity("""
@@ -97,62 +91,27 @@ public class NdJsonIngestParityTests extends MapperServiceTestCase {
     }
 
     /**
-     * The one shape where the two settings genuinely differ, so it cannot go through {@link #assertParity}. A document
-     * naming {@code a} as a scalar and as an object is a contradiction only when a dot is a path separator: under
-     * ENABLED ingest rejects the document and the reader fails the read under STRICT, while under DISABLED both accept
-     * it as two unrelated leaves. Ordered scalar-first here and object-first in
-     * {@link #testObjectAndScalarForOneNameDiverge}.
+     * A dot is an ordinary character in a column name, so a scalar at {@code a} and a flat key {@code a.b} are
+     * unrelated leaves. Both ingest and reader accept the document and produce two independent columns.
      */
-    public void testScalarAndObjectForOneNameDiverge() throws IOException {
-        String json = """
-            {"a":1,"a.b":2}""";
-        assertRejectedByBothWhenSubobjectsEnabled(json);
-        assertParity(Subobjects.DISABLED, json);
+    public void testScalarAndObjectForOneNameCoexist() throws IOException {
+        assertParity("""
+            {"a":1,"a.b":2}""");
     }
 
-    /** Mirror of {@link #testScalarAndObjectForOneNameDiverge} with the object spelling first. */
-    public void testObjectAndScalarForOneNameDiverge() throws IOException {
-        String json = """
-            {"a.b":1,"a":2}""";
-        assertRejectedByBothWhenSubobjectsEnabled(json);
-        assertParity(Subobjects.DISABLED, json);
+    /** Mirror of {@link #testScalarAndObjectForOneNameCoexist} with the object spelling first. */
+    public void testObjectAndScalarForOneNameCoexist() throws IOException {
+        assertParity("""
+            {"a.b":1,"a":2}""");
     }
 
-    /** Runs the case at both settings; use this whenever the two are expected to reach the same leaves. */
     private void assertParity(String json) throws IOException {
-        assertParity(Subobjects.ENABLED, json);
-        assertParity(Subobjects.DISABLED, json);
-    }
-
-    private void assertParity(Subobjects subobjects, String json) throws IOException {
-        assertThat(
-            "reader disagrees with ingest at subobjects: " + subobjects + " on " + json,
-            readerLeaves(subobjects, json),
-            equalTo(ingestLeaves(subobjects, json))
-        );
-    }
-
-    /**
-     * Ingest rejects the document with a mapping conflict on the contended name, and the reader refuses the same
-     * document under STRICT. The two failures are not the same exception type (ingest fails a single document, the
-     * reader fails a query), so this asserts each side refuses and names the field, not that the messages match.
-     */
-    private void assertRejectedByBothWhenSubobjectsEnabled(String json) throws IOException {
-        DocumentParsingException ingestFailure = expectThrows(
-            DocumentParsingException.class,
-            () -> mapper(Subobjects.ENABLED).parse(source(json))
-        );
-        assertThat(ingestFailure.getMessage(), containsString("a"));
-
-        Exception readerFailure = expectThrows(Exception.class, () -> readerLeaves(Subobjects.ENABLED, json, ErrorPolicy.STRICT));
-        // A structural node carries no attribute name, so which spelling identifies the contended field depends on
-        // which shape won inference: a scalar column names itself, an object prefix is named by its JSON pointer.
-        assertThat(readerFailure.getMessage(), anyOf(containsString("[a]"), containsString("[/a]")));
+        assertThat("reader disagrees with ingest on " + json, readerLeaves(json), equalTo(ingestLeaves(json)));
     }
 
     /** The leaf full paths ingest produced, each mapped to its values in document order. */
-    private Map<String, List<Long>> ingestLeaves(Subobjects subobjects, String json) throws IOException {
-        ParsedDocument doc = mapper(subobjects).parse(source(json));
+    private Map<String, List<Long>> ingestLeaves(String json) throws IOException {
+        ParsedDocument doc = mapper().parse(source(json));
         Map<String, List<Long>> leaves = new TreeMap<>();
         for (IndexableField field : doc.rootDoc().getFields()) {
             // Metadata fields (_source, _seq_no, ...) are not part of the document's own shape. Every fixture value is
@@ -165,17 +124,13 @@ public class NdJsonIngestParityTests extends MapperServiceTestCase {
         return leaves;
     }
 
-    private Map<String, List<Long>> readerLeaves(Subobjects subobjects, String json) throws IOException {
-        return readerLeaves(subobjects, json, ErrorPolicy.STRICT);
-    }
-
     /** The columns the reader inferred, each mapped to its values, in the same form as {@link #ingestLeaves}. */
-    private Map<String, List<Long>> readerLeaves(Subobjects subobjects, String json, ErrorPolicy errorPolicy) throws IOException {
+    private Map<String, List<Long>> readerLeaves(String json) throws IOException {
         var object = new BytesStorageObject("memory://parity.ndjson", (json + "\n").getBytes(StandardCharsets.UTF_8));
-        var reader = new NdJsonFormatReader(null, blockFactory).withSubobjects(subobjects);
+        var reader = new NdJsonFormatReader(null, blockFactory);
         List<Attribute> schema = reader.metadata(object).schema();
         Map<String, List<Long>> leaves = new TreeMap<>();
-        try (var iterator = reader.read(object, FormatReadContext.builder().batchSize(100).errorPolicy(errorPolicy).build())) {
+        try (var iterator = reader.read(object, FormatReadContext.builder().batchSize(100).errorPolicy(ErrorPolicy.STRICT).build())) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
             assertEquals("one record in, one row out", 1, page.getPositionCount());
@@ -204,8 +159,8 @@ public class NdJsonIngestParityTests extends MapperServiceTestCase {
         return values;
     }
 
-    /** A dynamic mapper whose root carries the setting under test, so ingest resolves names exactly as the reader must. */
-    private DocumentMapper mapper(Subobjects subobjects) throws IOException {
-        return createDocumentMapper(topMapping(b -> b.field("subobjects", subobjects.asBoolean())));
+    /** A dynamic mapper that treats dots as literal characters in field names, matching the reader's behavior. */
+    private DocumentMapper mapper() throws IOException {
+        return createDocumentMapper(topMapping(b -> b.field("subobjects", false)));
     }
 }

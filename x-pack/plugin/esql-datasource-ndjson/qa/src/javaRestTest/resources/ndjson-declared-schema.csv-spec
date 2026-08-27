@@ -26,9 +26,9 @@ emp_no:integer | first_name:keyword | salary:double
 10003          | "Parto"            | 61805.0
 ;
 
-// Binding a dotted physical key. Under the default `subobjects: false` a dot is an ordinary character in a key name,
-// so a declared path of "languages.long" binds to the key spelled exactly that way, and the sibling "languages" key
-// binds independently. Nothing about one column's declaration changes how the other resolves.
+// Binding a dotted physical key. A dot is an ordinary character in a key name, so a declared path of
+// "languages.long" binds to the key spelled exactly that way, and the sibling "languages" key binds independently.
+// Nothing about one column's declaration changes how the other resolves.
 strictDeclaredSchemaBindsDottedKeyAlongsideItsPrefixOnNdjson
 required_capability: dataset_in_from_command
 dataset: employees_declared_dotted_nd: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "languages": {"type": "long"}, "langs": {"type": "long", "path": "languages.long"}}}}
@@ -43,13 +43,11 @@ id:long | languages:long | langs:long
 10003   | 4              | 4
 ;
 
-// The same dotted key bound WITHOUT declaring its prefix. This is the case that made a dotted declared path unusable
-// on this format: the declared name was split on "." and read as traversal into a "languages" object, so the read
-// failed with a parsing_exception blaming well-formed data. Under `subobjects: false` the key is read literally and
-// binding a dotted key no longer depends on what else the declaration happens to contain.
+// The same dotted key bound WITHOUT declaring its prefix. The key is read literally and binding a dotted key
+// does not depend on what else the declaration happens to contain.
 strictDeclaredSchemaBindsDottedKeyWithoutItsPrefixOnNdjson
 required_capability: dataset_in_from_command
-required_capability: external_ndjson_subobjects
+required_capability: external_ndjson_dotted_field_resolution
 dataset: employees_declared_dotted_only_nd: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "langs": {"type": "long", "path": "languages.long"}}}}
 
 FROM employees_declared_dotted_only_nd
@@ -61,10 +59,3 @@ id:long | langs:long
 10002   | 5
 10003   | 4
 ;
-
-// Declaring `subobjects: true` restores the reading where a dot is a path separator, under which "languages.long" names
-// the leaf `long` inside a `languages` object. Against this fixture, whose "languages" key is a number, that makes the
-// record contradict the declaration, and a strict read rejects it the way core dynamic mapping rejects the same
-// document. The reading and its failure mode are pinned in NdJsonIngestParityTests and NdJsonPageIteratorTests, which
-// can assert the exception; what belongs here is that the declaration reaches the reader at all, and the successful
-// default-mode cases above already prove the dotted path binds literally.

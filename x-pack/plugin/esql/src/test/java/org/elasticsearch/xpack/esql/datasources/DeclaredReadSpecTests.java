@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.cluster.metadata.DatasetMapping.Subobjects;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -40,8 +39,7 @@ public class DeclaredReadSpecTests extends AbstractWireSerializingTestCase<Decla
             declaredTypeColumns.add("col" + i);
         }
         SchemaProvenance provenance = randomFrom(SchemaProvenance.values());
-        Subobjects subobjects = randomFrom(Subobjects.values());
-        return DeclaredReadSpec.of(renames, idPath, dateFormats, declaredTypeColumns, provenance, subobjects);
+        return DeclaredReadSpec.of(renames, idPath, dateFormats, declaredTypeColumns, provenance);
     }
 
     @Override
@@ -61,16 +59,14 @@ public class DeclaredReadSpecTests extends AbstractWireSerializingTestCase<Decla
         Map<String, String> dateFormats = new HashMap<>(instance.dateFormats());
         Set<String> declaredTypeColumns = new HashSet<>(instance.declaredTypeColumns());
         SchemaProvenance provenance = instance.provenance();
-        Subobjects subobjects = instance.subobjects();
-        switch (between(0, 5)) {
+        switch (between(0, 4)) {
             case 0 -> renames.put(randomAlphaOfLength(6), randomAlphaOfLength(6));
             case 1 -> idPath = randomValueOtherThan(idPath, () -> randomBoolean() ? randomAlphaOfLength(5) : null);
             case 2 -> dateFormats.put(randomAlphaOfLength(6), randomFrom("epoch_millis", "yyyy-MM-dd"));
             case 3 -> declaredTypeColumns.add(randomAlphaOfLength(6));
-            case 4 -> provenance = provenance == SchemaProvenance.INFERRED ? SchemaProvenance.DECLARED : SchemaProvenance.INFERRED;
-            default -> subobjects = subobjects == Subobjects.DISABLED ? Subobjects.ENABLED : Subobjects.DISABLED;
+            default -> provenance = provenance == SchemaProvenance.INFERRED ? SchemaProvenance.DECLARED : SchemaProvenance.INFERRED;
         }
-        return DeclaredReadSpec.of(renames, idPath, dateFormats, declaredTypeColumns, provenance, subobjects);
+        return DeclaredReadSpec.of(renames, idPath, dateFormats, declaredTypeColumns, provenance);
     }
 
     public void testNoneIsEmpty() {
@@ -84,10 +80,6 @@ public class DeclaredReadSpecTests extends AbstractWireSerializingTestCase<Decla
         // "bind by name" signal would be silently dropped on the wire.
         assertFalse(DeclaredReadSpec.of(Map.of(), null, Map.of(), Set.of(), SchemaProvenance.DECLARED).isEmpty());
         assertTrue(DeclaredReadSpec.of(Map.of(), null, Map.of(), Set.of(), SchemaProvenance.INFERRED).isEmpty());
-        // Same for a non-default subobjects: ENABLED changes how the reader names a dotted field, so an otherwise-empty
-        // spec carrying it must reach the data node instead of collapsing to NONE (which reads dotted names flat).
-        assertFalse(DeclaredReadSpec.of(Map.of(), null, Map.of(), Set.of(), SchemaProvenance.INFERRED, Subobjects.ENABLED).isEmpty());
-        assertTrue(DeclaredReadSpec.of(Map.of(), null, Map.of(), Set.of(), SchemaProvenance.INFERRED, Subobjects.DISABLED).isEmpty());
     }
 
     /**
@@ -107,31 +99,6 @@ public class DeclaredReadSpecTests extends AbstractWireSerializingTestCase<Decla
         TransportVersion preProvenance = TransportVersion.fromName("dataset_declared_schema");
         DeclaredReadSpec downlevel = copyInstance(declared, preProvenance);
         assertEquals(SchemaProvenance.INFERRED, downlevel.provenance());
-        assertEquals(declared.renames(), downlevel.renames());
-        assertEquals(declared.idPath(), downlevel.idPath());
-        assertEquals(declared.dateFormats(), downlevel.dateFormats());
-        assertEquals(declared.declaredTypeColumns(), downlevel.declaredTypeColumns());
-    }
-
-    /**
-     * A peer that predates the subobjects transport version defaults DISABLED, which is the reading every non-declared
-     * read already gets, so only a dataset that declared ENABLED degrades for the upgrade window. The other fields must
-     * survive the downlevel round-trip unchanged.
-     */
-    public void testPreSubobjectsVersionDegradesToDisabled() throws IOException {
-        DeclaredReadSpec declared = DeclaredReadSpec.of(
-            Map.of("id", "emp_no"),
-            "id",
-            Map.of("ts", "epoch_millis"),
-            Set.of("id"),
-            SchemaProvenance.DECLARED,
-            Subobjects.ENABLED
-        );
-        // The version that added the provenance field but NOT subobjects.
-        TransportVersion preSubobjects = TransportVersion.fromName("declared_read_spec_provenance");
-        DeclaredReadSpec downlevel = copyInstance(declared, preSubobjects);
-        assertEquals(Subobjects.DISABLED, downlevel.subobjects());
-        assertEquals(SchemaProvenance.DECLARED, downlevel.provenance());
         assertEquals(declared.renames(), downlevel.renames());
         assertEquals(declared.idPath(), downlevel.idPath());
         assertEquals(declared.dateFormats(), downlevel.dateFormats());

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -69,115 +68,41 @@ public final class DatasetMapping implements Writeable {
     }
 
     /**
-     * How a dotted field name in the source is interpreted. Mirrors Elasticsearch {@code mappings.subobjects} and
-     * carries the same semantics: the value chooses which representation is canonical, and both spellings of a name
-     * converge on it. Under {@link #ENABLED} a dotted key expands into a path, so {@code {"a.b":1}} and
-     * {@code {"a":{"b":1}}} both reach the leaf {@code b} inside {@code a}. Under {@link #DISABLED} a nested object is
-     * flattened into a dotted name, so both reach the literal leaf {@code a.b}. Neither value makes a spelling illegal.
-     *
-     * <p>{@link #DISABLED} is the default, mirroring {@code ObjectMapper.Defaults.SUBOBJECTS_COLUMNAR} rather than the
-     * general-purpose index default: an external file read into columns is the columnar regime, and ES|QL addresses
-     * columns by flat dotted name, so flattening lands a value on the name a query types.
-     *
-     * <p>Only a schema-on-read hierarchical text format needs this setting. CSV has no hierarchy (a dotted header cell
-     * is a literal name and can only ever be one), and Parquet/ORC self-describe (the footer states whether a name is a
-     * group or a flat leaf), so formats that do not consume the setting reject {@link #ENABLED}.
-     */
-    public enum Subobjects {
-        /** Dots are path separators: {@code a.b} names the leaf {@code b} inside the object {@code a}. */
-        ENABLED,
-        /** Dots are literal characters in a leaf name, and nested objects flatten into dotted names. The default. */
-        DISABLED;
-
-        /**
-         * Accepts the boolean spelling an Elasticsearch mapping uses. Both {@code "subobjects": false} and
-         * {@code "subobjects": "false"} reach this as text, since {@code XContentParser.text()} renders any value token.
-         */
-        public static Subobjects fromString(String value) {
-            return switch (value.toLowerCase(Locale.ROOT)) {
-                case "true" -> ENABLED;
-                case "false" -> DISABLED;
-                default -> throw new IllegalArgumentException(
-                    "unknown subobjects value [" + value + "]; supported values are [true, false]"
-                );
-            };
-        }
-
-        /** The boolean spelling, which is how an Elasticsearch mapping renders this setting. */
-        public boolean asBoolean() {
-            return this == ENABLED;
-        }
-
-        @Override
-        public String toString() {
-            return Boolean.toString(asBoolean());
-        }
-    }
-
-    /**
      * The {@code mappings} block: an undeclared-column policy and the per-column declarations keyed by logical name.
      *
      * @param dynamic    undeclared-column policy ({@code true} = infer + overlay, {@code false} = declaration is the
      *                   whole schema).
-     * @param subobjects how a dotted field name is interpreted; {@link Subobjects#DISABLED} when unset.
      * @param properties per-column declarations keyed by logical name; order-preserving, may be empty (e.g.
      *                   {@code "mappings": { "dynamic": "false" }}).
      * @param idPath     {@code _id.path}: the column the reader stamps {@code _id} from, or {@code null} when unset.
      */
-    public record Mappings(Dynamic dynamic, Subobjects subobjects, Map<String, DatasetFieldMapping> properties, @Nullable String idPath)
-        implements
-            Writeable {
-
-        /**
-         * Wire gate for {@link #subobjects}, which was added after {@code dataset_declared_schema} shipped, so a
-         * released peer reads this block without it. A pre-gate peer therefore reads dotted names flat, which is the
-         * reading it already applies to every dataset, so only a dataset that declared {@link Subobjects#ENABLED}
-         * behaves differently there, and only until every node supports the version.
-         */
-        private static final TransportVersion DATASET_SUBOBJECTS = TransportVersion.fromName("dataset_subobjects");
+    public record Mappings(Dynamic dynamic, Map<String, DatasetFieldMapping> properties, @Nullable String idPath) implements Writeable {
 
         public Mappings {
             Objects.requireNonNull(dynamic, "dynamic must not be null");
-            Objects.requireNonNull(subobjects, "subobjects must not be null");
             properties = properties == null ? Map.of() : Collections.unmodifiableMap(properties);
         }
 
-        /** Convenience: default {@link Subobjects}, no {@code _id.path}. */
+        /** Convenience: a mappings block with no {@code _id.path}. */
         public Mappings(Dynamic dynamic, Map<String, DatasetFieldMapping> properties) {
-            this(dynamic, Subobjects.DISABLED, properties, null);
-        }
-
-        /** Convenience: default {@link Subobjects}. */
-        public Mappings(Dynamic dynamic, Map<String, DatasetFieldMapping> properties, @Nullable String idPath) {
-            this(dynamic, Subobjects.DISABLED, properties, idPath);
+            this(dynamic, properties, null);
         }
 
         Mappings(StreamInput in) throws IOException {
-            // The whole DatasetMapping is gated by the dataset_declared_schema transport version (see Dataset), and
-            // dynamic, properties and _id.path all shipped in that one version, so they need no gate of their own.
-            // subobjects was added after it shipped, so it carries its own gate; a peer without it reads the three
-            // original fields and gets the DISABLED default, which is the reading it already applies.
-            this(
-                in.readEnum(Dynamic.class),
-                in.getTransportVersion().supports(DATASET_SUBOBJECTS) ? in.readEnum(Subobjects.class) : Subobjects.DISABLED,
-                in.readOrderedMap(StreamInput::readString, DatasetFieldMapping::new),
-                in.readOptionalString()
-            );
+            // The whole DatasetMapping is gated by the dataset_declared_schema transport version (see Dataset), which is
+            // unreleased — so every field (incl. _id.path) ships in that one version; no separate gate.
+            this(in.readEnum(Dynamic.class), in.readOrderedMap(StreamInput::readString, DatasetFieldMapping::new), in.readOptionalString());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeEnum(dynamic);
-            if (out.getTransportVersion().supports(DATASET_SUBOBJECTS)) {
-                out.writeEnum(subobjects);
-            }
             out.writeMap(properties, (o, v) -> v.writeTo(o));
             out.writeOptionalString(idPath);
         }
     }
 
     private static final String DYNAMIC = "dynamic";
-    private static final String SUBOBJECTS = "subobjects";
     private static final String PROPERTIES = "properties";
     private static final String ID = "_id";
     private static final String PATH = "path";
@@ -209,11 +134,10 @@ public final class DatasetMapping implements Writeable {
         return mappings == null ? null : new DatasetMapping(mappings);
     }
 
-    /** Parses the {@code mappings} object ({@code dynamic}, {@code subobjects}, {@code properties}, {@code _id}). */
+    /** Parses the {@code mappings} object ({@code dynamic}, {@code properties}, {@code _id}). */
     public static Mappings parseMappings(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         Dynamic dynamic = Dynamic.TRUE;
-        Subobjects subobjects = Subobjects.DISABLED;
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         String idPath = null;
         String field = null;
@@ -223,8 +147,6 @@ public final class DatasetMapping implements Writeable {
                 field = parser.currentName();
             } else if (DYNAMIC.equals(field)) {
                 dynamic = Dynamic.fromString(parser.text());
-            } else if (SUBOBJECTS.equals(field)) {
-                subobjects = Subobjects.fromString(parser.text());
             } else if (PROPERTIES.equals(field)) {
                 ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
                 String name = null;
@@ -255,7 +177,7 @@ public final class DatasetMapping implements Writeable {
                 throw new IllegalArgumentException("unknown mappings field [" + field + "]");
             }
         }
-        return new Mappings(dynamic, subobjects, properties, idPath);
+        return new Mappings(dynamic, properties, idPath);
     }
 
     /** Emits the {@code mappings} block (incl. the {@code _id} meta-field) into an open dataset object. */
@@ -263,8 +185,6 @@ public final class DatasetMapping implements Writeable {
         if (mappings != null) {
             builder.startObject("mappings");
             builder.field(DYNAMIC, mappings.dynamic().toString());
-            // An Elasticsearch mapping renders dynamic as a string and subobjects as a boolean; mirror both spellings.
-            builder.field(SUBOBJECTS, mappings.subobjects().asBoolean());
             if (mappings.properties().isEmpty() == false) {
                 builder.startObject(PROPERTIES);
                 for (Map.Entry<String, DatasetFieldMapping> e : mappings.properties().entrySet()) {

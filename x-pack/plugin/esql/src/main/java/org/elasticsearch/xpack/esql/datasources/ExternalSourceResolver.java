@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
-import org.elasticsearch.cluster.metadata.DatasetMapping.Subobjects;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
@@ -615,7 +614,6 @@ public class ExternalSourceResolver {
     ) {
         LOGGER.debug("Resolving external source: path=[{}]", path);
         try {
-            rejectUnsupportedSubobjects(path, config, declaredMapping);
             resolveSourceInner(path, config, hints, declaredMapping, requiresStats, listener);
         } catch (Exception e) {
             listener.onFailure(e);
@@ -667,10 +665,6 @@ public class ExternalSourceResolver {
             return;
         }
 
-        // How a dotted field name is read. Inference needs it, not just decode: under ENABLED a scalar and an object
-        // at one name are a single conflicted field, under DISABLED they are two coexisting columns.
-        Subobjects subobjects = subobjectsOf(declaredMapping);
-
         ExternalSourceMetadata extMetadata;
         StorageEntry storageEntry;
         if (isCacheable(provider)) {
@@ -679,15 +673,15 @@ public class ExternalSourceResolver {
             // length + mtime rebuild the singleton FileList.
             FileMetadata meta = fileMetadataOf(storagePath, provider, config);
             String formatType = detectFormatType(storagePath);
-            SchemaCacheKey schemaKey = SchemaCacheKey.build(storagePath.toString(), meta.mtimeMillis(), formatType, config, subobjects);
+            SchemaCacheKey schemaKey = SchemaCacheKey.build(storagePath.toString(), meta.mtimeMillis(), formatType, config);
             SchemaCacheEntry schemaEntry = cacheService.getOrComputeSchema(schemaKey, k -> {
-                return SchemaCacheEntry.from(resolveSingleSource(path, config, subobjects));
+                return SchemaCacheEntry.from(resolveSingleSource(path, config));
             });
             List<Attribute> schema = schemaEntry.toAttributes();
             extMetadata = buildMetadataFromCache(schemaEntry, schema, config);
             storageEntry = new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()));
         } else {
-            SourceMetadata metadata = resolveSingleSource(path, config, subobjects);
+            SourceMetadata metadata = resolveSingleSource(path, config);
             extMetadata = wrapAsExternalSourceMetadata(metadata, config, declaredReadSpecOf(declaredMapping));
             StorageObject object = provider.newObject(storagePath);
             storageEntry = new StorageEntry(storagePath, object.length(), object.lastModified());
@@ -737,7 +731,6 @@ public class ExternalSourceResolver {
 
         FormatReader.SchemaResolution schemaResolution = parseSchemaResolution(config);
         boolean cacheable = isCacheable(provider);
-        Subobjects subobjects = subobjectsOf(declaredMapping);
 
         if (schemaResolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
             int maxDiscoveredFiles = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings);
@@ -748,7 +741,7 @@ public class ExternalSourceResolver {
             if (raw.fileCount() == 0) {
                 throw new IllegalArgumentException("Glob pattern matched no files: " + path);
             }
-            resolveMultiFileWithReconciliation(raw, config, subobjects, schemaResolution, cacheable, listener);
+            resolveMultiFileWithReconciliation(raw, config, schemaResolution, cacheable, listener);
             return;
         }
 
@@ -787,25 +780,18 @@ public class ExternalSourceResolver {
         ListingHint anchorHint = new ListingHint(listing.size(anchor), anchorMtime);
         final FileList finalListing = listing;
         ActionListener<ExternalSourceMetadata> anchorListener = ActionListener.wrap(
-            anchorMetadata -> completeFirstFileWins(anchorMetadata, finalListing, config, subobjects, requiresStats, cacheable, listener),
+            anchorMetadata -> completeFirstFileWins(anchorMetadata, finalListing, config, requiresStats, cacheable, listener),
             listener::onFailure
         );
         if (cacheable) {
             // cachedResolveSingleSourceAsync always completes with the ExternalSourceMetadata built by
             // buildMetadataFromCache, so the cast is safe.
-            cachedResolveSingleSourceAsync(
-                anchorPath,
-                anchorHint,
-                config,
-                subobjects,
-                anchorListener.map(meta -> (ExternalSourceMetadata) meta)
-            );
+            cachedResolveSingleSourceAsync(anchorPath, anchorHint, config, anchorListener.map(meta -> (ExternalSourceMetadata) meta));
         } else {
             resolveSingleSourceAsync(
                 anchorPath.toString(),
                 anchorHint,
                 config,
-                subobjects,
                 anchorListener.map(meta -> wrapAsExternalSourceMetadata(meta, config, declaredReadSpecOf(declaredMapping)))
             );
         }
@@ -820,7 +806,6 @@ public class ExternalSourceResolver {
         ExternalSourceMetadata anchorMetadata,
         FileList listing,
         Map<String, Object> config,
-        Subobjects subobjects,
         boolean requiresStats,
         boolean cacheable,
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
@@ -854,7 +839,7 @@ public class ExternalSourceResolver {
                 boolean implicitNulls = foldsAbsentColumnAsImplicitNull(base.sourceType());
                 // Prefetch the dataset-level aggregate BEFORE the per-file stats gather — see
                 // applyDatasetAggregate for why post-gather reads self-defeat under cache pressure.
-                DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(listing, config, subobjects, cacheable);
+                DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(listing, config, cacheable);
                 ActionListener<Map<String, Object>> statsListener = ActionListener.wrap(aggregatedStats -> {
                     try {
                         Map<String, Object> effective = applyDatasetAggregate(datasetPrefetch, aggregatedStats, listing, base, config);
@@ -864,9 +849,9 @@ public class ExternalSourceResolver {
                     }
                 }, listener::onFailure);
                 if (cacheable) {
-                    readAndAggregateAllFileStatsWithCache(listing, config, subobjects, implicitNulls, statsListener);
+                    readAndAggregateAllFileStatsWithCache(listing, config, implicitNulls, statsListener);
                 } else {
-                    readAndAggregateAllFileStats(listing, config, subobjects, implicitNulls, statsListener);
+                    readAndAggregateAllFileStats(listing, config, implicitNulls, statsListener);
                 }
             } else if (listing.fileCount() > 1) {
                 // Defer branch (requiresStats == false): skip the N footer reads. The anchor-only stats are not
@@ -1216,7 +1201,7 @@ public class ExternalSourceResolver {
      * Package-private for testing.
      */
     @Nullable
-    SchemaCacheKey datasetAggregateKey(FileList listing, Map<String, Object> config, Subobjects subobjects) {
+    SchemaCacheKey datasetAggregateKey(FileList listing, Map<String, Object> config) {
         if (listing == null || listing.fileSetFingerprint() == null || listing.fileCount() < 2) {
             return null;
         }
@@ -1227,8 +1212,7 @@ public class ExternalSourceResolver {
             listing.originalPattern(),
             listing.fileSetFingerprint(),
             detectFormatType(listing.path(0)),
-            config,
-            subobjects
+            config
         );
     }
 
@@ -1275,13 +1259,8 @@ public class ExternalSourceResolver {
      */
     record DatasetAggregatePrefetch(@Nullable SchemaCacheKey key, @Nullable Map<String, Object> prefetched) {}
 
-    private DatasetAggregatePrefetch prefetchDatasetAggregate(
-        FileList listing,
-        Map<String, Object> config,
-        Subobjects subobjects,
-        boolean cacheable
-    ) {
-        SchemaCacheKey key = cacheable ? datasetAggregateKey(listing, config, subobjects) : null;
+    private DatasetAggregatePrefetch prefetchDatasetAggregate(FileList listing, Map<String, Object> config, boolean cacheable) {
+        SchemaCacheKey key = cacheable ? datasetAggregateKey(listing, config) : null;
         return new DatasetAggregatePrefetch(key, key != null ? cacheService.getDatasetAggregate(key) : null);
     }
 
@@ -1388,14 +1367,13 @@ public class ExternalSourceResolver {
     private void resolveMultiFileWithReconciliation(
         FileList fileList,
         Map<String, Object> config,
-        Subobjects subobjects,
         FormatReader.SchemaResolution schemaResolution,
         boolean cacheable,
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
     ) {
         long startNanos = System.nanoTime();
-        DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(fileList, config, subobjects, cacheable);
-        readAllFileMetadata(fileList, config, subobjects, cacheable, ActionListener.wrap(allMetadata -> {
+        DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(fileList, config, cacheable);
+        readAllFileMetadata(fileList, config, cacheable, ActionListener.wrap(allMetadata -> {
             try {
                 long durationMs = (System.nanoTime() - startNanos) / 1_000_000;
                 LOGGER.debug("Schema reconciliation [{}]: scanned {} files in {}ms", schemaResolution, allMetadata.size(), durationMs);
@@ -1405,7 +1383,7 @@ public class ExternalSourceResolver {
                 if (schemaResolution == FormatReader.SchemaResolution.STRICT) {
                     result = SchemaReconciliation.reconcileStrict(firstFile, allMetadata);
                 } else {
-                    result = SchemaReconciliation.reconcileUnionByName(allMetadata, subobjects);
+                    result = SchemaReconciliation.reconcileUnionByName(allMetadata);
                 }
 
                 // Shadow physical columns that collide with Hive partition keys: the partition (path-derived)
@@ -1543,12 +1521,11 @@ public class ExternalSourceResolver {
     private void readAllFileMetadata(
         FileList fileList,
         Map<String, Object> config,
-        Subobjects subobjects,
         boolean cacheable,
         ActionListener<Map<StoragePath, SourceMetadata>> listener
     ) {
         int fileCount = fileList.fileCount();
-        gatherPerFile(fileList, config, subobjects, cacheable, ActionListener.wrap(perFile -> {
+        gatherPerFile(fileList, config, cacheable, ActionListener.wrap(perFile -> {
             Map<StoragePath, SourceMetadata> result = new LinkedHashMap<>();
             for (int i = 0; i < fileCount; i++) {
                 result.put(fileList.path(i), perFile.get(i));
@@ -1570,7 +1547,6 @@ public class ExternalSourceResolver {
     private void gatherPerFile(
         FileList fileList,
         Map<String, Object> config,
-        Subobjects subobjects,
         boolean cacheable,
         ActionListener<List<SourceMetadata>> listener
     ) {
@@ -1602,9 +1578,9 @@ public class ExternalSourceResolver {
                 // footer read.
                 ListingHint hint = new ListingHint(fileList.size(i), fileList.lastModifiedMillis(i));
                 if (cacheable) {
-                    cachedResolveSingleSourceAsync(filePath, hint, config, subobjects, itemListener);
+                    cachedResolveSingleSourceAsync(filePath, hint, config, itemListener);
                 } else {
-                    resolveSingleSourceAsync(filePath.toString(), hint, config, subobjects, itemListener);
+                    resolveSingleSourceAsync(filePath.toString(), hint, config, itemListener);
                 }
             } catch (Exception e) {
                 itemListener.onFailure(e);
@@ -1638,17 +1614,16 @@ public class ExternalSourceResolver {
         StoragePath filePath,
         ListingHint hint,
         Map<String, Object> config,
-        Subobjects subobjects,
         ActionListener<SourceMetadata> listener
     ) {
         String formatType = detectFormatType(filePath);
-        SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), hint.lastModifiedMillis(), formatType, config, subobjects);
+        SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), hint.lastModifiedMillis(), formatType, config);
         SchemaCacheEntry cached = cacheService.getSchemaIfPresent(schemaKey);
         if (cached != null) {
             listener.onResponse(buildMetadataFromCache(cached, cached.toAttributes(), config));
             return;
         }
-        resolveSingleSourceAsync(filePath.toString(), hint, config, subobjects, listener.map(meta -> {
+        resolveSingleSourceAsync(filePath.toString(), hint, config, listener.map(meta -> {
             SchemaCacheEntry entry = SchemaCacheEntry.from(meta);
             cacheService.putSchema(schemaKey, entry);
             return buildMetadataFromCache(entry, entry.toAttributes(), config);
@@ -1849,11 +1824,10 @@ public class ExternalSourceResolver {
     private void readAndAggregateAllFileStats(
         FileList listing,
         Map<String, Object> config,
-        Subobjects subobjects,
         boolean implicitNulls,
         ActionListener<Map<String, Object>> listener
     ) {
-        gatherPerFile(listing, config, subobjects, false, ActionListener.wrap(allMeta -> {
+        gatherPerFile(listing, config, false, ActionListener.wrap(allMeta -> {
             listener.onResponse(aggregateFileStatistics(allMeta, implicitNulls));
         }, e -> {
             // Cancellation is not a "could not aggregate stats" condition — propagate it so the query aborts promptly
@@ -1882,11 +1856,10 @@ public class ExternalSourceResolver {
     private void readAndAggregateAllFileStatsWithCache(
         FileList listing,
         Map<String, Object> config,
-        Subobjects subobjects,
         boolean implicitNulls,
         ActionListener<Map<String, Object>> listener
     ) {
-        gatherPerFile(listing, config, subobjects, true, ActionListener.wrap(allMeta -> {
+        gatherPerFile(listing, config, true, ActionListener.wrap(allMeta -> {
             List<Map<String, Object>> perFileStats = new ArrayList<>(allMeta.size());
             for (SourceMetadata meta : allMeta) {
                 Map<String, Object> fileMeta = meta.sourceMetadata();
@@ -2013,7 +1986,7 @@ public class ExternalSourceResolver {
         return new IllegalArgumentException(ExternalFailures.resolutionFailureMessage(path, lastFailure), lastFailure);
     }
 
-    private SourceMetadata resolveSingleSource(String path, Map<String, Object> config, Subobjects subobjects) {
+    private SourceMetadata resolveSingleSource(String path, Map<String, Object> config) {
         // Early scheme validation: reject unsupported schemes without loading any plugin factories
         try {
             StoragePath parsed = StoragePath.of(path);
@@ -2037,7 +2010,7 @@ public class ExternalSourceResolver {
                 // the next factory in the registry.
                 factory.validateConfig(path, config);
                 try {
-                    return factory.resolveMetadata(path, config, subobjects);
+                    return factory.resolveMetadata(path, config);
                 } catch (Exception e) {
                     LOGGER.debug("Factory [{}] claimed path [{}] but failed: {}", factory.type(), path, e.getMessage());
                     lastFailure = e;
@@ -2087,7 +2060,6 @@ public class ExternalSourceResolver {
         String path,
         @Nullable ListingHint hint,
         Map<String, Object> config,
-        Subobjects subobjects,
         ActionListener<SourceMetadata> listener
     ) {
         try {
@@ -2117,7 +2089,7 @@ public class ExternalSourceResolver {
                 candidates.add(factory);
             }
         }
-        resolveWithFactory(path, hint, config, subobjects, candidates, 0, null, listener);
+        resolveWithFactory(path, hint, config, candidates, 0, null, listener);
     }
 
     /**
@@ -2130,7 +2102,6 @@ public class ExternalSourceResolver {
         String path,
         @Nullable ListingHint hint,
         Map<String, Object> config,
-        Subobjects subobjects,
         List<ExternalSourceFactory> candidates,
         int index,
         @Nullable Exception lastFailure,
@@ -2147,10 +2118,10 @@ public class ExternalSourceResolver {
         ExternalSourceFactory factory = candidates.get(index);
         ActionListener<SourceMetadata> next = ActionListener.wrap(listener::onResponse, e -> {
             LOGGER.debug("Factory [{}] claimed path [{}] but failed: {}", factory.type(), path, e.getMessage());
-            resolveWithFactory(path, hint, config, subobjects, candidates, index + 1, e, listener);
+            resolveWithFactory(path, hint, config, candidates, index + 1, e, listener);
         });
         try {
-            factory.resolveMetadataAsync(path, hint, config, subobjects, metadataReadExecutor, next);
+            factory.resolveMetadataAsync(path, hint, config, metadataReadExecutor, next);
         } catch (Exception e) {
             // A factory that throws synchronously from dispatch (before invoking the listener) must not abort the
             // whole resolve: fall through to the next candidate exactly as the async onFailure path does.
@@ -2390,56 +2361,7 @@ public class ExternalSourceResolver {
         // a dynamic schema was INFERRED from the file, so position already equals physical position. Every downstream
         // read-time decision keys on the provenance the data node receives, not on the mode.
         SchemaProvenance provenance = isDeclaredSchema(declaredMapping) ? SchemaProvenance.DECLARED : SchemaProvenance.INFERRED;
-        return DeclaredReadSpec.of(renames, idPath, dateFormats, declaredTypeColumns, provenance, subobjectsOf(declaredMapping));
-    }
-
-    /**
-     * The declared {@code mappings.subobjects}, defaulting to {@link Subobjects#DISABLED} — the flat reading of dotted
-     * names that a dataset with no mapping, and every non-dataset read, gets. Unlike the reading mode this one does
-     * travel: it changes how the reader names a dotted field, so it is needed on the data node at decode time and (for
-     * a dynamic dataset) on the coordinator at inference time.
-     */
-    private static Subobjects subobjectsOf(@Nullable DatasetMapping declaredMapping) {
-        DatasetMapping.Mappings mappings = declaredMapping == null ? null : declaredMapping.mappings();
-        return mappings == null ? Subobjects.DISABLED : mappings.subobjects();
-    }
-
-    /**
-     * Rejects {@code subobjects: true} against a format that reads a dotted field name as a literal name
-     * ({@link FormatReader#supportsSubobjects}). Only a hierarchical text format can meet the same value spelled
-     * {@code {"a.b":1}} and {@code {"a":{"b":1}}} and so has a choice to make; a delimited header cell or a columnar
-     * footer name is already unambiguous. Reading the declaration flat anyway would look honoured while being ignored,
-     * and the user would discover it from wrong column names rather than an error.
-     * <p>
-     * Here rather than at dataset PUT because the format is not knowable then: it comes from the resource extension plus
-     * a per-query {@code format}/{@code reader} override. Here rather than only in {@link FileSourceFactory} because the
-     * strict rail (a {@code dynamic: false} declaration) builds its schema from the declaration and never asks a factory
-     * to resolve metadata, so a factory-side check alone would let strict datasets through silently.
-     * <p>
-     * A format that cannot be resolved at all is left alone: the read path raises its own, better-worded failure for
-     * that (an unregistered extension, a missing object), and pre-empting it here would replace a diagnosis with a
-     * sentence about a setting the user may not have caused.
-     */
-    private void rejectUnsupportedSubobjects(String path, Map<String, Object> config, @Nullable DatasetMapping declaredMapping) {
-        if (subobjectsOf(declaredMapping) != Subobjects.ENABLED) {
-            return;
-        }
-        FormatReader reader;
-        try {
-            reader = FormatNameResolver.resolveReader(config, StoragePath.of(path).objectName(), dataSourceModule.formatReaderRegistry());
-        } catch (Exception e) {
-            return;
-        }
-        if (reader.supportsSubobjects() == false) {
-            throw new IllegalArgumentException(
-                "["
-                    + path
-                    + "] is read as ["
-                    + reader.formatName()
-                    + "], which reads a dotted field name as a literal name; [subobjects: true] is only supported for "
-                    + "formats that read a dot as a path separator"
-            );
-        }
+        return DeclaredReadSpec.of(renames, idPath, dateFormats, declaredTypeColumns, provenance);
     }
 
     /**
@@ -2813,7 +2735,7 @@ public class ExternalSourceResolver {
         }
         List<Attribute> physicalSchema = (isCacheable(provider)
             ? cachedResolveSingleSource(anchor, anchorMtime, config)
-            : resolveSingleSource(anchor.toString(), config, Subobjects.DISABLED)).schema();
+            : resolveSingleSource(anchor.toString(), config)).schema();
         rejectUncoercibleFileTypedRetypes(physicalSchema, sourceType, declaredMapping);
     }
 
@@ -3043,17 +2965,12 @@ public class ExternalSourceResolver {
         return new ExternalSourceResolution.ResolvedSource(overlaidMetadata, resolved.fileList(), overlaidSchemaMap);
     }
 
-    /**
-     * Only reached by {@link #rejectStrictColumnarUncoercibleTypes}, whose formats are file-typed (Parquet/ORC): they
-     * state in their own footer whether a name is a group or a flat leaf, so no dotted-name reading applies and the
-     * DISABLED identity is the only correct one here.
-     */
     private SourceMetadata cachedResolveSingleSource(StoragePath filePath, long mtime, Map<String, Object> config) throws Exception {
         String formatType = detectFormatType(filePath);
-        SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), mtime, formatType, config, Subobjects.DISABLED);
+        SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), mtime, formatType, config);
         SchemaCacheEntry entry = cacheService.getOrComputeSchema(
             schemaKey,
-            k -> SchemaCacheEntry.from(resolveSingleSource(filePath.toString(), config, Subobjects.DISABLED))
+            k -> SchemaCacheEntry.from(resolveSingleSource(filePath.toString(), config))
         );
         return buildMetadataFromCache(entry, entry.toAttributes(), config);
     }

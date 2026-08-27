@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.cluster.metadata.DatasetMapping.Subobjects;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
@@ -30,7 +29,6 @@ import org.elasticsearch.xpack.esql.datasources.CountingBreaker;
 import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
-import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.hamcrest.Matchers;
@@ -261,8 +259,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * leaf columns must be filled with null for that row instead of throwing a {@link NullPointerException}.
      * Regression test for https://github.com/elastic/elasticsearch/issues/152574. A JSON {@code null} is a common,
      * legitimate shape (e.g. an intermittently-null nested object) and stays silent under every {@link ErrorPolicy}
-     * — unlike an actual scalar value where an object was expected, which is a genuine schema conflict (see
-     * {@link #testScalarWhereNestedObjectExpectedStrictFails}).
+     * — unlike an actual scalar value where an object was expected, which is a genuine schema conflict under STRICT.
      * <p>
      * This drives the decoder with an explicit dotted schema, i.e. the planner-resolved (bound) read-schema path
      * where {@code address} exists only as a nested-object prefix. It deliberately does not go through per-file
@@ -582,39 +579,11 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
-     * A scalar value where a nested object was expected (the schema only knows dotted leaf columns for this field,
-     * e.g. {@code address.city}/{@code address.zip}, but a row's {@code address} is a plain string) is a genuine
-     * scalar/object schema conflict: core ES dynamic mapping treats the same ambiguity as a hard document-parsing
-     * conflict, so under {@link ErrorPolicy#STRICT} it must fail the query with an actionable message naming the
-     * field and both shapes rather than silently null-filling. Before that fix, this
-     * mismatch was silently null-filled even under {@code STRICT} (see the pre-#1028 revision of
-     * {@code testNullOrScalarWhereNestedObjectExpected}).
+     * A scalar where the schema only knows dotted leaf columns for this field (e.g. {@code address.city}/
+     * {@code address.zip}) is not a conflict: the schema knows no column named {@code address}, so the scalar names
+     * nothing projected and null-fills the row's dotted columns exactly as an unknown field does. Not even STRICT fails.
      */
-    public void testScalarWhereNestedObjectExpectedStrictFails() {
-        String ndjson = "{\"address\": {\"city\": \"NYC\", \"zip\": \"10001\"}}\n" + "{\"address\": \"unstructured\"}\n";
-
-        ParsingException ex = expectThrows(
-            ParsingException.class,
-            () -> decodePage(
-                ndjson,
-                List.of(attribute("address.city", DataType.KEYWORD), attribute("address.zip", DataType.KEYWORD)),
-                ErrorPolicy.STRICT,
-                Subobjects.ENABLED
-            )
-        );
-        assertThat(ex.getMessage(), Matchers.containsString("address"));
-        assertThat(ex.getMessage(), Matchers.containsString("a string"));
-        assertThat(ex.getMessage(), Matchers.containsString("an object"));
-    }
-
-    /**
-     * The same records are not a conflict at all under DISABLED, where a dot is a literal character: the schema knows
-     * no column named {@code address}, so the scalar names nothing projected and null-fills the row's dotted columns
-     * exactly as an unknown field does. Not even STRICT fails, because nothing unrepresentable was asked for. An index
-     * with {@code subobjects: false} reaches the same place: it maps {@code address} and {@code address.city} as
-     * separate fields, and this read simply does not project the former.
-     */
-    public void testScalarWhereNestedObjectExpectedIsNotAConflictWhenSubobjectsDisabled() throws IOException {
+    public void testScalarWhereNestedObjectExpectedIsNotAConflict() throws IOException {
         String ndjson = "{\"address\": {\"city\": \"NYC\", \"zip\": \"10001\"}, \"id\": 1}\n"
             + "{\"address\": \"unstructured\", \"id\": 2}\n";
 
@@ -626,8 +595,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                     attribute("address.zip", DataType.KEYWORD),
                     attribute("id", DataType.INTEGER)
                 ),
-                ErrorPolicy.STRICT,
-                Subobjects.DISABLED
+                ErrorPolicy.STRICT
             )
         ) {
             assertNotNull(page);
@@ -643,81 +611,6 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             assertEquals(2, id.getInt(id.getFirstValueIndex(1)));
         }
         assertTrue("no shape conflict, so no warning", drainWarnings().isEmpty());
-    }
-
-    /**
-     * Same conflict as {@link #testScalarWhereNestedObjectExpectedStrictFails}, but under skip_row: the conflicting
-     * record is dropped whole and a client warning is surfaced, while the other records still decode. error_mode
-     * governs the outcome the same for a bound/declared or an inferred schema; null_field keeps the record and nulls
-     * the conflicting field instead (see the NdJsonPageIteratorTests null_field pin).
-     */
-    public void testScalarWhereNestedObjectExpectedSkipRowDropsRecordAndWarns() throws IOException {
-        String ndjson = "{\"address\": {\"city\": \"NYC\", \"zip\": \"10001\"}, \"id\": 1}\n"
-            + "{\"address\": \"unstructured\", \"id\": 2}\n"
-            + "{\"address\": {\"city\": \"London\", \"zip\": \"SW1A\"}, \"id\": 3}\n";
-
-        try (
-            Page page = decodePage(
-                ndjson,
-                List.of(
-                    attribute("address.city", DataType.KEYWORD),
-                    attribute("address.zip", DataType.KEYWORD),
-                    attribute("id", DataType.INTEGER)
-                ),
-                ErrorPolicy.LENIENT,
-                Subobjects.ENABLED
-            )
-        ) {
-            assertNotNull(page);
-            // The scalar-where-object record is dropped whole under skip_row; the two structured records survive.
-            assertEquals(2, page.getPositionCount());
-            BytesRefBlock city = page.getBlock(0);
-            BytesRefBlock zip = page.getBlock(1);
-            IntBlock id = page.getBlock(2);
-            BytesRef scratch = new BytesRef();
-            assertEquals(new BytesRef("NYC"), BytesRef.deepCopyOf(city.getBytesRef(0, scratch)));
-            assertEquals(1, id.getInt(id.getFirstValueIndex(0)));
-            assertEquals(new BytesRef("London"), BytesRef.deepCopyOf(city.getBytesRef(1, scratch)));
-            assertEquals(new BytesRef("SW1A"), BytesRef.deepCopyOf(zip.getBytesRef(1, scratch)));
-            assertEquals(3, id.getInt(id.getFirstValueIndex(1)));
-        }
-
-        List<String> warnings = drainWarnings();
-        assertFalse("expected a client warning for the shape conflict", warnings.isEmpty());
-        assertTrue("warning should name the conflicting field, got: " + warnings, warnings.stream().anyMatch(w -> w.contains("address")));
-    }
-
-    /**
-     * Same shape conflict as {@link #testScalarWhereNestedObjectExpectedSkipRowDropsRecordAndWarns}, but with a
-     * {@code warningSink} supplied: the decoder must route every emitted message through the sink instead of
-     * {@link HeaderWarning}, since {@link NdJsonPageDecoder}'s decode loop can run on a background reader thread
-     * whose thread-local response headers never reach the client (see {@link SkipWarnings}).
-     */
-    public void testScalarWhereNestedObjectExpectedLenientRoutesThroughWarningSink() throws IOException {
-        String ndjson = "{\"address\": {\"city\": \"NYC\"}, \"id\": 1}\n" + "{\"address\": \"unstructured\", \"id\": 2}\n";
-        List<String> sunk = new ArrayList<>();
-        try (
-            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
-                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
-                List.of(attribute("address.city", DataType.KEYWORD), attribute("id", DataType.INTEGER)),
-                null,
-                1024,
-                blockFactory,
-                ErrorPolicy.LENIENT,
-                "test://decode",
-                NdJsonUtils.JSON_FACTORY,
-                sunk::add
-            )
-        ) {
-            decoder.setSubobjects(Subobjects.ENABLED);
-            try (Page page = decoder.decodePage()) {
-                assertNotNull(page);
-            }
-        }
-
-        assertFalse("expected a client warning routed through the sink", sunk.isEmpty());
-        assertTrue("warning should name the conflicting field, got: " + sunk, sunk.stream().anyMatch(w -> w.contains("address")));
-        assertTrue("no message should reach the thread-local response headers when a sink is supplied", drainWarnings().isEmpty());
     }
 
     /**
@@ -807,7 +700,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * scalars is a distinct, supported shape — not the record-level scalar/object conflict
      * the record-level shape-conflict path targets — so it must be silently omitted from the multi-value entry under
      * every {@link ErrorPolicy}, including {@code STRICT}; only a genuine top-level (non-array) conflict
-     * (see {@link #testScalarWhereNestedObjectExpectedStrictFails}) fails the query. Covers leading-object,
+     * a genuine top-level non-array schema conflict fails the query. Covers leading-object,
      * mid-object, and all-object arrays against a scalar {@code id} column that pins the expected row count.
      */
     public void testArrayOfScalarsWithObjectElements() throws IOException {
@@ -839,10 +732,6 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     private Page decodePage(String ndjson, List<Attribute> attributes, ErrorPolicy errorPolicy) throws IOException {
-        return decodePage(ndjson, attributes, errorPolicy, Subobjects.DISABLED);
-    }
-
-    private Page decodePage(String ndjson, List<Attribute> attributes, ErrorPolicy errorPolicy, Subobjects subobjects) throws IOException {
         try (
             NdJsonPageDecoder decoder = new NdJsonPageDecoder(
                 new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
@@ -856,7 +745,6 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                 new NdJsonReaderCounters()
             )
         ) {
-            decoder.setSubobjects(subobjects);
             return decoder.decodePage();
         }
     }
@@ -1085,10 +973,6 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     private Page decodeOneColumn(String ndjson, DataType type, ErrorPolicy policy) throws IOException {
-        return decodeOneColumn(ndjson, type, policy, Subobjects.DISABLED);
-    }
-
-    private Page decodeOneColumn(String ndjson, DataType type, ErrorPolicy policy, Subobjects subobjects) throws IOException {
         try (
             NdJsonPageDecoder decoder = new NdJsonPageDecoder(
                 new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
@@ -1102,7 +986,6 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                 new NdJsonReaderCounters()
             )
         ) {
-            decoder.setSubobjects(subobjects);
             return decoder.decodePage();
         }
     }
@@ -1542,14 +1425,6 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             "per-cell coercion failure",
             RestStatus.BAD_REQUEST,
             expectThrows(ParsingException.class, () -> decodeOneColumn(badValue, DataType.LONG, ErrorPolicy.STRICT)).status()
-        );
-        assertEquals(
-            "scalar-versus-object shape conflict",
-            RestStatus.BAD_REQUEST,
-            expectThrows(
-                ParsingException.class,
-                () -> decodeOneColumn(shapeConflict, DataType.LONG, ErrorPolicy.STRICT, Subobjects.ENABLED)
-            ).status()
         );
         assertEquals(
             "error budget exhausted",

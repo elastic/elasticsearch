@@ -12,7 +12,6 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.exc.StreamConstraintsException;
 
-import org.elasticsearch.cluster.metadata.DatasetMapping.Subobjects;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -41,8 +40,6 @@ import java.util.Map;
  *
  * <p>Column names are always flat dotted names, whichever way the file spells them: the two spellings of a dotted
  * column are one path through the field tree ({@link #childFor}), so mixing them across records infers one column.
- * {@link Subobjects} decides only whether a scalar and an object at the same name are a conflict (one shape wins) or
- * two independent columns.
  */
 public class NdJsonSchemaInferrer {
 
@@ -70,21 +67,16 @@ public class NdJsonSchemaInferrer {
 
     private final DateFormatter dateFormatter;
 
-    /** How a dotted field name is read; see {@link #acceptsScalar} and {@link #acceptsObject} for what it decides. */
-    private final Subobjects subobjects;
-
-    private NdJsonSchemaInferrer(DateFormatter dateFormatter, Subobjects subobjects) {
+    private NdJsonSchemaInferrer(DateFormatter dateFormatter) {
         this.dateFormatter = dateFormatter != null ? dateFormatter : STRICT_DATE_OPTIONAL_TIME;
-        this.subobjects = subobjects;
     }
 
     /**
      * Infers schema from an NDJSON input stream, reading up to maxLines.
      * When {@code datetimeFormatter} is null, falls back to {@link #STRICT_DATE_OPTIONAL_TIME}.
      */
-    public static List<Attribute> inferSchema(InputStream inputStream, int maxLines, DateFormatter datetimeFormatter, Subobjects subobjects)
-        throws IOException {
-        return new NdJsonSchemaInferrer(datetimeFormatter, subobjects).doInferSchema(inputStream, maxLines);
+    public static List<Attribute> inferSchema(InputStream inputStream, int maxLines, DateFormatter datetimeFormatter) throws IOException {
+        return new NdJsonSchemaInferrer(datetimeFormatter).doInferSchema(inputStream, maxLines);
     }
 
     private List<Attribute> doInferSchema(InputStream inputStream, int maxLines) throws IOException {
@@ -163,12 +155,8 @@ public class NdJsonSchemaInferrer {
      * The node a field name addresses within {@code object}. A dotted name is a path, so both spellings of a dotted
      * column ({@code {"a.b":1}} and {@code {"a":{"b":1}}}) land on one node and a file that mixes them infers one
      * column rather than two attributes with the same name.
-     *
-     * <p>Returns {@code null} when the name has no representable node: under {@link Subobjects#ENABLED} a segment that
-     * already resolved to a scalar is a leaf and cannot be descended into, and the value is ignored the same way the
-     * nested spelling of that conflict is.
      */
-    private FieldInfo childFor(FieldInfo object, String fieldName) {
+    private static FieldInfo childFor(FieldInfo object, String fieldName) {
         if (NdJsonUtils.isFieldPath(fieldName) == false) {
             return object.getChild(fieldName);
         }
@@ -177,27 +165,9 @@ public class NdJsonSchemaInferrer {
         int dot;
         while ((dot = fieldName.indexOf('.', start)) >= 0) {
             node = node.getChild(fieldName.substring(start, dot));
-            if (acceptsObject(node) == false) {
-                return null;
-            }
             start = dot + 1;
         }
         return node.getChild(fieldName.substring(start));
-    }
-
-    /**
-     * Whether a scalar value may be recorded on {@code field}. Under {@link Subobjects#ENABLED} a node that already has
-     * children is an object, and a scalar on it is the shape conflict the decoder reports at read time. Under
-     * {@link Subobjects#DISABLED} a scalar {@code a} and a flattened {@code a.b} are two independent columns, so the
-     * node carries both.
-     */
-    private boolean acceptsScalar(FieldInfo field) {
-        return subobjects == Subobjects.DISABLED || field.children == null;
-    }
-
-    /** The mirror of {@link #acceptsScalar}: whether an object value may descend into {@code field}. */
-    private boolean acceptsObject(FieldInfo field) {
-        return subobjects == Subobjects.DISABLED || field.types.isEmpty();
     }
 
     private void inferValueSchema(JsonParser parser, FieldInfo field) throws IOException {
@@ -208,62 +178,37 @@ public class NdJsonSchemaInferrer {
                     inferValueSchema(parser, field);
                 }
             }
-            // Keep in sync with NdJsonPageDecoder.BlockDecoder.decodeValue. Under Subobjects.ENABLED a field seen as
-            // both a scalar and an object across sampled records resolves to whichever shape was observed first
-            // (mirrors core ES dynamic mapping's first-writer-wins); the other shape is ignored here for
-            // schema-inference purposes so buildSchema never emits both a scalar attribute and nested children for the
-            // same name. The decoder applies ErrorPolicy to the actual conflicting value at read time. Under
-            // Subobjects.DISABLED the two shapes are not in conflict: the object flattens to dotted columns that are
-            // siblings of the scalar, so both are inferred.
-            case START_OBJECT -> {
-                if (acceptsObject(field) == false) {
-                    parser.skipChildren();
-                } else {
-                    inferObjectSchema(parser, field);
-                }
-            }
+            case START_OBJECT -> inferObjectSchema(parser, field);
             case VALUE_STRING -> {
-                if (acceptsScalar(field)) {
-                    String text = parser.getText();
-                    if (field.types.contains(DataType.KEYWORD) == false && isDateTimeString(text)) {
-                        field.addType(DataType.DATETIME);
-                    } else {
-                        field.addType(DataType.KEYWORD);
-                    }
+                String text = parser.getText();
+                if (field.types.contains(DataType.KEYWORD) == false && isDateTimeString(text)) {
+                    field.addType(DataType.DATETIME);
+                } else {
+                    field.addType(DataType.KEYWORD);
                 }
             }
             case VALUE_NUMBER_INT -> {
-                if (acceptsScalar(field)) {
-                    switch (parser.getNumberType()) {
-                        case INT:
-                            field.addType(DataType.INTEGER);
-                            return;
-                        case LONG:
-                            field.addType(DataType.LONG);
-                            return;
-                        case BIG_INTEGER: {
-                            field.addType(DataType.DOUBLE);
-                            var location = parser.getTokenLocation();
-                            logger.debug(
-                                "Big integers are not supported, falling back to double [{}, line: {}, column: {}]",
-                                parser.getText(),
-                                location.getLineNr(),
-                                location.getColumnNr()
-                            );
-                        }
+                switch (parser.getNumberType()) {
+                    case INT:
+                        field.addType(DataType.INTEGER);
+                        return;
+                    case LONG:
+                        field.addType(DataType.LONG);
+                        return;
+                    case BIG_INTEGER: {
+                        field.addType(DataType.DOUBLE);
+                        var location = parser.getTokenLocation();
+                        logger.debug(
+                            "Big integers are not supported, falling back to double [{}, line: {}, column: {}]",
+                            parser.getText(),
+                            location.getLineNr(),
+                            location.getColumnNr()
+                        );
                     }
                 }
             } // conservative size
-            case VALUE_NUMBER_FLOAT -> {
-                if (acceptsScalar(field)) {
-                    field.addType(DataType.DOUBLE); // conservative size
-                }
-            }
-            case VALUE_TRUE, VALUE_FALSE -> {
-                if (acceptsScalar(field)) {
-                    field.addType(DataType.BOOLEAN);
-                }
-            }
+            case VALUE_NUMBER_FLOAT -> field.addType(DataType.DOUBLE); // conservative size
+            case VALUE_TRUE, VALUE_FALSE -> field.addType(DataType.BOOLEAN);
             case VALUE_NULL -> field.nullable = true;
             // Ignore all other events
         }

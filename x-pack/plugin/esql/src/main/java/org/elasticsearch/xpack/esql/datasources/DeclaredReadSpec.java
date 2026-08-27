@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.cluster.metadata.DatasetMapping.Subobjects;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -48,13 +47,6 @@ import java.util.Set;
  *       {@link SchemaProvenance#INFERRED} from the file (bind by position). The axis {@code dynamic} actually
  *       selects; the data node reads provenance, never the mode. Defaults to {@code INFERRED} — the identity a
  *       pre-gate peer and every non-declared read carry.</li>
- *   <li>{@code subobjects} — how the reader reads a dotted field name: under {@link Subobjects#ENABLED} a dot separates
- *       a path (so {@code {"a.b":1}} and {@code {"a":{"b":1}}} both name the object field {@code a}'s child {@code b}),
- *       under {@link Subobjects#DISABLED} a nested object flattens into the dotted leaf {@code a.b}. Mirrors the
- *       identically-named Elasticsearch mapping setting. Applies only to a format that reads a dot as a path at all
- *       ({@link org.elasticsearch.xpack.esql.datasources.spi.FormatReader#supportsSubobjects}); a dataset that asks for
- *       ENABLED against any other format is rejected at resolution. Defaults to DISABLED, the flat reading a
- *       non-declared read carries.</li>
  * </ul>
  * A plain {@link Writeable}: its wire gate lives on the enclosing plan nodes, which only read/write it when the
  * {@code dataset_declared_schema} transport version is supported (mirrors how {@code DatasetMapping.Mappings} is gated
@@ -65,8 +57,7 @@ public record DeclaredReadSpec(
     @Nullable String idPath,
     Map<String, String> dateFormats,
     Set<String> declaredTypeColumns,
-    SchemaProvenance provenance,
-    Subobjects subobjects
+    SchemaProvenance provenance
 ) implements Writeable {
 
     /**
@@ -79,32 +70,14 @@ public record DeclaredReadSpec(
      */
     private static final TransportVersion DECLARED_READ_SPEC_PROVENANCE = TransportVersion.fromName("declared_read_spec_provenance");
 
-    /**
-     * Wire gate for {@link #subobjects}; a pre-gate peer defaults DISABLED. The degradation is the same TOLERATED trade
-     * as {@link #DECLARED_READ_SPEC_PROVENANCE} above, and narrower: DISABLED is the reading every non-declared read
-     * already gets, so only a dataset that declared ENABLED sees dotted names read flat for the upgrade window.
-     * <p>
-     * The same version gates {@code DatasetMapping.Mappings.subobjects}, the declaration this field is derived from:
-     * they ship together, and a peer that cannot be told the setting cannot honour it either.
-     */
-    private static final TransportVersion DATASET_SUBOBJECTS = TransportVersion.fromName("dataset_subobjects");
-
     /** The empty spec — nothing declared. The default carried on every non-declared read. */
-    public static final DeclaredReadSpec NONE = new DeclaredReadSpec(
-        Map.of(),
-        null,
-        Map.of(),
-        Set.of(),
-        SchemaProvenance.INFERRED,
-        Subobjects.DISABLED
-    );
+    public static final DeclaredReadSpec NONE = new DeclaredReadSpec(Map.of(), null, Map.of(), Set.of(), SchemaProvenance.INFERRED);
 
     public DeclaredReadSpec {
         renames = renames != null ? Map.copyOf(renames) : Map.of();
         dateFormats = dateFormats != null ? Map.copyOf(dateFormats) : Map.of();
         declaredTypeColumns = declaredTypeColumns != null ? Set.copyOf(declaredTypeColumns) : Set.of();
         provenance = provenance != null ? provenance : SchemaProvenance.INFERRED;
-        subobjects = subobjects != null ? subobjects : Subobjects.DISABLED;
     }
 
     /**
@@ -117,22 +90,10 @@ public record DeclaredReadSpec(
         @Nullable String idPath,
         @Nullable Map<String, String> dateFormats,
         @Nullable Set<String> declaredTypeColumns,
-        @Nullable SchemaProvenance provenance,
-        @Nullable Subobjects subobjects
-    ) {
-        DeclaredReadSpec spec = new DeclaredReadSpec(renames, idPath, dateFormats, declaredTypeColumns, provenance, subobjects);
-        return spec.isEmpty() ? NONE : spec;
-    }
-
-    /** Convenience for a spec that reads dotted names flat ({@link Subobjects#DISABLED}). */
-    public static DeclaredReadSpec of(
-        @Nullable Map<String, String> renames,
-        @Nullable String idPath,
-        @Nullable Map<String, String> dateFormats,
-        @Nullable Set<String> declaredTypeColumns,
         @Nullable SchemaProvenance provenance
     ) {
-        return of(renames, idPath, dateFormats, declaredTypeColumns, provenance, Subobjects.DISABLED);
+        DeclaredReadSpec spec = new DeclaredReadSpec(renames, idPath, dateFormats, declaredTypeColumns, provenance);
+        return spec.isEmpty() ? NONE : spec;
     }
 
     /** Convenience for a spec over an inferred schema ({@link SchemaProvenance#INFERRED}). */
@@ -142,27 +103,25 @@ public record DeclaredReadSpec(
         @Nullable Map<String, String> dateFormats,
         @Nullable Set<String> declaredTypeColumns
     ) {
-        return of(renames, idPath, dateFormats, declaredTypeColumns, SchemaProvenance.INFERRED, Subobjects.DISABLED);
+        return of(renames, idPath, dateFormats, declaredTypeColumns, SchemaProvenance.INFERRED);
     }
 
     /** Convenience for a spec with no declared date formats and no declared column types. */
     public static DeclaredReadSpec of(@Nullable Map<String, String> renames, @Nullable String idPath) {
-        return of(renames, idPath, Map.of(), Set.of(), SchemaProvenance.INFERRED, Subobjects.DISABLED);
+        return of(renames, idPath, Map.of(), Set.of(), SchemaProvenance.INFERRED);
     }
 
     /**
      * True when the mapping declared nothing for the data node to apply — no rename, {@code _id.path}, format, or type,
-     * {@link SchemaProvenance#INFERRED} provenance, and the default flat reading of dotted names. A DECLARED provenance
-     * or a {@link Subobjects#ENABLED} reading is itself an instruction, so it keeps the spec from collapsing to
-     * {@link #NONE} (which carries neither) and being lost on the wire.
+     * and {@link SchemaProvenance#INFERRED} provenance. A DECLARED provenance is itself an instruction, so it
+     * keeps the spec from collapsing to {@link #NONE} (whose provenance is INFERRED) and being lost on the wire.
      */
     public boolean isEmpty() {
         return renames.isEmpty()
             && idPath == null
             && dateFormats.isEmpty()
             && declaredTypeColumns.isEmpty()
-            && provenance == SchemaProvenance.INFERRED
-            && subobjects == Subobjects.DISABLED;
+            && provenance == SchemaProvenance.INFERRED;
     }
 
     @Override
@@ -174,9 +133,6 @@ public record DeclaredReadSpec(
         if (out.getTransportVersion().supports(DECLARED_READ_SPEC_PROVENANCE)) {
             out.writeEnum(provenance);
         }
-        if (out.getTransportVersion().supports(DATASET_SUBOBJECTS)) {
-            out.writeEnum(subobjects);
-        }
     }
 
     public static DeclaredReadSpec readFrom(StreamInput in) throws IOException {
@@ -187,7 +143,6 @@ public record DeclaredReadSpec(
         SchemaProvenance provenance = in.getTransportVersion().supports(DECLARED_READ_SPEC_PROVENANCE)
             ? in.readEnum(SchemaProvenance.class)
             : SchemaProvenance.INFERRED;
-        Subobjects subobjects = in.getTransportVersion().supports(DATASET_SUBOBJECTS) ? in.readEnum(Subobjects.class) : Subobjects.DISABLED;
-        return of(renames, idPath, dateFormats, declaredTypeColumns, provenance, subobjects);
+        return of(renames, idPath, dateFormats, declaredTypeColumns, provenance);
     }
 }

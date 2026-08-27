@@ -125,8 +125,7 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
             properties.put("col_" + i, new DatasetFieldMapping(type, path));
         }
         String idPath = randomBoolean() ? null : randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
-        DatasetMapping.Subobjects subobjects = randomFrom(DatasetMapping.Subobjects.values());
-        return new DatasetMapping.Mappings(dynamic, subobjects, properties, idPath);
+        return new DatasetMapping.Mappings(dynamic, properties, idPath);
     }
 
     private static Map<String, Object> randomSettings() {

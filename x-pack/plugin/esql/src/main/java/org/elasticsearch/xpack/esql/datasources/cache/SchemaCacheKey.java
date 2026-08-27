@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
-import org.elasticsearch.cluster.metadata.DatasetMapping.Subobjects;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
 
@@ -87,13 +86,6 @@ public record SchemaCacheKey(
         "schema_resolution"
     );
 
-    /**
-     * Rendered alongside the config-map params in {@link #buildFormatConfig}, though it is not one of them: the
-     * dataset's dotted-name reading comes from {@code mappings.subobjects}, never from a WITH key. Deliberately not a
-     * member of {@link #FORMAT_AFFECTING_PARAMS} — a same-named WITH key is not this setting and must stay ignored.
-     */
-    private static final String SUBOBJECTS_PARAM = "subobjects";
-
     private static final Set<String> CREDENTIAL_PARAMS = Set.of(
         "access_key",
         "secret_key",
@@ -105,25 +97,8 @@ public record SchemaCacheKey(
     );
 
     public static SchemaCacheKey build(String canonicalPath, long mtime, String formatType, Map<String, Object> config) {
-        return build(canonicalPath, mtime, formatType, config, Subobjects.DISABLED);
-    }
-
-    /**
-     * Key variant that also scopes the entry by how the reader reads a dotted field name. A dataset's
-     * {@code mappings.subobjects} is not a config-map key, so without this component two datasets over the same file
-     * and the same WITH config, differing only in {@code subobjects}, would share one entry — and the inferred schema
-     * genuinely differs between them (a scalar and an object at the same name are one conflicted field under ENABLED
-     * and two coexisting columns under DISABLED), as do the row/column stats captured alongside it.
-     */
-    public static SchemaCacheKey build(
-        String canonicalPath,
-        long mtime,
-        String formatType,
-        Map<String, Object> config,
-        Subobjects subobjects
-    ) {
         EndpointRegion location = EndpointRegion.of(config);
-        String formatConfig = buildFormatConfig(config, subobjects);
+        String formatConfig = buildFormatConfig(config);
         return new SchemaCacheKey(
             canonicalPath,
             mtime,
@@ -174,17 +149,6 @@ public record SchemaCacheKey(
         String sourceType,
         Map<String, Object> config
     ) {
-        return forDatasetAggregate(pattern, fingerprint, sourceType, config, Subobjects.DISABLED);
-    }
-
-    /** {@link #forDatasetAggregate} scoped by the dotted-name reading, for the reason given on {@link #build}. */
-    public static SchemaCacheKey forDatasetAggregate(
-        String pattern,
-        FileSetFingerprint fingerprint,
-        String sourceType,
-        Map<String, Object> config,
-        Subobjects subobjects
-    ) {
         // A dataset key is identified two ways — the marker suffix on formatType and a non-null
         // fileSetFingerprint (isDatasetAggregate() vs the collision defense). Require the fingerprint here
         // so a marker-suffixed key with a null fingerprint is never representable and the two agree.
@@ -195,7 +159,7 @@ public record SchemaCacheKey(
             pattern == null ? "" : pattern,
             0L,
             formatType,
-            buildFormatConfig(config, subobjects),
+            buildFormatConfig(config),
             location.endpoint(),
             location.region(),
             fingerprint
@@ -219,30 +183,15 @@ public record SchemaCacheKey(
      * cache fingerprint.
      */
     public static String buildFormatConfig(Map<String, Object> config) {
-        return buildFormatConfig(config, Subobjects.DISABLED);
-    }
-
-    /**
-     * {@link #buildFormatConfig(Map)} extended with the dataset's dotted-name reading, which affects row
-     * interpretation just as the config-map params do but does not live in the map. Both the cache key and a reader's
-     * own stats fingerprint go through this overload so a coordinator and a data node derive the same string.
-     * <p>
-     * {@link Subobjects#DISABLED} renders nothing, so the string is byte-identical to the config-only form for every
-     * read that does not opt in — a dataset that never declares {@code subobjects} keeps sharing entries with a plain
-     * {@code FROM} over the same file.
-     */
-    public static String buildFormatConfig(Map<String, Object> config, @Nullable Subobjects subobjects) {
-        TreeMap<String, String> sorted = new TreeMap<>();
-        if (config != null) {
-            for (Map.Entry<String, Object> entry : config.entrySet()) {
-                String key = entry.getKey();
-                if (FORMAT_AFFECTING_PARAMS.contains(key) && CREDENTIAL_PARAMS.contains(key) == false) {
-                    sorted.put(key, String.valueOf(entry.getValue()));
-                }
-            }
+        if (config == null || config.isEmpty()) {
+            return "";
         }
-        if (subobjects == Subobjects.ENABLED) {
-            sorted.put(SUBOBJECTS_PARAM, subobjects.toString());
+        TreeMap<String, String> sorted = new TreeMap<>();
+        for (Map.Entry<String, Object> entry : config.entrySet()) {
+            String key = entry.getKey();
+            if (FORMAT_AFFECTING_PARAMS.contains(key) && CREDENTIAL_PARAMS.contains(key) == false) {
+                sorted.put(key, String.valueOf(entry.getValue()));
+            }
         }
         if (sorted.isEmpty()) {
             return "";

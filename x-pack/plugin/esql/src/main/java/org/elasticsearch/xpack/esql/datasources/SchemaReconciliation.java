@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.cluster.metadata.DatasetMapping.Subobjects;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -313,13 +312,9 @@ public final class SchemaReconciliation {
      * picture.
      *
      * @param fileMetadata ordered map of file path → metadata (insertion order = file sort order)
-     * @param subobjects   how the readers read a dotted field name; decides whether a bare {@code root} in one file and
-     *                     a {@code root.x} in another are one field disagreeing about its shape
-     *                     ({@link Subobjects#ENABLED}) or two independent flat columns
-     *                     ({@link Subobjects#DISABLED})
      * @return reconciliation result with unified schema and per-file mappings
      */
-    public static Result reconcileUnionByName(Map<StoragePath, SourceMetadata> fileMetadata, Subobjects subobjects) {
+    public static Result reconcileUnionByName(Map<StoragePath, SourceMetadata> fileMetadata) {
         LinkedHashMap<String, MergeEntry> unified = new LinkedHashMap<>();
         // Per-column accumulator. We record *every* file's inferred type for every column up
         // front (it's cheap and gives the warning emitter a complete contributor list), then
@@ -353,19 +348,12 @@ public final class SchemaReconciliation {
 
         emitKeywordFallbackWarnings(unified, contributions);
 
-        // Collapse, before the nullable-fill pass below, any field that some files infer as a scalar
-        // leaf and others as a nested object (a dotted-prefix parent) to a single shape, dropping
-        // the losing shape's entries from `unified` in place. The nullable-fill pass then naturally
-        // marks the surviving name nullable for the losing files (their original schema genuinely
-        // lacks it), which is exactly what we want.
-        //
-        // Only under ENABLED, where a dot IS a path and so `root` and `root.x` are one field the
-        // files disagree about. Under DISABLED a dot is a literal character: `root` and `root.x` are
-        // two unrelated flat columns (a nested object in one file simply flattened into the dotted
-        // name), so there is no conflict to resolve and collapsing them would delete a real column.
-        Map<StoragePath, List<Attribute>> shapeConflictOverrides = subobjects == Subobjects.ENABLED
-            ? resolveShapeConflicts(unified, fileMetadata)
-            : Map.of();
+        // Resolve esql-planning#1050 before the nullable-fill pass below: collapse any field that
+        // some files infer as a scalar leaf and others infer as a nested object (dotted-prefix
+        // parent) to a single shape, dropping the losing shape's entries from `unified` in place.
+        // The nullable-fill pass then naturally marks the surviving name nullable for the losing
+        // files (their original schema genuinely lacks it), which is exactly what we want.
+        Map<StoragePath, List<Attribute>> shapeConflictOverrides = resolveShapeConflicts(unified, fileMetadata);
 
         // Mark columns as nullable when missing from any file
         for (Map.Entry<StoragePath, SourceMetadata> entry : fileMetadata.entrySet()) {
@@ -447,13 +435,12 @@ public final class SchemaReconciliation {
      * automatically and routes it through {@link org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy}
      * — no format-specific code needed here.
      * <p>
-     * Called only under {@link Subobjects#ENABLED}, the reading in which a dot is a path separator and
-     * so {@code user} and {@code user.id} name one field. Under {@link Subobjects#DISABLED} they are two
-     * unrelated flat columns and this pass is skipped entirely.
-     * <p>
-     * A file that contributes <em>both</em> the bare name and a dotted child for the same root still
-     * fully participates in the vote above as a leaf-shaped contributor; only those dotted columns are
-     * excluded from the family. See {@link #resolveFamily} for why exempting the file's leaf
+     * A file that contributes <em>both</em> the bare name and a dotted child for the same root
+     * (a literal flat key such as {@code "user.tag"} coexisting with scalar {@code "user"} in one
+     * file) still fully participates in the vote above as a leaf-shaped contributor — presence of
+     * the bare name means its dotted column(s) are literal flat keys, not nested children (see
+     * {@code NdJsonPageDecoder#hasDottedPrefixConflict}), so only those unrelated dotted columns
+     * are excluded from the family; see {@link #resolveFamily} for why exempting the file's leaf
      * contribution too would silently reopen the conflict.
      * <p>
      * Only files whose {@link SourceMetadata#sourceType()} is {@link #supportsShapeConflictResolution
@@ -583,8 +570,8 @@ public final class SchemaReconciliation {
      * A file that has the bare {@code root} name always classifies as leaf-shaped for this
      * family, full stop, regardless of whether it also happens to carry some unrelated
      * {@code root.*} column: presence of {@code root} itself means any {@code root.*} names in
-     * that <em>same</em> file are literal flat keys, not nested children of {@code root}, so they
-     * take no part in this family
+     * that <em>same</em> file are literal flat keys, not nested children of {@code root} (see
+     * {@code NdJsonPageDecoder#hasDottedPrefixConflict}), so they take no part in this family
      * either way — they are simply excluded from {@code familyNamesInFile} below and therefore
      * never touched by the winning/losing overrides. The file's actual {@code root} value,
      * though, is a real, ordinary leaf contribution and must fully participate in the cross-file

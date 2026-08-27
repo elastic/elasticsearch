@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.metadata.DatasetMapping.Subobjects;
 import org.elasticsearch.core.Nullable;
 
 import java.util.Map;
@@ -42,20 +41,6 @@ public interface ExternalSourceFactory {
     SourceMetadata resolveMetadata(String location, Map<String, Object> config);
 
     /**
-     * Resolves metadata with the dataset's dotted-field-name reading in effect. The setting has to reach the reader
-     * before inference, not just before decode: under {@link Subobjects#ENABLED} a scalar and an object at one name are
-     * one conflicted field, under {@link Subobjects#DISABLED} they are two coexisting columns, so the two readings can
-     * infer different schemas from the same bytes.
-     * <p>
-     * The default ignores it, which is correct for every factory whose formats read a dot as a literal character (see
-     * {@link FormatReader#supportsSubobjects}); a factory composing readers that do read a dot as a path overrides this
-     * and hands the setting to the reader.
-     */
-    default SourceMetadata resolveMetadata(String location, Map<String, Object> config, Subobjects subobjects) {
-        return resolveMetadata(location, config);
-    }
-
-    /**
      * Asynchronously resolves metadata for the given location.
      * <p>
      * The default wraps the synchronous {@link #resolveMetadata(String, Map)} in the provided
@@ -78,26 +63,9 @@ public interface ExternalSourceFactory {
         Executor executor,
         ActionListener<SourceMetadata> listener
     ) {
-        resolveMetadataAsync(location, hint, config, Subobjects.DISABLED, executor, listener);
-    }
-
-    /**
-     * {@link #resolveMetadataAsync(String, ListingHint, Map, Executor, ActionListener)} with the dataset's
-     * dotted-field-name reading in effect, for the reason given on {@link #resolveMetadata(String, Map, Subobjects)}.
-     * This is the form the resolver calls and the one an override belongs on; the setting-free overload above delegates
-     * here, so overriding only that one would drop the setting silently.
-     */
-    default void resolveMetadataAsync(
-        String location,
-        @Nullable ListingHint hint,
-        Map<String, Object> config,
-        Subobjects subobjects,
-        Executor executor,
-        ActionListener<SourceMetadata> listener
-    ) {
         executor.execute(() -> {
             try {
-                listener.onResponse(resolveMetadata(location, config, subobjects));
+                listener.onResponse(resolveMetadata(location, config));
             } catch (Exception e) {
                 listener.onFailure(e);
             }

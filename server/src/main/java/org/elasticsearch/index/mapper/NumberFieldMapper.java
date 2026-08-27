@@ -2910,8 +2910,7 @@ public class NumberFieldMapper extends FieldMapper {
             ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE, numericKind(type)));
         } else if (indexed) {
             if (type == NumberType.HALF_FLOAT) {
-                // half_float uses separate HalfFloatPoint (2-byte BKD) and SortedNumericDocValuesField,
-                // unlike other numeric types which use a combined field. Send one column for each.
+                // half_float's BKD index uses a separate 2-byte HalfFloatPoint; other numeric types combine DV and BKD into one field.
                 ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, LongColumn.NumericKind.FLOAT));
                 EscfColumnData halfFloatPointData = NumberColumnTransform.toHalfFloatPointBinaryColumn(
                     EscfColumn.from(outData),
@@ -2926,8 +2925,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
         if (stored) {
             if (type == NumberType.HALF_FLOAT) {
-                // HALF_FLOAT DV data is encoded as sortable shorts; for stored fields we need sortable
-                // float ints so that LongColumn.NumericKind.FLOAT decodes them correctly.
+                // half_float DV encodes as sortable shorts, but stored fields need sortable float ints for FLOAT-kind decoding.
                 EscfColumnData halfFloatStoredData = NumberColumnTransform.toHalfFloatStoredLongColumn(
                     EscfColumn.from(outData),
                     ctx.recycler()

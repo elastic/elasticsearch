@@ -31,7 +31,7 @@ public class ChatCompletionChunkTests extends AbstractBWCWireSerializationTestCa
     public static ChatCompletionChunk randomChatCompletionChunk() {
         return new ChatCompletionChunk(
             randomAlphanumericOfLength(5),
-            randomBoolean() ? null : randomList(randomInt(5), ChatCompletionChoiceTests::randomChatCompletionChoice),
+            randomBoolean() ? null : randomList(randomInt(5), ChatCompletionChoiceResponseTests::randomChatCompletionChoiceResponse),
             randomAlphanumericOfLength(5),
             randomAlphanumericOfLength(5),
             randomBoolean() ? null : ChatCompletionUsageTests.randomChatCompletionUsage()
@@ -40,14 +40,14 @@ public class ChatCompletionChunkTests extends AbstractBWCWireSerializationTestCa
 
     /**
      * Truncates fields that would not survive serialization to an older transport version.
-     * Delegates the per-record truncation rules to {@link ChatCompletionChoiceTests#downgrade} and
+     * Delegates the per-record truncation rules to {@link ChatCompletionChoiceResponseTests#downgrade} and
      * {@link ChatCompletionUsageTests#downgrade}.
      * Exposed so that {@code StreamingUnifiedChatCompletionResultsTests.mutateInstanceForVersion} can delegate.
      */
     public static ChatCompletionChunk downgrade(ChatCompletionChunk instance, TransportVersion version) {
         var choices = instance.choices() == null
             ? null
-            : instance.choices().stream().map(c -> ChatCompletionChoiceTests.downgrade(c, version)).toList();
+            : instance.choices().stream().map(c -> ChatCompletionChoiceResponseTests.downgrade(c, version)).toList();
         var usage = instance.usage() == null ? null : ChatCompletionUsageTests.downgrade(instance.usage(), version);
         return new ChatCompletionChunk(instance.id(), choices, instance.model(), instance.object(), usage);
     }
@@ -77,7 +77,11 @@ public class ChatCompletionChunkTests extends AbstractBWCWireSerializationTestCa
                 randomList(
                     1,
                     3,
-                    () -> new ChatCompletionChoice(new ChatCompletionMessage(randomAlphanumericOfLength(5), null, null, null), null, 0)
+                    () -> new ChatCompletionChoiceResponse(
+                        new ChatCompletionMessage(randomAlphanumericOfLength(5), null, null, null),
+                        null,
+                        0
+                    )
                 ),
                 instance.model(),
                 instance.object(),
@@ -115,7 +119,7 @@ public class ChatCompletionChunkTests extends AbstractBWCWireSerializationTestCa
         var completion = new ChatCompletionChunk(
             "chatcmpl-123",
             List.of(
-                new ChatCompletionChoice(
+                new ChatCompletionChoiceResponse(
                     new ChatCompletionMessage(
                         "Hello!",
                         null,
@@ -171,7 +175,7 @@ public class ChatCompletionChunkTests extends AbstractBWCWireSerializationTestCa
     public void testToXContentChunked_MinimalResponse() throws IOException {
         var completion = new ChatCompletionChunk(
             "chatcmpl-456",
-            List.of(new ChatCompletionChoice(new ChatCompletionMessage("Hi", null, "assistant", null), "stop", 0)),
+            List.of(new ChatCompletionChoiceResponse(new ChatCompletionMessage("Hi", null, "assistant", null), "stop", 0)),
             "gpt-4o-mini",
             "chat.completion",
             null

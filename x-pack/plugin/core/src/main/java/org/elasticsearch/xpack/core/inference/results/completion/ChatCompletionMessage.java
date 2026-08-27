@@ -30,7 +30,7 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.ROLE
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOOL_CALLS_FIELD;
 
 /**
- * The message (or delta, in streaming) within a {@link ChatCompletionChoice}.
+ * The message (or delta, in streaming) within a {@link ChatCompletionChoiceResponse}.
  *
  * <p>XContent is emitted as a named object under {@code messageFieldName} — either
  * {@code "message"} for non-streaming responses or {@code "delta"} for streaming SSE chunks.

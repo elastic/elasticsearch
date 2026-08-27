@@ -25,7 +25,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoice;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessage;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCall;
@@ -223,13 +223,13 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
      */
     private Stream<ChatCompletionChunk> handleMessageStart(MessageStartEvent event) {
         var message = new ChatCompletionMessage(null, null, getRole(event), null);
-        var choice = new ChatCompletionChoice(message, null, 0);
+        var choice = new ChatCompletionChoiceResponse(message, null, 0);
         var chunk = createChatCompletionChunk(List.of(choice), null);
         return Stream.of(chunk);
     }
 
     private ChatCompletionChunk createChatCompletionChunk(
-        @Nullable List<ChatCompletionChoice> choices,
+        @Nullable List<ChatCompletionChoiceResponse> choices,
         @Nullable ChatCompletionUsage usage
     ) {
         return new ChatCompletionChunk(conversationId, choices, modelId, CHAT_COMPLETION_CHUNK_OBJECT, usage);
@@ -250,7 +250,7 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
     private Stream<ChatCompletionChunk> handleMessageStop(MessageStopEvent event) {
         var finishReason = handleFinishReason(event.stopReason());
         var message = new ChatCompletionMessage(null, null, null, null);
-        var choice = new ChatCompletionChoice(message, finishReason, 0);
+        var choice = new ChatCompletionChoiceResponse(message, finishReason, 0);
         var chunk = createChatCompletionChunk(List.of(choice), null);
         return Stream.of(chunk);
     }
@@ -319,7 +319,7 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
                 ChatCompletionRole.ASSISTANT.toString(),
                 List.of(toolCall)
             );
-            var choice = new ChatCompletionChoice(message, null, index);
+            var choice = new ChatCompletionChoiceResponse(message, null, index);
             var chunk = createChatCompletionChunk(List.of(choice), null);
             return Stream.of(chunk);
         }
@@ -349,7 +349,7 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
                 throw new IllegalArgumentException("unknown content block delta type [" + type + "]");
             }
         };
-        var choice = new ChatCompletionChoice(message, null, event.contentBlockIndex());
+        var choice = new ChatCompletionChoiceResponse(message, null, event.contentBlockIndex());
 
         var chunk = createChatCompletionChunk(List.of(choice), null);
         return Stream.of(chunk);

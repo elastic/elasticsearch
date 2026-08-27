@@ -16,7 +16,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoice;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCall;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiUnifiedChatCompletionParser;
@@ -80,9 +80,9 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals(20, chunk.usage().promptTokens());
             assertEquals(70, chunk.usage().totalTokens());
 
-            List<ChatCompletionChoice> choices = chunk.choices();
+            List<ChatCompletionChoiceResponse> choices = chunk.choices();
             assertEquals(1, choices.size());
-            ChatCompletionChoice choice = choices.get(0);
+            ChatCompletionChoiceResponse choice = choices.get(0);
             assertEquals("example_content", choice.message().content());
             assertNull(choice.message().refusal());
             assertEquals("assistant", choice.message().role());
@@ -154,11 +154,11 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals("chat.completion.chunk", chunk.object());
             assertNull(chunk.usage());
 
-            List<ChatCompletionChoice> choices = chunk.choices();
+            List<ChatCompletionChoiceResponse> choices = chunk.choices();
             assertEquals(2, choices.size());
 
             // First choice assertions
-            ChatCompletionChoice firstChoice = choices.get(0);
+            ChatCompletionChoiceResponse firstChoice = choices.get(0);
             assertNull(firstChoice.message().content());
             assertNull(firstChoice.message().refusal());
             assertEquals("assistant", firstChoice.message().role());
@@ -167,7 +167,7 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals(0, firstChoice.index());
 
             // Second choice assertions
-            ChatCompletionChoice secondChoice = choices.get(1);
+            ChatCompletionChoiceResponse secondChoice = choices.get(1);
             assertEquals("example_content", secondChoice.message().content());
             assertEquals("example_refusal", secondChoice.message().refusal());
             assertEquals("user", secondChoice.message().role());
@@ -229,11 +229,11 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertThat(chunk.object(), is("chat.completion.chunk"));
             assertNull(chunk.usage());
 
-            List<ChatCompletionChoice> choices = chunk.choices();
+            List<ChatCompletionChoiceResponse> choices = chunk.choices();
             assertThat(choices.size(), is(1));
 
             // First choice assertions
-            ChatCompletionChoice firstChoice = choices.get(0);
+            ChatCompletionChoiceResponse firstChoice = choices.get(0);
             assertNull(firstChoice.message().content());
             assertNull(firstChoice.message().refusal());
             assertThat(firstChoice.message().role(), is("assistant"));
@@ -302,9 +302,9 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertNotNull(chunk.usage().completionTokenDetails().reasoningTokens());
             assertEquals(reasoningTokens, (int) chunk.usage().completionTokenDetails().reasoningTokens());
 
-            List<ChatCompletionChoice> choices = chunk.choices();
+            List<ChatCompletionChoiceResponse> choices = chunk.choices();
             assertEquals(1, choices.size());
-            ChatCompletionChoice choice = choices.get(0);
+            ChatCompletionChoiceResponse choice = choices.get(0);
             assertEquals(choiceContent, choice.message().content());
             assertNull(choice.message().refusal());
             assertEquals(choiceRole, choice.message().role());
@@ -370,9 +370,9 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals("chat.completion.chunk", chunk.object());
             assertNull(chunk.usage());
 
-            List<ChatCompletionChoice> choices = chunk.choices();
+            List<ChatCompletionChoiceResponse> choices = chunk.choices();
             assertEquals(1, choices.size());
-            ChatCompletionChoice choice = choices.get(0);
+            ChatCompletionChoiceResponse choice = choices.get(0);
             assertNull(choice.message().content());
             assertNull(choice.message().refusal());
             assertNull(choice.message().role());

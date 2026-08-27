@@ -30,9 +30,9 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.INDE
  * {@code "message"} (non-streaming) depending on the {@code messageFieldName} argument
  * passed to {@link #toXContentChunked(ToXContent.Params, String)}.
  */
-public record ChatCompletionChoice(ChatCompletionMessage message, @Nullable String finishReason, int index) implements Writeable {
+public record ChatCompletionChoiceResponse(ChatCompletionMessage message, @Nullable String finishReason, int index) implements Writeable {
 
-    public ChatCompletionChoice(StreamInput in) throws IOException {
+    public ChatCompletionChoiceResponse(StreamInput in) throws IOException {
         this(new ChatCompletionMessage(in), in.readOptionalString(), in.readInt());
     }
 

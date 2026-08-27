@@ -52,7 +52,7 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.USAG
  */
 public record ChatCompletionChunk(
     String id,
-    @Nullable List<ChatCompletionChoice> choices,
+    @Nullable List<ChatCompletionChoiceResponse> choices,
     String model,
     String object,
     @Nullable ChatCompletionUsage usage
@@ -63,7 +63,7 @@ public record ChatCompletionChunk(
     public ChatCompletionChunk(StreamInput in) throws IOException {
         this(
             in.readString(),
-            in.readOptionalCollectionAsList(ChatCompletionChoice::new),
+            in.readOptionalCollectionAsList(ChatCompletionChoiceResponse::new),
             in.readString(),
             in.readString(),
             in.readOptional(ChatCompletionUsage::new)

@@ -20,7 +20,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoice;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessage;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCall;
@@ -110,7 +110,7 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
             return new ChatCompletionUsage(usage.candidatesTokenCount(), usage.promptTokenCount(), usage.totalTokenCount());
         }
 
-        private static ChatCompletionChoice candidateToChoice(Candidate candidate) {
+        private static ChatCompletionChoiceResponse candidateToChoice(Candidate candidate) {
             var contentTextBuilder = new StringBuilder();
             List<ChatCompletionToolCall> toolCalls = new ArrayList<>();
 
@@ -150,7 +150,7 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
                 finalToolCalls
             );
 
-            return new ChatCompletionChoice(message, candidate.finishReason(), candidate.index());
+            return new ChatCompletionChoiceResponse(message, candidate.finishReason(), candidate.index());
         }
 
         @SuppressWarnings("unchecked")
@@ -164,7 +164,7 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
                 var responseId = (String) args[3];
 
                 var candidatesIsEmpty = candidates == null || candidates.isEmpty();
-                List<ChatCompletionChoice> choices = candidatesIsEmpty
+                List<ChatCompletionChoiceResponse> choices = candidatesIsEmpty
                     ? Collections.emptyList()
                     : candidates.stream().map(GoogleVertexAiChatCompletionChunkParser::candidateToChoice).toList();
 

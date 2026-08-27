@@ -17,7 +17,7 @@ import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoice;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkTests;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessage;
@@ -138,7 +138,7 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractBWCWireS
         var chunk = new ChatCompletionChunk(
             "chunk1",
             List.of(
-                new ChatCompletionChoice(
+                new ChatCompletionChoiceResponse(
                     new ChatCompletionMessage(
                         "example_content",
                         "example_refusal",
@@ -255,7 +255,7 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractBWCWireS
             }
             """;
 
-        var choice = new ChatCompletionChoice(
+        var choice = new ChatCompletionChoiceResponse(
             new ChatCompletionMessage(
                 "example_content",
                 "example_refusal",

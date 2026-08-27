@@ -15,7 +15,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoice;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessage;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCall;
@@ -229,7 +229,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
         cacheCreationTokens = Objects.requireNonNullElse(extractOptionalInteger(usageMap, CACHE_CREATION_INPUT_TOKENS_FIELD), 0);
 
         var delta = new ChatCompletionMessage(null, null, role, null);
-        var choice = new ChatCompletionChoice(delta, finishReason, 0);
+        var choice = new ChatCompletionChoiceResponse(delta, finishReason, 0);
         return Stream.of(newChunk(List.of(choice), null));
     }
 
@@ -304,7 +304,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
         }
         // Anthropic streams a single message, so the chunk always holds one choice at index 0; parallel tool calls are
         // distinguished by the tool call index, not the choice index.
-        var choice = new ChatCompletionChoice(delta, null, 0);
+        var choice = new ChatCompletionChoiceResponse(delta, null, 0);
         return Stream.of(newChunk(List.of(choice), null));
     }
 
@@ -389,7 +389,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
         }
         // Anthropic streams a single message, so the chunk always holds one choice at index 0; parallel tool calls are
         // distinguished by the tool call index, not the choice index.
-        var choice = new ChatCompletionChoice(delta, null, 0);
+        var choice = new ChatCompletionChoiceResponse(delta, null, 0);
         return Stream.of(newChunk(List.of(choice), null));
     }
 
@@ -433,7 +433,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
 
         var finishReason = convertStopReason(stopReason);
         var emptyDelta = new ChatCompletionMessage(null, null, null, null, null, null);
-        var choice = new ChatCompletionChoice(emptyDelta, finishReason, 0);
+        var choice = new ChatCompletionChoiceResponse(emptyDelta, finishReason, 0);
         return Stream.of(newChunk(List.of(choice), null));
     }
 
@@ -451,7 +451,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
         return Stream.of(newChunk(List.of(), usage));
     }
 
-    private ChatCompletionChunk newChunk(@Nullable List<ChatCompletionChoice> choices, @Nullable ChatCompletionUsage usage) {
+    private ChatCompletionChunk newChunk(@Nullable List<ChatCompletionChoiceResponse> choices, @Nullable ChatCompletionUsage usage) {
         return new ChatCompletionChunk(id, choices, model, OBJECT_VALUE, usage);
     }
 

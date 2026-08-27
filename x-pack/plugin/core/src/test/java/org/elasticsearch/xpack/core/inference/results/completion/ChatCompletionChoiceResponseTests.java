@@ -20,20 +20,20 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.is;
 
-public class ChatCompletionChoiceTests extends AbstractBWCWireSerializationTestCase<ChatCompletionChoice> {
+public class ChatCompletionChoiceResponseTests extends AbstractBWCWireSerializationTestCase<ChatCompletionChoiceResponse> {
 
     private static final int FIELD_LENGTH = 5;
 
-    public static ChatCompletionChoice randomChatCompletionChoice() {
-        return new ChatCompletionChoice(
+    public static ChatCompletionChoiceResponse randomChatCompletionChoiceResponse() {
+        return new ChatCompletionChoiceResponse(
             ChatCompletionMessageTests.randomChatCompletionMessage(),
             randomAlphaOfLengthOrNull(FIELD_LENGTH),
             randomInt(5)
         );
     }
 
-    public static ChatCompletionChoice downgrade(ChatCompletionChoice instance, TransportVersion version) {
-        return new ChatCompletionChoice(
+    public static ChatCompletionChoiceResponse downgrade(ChatCompletionChoiceResponse instance, TransportVersion version) {
+        return new ChatCompletionChoiceResponse(
             ChatCompletionMessageTests.downgrade(instance.message(), version),
             instance.finishReason(),
             instance.index()
@@ -46,22 +46,22 @@ public class ChatCompletionChoiceTests extends AbstractBWCWireSerializationTestC
     }
 
     @Override
-    protected Writeable.Reader<ChatCompletionChoice> instanceReader() {
-        return ChatCompletionChoice::new;
+    protected Writeable.Reader<ChatCompletionChoiceResponse> instanceReader() {
+        return ChatCompletionChoiceResponse::new;
     }
 
     @Override
-    protected ChatCompletionChoice createTestInstance() {
-        return randomChatCompletionChoice();
+    protected ChatCompletionChoiceResponse createTestInstance() {
+        return randomChatCompletionChoiceResponse();
     }
 
     @Override
-    protected ChatCompletionChoice mutateInstanceForVersion(ChatCompletionChoice instance, TransportVersion version) {
+    protected ChatCompletionChoiceResponse mutateInstanceForVersion(ChatCompletionChoiceResponse instance, TransportVersion version) {
         return downgrade(instance, version);
     }
 
     @Override
-    protected ChatCompletionChoice mutateInstance(ChatCompletionChoice instance) {
+    protected ChatCompletionChoiceResponse mutateInstance(ChatCompletionChoiceResponse instance) {
         var message = instance.message();
         var finishReason = instance.finishReason();
         var index = instance.index();
@@ -72,11 +72,11 @@ public class ChatCompletionChoiceTests extends AbstractBWCWireSerializationTestC
             case 2 -> index = randomValueOtherThan(index, () -> randomInt(5));
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new ChatCompletionChoice(message, finishReason, index);
+        return new ChatCompletionChoiceResponse(message, finishReason, index);
     }
 
     public void testToXContentChunked_WithFinishReason_DeltaWrapper() throws IOException {
-        var choice = new ChatCompletionChoice(new ChatCompletionMessage("Hello!", null, "assistant", null, null, null), "stop", 0);
+        var choice = new ChatCompletionChoiceResponse(new ChatCompletionMessage("Hello!", null, "assistant", null, null, null), "stop", 0);
 
         assertThat(toXContent(choice, "delta"), is(XContentHelper.stripWhitespace("""
             {
@@ -91,7 +91,7 @@ public class ChatCompletionChoiceTests extends AbstractBWCWireSerializationTestC
     }
 
     public void testToXContentChunked_NullFinishReason_FinishReasonOmitted() throws IOException {
-        var choice = new ChatCompletionChoice(new ChatCompletionMessage("Hi", null, null, null, null, null), null, 2);
+        var choice = new ChatCompletionChoiceResponse(new ChatCompletionMessage("Hi", null, null, null, null, null), null, 2);
 
         assertThat(toXContent(choice, "delta"), is(XContentHelper.stripWhitespace("""
             {
@@ -104,7 +104,7 @@ public class ChatCompletionChoiceTests extends AbstractBWCWireSerializationTestC
     }
 
     public void testToXContentChunked_MessageWrapper() throws IOException {
-        var choice = new ChatCompletionChoice(new ChatCompletionMessage("Hi", null, "user", null, null, null), "stop", 1);
+        var choice = new ChatCompletionChoiceResponse(new ChatCompletionMessage("Hi", null, "user", null, null, null), "stop", 1);
 
         assertThat(toXContent(choice, "message"), is(XContentHelper.stripWhitespace("""
             {
@@ -118,7 +118,7 @@ public class ChatCompletionChoiceTests extends AbstractBWCWireSerializationTestC
             """)));
     }
 
-    static String toXContent(ChatCompletionChoice choice, String messageFieldName) throws IOException {
+    static String toXContent(ChatCompletionChoiceResponse choice, String messageFieldName) throws IOException {
         var builder = JsonXContent.contentBuilder();
         choice.toXContentChunked(null, messageFieldName).forEachRemaining(chunk -> {
             try {

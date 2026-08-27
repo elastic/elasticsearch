@@ -15,7 +15,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoice;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessage;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCall;
@@ -180,7 +180,7 @@ public final class OpenAiUnifiedChatCompletionParser {
             true,
             args -> new ChatCompletionChunk(
                 (String) args[0],
-                (List<ChatCompletionChoice>) args[1],
+                (List<ChatCompletionChoiceResponse>) args[1],
                 Objects.requireNonNullElse((String) args[2], ""),
                 Objects.requireNonNullElse((String) args[3], ""),
                 (ChatCompletionUsage) args[4]
@@ -194,14 +194,14 @@ public final class OpenAiUnifiedChatCompletionParser {
         return parser;
     }
 
-    private static ConstructingObjectParser<ChatCompletionChoice, Void> buildChoiceParser(
+    private static ConstructingObjectParser<ChatCompletionChoiceResponse, Void> buildChoiceParser(
         String contentFieldName,
         ConstructingObjectParser<ChatCompletionMessage, Void> messageParser
     ) {
-        var parser = new ConstructingObjectParser<ChatCompletionChoice, Void>(
+        var parser = new ConstructingObjectParser<ChatCompletionChoiceResponse, Void>(
             CHOICES_FIELD,
             true,
-            args -> new ChatCompletionChoice((ChatCompletionMessage) args[0], (String) args[1], (int) args[2])
+            args -> new ChatCompletionChoiceResponse((ChatCompletionMessage) args[0], (String) args[1], (int) args[2])
         );
         parser.declareObject(constructorArg(), messageParser, new ParseField(contentFieldName));
         parser.declareStringOrNull(optionalConstructorArg(), new ParseField(FINISH_REASON_FIELD));

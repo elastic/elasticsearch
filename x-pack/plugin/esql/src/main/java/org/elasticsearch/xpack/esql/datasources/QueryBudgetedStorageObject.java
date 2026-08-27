@@ -213,6 +213,11 @@ class QueryBudgetedStorageObject implements StorageObject {
     }
 
     @Override
+    public long asyncCpuNanos() {
+        return delegate.asyncCpuNanos();
+    }
+
+    @Override
     public StorageObjectMetrics metrics() {
         return delegate.metrics();
     }

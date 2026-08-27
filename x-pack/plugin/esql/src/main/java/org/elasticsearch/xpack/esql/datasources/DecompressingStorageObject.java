@@ -119,6 +119,11 @@ final class DecompressingStorageObject implements StorageObject {
     }
 
     @Override
+    public long asyncCpuNanos() {
+        return delegate.asyncCpuNanos();
+    }
+
+    @Override
     public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {
         delegate.attachMetrics(metrics, scheme);
     }

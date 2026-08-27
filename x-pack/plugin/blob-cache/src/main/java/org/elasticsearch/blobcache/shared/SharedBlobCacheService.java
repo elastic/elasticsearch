@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.search.SearchRequestAttributesExtractor;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
@@ -526,6 +527,15 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
     public ThreadPool getThreadPool() {
         return threadPool;
+    }
+
+    /**
+     * Time-range bucket stashed on the search thread, or {@code null} when the request has no
+     * {@code @timestamp}/{@code event.ingested} range filter (match_all, warming, prefetch).
+     */
+    @Nullable
+    public String currentTimeRangeFilterFrom() {
+        return threadPool.getThreadContext().getTransient(SearchRequestAttributesExtractor.TIME_RANGE_FILTER_FROM_ATTRIBUTE);
     }
 
     public int getRangeSize() {
@@ -1493,7 +1503,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                                     + '-'
                                     + rangeToRead.start()
                                     + ']';
-                            blobCacheService.blobCacheMetrics.recordRead();
+                            blobCacheService.blobCacheMetrics.recordRead(blobCacheService.currentTimeRangeFilterFrom());
                             l.onResponse(read);
                         })
                     ).map(SparseFileTracker.Gaps::claim).orElse(List.of());
@@ -1616,6 +1626,14 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             return new CacheFile(cacheKey, length, cacheMissMetricHandler.copy(), timestampMillis);
         }
 
+        /**
+         * Time-range bucket from the current thread context, or {@code null} when absent.
+         */
+        @Nullable
+        public String currentTimeRangeFilterFrom() {
+            return SharedBlobCacheService.this.currentTimeRangeFilterFrom();
+        }
+
         public long getLength() {
             return length;
         }
@@ -1682,7 +1700,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             boolean res = region.tryRead(buf, offset, advice);
             lastAccessedRegion = res ? fileRegion : null;
             if (res && incrementReads) {
-                blobCacheMetrics.recordRead();
+                blobCacheMetrics.recordRead(currentTimeRangeFilterFrom());
                 // todo: should we add to readBytes? readBytes.add(end - offset);
             }
             return res;
@@ -2068,7 +2086,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             return new DelegatingRangeMissingHandler(writer) {
                 @Override
                 public SourceInputStreamFactory sharedInputStreamFactory(List<SparseFileTracker.Gap> gaps) {
-                    blobCacheMetrics.recordMiss();
+                    blobCacheMetrics.recordMiss(currentTimeRangeFilterFrom());
                     return super.sharedInputStreamFactory(gaps);
                 }
             };

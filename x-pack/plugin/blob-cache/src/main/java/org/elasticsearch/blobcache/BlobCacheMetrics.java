@@ -9,7 +9,9 @@ package org.elasticsearch.blobcache;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.search.SearchRequestAttributesExtractor;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
@@ -19,7 +21,11 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -58,8 +64,16 @@ public class BlobCacheMetrics {
     private final LongHistogram evictionScannedEntries;
     private final DoubleHistogram lockAcquireTime;
 
-    private final LongAdder missCount = new LongAdder();
-    private final LongAdder readCount = new LongAdder();
+    /**
+     * Per-{@code time_range_filter_from} counts for {@code es.blob_cache.read.total}. Empty string is the
+     * unattributed series (no time-range filter). Cluster/node totals are the sum of these adders.
+     */
+    private final ConcurrentHashMap<String, LongAdder> readCountByTimeRange = new ConcurrentHashMap<>();
+    /**
+     * Per-{@code time_range_filter_from} counts for {@code es.blob_cache.miss.total}. Empty string is the
+     * unattributed series (no time-range filter). Cluster/node totals are the sum of these adders.
+     */
+    private final ConcurrentHashMap<String, LongAdder> missCountByTimeRange = new ConcurrentHashMap<>();
     private final LongCounter epochChanges;
     private final LongHistogram searchOriginDownloadTime;
 
@@ -210,20 +224,25 @@ public class BlobCacheMetrics {
             )
         );
 
-        meterRegistry.registerLongAsyncGauge(
+        // Previously this instrument reported a single unattributed value per observation period. It now reports one
+        // value per time_range_filter_from bucket (plus an unattributed series when the filter is absent). Those sibling
+        // points partition the old total: dashboards and ES|QL must SUM them to reconstruct the previous cluster/node
+        // total. Averaging across attribute values undercounts.
+        meterRegistry.registerLongsAsyncGauge(
             "es.blob_cache.read.total",
             "The number of cache reads (warming not included)",
             "count",
-            () -> new LongWithAttributes(readCount.longValue())
+            () -> attributedGaugeValues(readCountByTimeRange)
         );
         // notice that this is different from `miss_that_triggered_read` in that `miss_that_triggered_read` will count once per gap
         // filled for a single read. Whereas this one only counts whenever a read provoked populating data from the object store, though
         // once per region for multi-region reads. This allows reasoning about hit ratio too.
-        meterRegistry.registerLongAsyncGauge(
+        // Same aggregation note as es.blob_cache.read.total: SUM sibling time_range_filter_from series; do not average().
+        meterRegistry.registerLongsAsyncGauge(
             "es.blob_cache.miss.total",
             "The number of cache misses (warming not included)",
             "count",
-            () -> new LongWithAttributes(missCount.longValue())
+            () -> attributedGaugeValues(missCountByTimeRange)
         );
         // adding this helps search for high or low miss ratio. It will be since boot of the node though. More advanced queries can use
         // deltas of the totals to see miss ratio over time.
@@ -232,7 +251,11 @@ public class BlobCacheMetrics {
             "The fraction of cache reads that missed data (warming not included)",
             "fraction",
             // read misses before reads on purpose
-            () -> new DoubleWithAttributes(Math.min((double) missCount.longValue() / Math.max(readCount.longValue(), 1L), 1.0d))
+            () -> {
+                long reads = sumCounts(readCountByTimeRange);
+                long misses = sumCounts(missCountByTimeRange);
+                return new DoubleWithAttributes(Math.min((double) misses / Math.max(reads, 1L), 1.0d));
+            }
         );
     }
 
@@ -336,11 +359,29 @@ public class BlobCacheMetrics {
     }
 
     public void recordRead() {
-        readCount.increment();
+        recordRead(null);
+    }
+
+    /**
+     * Previously {@link #recordRead()} contributed to a single unattributed gauge. When {@code timeRangeFilterFrom}
+     * is set, the increment is tracked on a sibling series for that bucket. Observability must SUM those series
+     * to recover the old total; {@code average()} across attribute values is wrong.
+     */
+    public void recordRead(@Nullable String timeRangeFilterFrom) {
+        incrementAttributed(readCountByTimeRange, timeRangeFilterFrom);
     }
 
     public void recordMiss() {
-        missCount.increment();
+        recordMiss(null);
+    }
+
+    /**
+     * Previously {@link #recordMiss()} contributed to a single unattributed gauge. When {@code timeRangeFilterFrom}
+     * is set, the increment is tracked on a sibling series for that bucket. Observability must SUM those series
+     * to recover the old total; {@code average()} across attribute values is wrong.
+     */
+    public void recordMiss(@Nullable String timeRangeFilterFrom) {
+        incrementAttributed(missCountByTimeRange, timeRangeFilterFrom);
     }
 
     /**
@@ -348,9 +389,46 @@ public class BlobCacheMetrics {
      * This counts as both a read and a miss, in addition to incrementing the bypass counter.
      */
     public void recordBypassRead() {
-        recordRead();
-        recordMiss();
+        recordBypassRead(null);
+    }
+
+    /**
+     * Record a cache-bypassing read, attributed to {@code timeRangeFilterFrom} when present.
+     */
+    public void recordBypassRead(@Nullable String timeRangeFilterFrom) {
+        recordRead(timeRangeFilterFrom);
+        recordMiss(timeRangeFilterFrom);
         cacheBypassCounter.increment();
+    }
+
+    private static void incrementAttributed(ConcurrentHashMap<String, LongAdder> counts, @Nullable String timeRangeFilterFrom) {
+        String key = timeRangeFilterFrom == null ? "" : timeRangeFilterFrom;
+        counts.computeIfAbsent(key, ignored -> new LongAdder()).increment();
+    }
+
+    private static long sumCounts(Map<String, LongAdder> counts) {
+        long sum = 0L;
+        for (LongAdder adder : counts.values()) {
+            sum += adder.longValue();
+        }
+        return sum;
+    }
+
+    private static Collection<LongWithAttributes> attributedGaugeValues(Map<String, LongAdder> counts) {
+        if (counts.isEmpty()) {
+            return List.of(new LongWithAttributes(0));
+        }
+        List<LongWithAttributes> values = new ArrayList<>(counts.size());
+        for (var entry : counts.entrySet()) {
+            String bucket = entry.getKey();
+            long n = entry.getValue().longValue();
+            if (bucket.isEmpty()) {
+                values.add(new LongWithAttributes(n));
+            } else {
+                values.add(new LongWithAttributes(n, Map.of(SearchRequestAttributesExtractor.TIME_RANGE_FILTER_FROM_ATTRIBUTE, bucket)));
+            }
+        }
+        return values;
     }
 
     /**
@@ -387,11 +465,11 @@ public class BlobCacheMetrics {
     }
 
     public long readCount() {
-        return readCount.sum();
+        return sumCounts(readCountByTimeRange);
     }
 
     public long missCount() {
-        return missCount.sum();
+        return sumCounts(missCountByTimeRange);
     }
 
     /**

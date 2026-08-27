@@ -12,10 +12,15 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.CachePopulationSource;
 import org.elasticsearch.blobcache.shared.SharedBytes;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -33,13 +38,18 @@ import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 
+import static org.elasticsearch.action.search.SearchRequestAttributesExtractor.TIME_RANGE_FILTER_FROM_ATTRIBUTE;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingService.STATELESS_ONLINE_PREWARMING_ENABLED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -123,6 +133,63 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
         executeNoMissSearch(searchNode, flushedIndex);
     }
 
+    public void testCacheReadMissMetricsAttributedByTimeRange() {
+        startMasterAndIndexNode();
+
+        final String indexName = randomIdentifier("timerange");
+        assertAcked(
+            prepareCreate(
+                indexName,
+                Settings.builder()
+                    .put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+            ).setMapping(DataStream.TIMESTAMP_FIELD_NAME, "type=date")
+        );
+
+        final long now = System.currentTimeMillis();
+        final int fiveMinutesMillis = Math.toIntExact(TimeValue.timeValueMinutes(5).millis());
+        final int iters = randomIntBetween(2, 3);
+        for (int i = 0; i < iters; i++) {
+            indexDocs(
+                indexName,
+                randomIntBetween(100, 1_000),
+                UnaryOperator.identity(),
+                null,
+                () -> Map.of(DataStream.TIMESTAMP_FIELD_NAME, now - randomIntBetween(0, fiveMinutesMillis))
+            );
+            refresh(indexName);
+        }
+        flush(indexName);
+
+        final var searchNode = startSearchNode();
+        ensureStableCluster(2);
+        setReplicaCount(1, indexName);
+        ensureGreen(indexName);
+
+        clearShardCache(findSearchShard(indexName));
+        TestTelemetryPlugin testTelemetryPlugin = getTestTelemetryPlugin(searchNode);
+        testTelemetryPlugin.resetMeter();
+
+        safeGet(prepareSearch(indexName).setQuery(rangeQuery(DataStream.TIMESTAMP_FIELD_NAME).gte("now-15m")).setSize(10_000).execute())
+            .decRef();
+
+        testTelemetryPlugin.collect();
+        List<Measurement> reads = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total");
+        List<Measurement> misses = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total");
+        assertThat(sumLatestGauge(reads), greaterThan(0L));
+        assertThat(sumLatestGauge(misses), greaterThan(0L));
+        assertTrue(
+            "expected time_range_filter_from=15_minutes on blob-cache reads, got " + latestGauges(reads),
+            latestGauges(reads).keySet().stream().anyMatch(attrs -> "15_minutes".equals(attrs.get(TIME_RANGE_FILTER_FROM_ATTRIBUTE)))
+        );
+        assertTrue(
+            "expected time_range_filter_from=15_minutes on blob-cache misses, got " + latestGauges(misses),
+            latestGauges(misses).keySet().stream().anyMatch(attrs -> "15_minutes".equals(attrs.get(TIME_RANGE_FILTER_FROM_ATTRIBUTE)))
+        );
+    }
+
     private static void executeSearchAndAssertCacheMissMetrics(
         String searchNode,
         String indexName,
@@ -130,8 +197,8 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
     ) {
         TestTelemetryPlugin testTelemetryPlugin = getTestTelemetryPlugin(searchNode);
         testTelemetryPlugin.collect();
-        long reads = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong();
-        long misses = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong();
+        long reads = sumLatestGauge(testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total"));
+        long misses = sumLatestGauge(testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total"));
         assertThat(misses, lessThanOrEqualTo(reads));
 
         executeSearch(indexName);
@@ -141,8 +208,8 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
 
         testTelemetryPlugin.collect();
 
-        long newReads = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong();
-        long newMisses = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong();
+        long newReads = sumLatestGauge(testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total"));
+        long newMisses = sumLatestGauge(testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total"));
         double newRatio = testTelemetryPlugin.getDoubleGaugeMeasurement("es.blob_cache.miss.ratio").getLast().getDouble();
 
         assertThat(newReads, greaterThan(reads));
@@ -154,16 +221,16 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
     private static void executeNoMissSearch(String searchNode, String indexName) {
         TestTelemetryPlugin testTelemetryPlugin = getTestTelemetryPlugin(searchNode);
         testTelemetryPlugin.collect();
-        long reads = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong();
-        long misses = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong();
+        long reads = sumLatestGauge(testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total"));
+        long misses = sumLatestGauge(testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total"));
         double ratio = testTelemetryPlugin.getDoubleGaugeMeasurement("es.blob_cache.miss.ratio").getLast().getDouble();
         assertThat(misses, lessThanOrEqualTo(reads));
 
         executeSearch(indexName);
 
         testTelemetryPlugin.collect();
-        long newReads = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong();
-        long newMisses = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong();
+        long newReads = sumLatestGauge(testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total"));
+        long newMisses = sumLatestGauge(testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total"));
         double newRatio = testTelemetryPlugin.getDoubleGaugeMeasurement("es.blob_cache.miss.ratio").getLast().getDouble();
 
         assertThat(newReads, greaterThan(reads));
@@ -231,14 +298,14 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
             .sum();
         assertThat(noCacheBypassCount, greaterThan(0L));
         // Bypass reads count as both reads and misses
-        assertThat(noCacheTelemetry.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong(), equalTo(noCacheBypassCount));
-        assertThat(noCacheTelemetry.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong(), equalTo(noCacheBypassCount));
+        assertThat(sumLatestGauge(noCacheTelemetry.getLongGaugeMeasurement("es.blob_cache.read.total")), equalTo(noCacheBypassCount));
+        assertThat(sumLatestGauge(noCacheTelemetry.getLongGaugeMeasurement("es.blob_cache.miss.total")), equalTo(noCacheBypassCount));
 
         // Normal-cache node: reads and misses but no bypass reads
         final var normalCacheTelemetry = getTestTelemetryPlugin(normalCacheSearchNode);
         normalCacheTelemetry.collect();
-        assertThat(normalCacheTelemetry.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong(), greaterThan(0L));
-        assertThat(normalCacheTelemetry.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong(), greaterThan(0L));
+        assertThat(sumLatestGauge(normalCacheTelemetry.getLongGaugeMeasurement("es.blob_cache.read.total")), greaterThan(0L));
+        assertThat(sumLatestGauge(normalCacheTelemetry.getLongGaugeMeasurement("es.blob_cache.miss.total")), greaterThan(0L));
         long normalCacheBypassCount = normalCacheTelemetry.getLongCounterMeasurement(BlobCacheMetrics.BLOB_CACHE_BYPASS_READ_TOTAL)
             .stream()
             .mapToLong(Measurement::getLong)
@@ -300,6 +367,22 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
             .filterPlugins(TestTelemetryPlugin.class)
             .findFirst()
             .orElseThrow();
+    }
+
+    /**
+     * Async gauges append one {@link Measurement} per series on every {@code collect()}. Sum the latest
+     * value of each attribute map so sibling {@code time_range_filter_from} series reconstruct the old total.
+     */
+    static long sumLatestGauge(List<Measurement> measurements) {
+        return latestGauges(measurements).values().stream().mapToLong(Long::longValue).sum();
+    }
+
+    static Map<Map<String, Object>, Long> latestGauges(List<Measurement> measurements) {
+        Map<Map<String, Object>, Long> latest = new LinkedHashMap<>();
+        for (Measurement measurement : measurements) {
+            latest.put(measurement.attributes(), measurement.getLong());
+        }
+        return latest;
     }
 
     private static void assertContainsMeasurement(

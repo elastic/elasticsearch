@@ -16,9 +16,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.action.search.SearchRequestAttributesExtractor.TIME_RANGE_FILTER_FROM_ATTRIBUTE;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_EVICTION_SCANNED_ENTRIES;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_EVICTION_SCAN_TIME;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_LOCK_ACQUIRE_TIME;
@@ -152,6 +156,43 @@ public class BlobCacheMetricsTests extends ESTestCase {
         assertThat(measurements.getFirst().getDouble(), closeTo(elapsedNanos / 1000.0, 1e-9));
         assertThat(measurements.getFirst().attributes().get(LOCK_ACQUIRE_SITE_ATTRIBUTE_KEY), is(site.name()));
         assertThat(measurements.getFirst().attributes().keySet(), contains(LOCK_ACQUIRE_SITE_ATTRIBUTE_KEY));
+    }
+
+    public void testRecordReadAndMissAttributedByTimeRange() {
+        metrics.recordRead();
+        metrics.recordRead("15_minutes");
+        metrics.recordRead("15_minutes");
+        metrics.recordMiss("15_minutes");
+        metrics.recordMiss("1_hour");
+        recordingMeterRegistry.getRecorder().collect();
+
+        Map<Map<String, Object>, Long> reads = latestGauges(
+            recordingMeterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, "es.blob_cache.read.total")
+        );
+        assertEquals(1L, (long) reads.get(Map.of()));
+        assertEquals(2L, (long) reads.get(Map.of(TIME_RANGE_FILTER_FROM_ATTRIBUTE, "15_minutes")));
+        assertEquals(3L, reads.values().stream().mapToLong(Long::longValue).sum());
+
+        Map<Map<String, Object>, Long> misses = latestGauges(
+            recordingMeterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, "es.blob_cache.miss.total")
+        );
+        assertEquals(1L, (long) misses.get(Map.of(TIME_RANGE_FILTER_FROM_ATTRIBUTE, "15_minutes")));
+        assertEquals(1L, (long) misses.get(Map.of(TIME_RANGE_FILTER_FROM_ATTRIBUTE, "1_hour")));
+        assertEquals(2L, misses.values().stream().mapToLong(Long::longValue).sum());
+
+        Measurement missRatio = recordingMeterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, "es.blob_cache.miss.ratio")
+            .getLast();
+        assertEquals(2.0d / 3.0d, missRatio.getDouble(), 0.00000001d);
+        assertTrue(missRatio.attributes().isEmpty());
+    }
+
+    private static Map<Map<String, Object>, Long> latestGauges(List<Measurement> measurements) {
+        Map<Map<String, Object>, Long> latest = new LinkedHashMap<>();
+        for (Measurement measurement : measurements) {
+            latest.put(measurement.attributes(), measurement.getLong());
+        }
+        return latest;
     }
 
     private static void assertEvictionScanAttributes(

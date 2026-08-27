@@ -524,4 +524,24 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
             SearchRequestAttributesExtractor.introspectTimeRange(randomLongBetween(0, fourteenDaysAgo), nowInMillis)
         );
     }
+
+    public void testWithTimeRangeFilterFromStashesAndRestoresTransient() {
+        long nowInMillis = System.currentTimeMillis();
+        assertNull(threadContext.getTransient(SearchRequestAttributesExtractor.TIME_RANGE_FILTER_FROM_ATTRIBUTE));
+
+        try (
+            var ignored = SearchRequestAttributesExtractor.withTimeRangeFilterFrom(
+                threadContext,
+                nowInMillis - TimeValue.timeValueMinutes(10).millis(),
+                nowInMillis
+            )
+        ) {
+            assertEquals("15_minutes", threadContext.getTransient(SearchRequestAttributesExtractor.TIME_RANGE_FILTER_FROM_ATTRIBUTE));
+        }
+        assertNull(threadContext.getTransient(SearchRequestAttributesExtractor.TIME_RANGE_FILTER_FROM_ATTRIBUTE));
+
+        try (var ignored = SearchRequestAttributesExtractor.withTimeRangeFilterFrom(threadContext, null, nowInMillis)) {
+            assertNull(threadContext.getTransient(SearchRequestAttributesExtractor.TIME_RANGE_FILTER_FROM_ATTRIBUTE));
+        }
+    }
 }

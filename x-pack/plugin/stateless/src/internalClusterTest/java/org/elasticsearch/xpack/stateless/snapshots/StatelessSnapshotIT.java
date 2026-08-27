@@ -40,6 +40,7 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -77,6 +78,7 @@ import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -297,21 +299,23 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
         getCacheService(indexShardBlobStoreCacheDirectory).forceEvict((key) -> true);
         final var testTelemetryPlugin = findPlugin(indexNode, TestTelemetryPlugin.class);
         testTelemetryPlugin.collect();
-        long readsBeforeSnapshot = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong();
-        long missesBeforeSnapshot = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong();
+        long readsBeforeSnapshot = sumLatestGauge(testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total"));
+        long missesBeforeSnapshot = sumLatestGauge(testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total"));
 
         final var snapshotName = randomSnapshotName();
         createSnapshot(repoName, snapshotName, List.of(indexName), List.of());
         // Assert snapshot does not lead to any cache activities
         testTelemetryPlugin.collect();
-        assertThat(
-            testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong(),
-            equalTo(readsBeforeSnapshot)
-        );
-        assertThat(
-            testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong(),
-            equalTo(missesBeforeSnapshot)
-        );
+        assertThat(sumLatestGauge(testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total")), equalTo(readsBeforeSnapshot));
+        assertThat(sumLatestGauge(testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total")), equalTo(missesBeforeSnapshot));
+    }
+
+    private static long sumLatestGauge(List<Measurement> measurements) {
+        Map<Map<String, Object>, Long> latest = new LinkedHashMap<>();
+        for (Measurement measurement : measurements) {
+            latest.put(measurement.attributes(), measurement.getLong());
+        }
+        return latest.values().stream().mapToLong(Long::longValue).sum();
     }
 
     public void testSnapshotHollowShard() throws Exception {

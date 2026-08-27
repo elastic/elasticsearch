@@ -58,7 +58,21 @@ public class CountDistinctOverTime extends TimeSeriesAggregateFunction implement
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "date", "date_nanos", "double", "flattened", "geohash", "geohex", "geotile", "integer", "ip", "keyword", "long", "text", "version" },
+            type = {
+                "boolean",
+                "date",
+                "date_nanos",
+                "double",
+                "flattened",
+                "geohash",
+                "geohex",
+                "geotile",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "version" },
             description = "the metric field to calculate the value for"
         ) Expression field,
         @Param(

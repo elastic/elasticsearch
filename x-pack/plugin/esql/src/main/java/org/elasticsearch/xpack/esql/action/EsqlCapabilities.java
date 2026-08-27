@@ -2891,8 +2891,7 @@ public class EsqlCapabilities {
         /**
          * Support for projecting nested STRUCT subfields (e.g. {@code event.action}) from
          * Parquet (Java) and ORC external sources. Gated so format readers that do not yet
-         * implement nested support (parquet-rs, csv, ndjson, etc.) skip the csv-spec tests
-         * until they catch up.
+         * implement nested support (csv, ndjson, etc.) skip the csv-spec tests until they catch up.
          *
          * <p>Tracks: elastic/esql-planning#435 (this PR) and elastic/esql-planning#320
          * (correctness gap for Parquet-Java MAP/STRUCT/nested LIST).

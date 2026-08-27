@@ -20,9 +20,11 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.TemporalInference;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.EnumSet;
@@ -36,7 +38,10 @@ import java.util.Map;
  * - Detects arrays as multi-value fields
  * - Marks fields as nullable when null or missing values are encountered
  *
- * Types: KEYWORD, INTEGER, LONG, DOUBLE, BOOLEAN, DATETIME.
+ * Types: KEYWORD, INTEGER, LONG, DOUBLE, BOOLEAN, DATETIME, DATE_NANOS.
+ *
+ * <p>A timestamp is inferred DATE_NANOS only when it carries a non-zero sub-millisecond component,
+ * which DATETIME would silently drop; see {@link TemporalInference}.
  */
 public class NdJsonSchemaInferrer {
 
@@ -56,6 +61,8 @@ public class NdJsonSchemaInferrer {
     private static final Logger logger = LogManager.getLogger(NdJsonSchemaInferrer.class);
 
     private static final EnumSet<DataType> NUMBER_TYPES = EnumSet.of(DataType.DOUBLE, DataType.LONG, DataType.INTEGER);
+
+    private static final EnumSet<DataType> TEMPORAL_TYPES = EnumSet.of(DataType.DATETIME, DataType.DATE_NANOS);
 
     // Fields that we've actually seen in the current json document
     private final BitSet fieldsSeen = new BitSet();
@@ -168,10 +175,16 @@ public class NdJsonSchemaInferrer {
             case VALUE_STRING -> {
                 if (field.children == null) {
                     String text = parser.getText();
-                    if (field.types.contains(DataType.KEYWORD) == false && isDateTimeString(text)) {
-                        field.addType(DataType.DATETIME);
-                    } else {
+                    // The KEYWORD short-circuit is what keeps this cheap: once a field is known to be
+                    // a string field, no later value pays a date parse. Every sampled value of a
+                    // keyword column would otherwise be parsed as a date and thrown away.
+                    if (field.types.contains(DataType.KEYWORD)) {
                         field.addType(DataType.KEYWORD);
+                    } else {
+                        TemporalAccessor parsed = tryParseDateTime(text);
+                        field.addType(
+                            parsed == null ? DataType.KEYWORD : forcesDateNanos(parsed) ? DataType.DATE_NANOS : DataType.DATETIME
+                        );
                     }
                 }
             }
@@ -284,7 +297,8 @@ public class NdJsonSchemaInferrer {
                 return DataType.UNSUPPORTED;
             }
 
-            // Note: DATETIME and BOOLEAN will only be selected if they're the only type
+            // Note: BOOLEAN will only be selected if it's the only type; DATETIME also unless the
+            // field mixes both temporal types, which widens (see below).
             if (types.size() == 1) {
                 return types.iterator().next();
             }
@@ -293,6 +307,13 @@ public class NdJsonSchemaInferrer {
             // Nullability is handled separately and not part of type resolution
             if (types.contains(DataType.KEYWORD)) {
                 return DataType.KEYWORD;
+            }
+
+            // A field carrying both precisions widens to the wider one, losslessly: the decoder reads
+            // millisecond strings onto the nanos rail without complaint. Mirrors what
+            // SchemaReconciliation.widenOrdered does when two files disagree the same way.
+            if (hasOnly(types, TEMPORAL_TYPES)) {
+                return DataType.DATE_NANOS;
             }
 
             if (hasOnly(types, NUMBER_TYPES)) {
@@ -322,16 +343,30 @@ public class NdJsonSchemaInferrer {
     }
 
     /**
-     * Check if a string parses as a datetime. We filter out 4-digit years accepted by strict_date_optional_time
+     * Parses a string as a datetime, returning the parse result so the caller can tell millisecond
+     * timestamps from nanosecond ones without paying a second parse. Returns null when the string is
+     * not a datetime at all. We filter out 4-digit years accepted by strict_date_optional_time
      * and other Iso8601 parsers where {@code MONTH_OF_YEAR} is optional. These are the only 4-digit values they
      * accept, and we don't want to treat an all-4-digit column as DATETIME.
      */
-    private boolean isDateTimeString(String text) {
+    private TemporalAccessor tryParseDateTime(String text) {
         if (dateFormatter == STRICT_DATE_OPTIONAL_TIME) {
             if (text.length() == 4 && text.chars().allMatch(Character::isDigit)) {
-                return false;
+                return null;
             }
         }
-        return dateFormatter.tryParse(text) != null;
+        return dateFormatter.tryParse(text);
+    }
+
+    /**
+     * Whether a parsed timestamp must be read as {@code date_nanos} to survive intact.
+     * <p>
+     * Only asked on the default ISO rail, mirroring the 4-digit-year filter above: when the file
+     * declares its own {@code datetime_format} the user has expressed intent about how their
+     * timestamps are written, and declaring the schema is the way to ask for nanoseconds. It also
+     * keeps us from flipping a column onto a decode rail that the custom pattern may not parse.
+     */
+    private boolean forcesDateNanos(TemporalAccessor parsed) {
+        return dateFormatter == STRICT_DATE_OPTIONAL_TIME && TemporalInference.forcesDateNanos(parsed);
     }
 }

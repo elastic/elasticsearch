@@ -846,9 +846,9 @@ public final class SchemaReconciliation {
      * </ul>
      * DATE_NANOS is deliberately excluded: a text reader parsing an epoch number at DATE_NANOS reads
      * it as epoch-nanos, not the epoch-millis a DATETIME column holds, so a DATETIME to DATE_NANOS
-     * widening stays on the post-read cast that rescales the unit rather than a raw parse. Text
-     * inference produces only BOOLEAN, INTEGER, LONG, DOUBLE, DATETIME, and KEYWORD, so DATE_NANOS as
-     * a reconciled type reaches this predicate only from a declared schema.
+     * widening stays on the post-read cast that rescales the unit rather than a raw parse. That holds
+     * whatever the reconciled type's origin — a declared schema, or, since text inference learned to
+     * produce DATE_NANOS for sub-millisecond timestamps, an inferred one.
      */
     private static boolean shouldPinAtReconciledType(DataType inferred, DataType reconciled) {
         if (inferred == reconciled) {

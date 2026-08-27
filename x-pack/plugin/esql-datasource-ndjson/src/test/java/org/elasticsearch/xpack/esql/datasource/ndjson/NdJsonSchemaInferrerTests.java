@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -210,6 +211,68 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
         // The bad line contributes no field at all before throwing, so both columns are unseen for that round
         // and come back nullable — again the pre-existing partially-consumed-line behavior, not a new effect.
         check(ndjson, field("name", DataType.KEYWORD, true), field("age", DataType.INTEGER, true));
+    }
+
+    public void testNanosecondTimestampInfersDateNanos() throws IOException {
+        check("""
+            {"ts": "2023-10-23T12:15:03.360103847Z"}
+            """, field("ts", DataType.DATE_NANOS));
+    }
+
+    public void testMixedPrecisionWidensToDateNanos() throws IOException {
+        // Either order: the field accumulates both types and resolution widens to the one that can
+        // hold both. Reading a millisecond string on the nanos rail is lossless.
+        check("""
+            {"ts": "2023-10-23T12:15:03.360Z"}
+            {"ts": "2023-10-23T12:15:03.360103847Z"}
+            """, field("ts", DataType.DATE_NANOS));
+        check("""
+            {"ts": "2023-10-23T12:15:03.360103847Z"}
+            {"ts": "2023-10-23T12:15:03.360Z"}
+            """, field("ts", DataType.DATE_NANOS));
+    }
+
+    public void testTrailingZeroFractionStaysDatetime() throws IOException {
+        // Nine digits of text, but millisecond-exact as a value: datetime reads it without loss, so
+        // there is no reason to retype the column.
+        check("""
+            {"ts": "2023-10-23T12:15:03.360000000Z"}
+            """, field("ts", DataType.DATETIME));
+    }
+
+    public void testPreEpochNanosecondStaysDatetime() throws IOException {
+        // date_nanos cannot represent anything before the epoch at all.
+        check("""
+            {"ts": "1969-12-31T23:59:59.999999999Z"}
+            """, field("ts", DataType.DATETIME));
+    }
+
+    public void testPostWindowNanosecondStaysDatetime() throws IOException {
+        check("""
+            {"ts": "2263-01-01T00:00:00.123456789Z"}
+            """, field("ts", DataType.DATETIME));
+    }
+
+    public void testNanosMixedWithNonTemporalStringResolvesKeyword() throws IOException {
+        check("""
+            {"ts": "2023-10-23T12:15:03.360103847Z"}
+            {"ts": "not a date"}
+            """, field("ts", DataType.KEYWORD));
+    }
+
+    public void testCustomDatetimeFormatNeverInfersDateNanos() throws IOException {
+        // The pattern below happily parses the nanosecond fraction, so this is not about parse
+        // failure: a declared dialect means the user has said how their timestamps are written, and
+        // declaring the schema is the way to ask for nanoseconds.
+        DateFormatter custom = DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss.SSSSSSSSS");
+        String ndjson = """
+            {"ts": "2023-10-23 12:15:03.360103847"}
+            """;
+        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8))) {
+            List<Attribute> result = NdJsonSchemaInferrer.inferSchema(inputStream, 100, custom);
+            assertEquals(1, result.size());
+            assertEquals(DataType.DATETIME, result.get(0).dataType());
+        }
     }
 
     private void check(String ndjson, Attribute... expected) throws IOException {

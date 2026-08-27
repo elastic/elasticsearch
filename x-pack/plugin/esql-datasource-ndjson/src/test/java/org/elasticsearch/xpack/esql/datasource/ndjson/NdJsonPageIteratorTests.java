@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.formatter.TextFormat;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -2040,6 +2041,35 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         assertFalse("expected a warning for the shape conflict routed through the sink", sunk.isEmpty());
         assertTrue("warning should name the conflicting field, got: " + sunk, sunk.stream().anyMatch(w -> w.contains("user")));
         assertTrue("no message should reach the thread-local response headers", drainWarnings().isEmpty());
+    }
+
+    /**
+     * The whole point of the fix, end to end on a schemaless file: inference types the column
+     * date_nanos and the read returns the full epoch-nanos value. Before, the column came back
+     * datetime and everything below the millisecond was silently gone.
+     */
+    public void testInferredDateNanosKeepsNanoPrecision() throws IOException {
+        String ndjson = """
+            {"id":1,"ts":"2023-10-23T12:15:03.360103847Z"}
+            {"id":2,"ts":"2023-10-23T12:15:03.360Z"}
+            """;
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = new BytesStorageObject("file:///temporal.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+
+        var schema = reader.metadata(object).schema();
+        assertEquals(DataType.DATE_NANOS, schema.get(indexOf(schema, "ts")).dataType());
+
+        try (var iterator = reader.read(object, null, 100)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            LongBlock ts = page.getBlock(indexOf(schema, "ts"));
+            assertEquals(EsqlDataTypeConverter.dateNanosToLong("2023-10-23T12:15:03.360103847Z"), ts.getLong(0));
+            // The millisecond row rides the same rail without loss — that is what makes widening a
+            // mixed-precision column to date_nanos safe.
+            assertEquals(EsqlDataTypeConverter.dateNanosToLong("2023-10-23T12:15:03.360Z"), ts.getLong(1));
+            page.releaseBlocks();
+        }
     }
 
     private static int indexOf(List<Attribute> schema, String name) {

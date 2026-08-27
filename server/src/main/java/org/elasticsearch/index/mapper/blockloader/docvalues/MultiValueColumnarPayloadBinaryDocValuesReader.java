@@ -45,19 +45,13 @@ public final class MultiValueColumnarPayloadBinaryDocValuesReader {
     /** Appends the non-null values in document order, or a null when the document has none. */
     public void read(BytesRef bytes, BlockLoader.BytesRefBuilder builder) throws IOException {
         final int slots = decoder.reset(bytes);
-        // Two passes rather than buffering the values: the builder needs the arity up front to choose between a
-        // bare value and a position entry, and a second walk of the lengths is cheaper than copying the bytes.
-        int nonNull = 0;
-        for (int slot = 0; slot < slots; slot++) {
-            if (decoder.next() != null) {
-                nonNull++;
-            }
-        }
+        // The builder needs the arity up front to choose between a bare value and a position entry. Asking the
+        // decoder walks the lengths on its own scan cursor, leaving this one at the first slot to iterate from.
+        int nonNull = slots - decoder.nullSlotCount();
         if (nonNull == 0) {
             builder.appendNull();
             return;
         }
-        decoder.reset(bytes);
         if (nonNull > 1) {
             builder.beginPositionEntry();
         }

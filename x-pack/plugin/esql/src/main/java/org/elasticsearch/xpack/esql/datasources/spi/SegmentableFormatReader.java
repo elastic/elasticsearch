@@ -54,4 +54,12 @@ public interface SegmentableFormatReader extends FormatReader {
         return 1024 * 1024;
     }
 
+    /**
+     * Called once by the coordinator at close time to deliver the total CPU nanoseconds spent on
+     * background threads (segmentator + all parser threads) back into this reader's own counters.
+     * <p>
+     * The default no-op is correct for readers that do not track read CPU.
+     */
+    default void acceptReadCpuNanos(long nanos) {}
+
 }

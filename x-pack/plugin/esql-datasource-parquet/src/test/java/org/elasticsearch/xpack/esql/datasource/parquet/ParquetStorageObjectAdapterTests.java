@@ -30,6 +30,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
@@ -111,7 +112,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             randomBytes(data);
             ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(createStorageObject(data), local);
             try (SeekableInputStream stream = adapter.newStream()) {
-                assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, parent.getUsed());
+                assertEquals(data.length, parent.getUsed());
                 assertNotNull(stream);
             }
             assertEquals(0, parent.getUsed());
@@ -120,6 +121,41 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             local.close();
             assertEquals(0, parent.getUsed());
         }
+    }
+
+    public void testTinyDefaultCtorChargesFileLength() throws IOException {
+        byte[] data = new byte[100];
+        randomBytes(data);
+        LimitedBreaker limited = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(createStorageObject(data), limited);
+        try (SeekableInputStream stream = adapter.newStream()) {
+            assertEquals(data.length, limited.getUsed());
+            assertNotNull(stream);
+        }
+        assertEquals(0, limited.getUsed());
+    }
+
+    public void testTinyForRangeChargesFileLength() throws IOException {
+        byte[] data = new byte[100];
+        randomBytes(data);
+        LimitedBreaker limited = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
+        ParquetStorageObjectAdapter adapter = ParquetStorageObjectAdapter.forRange(createStorageObject(data), 1024L, limited);
+        try (SeekableInputStream stream = adapter.newStream()) {
+            assertEquals(data.length, limited.getUsed());
+        }
+        assertEquals(0, limited.getUsed());
+    }
+
+    public void testLargeFileChargesDefaultWindowSize() throws IOException {
+        int size = ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 123;
+        byte[] data = new byte[size];
+        randomBytes(data);
+        LimitedBreaker limited = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(createRangeReadStorageObject(data), limited);
+        try (SeekableInputStream stream = adapter.newStream()) {
+            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, limited.getUsed());
+        }
+        assertEquals(0, limited.getUsed());
     }
 
     public void testSeekableInputStreamRead() throws IOException {
@@ -764,12 +800,17 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         );
     }
 
+    /**
+     * {@code forRange} still floors the <em>hint</em> at {@link ParquetStorageObjectAdapter#DEFAULT_WINDOW_SIZE},
+     * but the constructor then clamps the window to the file length. A tiny object therefore allocates
+     * {@code data.length} bytes, not 4 MiB.
+     */
     public void testAdaptiveWindowFloorAtDefault() throws IOException {
         byte[] data = new byte[100];
         randomBytes(data);
         StorageObject storageObject = createRangeReadStorageObject(data);
 
-        long tinyRange = 1024L; // 1 KiB — should be floored to DEFAULT_WINDOW_SIZE
+        long tinyRange = 1024L; // 1 KiB — hint is floored to DEFAULT_WINDOW_SIZE, then clamped to file length
         ParquetStorageObjectAdapter adapter = ParquetStorageObjectAdapter.forRange(storageObject, tinyRange, breaker);
 
         try (SeekableInputStream stream = adapter.newStream()) {
@@ -777,6 +818,67 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             stream.readFully(buf);
             assertArrayEquals(data, buf);
         }
+    }
+
+    public void testTinyFileTailSeekIsOneWholeFileGet() throws IOException {
+        byte[] data = new byte[100];
+        randomBytes(data);
+        List<long[]> rangeGets = new ArrayList<>();
+        StorageObject storage = createRecordingRangeReadStorageObject(data, rangeGets);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage, breaker);
+
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.seek(data.length - 8);
+            stream.seek(0);
+            byte[] buf = new byte[data.length];
+            stream.readFully(buf);
+            assertArrayEquals(data, buf);
+        }
+
+        assertEquals(1, rangeGets.size());
+        assertEquals(0L, rangeGets.getFirst()[0]);
+        assertEquals(data.length, rangeGets.getFirst()[1]);
+    }
+
+    public void testTinyFileSecondStreamHitsWholeFileTailCache() throws IOException {
+        byte[] data = new byte[100];
+        randomBytes(data);
+        List<long[]> rangeGets = new ArrayList<>();
+        StorageObject storage = createRecordingRangeReadStorageObject(data, rangeGets);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage, breaker);
+
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.seek(data.length - 8);
+            stream.seek(0);
+            byte[] buf = new byte[data.length];
+            stream.readFully(buf);
+            assertArrayEquals(data, buf);
+        }
+        assertEquals(1, rangeGets.size());
+
+        rangeGets.clear();
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.seek(data.length - 8);
+            stream.seek(0);
+            byte[] buf = new byte[data.length];
+            stream.readFully(buf);
+            assertArrayEquals(data, buf);
+        }
+        assertEquals(0, rangeGets.size());
+    }
+
+    public void testSeekToEndOfTinyFileDoesNotFetch() throws IOException {
+        byte[] data = new byte[100];
+        randomBytes(data);
+        List<long[]> rangeGets = new ArrayList<>();
+        StorageObject storage = createRecordingRangeReadStorageObject(data, rangeGets);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage, breaker);
+
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.seek(data.length);
+            assertEquals(-1, stream.read());
+        }
+        assertEquals(0, rangeGets.size());
     }
 
     public void testAdaptiveWindowReducesRangeRequests() throws IOException {
@@ -1594,6 +1696,43 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             stream.readFully(result);
         }
         assertEquals("Empty map must not enable the pre-warm fast path", 1, rangeReadCount.get());
+    }
+
+    private StorageObject createRecordingRangeReadStorageObject(byte[] data, List<long[]> rangeGets) {
+        return new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                throw new UnsupportedOperationException("Full GET not supported in recording harness");
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                rangeGets.add(new long[] { position, length });
+                int pos = (int) position;
+                int len = (int) Math.min(length, data.length - position);
+                return new ByteArrayInputStream(data, pos, len);
+            }
+
+            @Override
+            public long length() {
+                return data.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.ofEpochMilli(0);
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://window-clamp-test.parquet");
+            }
+        };
     }
 
     private StorageObject createCountingRangeReadStorageObject(byte[] data, AtomicInteger counter) {

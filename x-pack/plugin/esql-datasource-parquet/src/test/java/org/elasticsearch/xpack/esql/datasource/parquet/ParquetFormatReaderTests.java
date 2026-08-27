@@ -118,7 +118,9 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ParquetFormatReaderTests extends ESTestCase {
@@ -800,6 +802,44 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertEquals(0, first32.statusSnapshot().footerCacheHits());
     }
 
+    /**
+     * Tiny Parquet files must not reserve the 4 MiB sliding-window floor on the request breaker
+     * during split discovery and a subsequent range read.
+     */
+    public void testTinyFileDiscoverAndReadRangePeakUsedBelowDefaultWindow() throws Exception {
+        byte[] parquetData = createVpcFlowShapedParquet();
+        assertThat((long) parquetData.length, lessThan((long) ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE));
+        StorageObject storageObject = createStorageObject(parquetData);
+        var trackingBreaker = new PrefetchCircuitBreakerTests.TrackingBreaker("test", ByteSizeValue.ofMb(64));
+        var localFactory = new BlockFactory(trackingBreaker, this.blockFactory.bigArrays());
+        ParquetFormatReader reader = new ParquetFormatReader(localFactory);
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertFalse(ranges.isEmpty());
+        RangeAwareFormatReader.SplitRange range = ranges.getFirst();
+        try (
+            CloseableIterator<Page> iterator = reader.readRange(
+                storageObject,
+                new RangeReadContext(
+                    List.of("i32_0", "i64_0", "s_0"),
+                    10,
+                    range.offset(),
+                    range.offset() + range.length(),
+                    List.of(),
+                    ErrorPolicy.STRICT
+                )
+            )
+        ) {
+            while (iterator.hasNext()) {
+                iterator.next().releaseBlocks();
+            }
+        }
+        assertThat(
+            trackingBreaker.peakUsed.get(),
+            allOf(greaterThanOrEqualTo((long) parquetData.length), lessThan((long) ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE))
+        );
+        assertEquals(0, trackingBreaker.getUsed());
+    }
+
     private byte[] createVpcFlowShapedParquet() throws IOException {
         Types.MessageTypeBuilder builder = Types.buildMessage();
         for (int i = 0; i < 10; i++) {
@@ -1354,10 +1394,10 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
 
         {
-            // The window buffer (DEFAULT_WINDOW_SIZE) is now tracked by the circuit breaker, so the limit
-            // must be large enough to accommodate the window plus leave headroom to trip on page allocation.
+            // The window is clamped to the file length, so the limit must cover that window and leave
+            // only enough leftover to trip on page allocation — not the historical 4 MiB floor.
             var limitedFactory = new BlockFactory(
-                new LimitedBreaker("test", ByteSizeValue.ofBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1000)),
+                new LimitedBreaker("test", ByteSizeValue.ofBytes(parquetData.length + 1000)),
                 this.blockFactory.bigArrays()
             );
             var reader = new ParquetFormatReader(limitedFactory);

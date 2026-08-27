@@ -27,26 +27,28 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
  * ends up typed {@code datetime} rather than {@code keyword}, with its bare numbers read as epochs.
  * Ask the right question and the answer follows without a special case.
  *
- * <h2>Two policies, and why they differ</h2>
- * The lattice is the same on both sides but for a single edge, {@code LONG + DOUBLE}, and the
- * difference is caused by a caching boundary rather than by taste:
- * <ul>
- *   <li>{@link Policy#INFERENCE} &mdash; used when folding the types observed inside <i>one</i> file.
- *       A per-file inferred schema is cached (keyed by path, mtime, format and config), so inference
- *       must be a pure function of the file: it cannot emit a diagnostic, because the diagnostic
- *       would appear on the first query and vanish on every later one against an unchanged file.
- *       Since it cannot explain itself, it returns the most useful silent answer, and a {@code double}
- *       that loses precision above 2^53 is more useful than a {@code keyword} that loses the column's
- *       arithmetic entirely &mdash; both being equally silent.</li>
- *   <li>{@link Policy#RECONCILIATION} &mdash; used when merging committed column types across files.
- *       Reconciliation is recomputed per query rather than cached, so it <i>can</i> warn, and does.
- *       Given a diagnostic is available, the conservative answer is the right one: refuse the lossy
- *       promotion, fall back to {@code keyword}, and tell the user it happened.</li>
- * </ul>
- * If per-file inference ever gains a way to carry "I widened something lossily" through the schema
- * cache so it can be reported at query time, that reason disappears and the two policies should
- * collapse into one. Until then the split is deliberate, and
- * {@code TypeWideningTests#testPoliciesDifferOnExactlyOneEdge} pins that it is exactly one edge wide.
+ * <h2>Two policies, and why they exist</h2>
+ * The two are identical but for a single edge, {@code LONG + DOUBLE}: {@link Policy#INFERENCE}
+ * promotes to {@code DOUBLE}, {@link Policy#RECONCILIATION} refuses and lands on {@code KEYWORD}.
+ *
+ * <p><b>That difference is a known inconsistency, not a design.</b> It is preserved here so that
+ * moving four scattered encodings behind one authority does not also change behaviour users depend
+ * on; it is not evidence that answering the same question two ways is correct. What the code shows
+ * is two authors at two different times: the text inferrers implement a plain
+ * {@code INTEGER -> LONG -> DOUBLE} numeric chain with no precision consideration, while
+ * {@code SchemaReconciliation} was written with one, and documents excluding {@code LONG + DOUBLE}
+ * for precision loss above 2^53.
+ *
+ * <p>The consequence is that a dataset's physical layout decides its column type: the same long and
+ * double in one file give {@code DOUBLE}, and split across two files give {@code KEYWORD}. Nothing
+ * justifies that; it is tracked as esql-planning#1809, kept out of this class's change because
+ * resolving it either drops a deliberate precision guard or changes inference results, which is a
+ * product decision rather than a refactor.
+ *
+ * <p>Two things follow for anyone editing this class. Do not "fix" the inconsistency by quietly
+ * collapsing the policies; that is esql-planning#1809's decision to make, not a tidy-up. And do not add a second
+ * difference &mdash; {@code TypeWideningTests#testPoliciesDifferOnExactlyOneEdge} fails if you do,
+ * which is the point of it.
  *
  * <h2>The lattice</h2>
  * {@code KEYWORD} is the top: every pair with no closer common supertype joins there, which is what

@@ -113,7 +113,7 @@ The following search functions are available for datasets:
 |---|---|
 | [`MATCH`](functions-operators/search-functions/match.md) | {applies_to}`stack: experimental 9.5` |
 | [`MATCH_PHRASE`](functions-operators/search-functions/match_phrase.md) | {applies_to}`stack: experimental 9.6` |
-| `_score` for dataset rows | Not yet available |
+| `_score` for dataset rows | {applies_to}`stack: experimental 9.6` |
 
 ## Limitations
 

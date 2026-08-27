@@ -6,5 +6,5 @@
 :   Input value. The input can be a single- or multi-valued column or an expression.
 
 `options`
-:   (Optional) Additional options.
+:   (Optional) Additional options as [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params).
 

@@ -127,7 +127,7 @@ public class ToText extends AbstractConvertFunction
                         + "(prebuilt or plugin-provided) analyzer, and is only accepted on expressions that are not backed by an "
                         + "index-mapped field."
                 ) },
-            description = "(Optional) Additional options.",
+            description = "(Optional) Additional options as <<esql-function-named-params,function named parameters>>.",
             optional = true
         ) Expression options
     ) {
@@ -256,6 +256,9 @@ public class ToText extends AbstractConvertFunction
             } else if (p instanceof Eval eval) {
                 aliases = eval.fields();
             } else {
+                // Only Project and Eval rebind an attribute id onto a new child expression. Every other node that
+                // introduces attributes - FORK, MV_EXPAND, STATS, joins, ... - materializes a runtime column that
+                // cannot be pushed down to Lucene, so skipping them leaves `mapped` false.
                 return;
             }
             for (NamedExpression ne : aliases) {

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 157985
+summary: Skip type inference for all-null casts
+type: enhancement

@@ -23,6 +23,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBin
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
 
 import java.io.IOException;
+import java.util.function.BiFunction;
 
 /**
  * Block loader for multi-value binary fields which store count in a separate parallel numeric doc value column.
@@ -74,11 +75,28 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
 
     @Override
     public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        if (binaryFormat == BinaryDocValuesFormat.COLUMNAR_PAYLOAD) {
-            // The count travels in the blob, so there is no companion column to load or advance on.
-            TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);
-            return binary == null ? ConstantNull.COLUMN_READER : new ColumnarPayload(binary);
-        }
+        return switch (binaryFormat) {
+            case COLUMNAR_PAYLOAD -> {
+                // The count travels in the blob, so there is no companion column to load or advance on.
+                TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);
+                yield binary == null ? ConstantNull.COLUMN_READER : new ColumnarPayload(binary);
+            }
+            // Multi-slot documents exist (maxValue >= 2): decode the in-order inline-null format, advancing on the counts column since an
+            // all-null or empty array writes a count but no binary blob.
+            case ARRAY_ORDER_INLINE_NULL -> withCounts(breaker, context, ArrayOrderInlineNull::new);
+            case SEPARATE_COUNT -> withCounts(breaker, context, BytesRefsFromBinarySeparateCount::new);
+        };
+    }
+
+    /**
+     * Resolves the binary column and its {@code .counts} companion, which both companion-carrying framings need, and
+     * hands them to {@code reader}.
+     */
+    private ColumnAtATimeReader withCounts(
+        CircuitBreaker breaker,
+        LeafReaderContext context,
+        BiFunction<TrackingBinaryDocValues, TrackingNumericDocValues, ColumnAtATimeReader> reader
+    ) throws IOException {
         BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, true);
         if (bc == null) {
             return ConstantNull.COLUMN_READER;
@@ -88,12 +106,7 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
             // present blob is a single raw value and an absent blob is a lone null / empty array, which the plain reader emits as null.
             return new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(bc.binary());
         }
-        if (binaryFormat == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL) {
-            // Multi-slot documents exist (maxValue >= 2): decode the in-order inline-null format, advancing on the counts column since an
-            // all-null or empty array writes a count but no binary blob.
-            return new ArrayOrderInlineNull(bc.binary(), bc.counts());
-        }
-        return new BytesRefsFromBinarySeparateCount(bc.binary(), bc.counts());
+        return reader.apply(bc.binary(), bc.counts());
     }
 
     /**

@@ -74,35 +74,39 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
     @Override
     protected BinaryDocValues getSortKeyDocValues(LeafReader reader) throws IOException {
         BinaryDocValues values = DocValues.getBinary(reader, getField());
-        if (binaryFormat == BinaryDocValuesFormat.COLUMNAR_PAYLOAD) {
-            // The payload carries its own count, so there is nothing to advance alongside it.
-            assert ColumnarBinaryDocValuesField.isColumnarStringPayload(reader, getField())
-                : "field [" + getField() + "] is sorted as a columnar payload but this segment does not carry one";
-            return new ColumnarPayloadMinMaxBinaryDocValues(values, maxMode);
-        }
-        String countsFieldName = getField() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
-        NumericDocValues counts = reader.getNumericDocValues(countsFieldName);
-        if (counts == null) {
-            // PlainBinary (single-valued field): raw bytes are the sort key.
-            return values;
-        }
-        // Whole segment single-valued (no document holds more than one value): the raw payload is already the
-        // sort key in both encodings, so the MinMaxBinaryDocValues wrapper - and its per-doc counts advance and
-        // decode branch - can be skipped entirely. The skipper is null while a segment is still buffered at flush
-        // time, where we correctly fall back to the wrapper (which reads counts with nextDoc()). Lucene's
-        // IndexingChain also calls getSortKeyDocValues() with a synthetic DocValuesLeafReader purely to validate
-        // the index sort field's doc values type at index time; that reader throws UnsupportedOperationException
-        // from getDocValuesSkipper(), so treat that the same as "no skipper available".
-        DocValuesSkipper countsSkipper;
-        try {
-            countsSkipper = reader.getDocValuesSkipper(countsFieldName);
-        } catch (UnsupportedOperationException e) {
-            countsSkipper = null;
-        }
-        if (countsSkipper != null && countsSkipper.maxValue() <= 1) {
-            return values;
-        }
-        return new MinMaxBinaryDocValues(values, counts, maxMode, binaryFormat);
+        return switch (binaryFormat) {
+            case COLUMNAR_PAYLOAD -> {
+                // The payload carries its own count, so there is nothing to advance alongside it.
+                assert ColumnarBinaryDocValuesField.isColumnarStringPayload(reader, getField())
+                    : "field [" + getField() + "] is sorted as a columnar payload but this segment does not carry one";
+                yield new ColumnarPayloadMinMaxBinaryDocValues(values, maxMode);
+            }
+            case ARRAY_ORDER_INLINE_NULL, SEPARATE_COUNT -> {
+                String countsFieldName = getField() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+                NumericDocValues counts = reader.getNumericDocValues(countsFieldName);
+                if (counts == null) {
+                    // PlainBinary (single-valued field): raw bytes are the sort key.
+                    yield values;
+                }
+                // Whole segment single-valued (no document holds more than one value): the raw payload is already the
+                // sort key in both encodings, so the MinMaxBinaryDocValues wrapper - and its per-doc counts advance and
+                // decode branch - can be skipped entirely. The skipper is null while a segment is still buffered at flush
+                // time, where we correctly fall back to the wrapper (which reads counts with nextDoc()). Lucene's
+                // IndexingChain also calls getSortKeyDocValues() with a synthetic DocValuesLeafReader purely to validate
+                // the index sort field's doc values type at index time; that reader throws UnsupportedOperationException
+                // from getDocValuesSkipper(), so treat that the same as "no skipper available".
+                DocValuesSkipper countsSkipper;
+                try {
+                    countsSkipper = reader.getDocValuesSkipper(countsFieldName);
+                } catch (UnsupportedOperationException e) {
+                    countsSkipper = null;
+                }
+                if (countsSkipper != null && countsSkipper.maxValue() <= 1) {
+                    yield values;
+                }
+                yield new MinMaxBinaryDocValues(values, counts, maxMode, binaryFormat);
+            }
+        };
     }
 
     /**
@@ -114,17 +118,14 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
      * its own count and writes no companion — so a caller that has no count in hand can pass anything for it.
      */
     public static BytesRef decodeExtreme(BytesRef raw, long count, boolean maxMode, BinaryDocValuesFormat format) throws IOException {
-        if (format == BinaryDocValuesFormat.COLUMNAR_PAYLOAD) {
-            return decodeColumnarPayloadExtreme(raw, maxMode);
-        }
-        if (count <= 1) {
+        return switch (format) {
+            case COLUMNAR_PAYLOAD -> decodeColumnarPayloadExtreme(raw, maxMode);
             // count=1 (or a lone slot): raw bytes are the sort key in either encoding, no decoding needed.
-            return raw;
-        }
-        if (format == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL) {
-            return MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.decodeExtreme(raw, (int) count, maxMode);
-        }
-        return MultiValuedBinaryDocValuesField.SeparateCount.decodeExtreme(raw, maxMode);
+            case ARRAY_ORDER_INLINE_NULL -> count <= 1
+                ? raw
+                : MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.decodeExtreme(raw, (int) count, maxMode);
+            case SEPARATE_COUNT -> count <= 1 ? raw : MultiValuedBinaryDocValuesField.SeparateCount.decodeExtreme(raw, maxMode);
+        };
     }
 
     /**

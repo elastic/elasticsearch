@@ -22,6 +22,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBin
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
 
 import java.io.IOException;
+import java.util.function.BiFunction;
 
 /**
  * Loads byte length from BytesRef.
@@ -48,11 +49,34 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
 
     @Override
     public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        if (binaryFormat == BinaryDocValuesFormat.COLUMNAR_PAYLOAD) {
-            // The count travels in the blob, so there is no companion column to load or advance on.
-            TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);
-            return binary == null ? ConstantNull.COLUMN_READER : new MultiValuedBinaryColumnarPayload(warnings, binary);
-        }
+        return switch (binaryFormat) {
+            case COLUMNAR_PAYLOAD -> {
+                // The count travels in the blob, so there is no companion column to load or advance on.
+                TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);
+                yield binary == null ? ConstantNull.COLUMN_READER : new MultiValuedBinaryColumnarPayload(warnings, binary);
+            }
+            case ARRAY_ORDER_INLINE_NULL -> withCounts(
+                breaker,
+                context,
+                (binary, counts) -> new MultiValuedBinaryArrayOrderInlineNull(warnings, counts, binary)
+            );
+            case SEPARATE_COUNT -> withCounts(
+                breaker,
+                context,
+                (binary, counts) -> new MultiValuedBinaryWithSeparateCounts(warnings, counts, binary)
+            );
+        };
+    }
+
+    /**
+     * Resolves the binary column and its {@code .counts} companion, which both companion-carrying framings need, and
+     * hands them to {@code reader}. A field with no counts column is single-valued, so its blob is a bare value.
+     */
+    private ColumnAtATimeReader withCounts(
+        CircuitBreaker breaker,
+        LeafReaderContext context,
+        BiFunction<TrackingBinaryDocValues, TrackingNumericDocValues, ColumnAtATimeReader> reader
+    ) throws IOException {
         BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, true);
         if (bc == null) {
             return ConstantNull.COLUMN_READER;
@@ -60,10 +84,7 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
         if (bc.counts() == null) {
             return new SingleValued(bc.binary());
         }
-        if (binaryFormat == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL) {
-            return new MultiValuedBinaryArrayOrderInlineNull(warnings, bc.counts(), bc.binary());
-        }
-        return new MultiValuedBinaryWithSeparateCounts(warnings, bc.counts(), bc.binary());
+        return reader.apply(bc.binary(), bc.counts());
     }
 
     private static final class SingleValued extends BlockDocValuesReader {

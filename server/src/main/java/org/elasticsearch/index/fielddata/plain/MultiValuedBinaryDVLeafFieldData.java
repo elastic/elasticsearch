@@ -72,22 +72,21 @@ public class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
         try {
             // Need to return a new instance each time this gets invoked,
             // otherwise a positioned or exhausted instance can be returned:
-            if (binaryFormat == BinaryDocValuesFormat.COLUMNAR_PAYLOAD) {
-                // The ColumNAR codec's fields carry their slot count in the blob and write no companion field.
-                assert ColumnarBinaryDocValuesField.isColumnarStringPayload(leafReader, fieldName)
-                    : "field [" + fieldName + "] is mapped as a columnar payload but this segment does not carry one";
-                return ColumnarPayloadSortedBinaryDocValues.from(leafReader, fieldName);
-            }
-            if (binaryFormat == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL) {
+            return switch (binaryFormat) {
+                case COLUMNAR_PAYLOAD -> {
+                    // The ColumNAR codec's fields carry their slot count in the blob and write no companion field.
+                    assert ColumnarBinaryDocValuesField.isColumnarStringPayload(leafReader, fieldName)
+                        : "field [" + fieldName + "] is mapped as a columnar payload but this segment does not carry one";
+                    yield ColumnarPayloadSortedBinaryDocValues.from(leafReader, fieldName);
+                }
                 // High-cardinality columnar fields store values in document order with inline nulls (ArrayOrderInlineNull).
-                return SortingArrayOrderBinaryDocValues.from(leafReader, fieldName);
-            }
-            if (indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)) {
-                return MultiValuedSortedBinaryDocValues.from(leafReader, fieldName);
-            }
-            // Pre-DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES indices may use the deprecated IntegratedCounts format, which
-            // fromMultiValued() handles as a fallback when the .counts field is absent.
-            return MultiValuedSortedBinaryDocValues.fromMultiValued(leafReader, fieldName);
+                case ARRAY_ORDER_INLINE_NULL -> SortingArrayOrderBinaryDocValues.from(leafReader, fieldName);
+                // Pre-DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES indices may use the deprecated IntegratedCounts format, which
+                // fromMultiValued() handles as a fallback when the .counts field is absent.
+                case SEPARATE_COUNT -> indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)
+                    ? MultiValuedSortedBinaryDocValues.from(leafReader, fieldName)
+                    : MultiValuedSortedBinaryDocValues.fromMultiValued(leafReader, fieldName);
+            };
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

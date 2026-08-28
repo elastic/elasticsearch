@@ -89,34 +89,34 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
                         // on tryContainsIterator). ConstantScoreScorerSupplier unwraps the TwoPhase so Lucene's
                         // BulkScorer drives approximation.advance(min) + matches() within [min, max), giving
                         // linear scaling under sub-segment slicing (DataPartitioning.DOC).
-                        if (binaryFormat == BinaryDocValuesFormat.COLUMNAR_PAYLOAD) {
-                            assert ColumnarBinaryDocValuesField.isColumnarStringPayload(context.reader(), fieldName)
-                                : "field [" + fieldName + "] is mapped as a columnar payload but this segment does not carry one";
-                            // The payload carries its own count, and its framing means the blob can never be scanned whole.
-                            return AbstractBinaryDocValuesQuery.columnarPayloadIterator(
-                                values,
-                                bytes -> contains(bytes, containsTerm),
-                                matchCost()
-                            );
-                        }
-                        String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
-                        DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
-
-                        // tryContainsIterator scans the whole doc blob (including the multi-valued length-prefix framing), so it is only
-                        // correct for single-valued fields where no length prefixes exist.
-                        final DocIdSetIterator containsIter = (countsSkipper == null || countsSkipper.maxValue() == 1)
-                            && values instanceof BlockLoader.OptionalColumnAtATimeReader direct
-                                ? direct.tryContainsIterator(containsTerm)
-                                : null;
-
-                        if (containsIter != null) {
-                            return containsIter;
-                        }
                         Predicate<BytesRef> predicate = bytes -> contains(bytes, containsTerm);
-                        final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
-                        return binaryFormat == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL
-                            ? AbstractBinaryDocValuesQuery.arrayOrderInlineNullIterator(values, counts, predicate, matchCost())
-                            : AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, predicate, matchCost());
+                        String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
+                        return switch (binaryFormat) {
+                            case COLUMNAR_PAYLOAD -> {
+                                assert ColumnarBinaryDocValuesField.isColumnarStringPayload(context.reader(), fieldName)
+                                    : "field [" + fieldName + "] is mapped as a columnar payload but this segment does not carry one";
+                                // The payload carries its own count, and its framing means the blob can never be scanned whole.
+                                yield AbstractBinaryDocValuesQuery.columnarPayloadIterator(values, predicate, matchCost());
+                            }
+                            case ARRAY_ORDER_INLINE_NULL, SEPARATE_COUNT -> {
+                                DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
+
+                                // tryContainsIterator scans the whole doc blob (including the multi-valued length-prefix framing), so it
+                                // is only correct for single-valued fields where no length prefixes exist.
+                                final DocIdSetIterator containsIter = (countsSkipper == null || countsSkipper.maxValue() == 1)
+                                    && values instanceof BlockLoader.OptionalColumnAtATimeReader direct
+                                        ? direct.tryContainsIterator(containsTerm)
+                                        : null;
+
+                                if (containsIter != null) {
+                                    yield containsIter;
+                                }
+                                final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
+                                yield binaryFormat == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL
+                                    ? AbstractBinaryDocValuesQuery.arrayOrderInlineNullIterator(values, counts, predicate, matchCost())
+                                    : AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, predicate, matchCost());
+                            }
+                        };
                     }
                 };
             }

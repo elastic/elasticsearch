@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNum
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.BiFunction;
 
 public class MvMaxBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
 
@@ -39,11 +40,26 @@ public class MvMaxBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.Do
 
     @Override
     public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        if (binaryFormat == BinaryDocValuesFormat.COLUMNAR_PAYLOAD) {
-            // The count travels in the blob, so there is no companion column to load or advance on.
-            TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);
-            return binary == null ? ConstantNull.COLUMN_READER : new MvMaxBytesRefsFromColumnarPayload(binary);
-        }
+        return switch (binaryFormat) {
+            case COLUMNAR_PAYLOAD -> {
+                // The count travels in the blob, so there is no companion column to load or advance on.
+                TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);
+                yield binary == null ? ConstantNull.COLUMN_READER : new MvMaxBytesRefsFromColumnarPayload(binary);
+            }
+            case ARRAY_ORDER_INLINE_NULL -> withCounts(breaker, context, MvMaxBytesRefsFromArrayOrderInlineNull::new);
+            case SEPARATE_COUNT -> withCounts(breaker, context, MvMaxBytesRefsFromBinarySeparateCount::new);
+        };
+    }
+
+    /**
+     * Resolves the binary column and its {@code .counts} companion, which both companion-carrying framings need, and
+     * hands them to {@code reader}. A field with no counts column is single-valued, so its maximum is the value itself.
+     */
+    private ColumnAtATimeReader withCounts(
+        CircuitBreaker breaker,
+        LeafReaderContext context,
+        BiFunction<TrackingBinaryDocValues, TrackingNumericDocValues, ColumnAtATimeReader> reader
+    ) throws IOException {
         BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, true);
         if (bc == null) {
             return ConstantNull.COLUMN_READER;
@@ -51,10 +67,7 @@ public class MvMaxBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.Do
         if (bc.counts() == null) {
             return new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(bc.binary());
         }
-        if (binaryFormat == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL) {
-            return new MvMaxBytesRefsFromArrayOrderInlineNull(bc.binary(), bc.counts());
-        }
-        return new MvMaxBytesRefsFromBinarySeparateCount(bc.binary(), bc.counts());
+        return reader.apply(bc.binary(), bc.counts());
     }
 
     @Override

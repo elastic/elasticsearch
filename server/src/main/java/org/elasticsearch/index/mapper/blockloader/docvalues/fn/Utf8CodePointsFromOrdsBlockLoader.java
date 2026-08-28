@@ -33,6 +33,8 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.function.ToIntFunction;
 
 import static org.elasticsearch.index.mapper.blockloader.Warnings.registerSingleValueWarning;
@@ -103,19 +105,40 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             }
             return new SortedSet(warnings, dv.set());
         }
-        if (binaryFormat == BinaryDocValuesFormat.COLUMNAR_PAYLOAD) {
-            // The count travels in the blob, so there is no companion column to load or advance on.
-            TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);
-            return binary == null ? ConstantNull.COLUMN_READER : new MultiValuedBinaryColumnarPayload(warnings, binary);
-        }
+        // Non-null past the sorted-set branch above: a field with no binary column never reaches here. See the constructor.
+        return switch (Objects.requireNonNull(binaryFormat, "no binary doc-values framing for field [" + fieldName + "]")) {
+            case COLUMNAR_PAYLOAD -> {
+                // The count travels in the blob, so there is no companion column to load or advance on.
+                TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);
+                yield binary == null ? ConstantNull.COLUMN_READER : new MultiValuedBinaryColumnarPayload(warnings, binary);
+            }
+            case ARRAY_ORDER_INLINE_NULL -> withCounts(
+                breaker,
+                context,
+                (binary, counts) -> new MultiValuedBinaryArrayOrderInlineNull(warnings, counts, binary)
+            );
+            case SEPARATE_COUNT -> withCounts(
+                breaker,
+                context,
+                (binary, counts) -> new MultiValuedBinaryWithSeparateCounts(warnings, counts, binary)
+            );
+        };
+    }
+
+    /**
+     * Resolves the binary column and its {@code .counts} companion, which both companion-carrying framings need, and
+     * hands them to {@code reader}.
+     */
+    private ColumnAtATimeReader withCounts(
+        CircuitBreaker breaker,
+        LeafReaderContext context,
+        BiFunction<TrackingBinaryDocValues, TrackingNumericDocValues, ColumnAtATimeReader> reader
+    ) throws IOException {
         BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, false);
         if (bc == null) {
             return ConstantNull.COLUMN_READER;
         }
-        if (binaryFormat == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL) {
-            return new MultiValuedBinaryArrayOrderInlineNull(warnings, bc.counts(), bc.binary());
-        }
-        return new MultiValuedBinaryWithSeparateCounts(warnings, bc.counts(), bc.binary());
+        return reader.apply(bc.binary(), bc.counts());
     }
 
     @Override

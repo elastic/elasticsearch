@@ -434,14 +434,15 @@ public class CsvIT extends ESTestCase {
                 Map.of()
             );
 
-            CsvAssert.assertMetadata(expected, actual.columnNames(), actual.columnTypes(), logger);
+            var assertionLogger = logResults() ? logger : null;
+            CsvAssert.assertMetadata(expected, actual.columnNames(), actual.columnTypes(), assertionLogger);
             CsvAssert.assertDataWithValueConverter(
                 expected,
                 actual.values(),
                 testCase.ignoreOrder,
                 indexLoadStrategy.ignoreValueOrder(),
                 false,
-                logResults() ? logger : null
+                assertionLogger
             );
             var warnings = listener.warnings.stream()
                 .map(w -> HeaderWarning.extractWarningValueFromWarningHeader(w, false))

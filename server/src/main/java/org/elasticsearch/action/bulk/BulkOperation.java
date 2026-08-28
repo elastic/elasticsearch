@@ -126,7 +126,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         ActionListener<BulkResponse> listener,
         FailureStoreMetrics failureStoreMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
-        boolean clusterHasFailureStoreFeature
+        boolean clusterHasFailureStoreFeature,
+        BatchIndexingEnabled batchIndexingEnabled
     ) {
         this(
             task,
@@ -145,7 +146,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             new FailureStoreDocumentConverter(),
             failureStoreMetrics,
             dataStreamFailureStoreSettings,
-            clusterHasFailureStoreFeature
+            clusterHasFailureStoreFeature,
+            batchIndexingEnabled
         );
     }
 
@@ -166,7 +168,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         FailureStoreDocumentConverter failureStoreDocumentConverter,
         FailureStoreMetrics failureStoreMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
-        boolean clusterHasFailureStoreFeature
+        boolean clusterHasFailureStoreFeature,
+        BatchIndexingEnabled batchIndexingEnabled
     ) {
         super(listener);
         this.task = task;
@@ -192,9 +195,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         // item in this bulk is structurally batchable. Mixed bulks (UpdateRequest/DeleteRequest
         // interleaved with IndexRequests) take the inline-source path end-to-end — there is no
         // per-shard fallback that would batch the all-IndexRequest shards in a mixed bulk.
-        if (ShardBatchIndexer.BATCH_INDEXING.get(clusterService.getSettings())
+        if (batchIndexingEnabled.isEnabled()
             && clusterService.state().getMinTransportVersion().supports(BulkShardRequest.BULK_SHARD_BATCH)
-            && ShardBatchIndexer.BATCH_INDEXING_FEATURE_FLAG.isEnabled()
             && BulkBatchEncoders.isBulkBatchEligible(bulkRequest)) {
             batchEncoders = new BulkBatchEncoders();
         } else {

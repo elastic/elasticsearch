@@ -513,6 +513,96 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
         }
     }
 
+    public void testScanCompletionFlagIsSetAfterFullScan() throws Exception {
+        var service = createService();
+        try {
+            ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
+            addDataStream(projectBuilder, "frozen-ds", createMarkedIndex("frozen-ds"));
+            setProjectState(projectBuilder);
+
+            assertFalse("no scan has run yet", service.hasCompletedScanSinceStart());
+
+            service.checkForFrozenIndices();
+
+            assertTrue("a scan that examined every index has completed", service.hasCompletedScanSinceStart());
+        } finally {
+            service.close();
+        }
+    }
+
+    /**
+     * A scan that stops because the executor is full has still submitted everything capacity allowed, so it counts as
+     * complete for the health indicator's purposes.
+     */
+    public void testScanCompletionFlagIsSetWhenCapacityExhausted() throws Exception {
+        int maxJobs = TEST_MAX_CONCURRENCY + TEST_MAX_QUEUE_SIZE;
+        CountDownLatch blockUntil = new CountDownLatch(1);
+        ProjectId projectId = randomProjectIdOrDefault();
+        try {
+            // Fill the executor directly rather than through a scan, so that the only scan in this test is the one
+            // that hits the capacity check.
+            for (int i = 1; i <= maxJobs; i++) {
+                transitionExecutor.submit(new TestDLMFrozenTransitionRunnable("filler-" + i, projectId, blockUntil));
+            }
+            assertFalse(transitionExecutor.hasCapacity());
+
+            ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
+            addDataStream(projectBuilder, "frozen-ds", createMarkedIndex("frozen-ds"));
+            setProjectState(projectBuilder);
+
+            var service = createService();
+            try {
+                service.checkForFrozenIndices();
+
+                assertTrue("a scan that submitted everything capacity allowed has completed", service.hasCompletedScanSinceStart());
+            } finally {
+                service.close();
+            }
+        } finally {
+            blockUntil.countDown();
+        }
+    }
+
+    public void testScanCompletionFlagIsNotSetWhenTransitionsAreDisabled() throws Exception {
+        // Set up cluster state first so that the implicit applySettings({}) from setState does not
+        // reset the kill switch after we disable transitions.
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        addDataStream(projectBuilder, "frozen-ds", createMarkedIndex("frozen-ds"));
+        setProjectState(projectBuilder);
+
+        clusterService.getClusterSettings()
+            .applySettings(Settings.builder().put(DLMFrozenTransitionSettings.TRANSITION_ENABLED_SETTING.getKey(), false).build());
+
+        var service = createService();
+        try {
+            service.checkForFrozenIndices();
+
+            assertFalse("a disabled scan leaves marked indices unexamined", service.hasCompletedScanSinceStart());
+        } finally {
+            service.close();
+        }
+    }
+
+    public void testScanCompletionFlagResetsOnServiceStart() throws Exception {
+        var service = createService();
+        try {
+            ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
+            addDataStream(projectBuilder, "frozen-ds", createMarkedIndex("frozen-ds"));
+            setProjectState(projectBuilder);
+
+            service.checkForFrozenIndices();
+            assertTrue(service.hasCompletedScanSinceStart());
+
+            // onStart() is what a master election invokes. Calling it directly keeps the assertion free of races with
+            // the scheduler thread that an election would also start.
+            service.onStart();
+
+            assertFalse("a new master tenure must wait for its own scan", service.hasCompletedScanSinceStart());
+        } finally {
+            service.close();
+        }
+    }
+
     private IndexMetadata createMarkedIndex(String dataStreamName) {
         return IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
             .settings(settings(IndexVersion.current()))

@@ -66,8 +66,8 @@ public class DLMFrozenTransitionHealthInfoPublisher extends AbstractDLMPeriodicM
 
     /**
      * The time at which this node most recently became master (i.e. the start of the current master's tenure over frozen transitions),
-     * or {@code 0} if this node has never been master. Used as the reference point for the "marked but not started" stall check so that a
-     * freshly-elected master does not immediately report indices as stalled before it has had a chance to attempt their transitions.
+     * or {@code 0} if this node has never been master. Used as the reference point for as a refference for stall checks to ensure
+     * master failover does not trigger false positives for "marked but not started" stalled indices.
      */
     private volatile long masterTenureStartMillis = 0;
 
@@ -161,6 +161,11 @@ public class DLMFrozenTransitionHealthInfoPublisher extends AbstractDLMPeriodicM
         long now = nowSupplier.getAsLong();
         long thresholdMillis = transitionSettings.getHealthStuckThreshold().millis();
 
+        // Don't indicate if master has failed over and new scan for marked indices has not run unless it's not run for
+        // more than threshold time
+        boolean initialScanPending = transitionService.hasCompletedScanSinceStart() == false
+            && now - masterTenureStartMillis <= thresholdMillis;
+
         int markedIndicesCount = 0;
         StalledBucket eligibleUnmarked = new StalledBucket();
         StalledBucket notStartedMarked = new StalledBucket();
@@ -168,8 +173,7 @@ public class DLMFrozenTransitionHealthInfoPublisher extends AbstractDLMPeriodicM
 
         for (ProjectMetadata projectMetadata : state.metadata().projects().values()) {
             ProjectId projectId = projectMetadata.id();
-            // Count all marked indices regardless of the current lifecycle config: the marker survives lifecycle changes
-            // (e.g. frozenAfter lengthened or lifecycle disabled), so the count is deliberately config-independent.
+            // Count all marked indices regardless of the current service config
             // This is what drives the "transitions disabled but pending work" YELLOW signal.
             for (IndexMetadata indexMetadata : projectMetadata.indices().values()) {
                 if (DataStreamLifecycleService.indexMarkedForFrozen(indexMetadata)) {
@@ -183,10 +187,13 @@ public class DLMFrozenTransitionHealthInfoPublisher extends AbstractDLMPeriodicM
                     continue;
                 }
                 TimeValue frozenAfter = lifecycle.frozenAfter();
-                for (Index index : dataStream.getIndicesOlderThan(projectMetadata::index, nowSupplier, frozenAfter, BACKING_INDICES)
+
+                List<Index> eligibleIndices = dataStream.getIndicesOlderThan(projectMetadata::index, nowSupplier, frozenAfter, BACKING_INDICES)
                     .stream()
                     .sorted(Comparator.comparing(Index::getName))
-                    .toList()) {
+                    .toList();
+
+                for (Index index : eligibleIndices) {
                     IndexMetadata indexMetadata = projectMetadata.index(index);
                     if (indexMetadata == null || DataStreamLifecycleService.frozenTransitionCompleted(indexMetadata)) {
                         continue;
@@ -197,23 +204,21 @@ public class DLMFrozenTransitionHealthInfoPublisher extends AbstractDLMPeriodicM
                         if (now - eligibleSinceMillis > thresholdMillis) {
                             eligibleUnmarked.add(projectId, index.getName(), eligibleSinceMillis);
                         }
-                    } else {
-                        long stalledSinceMillis = Math.max(eligibleSinceMillis, masterTenureStartMillis);
-                        // Check the stall threshold before the executor status lookup: that lookup reads a
-                        // synchronized map, and the common case is a marked index well inside its threshold.
-                        if (now - stalledSinceMillis > thresholdMillis) {
-                            // Non-null: this is the concrete DLMFrozenTransitionExecutor, whose getTransitionStatus
-                            // always returns a non-null Status (NOT_STARTED for an absent entry). The @Nullable on
-                            // FrozenTransitionInfoProvider#getTransitionStatus applies only to the noop provider used
-                            // when this plugin is absent — unreachable from here.
-                            StalledBucket bucket = switch (transitionExecutor.getTransitionStatus(projectId, index.getName())) {
-                                case NOT_STARTED -> notStartedMarked;
-                                case QUEUED -> queuedMarked;
-                                // A running transition is making progress, so it is by definition not stalled.
-                                case RUNNING -> null;
-                            };
-                            if (bucket != null) {
-                                bucket.add(projectId, index.getName(), stalledSinceMillis);
+                    } else if (now - eligibleSinceMillis > thresholdMillis) {
+                        switch (transitionExecutor.getTransitionStatus(projectId, index.getName())) {
+                            case NOT_STARTED -> {
+                                if (initialScanPending == false) {
+                                    notStartedMarked.add(projectId, index.getName(), eligibleSinceMillis);
+                                }
+                            }
+                            case QUEUED -> {
+                                long stalledSinceMillis = Math.max(eligibleSinceMillis, masterTenureStartMillis);
+                                if (now - stalledSinceMillis > thresholdMillis) {
+                                    queuedMarked.add(projectId, index.getName(), stalledSinceMillis);
+                                }
+                            }
+                            // A running transition is making progress, so it is by definition not stalled.
+                            case RUNNING -> {
                             }
                         }
                     }

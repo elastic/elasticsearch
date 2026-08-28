@@ -321,7 +321,11 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
         assertThat(info.queuedMarked(), is(StalledIndices.EMPTY));
     }
 
-    public void testMasterTenureGracePeriodSuppressesStallReporting() {
+    /**
+     * When the transition service never completes a scan after a failover, the stuck threshold measured from the start
+     * of the master's tenure is the fallback that eventually surfaces marked-but-unsubmitted indices.
+     */
+    public void testStallSuppressedAfterFailoverUntilThresholdWhenNoScanCompletes() {
         // With masterTenureStartMillis == 0 (node has never been master), a marked old index is reported as stalled.
         ProjectId projectId = randomProjectIdOrDefault();
         ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
@@ -331,11 +335,12 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
         DlmFrozenTransitionsHealthInfo info = publisher.buildHealthInfo(clusterService.state());
         assertThat(info.notStartedMarked().totalCount(), is(1));
 
-        // When this node becomes master, onStart() records masterTenureStartMillis = now, resetting the stall clock.
+        // When this node becomes master, onStart() records masterTenureStartMillis = now, which starts the window in
+        // which reporting waits for the transition service's first scan. The service never scans in this test.
         publisher.clusterChanged(createMasterEvent(true));
         info = publisher.buildHealthInfo(clusterService.state());
         assertThat(
-            "freshly-elected master should not report stalled indices within the grace period",
+            "freshly-elected master should not report stalled indices before its first scan",
             info.notStartedMarked().totalCount(),
             is(0)
         );
@@ -343,7 +348,107 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
         // Advance the clock past the 24-hour default stuck threshold from the tenure start.
         now.addAndGet(TimeValue.timeValueHours(25).millis());
         info = publisher.buildHealthInfo(clusterService.state());
-        assertThat("stall should be reported once the threshold elapses from tenure start", info.notStartedMarked().totalCount(), is(1));
+        assertThat(
+            "stall should be reported once the threshold elapses from tenure start without a completed scan",
+            info.notStartedMarked().totalCount(),
+            is(1)
+        );
+    }
+
+    /**
+     * Once the transition service has re-submitted everything it could after a failover, a still-unsubmitted marked
+     * index is a real signal and must be reported at once, without waiting for the stuck threshold.
+     */
+    public void testCompletedScanLiftsStallSuppressionForNewMaster() throws Exception {
+        ProjectId projectId = randomProjectIdOrDefault();
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
+        String markedIndexName = addDataStreamWithFrozenLifecycle(
+            projectBuilder,
+            "scan-ds",
+            oldIndexTime(),
+            true,
+            TimeValue.timeValueDays(30)
+        );
+        setProjectState(projectBuilder);
+
+        publisher.clusterChanged(createMasterEvent(true));
+        assertThat(
+            "suppressed while the new master has not completed a scan",
+            publisher.buildHealthInfo(clusterService.state()).notStartedMarked().totalCount(),
+            is(0)
+        );
+
+        // Saturate the executor so the scan stops at the capacity check without submitting the marked index. That
+        // still counts as a completed scan: it submitted everything capacity allowed.
+        CountDownLatch fillerRelease = new CountDownLatch(1);
+        try {
+            for (int i = 0; i < TEST_MAX_CONCURRENCY + TEST_MAX_QUEUE_SIZE; i++) {
+                var filler = new DLMFrozenTransitionExecutorTestCase.TestDLMFrozenTransitionRunnable("filler-" + i, projectId);
+                filler.blockUntil = fillerRelease;
+                transitionExecutor.submit(filler);
+            }
+            assertFalse(transitionExecutor.hasCapacity());
+
+            transitionService.checkForFrozenIndices();
+            assertTrue(transitionService.hasCompletedScanSinceStart());
+
+            DlmFrozenTransitionsHealthInfo info = publisher.buildHealthInfo(clusterService.state());
+            assertThat(info.notStartedMarked().totalCount(), is(1));
+            assertThat(info.notStartedMarked().sample().stream().map(i -> i.indexName()).toList(), containsInAnyOrder(markedIndexName));
+            assertThat(
+                "stalled_since should be the eligibility time, not the master tenure start",
+                info.notStartedMarked().sample().get(0).stalledSinceMillis(),
+                is(now.get() - TimeValue.timeValueDays(70).millis())
+            );
+        } finally {
+            fillerRelease.countDown();
+        }
+    }
+
+    /**
+     * The scan-completion lift applies only to marked-but-unsubmitted indices. A queued transition keeps the
+     * tenure-clamped threshold, because a fresh master's queue is expected to drain rather than to be stalled.
+     */
+    public void testCompletedScanDoesNotLiftClampForQueuedTransitions() throws Exception {
+        ProjectId projectId = randomProjectIdOrDefault();
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
+        String markedIndexName = addDataStreamWithFrozenLifecycle(
+            projectBuilder,
+            "queued-scan-ds",
+            oldIndexTime(),
+            true,
+            TimeValue.timeValueDays(30)
+        );
+        setProjectState(projectBuilder);
+
+        publisher.clusterChanged(createMasterEvent(true));
+
+        CountDownLatch release = new CountDownLatch(1);
+        try {
+            // Saturate the single transition thread so the target lands in the queue rather than running.
+            var filler = new DLMFrozenTransitionExecutorTestCase.TestDLMFrozenTransitionRunnable("filler", projectId);
+            filler.blockUntil = release;
+            transitionExecutor.submit(filler);
+            safeAwait(filler.started);
+
+            var target = new DLMFrozenTransitionExecutorTestCase.TestDLMFrozenTransitionRunnable(markedIndexName, projectId);
+            target.blockUntil = release;
+            transitionExecutor.submit(target);
+
+            // The scan finds the target already submitted and runs to the end of its loop.
+            transitionService.checkForFrozenIndices();
+            assertTrue(transitionService.hasCompletedScanSinceStart());
+
+            DlmFrozenTransitionsHealthInfo info = publisher.buildHealthInfo(clusterService.state());
+            assertThat("a queued transition stays clamped to the tenure start", info.queuedMarked(), is(StalledIndices.EMPTY));
+            assertThat(info.notStartedMarked(), is(StalledIndices.EMPTY));
+
+            now.addAndGet(TimeValue.timeValueHours(25).millis());
+            info = publisher.buildHealthInfo(clusterService.state());
+            assertThat(info.queuedMarked().totalCount(), is(1));
+        } finally {
+            release.countDown();
+        }
     }
 
     public void testMaxIndicesToPublishCapIsEnforced() {

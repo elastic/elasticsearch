@@ -34,6 +34,7 @@ module org.elasticsearch.security {
     requires org.apache.lucene.sandbox;
 
     requires org.opensaml.core;
+    requires org.opensaml.core.impl;
     requires org.opensaml.saml;
     requires org.opensaml.saml.impl;
     requires org.opensaml.security;
@@ -48,11 +49,13 @@ module org.elasticsearch.security {
     requires io.netty.transport;
     requires jopt.simple;
     requires json.smart;
-    requires net.shibboleth.utilities.java.support;
+    requires net.shibboleth.shared.support;
     requires oauth2.oidc.sdk;
     requires org.slf4j;
     requires unboundid.ldapsdk;
     requires org.elasticsearch.logging;
+    requires org.apache.httpcomponents.client5.httpclient5;
+    requires org.apache.httpcomponents.core5.httpcore5;
 
     exports org.elasticsearch.xpack.security.action to org.elasticsearch.server;
     exports org.elasticsearch.xpack.security.action.apikey to org.elasticsearch.server;

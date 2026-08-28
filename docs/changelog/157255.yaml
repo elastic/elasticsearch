@@ -1,0 +1,6 @@
+area: CRUD
+issues:
+ - 156982
+pr: 157255
+summary: Fix NPE in `ReplicationSplitHelper` when target primary shard is unassigned
+type: bug

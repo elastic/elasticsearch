@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
+import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -206,6 +207,23 @@ public class NdJsonPageDecoder implements Closeable {
      * this scan out of the stats cache (safe-miss). Mirrors CSV's {@code recordCapDropped} guard.
      */
     private boolean capDropped = false;
+
+    /**
+     * Set when a lenient-mode drop was decided by the PROJECTION rather than by the line itself: a projected
+     * column's value failing coercion or shape under SKIP_ROW ({@link BlockDecoder#coercionFailure} /
+     * {@link BlockDecoder#shapeConflict} -- unprojected fields are skipped undecoded and cannot fail), or a
+     * lazily-validated {@code StreamReadConstraints} violation (string length trips only when a projected
+     * column's decode arm reads the value). Which columns are projected is per-query and NOT in the cache
+     * identity (path + mtime + config fingerprint + read configuration): a COUNT(*) over the same file decodes
+     * nothing, drops nothing, and answers N where this scan measured N-1. {@link NdJsonPageIterator} must
+     * suppress the whole publish -- the row count AND every column family, since a co-projected column's
+     * statistics are computed over the same projection-dependent survivor set. Whole-line drops (malformed or
+     * truncated JSON) are decided while tokenising, are identical for every projection, and still commit.
+     * Mirrors CSV's projectionDependentDrop. (Under ALL column scope the decode is widened to every file
+     * column, so these drops are scan-uniform there and this suppression is over-broad -- a safe miss, never
+     * a wrong answer.)
+     */
+    private boolean projectionDependentDrop = false;
     /**
      * Set when a lenient-mode parse-error recovery on the STREAMING ({@link InputStream}) path rebuilt the parser
      * over the remaining stream ({@link #recoverFromParseException}'s {@code sourceBytes == null} branch): the new
@@ -826,6 +844,15 @@ public class NdJsonPageDecoder implements Closeable {
                 description + "; set error_mode=skip_row (or null_field) to skip the line and warn instead of failing"
             );
         }
+        if (e instanceof StreamConstraintsException) {
+            // String length is validated LAZILY: only a projected column's decode arm reads the value, so a
+            // skipped field never trips it and this drop is projection-dependent -- a COUNT(*) scan keeps the
+            // line this scan lost. The other three limits are scanner-raised and projection-independent, but
+            // the exception type does not say which limit fired, so the whole class suppresses: an unnecessary
+            // safe miss on those pathological records, never a wrong answer. Malformed or truncated JSON stays
+            // out of this -- those lines drop under every projection.
+            projectionDependentDrop = true;
+        }
         if (recordChargedToBudget == false) {
             // Once per record across the two sinks: a per-cell coercion failure earlier in this same record may
             // already have charged it. (Per-cell charges among themselves are still per-cell under null_field --
@@ -971,6 +998,11 @@ public class NdJsonPageDecoder implements Closeable {
         return capDropped;
     }
 
+    /** True when a lenient-mode drop was decided by the projection; see {@link #projectionDependentDrop}. */
+    boolean projectionDependentDrop() {
+        return projectionDependentDrop;
+    }
+
     /** Whether a streaming-path recovery reset the parser byte baseline (record offsets no longer file-global). */
     boolean offsetBaselineLost() {
         return offsetBaselineLost;
@@ -1015,6 +1047,7 @@ public class NdJsonPageDecoder implements Closeable {
             return null;
         }
         long startNanos = System.nanoTime();
+        long startCpuNanos = ThreadCpuTimer.currentNanos();
         long startTotalRowCount = totalRowCount;
         long startErrorCount = errorCount;
         var blockBuilders = new Block.Builder[projectedAttributes.size()];
@@ -1037,6 +1070,9 @@ public class NdJsonPageDecoder implements Closeable {
             counters.addRowsEmitted(deltaTotal - deltaErrors);
             counters.addParseErrors(deltaErrors);
             counters.addReadNanos(System.nanoTime() - startNanos);
+            if (startCpuNanos >= 0) {
+                counters.addReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
+            }
         }
     }
 
@@ -1218,6 +1254,12 @@ public class NdJsonPageDecoder implements Closeable {
                     blockTracker.set(rowPositionSlot);
                 }
                 if (rowDroppedBySkipRow) {
+                    // The drop was decided by the projection (a projected column's coercion or shape failure) --
+                    // the class of drop the publish gate refuses to commit. Set here, at the single point every
+                    // skip_row record discard funnels through, so BOTH sinks (coercionFailure and shapeConflict)
+                    // are covered; a record that ALSO hits a later whole-line parse error exits through the
+                    // parse-error path instead, which is correct -- that line drops under every projection.
+                    projectionDependentDrop = true;
                     // error_mode: skip_row. An uncoercible value makes the whole record bad, so it never reaches
                     // the page — matching CsvFormatReader, and matching ErrorPolicy.Mode.SKIP_ROW's contract
                     // ("drop the entire bad row"). The scratch builders are released by the finally below and

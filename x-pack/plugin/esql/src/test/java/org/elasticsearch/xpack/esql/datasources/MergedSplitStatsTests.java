@@ -209,6 +209,26 @@ public class MergedSplitStatsTests extends ESTestCase {
         assertEquals(-1, merged.columnSizeBytes("age"));
     }
 
+    // -- hasColumn --
+
+    public void testHasColumnTrueOnlyWhenEveryChildObservedIt() {
+        // The COUNT(col) under-count defence: ExternalSourceAggregatePushdown.columnStatUnservable consults
+        // hasColumn for formats WITHOUT implicit nulls (text). On a multi-file read where one file's scan never
+        // harvested the column, serving the summed COUNT(col) would silently miss that file's rows, so hasColumn
+        // must be the ALL-children predicate — a single unharvested child forces a safe-miss (re-scan), never an
+        // under-count.
+        SplitStats harvested = splitStatsRowCountWithColumn(100, "bonus", 0L, 10, 90, 400);
+        SplitStats alsoHarvested = splitStatsRowCountWithColumn(50, "bonus", 5L, 20, 80, 200);
+        SplitStats unharvested = splitStatsRowCountWithColumn(70, "age", 0L, 1, 2, 100);
+
+        assertTrue("every child observed the column", new MergedSplitStats(List.of(harvested, alsoHarvested)).hasColumn("bonus"));
+        assertFalse(
+            "one unharvested child must make the merged answer not-fully-harvested",
+            new MergedSplitStats(List.of(harvested, unharvested, alsoHarvested)).hasColumn("bonus")
+        );
+        assertFalse("no child observed the column", new MergedSplitStats(List.of(harvested, alsoHarvested)).hasColumn("missing"));
+    }
+
     // -- pure value-fold: unit/representation reconciliation is owned UPSTREAM by
     // SourceStatisticsSerializer.normalizeStatsToReconciled (applied in ExternalSourceResolver.aggregateFileStatistics
     // and FileSplitProvider), NOT here. The merge folds already-normalized values. --

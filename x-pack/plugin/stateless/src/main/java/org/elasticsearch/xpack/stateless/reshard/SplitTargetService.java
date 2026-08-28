@@ -254,9 +254,9 @@ public class SplitTargetService {
         }
 
         void cancel() {
-            if (cancelled.compareAndSet(false, true)) {
-                reshardIndexService.failAndStopTrackingSplit(shard, new IndexShardClosedException(shard.shardId()));
-            }
+            final boolean isFirstCancellation = cancelled.getAndSet(true) == false;
+            assert isFirstCancellation : "split for " + shard.shardId() + " cancelled twice";
+            reshardIndexService.failAndStopTrackingSplit(shard, new IndexShardClosedException(shard.shardId()));
         }
 
         private synchronized void advance(State newState) {

@@ -296,7 +296,9 @@ public class ReshardIndexService {
             final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
             final var indexShard = indexService.getShard(shardId.id());
             maybeAwaitSplit(indexShard.indexSettings().getIndexMetadata().getReshardingMetadata(), indexShard, listener);
-            // The shard is removed from IndexService before its split is cancelled, so cancellation can miss a listener added here.
+            // Closing a shard cancels its split, and that cancellation only fails listeners registered at that moment. The
+            // cancellation can land between the getShard above and the registerListener inside maybeAwaitSplit, leaving this
+            // listener stranded. The shard is gone from IndexService by then, so re-check and fail this listener here.
             if (indexService.getShardOrNull(shardId.id()) != indexShard) {
                 failAndStopTrackingSplit(indexShard, new IndexShardClosedException(shardId));
             }

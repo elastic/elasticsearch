@@ -46,7 +46,7 @@ public record IvfSegmentConfig(
 
     /**
      * ASH (Asymmetric Scalar Hashing) configuration — used by ASH writers/readers.
-     * ASH handles its own packing via {@code AshPackingUtils} and does not use {@link QuantEncoding}.
+     * ASH handles its own packing via {@code ESVectorUtil.ashPack} and does not use {@link QuantEncoding}.
      *
      * <p>Mirrors how {@link OsqConfig} wraps {@link QuantEncoding} with both document and query bit widths:
      * {@code bitsPerDim} controls document encoding while {@code queryBitsPerDim} controls query-time

@@ -35,7 +35,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
 import org.elasticsearch.lucene.store.MemorySegmentAccessInputAccess;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
-import org.elasticsearch.simdvec.AsymmetricHashingVectorsScorer;
+import org.elasticsearch.simdvec.AshScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -268,18 +268,20 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
         unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
 
         int nDims = ashMatrix.wT().length / dimension;
-        AsymmetricHashingVectorsScorer scorer = ESVectorUtil.getASHVectorsScorer(
-            unwrappedInput,
-            nDims,
-            entry.ashBitsPerDim(),
-            queryBitsPerDim
-        );
+        AshScorer<float[]> floatScorer = null;
+        AshScorer<byte[]> integerScorer = null;
+        if (queryBitsPerDim > 0) {
+            integerScorer = ESVectorUtil.getAshIntegerVectorsScorer(unwrappedInput, nDims, entry.ashBitsPerDim(), queryBitsPerDim);
+        } else {
+            floatScorer = ESVectorUtil.getAshFloatVectorsScorer(unwrappedInput, nDims, entry.ashBitsPerDim());
+        }
         return new AshPostingsVisitor(
             ashMatrix.wT(),
             dimension,
             target,
             fieldInfo.getVectorSimilarityFunction(),
-            scorer,
+            floatScorer,
+            integerScorer,
             unwrappedInput,
             needsScoring,
             entry.ashBitsPerDim(),

@@ -9,18 +9,13 @@
 
 package org.elasticsearch.simdvec;
 
-import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.lucene.store.IndexInputUtils;
-import org.elasticsearch.lucene.store.MemorySegmentAccessInputAccess;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
-import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentASHVectorsScorer;
-import org.elasticsearch.simdvec.internal.vectorization.PanamaVectorConstants;
 
 import java.io.IOException;
 import java.lang.invoke.MethodHandle;
@@ -72,27 +67,15 @@ public class ESVectorUtil {
         return SCORERS.newES92Int7VectorsScorer(input, dimension, bulkSize);
     }
 
-    /**
-     * Creates an {@link AsymmetricHashingVectorsScorer} for the given IndexInput.
-     * Uses Panama SIMD acceleration when the input supports MemorySegment slices
-     * and a specialized implementation exists for the (queryBitsPerDim, bitsPerDim)
-     * combination; otherwise falls back to the scalar baseline.
-     *
-     * @param input the IndexInput positioned for reading posting list data
-     * @param nDims number of projected dimensions
-     * @param bitsPerDim document bits per dimension
-     * @param queryBitsPerDim query bits per dimension (0 for float path)
-     * @return an ASH scorer, SIMD-accelerated when possible
-     */
-    public static AsymmetricHashingVectorsScorer getASHVectorsScorer(IndexInput input, int nDims, int bitsPerDim, int queryBitsPerDim) {
-        if (PanamaVectorConstants.ENABLE_INTEGER_VECTORS) {
-            IndexInput unwrapped = FilterIndexInput.unwrapOnlyTest(input);
-            unwrapped = MemorySegmentAccessInputAccess.unwrap(unwrapped);
-            if (IndexInputUtils.canUseSegmentSlices(unwrapped)) {
-                return MemorySegmentASHVectorsScorer.create(unwrapped, nDims, bitsPerDim, queryBitsPerDim);
-            }
-        }
-        return new AsymmetricHashingVectorsScorer(input, nDims, bitsPerDim);
+    /** Creates an ASH float-query scorer. */
+    public static AshScorer<float[]> getAshFloatVectorsScorer(IndexInput input, int nDims, int bitsPerDim) throws IOException {
+        return SCORERS.newESNextAshFloatVectorsScorer(input, nDims, bitsPerDim);
+    }
+
+    /** Creates an ASH integer-query scorer. */
+    public static AshScorer<byte[]> getAshIntegerVectorsScorer(IndexInput input, int nDims, int bitsPerDim, int queryBitsPerDim)
+        throws IOException {
+        return SCORERS.newESNextAshIntegerVectorsScorer(input, nDims, bitsPerDim, queryBitsPerDim);
     }
 
     public static ES93BinaryQuantizedVectorScorer getES93BinaryQuantizedVectorScorer(
@@ -1078,5 +1061,48 @@ public class ESVectorUtil {
             }
         }
         return t;
+    }
+
+    /**
+     * Packs multi-bit quantized codes into a byte array using bit-plane layout.
+     * The input codes come from {@code AshSphericalScalarQuantizer} and have values
+     * sign * (0.5 + idx) for idx in [0, numAbsLevels-1] where numAbsLevels = 2^(bitsPerDim-1).
+     * The full level set is centered at 0 with spacing 1.
+     *
+     * @param codes float array of quantized levels from AshSphericalScalarQuantizer
+     * @param bitsPerDim number of bits per dimension
+     * @return packed bytes in bit-plane layout
+     */
+    public static byte[] ashPack(float[] codes, int bitsPerDim) {
+        int nDims = codes.length;
+        int planeBytes = (nDims + 7) >>> 3;
+        int numLevels = 1 << bitsPerDim;
+        float offset = (numLevels - 1) / 2.0f;
+
+        int[] rounded = new int[nDims];
+        for (int i = 0; i < nDims; i++) {
+            rounded[i] = Math.clamp(Math.round(codes[i] + offset), 0, numLevels - 1);
+        }
+
+        byte[] packed = new byte[bitsPerDim * planeBytes];
+        switch (bitsPerDim) {
+            case 1 -> pack1BitValues(rounded, packed);
+            case 2 -> stride2BitValues(rounded, packed);
+            case 4 -> stride4BitValues(rounded, packed);
+            case 3, 8 -> {
+                for (int j = 0; j < nDims; j++) {
+                    int byteIdx = j >>> 3;
+                    int bitIdx = 7 - (j & 7);
+                    for (int p = 0; p < bitsPerDim; p++) {
+                        if ((rounded[j] & (1 << p)) != 0) {
+                            packed[p * planeBytes + byteIdx] |= (byte) (1 << bitIdx);
+                        }
+                    }
+                }
+            }
+            default -> throw new IllegalArgumentException("Unsupported bitsPerDim: " + bitsPerDim);
+        }
+
+        return packed;
     }
 }

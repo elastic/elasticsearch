@@ -25,7 +25,6 @@ import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.OverspillAssignments;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.simdvec.AshPackingUtils;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -155,7 +154,7 @@ public class AshPostingsListWriter {
         final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         final PackedLongValues.Builder lengths = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         final int bitsPerDim = ashConfig.bitsPerDim();
-        final int packedCodeBytes = AshPackingUtils.packedLength(nDims, bitsPerDim);
+        final int packedCodeBytes = bitsPerDim * ((nDims + 7) >>> 3);
         final float centerOffset = ((1 << bitsPerDim) - 1) / 2.0f;
         final int[] docIds = new int[maxPostingListSize];
         final int[] docDeltas = new int[maxPostingListSize];
@@ -207,7 +206,7 @@ public class AshPostingsListWriter {
                 for (int j = 0; j < blockSize; j++) {
                     int vectorOrd = cluster[clusterOrds[written + j]];
                     AsymmetricHashingQuantizer.EncodedVector enc = ashQuantizer.encode(vectors[vectorOrd], centroid, wT, precomputed);
-                    byte[] vectorPacked = AshPackingUtils.pack(enc.xEnc(), bitsPerDim);
+                    byte[] vectorPacked = ESVectorUtil.ashPack(enc.xEnc(), bitsPerDim);
                     System.arraycopy(vectorPacked, 0, blockCodesBuf, j * packedCodeBytes, packedCodeBytes);
                     int corrOff = j * AshPostingsVisitor.CORRECTION_BYTES;
                     BitUtil.VH_LE_INT.set(blockCorrectionsBuf, corrOff + AshPostingsVisitor.CORR_SCALE, Float.floatToIntBits(enc.scale()));

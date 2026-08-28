@@ -23,13 +23,15 @@ import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
 
 /**
- * Panama-accelerated scorer for D1Q0: 1-bit document codes scored against a
+ * Panama-accelerated scorer for D1QF: 1-bit document codes scored against a
  * float-precision projected query via masked float addition (ipFloatBit on MemorySegment).
  * <p>
  * Produces raw dot products (weighted sum over bit planes minus centering offset)
  * without applying per-vector corrections.
  */
-final class MSASHD1Q0Scorer extends MemorySegmentASHVectorsScorer.ASHMemorySegmentScorer {
+final class MSAshD1QFScorer extends MemorySegmentESNextAshVectorsScorer.AshMemorySegmentScorerBase
+    implements
+        MemorySegmentESNextAshVectorsScorer.AshMemorySegmentScorer<float[]> {
 
     private static final VectorSpecies<Float> FLOAT_SPECIES_256 = FloatVector.SPECIES_256;
     private static final VectorSpecies<Float> FLOAT_SPECIES_128 = FloatVector.SPECIES_128;
@@ -37,17 +39,30 @@ final class MSASHD1Q0Scorer extends MemorySegmentASHVectorsScorer.ASHMemorySegme
     private static final ValueLayout.OfInt LAYOUT_BE_INT = ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.BIG_ENDIAN);
     private static final ValueLayout.OfShort LAYOUT_BE_SHORT = ValueLayout.JAVA_SHORT_UNALIGNED.withOrder(ByteOrder.BIG_ENDIAN);
 
-    MSASHD1Q0Scorer(IndexInput in, int nDims, int planeBytes, int packedCodeBytes) {
+    MSAshD1QFScorer(IndexInput in, int nDims, int planeBytes, int packedCodeBytes) {
         super(in, nDims, planeBytes, packedCodeBytes);
     }
 
     @Override
-    boolean scoreFloatBulk(float[] queryTransformed, float[] scores, int blockSize) throws IOException {
+    public float score(float[] queryTransformed) throws IOException {
         if (planeBytes >= 2 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
             float querySum = ESVectorUtil.sum(queryTransformed, nDims);
-            // bitsPerDim=1 so centerOffset = 0, and there is exactly 1 bit-plane per vector
-            // rawDot = ipFloatBit - centerOffset * querySum = ipFloatBit - 0 = ipFloatBit
-            // (For 1-bit: numLevels=2, centerOffset = (2-1)/2 = 0.5)
+            float centerOffset = 0.5f; // (2-1)/2 for 1-bit
+            float rawDot;
+            if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
+                rawDot = IndexInputUtils.withSlice(in, planeBytes, scratch, seg -> ipFloatBitSegment256(queryTransformed, seg, 0, nDims));
+            } else {
+                rawDot = IndexInputUtils.withSlice(in, planeBytes, scratch, seg -> ipFloatBitSegment128(queryTransformed, seg, 0, nDims));
+            }
+            return rawDot - centerOffset * querySum;
+        }
+        return Float.NEGATIVE_INFINITY;
+    }
+
+    @Override
+    public boolean scoreBulk(float[] queryTransformed, float[] scores, int blockSize) throws IOException {
+        if (planeBytes >= 2 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
+            float querySum = ESVectorUtil.sum(queryTransformed, nDims);
             float centerOffset = 0.5f;
             long totalBytes = (long) planeBytes * blockSize;
             if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
@@ -82,7 +97,7 @@ final class MSASHD1Q0Scorer extends MemorySegmentASHVectorsScorer.ASHMemorySegme
         int i = 0;
         float sum = 0;
 
-        int sectionLength = FLOAT_SPECIES_256.length() * 4; // 32 floats = 4 bytes of bits
+        int sectionLength = FLOAT_SPECIES_256.length() * 4;
         if (qLength >= sectionLength) {
             FloatVector acc0 = FloatVector.zero(FLOAT_SPECIES_256);
             FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES_256);
@@ -111,7 +126,6 @@ final class MSASHD1Q0Scorer extends MemorySegmentASHVectorsScorer.ASHMemorySegme
                 + acc3.reduceLanes(VectorOperators.ADD);
         }
 
-        // 8-float tail (1 byte of bits)
         int sectionLength2 = FLOAT_SPECIES_256.length();
         if (qLength - i >= sectionLength2) {
             FloatVector acc = FloatVector.zero(FLOAT_SPECIES_256);
@@ -125,7 +139,6 @@ final class MSASHD1Q0Scorer extends MemorySegmentASHVectorsScorer.ASHMemorySegme
             sum += acc.reduceLanes(VectorOperators.ADD);
         }
 
-        // Scalar tail
         if (i < qLength) {
             sum += ipFloatBitScalarTail(q, i, d, baseOffset + i / 8, qLength - i);
         }
@@ -139,7 +152,7 @@ final class MSASHD1Q0Scorer extends MemorySegmentASHVectorsScorer.ASHMemorySegme
         int i = 0;
         float sum = 0;
 
-        int sectionLength = FLOAT_SPECIES_128.length() * 4; // 16 floats = 2 bytes of bits
+        int sectionLength = FLOAT_SPECIES_128.length() * 4;
         if (qLength >= sectionLength) {
             FloatVector acc0 = FloatVector.zero(FLOAT_SPECIES_128);
             FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES_128);
@@ -167,7 +180,6 @@ final class MSASHD1Q0Scorer extends MemorySegmentASHVectorsScorer.ASHMemorySegme
                 + acc3.reduceLanes(VectorOperators.ADD);
         }
 
-        // 8-float tail (1 byte of bits)
         int sectionLength2 = FLOAT_SPECIES_128.length() * 2;
         if (qLength - i >= sectionLength2) {
             FloatVector acc0 = FloatVector.zero(FLOAT_SPECIES_128);
@@ -185,7 +197,6 @@ final class MSASHD1Q0Scorer extends MemorySegmentASHVectorsScorer.ASHMemorySegme
             sum += acc0.reduceLanes(VectorOperators.ADD) + acc1.reduceLanes(VectorOperators.ADD);
         }
 
-        // Scalar tail
         if (i < qLength) {
             sum += ipFloatBitScalarTail(q, i, d, baseOffset + i / 8, qLength - i);
         }

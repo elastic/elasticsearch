@@ -14,7 +14,6 @@ import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.common.CheckedIntFunction;
-import org.elasticsearch.simdvec.AshPackingUtils;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.test.ESTestCase;
 
@@ -250,7 +249,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
         float[] scores = new float[nVectors];
         for (int i = 0; i < nVectors; i++) {
-            byte[] packed = AshPackingUtils.pack(encodedVectors[i], bitsPerDim);
+            byte[] packed = ESVectorUtil.ashPack(encodedVectors[i], bitsPerDim);
             scores[i] = referenceScore(
                 qt,
                 new float[] { queryDotCentroid },
@@ -317,7 +316,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
                 float trueDot = ESVectorUtil.dotProduct(query, vector, dim);
 
                 AsymmetricHashingQuantizer.EncodedVector enc = quantizer.encode(vector, centroid, wT, precomputed);
-                byte[] packed = AshPackingUtils.pack(enc.xEnc(), bitsPerDim);
+                byte[] packed = ESVectorUtil.ashPack(enc.xEnc(), bitsPerDim);
                 float reconstructed = referenceScore(
                     qt,
                     new float[] { queryDotCentroid },
@@ -349,7 +348,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         // queryTransformed = [1.0, 0.5] (raw q @ W with zero centroid)
         // dot = 1.0*0.5 + 0.5*(-0.5) = 0.25
         // result = 0.25 * 1.0 + 0.0 + 0.0 = 0.25
-        byte[] packed = AshPackingUtils.pack(encodedVector, bitsPerDim);
+        byte[] packed = ESVectorUtil.ashPack(encodedVector, bitsPerDim);
         float score = referenceScore(
             new float[] { 1.0f, 0.5f },
             new float[] { 0.0f },
@@ -395,7 +394,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         int bitsPerDim = 2;
         int nDims = 10;
         float[] codes = { 0.5f, -1.5f, 1.5f, -0.5f, 0.5f, 1.5f, -0.5f, -1.5f, 0.5f, 1.5f };
-        byte[] packed = AshPackingUtils.pack(codes, bitsPerDim);
+        byte[] packed = ESVectorUtil.ashPack(codes, bitsPerDim);
         assertEquals(bitsPerDim * ((nDims + 7) >>> 3), packed.length);
 
         float[] qt = { 0.5f, 0.3f, -0.2f, 0.8f, 0.1f, -0.4f, 0.6f, -0.7f, 0.9f, -0.1f };
@@ -529,7 +528,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         for (int i = 0; i < nVectors; i++) {
             float[] c = centroids[assignments[i]];
             AsymmetricHashingQuantizer.EncodedVector enc = ash.encode(vectors[i], c, wT, precomputedPerCluster[assignments[i]]);
-            byte[] packed = AshPackingUtils.pack(enc.xEnc(), bitsPerDim);
+            byte[] packed = ESVectorUtil.ashPack(enc.xEnc(), bitsPerDim);
 
             for (int q = 0; q < nQueries; q++) {
                 double exactDot = ESVectorUtil.dotProduct(queries[q], vectors[i]);

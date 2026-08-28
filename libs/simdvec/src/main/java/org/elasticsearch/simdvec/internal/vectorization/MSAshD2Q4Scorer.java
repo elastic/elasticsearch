@@ -31,15 +31,28 @@ import java.lang.foreign.MemorySegment;
  * <p>
  * Produces raw integer dot products without applying per-vector corrections.
  */
-final class MSASHD2Q4Scorer extends MemorySegmentASHVectorsScorer.ASHMemorySegmentScorer {
+final class MSAshD2Q4Scorer extends MemorySegmentESNextAshVectorsScorer.AshMemorySegmentScorerBase
+    implements
+        MemorySegmentESNextAshVectorsScorer.AshMemorySegmentScorer<byte[]> {
 
-    MSASHD2Q4Scorer(IndexInput in, int nDims, int planeBytes, int packedCodeBytes) {
+    MSAshD2Q4Scorer(IndexInput in, int nDims, int planeBytes, int packedCodeBytes) {
         super(in, nDims, planeBytes, packedCodeBytes);
     }
 
     @Override
-    boolean scoreIntegerBulk(byte[] queryQuantized, int queryBitsPerDim, float[] scores, int blockSize) throws IOException {
-        assert queryBitsPerDim == 4;
+    public float score(byte[] queryQuantized) throws IOException {
+        if (planeBytes >= 16 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
+            if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
+                return IndexInputUtils.withSlice(in, packedCodeBytes, scratch, seg -> (float) scoreTwoPlanes256(queryQuantized, seg));
+            } else {
+                return IndexInputUtils.withSlice(in, packedCodeBytes, scratch, seg -> (float) scoreTwoPlanes128(queryQuantized, seg));
+            }
+        }
+        return Float.NEGATIVE_INFINITY;
+    }
+
+    @Override
+    public boolean scoreBulk(byte[] queryQuantized, float[] scores, int blockSize) throws IOException {
         if (planeBytes >= 16 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
             long totalBytes = (long) packedCodeBytes * blockSize;
             if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
@@ -65,14 +78,12 @@ final class MSASHD2Q4Scorer extends MemorySegmentASHVectorsScorer.ASHMemorySegme
     }
 
     private int scoreTwoPlanes256(byte[] queryQuantized, MemorySegment docSeg) {
-        // Doc plane 0 (weight 1): fourStripeDot produces sum_qp (1 << qp) * andBitCount(qp, dp0)
         long plane0Score = MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer.fourStripeBitDotProduct256(
             queryQuantized,
             docSeg,
             0L,
             planeBytes
         );
-        // Doc plane 1 (weight 2): same dot, then shift left by 1
         long plane1Score = MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer.fourStripeBitDotProduct256(
             queryQuantized,
             docSeg,

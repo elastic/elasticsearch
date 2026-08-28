@@ -54,6 +54,16 @@ final class DefaultVectorScorerFactory implements VectorScorerFactory {
     }
 
     @Override
+    public AshScorer<float[]> newESNextAshFloatVectorsScorer(IndexInput input, int nDims, int bitsPerDim) {
+        return ESNextAshVectorsScorer.createFloat(input, nDims, bitsPerDim);
+    }
+
+    @Override
+    public AshScorer<byte[]> newESNextAshIntegerVectorsScorer(IndexInput input, int nDims, int bitsPerDim, int queryBitsPerDim) {
+        return ESNextAshVectorsScorer.createInteger(input, nDims, bitsPerDim, queryBitsPerDim);
+    }
+
+    @Override
     public ES93BinaryQuantizedVectorScorer newES93BinaryQuantizedVectorScorer(IndexInput input, int dimension, int vectorLengthInBytes) {
         return new DefaultES93BinaryQuantizedVectorScorer(input, dimension, vectorLengthInBytes);
     }

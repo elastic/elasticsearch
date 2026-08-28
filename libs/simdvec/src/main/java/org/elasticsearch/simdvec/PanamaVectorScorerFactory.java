@@ -26,6 +26,7 @@ import org.elasticsearch.simdvec.internal.PanamaFlatVectorScorer;
 import org.elasticsearch.simdvec.internal.vectorization.DefaultES93BinaryQuantizedVectorScorer;
 import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentES940OSQVectorsScorer;
+import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentESNextAshVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.OnHeapES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.PanamaOptimizedScalarQuantization;
 import org.elasticsearch.simdvec.internal.vectorization.PanamaVectorConstants;
@@ -89,6 +90,31 @@ final class PanamaVectorScorerFactory implements VectorScorerFactory {
             return new MemorySegmentES92PanamaInt7VectorsScorer(unwrappedInput, dimension, bulkSize);
         }
         return new ES92Int7VectorsScorer(input, dimension, bulkSize);
+    }
+
+    @Override
+    public AshScorer<float[]> newESNextAshFloatVectorsScorer(IndexInput input, int nDims, int bitsPerDim) throws IOException {
+        if (PanamaVectorConstants.ENABLE_INTEGER_VECTORS) {
+            IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
+            unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
+            if (IndexInputUtils.canUseSegmentSlices(unwrappedInput)) {
+                return MemorySegmentESNextAshVectorsScorer.createFloat(unwrappedInput, nDims, bitsPerDim);
+            }
+        }
+        return ESNextAshVectorsScorer.createFloat(input, nDims, bitsPerDim);
+    }
+
+    @Override
+    public AshScorer<byte[]> newESNextAshIntegerVectorsScorer(IndexInput input, int nDims, int bitsPerDim, int queryBitsPerDim)
+        throws IOException {
+        if (PanamaVectorConstants.ENABLE_INTEGER_VECTORS) {
+            IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
+            unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
+            if (IndexInputUtils.canUseSegmentSlices(unwrappedInput)) {
+                return MemorySegmentESNextAshVectorsScorer.createInteger(unwrappedInput, nDims, bitsPerDim, queryBitsPerDim);
+            }
+        }
+        return ESNextAshVectorsScorer.createInteger(input, nDims, bitsPerDim, queryBitsPerDim);
     }
 
     @Override

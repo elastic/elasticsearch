@@ -25,17 +25,49 @@ import java.io.IOException;
  * <p>
  * Produces raw integer dot products without applying per-vector corrections.
  */
-final class MSASHD1Q4Scorer extends MemorySegmentASHVectorsScorer.ASHMemorySegmentScorer {
+final class MSAshD1Q4Scorer extends MemorySegmentESNextAshVectorsScorer.AshMemorySegmentScorerBase
+    implements
+        MemorySegmentESNextAshVectorsScorer.AshMemorySegmentScorer<byte[]> {
 
-    MSASHD1Q4Scorer(IndexInput in, int nDims, int planeBytes, int packedCodeBytes) {
+    MSAshD1Q4Scorer(IndexInput in, int nDims, int planeBytes, int packedCodeBytes) {
         super(in, nDims, planeBytes, packedCodeBytes);
     }
 
     @Override
-    boolean scoreIntegerBulk(byte[] queryQuantized, int queryBitsPerDim, float[] scores, int blockSize) throws IOException {
-        assert queryBitsPerDim == 4;
+    public float score(byte[] queryQuantized) throws IOException {
         if (planeBytes >= 16 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
-            // Each document has 1 bit-plane of planeBytes; query has 4 bit-planes
+            if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
+                return IndexInputUtils.withSlice(
+                    in,
+                    planeBytes,
+                    scratch,
+                    seg -> (float) MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer.fourStripeBitDotProduct256(
+                        queryQuantized,
+                        seg,
+                        0L,
+                        planeBytes
+                    )
+                );
+            } else {
+                return IndexInputUtils.withSlice(
+                    in,
+                    planeBytes,
+                    scratch,
+                    seg -> (float) MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer.fourStripeBitDotProduct128(
+                        queryQuantized,
+                        seg,
+                        0L,
+                        planeBytes
+                    )
+                );
+            }
+        }
+        return Float.NEGATIVE_INFINITY;
+    }
+
+    @Override
+    public boolean scoreBulk(byte[] queryQuantized, float[] scores, int blockSize) throws IOException {
+        if (planeBytes >= 16 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
             long totalBytes = (long) planeBytes * blockSize;
             if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
                 IndexInputUtils.withSlice(in, totalBytes, scratch, seg -> {

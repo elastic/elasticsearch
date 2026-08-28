@@ -20,7 +20,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
 import org.elasticsearch.search.vectors.BulkKnnCollector;
-import org.elasticsearch.simdvec.AsymmetricHashingVectorsScorer;
+import org.elasticsearch.simdvec.AshScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -44,7 +44,7 @@ import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
  *       scored via AND+popcount with per-vector docSum correction</li>
  * </ul>
  * <p>
- * Scoring of packed codes is delegated to an {@link AsymmetricHashingVectorsScorer} which
+ * Scoring of packed codes is delegated to an {@link AshScorer} which
  * reads directly from the {@link IndexInput}, avoiding heap copies when backed by mmap.
  * <p>
  * EUCLIDEAN scoring implements the ASH paper Appendix A (Eq. A.2):
@@ -99,7 +99,9 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
 
     // The scorer that reads packed codes from the IndexInput and produces raw dot products.
     // May be scalar or SIMD-accelerated depending on IndexInput type and bit combination.
-    private final AsymmetricHashingVectorsScorer scorer;
+    // Exactly one of these is non-null, depending on whether the query uses the float or integer path.
+    private final AshScorer<float[]> floatScorer;
+    private final AshScorer<byte[]> integerScorer;
 
     // Similarity conversion strategy: selected once at construction time
     private final SimilarityConverter similarityConverter;
@@ -132,7 +134,8 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
      * @param originalDim original vector dimensionality (number of columns in wT)
      * @param query the raw query vector
      * @param similarityFunction the vector similarity function for score conversion
-     * @param scorer the scorer to use for reading and scoring packed codes
+     * @param floatScorer float-path scorer (non-null when queryBitsPerDim == 0), or null
+     * @param integerScorer integer-path scorer (non-null when queryBitsPerDim &gt; 0), or null
      * @param indexInput input for reading posting list data (doc IDs, corrections)
      * @param acceptDocs live docs filter
      * @param bitsPerDim bits per dimension for document codes
@@ -144,7 +147,8 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
         int originalDim,
         float[] query,
         VectorSimilarityFunction similarityFunction,
-        AsymmetricHashingVectorsScorer scorer,
+        AshScorer<float[]> floatScorer,
+        AshScorer<byte[]> integerScorer,
         IndexInput indexInput,
         Bits acceptDocs,
         int bitsPerDim,
@@ -160,7 +164,8 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
         this.similarityFunction = similarityFunction;
         this.query = query;
         this.centroidReader = centroidReader;
-        this.scorer = scorer;
+        this.floatScorer = floatScorer;
+        this.integerScorer = integerScorer;
 
         int planeBytes = (nDims + 7) >>> 3;
 
@@ -277,10 +282,10 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
 
         // Step 1: Read packed codes via the scorer (produces raw dot products).
         // The scorer reads from the same IndexInput and advances past all code bytes.
-        if (queryBitsPerDim > 0) {
-            scorer.scoreIntegerBulk(queryQuantized, queryBitsPerDim, scores, blockSize);
+        if (integerScorer != null) {
+            integerScorer.scoreBulk(queryQuantized, scores, blockSize);
         } else {
-            scorer.scoreFloatBulk(queryTransformed, scores, blockSize);
+            floatScorer.scoreBulk(queryTransformed, scores, blockSize);
         }
 
         // Step 2: Read corrections (IndexInput is now past the codes, at the corrections)

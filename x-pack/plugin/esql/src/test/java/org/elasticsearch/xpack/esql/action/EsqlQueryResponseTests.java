@@ -795,6 +795,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 2222, // rows_emitted
                 4444, // bytes_read
                 6666, // read_nanos
+                7777, // read_cpu_nanos
                 8888, // cpu_nanos
                 null,
                 true,
@@ -815,6 +816,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "rows_emitted" : 2222,
                   "bytes_read" : 4444,
                   "read_nanos" : 6666,
+                  "read_cpu_nanos" : 7777,
                   "cpu_nanos" : 8888,
                   "columns" : [
                     {
@@ -841,6 +843,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "rows_emitted" : 0,
                   "bytes_read" : 0,
                   "read_nanos" : 0,
+                  "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "columns" : [
                     {
@@ -874,6 +877,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                       "rows_emitted" : 0,
                       "bytes_read" : 0,
                       "read_nanos" : 0,
+                      "read_cpu_nanos" : 0,
                       "cpu_nanos" : 0,
                       "all_columns" : [
                         {
@@ -908,6 +912,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "rows_emitted" : 0,
                   "bytes_read" : 0,
                   "read_nanos" : 0,
+                  "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "columns" : [
                     {
@@ -938,6 +943,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
                 3,
                 100,
+                0,
                 0,
                 0,
                 0,
@@ -990,6 +996,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "rows_emitted" : 0,
                   "bytes_read" : 0,
                   "read_nanos" : 0,
+                  "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "columns" : [
                     {
@@ -1024,6 +1031,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "rows_emitted" : 0,
                   "bytes_read" : 0,
                   "read_nanos" : 0,
+                  "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "columns" : [
                     {
@@ -1053,6 +1061,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "rows_emitted" : 0,
                   "bytes_read" : 0,
                   "read_nanos" : 0,
+                  "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "columns" : [
                     {
@@ -1104,6 +1113,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "rows_emitted" : 0,
                   "bytes_read" : 0,
                   "read_nanos" : 0,
+                  "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "columns" : [
                     {
@@ -1156,6 +1166,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "rows_emitted" : 0,
                   "bytes_read" : 0,
                   "read_nanos" : 0,
+                  "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "columns" : [
                     {
@@ -1200,6 +1211,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "rows_emitted" : 0,
                   "bytes_read" : 0,
                   "read_nanos" : 0,
+                  "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "columns" : [
                     {
@@ -1255,6 +1267,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                       "rows_emitted" : 0,
                       "bytes_read" : 0,
                       "read_nanos" : 0,
+                      "read_cpu_nanos" : 0,
                       "cpu_nanos" : 0,
                       "all_columns" : [
                         {
@@ -1324,6 +1337,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                           "rows_emitted" : 0,
                           "bytes_read" : 0,
                           "read_nanos" : 0,
+                          "read_cpu_nanos" : 0,
                           "cpu_nanos" : 0,
                           "all_columns" : [
                             {
@@ -1417,6 +1431,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "rows_emitted" : 0,
                   "bytes_read" : 0,
                   "read_nanos" : 0,
+                  "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "columns" : [
                     {
@@ -1447,6 +1462,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         "rows_emitted" : 222,
                         "bytes_read" : 0,
                         "read_nanos" : 0,
+                        "read_cpu_nanos" : 0,
                         "iterations" : 12,
                         "operators" : [
                           {

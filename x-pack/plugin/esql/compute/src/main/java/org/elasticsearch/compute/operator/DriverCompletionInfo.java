@@ -41,6 +41,8 @@ import java.util.concurrent.atomic.AtomicLong;
  *                  TODO: Lookup join streaming reads are not included yet here.
  * @param readNanos Total wall time format readers spent reading on producer threads, in nanoseconds.
  *                  Lucene contributes 0; only external-source operators populate this.
+ * @param readCpuNanos Total CPU time format readers spent on producer threads (no IO wait), in nanoseconds.
+ *                     Lucene contributes 0; only external-source operators populate this.
  * @param cpuNanos Total CPU time across all drivers (sum of per-driver CPU time).
  * @param driverProfiles {@link DriverProfile}s from each driver. These are fairly cheap to build but
  *                          not free so this will be empty if the {@code profile} option was not set in
@@ -69,6 +71,7 @@ public record DriverCompletionInfo(
     long rowsEmitted,
     long bytesRead,
     long readNanos,
+    long readCpuNanos,
     long cpuNanos,
     List<DriverProfile> driverProfiles,
     List<PlanProfile> planProfiles,
@@ -84,6 +87,7 @@ public record DriverCompletionInfo(
      * responses from very old nodes.
      */
     public static final DriverCompletionInfo EMPTY = new DriverCompletionInfo(
+        0,
         0,
         0,
         0,
@@ -113,6 +117,7 @@ public record DriverCompletionInfo(
             rowsEmitted,
             bytesRead,
             readNanos,
+            readCpuNanos,
             cpuNanos,
             driverProfiles,
             planProfiles,
@@ -147,6 +152,7 @@ public record DriverCompletionInfo(
         long rowsEmitted = 0;
         long bytesRead = planningBytesRead;
         long readNanos = 0;
+        long readCpuNanos = 0;
         long cpuNanos = 0;
         List<DriverProfile> collectedProfiles = new ArrayList<>(drivers.size());
         for (Driver d : drivers) {
@@ -157,6 +163,7 @@ public record DriverCompletionInfo(
                 rowsEmitted += o.rowsEmitted();
                 bytesRead += o.bytesRead();
                 readNanos += o.readNanos();
+                readCpuNanos += o.readCpuNanos();
             }
             cpuNanos += p.cpuNanos();
             collectedProfiles.add(p);
@@ -167,6 +174,7 @@ public record DriverCompletionInfo(
             rowsEmitted,
             bytesRead,
             readNanos,
+            readCpuNanos,
             cpuNanos,
             collectedProfiles,
             List.of(new PlanProfile(description, clusterName, nodeName, planTree, logicalPlanTree, planTimeProfile)),
@@ -191,6 +199,7 @@ public record DriverCompletionInfo(
         long rowsEmitted = 0;
         long bytesRead = planningBytesRead;
         long readNanos = 0;
+        long readCpuNanos = 0;
         long cpuNanos = 0;
         for (Driver d : drivers) {
             DriverStatus s = d.status();
@@ -201,6 +210,7 @@ public record DriverCompletionInfo(
                 rowsEmitted += o.rowsEmitted();
                 bytesRead += o.bytesRead();
                 readNanos += o.readNanos();
+                readCpuNanos += o.readCpuNanos();
             }
             cpuNanos += s.cpuNanos();
         }
@@ -210,6 +220,7 @@ public record DriverCompletionInfo(
             rowsEmitted,
             bytesRead,
             readNanos,
+            readCpuNanos,
             cpuNanos,
             List.of(),
             List.of(),
@@ -289,7 +300,8 @@ public record DriverCompletionInfo(
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_PROFILE = TransportVersion.fromName("esql_external_source_profile");
     private static final TransportVersion ESQL_EXTERNAL_PARTIAL_RESULTS = TransportVersion.fromName("esql_external_partial_results");
     public static final TransportVersion ESQL_DRIVER_WARNINGS = TransportVersion.fromName("esql_driver_warnings");
-    public static final TransportVersion ESQL_APPROXIMATION_APPLIED = TransportVersion.fromName("esql_approximation_applied");
+    private static final TransportVersion ESQL_READ_CPU_NANOS = TransportVersion.fromName("esql_read_cpu_nanos");
+    private static final TransportVersion ESQL_APPROXIMATION_APPLIED = TransportVersion.fromName("esql_approximation_applied");
 
     public static DriverCompletionInfo readFrom(StreamInput in, ThreadContext threadContext) throws IOException {
         long documentsFound = in.readVLong();
@@ -297,12 +309,16 @@ public record DriverCompletionInfo(
         long rowsEmitted = 0;
         long bytesRead = 0;
         long readNanos = 0;
+        long readCpuNanos = 0;
         long cpuNanos = 0;
         if (in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_PROFILE)) {
             rowsEmitted = in.readVLong();
             bytesRead = in.readVLong();
             readNanos = in.readVLong();
             cpuNanos = in.readVLong();
+        }
+        if (in.getTransportVersion().supports(ESQL_READ_CPU_NANOS)) {
+            readCpuNanos = in.readVLong();
         }
         List<DriverProfile> driverProfiles = in.readCollectionAsImmutableList(DriverProfile::readFrom);
         List<PlanProfile> planProfiles = in.getTransportVersion().supports(ESQL_PROFILE_INCLUDE_PLAN)
@@ -353,6 +369,7 @@ public record DriverCompletionInfo(
             rowsEmitted,
             bytesRead,
             readNanos,
+            readCpuNanos,
             cpuNanos,
             driverProfiles,
             planProfiles,
@@ -372,6 +389,9 @@ public record DriverCompletionInfo(
             out.writeVLong(bytesRead);
             out.writeVLong(readNanos);
             out.writeVLong(cpuNanos);
+        }
+        if (out.getTransportVersion().supports(ESQL_READ_CPU_NANOS)) {
+            out.writeVLong(readCpuNanos);
         }
         out.writeCollection(driverProfiles);
         if (out.getTransportVersion().supports(ESQL_PROFILE_INCLUDE_PLAN)) {
@@ -405,6 +425,7 @@ public record DriverCompletionInfo(
         private long rowsEmitted;
         private long bytesRead;
         private long readNanos;
+        private long readCpuNanos;
         private long cpuNanos;
         private final List<DriverProfile> driverProfiles = new ArrayList<>();
         private final List<PlanProfile> planProfiles = new ArrayList<>();
@@ -419,6 +440,7 @@ public record DriverCompletionInfo(
             this.rowsEmitted += info.rowsEmitted;
             this.bytesRead += info.bytesRead;
             this.readNanos += info.readNanos;
+            this.readCpuNanos += info.readCpuNanos;
             this.cpuNanos += info.cpuNanos;
             this.driverProfiles.addAll(info.driverProfiles);
             this.planProfiles.addAll(info.planProfiles);
@@ -435,6 +457,7 @@ public record DriverCompletionInfo(
                 rowsEmitted,
                 bytesRead,
                 readNanos,
+                readCpuNanos,
                 cpuNanos,
                 driverProfiles,
                 planProfiles,
@@ -452,6 +475,7 @@ public record DriverCompletionInfo(
         private final AtomicLong rowsEmitted = new AtomicLong();
         private final AtomicLong bytesRead = new AtomicLong();
         private final AtomicLong readNanos = new AtomicLong();
+        private final AtomicLong readCpuNanos = new AtomicLong();
         private final AtomicLong cpuNanos = new AtomicLong();
         private final List<DriverProfile> collectedProfiles = Collections.synchronizedList(new ArrayList<>());
         private final List<PlanProfile> planProfiles = Collections.synchronizedList(new ArrayList<>());
@@ -466,6 +490,7 @@ public record DriverCompletionInfo(
             this.rowsEmitted.addAndGet(info.rowsEmitted);
             this.bytesRead.addAndGet(info.bytesRead);
             this.readNanos.addAndGet(info.readNanos);
+            this.readCpuNanos.addAndGet(info.readCpuNanos);
             this.cpuNanos.addAndGet(info.cpuNanos);
             this.collectedProfiles.addAll(info.driverProfiles);
             this.planProfiles.addAll(info.planProfiles);
@@ -502,6 +527,7 @@ public record DriverCompletionInfo(
                 rowsEmitted.get(),
                 bytesRead.get(),
                 readNanos.get(),
+                readCpuNanos.get(),
                 cpuNanos.get(),
                 collectedProfiles,
                 planProfiles,

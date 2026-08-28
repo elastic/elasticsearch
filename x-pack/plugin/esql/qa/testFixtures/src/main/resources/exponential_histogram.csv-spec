@@ -32,6 +32,162 @@ dummy-zero_threshold_only | "{""scale"":0,""zero"":{""threshold"":2.0E-5}}"
 
 // -------------------------------------------------------------------------------
 
+count_star with bucket
+required_capability: fn_bucket_histogram_types
+
+FROM exp_histo_sample
+ | WHERE STARTS_WITH(instance, "dummy")
+ | STATS count = COUNT(*) BY bucket = BUCKET(responseTime, 25)
+ | SORT RANGE_MIN(bucket)
+;
+
+count:long | bucket:double_range
+2          | -100.0..-75.0
+3          | -50.0..-25.0
+3          | -25.0..0.0
+4          | 0.0..25.0
+3          | 25.0..50.0
+2          | null
+;
+
+// -------------------------------------------------------------------------------
+
+count with bucket only in TS
+required_capability: fn_bucket_histogram_types
+required_capability: ts_command_v0
+
+TS exp_histo_sample
+ | WHERE NOT STARTS_WITH(instance, "dummy")
+ | STATS count = COUNT(responseTime, bucket) BY bucket = BUCKET(responseTime, 1)
+ | INLINE STATS total = SUM(count)
+ | SORT RANGE_MIN(bucket)
+;
+
+count:long | bucket:double_range | total:long
+15339      | 0.0..1.0            | 15471
+124        | 1.0..2.0            | 15471
+2          | 2.0..3.0            | 15471
+3          | 3.0..4.0            | 15471
+2          | 5.0..6.0            | 15471
+1          | 6.0..7.0            | 15471
+;
+
+count last_over_time with bucket in TS
+required_capability: fn_bucket_histogram_types
+required_capability: ts_command_v0
+
+TS exp_histo_sample
+ | WHERE NOT STARTS_WITH(instance, "dummy")
+ | STATS count = COUNT(LAST_OVER_TIME(responseTime), bucket) BY bucket = BUCKET(responseTime, 1)
+ | INLINE STATS total = SUM(count)
+ | SORT RANGE_MIN(bucket)
+;
+
+count:long | bucket:double_range | total:long
+139        | 0.0..1.0            | 142
+2          | 1.0..2.0            | 142
+1          | 3.0..4.0            | 142
+;
+
+count with bucket and time in TS
+required_capability: fn_bucket_histogram_types
+required_capability: ts_command_v0
+
+TS exp_histo_sample
+ | WHERE NOT STARTS_WITH(instance, "dummy")
+ | STATS count = COUNT(responseTime, bucket) BY bucket = BUCKET(responseTime, 1), time = BUCKET(@timestamp, 1h)
+ | INLINE STATS total = SUM(count)
+ | SORT time, RANGE_MIN(bucket)
+;
+
+count:long | bucket:double_range | time:datetime            | total:long
+9238       | 0.0..1.0            | 2025-09-25T00:00:00.000Z | 15471
+80         | 1.0..2.0            | 2025-09-25T00:00:00.000Z | 15471
+2          | 2.0..3.0            | 2025-09-25T00:00:00.000Z | 15471
+1          | 3.0..4.0            | 2025-09-25T00:00:00.000Z | 15471
+6101       | 0.0..1.0            | 2025-09-25T01:00:00.000Z | 15471
+44         | 1.0..2.0            | 2025-09-25T01:00:00.000Z | 15471
+2          | 3.0..4.0            | 2025-09-25T01:00:00.000Z | 15471
+2          | 5.0..6.0            | 2025-09-25T01:00:00.000Z | 15471
+1          | 6.0..7.0            | 2025-09-25T01:00:00.000Z | 15471
+;
+
+count with bucket and instance in TS
+required_capability: fn_bucket_histogram_types
+required_capability: ts_command_v0
+
+TS exp_histo_sample
+ | WHERE NOT STARTS_WITH(instance, "dummy")
+ | STATS count = COUNT(responseTime, bucket) BY bucket = BUCKET(responseTime, 1), instance
+ | INLINE STATS total = SUM(count)
+ | SORT instance, RANGE_MIN(bucket)
+ | LIMIT 10
+;
+
+count:long | bucket:double_range | instance:keyword | total:long
+8723       | 0.0..1.0            | instance-0       | 15471
+112        | 1.0..2.0            | instance-0       | 15471
+1          | 2.0..3.0            | instance-0       | 15471
+2          | 3.0..4.0            | instance-0       | 15471
+2          | 5.0..6.0            | instance-0       | 15471
+1          | 6.0..7.0            | instance-0       | 15471
+3241       | 0.0..1.0            | instance-1       | 15471
+8          | 1.0..2.0            | instance-1       | 15471
+1          | 3.0..4.0            | instance-1       | 15471
+3375       | 0.0..1.0            | instance-2       | 15471
+;
+
+count with bucket, time, and instance in TS
+required_capability: fn_bucket_histogram_types
+required_capability: ts_command_v0
+
+TS exp_histo_sample
+ | WHERE NOT STARTS_WITH(instance, "dummy")
+ | STATS count = COUNT(responseTime, bucket) BY bucket = BUCKET(responseTime, 1), time = BUCKET(@timestamp, 1h), instance
+ | INLINE STATS total = SUM(count)
+ | SORT time, instance, RANGE_MIN(bucket)
+ | LIMIT 10
+;
+
+count:long | bucket:double_range | time:datetime            | instance:keyword | total:long
+5112       | 0.0..1.0            | 2025-09-25T00:00:00.000Z | instance-0       | 15471
+70         | 1.0..2.0            | 2025-09-25T00:00:00.000Z | instance-0       | 15471
+1          | 2.0..3.0            | 2025-09-25T00:00:00.000Z | instance-0       | 15471
+1978       | 0.0..1.0            | 2025-09-25T00:00:00.000Z | instance-1       | 15471
+7          | 1.0..2.0            | 2025-09-25T00:00:00.000Z | instance-1       | 15471
+1          | 3.0..4.0            | 2025-09-25T00:00:00.000Z | instance-1       | 15471
+2148       | 0.0..1.0            | 2025-09-25T00:00:00.000Z | instance-2       | 15471
+3          | 1.0..2.0            | 2025-09-25T00:00:00.000Z | instance-2       | 15471
+1          | 2.0..3.0            | 2025-09-25T00:00:00.000Z | instance-2       | 15471
+3611       | 0.0..1.0            | 2025-09-25T01:00:00.000Z | instance-0       | 15471
+;
+
+count with bucket, time, and instance in FROM
+required_capability: fn_bucket_histogram_types
+
+FROM exp_histo_sample
+ | WHERE NOT STARTS_WITH(instance, "dummy")
+ | STATS count = COUNT(responseTime, bucket) BY bucket = BUCKET(responseTime, 1), time = BUCKET(@timestamp, 1h), instance
+ | INLINE STATS total = SUM(count)
+ | SORT time, instance, RANGE_MIN(bucket)
+ | LIMIT 10
+;
+
+count:long | bucket:double_range | time:datetime            | instance:keyword | total:long
+5112       | 0.0..1.0            | 2025-09-25T00:00:00.000Z | instance-0       | 15471
+70         | 1.0..2.0            | 2025-09-25T00:00:00.000Z | instance-0       | 15471
+1          | 2.0..3.0            | 2025-09-25T00:00:00.000Z | instance-0       | 15471
+1978       | 0.0..1.0            | 2025-09-25T00:00:00.000Z | instance-1       | 15471
+7          | 1.0..2.0            | 2025-09-25T00:00:00.000Z | instance-1       | 15471
+1          | 3.0..4.0            | 2025-09-25T00:00:00.000Z | instance-1       | 15471
+2148       | 0.0..1.0            | 2025-09-25T00:00:00.000Z | instance-2       | 15471
+3          | 1.0..2.0            | 2025-09-25T00:00:00.000Z | instance-2       | 15471
+1          | 2.0..3.0            | 2025-09-25T00:00:00.000Z | instance-2       | 15471
+3611       | 0.0..1.0            | 2025-09-25T01:00:00.000Z | instance-0       | 15471
+;
+
+// -------------------------------------------------------------------------------
+
 to_exponential_histogram from histogram
 required_capability: to_exponential_histogram
 

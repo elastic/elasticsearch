@@ -11,6 +11,7 @@ package org.elasticsearch.columnar.numeric;
 
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.ArrayUtil;
+import org.elasticsearch.columnar.substrate.internal.ByteArrayInts;
 
 import java.io.IOException;
 
@@ -26,8 +27,6 @@ import java.io.IOException;
 final class MetadataBuffer implements MetadataWriter {
 
     private static final int DEFAULT_CAPACITY = 64;
-    private static final int MAX_VINT_BYTES = 5;
-    private static final int MAX_VLONG_BYTES = 10;
 
     private byte[] data;
     private int dataSize;
@@ -106,26 +105,17 @@ final class MetadataBuffer implements MetadataWriter {
     @Override
     public MetadataWriter writeLong(long value) {
         ensureCapacity(Long.BYTES);
-        final int lo = (int) value;
-        final int hi = (int) (value >> 32);
-        data[dataSize++] = (byte) lo;
-        data[dataSize++] = (byte) (lo >> 8);
-        data[dataSize++] = (byte) (lo >> 16);
-        data[dataSize++] = (byte) (lo >> 24);
-        data[dataSize++] = (byte) hi;
-        data[dataSize++] = (byte) (hi >> 8);
-        data[dataSize++] = (byte) (hi >> 16);
-        data[dataSize++] = (byte) (hi >> 24);
+        ByteArrayInts.writeIntLE((int) value, Integer.BYTES, data, dataSize);
+        ByteArrayInts.writeIntLE((int) (value >> 32), Integer.BYTES, data, dataSize + Integer.BYTES);
+        dataSize += Long.BYTES;
         return this;
     }
 
     @Override
     public MetadataWriter writeInt(int value) {
         ensureCapacity(Integer.BYTES);
-        data[dataSize++] = (byte) value;
-        data[dataSize++] = (byte) (value >> 8);
-        data[dataSize++] = (byte) (value >> 16);
-        data[dataSize++] = (byte) (value >> 24);
+        ByteArrayInts.writeIntLE(value, Integer.BYTES, data, dataSize);
+        dataSize += Integer.BYTES;
         return this;
     }
 
@@ -142,22 +132,14 @@ final class MetadataBuffer implements MetadataWriter {
     }
 
     private MetadataWriter encodeVInt(int value) {
-        ensureCapacity(MAX_VINT_BYTES);
-        while ((value & ~0x7F) != 0) {
-            data[dataSize++] = (byte) ((value & 0x7F) | 0x80);
-            value >>>= 7;
-        }
-        data[dataSize++] = (byte) value;
+        ensureCapacity(ByteArrayInts.MAX_VINT_BYTES);
+        dataSize += ByteArrayInts.writeVInt(value, data, dataSize);
         return this;
     }
 
     private MetadataWriter encodeVLong(long value) {
-        ensureCapacity(MAX_VLONG_BYTES);
-        for (int i = 0; i < 9 && (value & ~0x7FL) != 0; i++) {
-            data[dataSize++] = (byte) ((value & 0x7FL) | 0x80L);
-            value >>>= 7;
-        }
-        data[dataSize++] = (byte) value;
+        ensureCapacity(ByteArrayInts.MAX_VLONG_BYTES);
+        dataSize += ByteArrayInts.writeVLong(value, data, dataSize);
         return this;
     }
 }

@@ -75,6 +75,7 @@ final class ComputeResponse extends TransportResponse {
                     0,
                     0,
                     0,
+                    0,
                     in.readCollectionAsImmutableList(DriverProfile::readFrom),
                     List.of(),
                     java.util.Map.of(),

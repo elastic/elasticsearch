@@ -13,6 +13,13 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
+## 9.4.6 [connectors-9.4.6-release-notes]
+
+### Fixes [connectors-9.4.6-fixes]
+* Fix long-running syncs being falsely marked as idle when Elasticsearch was temporarily slow or refresh calls timed out. The connector service no longer forces an index refresh on every job status check, keeps the ingestion heartbeat alive through transient errors, and retries job status checks during active syncs. [#4368](https://github.com/elastic/connectors/pull/4368), [#4311](https://github.com/elastic/connectors/issues/4311)
+* Fix long-running syncs failing permanently on transient non-JSON Elasticsearch bulk responses, such as `Client Closed Request`. Failed concurrent bulk tasks are no longer silently dropped. [#4385](https://github.com/elastic/connectors/pull/4385)
+* Fix connectors running under Elastic Agent ignoring the Elasticsearch output `ssl.verification_mode` policy setting, which meant certificate verification was always enforced. [#4393](https://github.com/elastic/connectors/pull/4393), [#4084](https://github.com/elastic/connectors/issues/4084)
+
 ## 9.5.2 [connectors-9.5.2-release-notes]
 
 ### Fixes [connectors-9.5.2-fixes]

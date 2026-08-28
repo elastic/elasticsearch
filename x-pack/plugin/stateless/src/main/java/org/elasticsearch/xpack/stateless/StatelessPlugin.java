@@ -355,7 +355,8 @@ public class StatelessPlugin extends Plugin
 
     public static ExecutorBuilder<?>[] statelessExecutorBuilders(Settings settings, boolean hasIndexRole) {
         // Note: The following thread-pool sizes are set in relation to the number of connections of the **default** client.
-        // (see max connections in `AzureStorageSettings` and `S3ClientSettings` were it's currently set to 150; GCP has no max connections).
+        // (see max connections in `AzureStorageSettings` and `S3ClientSettings` were it's currently set to 150; GCP has no max
+        // connections).
         // Naturally the number of threads across blob-store-related pools should be <= client connections limit of the default client.
 
         final int processors = EsExecutors.allocatedProcessors(settings);

@@ -812,3 +812,6 @@ tests:
 - class: org.elasticsearch.snapshots.BlobStoreIncrementalityIT
   method: testForceMergeCausesFullSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/157970
+- class: org.elasticsearch.xpack.esql.evaluator.command.TestCompoundOutputEvaluatorTests
+  method: testSimpleCircuitBreaking
+  issue: https://github.com/elastic/elasticsearch/issues/154059

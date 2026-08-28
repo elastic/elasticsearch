@@ -403,7 +403,13 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
             maxInformationalWarnings,
             drained.size()
         );
-        assertTrue("the last line must note suppression", drained.get(drained.size() - 1).contains("further reader warnings suppressed"));
+        // Producers reserve cap slots before enqueueing, so the queue cannot preserve counter order across threads.
+        // The contract is the bounded line count plus one suppression notice, not that the notice is the last item.
+        assertEquals(
+            "exactly one line must note suppression",
+            1L,
+            drained.stream().filter(warning -> warning.contains("further reader warnings suppressed")).count()
+        );
         assertFalse(buffer.isPartial());
     }
 

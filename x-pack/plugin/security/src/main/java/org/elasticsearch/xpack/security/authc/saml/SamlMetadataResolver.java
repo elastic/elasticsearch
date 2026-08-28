@@ -6,15 +6,17 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import net.shibboleth.utilities.java.support.component.ComponentInitializationException;
-import net.shibboleth.utilities.java.support.resolver.CriteriaSet;
-import net.shibboleth.utilities.java.support.resolver.ResolverException;
-import net.shibboleth.utilities.java.support.xml.BasicParserPool;
+import net.shibboleth.shared.component.ComponentInitializationException;
+import net.shibboleth.shared.resolver.CriteriaSet;
+import net.shibboleth.shared.resolver.ResolverException;
+import net.shibboleth.shared.xml.impl.BasicParserPool;
 
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
-import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.hc.client5.http.classic.HttpClient;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
+import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
+import org.apache.hc.core5.util.Timeout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
@@ -78,6 +80,7 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
     private static final Logger logger = LogManager.getLogger(SamlMetadataResolver.class);
     private static final TimeValue REFRESH_INTERVAL = TimeValue.timeValueSeconds(60);
     private static final TimeValue LOGGING_PERIOD = TimeValue.timeValueMinutes(30);
+    private static final TimeValue DEFAULT_CONNECTION_TTL = TimeValue.timeValueSeconds(60);
 
     private final AbstractReloadingMetadataResolver resolver;
     private final String entityId;
@@ -353,19 +356,24 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
 
     private static SamlMetadataResolver.MetadataParseResult parseHttpMetadata(String metadataUrl, RealmConfig config, SSLService sslService)
         throws ResolverException, ComponentInitializationException {
-        HttpClientBuilder builder = HttpClientBuilder.create();
         final String sslKey = RealmSettings.realmSslPrefix(config.identifier());
         final SslProfile sslProfile = sslService.profile(sslKey);
-        final SSLConnectionSocketFactory factory = sslProfile.connectionSocketFactory();
-        builder.setSSLSocketFactory(factory);
+        final SSLConnectionSocketFactory sslSocketFactory = new SSLConnectionSocketFactory(
+            sslProfile.sslContext(),
+            sslProfile.hostnameVerifier()
+        );
+        final var connManager = PoolingHttpClientConnectionManagerBuilder.create()
+            .setSSLSocketFactory(sslSocketFactory)
+            .setConnectionTimeToLive(org.apache.hc.core5.util.TimeValue.ofSeconds(DEFAULT_CONNECTION_TTL.toDuration().toSeconds()))
+            .build();
 
         TimeValue connectTimeout = config.getSetting(IDP_METADATA_HTTP_CONNECT_TIMEOUT);
         TimeValue readTimeout = config.getSetting(IDP_METADATA_HTTP_READ_TIMEOUT);
         RequestConfig requestConfig = RequestConfig.custom()
-            .setConnectTimeout(Math.toIntExact(connectTimeout.millis()))
-            .setSocketTimeout(Math.toIntExact(readTimeout.millis()))
+            .setConnectTimeout(Timeout.ofMilliseconds(connectTimeout.millis()))
+            .setResponseTimeout(Timeout.ofMilliseconds(readTimeout.millis()))
             .build();
-        builder.setDefaultRequestConfig(requestConfig);
+        HttpClientBuilder builder = HttpClientBuilder.create().setConnectionManager(connManager).setDefaultRequestConfig(requestConfig);
 
         TimeValue maxRefresh = config.getSetting(IDP_METADATA_HTTP_REFRESH);
         TimeValue minRefresh = config.getSetting(IDP_METADATA_HTTP_MIN_REFRESH);

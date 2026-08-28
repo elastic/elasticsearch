@@ -26,40 +26,10 @@ public class FormatNameResolverTests extends ESTestCase {
         assertEquals(FormatNameResolver.FORMAT_PARQUET, FormatNameResolver.resolve(Map.of("reader", "java"), "file.parquet"));
     }
 
-    public void testReaderParquetRsOverridesExtension() {
-        assumeTrue("parquet-rs reader alias requires the parquet-rs feature flag", FormatNameResolver.parquetRsEnabled());
-        assertEquals(FormatNameResolver.FORMAT_PARQUET_RS, FormatNameResolver.resolve(Map.of("reader", "parquet-rs"), "file.parquet"));
-    }
-
-    public void testReaderParquetRsDisabledWhenFlagOff() {
-        assumeFalse("only when the parquet-rs feature flag is off", FormatNameResolver.parquetRsEnabled());
-        assertNull(FormatNameResolver.readerAliasToFormat(FormatNameResolver.READER_PARQUET_RS));
-        assertFalse(FormatNameResolver.supportedReaderAliases().contains(FormatNameResolver.READER_PARQUET_RS));
-        assertTrue(FormatNameResolver.DISABLED_READER_ALIASES.contains(FormatNameResolver.READER_PARQUET_RS));
-        // Both the optimizer path (resolve) and the execution path (resolveReader) must reject the disabled alias
-        // so callers cannot silently proceed with the wrong reader.
-        IllegalArgumentException e1 = expectThrows(
-            IllegalArgumentException.class,
-            () -> FormatNameResolver.resolve(Map.of("reader", "parquet-rs"), "file.parquet")
-        );
-        assertThat(e1.getMessage(), containsString("is disabled"));
-    }
-
-    public void testResolveReaderThrowsDisabledForParquetRsWhenFlagOff() {
-        assumeFalse("only when the parquet-rs feature flag is off", FormatNameResolver.parquetRsEnabled());
-        FormatReaderRegistry registry = csvRegistry();
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> FormatNameResolver.resolveReader(Map.of("reader", "parquet-rs"), "file.parquet", registry)
-        );
-        assertThat(e.getMessage(), containsString("is disabled"));
-        assertThat(e.getMessage(), containsString("parquet-rs"));
-    }
-
     public void testReaderOverridesFormat() {
         assertEquals(
             FormatNameResolver.FORMAT_PARQUET,
-            FormatNameResolver.resolve(Map.of("reader", "java", "format", "parquet-rs"), "file.parquet")
+            FormatNameResolver.resolve(Map.of("reader", "java", "format", "orc"), "file.parquet")
         );
     }
 
@@ -120,9 +90,7 @@ public class FormatNameResolverTests extends ESTestCase {
     }
 
     public void testReaderAliasToFormat() {
-        assumeTrue("parquet-rs reader alias requires the parquet-rs feature flag", FormatNameResolver.parquetRsEnabled());
         assertEquals(FormatNameResolver.FORMAT_PARQUET, FormatNameResolver.readerAliasToFormat(FormatNameResolver.READER_JAVA));
-        assertEquals(FormatNameResolver.FORMAT_PARQUET_RS, FormatNameResolver.readerAliasToFormat(FormatNameResolver.READER_PARQUET_RS));
         assertNull(FormatNameResolver.readerAliasToFormat("unknown"));
     }
 

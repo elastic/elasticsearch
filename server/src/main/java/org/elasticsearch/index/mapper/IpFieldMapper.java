@@ -11,9 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.InetAddressPoint;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -60,6 +58,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFro
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRangeQuery;
+import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
@@ -493,7 +492,7 @@ public class IpFieldMapper extends FieldMapper {
             if (usesBinaryDocValues) {
                 return new ScanningBinaryDocValuesRangeQuery(field, lower, upper, arrayOrderInlineNull);
             } else {
-                return SortedSetDocValuesField.newSlowRangeQuery(field, lower, upper, true, true);
+                return XSortedSetDocValuesRangeQuery.newSlowRangeQuery(field, lower, upper, true, true);
             }
         }
 
@@ -964,14 +963,7 @@ public class IpFieldMapper extends FieldMapper {
             ctx.addColumn(LuceneBinaryColumn.of(binaryDvs.finish(docCount), fieldType().name(), CustomDocValuesField.TYPE));
         }
         if (dvCounts.isEmpty() == false) {
-            ctx.addColumn(
-                LuceneLongColumn.of(
-                    dvCounts.finish(docCount),
-                    fieldType().name() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX,
-                    MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_TYPE,
-                    LongColumn.NumericKind.LONG
-                )
-            );
+            ctx.addColumn(LuceneLongColumn.counts(dvCounts.finish(docCount), fieldType().name()));
         }
     }
 

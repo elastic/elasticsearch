@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,7 +19,9 @@ import java.io.IOException;
 /**
  * Typed {@link FormatReaderStatus} for the NDJSON reader.
  */
-public record NdJsonReaderStatus(long rowsEmitted, long parseErrors, long readNanos) implements FormatReaderStatus {
+public record NdJsonReaderStatus(long rowsEmitted, long parseErrors, long readNanos, long readCpuNanos) implements FormatReaderStatus {
+
+    private static final TransportVersion ESQL_READ_CPU_NANOS = TransportVersion.fromName("esql_read_cpu_nanos");
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         FormatReaderStatus.class,
@@ -27,7 +30,7 @@ public record NdJsonReaderStatus(long rowsEmitted, long parseErrors, long readNa
     );
 
     public NdJsonReaderStatus(StreamInput in) throws IOException {
-        this(in.readVLong(), in.readVLong(), in.readVLong());
+        this(in.readVLong(), in.readVLong(), in.readVLong(), in.getTransportVersion().supports(ESQL_READ_CPU_NANOS) ? in.readVLong() : 0L);
     }
 
     @Override
@@ -35,11 +38,19 @@ public record NdJsonReaderStatus(long rowsEmitted, long parseErrors, long readNa
         out.writeVLong(rowsEmitted);
         out.writeVLong(parseErrors);
         out.writeVLong(readNanos);
+        if (out.getTransportVersion().supports(ESQL_READ_CPU_NANOS)) {
+            out.writeVLong(readCpuNanos);
+        }
     }
 
     @Override
     public String format() {
         return "ndjson";
+    }
+
+    @Override
+    public long readCpuNanos() {
+        return readCpuNanos;
     }
 
     @Override
@@ -53,6 +64,7 @@ public record NdJsonReaderStatus(long rowsEmitted, long parseErrors, long readNa
         builder.field("rows_emitted", rowsEmitted);
         builder.field("parse_errors", parseErrors);
         builder.field("read_nanos", readNanos);
+        builder.field("read_cpu_nanos", readCpuNanos);
         return builder;
     }
 }

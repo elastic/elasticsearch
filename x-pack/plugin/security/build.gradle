@@ -46,7 +46,8 @@ dependencies {
   internalClusterTestImplementation project(path: ':modules:lang-painless:spi')
 
   // the following are all SAML dependencies - might as well download the whole internet
-  api "org.opensaml:opensaml-core:${versions.opensaml}"
+  api "org.opensaml:opensaml-core-api:${versions.opensaml}"
+  api "org.opensaml:opensaml-core-impl:${versions.opensaml}"
   api "org.opensaml:opensaml-saml-api:${versions.opensaml}"
   api "org.opensaml:opensaml-saml-impl:${versions.opensaml}"
   api "org.opensaml:opensaml-messaging-api:${versions.opensaml}"
@@ -62,13 +63,13 @@ dependencies {
   api "org.opensaml:opensaml-soap-impl:${versions.opensaml}"
   api "org.opensaml:opensaml-storage-api:${versions.opensaml}"
   api "org.opensaml:opensaml-storage-impl:${versions.opensaml}"
-  api "net.shibboleth.utilities:java-support:8.4.0"
+  api "net.shibboleth:shib-support:9.2.3"
+  api "net.shibboleth:shib-security:9.2.3"
+  api "net.shibboleth:shib-networking:9.2.3"
+  api "net.shibboleth:shib-velocity:9.2.3"
   api "com.google.code.findbugs:jsr305:3.0.2"
-  api "org.apache.santuario:xmlsec:2.3.4"
-  api "io.dropwizard.metrics:metrics-core:4.1.4"
-  api ( "org.cryptacular:cryptacular:1.2.5") {
-    exclude group: 'org.bouncycastle'
-  }
+  api "org.apache.santuario:xmlsec:3.0.6"
+  api "io.dropwizard.metrics:metrics-core:4.2.39"
 
   // provided by x-pack-core
   compileOnly "org.slf4j:slf4j-api:${versions.slf4j}"
@@ -78,8 +79,8 @@ dependencies {
   api "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
   api "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
   api "org.apache.httpcomponents:httpclient-cache:${versions.httpclient}"
-  runtimeOnly 'com.google.guava:guava:32.0.1-jre'
-  runtimeOnly 'com.google.guava:failureaccess:1.0.1'
+  runtimeOnly 'com.google.guava:guava:33.0.0-jre'
+  runtimeOnly 'com.google.guava:failureaccess:1.0.2'
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
   runtimeOnly "joda-time:joda-time:2.10.10"
 
@@ -178,7 +179,7 @@ tasks.named('assemble').configure {
 }
 
 tasks.withType(AbstractDependenciesTask).configureEach {
-  mapping from: /java-support|opensaml-.*/, to: 'shibboleth'
+  mapping from: /shib-.*|opensaml-.*/, to: 'shibboleth'
   mapping from: /http.*/, to: 'httpclient'
   mapping from: /bc.*/, to: 'bouncycastle'
   mapping from: /failureaccess.*/, to: 'guava'
@@ -218,65 +219,33 @@ tasks.named("thirdPartyAudit").configure {
     'com.beust.jcommander.JCommander',
     'com.beust.jcommander.converters.BaseConverter',
     // [missing classes] Shibboleth + OpenSAML have servlet support that we don't use
-    'javax.servlet.AsyncContext',
-    'javax.servlet.DispatcherType',
-    'javax.servlet.Filter',
-    'javax.servlet.FilterChain',
-    'javax.servlet.FilterConfig',
-    'javax.servlet.RequestDispatcher',
-    'javax.servlet.ServletContext',
-    'javax.servlet.ServletInputStream',
-    'javax.servlet.ServletOutputStream',
-    'javax.servlet.ServletRequest',
-    'javax.servlet.ServletResponse',
-    'javax.servlet.http.Cookie',
-    'javax.servlet.http.HttpServletRequest',
-    'javax.servlet.http.HttpServletResponse',
-    'javax.servlet.http.HttpServletResponseWrapper',
-    'javax.servlet.http.HttpSession',
-    'javax.servlet.http.HttpUpgradeHandler',
-    'javax.servlet.http.Part',
+    'jakarta.servlet.Filter',
+    'jakarta.servlet.FilterChain',
+    'jakarta.servlet.FilterConfig',
+    'jakarta.servlet.ServletContext',
     'jakarta.servlet.ServletRequest',
+    'jakarta.servlet.ServletResponse',
+    'jakarta.servlet.http.Cookie',
     'jakarta.servlet.http.HttpServletRequest',
     'jakarta.servlet.http.HttpServletResponse',
+    'jakarta.servlet.http.HttpSession',
+    // [missing classes] non-OpenSAML deps (nimbus/oauth2-oidc-sdk) still reference old javax.servlet namespace
+    'javax.servlet.ServletRequest',
+    'javax.servlet.http.HttpServletRequest',
+    'javax.servlet.http.HttpServletResponse',
+    // [missing classes] shib-support 9.x jars still reference old java-support class for compat
+    'net.shibboleth.utilities.java.support.xml.SerializeSupport',
+    // [missing classes] httpclient5 main jar references optional httpclient5-cache classes
+    'org.apache.hc.client5.http.impl.cache.CacheConfig',
+    'org.apache.hc.client5.http.impl.cache.CacheConfig$Builder',
+    'org.apache.hc.client5.http.impl.cache.CachingHttpClientBuilder',
+    'org.apache.hc.client5.http.impl.cache.ManagedHttpCacheStorage',
     // [missing classes] Shibboleth + OpenSAML have velocity support that we don't use
     'org.apache.velocity.VelocityContext',
     'org.apache.velocity.app.VelocityEngine',
     'org.apache.velocity.context.Context',
     'org.apache.velocity.runtime.resource.loader.StringResourceLoader',
     'org.apache.velocity.runtime.resource.util.StringResourceRepository',
-    // [missing classes] OpenSAML storage has an optional LDAP storage impl
-    'org.ldaptive.AttributeModification',
-    'org.ldaptive.AttributeModificationType',
-    'org.ldaptive.Connection',
-    'org.ldaptive.DeleteOperation',
-    'org.ldaptive.LdapAttribute',
-    'org.ldaptive.LdapEntry',
-    'org.ldaptive.LdapException',
-    'org.ldaptive.ModifyOperation',
-    'org.ldaptive.Response',
-    'org.ldaptive.ResultCode',
-    'org.ldaptive.SearchOperation',
-    'org.ldaptive.SearchRequest',
-    'org.ldaptive.SearchResult',
-    'org.ldaptive.ext.MergeOperation',
-    'org.ldaptive.ext.MergeRequest',
-    'org.ldaptive.pool.ConnectionPool',
-    'org.ldaptive.pool.PooledConnectionFactory',
-    // [missing classes] OpenSAML storage has an optional JSON-backed storage impl
-    'javax.json.Json',
-    'javax.json.JsonNumber',
-    'javax.json.JsonObject',
-    'javax.json.JsonReader',
-    'javax.json.JsonValue$ValueType',
-    'javax.json.JsonValue',
-    'javax.json.stream.JsonGenerator',
-    // [missing classes] OpenSAML storage has an optional JPA storage impl
-    'javax.persistence.EntityManager',
-    'javax.persistence.EntityManagerFactory',
-    'javax.persistence.EntityTransaction',
-    'javax.persistence.LockModeType',
-    'javax.persistence.Query',
     // [missing classes] OpenSAML storage and HttpClient cache have optional memcache support
     'net.spy.memcached.CASResponse',
     'net.spy.memcached.CASValue',
@@ -288,113 +257,35 @@ tasks.named("thirdPartyAudit").configure {
     // [missing classes] Http Client cache has optional ehcache support
     'net.sf.ehcache.Ehcache',
     'net.sf.ehcache.Element',
-    // Bouncycastle is an optional dependency for apache directory, cryptacular and opensaml packages. We
-    // acknowledge them here instead of adding bouncy castle as a compileOnly dependency
-    'org.bouncycastle.asn1.ASN1Encodable',
-    'org.bouncycastle.asn1.ASN1InputStream',
-    'org.bouncycastle.asn1.ASN1Integer',
-    'org.bouncycastle.asn1.ASN1ObjectIdentifier',
-    'org.bouncycastle.asn1.ASN1OctetString',
-    'org.bouncycastle.asn1.ASN1Primitive',
-    'org.bouncycastle.asn1.ASN1Sequence',
-    'org.bouncycastle.asn1.ASN1TaggedObject',
-    // 'org.bouncycastle.asn1.DEROctetString',
-    'org.bouncycastle.asn1.pkcs.EncryptedPrivateKeyInfo',
-    'org.bouncycastle.asn1.pkcs.EncryptionScheme',
-    'org.bouncycastle.asn1.pkcs.KeyDerivationFunc',
-    'org.bouncycastle.asn1.pkcs.PBEParameter',
-    'org.bouncycastle.asn1.pkcs.PBES2Parameters',
-    'org.bouncycastle.asn1.pkcs.PBKDF2Params',
-    'org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers',
-    'org.bouncycastle.asn1.pkcs.PrivateKeyInfo',
-    'org.bouncycastle.asn1.x500.AttributeTypeAndValue',
-    'org.bouncycastle.asn1.x500.RDN',
-    'org.bouncycastle.asn1.x500.X500Name',
-    'org.bouncycastle.asn1.x509.AccessDescription',
-    'org.bouncycastle.asn1.x509.AlgorithmIdentifier',
-    'org.bouncycastle.asn1.x509.AuthorityKeyIdentifier',
-    'org.bouncycastle.asn1.x509.BasicConstraints',
-    'org.bouncycastle.asn1.x509.DistributionPoint',
-    'org.bouncycastle.asn1.x509.Extension',
-    'org.bouncycastle.asn1.x509.GeneralName',
-    'org.bouncycastle.asn1.x509.GeneralNames',
-    'org.bouncycastle.asn1.x509.GeneralNamesBuilder',
-    'org.bouncycastle.asn1.x509.KeyPurposeId',
-    'org.bouncycastle.asn1.x509.KeyUsage',
-    'org.bouncycastle.asn1.x509.PolicyInformation',
-    'org.bouncycastle.asn1.x509.SubjectKeyIdentifier',
-    'org.bouncycastle.asn1.x509.SubjectPublicKeyInfo',
-    // 'org.bouncycastle.asn1.x9.DomainParameters',
-    // 'org.bouncycastle.asn1.x9.ECNamedCurveTable',
-    'org.bouncycastle.asn1.x9.X9ECParameters',
-    'org.bouncycastle.cert.X509v3CertificateBuilder',
-    'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
-    'org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils',
-    'org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder',
-    'org.bouncycastle.crypto.BlockCipher',
-    'org.bouncycastle.crypto.BufferedBlockCipher',
-    'org.bouncycastle.crypto.CipherParameters',
-    'org.bouncycastle.crypto.Digest',
-    'org.bouncycastle.crypto.PBEParametersGenerator',
-    'org.bouncycastle.crypto.StreamCipher',
-    'org.bouncycastle.crypto.agreement.kdf.ConcatenationKDFGenerator',
-    // 'org.bouncycastle.crypto.ec.CustomNamedCurves',
-    'org.bouncycastle.crypto.generators.BCrypt',
-    'org.bouncycastle.crypto.generators.OpenSSLPBEParametersGenerator',
-    'org.bouncycastle.crypto.generators.PKCS5S1ParametersGenerator',
-    'org.bouncycastle.crypto.generators.PKCS5S2ParametersGenerator',
-    'org.bouncycastle.crypto.macs.HMac',
-    'org.bouncycastle.crypto.modes.AEADBlockCipher',
-    'org.bouncycastle.crypto.paddings.BlockCipherPadding',
-    'org.bouncycastle.crypto.paddings.PaddedBufferedBlockCipher',
-    'org.bouncycastle.crypto.params.AsymmetricKeyParameter',
-    'org.bouncycastle.crypto.params.DSAKeyParameters',
-    'org.bouncycastle.crypto.params.DSAParameters',
-    'org.bouncycastle.crypto.params.DSAPrivateKeyParameters',
-    'org.bouncycastle.crypto.params.DSAPublicKeyParameters',
-    'org.bouncycastle.crypto.params.ECDomainParameters',
-    'org.bouncycastle.crypto.params.ECKeyParameters',
-    'org.bouncycastle.crypto.params.ECPrivateKeyParameters',
-    'org.bouncycastle.crypto.params.ECPublicKeyParameters',
-    // 'org.bouncycastle.crypto.params.KDFParameters',
-    'org.bouncycastle.crypto.params.KeyParameter',
-    'org.bouncycastle.crypto.params.RSAKeyParameters',
-    'org.bouncycastle.crypto.params.RSAPrivateCrtKeyParameters',
-    'org.bouncycastle.crypto.prng.EntropySource',
-    'org.bouncycastle.crypto.prng.SP800SecureRandom',
-    'org.bouncycastle.crypto.prng.SP800SecureRandomBuilder',
-    'org.bouncycastle.crypto.prng.drbg.SP80090DRBG',
-    'org.bouncycastle.crypto.signers.DSASigner',
-    'org.bouncycastle.crypto.signers.ECDSASigner',
-    'org.bouncycastle.crypto.signers.RSADigestSigner',
-    'org.bouncycastle.crypto.util.PrivateKeyFactory',
-    'org.bouncycastle.crypto.util.PrivateKeyInfoFactory',
-    'org.bouncycastle.crypto.util.PublicKeyFactory',
-    'org.bouncycastle.crypto.util.SubjectPublicKeyInfoFactory',
-    'org.bouncycastle.jcajce.provider.asymmetric.dsa.KeyPairGeneratorSpi',
-    'org.bouncycastle.jcajce.provider.asymmetric.ec.KeyPairGeneratorSpi$EC',
-    'org.bouncycastle.jcajce.provider.asymmetric.rsa.KeyPairGeneratorSpi',
-    'org.bouncycastle.jcajce.provider.asymmetric.util.EC5Util',
-    'org.bouncycastle.jcajce.provider.asymmetric.util.ECUtil',
-    // 'org.bouncycastle.jce.ECNamedCurveTable',
-    // 'org.bouncycastle.jce.spec.ECNamedCurveParameterSpec',
-    'org.bouncycastle.math.ec.ECFieldElement',
-    'org.bouncycastle.math.ec.ECPoint',
-    'org.bouncycastle.openssl.jcajce.JcaPEMWriter',
-    'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
-    'org.bouncycastle.util.Arrays',
-    'org.bouncycastle.util.io.Streams',
-    'org.bouncycastle.cert.X509CertificateHolder',
     // missing classes linked by nimbus
     'com.google.crypto.tink.subtle.Ed25519Sign',
     'com.google.crypto.tink.subtle.Ed25519Sign$KeyPair',
     'com.google.crypto.tink.subtle.Ed25519Verify',
     'com.google.crypto.tink.subtle.X25519',
     'com.google.crypto.tink.subtle.XChaCha20Poly1305',
+    // [missing classes] Bouncycastle classes still referenced by shib-security / opensaml-xmlsec
+    // (bcpkix-jdk18on excluded from classpath; shadow jar is excluded from thirdPartyAudit)
+    'org.bouncycastle.asn1.ASN1Encodable',
+    'org.bouncycastle.asn1.ASN1InputStream',
+    'org.bouncycastle.asn1.ASN1ObjectIdentifier',
+    'org.bouncycastle.asn1.pkcs.PrivateKeyInfo',
+    'org.bouncycastle.asn1.x509.AlgorithmIdentifier',
+    'org.bouncycastle.asn1.x509.Extension',
+    'org.bouncycastle.asn1.x509.GeneralNames',
+    'org.bouncycastle.asn1.x509.SubjectPublicKeyInfo',
+    'org.bouncycastle.cert.X509CertificateHolder',
+    'org.bouncycastle.cert.X509v3CertificateBuilder',
+    'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
     'org.bouncycastle.cert.jcajce.JcaX509CertificateHolder',
+    'org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils',
+    'org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder',
+    'org.bouncycastle.crypto.Digest',
+    'org.bouncycastle.crypto.agreement.kdf.ConcatenationKDFGenerator',
     'org.bouncycastle.openssl.PEMKeyPair',
     'org.bouncycastle.openssl.PEMParser',
-    'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter'
+    'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter',
+    'org.bouncycastle.openssl.jcajce.JcaPEMWriter',
+    'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
   )
 
   ignoreViolations(
@@ -417,11 +308,24 @@ tasks.named("thirdPartyAudit").configure {
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
-    'javax.xml.bind.JAXBContext',
-    'javax.xml.bind.JAXBElement',
-    'javax.xml.bind.JAXBException',
-    'javax.xml.bind.Unmarshaller',
-    'javax.xml.bind.UnmarshallerHandler',
+    // [missing classes] xmlsec 3.0.6 moved from javax.xml.bind to jakarta.xml.bind (JAXB 3)
+    'jakarta.xml.bind.JAXBContext',
+    'jakarta.xml.bind.JAXBElement',
+    'jakarta.xml.bind.JAXBException',
+    'jakarta.xml.bind.Unmarshaller',
+    'jakarta.xml.bind.UnmarshallerHandler',
+    // [missing classes] OpenSAML storage has an optional JSON-backed storage impl (jakarta namespace in 5.x)
+    'jakarta.json.Json',
+    'jakarta.json.JsonNumber',
+    'jakarta.json.JsonObject',
+    'jakarta.json.JsonReader',
+    'jakarta.json.JsonValue$ValueType',
+    'jakarta.json.JsonValue',
+    'jakarta.json.stream.JsonGenerator',
+    // [missing classes] OpenSAML core-impl optional metrics JSON reporting support
+    'com.fasterxml.jackson.databind.ObjectMapper',
+    'com.fasterxml.jackson.databind.ObjectWriter',
+    'com.fasterxml.jackson.databind.SerializationFeature',
     // Optional dependency of oauth2-oidc-sdk that we don't need since we do not support AES-SIV for JWE
     'org.cryptomator.siv.SivMode',
     'javax.activation.ActivationDataFlavor',

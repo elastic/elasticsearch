@@ -369,7 +369,6 @@ public class SecurityRestFilterTests extends ESTestCase {
 
         SecurityRestFilter testFilter = new SecurityRestFilter(
             true,
-            true,
             threadContext,
             secondaryAuthenticator,
             auditTrailService,
@@ -397,7 +396,6 @@ public class SecurityRestFilterTests extends ESTestCase {
         when(auditTrailService.get()).thenReturn(auditTrail);
 
         SecurityRestFilter testFilter = new SecurityRestFilter(
-            true,
             true,
             threadContext,
             secondaryAuthenticator,

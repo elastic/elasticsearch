@@ -13,9 +13,17 @@ import org.elasticsearch.common.settings.Settings;
 import java.util.List;
 
 /**
- * Settings for inference features such as completion and rerank.
+ * Settings for inference features such as completion, rerank and dense_vector.
  */
-public record InferenceSettings(boolean completionEnabled, int completionRowLimit, boolean rerankEnabled, int rerankRowLimit) {
+public record InferenceSettings(
+    boolean completionEnabled,
+    int completionRowLimit,
+    boolean rerankEnabled,
+    int rerankRowLimit,
+    boolean denseVectorEnabled,
+    int denseVectorRowLimit,
+    String denseVectorDefaultInferenceId
+) {
 
     public static final Setting<Boolean> COMPLETION_ENABLED_SETTING = Setting.boolSetting(
         "esql.command.completion.enabled",
@@ -47,8 +55,51 @@ public record InferenceSettings(boolean completionEnabled, int completionRowLimi
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Boolean> DENSE_VECTOR_ENABLED_SETTING = Setting.boolSetting(
+        "esql.command.dense_vector.enabled",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Integer> DENSE_VECTOR_ROW_LIMIT_SETTING = Setting.intSetting(
+        "esql.command.dense_vector.limit",
+        1000,
+        1,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * The default inference endpoint id used by the {@code DENSE_VECTOR} command when the query does not provide one via
+     * {@code WITH { "inference_id": ... }}. An empty value means "not set": resolution falls through to the built-in default
+     * ({@code DenseVector.DEFAULT_INFERENCE_ID}).
+     * <p>
+     * A blank but non-empty value is rejected here rather than at query time, where it would otherwise be taken for an endpoint
+     * id and surface as a confusing "unknown inference endpoint" failure. Empty stays valid because it is the "not set" marker.
+     */
+    public static final Setting<String> DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING = Setting.simpleString(
+        "esql.command.dense_vector.default_inference_id",
+        "",
+        value -> {
+            if (value.isEmpty() == false && value.isBlank()) {
+                throw new IllegalArgumentException("[esql.command.dense_vector.default_inference_id] must not be blank");
+            }
+        },
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     public static List<Setting<?>> getSettings() {
-        return List.of(COMPLETION_ENABLED_SETTING, COMPLETION_ROW_LIMIT_SETTING, RERANK_ENABLED_SETTING, RERANK_ROW_LIMIT_SETTING);
+        return List.of(
+            COMPLETION_ENABLED_SETTING,
+            COMPLETION_ROW_LIMIT_SETTING,
+            RERANK_ENABLED_SETTING,
+            RERANK_ROW_LIMIT_SETTING,
+            DENSE_VECTOR_ENABLED_SETTING,
+            DENSE_VECTOR_ROW_LIMIT_SETTING,
+            DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING
+        );
     }
 
     public InferenceSettings(Settings settings) {
@@ -56,7 +107,10 @@ public record InferenceSettings(boolean completionEnabled, int completionRowLimi
             COMPLETION_ENABLED_SETTING.get(settings),
             COMPLETION_ROW_LIMIT_SETTING.get(settings),
             RERANK_ENABLED_SETTING.get(settings),
-            RERANK_ROW_LIMIT_SETTING.get(settings)
+            RERANK_ROW_LIMIT_SETTING.get(settings),
+            DENSE_VECTOR_ENABLED_SETTING.get(settings),
+            DENSE_VECTOR_ROW_LIMIT_SETTING.get(settings),
+            DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING.get(settings)
         );
     }
 }

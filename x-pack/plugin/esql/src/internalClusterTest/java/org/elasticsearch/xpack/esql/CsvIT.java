@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql;
 
+import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
@@ -105,6 +106,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -195,9 +197,34 @@ public class CsvIT extends ESTestCase {
         ExpectedResults transformExpectedResults(String testId, CsvSpecReader.CsvTestCase testCase, ExpectedResults expected);
 
         /**
+         * Normalizes a single warning string before warnings are compared. The <em>same</em>
+         * function is applied to both the expected warnings declared in the csv-spec entry (via
+         * {@link CsvSpecReader.CsvTestCase#adjustExpectedWarnings(java.util.function.Function)}) and
+         * to each actual warning returned by the cluster, so a variant that mechanically rewrites
+         * the query can reconcile warnings whose expression text or source position differs purely
+         * as a side effect of the rewrite &mdash; without weakening the assertion for the parts of
+         * the warning that still carry meaning. The default is identity, so the unmodified corpus
+         * keeps asserting warnings verbatim.
+         */
+        default String normalizeWarning(String warning) {
+            return warning;
+        }
+
+        /**
          * Called once after the index for {@code dataset} has been fully populated.
          */
         default void afterIndexLoaded(CsvTestsDataLoader.TestDataset dataset, Client client) throws IOException {}
+
+        /**
+         * When {@code true}, multi-value fields in the result rows are compared as unordered
+         * sets rather than ordered lists. Use this for index modes (e.g. columnar) where the
+         * storage layer returns multi-valued fields in source insertion order rather than the
+         * doc-values order that the standard mode uses, causing spurious ordering differences
+         * that are not behavioural regressions. The default is {@code false} (ordered comparison).
+         */
+        default boolean ignoreValueOrder() {
+            return false;
+        }
     }
 
     public static final IndexLoadStrategy IDENTITY_INDEX_LOAD_STRATEGY = new IndexLoadStrategy() {
@@ -266,9 +293,9 @@ public class CsvIT extends ESTestCase {
         assertThat("Not enough specs found " + urls, urls, hasSize(greaterThan(0)));
 
         var specs = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
+        var seed = Optional.ofNullable(System.getProperty("tests.seed")).map(SeedUtils::parseSeed).orElseGet(System::nanoTime);
         // forbidden aip require to pass random explicitly, however LuceneTestCase#random() is not yet initialized.
-        // Falling back to a new instance as repeatable scenario order is not essential here.
-        Collections.shuffle(specs, new Random(0));
+        Collections.shuffle(specs, new Random(seed));
         Collections.sort(specs, Comparator.comparing(spec -> GROUPS_WITH_VIEWS.contains((String) spec[1])));
         return specs;
     }
@@ -407,19 +434,25 @@ public class CsvIT extends ESTestCase {
                 Map.of()
             );
 
-            CsvAssert.assertMetadata(expected, actual.columnNames(), actual.columnTypes(), logger);
+            var assertionLogger = logResults() ? logger : null;
+            CsvAssert.assertMetadata(expected, actual.columnNames(), actual.columnTypes(), assertionLogger);
             CsvAssert.assertDataWithValueConverter(
                 expected,
                 actual.values(),
                 testCase.ignoreOrder,
+                indexLoadStrategy.ignoreValueOrder(),
                 false,
-                false,
-                logResults() ? logger : null
+                assertionLogger
             );
             var warnings = listener.warnings.stream()
                 .map(w -> HeaderWarning.extractWarningValueFromWarningHeader(w, false))
                 .filter(w -> w.startsWith("No limit defined, adding default limit of") == false)
+                .map(indexLoadStrategy::normalizeWarning)
                 .toList();
+            // Apply the same normalization to the expected warnings so a variant that rewrites the
+            // query can reconcile warnings whose expression text or source position shifted purely
+            // as a side effect of the rewrite. For the identity strategy this is a no-op.
+            testCase.adjustExpectedWarnings(indexLoadStrategy::normalizeWarning);
             testCase.assertWarnings(false).assertWarnings(warnings, null);
             CsvAssert.assertDocumentsFound(testCase.expectedDocumentsFound, response.documentsFound());
         } catch (Throwable t) {

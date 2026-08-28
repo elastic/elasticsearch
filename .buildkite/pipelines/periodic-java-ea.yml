@@ -1,7 +1,7 @@
 # This file is auto-generated. See .buildkite/pipelines/periodic-java-ea.template.yml
 env:
-  JAVA_EA_VERSION: "${JAVA_EA_VERSION:-26}"
-  EXTRA_GRADLE_ARGS: "--continue"
+  JAVA_EA_VERSION: "${JAVA_EA_VERSION:-27}"
+  EXTRA_GRADLE_ARGS: "${EXTRA_GRADLE_ARGS:---continue}"
 
 steps:
   - group: bwc
@@ -386,8 +386,8 @@ steps:
             - signal_reason: agent_stop
               limit: 3
 
-      - label: 8.19.20 / bwc
-        command: .ci/scripts/run-gradle.sh -Druntime.java=$$JAVA_EA_VERSION -Dbwc.checkout.align=true v8.19.20#bwcTest
+      - label: 8.19.21 / bwc
+        command: .ci/scripts/run-gradle.sh -Druntime.java=$$JAVA_EA_VERSION -Dbwc.checkout.align=true v8.19.21#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -397,7 +397,7 @@ steps:
           preemptible: true
           spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
-          BWC_VERSION: 8.19.20
+          BWC_VERSION: 8.19.21
         retry:
           automatic:
             - exit_status: "-1"
@@ -486,8 +486,8 @@ steps:
             - signal_reason: agent_stop
               limit: 3
 
-      - label: 9.4.5 / bwc
-        command: .ci/scripts/run-gradle.sh -Druntime.java=$$JAVA_EA_VERSION -Dbwc.checkout.align=true v9.4.5#bwcTest
+      - label: 9.4.6 / bwc
+        command: .ci/scripts/run-gradle.sh -Druntime.java=$$JAVA_EA_VERSION -Dbwc.checkout.align=true v9.4.6#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -497,7 +497,7 @@ steps:
           preemptible: true
           spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
-          BWC_VERSION: 9.4.5
+          BWC_VERSION: 9.4.6
         retry:
           automatic:
             - exit_status: "-1"
@@ -506,8 +506,8 @@ steps:
             - signal_reason: agent_stop
               limit: 3
 
-      - label: 9.5.1 / bwc
-        command: .ci/scripts/run-gradle.sh -Druntime.java=$$JAVA_EA_VERSION -Dbwc.checkout.align=true v9.5.1#bwcTest
+      - label: 9.5.3 / bwc
+        command: .ci/scripts/run-gradle.sh -Druntime.java=$$JAVA_EA_VERSION -Dbwc.checkout.align=true v9.5.3#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -517,7 +517,7 @@ steps:
           preemptible: true
           spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
-          BWC_VERSION: 9.5.1
+          BWC_VERSION: 9.5.3
         retry:
           automatic:
             - exit_status: "-1"
@@ -548,14 +548,6 @@ steps:
 
   - label: concurrent-search-tests
     command: .ci/scripts/run-gradle.sh -Druntime.java=$$JAVA_EA_VERSION -Dbwc.checkout.align=true -Dtests.jvm.argline=-Des.concurrent_search=true -Des.concurrent_search=true functionalTests
-    timeout_in_minutes: 420
-    agents:
-      provider: gcp
-      image: family/elasticsearch-ubuntu-2404
-      diskSizeGb: 350
-      machineType: custom-32-98304
-  - label: encryption-at-rest
-    command: .buildkite/scripts/encryption-at-rest.sh -Druntime.java=$$JAVA_EA_VERSION
     timeout_in_minutes: 420
     agents:
       provider: gcp
@@ -623,7 +615,7 @@ steps:
         timeout_in_minutes: 300
         matrix:
           setup:
-            BWC_VERSION: ["8.19.20", "9.4.5", "9.5.1", "9.6.0"]
+            BWC_VERSION: ["8.19.21", "9.4.6", "9.5.3", "9.6.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404

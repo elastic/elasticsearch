@@ -619,3 +619,20 @@ max:double | step:datetime            | pod:keyword
 10797.0    | 2024-05-10T00:30:00.000Z | three
 10277.0    | 2024-05-10T00:30:00.000Z | two
 ;
+
+last_over_time_of_keyword_dimension
+required_capability: ts_command_v0
+required_capability: fn_last_over_time_flattened
+TS k8s | STATS r = max(last_over_time(pod)) BY cluster, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, cluster | LIMIT 10;
+
+r:keyword | cluster:keyword | time_bucket:datetime
+two       | prod            | 2024-05-10T00:00:00.000Z
+two       | qa              | 2024-05-10T00:00:00.000Z
+two       | staging         | 2024-05-10T00:00:00.000Z
+two       | prod            | 2024-05-10T00:10:00.000Z
+two       | qa              | 2024-05-10T00:10:00.000Z
+two       | staging         | 2024-05-10T00:10:00.000Z
+two       | prod            | 2024-05-10T00:20:00.000Z
+two       | qa              | 2024-05-10T00:20:00.000Z
+two       | staging         | 2024-05-10T00:20:00.000Z
+;

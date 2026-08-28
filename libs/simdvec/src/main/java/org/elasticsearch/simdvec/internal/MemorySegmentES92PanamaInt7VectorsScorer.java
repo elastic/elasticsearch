@@ -20,8 +20,8 @@ import jdk.incubator.vector.VectorSpecies;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
-import org.elasticsearch.simdvec.IndexInputUtils;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -71,7 +71,7 @@ public sealed class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7Vec
     @Override
     public long int7DotProduct(byte[] q) throws IOException {
         assert q.length == dimensions;
-        return IndexInputUtils.withSlice(in, dimensions, scratch::get, segment -> panamaInt7DotProductImpl(q, segment, dimensions));
+        return IndexInputUtils.withSlice(in, dimensions, scratch, segment -> panamaInt7DotProductImpl(q, segment, dimensions));
     }
 
     private static long panamaInt7DotProductImpl(byte[] q, MemorySegment segment, int dimensions) {
@@ -156,9 +156,8 @@ public sealed class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7Vec
     @Override
     public void int7DotProductBulk(byte[] q, int count, float[] scores) throws IOException {
         assert q.length == dimensions;
-        IndexInputUtils.withSlice(in, (long) dimensions * count, scratch::get, segment -> {
+        IndexInputUtils.withVoidSlice(in, (long) dimensions * count, scratch, segment -> {
             panamaInt7DotProductBulkImpl(q, segment, dimensions, count, scores);
-            return null;
         });
     }
 
@@ -235,7 +234,7 @@ public sealed class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7Vec
         int bulkSize
     ) throws IOException {
         int7DotProductBulk(q, bulkSize, scores);
-        IndexInputUtils.withSlice(in, 16L * bulkSize, scratch::get, memorySegment -> {
+        IndexInputUtils.withSlice(in, 16L * bulkSize, scratch, memorySegment -> {
             applyCorrectionsBulkImpl(
                 memorySegment,
                 queryAdditionalCorrection,

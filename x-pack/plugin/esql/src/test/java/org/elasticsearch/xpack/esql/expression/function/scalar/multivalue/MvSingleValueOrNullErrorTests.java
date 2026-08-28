@@ -50,6 +50,7 @@ public class MvSingleValueOrNullErrorTests extends ErrorsForCasesWithoutExamples
             equalTo(
                 Set.of(
                     List.of(DataType.DATE_RANGE),
+                    List.of(DataType.DOUBLE_RANGE),
                     List.of(DataType.DENSE_VECTOR),
                     List.of(DataType.EXPONENTIAL_HISTOGRAM),
                     List.of(DataType.AGGREGATE_METRIC_DOUBLE),

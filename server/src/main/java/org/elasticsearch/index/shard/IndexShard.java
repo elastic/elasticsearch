@@ -100,6 +100,7 @@ import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.engine.RefreshFailedEngineException;
@@ -208,6 +209,8 @@ import static org.elasticsearch.cluster.metadata.DataStream.TIMESERIES_LEAF_READ
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SEND;
+import static org.elasticsearch.threadpool.ThreadPool.Names.WRITE;
 
 public class IndexShard extends AbstractIndexShardComponent implements IndicesClusterStateService.Shard {
 
@@ -388,7 +391,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.threadPoolMergeExecutorService = threadPoolMergeExecutorService;
         this.mapperService = mapperService;
         this.indexCache = indexCache;
-        this.internalIndexingStats = new InternalIndexingStats(relativeTimeInNanosSupplier, indexingStatsSettings);
+        this.internalIndexingStats = new InternalIndexingStats(
+            relativeTimeInNanosSupplier,
+            indexingStatsSettings,
+            threadPool.info(WRITE).getMax()
+        );
         var indexingFailuresDebugListener = new IndexingFailuresDebugListener(this);
         this.indexingOperationListeners = new IndexingOperationListener.CompositeListener(
             CollectionUtils.appendToCopyNoNullElements(listeners, internalIndexingStats, indexingFailuresDebugListener),
@@ -1161,25 +1168,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private List<Engine.IndexResult> indexBatch(Engine engine, EngineBatch batch) throws IOException {
-        final List<Engine.Index> operations = batch.operations();
-        List<Engine.Index> preIndexOps = new ArrayList<>(operations.size());
-        // TODO: Right now the only production users are stats. Should add batch listener.
-        for (Engine.Index op : operations) {
-            preIndexOps.add(indexingOperationListeners.preIndex(shardId, op));
-        }
         try {
-            List<Engine.IndexResult> results = engine.indexBatch(new EngineBatch(preIndexOps, batch.sourceBatch()));
-            // TODO: Look at if these can be batch optimized
-            for (int i = 0; i < results.size(); i++) {
-                indexingOperationListeners.postIndex(shardId, preIndexOps.get(i), results.get(i));
+            final List<Engine.IndexResult> results;
+            final IndexOperationBatch operationBatch = indexingOperationListeners.preIndexBatch(shardId, batch.batch());
+            try {
+                results = engine.indexBatch(batch);
+            } catch (Exception e) {
+                // engine level failure: the per-result hook below is never invoked, mirroring index(Engine, Engine.Index)
+                indexingOperationListeners.postIndexBatch(shardId, operationBatch, e);
+                throw e;
             }
-            active.set(true);
+            indexingOperationListeners.postIndexBatch(shardId, operationBatch, results);
             return results;
-        } catch (Exception e) {
-            for (Engine.Index preIndexOp : preIndexOps) {
-                indexingOperationListeners.postIndex(shardId, preIndexOp, e);
-            }
-            throw e;
+        } finally {
+            active.set(true);
         }
     }
 
@@ -1568,6 +1570,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 recentIndexingLoadAtShardStarted
             );
         });
+    }
+
+    public double pollWriteLoadUtilization() {
+        return internalIndexingStats.pollUtilization();
     }
 
     public ShardSearchStats shardSearchStats() {
@@ -3846,7 +3852,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     recoveryTargetService.startRecovery(this, recoveryState.getSourceNode(), clusterStateVersion, recoveryListener);
                 } catch (Exception e) {
                     failShard("corrupted preexisting index", e);
-                    recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), true);
+                    recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), FAIL_SEND);
                 }
             }
             case SNAPSHOT -> {
@@ -3932,7 +3938,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             } else {
                 recoveryListener.onRecoveryAborted();
             }
-        }, e -> recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), true));
+        }, e -> recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), FAIL_SEND));
         ActionListener.run(actionListener, action);
     }
 

@@ -25,7 +25,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -60,8 +59,6 @@ import java.util.function.Supplier;
  * if the cluster is configured to allow it.
  */
 public class ProvidedIdFieldMapper extends IdFieldMapper {
-    public static final NodeFeature ID_FIELD_MODE_MAPPING_ATTRIBUTE = new NodeFeature("mapper.id_field.mode_mapping_attribute");
-
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ProvidedIdFieldMapper.class);
     static final String ID_FIELD_DATA_DEPRECATION_MESSAGE =
         "Loading the fielddata on the _id field is deprecated and will be removed in future versions. "

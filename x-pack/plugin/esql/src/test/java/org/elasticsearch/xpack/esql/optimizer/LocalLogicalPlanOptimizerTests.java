@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -1550,7 +1551,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.STANDARD),
+            Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)),
             List.of(fieldAttr, projectTagAttr)
         );
 
@@ -1599,7 +1600,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.STANDARD),
+            Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)),
             List.of(fieldAttr, projectTagAttr)
         );
 
@@ -1647,7 +1648,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.STANDARD),
+            Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)),
             List.of(fieldAttr, projectTagAttr)
         );
 
@@ -1690,7 +1691,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.STANDARD),
+            Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)),
             List.of(fieldAttr, indexAttr)
         );
 
@@ -1726,7 +1727,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.TIME_SERIES,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.TIME_SERIES),
+            Map.of("test", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             List.of(fieldAttr, timeSeriesAttr)
         );
         var eval = new Eval(EMPTY, new Limit(EMPTY, L(1000), relation), List.of(new Alias(EMPTY, "ts", timeSeriesAttr)));
@@ -1758,7 +1759,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.TIME_SERIES,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.TIME_SERIES),
+            Map.of("test", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             List.of(fieldAttr, timestampAttr)
         );
         var tsAggregate = new TimeSeriesAggregate(
@@ -1810,7 +1811,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.TIME_SERIES,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.TIME_SERIES),
+            Map.of("test", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             List.of(histogramAttr, timestampAttr)
         );
         var tsAggregate = new TimeSeriesAggregate(
@@ -2358,7 +2359,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.TIME_SERIES,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.TIME_SERIES),
+            Map.of("test", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             List.of(histogramAttr, timestampAttr)
         );
 

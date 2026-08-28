@@ -58,6 +58,8 @@ import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -178,11 +180,19 @@ public class SplitSourceService {
         long targetPrimaryTerm,
         ActionListener<Releasable> listener
     ) {
+        assert commitService != null : "commit service must be initialized for index nodes";
         Index index = targetShardId.getIndex();
 
         var indexMetadata = clusterService.state().metadata().projectFor(index).getIndexSafe(index);
         var reshardingMetadata = indexMetadata.getReshardingMetadata();
-        assert reshardingMetadata != null && reshardingMetadata.isSplit() : "Unexpected resharding state";
+        if (reshardingMetadata == null || reshardingMetadata.isSplit() == false) {
+            // A start split request can arrive after the split has completed and the resharding metadata was removed from cluster
+            // state, for example when a target shard whose node was isolated mid-split retries the request after rejoining.
+            String message = String.format(Locale.ROOT, "Split target [%s]. No split is in progress. Failing the request.", targetShardId);
+            logger.info(message);
+
+            throw new StaleSplitRequestException(message);
+        }
         int sourceShardIndex = reshardingMetadata.getSplit().sourceShard(targetShardId.getId());
         var sourceShardId = new ShardId(index, sourceShardIndex);
 
@@ -425,6 +435,7 @@ public class SplitSourceService {
     }
 
     public void stopCopyingNewCommits(ShardId targetShardId) {
+        assert commitService != null : "commit service must be initialized for index nodes";
         commitService.markSplitEnding(getSplitSource(targetShardId), targetShardId, false);
     }
 
@@ -736,6 +747,15 @@ public class SplitSourceService {
         if (stateMachine != null) {
             stateMachine.cancel();
         }
+    }
+
+    // visible for testing: a split should leave this empty once it completes or is cancelled. Covers every map cancelSplits clears,
+    // not just the state machines, since a stale entry in any of them keeps the closed IndexShard from being collected.
+    Set<ShardId> getShardsWithActiveSplitState() {
+        return Stream.concat(
+            Stream.concat(activeSourceShards.keySet().stream(), activeTargetRequests.keySet().stream()).map(IndexShard::shardId),
+            shardsPreparingForHandoff.stream()
+        ).collect(Collectors.toSet());
     }
 
     private static IndexReshardingState.Split getSplit(ClusterState state, Index index) {

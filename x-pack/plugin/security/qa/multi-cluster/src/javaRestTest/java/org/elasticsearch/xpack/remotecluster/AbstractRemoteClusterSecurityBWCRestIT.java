@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.remotecluster;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -20,7 +21,7 @@ import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.security.SecurityFeatures;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -194,8 +195,23 @@ public abstract class AbstractRemoteClusterSecurityBWCRestIT extends AbstractRem
         }
     }
 
+    /**
+     * The send-side gate: {@link ServiceAccountInfo#USER_MANAGED_SERVICE_ACCOUNT_INFO}, not the node
+     * feature, which a main snapshot can already publish.
+     */
     protected boolean fulfillingClusterSupportsUserManagedServiceAccounts() throws IOException {
-        return getFulfillingClusterNodeFeatures().contains(SecurityFeatures.USER_MANAGED_SERVICE_ACCOUNTS.id());
+        final Request request = new Request("GET", "_nodes");
+        request.addParameter("filter_path", "nodes.*.version,nodes.*.transport_version");
+        final ObjectPath objectPath = ObjectPath.createFromResponse(performRequestAgainstFulfillingCluster(request));
+        final Map<String, Object> nodes = objectPath.evaluate("nodes");
+        assertNotNull(nodes);
+        assertFalse(nodes.isEmpty());
+        final String nodeId = nodes.keySet().iterator().next();
+        return getTransportVersionWithFallback(
+            objectPath.evaluate("nodes." + nodeId + ".version"),
+            objectPath.evaluate("nodes." + nodeId + ".transport_version"),
+            () -> TransportVersion.minimumCompatible()
+        ).supports(ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_INFO);
     }
 
     protected void assertUserManagedServiceAccountCcsFailsClosed(UserManagedServiceAccountCcsContext context) throws Exception {

@@ -52,6 +52,11 @@ final class S3ClientSettings {
 
     /** Placeholder client name for normalizing client settings in the repository settings. */
     private static final String PLACEHOLDER_CLIENT = "placeholder";
+    static final String REPOSITORY_CLIENT_SETTINGS_PREFIX = PREFIX + PLACEHOLDER_CLIENT + '.';
+
+    static Settings normalizeRepositorySettings(Settings repositorySettings) {
+        return Settings.builder().put(repositorySettings).normalizePrefix(REPOSITORY_CLIENT_SETTINGS_PREFIX).build();
+    }
 
     /** The access key (ie login id) for connecting to s3. */
     static final Setting.AffixSetting<SecureString> ACCESS_KEY_SETTING = Setting.affixKeySetting(
@@ -349,10 +354,7 @@ final class S3ClientSettings {
      */
     S3ClientSettings refine(Settings repositorySettings) {
         // Normalize settings to placeholder client settings prefix so that we can use the affix settings directly
-        final Settings normalizedSettings = Settings.builder()
-            .put(repositorySettings)
-            .normalizePrefix(PREFIX + PLACEHOLDER_CLIENT + '.')
-            .build();
+        final Settings normalizedSettings = normalizeRepositorySettings(repositorySettings);
         final HttpScheme newProtocol = getRepoSettingOrDefault(PROTOCOL_SETTING, normalizedSettings, protocol);
         final String newEndpoint = getRepoSettingOrDefault(ENDPOINT_SETTING, normalizedSettings, endpoint);
 
@@ -399,6 +401,11 @@ final class S3ClientSettings {
             tenaciousRetriesEnabled
         );
         final boolean newAlwaysSignRequests = getRepoSettingOrDefault(ALWAYS_SIGN_REQUESTS, normalizedSettings, alwaysSignRequests);
+
+        // Read unused settings too so repository registration emits deprecation warnings for explicit values.
+        getRepoSettingOrDefault(UNUSED_USE_THROTTLE_RETRIES_SETTING, normalizedSettings, true);
+        getRepoSettingOrDefault(UNUSED_SIGNER_OVERRIDE, normalizedSettings, "");
+
         if (Objects.equals(protocol, newProtocol)
             && Objects.equals(endpoint, newEndpoint)
             && Objects.equals(proxyHost, newProxyHost)

@@ -688,6 +688,9 @@ redirects:
   # Multimodal tutorial moved to docs-content under vector search
   'reference/elasticsearch/mapping-reference/semantic-field-quickstart.md': 'docs-content://solutions/search/multimodal-search/multimodal-search-tutorial.md'
 
+  # GPU vector indexing how-to moved to docs-content under vector search
+  'reference/elasticsearch/mapping-reference/gpu-vector-indexing.md': 'docs-content://solutions/search/vector/gpu-vector-indexing.md'
+
   # Related to https://github.com/elastic/docs-content-internal/issues/595
   'reference/query-languages/esql/limitations.md':
     to: 'reference/query-languages/esql/limitations.md'

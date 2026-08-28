@@ -1,0 +1,69 @@
+[[release-notes-8.19.21]]
+== {es} version 8.19.21
+
+coming[8.19.21]
+
+Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
+
+[[bug-8.19.21]]
+[float]
+=== Bug fixes
+
+ES|QL::
+* Fix partial-prefix compound TopN pushdown {es-pull}155923[#155923]
+* Prevent COUNT_DISTINCT precision thresholds outside the integer range from wrapping {es-pull}157553[#157553] (issue: {es-issue}157549[#157549])
+* Solves CIDRMatch optimizer bug and unresolved ref after implicit casting bug in analyzer {es-pull}156162[#156162] (issue: {es-issue}155979[#155979])
+* [8.19] ESQL: fix partial-prefix compound TopN pushdown {es-pull}156883[#156883]
+
+Inference::
+* Fix Google VertexAI chat completion tool call arguments serialization for non-string values {es-pull}156644[#156644] (issue: {es-issue}156644[#156644])
+
+Infra/Core::
+* Fix truncating JSON objects mid-object {es-pull}156382[#156382] (issue: {es-issue}156289[#156289])
+
+Infra/Metrics::
+* Null-safe async instrument {es-pull}157161[#157161]
+
+Machine Learning::
+* Re-audit datafeed extraction errors periodically {es-pull}157565[#157565]
+
+SQL::
+* Reject SQL ROUND results that overflow byte or short {es-pull}157554[#157554] (issue: {es-issue}157550[#157550])
+
+Search::
+* Add a limit on aggregation nesting depth {es-pull}155743[#155743]
+* Add top-level catch to ensure batched queries always respond {es-pull}155908[#155908]
+* Exclude non-metadata `_type` from default search hit fields {es-pull}155706[#155706] (issue: {es-issue}110438[#110438])
+* Fail request instead of node on deep aggregations {es-pull}155745[#155745]
+* Fix NullPointerException in LongComparator caused by null search_after values {es-pull}132434[#132434] (issue: {es-issue}132370[#132370])
+* Fix/indices query cache null shard stats {es-pull}157050[#157050]
+* Keep scroll contexts on transient search queue rejection {es-pull}155697[#155697] (issue: {es-issue}90912[#90912])
+
+Snapshot/Restore::
+* Ensure `Error` propagates out of `S3BlobContainer` {es-pull}156765[#156765]
+
+Transform::
+* Preserve headers through Builder copy {es-pull}156191[#156191]
+
+Vector Search::
+* Score nested kNN `inner_hits` like the query phase {es-pull}156332[#156332] (issue: {es-issue}138496[#138496])
+
+[[enhancement-8.19.21]]
+[float]
+=== Enhancements
+
+Authorization::
+* [PingDirectory] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` {es-pull}156029[#156029]
+
+[[upgrade-8.19.21]]
+[float]
+=== Upgrades
+
+FIPS::
+* Upgrade bc-fips version {es-pull}156296[#156296]
+
+Infra/Core::
+* Bump JDK to 26.0.2 {es-pull}156203[#156203]
+* Upgrade ASM to 9.10.1 {es-pull}156213[#156213]
+
+

@@ -35,7 +35,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.UninitializedArrays;
-import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -47,6 +46,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper;
+import org.elasticsearch.xpack.esql.datasources.spi.CpuMeteringPageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -106,7 +106,7 @@ import java.util.function.IntConsumer;
  * that mix selective and non-selective row groups (e.g., time-bucketed data with skewed
  * filter selectivity).
  */
-final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, ColumnExtractorProducer {
+final class OptimizedParquetColumnIterator extends CpuMeteringPageIterator implements ColumnExtractorProducer {
 
     private static final Logger logger = LogManager.getLogger(OptimizedParquetColumnIterator.class);
 
@@ -2666,7 +2666,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     }
 
     @Override
-    public void close() throws IOException {
+    public void doClose() throws IOException {
         try {
             releaseHeldIo(true);
         } finally {

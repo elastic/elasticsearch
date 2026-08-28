@@ -138,6 +138,13 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
         assertTrue(resolution.columnMappers()[0] instanceof KeywordFieldMapper);
     }
 
+    public void testNumberMapperIsSupported() throws IOException {
+        MapperService ms = mapper(mapping(b -> { b.startObject("v").field("type", "long").endObject(); }));
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("v"), ms.mappingLookup(), indexSettings);
+        assertNotNull(resolution);
+        assertTrue(resolution.columnMappers()[0] instanceof NumberFieldMapper);
+    }
+
     public void testNumberIgnoreMalformedIsSupported() throws IOException {
         MapperService ms = mapper(mapping(b -> { b.startObject("v").field("type", "long").field("ignore_malformed", true).endObject(); }));
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("v"), ms.mappingLookup(), indexSettings);

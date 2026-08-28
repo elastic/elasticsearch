@@ -389,40 +389,7 @@ public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
      */
     private static BytesRef safeReplace(BytesRef strBytesRef, Pattern regex, BytesRef newStrBytesRef) {
         try {
-            String str = strBytesRef.utf8ToString();
-            Matcher m = regex.matcher(str);
-            if (false == m.find()) {
-                return strBytesRef;
-            }
-            String newStr = newStrBytesRef.utf8ToString();
-
-            // Count potential groups (E.g. "$1") used in the replacement
-            int constantReplacementLength = newStr.length();
-            int groupsInReplacement = 0;
-            for (int i = 0; i < newStr.length(); i++) {
-                if (newStr.charAt(i) == '$') {
-                    groupsInReplacement++;
-                    constantReplacementLength -= 2;
-                    i++;
-                }
-            }
-
-            // Initialize the buffer with an approximate size for the first replacement
-            StringBuilder result = new StringBuilder(str.length() + newStr.length() + 8);
-            do {
-                int matchSize = m.end() - m.start();
-                int potentialReplacementSize = constantReplacementLength + groupsInReplacement * matchSize;
-                int remainingStr = str.length() - m.end();
-                if (result.length() + potentialReplacementSize + remainingStr > MAX_BYTES_REF_RESULT_SIZE) {
-                    throw new IllegalArgumentException(
-                        "Creating strings with more than [" + MAX_BYTES_REF_RESULT_SIZE + "] bytes is not supported"
-                    );
-                }
-
-                m.appendReplacement(result, newStr);
-            } while (m.find());
-            m.appendTail(result);
-            return new BytesRef(result.toString());
+            return doReplace(strBytesRef, regex, newStrBytesRef);
         } catch (StackOverflowError e) {
             /*
              * A bad regex on problematic data can trigger a StackOverflowError. Catch it here and
@@ -432,6 +399,43 @@ public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
              */
             throw new IllegalArgumentException("Caught a StackOverflowError while applying regex [" + regex.pattern() + "]");
         }
+    }
+
+    private static BytesRef doReplace(BytesRef strBytesRef, Pattern regex, BytesRef newStrBytesRef) {
+        String str = strBytesRef.utf8ToString();
+        Matcher m = regex.matcher(str);
+        if (false == m.find()) {
+            return strBytesRef;
+        }
+        String newStr = newStrBytesRef.utf8ToString();
+
+        // Count potential groups (E.g. "$1") used in the replacement
+        int constantReplacementLength = newStr.length();
+        int groupsInReplacement = 0;
+        for (int i = 0; i < newStr.length(); i++) {
+            if (newStr.charAt(i) == '$') {
+                groupsInReplacement++;
+                constantReplacementLength -= 2;
+                i++;
+            }
+        }
+
+        // Initialize the buffer with an approximate size for the first replacement
+        StringBuilder result = new StringBuilder(str.length() + newStr.length() + 8);
+        do {
+            int matchSize = m.end() - m.start();
+            int potentialReplacementSize = constantReplacementLength + groupsInReplacement * matchSize;
+            int remainingStr = str.length() - m.end();
+            if (result.length() + potentialReplacementSize + remainingStr > MAX_BYTES_REF_RESULT_SIZE) {
+                throw new IllegalArgumentException(
+                    "Creating strings with more than [" + MAX_BYTES_REF_RESULT_SIZE + "] bytes is not supported"
+                );
+            }
+
+            m.appendReplacement(result, newStr);
+        } while (m.find());
+        m.appendTail(result);
+        return new BytesRef(result.toString());
     }
 
     @Override

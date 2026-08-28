@@ -106,21 +106,15 @@ setup:
   - match: { test_index.shards.0.type: SNAPSHOT }
   - match: { test_index.shards.0.stage: DONE }
 
-  # wait for the shard to be allocated and available before searching: recovery reporting DONE covers the indexing shard, but in a
-  # stateless deployment the search shard is a separate copy that may not be available at that instant, so an immediate search can race it
+  # the index was never closed, so it must remain open once the restore completes. This is asserted from cluster-state
+  # metadata (served by the master) rather than by a search: in stateless a search depends on a search-node shard that is
+  # not guaranteed to be assigned immediately after the restore, whereas the open/closed state is pure master metadata.
   - do:
-      cluster.health:
+      cluster.state:
+        metric: [ metadata ]
         index: test_index
-        wait_for_status: green
-        wait_for_no_initializing_shards: true
 
-  # the index was never closed, so it must still accept ordinary requests once the restore completes
-  - do:
-      search:
-        index: test_index
-        body:
-          query:
-            match_all: {}
+  - match: { metadata.indices.test_index.state: "open" }
 
 ---
 "Create a snapshot and then restore single index from it":

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -25,7 +26,8 @@ import java.util.Set;
 /**
  * Detects Hive-style partition columns from file paths (e.g., {@code /year=2024/month=06/file.parquet}).
  * Parses key=value segments, validates consistency across all files, and infers types
- * using Spark-style rules: try Integer, Long, Double, Boolean, fallback to keyword.
+ * using Spark-style rules extended for ES|QL: try Integer, Long, Unsigned Long, Double, Boolean,
+ * fallback to keyword.
  */
 public final class HivePartitionDetector implements PartitionDetector {
 
@@ -219,18 +221,31 @@ public final class HivePartitionDetector implements PartitionDetector {
 
     private static DataType tryAllIntegral(List<String> values) {
         boolean needsLong = false;
+        boolean needsUnsignedLong = false;
+        boolean hasNegative = false;
         for (String v : values) {
             if (v == null) {
                 continue;
             }
             try {
                 Number n = StringUtils.parseIntegral(v);
-                if (n instanceof Long) {
-                    needsLong = true;
+                if (n instanceof BigInteger) {
+                    needsUnsignedLong = true;
+                } else {
+                    if (n instanceof Long) {
+                        needsLong = true;
+                    }
+                    if (n.longValue() < 0) {
+                        hasNegative = true;
+                    }
                 }
             } catch (Exception e) {
                 return null;
             }
+        }
+        if (needsUnsignedLong) {
+            // A negative value and one above Long.MAX_VALUE have no exact common numeric type.
+            return hasNegative ? DataType.KEYWORD : DataType.UNSIGNED_LONG;
         }
         return needsLong ? DataType.LONG : DataType.INTEGER;
     }
@@ -270,6 +285,9 @@ public final class HivePartitionDetector implements PartitionDetector {
         }
         if (type == DataType.LONG) {
             return Long.parseLong(value);
+        }
+        if (type == DataType.UNSIGNED_LONG) {
+            return DeclaredTypeCoercions.coerceToUnsignedLong(value);
         }
         if (type == DataType.DOUBLE) {
             return Double.parseDouble(value);

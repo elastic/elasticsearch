@@ -297,12 +297,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         RoleDescriptor.IndicesPrivileges.builder().indices(".monitoring-*").privileges("all").build(),
                         RoleDescriptor.IndicesPrivileges.builder()
                             .indices("metricbeat-*")
-                            .privileges(
-                                "index",
-                                "create_index",
-                                TransportIndicesAliasesAction.NAME,
-                                RolloverAction.NAME
-                            )
+                            .privileges("index", "create_index", TransportIndicesAliasesAction.NAME, RolloverAction.NAME)
                             .build() },
                     null,
                     null,
@@ -503,12 +498,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     "machine_learning_user",
                     new String[] { "monitor_ml" },
                     new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices(".ml-anomalies*", ".ml-notifications*")
-                            .build(),
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices(".ml-annotations*")
-                            .build() },
+                        RoleDescriptor.IndicesPrivileges.builder().indices(".ml-anomalies*", ".ml-notifications*").build(),
+                        RoleDescriptor.IndicesPrivileges.builder().indices(".ml-annotations*").build() },
                     // This role also grants Kibana privileges related to ML.
                     // This makes it completely clear to UI administrators that
                     // if they grant the Elasticsearch backend role to a user then
@@ -546,9 +537,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .indices(".ml-anomalies*", ".ml-notifications*", ".ml-state*", ".ml-meta*", ".ml-stats-*")
                             .allowRestrictedIndices(true) // .ml-meta is a restricted index
                             .build(),
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices(".ml-annotations*")
-                            .build() },
+                        RoleDescriptor.IndicesPrivileges.builder().indices(".ml-annotations*").build() },
                     // This role also grants Kibana privileges related to ML.
                     // This makes it completely clear to UI administrators that
                     // if they grant the Elasticsearch backend role to a user then
@@ -739,10 +728,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     "snapshot_user",
                     new String[] { "create_snapshot", GetRepositoriesAction.NAME },
                     new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices("*")
-                            .allowRestrictedIndices(true)
-                            .build() },
+                        RoleDescriptor.IndicesPrivileges.builder().indices("*").allowRestrictedIndices(true).build() },
                     null,
                     null,
                     null,
@@ -763,10 +749,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     "enrich_user",
                     new String[] { "manage_enrich", "manage_ingest_pipelines", "monitor" },
                     new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices(".enrich-*")
-                            .allowRestrictedIndices(true)
-                            .build(),
+                        RoleDescriptor.IndicesPrivileges.builder().indices(".enrich-*").allowRestrictedIndices(true).build(),
                         RoleDescriptor.IndicesPrivileges.builder().indices(".enrich-*").privileges("manage", "write").build() },
                     null,
                     null,
@@ -790,13 +773,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             new String[] { "monitor_inference" },
             new RoleDescriptor.IndicesPrivileges[] {
                 // Stack
-                RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("/~(([.]|ilm-history-).*)/")
-                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("/~(([.]|ilm-history-).*)/").build(),
                 // Observability
-                RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".slo-observability.*")
-                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices(".slo-observability.*").build(),
                 // Evaluations
                 // Security
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -854,19 +833,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             new String[] { "monitor_inference" },
             new RoleDescriptor.IndicesPrivileges[] {
                 // Stack
-                RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("/~(([.]|ilm-history-).*)/")
-                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("/~(([.]|ilm-history-).*)/").build(),
                 // Observability
-                RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("observability-annotations")
-                    .build(),
-                RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".slo-observability.*")
-                    .build(),
-                RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".evaluation-*")
-                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("observability-annotations").build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices(".slo-observability.*").build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices(".evaluation-*").build(),
                 // Security
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(

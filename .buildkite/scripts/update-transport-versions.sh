@@ -15,17 +15,23 @@ fi
 NEW_COMMIT_MESSAGE="[CI] Update transport version definitions"
 
 echo "--- Generating updated transport version definitions"
-# Extract version labels from the PR; || true absorbs grep's exit code when there
-# are no matches so set -euo pipefail doesn't kill the script prematurely
-version_labels=$(echo "${GITHUB_PR_LABELS}" | tr ',' '\n' | grep -E "v[0-9]+\.[0-9]+\.[0-9]+") || true
-if [[ -z "${version_labels}" ]]; then
-  echo "Skipping as pull request contains no version labels"
-  exit 0
+if [[ "${BUILDKITE_PULL_REQUEST_BASE_BRANCH:-}" == "patch/serverless-fix" ]]; then
+  # The patch branch is never backported from, so there are no version labels to read. Generation
+  # detects the base branch itself and produces a patch id.
+  .ci/scripts/run-gradle.sh generateTransportVersion
+else
+  # Extract version labels from the PR; || true absorbs grep's exit code when there
+  # are no matches so set -euo pipefail doesn't kill the script prematurely
+  version_labels=$(echo "${GITHUB_PR_LABELS}" | tr ',' '\n' | grep -E "v[0-9]+\.[0-9]+\.[0-9]+") || true
+  if [[ -z "${version_labels}" ]]; then
+    echo "Skipping as pull request contains no version labels"
+    exit 0
+  fi
+
+  backport_branches=$(echo "${version_labels}" | sed -E 's/^v([0-9]+)\.([0-9]+)\.[0-9]+$/\1.\2/' | paste -sd, -)
+
+  .ci/scripts/run-gradle.sh generateTransportVersion --backport-branches="${backport_branches}"
 fi
-
-backport_branches=$(echo "${version_labels}" | sed -E 's/^v([0-9]+)\.([0-9]+)\.[0-9]+$/\1.\2/' | paste -sd, -)
-
-.ci/scripts/run-gradle.sh generateTransportVersion --backport-branches="${backport_branches}"
 
 if git diff --cached --quiet -- "server/src/main/resources/transport/**"; then
   echo "No transport version changes found after update. Skipping auto commit."

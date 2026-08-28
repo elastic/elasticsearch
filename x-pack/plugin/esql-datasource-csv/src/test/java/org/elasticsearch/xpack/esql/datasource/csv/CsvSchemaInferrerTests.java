@@ -12,13 +12,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public class CsvSchemaInferrerTests extends ESTestCase {
 
@@ -487,58 +486,76 @@ public class CsvSchemaInferrerTests extends ESTestCase {
     }
 
     /**
-     * The whitespace screen in {@code classifyTemporal} encodes a fact about two parsers that live
-     * elsewhere: which dialects the CSV datetime parser accepts that the {@code date_nanos} decode rail
-     * rejects. Today that set is exactly {whitespace-separated, seconds-less}, and only the first can
-     * ever be a forcing value, so only the first needs screening.
+     * The invariant the whitespace screen exists to maintain: a column is inferred {@code date_nanos}
+     * only when its value would actually decode on the {@code date_nanos} rail.
      * <p>
-     * If {@code DateUtils.asDateTime} gains a dialect, or the nanos rail drops one, that reasoning goes
-     * stale silently and a column starts flipping onto a rail that cannot decode it. This fails instead.
+     * The screen is a cheap stand-in for that — an {@code indexOf(' ')} rather than a second parse —
+     * and a cheap stand-in for a fact that lives in two other parsers is exactly the kind of thing that
+     * goes stale in silence. So production keeps the cheap check and this holds it to the expensive
+     * truth: for every value in the corpus, ask the nanos rail directly and require inference to agree.
+     * If {@code DateUtils.asDateTime} gains a dialect the nanos rail rejects, or the rail drops one,
+     * some value here starts disagreeing and this fails, whether or not anyone thought to enumerate
+     * that dialect.
+     * <p>
+     * The corpus is randomized per run rather than a fixed list, so drift does not have to land on a
+     * shape someone anticipated.
      */
-    public void testTheDialectGapBetweenTheTwoParsersIsStillTheOneWeScreenFor() {
-        record Dialect(String label, String value, boolean expectedToNeedScreening) {}
-        List<Dialect> dialects = List.of(
-            new Dialect("T-form with nanos", "2023-10-23T12:15:03.360103847Z", false),
-            new Dialect("T-form millis", "2023-10-23T12:15:03.360Z", false),
-            new Dialect("T-form no fraction", "2023-10-23T12:15:03Z", false),
-            new Dialect("date only", "2023-10-23", false),
-            new Dialect("whitespace-separated", "2023-10-23 12:15:03.360103847", true),
-            new Dialect("seconds-less", "2023-10-23T12:15Z", true)
+    public void testInferenceOnlyCommitsDateNanosForValuesTheNanosRailCanDecode() {
+        List<String> corpus = new ArrayList<>(
+            List.of(
+                "2023-10-23T12:15:03.360103847Z",
+                "2023-10-23 12:15:03.360103847",
+                "2023-10-23T12:15Z",
+                "2023-10-23 12:15",
+                "2023-10-23T12:15:03.360Z",
+                "2023-10-23",
+                "1969-12-31T23:59:59.999999999Z",
+                "2263-01-01T00:00:00.123456789Z"
+            )
         );
-        List<String> drift = new ArrayList<>();
-        for (Dialect d : dialects) {
-            boolean csvAccepts;
+        for (int i = 0; i < 200; i++) {
+            corpus.add(randomTimestampish());
+        }
+
+        for (String value : corpus) {
+            DataType inferred = inferOne(value);
+            boolean railDecodes;
             try {
-                DateUtils.asDateTime(d.value());
-                csvAccepts = true;
-            } catch (DateTimeParseException e) {
-                csvAccepts = false;
-            }
-            boolean nanosRailAccepts;
-            try {
-                EsqlDataTypeConverter.dateNanosToLong(d.value());
-                nanosRailAccepts = true;
+                EsqlDataTypeConverter.dateNanosToLong(value);
+                railDecodes = true;
             } catch (Exception e) {
-                nanosRailAccepts = false;
+                railDecodes = false;
             }
-            boolean needsScreening = csvAccepts && nanosRailAccepts == false;
-            if (needsScreening != d.expectedToNeedScreening()) {
-                drift.add(
-                    d.label()
-                        + " ["
-                        + d.value()
-                        + "]: csvAccepts="
-                        + csvAccepts
-                        + " nanosRailAccepts="
-                        + nanosRailAccepts
-                        + " -> needsScreening="
-                        + needsScreening
-                        + ", expected "
-                        + d.expectedToNeedScreening()
-                );
+            if (inferred == DataType.DATE_NANOS) {
+                assertTrue("inferred date_nanos for a value the nanos rail cannot decode: [" + value + "]", railDecodes);
             }
         }
-        assertTrue("the dialect gap the whitespace screen assumes has moved:\n" + String.join("\n", drift), drift.isEmpty());
+    }
+
+    /** A timestamp-shaped string with a randomized separator, fraction width and zone. */
+    private String randomTimestampish() {
+        String date = String.format(
+            Locale.ROOT,
+            "%04d-%02d-%02d",
+            randomIntBetween(1965, 2270),
+            randomIntBetween(1, 12),
+            randomIntBetween(1, 28)
+        );
+        String time = String.format(Locale.ROOT, "%02d:%02d", randomIntBetween(0, 23), randomIntBetween(0, 59));
+        if (randomBoolean()) {
+            time += String.format(Locale.ROOT, ":%02d", randomIntBetween(0, 59));
+            int fractionDigits = randomIntBetween(0, 9);
+            if (fractionDigits > 0) {
+                StringBuilder frac = new StringBuilder(".");
+                for (int i = 0; i < fractionDigits; i++) {
+                    frac.append((char) ('0' + randomIntBetween(0, 9)));
+                }
+                time += frac;
+            }
+        }
+        String separator = randomBoolean() ? "T" : " ";
+        String zone = randomFrom("", "Z", "+01:00", "-05:00");
+        return date + separator + time + zone;
     }
 
     public void testSynthesizeColumnNames() {

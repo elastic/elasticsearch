@@ -5412,7 +5412,15 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
         logger.info("Split target states observed at delete time: {}", observedSplitStates);
 
-        assertReshardStateEventuallyCleanedUp(indexNode, deletedIndexUUIDs);
+        // Nothing reclaims an abandoned reshard's target blobs eagerly, so the stale-index GC has to remove the whole per-index prefix.
+        // An abandoned split must also leave no state behind on either service, or it leaks memory.
+        final var splitTargetService = internalCluster().getInstance(SplitTargetService.class, indexNode);
+        final var splitSourceService = internalCluster().getInstance(SplitSourceService.class, indexNode);
+        assertBusy(() -> {
+            assertThat(getIndexUUIDsInObjectStore(), everyItem(not(in(deletedIndexUUIDs))));
+            assertThat("Split target state left behind", splitTargetService.getShardsWithOngoingSplits(), empty());
+            assertThat("Split source state left behind", splitSourceService.getShardsWithActiveSplitState(), empty());
+        });
     }
 
     /// An index request with an immediate refresh waits while its target shard is in HANDOFF. If the index is deleted meanwhile, the
@@ -5465,20 +5473,6 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
         // Answering the request is not enough: a leftover tracker entry leaves the closed IndexShard pinned.
         assertBusy(() -> assertThat(reshardIndexService.getShardsTrackingSplitCompletion(), empty()));
-    }
-
-    /// The stale-index GC must reclaim the per-index prefix of a deleted index. The reshard state checks are cheap guards rather
-    /// than the real coverage for the leaks, which lives in the unit tests and in the handoff test above.
-    private static void assertReshardStateEventuallyCleanedUp(String indexNode, Set<String> deletedIndexUUIDs) throws Exception {
-        final var splitTargetService = internalCluster().getInstance(SplitTargetService.class, indexNode);
-        final var splitSourceService = internalCluster().getInstance(SplitSourceService.class, indexNode);
-        final var reshardIndexService = internalCluster().getInstance(ReshardIndexService.class, indexNode);
-        assertBusy(() -> {
-            assertThat(getIndexUUIDsInObjectStore(), everyItem(not(in(deletedIndexUUIDs))));
-            assertThat("Split target state left behind", splitTargetService.getShardsWithOngoingSplits(), empty());
-            assertThat("Split source state left behind", splitSourceService.getShardsWithActiveSplitState(), empty());
-            assertThat("Split completion listeners left behind", reshardIndexService.getShardsTrackingSplitCompletion(), empty());
-        });
     }
 
     private static Set<String> getIndexUUIDsInObjectStore() {

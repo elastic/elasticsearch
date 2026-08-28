@@ -422,7 +422,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
         return new LongValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
             fieldType,
-            _ -> null,
+            context -> null,
             value -> value,
             DocValueFormat.RAW,
             missingBucket,
@@ -437,7 +437,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             BigArrays.NON_RECYCLING_INSTANCE,
             fieldType,
             0L,
-            _ -> null,
+            context -> null,
             DocValueFormat.RAW,
             false,
             MissingOrder.DEFAULT,
@@ -449,9 +449,9 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
     private static BinaryValuesSource binarySource(MappedFieldType fieldType) {
         return new BinaryValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
-            _ -> {},
+            breaker -> {},
             fieldType,
-            _ -> null,
+            context -> null,
             DocValueFormat.RAW,
             false,
             MissingOrder.DEFAULT,

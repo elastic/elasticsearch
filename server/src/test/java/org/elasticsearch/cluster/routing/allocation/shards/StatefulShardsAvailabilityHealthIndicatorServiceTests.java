@@ -1417,6 +1417,89 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         }
     }
 
+    public void testRecoveryCancelledReplicaGracePeriodBehavior() {
+        final var projectId = randomProjectIdOrDefault();
+        final var indexName = randomIndexName();
+        final var unassignedTimeWithinGracePeriod = new TimeValue(
+            System.currentTimeMillis() + TimeValue.timeValueHours(1).getMillis(),
+            TimeUnit.MILLISECONDS
+        );
+        final var failedAllocations = randomBoolean() ? 0 : randomIntBetween(1, 5);
+        final var clusterState = createClusterStateWith(
+            projectId,
+            List.of(
+                index(
+                    indexName,
+                    new ShardAllocation(randomNodeId(), AVAILABLE),
+                    new ShardAllocation(
+                        randomNodeId(),
+                        UNAVAILABLE,
+                        new UnassignedInfo(
+                            UnassignedInfo.Reason.RECOVERY_CANCELLED,
+                            null,
+                            null,
+                            failedAllocations,
+                            unassignedTimeWithinGracePeriod.nanos(),
+                            unassignedTimeWithinGracePeriod.millis(),
+                            false,
+                            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                            Collections.emptySet(),
+                            null
+                        )
+                    )
+                )
+            ),
+            List.of()
+        );
+        final var service = createShardsAvailabilityIndicatorService(
+            projectId,
+            Settings.builder().put(ShardsAvailabilityHealthIndicatorService.REPLICA_INACTIVE_BUFFER_TIME.getKey(), "20s").build(),
+            clusterState,
+            Collections.emptyMap()
+        );
+        if (failedAllocations > 0) {
+            assertThat(
+                service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
+                equalTo(
+                    createExpectedResult(
+                        YELLOW,
+                        "This cluster has 1 unavailable replica shard.",
+                        Map.of("started_primaries", 1, "unassigned_replicas", 1),
+                        List.of(
+                            new HealthIndicatorImpact(
+                                NAME,
+                                ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_IMPACT_ID,
+                                2,
+                                "Searches might be slower than usual. Fewer redundant copies of the data exist on 1 index ["
+                                    + indexName
+                                    + "].",
+                                List.of(ImpactArea.SEARCH)
+                            )
+                        ),
+                        List.of(
+                            new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, List.of(indexName))))
+                        )
+                    )
+                )
+            );
+        } else {
+            assertThat(
+                service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
+                equalTo(
+                    createExpectedResult(
+                        GREEN,
+                        "This cluster has 1 creating replica shard.",
+                        Map.of("started_primaries", 1, "creating_replicas", 1),
+                        emptyList(),
+                        List.of(
+                            new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, List.of(indexName))))
+                        )
+                    )
+                )
+            );
+        }
+    }
+
     /// An inactive shard with no unassigned info cannot use the grace period, because the indicator has no way to
     /// tell when the shard became inactive or why. Relocating replicas initialize on the destination node in that
     /// state. Even with a non-zero grace buffer, the indicator reports yellow immediately for such a replica.

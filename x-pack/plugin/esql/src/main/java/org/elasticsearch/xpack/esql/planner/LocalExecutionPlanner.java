@@ -2081,6 +2081,9 @@ public class LocalExecutionPlanner {
             .path(path)
             .projectedColumns(projectedColumns)
             .attributes(externalSource.output())
+            // Projection-independent, unlike attributes(): a read-configuration identity must not vary with what the query
+            // selects, or a coordinator and a data node would derive different identities for the same read.
+            .unifiedSchema(externalSource.unifiedSchema())
             .batchSize(pageSize)
             .maxBufferSize(effectiveBufferSize)
             .rowLimit(pushedLimit)

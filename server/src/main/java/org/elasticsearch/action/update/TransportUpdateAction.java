@@ -21,6 +21,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.bulk.DocValuesUpdateRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -30,6 +31,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
@@ -326,18 +328,28 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
                         );
                     }
                     case UPDATED -> {
-                        IndexRequest indexRequest = result.action();
-                        // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
-                        final BytesReference indexSourceBytes = indexRequest.source();
+                        // The realized write is an IndexRequest for a normal update, or a DocValuesUpdateRequest for an in-place
+                        // doc-values update; both are ReplicatedWriteRequests, and the merged source is taken from the result map so
+                        // neither needs to be an IndexRequest here.
+                        final ReplicatedWriteRequest<?> updatedRequest = result.action();
                         client.bulk(
-                            toSingleItemBulkRequest(indexRequest),
+                            toSingleItemBulkRequest(updatedRequest),
                             unwrappingSingleItemBulkResponse(ActionListener.<DocWriteResponse>wrap(response -> {
+                                // An in-place doc-values update leaves the document's seq_no and primary term unchanged; the response
+                                // carries the operation's seq_no (used for replication), so report the document's values from the realized
+                                // request instead, mirroring the version, which is likewise unchanged.
+                                long seqNo = response.getSeqNo();
+                                long primaryTerm = response.getPrimaryTerm();
+                                if (updatedRequest instanceof DocValuesUpdateRequest docValuesUpdate) {
+                                    seqNo = docValuesUpdate.ifSeqNo();
+                                    primaryTerm = docValuesUpdate.ifPrimaryTerm();
+                                }
                                 UpdateResponse update = new UpdateResponse(
                                     response.getShardInfo(),
                                     response.getShardId(),
                                     response.getId(),
-                                    response.getSeqNo(),
-                                    response.getPrimaryTerm(),
+                                    seqNo,
+                                    primaryTerm,
                                     response.getVersion(),
                                     response.getResult()
                                 );
@@ -346,12 +358,12 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
                                         request,
                                         request.concreteIndex(),
                                         mappingLookup,
-                                        response.getSeqNo(),
-                                        response.getPrimaryTerm(),
+                                        seqNo,
+                                        primaryTerm,
                                         response.getVersion(),
                                         result.updatedSourceAsMap(),
                                         result.updateSourceContentType(),
-                                        indexSourceBytes
+                                        null
                                     )
                                 );
                                 update.setForcedRefresh(response.forcedRefresh());

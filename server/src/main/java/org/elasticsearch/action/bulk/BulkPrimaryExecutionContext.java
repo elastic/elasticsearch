@@ -349,6 +349,19 @@ class BulkPrimaryExecutionContext {
                         deleteResult.isFound()
                     );
 
+                } else if (result.getOperationType() == Engine.Operation.TYPE.DOC_VALUES_UPDATE) {
+                    Engine.DocValuesUpdateResult dvResult = (Engine.DocValuesUpdateResult) result;
+                    // Reported as updated (not created); onComplete builds the UpdateResponse. The response carries the operation's
+                    // seq_no and primary term, used for replication.
+                    response = new IndexResponse(
+                        primary.shardId(),
+                        dvResult.getId(),
+                        result.getSeqNo(),
+                        result.getTerm(),
+                        dvResult.getVersion(),
+                        false,
+                        null
+                    );
                 } else {
                     throw new AssertionError("unknown result type :" + result.getResultType());
                 }

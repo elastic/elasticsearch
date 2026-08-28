@@ -145,8 +145,24 @@ public class BulkRequest extends UntypedActionRequest
             case IndexRequest indexRequest -> add(indexRequest);
             case DeleteRequest deleteRequest -> add(deleteRequest);
             case UpdateRequest updateRequest -> add(updateRequest);
+            // A realized in-place doc-values update, reached when the single-document update API wraps it into a single-item bulk request.
+            case DocValuesUpdateRequest docValuesUpdateRequest -> add(docValuesUpdateRequest);
             case null, default -> throw new IllegalArgumentException("No support for request [" + request + "]");
         }
+        return this;
+    }
+
+    /**
+     * Adds a {@link DocValuesUpdateRequest} to the list of actions to execute. Not part of the public bulk API: this request type is
+     * produced internally when an update is realized into an in-place doc-values update.
+     */
+    public BulkRequest add(DocValuesUpdateRequest request) {
+        Objects.requireNonNull(request, "'request' must not be null");
+        applyGlobalMandatoryParameters(request);
+
+        requests.add(request);
+        sizeInBytes += REQUEST_OVERHEAD;
+        indices.add(request.index());
         return this;
     }
 

@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
+import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
@@ -68,6 +69,7 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -138,6 +140,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     public static final String POLICY_ID_METADATA_FIELD = "policy";
 
+    public static final String SHARD_BEING_RESTORED_REASON = "primary shard is being restored from a snapshot";
+
     private static final Logger logger = LogManager.getLogger(SnapshotsService.class);
 
     public static final String NO_FEATURE_STATES_VALUE = "none";
@@ -195,7 +199,18 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         Setting.Property.Dynamic
     );
 
+    /**
+     * Normally we shouldn't touch this setting. It's an escape hatch. We plan to remove it after the code sees sufficient action.
+     */
+    public static final Setting<Boolean> SNAPSHOT_MONOTONIC_END_TIME_SETTING = Setting.boolSetting(
+        "snapshot.monotonic_end_time",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private volatile int maxConcurrentOperations;
+    private volatile boolean monotonicEndTime;
 
     public SnapshotsService(
         Settings settings,
@@ -221,6 +236,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             maxConcurrentOperations = MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING.get(settings);
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING, i -> maxConcurrentOperations = i);
+            monotonicEndTime = SNAPSHOT_MONOTONIC_END_TIME_SETTING.get(settings);
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(SNAPSHOT_MONOTONIC_END_TIME_SETTING, b -> monotonicEndTime = b);
         }
         this.systemIndices = systemIndices;
         this.serializeProjectMetadata = serializeProjectMetadata;
@@ -927,6 +944,31 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             assert currentlyFinalizing.contains(new ProjectRepo(snapshot.getProjectId(), snapshot.getRepository()));
             assert repositoryOperations.assertNotQueued(snapshot);
 
+            // Compute the snapshot end time. When SNAPSHOT_MONOTONIC_END_TIME_SETTING is enabled, the end time is guaranteed
+            // to be strictly greater than every previously recorded snapshot end time in the repository.
+            // Moreover, if the required end time is in the future, this task reschedules itself until the clock catches up.
+            final long endTimeMillis;
+            if (monotonicEndTime) {
+                final long prevMaxEndTime = repositoryData.getSnapshotIds()
+                    .stream()
+                    .map(repositoryData::getSnapshotDetails)
+                    .filter(d -> d != null)
+                    .mapToLong(RepositoryData.SnapshotDetails::getEndTimeMillis)
+                    .filter(t -> t >= 0)
+                    .max()
+                    .orElse(-1L);
+                final long wallClock = threadPool.absoluteTimeInMillis();
+                endTimeMillis = prevMaxEndTime < 0 ? wallClock : Math.max(wallClock, prevMaxEndTime + 1);
+                final long waitMillis = endTimeMillis - wallClock;
+                if (waitMillis > 0) {
+                    logger.debug("[{}] delaying snapshot finalization by [{} ms] for monotonic end time", snapshot, waitMillis);
+                    threadPool.schedule(this, TimeValue.timeValueMillis(waitMillis), threadPool.executor(ThreadPool.Names.SNAPSHOT));
+                    return;
+                }
+            } else {
+                endTimeMillis = threadPool.absoluteTimeInMillis();
+            }
+
             SnapshotsInProgress.Entry entry = SnapshotsInProgress.get(clusterService.state()).snapshot(snapshot);
             final String failure = entry.failure();
             logger.trace("[{}] finalizing snapshot in repository, state: [{}], failure[{}]", snapshot, entry.state(), failure);
@@ -935,6 +977,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             final List<String> finalIndices = updatedShardGensForLiveIndices.indices().stream().map(IndexId::getName).toList();
             final Set<String> indexNames = new HashSet<>(finalIndices);
             ArrayList<SnapshotShardFailure> shardFailures = new ArrayList<>();
+            Map<ShardState, Integer> unsuccessfulShardCountByState = new HashMap<>();
             for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shardStatus : entry.shardSnapshotStatusByRepoShardId().entrySet()) {
                 RepositoryShardId repoShardId = shardStatus.getKey();
                 if (indexNames.contains(repoShardId.indexName()) == false) {
@@ -948,6 +991,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         ? new ShardId(repoShardId.indexName(), IndexMetadata.INDEX_UUID_NA_VALUE, repoShardId.shardId())
                         : entry.shardId(repoShardId);
                     shardFailures.add(new SnapshotShardFailure(status.nodeId(), shardId, status.reason()));
+                    unsuccessfulShardCountByState.merge(state, 1, Integer::sum);
                 } else {
                     assert state == ShardState.SUCCESS;
                 }
@@ -1029,7 +1073,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     entry.dataStreams().stream().filter(metaForSnapshot.getProject(projectId).dataStreams()::containsKey).toList(),
                     entry.partial() ? SnapshotsServiceUtils.onlySuccessfulFeatureStates(entry, finalIndices) : entry.featureStates(),
                     failure,
-                    threadPool.absoluteTimeInMillis(),
+                    endTimeMillis,
                     entry.partial() ? updatedShardGensForLiveIndices.totalShards() : entry.shardSnapshotStatusByRepoShardId().size(),
                     shardFailures,
                     entry.includeGlobalState(),
@@ -1065,14 +1109,27 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             )
                         ), () -> {
                             RepositoryMetadata repoMetadata = repo.getMetadata();
-                            final Map<String, Object> attributes = Maps.copyMapWithAddedEntry(
-                                SnapshotMetrics.createAttributesMap(snapshot.getProjectId(), repoMetadata),
+                            final Map<String, Object> attributes = SnapshotMetrics.createAttributesMap(
+                                snapshot.getProjectId(),
+                                repoMetadata
+                            );
+                            final Map<String, Object> attributesWithSnapshotState = Maps.copyMapWithAddedEntry(
+                                attributes,
                                 "state",
                                 snapshotInfo.state().name()
                             );
-                            snapshotMetrics.snapshotsCompletedCounter().incrementBy(1, attributes);
+                            snapshotMetrics.snapshotsCompletedCounter().incrementBy(1, attributesWithSnapshotState);
                             snapshotMetrics.snapshotsDurationHistogram()
-                                .record((threadPool.absoluteTimeInMillis() - snapshotInfo.startTime()) / 1_000.0, attributes);
+                                .record(
+                                    (threadPool.absoluteTimeInMillis() - snapshotInfo.startTime()) / 1_000.0,
+                                    attributesWithSnapshotState
+                                );
+                            snapshotMetrics.shardsUnsuccessfulHistogram().record(shardFailures.size(), attributesWithSnapshotState);
+                            // Counter broken down by shard state (MISSING/FAILED), not snapshot state
+                            unsuccessfulShardCountByState.forEach(
+                                (shardState, count) -> snapshotMetrics.shardsUnsuccessfulCounter()
+                                    .incrementBy(count, Maps.copyMapWithAddedEntry(attributes, "state", shardState.name()))
+                            );
                         }),
                         () -> snapshotListeners.addListener(new ActionListener<>() {
                             @Override
@@ -1869,7 +1926,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                 entry.indices().values(),
                                 entry.version().onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION),
                                 repositoryData,
-                                repoName
+                                repoName,
+                                entry.partial()
                             );
                             final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> updatedAssignmentsBuilder = ImmutableOpenMap
                                 .builder(entry.shards());
@@ -2002,6 +2060,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         // tests whether node IDs are currently marked for removal
         private final Predicate<String> nodeIdRemovalPredicate;
 
+        // Snapshot of RestoreInProgress from the initial cluster state use to detect whether a shard's primary is currently being restored
+        // from a snapshot — the condition that causes partial=true snapshots to record that shard as MISSING rather than WAITING.
+        private final RestoreInProgress restoreInProgress;
+
         /** Updates outstanding to be applied to existing snapshot entries. Maps repository name to shard snapshot updates. */
         private final Map<ProjectRepo, List<ShardSnapshotUpdate>> updatesByRepo;
 
@@ -2024,6 +2086,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             this.batchExecutionContext = batchExecutionContext;
             this.initialState = batchExecutionContext.initialState();
             this.nodeIdRemovalPredicate = SnapshotsInProgress.get(initialState)::isNodeIdForRemoval;
+            this.restoreInProgress = RestoreInProgress.get(initialState);
             this.completionHandler = completionHandler;
 
             // SnapshotsInProgress is organized by ProjectRepo, so organize the shard snapshot updates similarly.
@@ -2373,7 +2436,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 final ShardSnapshotStatus shardSnapshotStatus = SnapshotsServiceUtils.initShardSnapshotStatus(
                     generation,
                     shardRouting,
-                    nodeIdRemovalPredicate
+                    nodeIdRemovalPredicate,
+                    entry.partial(),
+                    restoreInProgress
                 );
                 final ShardId routingShardId = shardRouting != null ? shardRouting.shardId() : new ShardId(index, repoShardId.shardId());
                 if (shardSnapshotStatus.isActive()) {
@@ -2996,7 +3061,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 indexIds.values(),
                 SnapshotsServiceUtils.useShardGenerations(version),
                 repositoryData,
-                repositoryName
+                repositoryName,
+                request.partial()
             );
             if (request.partial() == false) {
                 Set<String> missing = new TreeSet<>(); // sorted for more usable message

@@ -131,7 +131,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             RoleDescriptor.IndicesPrivileges.builder()
                 .indices("*")
                 // TODO add read_failure_store when failures authorization is implemented
-                .privileges("monitor", "read", "read_cross_cluster")
+                .privileges("monitor", "read", "view_index_metadata", "read_cross_cluster")
                 .allowRestrictedIndices(true)
                 .build() },
         new RoleDescriptor.ApplicationResourcePrivileges[] {
@@ -149,6 +149,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("*")
                     // TODO add read_failure_store when failures authorization is implemented
+                    .privileges("monitor", "read", "view_index_metadata", "read_cross_cluster")
                     .allowRestrictedIndices(true)
                     .build(),
                 "*"
@@ -298,7 +299,13 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         RoleDescriptor.IndicesPrivileges.builder().indices(".monitoring-*").privileges("all").build(),
                         RoleDescriptor.IndicesPrivileges.builder()
                             .indices("metricbeat-*")
-                            .privileges("index", "create_index", TransportIndicesAliasesAction.NAME, RolloverAction.NAME)
+                            .privileges(
+                                "index",
+                                "create_index",
+                                "view_index_metadata",
+                                TransportIndicesAliasesAction.NAME,
+                                RolloverAction.NAME
+                            )
                             .build() },
                     null,
                     null,
@@ -499,8 +506,14 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     "machine_learning_user",
                     new String[] { "monitor_ml" },
                     new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder().indices(".ml-anomalies*", ".ml-notifications*").build(),
-                        RoleDescriptor.IndicesPrivileges.builder().indices(".ml-annotations*").build() },
+                        RoleDescriptor.IndicesPrivileges.builder()
+                            .indices(".ml-anomalies*", ".ml-notifications*")
+                            .privileges("view_index_metadata", "read")
+                            .build(),
+                        RoleDescriptor.IndicesPrivileges.builder()
+                            .indices(".ml-annotations*")
+                            .privileges("view_index_metadata", "read", "write")
+                            .build() },
                     // This role also grants Kibana privileges related to ML.
                     // This makes it completely clear to UI administrators that
                     // if they grant the Elasticsearch backend role to a user then
@@ -537,8 +550,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         RoleDescriptor.IndicesPrivileges.builder()
                             .indices(".ml-anomalies*", ".ml-notifications*", ".ml-state*", ".ml-meta*", ".ml-stats-*")
                             .allowRestrictedIndices(true) // .ml-meta is a restricted index
+                            .privileges("view_index_metadata", "read")
                             .build(),
-                        RoleDescriptor.IndicesPrivileges.builder().indices(".ml-annotations*").build() },
+                        RoleDescriptor.IndicesPrivileges.builder()
+                            .indices(".ml-annotations*")
+                            .privileges("view_index_metadata", "read", "write")
+                            .build() },
                     // This role also grants Kibana privileges related to ML.
                     // This makes it completely clear to UI administrators that
                     // if they grant the Elasticsearch backend role to a user then
@@ -578,6 +595,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                 TransformInternalIndexConstants.AUDIT_INDEX_PATTERN_DEPRECATED,
                                 TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS
                             )
+                            .privileges("view_index_metadata", "read")
                             .build() },
                     null,
                     null,
@@ -603,6 +621,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                 TransformInternalIndexConstants.AUDIT_INDEX_PATTERN_DEPRECATED,
                                 TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS
                             )
+                            .privileges("view_index_metadata", "read")
                             .build() },
                     null,
                     null,
@@ -729,7 +748,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     "snapshot_user",
                     new String[] { "create_snapshot", GetRepositoriesAction.NAME },
                     new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder().indices("*").allowRestrictedIndices(true).build() },
+                        RoleDescriptor.IndicesPrivileges.builder()
+                            .indices("*")
+                            .privileges("view_index_metadata")
+                            .allowRestrictedIndices(true)
+                            .build() },
                     null,
                     null,
                     null,
@@ -750,7 +773,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     "enrich_user",
                     new String[] { "manage_enrich", "manage_ingest_pipelines", "monitor" },
                     new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder().indices(".enrich-*").allowRestrictedIndices(true).build(),
+                        RoleDescriptor.IndicesPrivileges.builder()
+                            .indices(".enrich-*")
+                            .privileges("read", "view_index_metadata")
+                            .allowRestrictedIndices(true)
+                            .build(),
                         RoleDescriptor.IndicesPrivileges.builder().indices(".enrich-*").privileges("manage", "write").build() },
                     null,
                     null,
@@ -774,10 +801,17 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             new String[] { "monitor_inference" },
             new RoleDescriptor.IndicesPrivileges[] {
                 // Stack
-                RoleDescriptor.IndicesPrivileges.builder().indices("/~(([.]|ilm-history-).*)/").build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("/~(([.]|ilm-history-).*)/")
+                    .privileges("read", "view_index_metadata", "read_view_metadata")
+                    .build(),
                 // Observability
-                RoleDescriptor.IndicesPrivileges.builder().indices(".slo-observability.*").build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".slo-observability.*")
+                    .privileges("read", "view_index_metadata")
+                    .build(),
                 // Evaluations
+                RoleDescriptor.IndicesPrivileges.builder().indices(".evaluation-*").privileges("read", "view_index_metadata").build(),
                 // Security
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
@@ -795,9 +829,15 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ReservedRolesStore.PRIVILEGED_USER_MONITORING_INDEX,
                         ReservedRolesStore.ENTITY_ANALYTICS_ENTITY_LEADS_INDEX,
                         ReservedRolesStore.ENTITY_ANALYTICS_WATCHLISTS_INDEX,
-                        ReservedRolesStore.ENTITY_STORE_HISTORY_INDEX,
-                        ReservedRolesStore.THREAT_INTEL_INDICATORS_ALIAS
+                        ReservedRolesStore.ENTITY_STORE_HISTORY_INDEX
                     )
+                    .privileges("read", "view_index_metadata")
+                    .build(),
+                // Threat intel indicators. Only the per-space filtered aliases are granted, so the
+                // trailing hyphen is load-bearing: it never matches the bare .threat-intel-indicators index.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.THREAT_INTEL_INDICATORS_ALIAS)
+                    .privileges("read")
                     .build(),
                 // Alerts-as-data
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -806,10 +846,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS,
                         ReservedRolesStore.ADHOC_ALERTS_INDEX_ALIAS
                     )
+                    .privileges("read", "view_index_metadata")
                     .build(),
                 // Universal Profiling
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(ReservedRolesStore.UNIVERSAL_PROFILING_ALIASES, ReservedRolesStore.UNIVERSAL_PROFILING_BACKING_INDICES)
+                    .privileges("read", "view_index_metadata")
                     .build() },
             new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder()
@@ -834,11 +876,23 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             new String[] { "monitor_inference" },
             new RoleDescriptor.IndicesPrivileges[] {
                 // Stack
-                RoleDescriptor.IndicesPrivileges.builder().indices("/~(([.]|ilm-history-).*)/").build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("/~(([.]|ilm-history-).*)/")
+                    .privileges("read", "view_index_metadata", "read_view_metadata")
+                    .build(),
                 // Observability
-                RoleDescriptor.IndicesPrivileges.builder().indices("observability-annotations").build(),
-                RoleDescriptor.IndicesPrivileges.builder().indices(".slo-observability.*").build(),
-                RoleDescriptor.IndicesPrivileges.builder().indices(".evaluation-*").build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("observability-annotations")
+                    .privileges("read", "view_index_metadata", "write")
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".slo-observability.*")
+                    .privileges("read", "view_index_metadata", "write", "manage")
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".evaluation-*")
+                    .privileges("read", "view_index_metadata", "write")
+                    .build(),
                 // Security
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
@@ -850,8 +904,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ReservedRolesStore.LISTS_ITEMS_INDEX_REINDEXED_V8,
                         ReservedRolesStore.ASSET_CRITICALITY_INDEX
                     )
+                    .privileges("read", "view_index_metadata", "write", "maintenance")
                     .build(),
-                // Security - Entity Store and threat intel indicators are view only
+                // Security - Entity Store is view only
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
                         ReservedRolesStore.ENTITY_STORE_V1_LATEST_INDEX,
@@ -861,9 +916,15 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ReservedRolesStore.PRIVILEGED_USER_MONITORING_INDEX,
                         ReservedRolesStore.ENTITY_ANALYTICS_ENTITY_LEADS_INDEX,
                         ReservedRolesStore.ENTITY_ANALYTICS_WATCHLISTS_INDEX,
-                        ReservedRolesStore.ENTITY_STORE_HISTORY_INDEX,
-                        ReservedRolesStore.THREAT_INTEL_INDICATORS_ALIAS
+                        ReservedRolesStore.ENTITY_STORE_HISTORY_INDEX
                     )
+                    .privileges("read", "view_index_metadata")
+                    .build(),
+                // Threat intel indicators. Only the per-space filtered aliases are granted, so the
+                // trailing hyphen is load-bearing: it never matches the bare .threat-intel-indicators index.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.THREAT_INTEL_INDICATORS_ALIAS)
+                    .privileges("read")
                     .build(),
                 // Alerts-as-data
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -877,9 +938,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ReservedRolesStore.ADHOC_ALERTS_BACKING_INDEX,
                         ReservedRolesStore.ADHOC_ALERTS_INDEX_ALIAS
                     )
+                    .privileges("read", "view_index_metadata", "write", "maintenance")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(ReservedRolesStore.UNIVERSAL_PROFILING_ALIASES, ReservedRolesStore.UNIVERSAL_PROFILING_BACKING_INDICES)
+                    .privileges("read", "view_index_metadata")
                     .build() },
             new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder()

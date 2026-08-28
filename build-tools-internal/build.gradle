@@ -248,6 +248,10 @@ gradlePlugin {
       id = 'elasticsearch.transport-version-resources'
       implementationClass = 'org.elasticsearch.gradle.internal.transport.TransportVersionResourcesPlugin'
     }
+    nativeLibrariesLinuxAbi {
+      id = 'elasticsearch.native-libraries-linux-abi'
+      implementationClass = 'org.elasticsearch.gradle.internal.nativelibs.NativeLibrariesLinuxAbiPlugin'
+    }
   }
 }
 

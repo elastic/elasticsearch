@@ -686,7 +686,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         double min = histogram.min();
         double max = histogram.max();
 
-        double lastBucketIndex = Long.MIN_VALUE;
+        long lastBucketIndex = Long.MIN_VALUE;
         boolean hasMultipleBuckets = false;
 
         for (BucketIterator it = histogram.negativeBuckets().iterator(); it.hasNext(); it.advance()) {
@@ -877,6 +877,18 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         if (optionsResolution.unresolved()) {
             return optionsResolution;
         }
+        var fieldType = field.dataType();
+        if (includeEmptyBuckets() && fieldType.isHistogram()) {
+            return new TypeResolution(
+                format(
+                    null,
+                    "function [{}] does not support option [{}] for [{}] inputs",
+                    sourceText(),
+                    INCLUDE_EMPTY_BUCKETS,
+                    fieldType.typeName()
+                )
+            );
+        }
         // Emitting empty buckets requires a bounded range to iterate over, i.e. the four-argument (from, to) form.
         if (includeEmptyBuckets() && (from == null || to == null)) {
             return new TypeResolution(
@@ -888,7 +900,6 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                 )
             );
         }
-        var fieldType = field.dataType();
         var bucketsType = buckets.dataType();
         if (fieldType == DataType.NULL || bucketsType == DataType.NULL) {
             return TypeResolution.TYPE_RESOLVED;

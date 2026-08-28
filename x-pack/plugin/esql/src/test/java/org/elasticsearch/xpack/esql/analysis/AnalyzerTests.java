@@ -4828,6 +4828,17 @@ public class AnalyzerTests extends ESTestCase {
             """, containsString("with [include_empty_buckets] requires a range, i.e. both a [from] and a [to] argument"));
     }
 
+    public void testBucketOptionInsertEmptyBuckets_histogramsRejected() {
+        analyzer().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json").error("""
+            FROM exp_histo_sample
+            | STATS c = COUNT(*) BY b = BUCKET(responseTime, 10, 0, 100, {"include_empty_buckets": true})
+            """, containsString("does not support option [include_empty_buckets] for [exponential_histogram] inputs"));
+        analyzer().addIndex("tdigest_standard_index", "mapping-tdigest_standard_index.json").error("""
+            FROM tdigest_standard_index
+            | STATS c = COUNT(*) BY b = BUCKET(responseTime, 10, 0, 100, {"include_empty_buckets": true})
+            """, containsString("does not support option [include_empty_buckets] for [tdigest] inputs"));
+    }
+
     public void testProjectionForUnionTypeResolution() {
         LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
         typesToIndices.put("keyword", Set.of("union_index_1"));

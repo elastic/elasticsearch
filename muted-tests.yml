@@ -806,3 +806,6 @@ tests:
 - class: org.elasticsearch.action.bulk.ShardBatchIndexerCanUseBatchTests
   method: testDynamicSettingUpdate
   issue: https://github.com/elastic/elasticsearch/issues/157947
+- class: org.elasticsearch.snapshots.BlobStoreIncrementalityIT
+  method: testForceMergeCausesFullSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/157970

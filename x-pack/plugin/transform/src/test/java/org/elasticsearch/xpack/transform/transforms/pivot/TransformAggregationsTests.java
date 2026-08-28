@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.analytics.boxplot.BoxplotAggregationBuilder;
+import org.elasticsearch.xpack.analytics.stringstats.StringStatsAggregationBuilder;
 
 import java.util.Arrays;
 import java.util.List;
@@ -143,6 +144,9 @@ public class TransformAggregationsTests extends ESTestCase {
         // extended stats
         assertEquals("double", TransformAggregations.resolveTargetMapping("extended_stats", "double"));
 
+        // string stats
+        assertEquals("double", TransformAggregations.resolveTargetMapping("string_stats", "keyword"));
+
         // boxplot
         assertEquals("double", TransformAggregations.resolveTargetMapping("boxplot", "double"));
 
@@ -255,6 +259,24 @@ public class TransformAggregationsTests extends ESTestCase {
                 hasEntry("extended_stats.std_deviation_bounds.lower_population", "extended_stats"),
                 hasEntry("extended_stats.std_deviation_bounds.upper_sampling", "extended_stats"),
                 hasEntry("extended_stats.std_deviation_bounds.lower_sampling", "extended_stats")
+            )
+        );
+    }
+
+    public void testGetAggregationOutputTypesStringStats() {
+        var stringStatsAggregationBuilder = new StringStatsAggregationBuilder("string_stats");
+
+        var inputAndOutputTypes = TransformAggregations.getAggregationInputAndOutputTypes(stringStatsAggregationBuilder);
+        var outputTypes = inputAndOutputTypes.v2();
+        assertEquals(5, outputTypes.size());
+        assertThat(
+            outputTypes,
+            allOf(
+                hasEntry("string_stats.count", "string_stats"),
+                hasEntry("string_stats.min_length", "string_stats"),
+                hasEntry("string_stats.max_length", "string_stats"),
+                hasEntry("string_stats.avg_length", "string_stats"),
+                hasEntry("string_stats.entropy", "string_stats")
             )
         );
     }

@@ -37,6 +37,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.analytics.stringstats.InternalStringStats;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
@@ -730,6 +731,38 @@ public class AggregationResultUtilsTests extends ESTestCase {
             AggregationResultUtils.getExtractor(agg)
                 .value(agg, Map.of("filter.mv_metric.approx_answer", "double", "filter.mv_metric.exact_answer", "long"), "filter"),
             hasEqualEntriesInOrder(asOrderedMap("approx_answer", 42.2, "exact_answer", Long.valueOf(42)))
+        );
+    }
+
+    public void testStringStatsAggExtractor() {
+        Aggregation agg = new InternalStringStats(
+            "string_stats",
+            2,
+            6,
+            2,
+            4,
+            Map.of("a", 3L, "b", 3L),
+            false,
+            DocValueFormat.RAW,
+            Map.of()
+        );
+
+        Map<String, String> fieldTypeMap = Map.of(
+            "string_stats.count",
+            "double",
+            "string_stats.min_length",
+            "double",
+            "string_stats.max_length",
+            "double",
+            "string_stats.avg_length",
+            "double",
+            "string_stats.entropy",
+            "double"
+        );
+
+        assertThat(
+            AggregationResultUtils.getExtractor(agg).value(agg, fieldTypeMap, ""),
+            equalTo(Map.of("count", 2.0, "min_length", 2.0, "max_length", 4.0, "avg_length", 3.0, "entropy", 1.0))
         );
     }
 

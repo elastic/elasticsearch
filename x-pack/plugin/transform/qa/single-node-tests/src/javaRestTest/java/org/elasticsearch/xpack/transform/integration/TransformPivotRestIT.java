@@ -43,6 +43,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -2327,6 +2328,62 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                 hasEntry("lower_sampling", 0.8057492524072662)
             )
         );
+    }
+
+    @SuppressWarnings(value = "unchecked")
+    public void testPivotWithStringStats() throws Exception {
+        var transformId = "string_stats_transform";
+        var transformIndex = "string_stats_pivot_reviews";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
+
+        var createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+
+        var config = Strings.format("""
+            {
+              "source": {
+                "index": "%s"
+              },
+              "dest": {
+                "index": "%s"
+              },
+              "pivot": {
+                "group_by": {
+                  "reviewer": {
+                    "terms": {
+                      "field": "user_id"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "business_stats": {
+                    "string_stats": {
+                      "field": "business_id"
+                    }
+                  }
+                }
+              }
+            }""", REVIEWS_INDEX_NAME, transformIndex);
+
+        createTransformRequest.setJsonEntity(config);
+        var createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, transformIndex, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
+        assertTrue(indexExists(transformIndex));
+
+        var searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_4");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        var stringStatsMap = (Map<String, Object>) ((List<?>) XContentMapValues.extractValue(
+            "hits.hits._source.business_stats",
+            searchResult
+        )).get(0);
+        assertThat(stringStatsMap, allOf(hasEntry("count", 41.0), hasEntry("min_length", 10.0), hasEntry("max_length", 11.0)));
+        assertThat(stringStatsMap.get("avg_length"), equalTo(10.487804878048781));
+        assertThat((Double) stringStatsMap.get("entropy"), lessThan(4.0));
     }
 
     public void testPivotWithBoxplot() throws Exception {

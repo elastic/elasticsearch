@@ -1,5 +1,0 @@
-area: Audit
-issues: []
-pr: 157666
-summary: "Audit: fix NPE when emit_request_body is enabled for protobuf endpoints"
-type: bug

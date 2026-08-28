@@ -656,18 +656,7 @@ class DatafeedJob {
     private void persistScopeChangeAnnotation(CrossClusterSearchStats.ScopeChangeResult scopeChangeResult, String message) {
         Date changeTime = Date.from(scopeChangeResult.changeTimestamp());
         Date now = new Date(currentTimeSupplier.get());
-        Annotation annotation = new Annotation.Builder().setAnnotation(message)
-            .setCreateTime(now)
-            .setCreateUsername(InternalUsers.XPACK_USER.principal())
-            .setTimestamp(changeTime)
-            .setEndTimestamp(changeTime)
-            .setJobId(jobId)
-            .setModifiedTime(now)
-            .setModifiedUsername(InternalUsers.XPACK_USER.principal())
-            .setType(Annotation.Type.ANNOTATION)
-            .setEvent(Annotation.Event.SEARCH_SCOPE_CHANGED)
-            .build();
-        annotationPersister.persistAnnotation(null, annotation);
+        annotationPersister.persistAnnotation(null, Annotation.searchScopeChanged(jobId, message, changeTime, now));
     }
 
     /**

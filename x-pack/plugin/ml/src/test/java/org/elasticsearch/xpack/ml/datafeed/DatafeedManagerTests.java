@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -66,16 +68,20 @@ import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.CredentialTransitions.Change;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomCloudCredentialEncryptedData;
 import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomPersistedCloudCredential;
@@ -101,6 +107,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class DatafeedManagerTests extends ESTestCase {
+
+    private static final Date SCOPE_CHANGE_SIGNAL_DATA_ANCHOR = new Date(1_700_000_000_000L);
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
@@ -155,6 +163,35 @@ public class DatafeedManagerTests extends ESTestCase {
         AnomalyDetectionAuditor auditor,
         AnnotationPersister annotationPersister
     ) {
+        return newDatafeedManager(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            settings,
+            client,
+            mlExtension,
+            auditor,
+            annotationPersister,
+            null,
+            null
+        );
+    }
+
+    private DatafeedManager newDatafeedManager(
+        DatafeedConfigProvider datafeedConfigProvider,
+        JobConfigProvider jobConfigProvider,
+        Settings settings,
+        Client client,
+        MachineLearningExtension mlExtension,
+        AnomalyDetectionAuditor auditor,
+        AnnotationPersister annotationPersister,
+        @Nullable ThreadPool threadPool,
+        @Nullable Date scopeChangeDataAnchor
+    ) {
+        JobResultsProvider jobResultsProvider = mock(JobResultsProvider.class);
+        stubJobResultsProvider(jobResultsProvider, scopeChangeDataAnchor);
+        if (threadPool != null) {
+            when(threadPool.executor(eq(MachineLearning.UTILITY_THREAD_POOL_NAME))).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        }
         ClusterService clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings = new ClusterSettings(
             settings,
@@ -170,12 +207,32 @@ public class DatafeedManagerTests extends ESTestCase {
             client,
             mlExtension,
             auditor,
-            annotationPersister
+            annotationPersister,
+            jobResultsProvider
         );
     }
 
-    private static String projectRoutingChangeMessage(@Nullable String oldRouting, String newRouting) {
-        return Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_PROJECT_ROUTING_CHANGED, oldRouting == null ? "" : oldRouting, newRouting);
+    @SuppressWarnings("unchecked")
+    private static void stubJobResultsProvider(JobResultsProvider jobResultsProvider, @Nullable Date latestRecordTimeStamp) {
+        if (latestRecordTimeStamp == null) {
+            return;
+        }
+        doAnswer(invocation -> {
+            Consumer<DataCounts> handler = invocation.getArgument(1);
+            DataCounts dataCounts = new DataCounts((String) invocation.getArgument(0));
+            dataCounts.setLatestRecordTimeStamp(latestRecordTimeStamp);
+            handler.accept(dataCounts);
+            return null;
+        }).when(jobResultsProvider).dataCounts(anyString(), any(), any());
+    }
+
+    private static String projectRoutingChangeMessage(@Nullable String oldRouting, String newRouting, boolean rollbackSnapshotRetained) {
+        String oldDisplay = oldRouting == null ? "(unset)" : oldRouting;
+        String base = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_PROJECT_ROUTING_CHANGED, oldDisplay, newRouting);
+        if (rollbackSnapshotRetained) {
+            return base + Messages.JOB_AUDIT_DATAFEED_PROJECT_ROUTING_CHANGED_SNAPSHOT_RETAINED;
+        }
+        return base + Messages.JOB_AUDIT_DATAFEED_PROJECT_ROUTING_CHANGED_NO_SNAPSHOT;
     }
 
     private static void verifyProjectRoutingChangeSignals(
@@ -183,9 +240,10 @@ public class DatafeedManagerTests extends ESTestCase {
         AnnotationPersister annotationPersister,
         String jobId,
         @Nullable String oldRouting,
-        String newRouting
+        String newRouting,
+        boolean rollbackSnapshotRetained
     ) {
-        String message = projectRoutingChangeMessage(oldRouting, newRouting);
+        String message = projectRoutingChangeMessage(oldRouting, newRouting, rollbackSnapshotRetained);
         verify(auditor, atLeastOnce()).info(eq(jobId), eq(message));
         verify(annotationPersister).persistAnnotation(
             isNull(),
@@ -193,6 +251,7 @@ public class DatafeedManagerTests extends ESTestCase {
                 annotation -> annotation.getEvent() == Annotation.Event.SEARCH_SCOPE_CHANGED
                     && annotation.getJobId().equals(jobId)
                     && annotation.getAnnotation().equals(message)
+                    && annotation.getTimestamp().equals(SCOPE_CHANGE_SIGNAL_DATA_ANCHOR)
             )
         );
     }
@@ -1879,7 +1938,9 @@ public class DatafeedManagerTests extends ESTestCase {
             client,
             mlExtension,
             auditor,
-            annotationPersister
+            annotationPersister,
+            threadPool,
+            SCOPE_CHANGE_SIGNAL_DATA_ANCHOR
         );
 
         DatafeedConfig storedConfig = migratedCpsDatafeed("df-scope-retain", "job-scope-retain");
@@ -1924,7 +1985,8 @@ public class DatafeedManagerTests extends ESTestCase {
             annotationPersister,
             "job-scope-retain",
             ProjectRoutingResolver.LOCAL_ONLY,
-            "_alias:prod-*"
+            "_alias:prod-*",
+            true
         );
     }
 
@@ -2060,7 +2122,9 @@ public class DatafeedManagerTests extends ESTestCase {
             client,
             mlExtension,
             auditor,
-            annotationPersister
+            annotationPersister,
+            threadPool,
+            SCOPE_CHANGE_SIGNAL_DATA_ANCHOR
         );
 
         DatafeedConfig storedConfig = migratedCpsDatafeed("df-scope-off", "job-scope-off");
@@ -2096,7 +2160,8 @@ public class DatafeedManagerTests extends ESTestCase {
             annotationPersister,
             "job-scope-off",
             ProjectRoutingResolver.LOCAL_ONLY,
-            "_alias:prod-*"
+            "_alias:prod-*",
+            false
         );
     }
 
@@ -2123,7 +2188,9 @@ public class DatafeedManagerTests extends ESTestCase {
             client,
             mlExtension,
             auditor,
-            annotationPersister
+            annotationPersister,
+            threadPool,
+            SCOPE_CHANGE_SIGNAL_DATA_ANCHOR
         );
 
         PersistedCloudCredential existingCred = randomPersistedCloudCredential("existing-key-id");
@@ -2151,7 +2218,7 @@ public class DatafeedManagerTests extends ESTestCase {
         assertThat(capturedUpdate.get().getProjectRouting(), equalTo(ProjectRoutingResolver.LOCAL_ONLY));
         verify(client, never()).execute(same(UpdateModelSnapshotAction.INSTANCE), any(), any());
         verify(jobConfigProvider, never()).getJob(anyString(), any(), any());
-        verifyProjectRoutingChangeSignals(auditor, annotationPersister, "job-first-local", null, ProjectRoutingResolver.LOCAL_ONLY);
+        verifyProjectRoutingChangeSignals(auditor, annotationPersister, "job-first-local", null, ProjectRoutingResolver.LOCAL_ONLY, false);
     }
 
     @SuppressWarnings("unchecked")
@@ -2182,7 +2249,9 @@ public class DatafeedManagerTests extends ESTestCase {
             client,
             mlExtension,
             auditor,
-            annotationPersister
+            annotationPersister,
+            threadPool,
+            SCOPE_CHANGE_SIGNAL_DATA_ANCHOR
         );
 
         DatafeedConfig storedConfig = new DatafeedConfig.Builder("df-annotation-fail", "job-annotation-fail").setIndices(List.of("logs-*"))
@@ -2203,12 +2272,20 @@ public class DatafeedManagerTests extends ESTestCase {
         UpdateDatafeedAction.Request request = new UpdateDatafeedAction.Request(
             new DatafeedUpdate.Builder("df-annotation-fail").setProjectRouting(ProjectRoutingResolver.LOCAL_ONLY).build()
         );
-        manager.updateDatafeed(request, mockClusterStateForUpdate(), null, threadPool, ActionTestUtils.assertNoFailureListener(r -> {}));
+        AtomicBoolean updateSucceeded = new AtomicBoolean(false);
+        manager.updateDatafeed(
+            request,
+            mockClusterStateForUpdate(),
+            null,
+            threadPool,
+            ActionTestUtils.assertNoFailureListener(r -> updateSucceeded.set(true))
+        );
 
         assertThat(capturedUpdate.get(), notNullValue());
+        assertTrue(updateSucceeded.get());
         verify(auditor, atLeastOnce()).info(
             eq("job-annotation-fail"),
-            eq(projectRoutingChangeMessage(null, ProjectRoutingResolver.LOCAL_ONLY))
+            eq(projectRoutingChangeMessage(null, ProjectRoutingResolver.LOCAL_ONLY, false))
         );
     }
 

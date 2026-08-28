@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
@@ -59,13 +60,13 @@ import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
-import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearningExtension;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.io.IOException;
@@ -107,6 +108,7 @@ public final class DatafeedManager {
     private final Supplier<CloudCredentialManager> credentialManagerSupplier;
     private final AnomalyDetectionAuditor auditor;
     private final AnnotationPersister annotationPersister;
+    private final JobResultsProvider jobResultsProvider;
     private volatile boolean requireRollbackSnapshotBeforeScopeChange;
 
     public DatafeedManager(
@@ -118,7 +120,8 @@ public final class DatafeedManager {
         Client client,
         MachineLearningExtension mlExtension,
         AnomalyDetectionAuditor auditor,
-        AnnotationPersister annotationPersister
+        AnnotationPersister annotationPersister,
+        JobResultsProvider jobResultsProvider
     ) {
         this.datafeedConfigProvider = datafeedConfigProvider;
         this.jobConfigProvider = jobConfigProvider;
@@ -129,6 +132,7 @@ public final class DatafeedManager {
         MachineLearningExtension extension = Objects.requireNonNull(mlExtension);
         this.auditor = Objects.requireNonNull(auditor);
         this.annotationPersister = Objects.requireNonNull(annotationPersister);
+        this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
         this.credentialManagerSupplier = extension::getCloudCredentialManager;
         this.credentialTransitions = new CredentialTransitions(
             this.auditor,
@@ -327,6 +331,11 @@ public final class DatafeedManager {
                     final String defaultProjectRouting = ProjectRoutingResolver.LOCAL_ONLY;
                     final boolean userInitiatedProjectRoutingChange = defaultedProjectRoutingForMigration == false
                         && DatafeedUpdate.isUserInitiatedProjectRoutingChange(current, update);
+                    final boolean rollbackSnapshotRetained = requiresRollbackSnapshotBeforeScopeChange(
+                        defaultedProjectRoutingForMigration,
+                        current,
+                        update
+                    );
                     ActionListener<PutDatafeedAction.Response> updateListener;
                     if (defaultedProjectRoutingForMigration) {
                         updateListener = ActionListener.wrap(response -> {
@@ -346,8 +355,8 @@ public final class DatafeedManager {
                         }, l::onFailure);
                     } else if (userInitiatedProjectRoutingChange) {
                         updateListener = ActionListener.wrap(response -> {
-                            notifyUserInitiatedProjectRoutingChange(current, update);
                             l.onResponse(response);
+                            notifyUserInitiatedProjectRoutingChange(current, update, threadPool, rollbackSnapshotRetained);
                         }, l::onFailure);
                     } else {
                         updateListener = l;
@@ -367,7 +376,7 @@ public final class DatafeedManager {
                         wrappedValidator,
                         updateListener
                     );
-                    if (requiresRollbackSnapshotBeforeScopeChange(defaultedProjectRoutingForMigration, current, update)) {
+                    if (rollbackSnapshotRetained) {
                         retainRollbackSnapshotBeforeScopeChange(
                             current,
                             update,
@@ -515,35 +524,52 @@ public final class DatafeedManager {
         );
     }
 
-    private void notifyUserInitiatedProjectRoutingChange(DatafeedConfig current, DatafeedUpdate rawUpdate) {
-        String message = projectRoutingChangeMessage(current.getProjectRouting(), rawUpdate.getProjectRouting());
+    private void notifyUserInitiatedProjectRoutingChange(
+        DatafeedConfig current,
+        DatafeedUpdate rawUpdate,
+        ThreadPool threadPool,
+        boolean rollbackSnapshotRetained
+    ) {
+        String message = projectRoutingChangeMessage(current.getProjectRouting(), rawUpdate.getProjectRouting(), rollbackSnapshotRetained);
         logger.info("[{}] {}", current.getId(), message);
         auditor.info(current.getJobId(), message);
-        try {
-            persistProjectRoutingChangeAnnotation(current.getJobId(), message);
-        } catch (Exception e) {
-            logger.warn(() -> "[" + current.getId() + "] failed to persist project_routing change annotation", e);
-        }
+        String jobId = current.getJobId();
+        String datafeedId = current.getId();
+        jobResultsProvider.dataCounts(
+            jobId,
+            dataCounts -> scheduleProjectRoutingChangeAnnotation(datafeedId, jobId, message, dataCounts, threadPool),
+            e -> {
+                logger.warn(() -> "[" + datafeedId + "] failed to load data counts for project_routing change annotation", e);
+                scheduleProjectRoutingChangeAnnotation(datafeedId, jobId, message, null, threadPool);
+            }
+        );
     }
 
-    private static String projectRoutingChangeMessage(@Nullable String oldRouting, String newRouting) {
-        return Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_PROJECT_ROUTING_CHANGED, oldRouting == null ? "" : oldRouting, newRouting);
-    }
-
-    private void persistProjectRoutingChangeAnnotation(String jobId, String message) {
+    private void scheduleProjectRoutingChangeAnnotation(
+        String datafeedId,
+        String jobId,
+        String message,
+        @Nullable DataCounts dataCounts,
+        ThreadPool threadPool
+    ) {
         Date now = new Date();
-        Annotation annotation = new Annotation.Builder().setAnnotation(message)
-            .setCreateTime(now)
-            .setCreateUsername(InternalUsers.XPACK_USER.principal())
-            .setTimestamp(now)
-            .setEndTimestamp(now)
-            .setJobId(jobId)
-            .setModifiedTime(now)
-            .setModifiedUsername(InternalUsers.XPACK_USER.principal())
-            .setType(Annotation.Type.ANNOTATION)
-            .setEvent(Annotation.Event.SEARCH_SCOPE_CHANGED)
-            .build();
-        annotationPersister.persistAnnotation(null, annotation);
+        Date anchor = dataCounts != null && dataCounts.getLatestRecordTimeStamp() != null ? dataCounts.getLatestRecordTimeStamp() : now;
+        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+            try {
+                annotationPersister.persistAnnotation(null, Annotation.searchScopeChanged(jobId, message, anchor, now));
+            } catch (Exception e) {
+                logger.warn(() -> "[" + datafeedId + "] failed to persist project_routing change annotation", e);
+            }
+        });
+    }
+
+    private static String projectRoutingChangeMessage(@Nullable String oldRouting, String newRouting, boolean rollbackSnapshotRetained) {
+        String oldDisplay = oldRouting == null ? "(unset)" : oldRouting;
+        String base = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_PROJECT_ROUTING_CHANGED, oldDisplay, newRouting);
+        if (rollbackSnapshotRetained) {
+            return base + Messages.JOB_AUDIT_DATAFEED_PROJECT_ROUTING_CHANGED_SNAPSHOT_RETAINED;
+        }
+        return base + Messages.JOB_AUDIT_DATAFEED_PROJECT_ROUTING_CHANGED_NO_SNAPSHOT;
     }
 
     public void deleteDatafeed(DeleteDatafeedAction.Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {

@@ -10,9 +10,8 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.benchmark.Utils;
-import org.elasticsearch.nativeaccess.BBQTestUtils;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.SimdVecLibrary;
+import org.elasticsearch.simdvec.BBQTestUtils;
+import org.elasticsearch.simdvec.SimdVecLibrary;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -203,5 +202,5 @@ public class VectorScorerD2Q2StripedOperationBenchmark {
         }
     }
 
-    private static final SimdVecLibrary VEC_LIBRARY = NativeAccess.instance().getVectorSimilarityFunctions().orElseThrow();
+    private static final SimdVecLibrary VEC_LIBRARY = SimdVecLibrary.instance().orElseThrow();
 }

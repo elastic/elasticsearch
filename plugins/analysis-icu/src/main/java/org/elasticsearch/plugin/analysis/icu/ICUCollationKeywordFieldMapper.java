@@ -547,6 +547,16 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
+        return docValuesParams.multiValue() == false && (token != XContentParser.Token.VALUE_NULL || nullValue != null);
+    }
+
+    @Override
+    protected DocValuesParameter.Values.OnFailure onFailureBehavior() {
+        return docValuesParams.onFailure();
+    }
+
+    @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
         return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
     }

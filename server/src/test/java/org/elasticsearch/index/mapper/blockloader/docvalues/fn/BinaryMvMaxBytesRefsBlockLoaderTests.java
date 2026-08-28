@@ -22,6 +22,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader.ArrayOrderSource;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -72,7 +73,7 @@ public class BinaryMvMaxBytesRefsBlockLoaderTests extends AbstractBlockLoaderTes
                 LeafReaderContext ctx = getOnlyLeafReader(dr).getContext();
 
                 var stringsLoader = new BytesRefsFromBinaryMultiSeparateCountBlockLoader("field");
-                var mvMinLoader = new MvMaxBytesRefsFromBinaryBlockLoader("field");
+                var mvMinLoader = new MvMaxBytesRefsFromBinaryBlockLoader("field", ArrayOrderSource.NONE);
                 try (var stringsReader = stringsLoader.reader(breaker, ctx); var mvMinReader = mvMinLoader.reader(breaker, ctx)) {
                     assertThat(mvMinReader, readerMatcher());
                     BlockLoader.Docs docs = TestBlock.docs(ctx);

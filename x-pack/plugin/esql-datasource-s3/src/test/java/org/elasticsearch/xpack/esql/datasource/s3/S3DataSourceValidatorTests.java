@@ -284,6 +284,64 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertEquals("hive", result.get("partition_detection"));
     }
 
+    public void testValidateDatasetExclusionSettingsValid() {
+        Map<String, Object> result = validator.validateDataset(
+            Map.of(),
+            "s3://bucket/path/*.parquet",
+            Map.of("file_exclusions", List.of("**/_*", "**/.*", "**/_temporary/**"))
+        );
+        assertEquals(
+            "stored verbatim, since patterns are case-sensitive user data",
+            List.of("**/_*", "**/.*", "**/_temporary/**"),
+            result.get("file_exclusions")
+        );
+    }
+
+    /** The empty list is a legitimate value: exclude nothing. */
+    public void testValidateDatasetExclusionSettingsAcceptEmptyList() {
+        Map<String, Object> result = validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_exclusions", List.of()));
+        assertEquals(List.of(), result.get("file_exclusions"));
+    }
+
+    /** Entries are ordinary resource patterns, so a directory pattern is legal rather than refused. */
+    public void testValidateDatasetExclusionAcceptsADirectoryPattern() {
+        Map<String, Object> result = validator.validateDataset(
+            Map.of(),
+            "s3://b/p",
+            Map.of("file_exclusions", List.of("**/_temporary/**"))
+        );
+        assertEquals(List.of("**/_temporary/**"), result.get("file_exclusions"));
+    }
+
+    public void testValidateDatasetExclusionRejectsAnUnparseablePattern() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_exclusions", List.of("a[b")))
+        );
+        assertThat(e.validationErrors(), hasSize(1));
+        assertThat(e.getMessage(), containsString("must contain only valid patterns"));
+        assertThat(e.getMessage(), containsString("unterminated character class"));
+    }
+
+    /** A shape problem is reported once, by the list validator, not twice by the owning parser as well. */
+    public void testValidateDatasetExclusionRejectsNonListWithOneMessage() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_exclusions", "**/_*"))
+        );
+        assertThat(e.validationErrors(), hasSize(1));
+        assertThat(e.getMessage(), containsString("must be a JSON array of strings"));
+    }
+
+    public void testValidateDatasetExclusionRejectsNonStringElementWithOneMessage() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_exclusions", List.of(42)))
+        );
+        assertThat(e.validationErrors(), hasSize(1));
+        assertThat(e.getMessage(), containsString("must be a JSON array of non-empty strings"));
+    }
+
     public void testValidateDatasetPartitionDetectionInvalid() {
         ValidationException e = expectThrows(
             ValidationException.class,
@@ -492,6 +550,29 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     public void testValidateDatasetTargetSplitSizeUnitlessRejected() {
         // ByteSizeValue requires a unit suffix; a bare number is rejected.
         expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("target_split_size", "1024")));
+    }
+
+    public void testValidateDatasetMaxSplitProbesAboveTheCeilingRejected() {
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_split_probes", "10001")));
+    }
+
+    /**
+     * A window that fits the budget against the default probe count, and one that does not. The absent key has to
+     * be resolved to its default for the second to be caught here rather than at query time.
+     */
+    public void testValidateDatasetProbeBudgetCountsTheAbsentKeysDefault() {
+        assertEquals("4mb", validator.validateDataset(Map.of(), "s3://b/p", Map.of("split_probe_window", "4mb")).get("split_probe_window"));
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("split_probe_window", "8mb")));
+    }
+
+    /** Two values each acceptable alone, rejected for the reads they ask for together. */
+    public void testValidateDatasetProbeBudgetRejectsTheProductOfTwoValidKeys() {
+        assertEquals("1mb", validator.validateDataset(Map.of(), "s3://b/p", Map.of("split_probe_window", "1mb")).get("split_probe_window"));
+        assertEquals("8000", validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_split_probes", "8000")).get("max_split_probes"));
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("split_probe_window", "1mb", "max_split_probes", "8000"))
+        );
     }
 
     public void testReaderStaysExternalOnly() {

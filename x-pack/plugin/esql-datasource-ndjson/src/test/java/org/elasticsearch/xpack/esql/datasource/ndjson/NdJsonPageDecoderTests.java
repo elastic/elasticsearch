@@ -948,6 +948,82 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         assertThat(warnings.get(1), Matchers.containsString("notanumber"));
     }
 
+    /**
+     * Under {@code skip_row}, a scalar coercion failure (a non-numeric string where a LONG is expected) drops the
+     * entire record — the same contract the array coercion skip_row test asserts for multi-value positions.
+     * Input: two records; the second has an uncoercible value in column {@code n}. Only the first record survives.
+     */
+    public void testScalarCoercionFailureDropsRowUnderSkipRow() throws IOException {
+        String ndjson = "{\"n\": 42, \"k\": \"good\"}\n{\"n\": \"not_a_number\", \"k\": \"bad\"}\n";
+        List<String> warnings = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("n", DataType.LONG), attribute("k", DataType.KEYWORD)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.LENIENT,
+                "test://scalar-skip",
+                new NdJsonReaderCounters(),
+                warnings::add
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertNotNull(page);
+            LongBlock nBlock = page.getBlock(0);
+            BytesRefBlock kBlock = page.getBlock(1);
+            assertEquals("poisoned row is dropped, one remains", 1, page.getPositionCount());
+            assertFalse(nBlock.isNull(0));
+            assertEquals(42L, nBlock.getLong(nBlock.getFirstValueIndex(0)));
+            BytesRef scratch = new BytesRef();
+            assertEquals(new BytesRef("good"), BytesRef.deepCopyOf(kBlock.getBytesRef(0, scratch)));
+        }
+        // SkipWarnings.add() emits a one-time summary header on the first call, then the detail — 2 messages total.
+        assertEquals("one summary + one detail warning for the dropped row", 2, warnings.size());
+        assertThat(warnings.get(1), Matchers.containsString("not_a_number"));
+    }
+
+    /**
+     * Under {@code null_field}, a scalar coercion failure nulls only the cell where coercion failed; the rest of the
+     * record survives. Companion to {@link #testScalarCoercionFailureDropsRowUnderSkipRow} for the permissive path.
+     * Input: two records; the second has an uncoercible value in column {@code n}. Both rows survive; the bad cell is null.
+     */
+    public void testScalarCoercionFailureNullsFieldUnderNullField() throws IOException {
+        String ndjson = "{\"n\": 42, \"k\": \"good\"}\n{\"n\": \"not_a_number\", \"k\": \"bad\"}\n";
+        List<String> warnings = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("n", DataType.LONG), attribute("k", DataType.KEYWORD)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.PERMISSIVE,
+                "test://scalar-null-field",
+                new NdJsonReaderCounters(),
+                warnings::add
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertNotNull(page);
+            LongBlock nBlock = page.getBlock(0);
+            BytesRefBlock kBlock = page.getBlock(1);
+            assertEquals("both rows survive under null_field", 2, page.getPositionCount());
+            assertFalse("row 0 n is not null", nBlock.isNull(0));
+            assertEquals(42L, nBlock.getLong(nBlock.getFirstValueIndex(0)));
+            assertTrue("row 1 n is null (coercion failed)", nBlock.isNull(1));
+            BytesRef scratch = new BytesRef();
+            assertEquals(new BytesRef("good"), BytesRef.deepCopyOf(kBlock.getBytesRef(0, scratch)));
+            assertEquals(new BytesRef("bad"), BytesRef.deepCopyOf(kBlock.getBytesRef(1, scratch)));
+        }
+        // SkipWarnings.add() emits a one-time summary header on the first call, then the detail — 2 messages total.
+        assertEquals("one summary + one detail warning for the nulled cell", 2, warnings.size());
+        assertThat(warnings.get(1), Matchers.containsString("not_a_number"));
+    }
+
     // ---------------------------------------------------------------------------------------------
     // StreamReadConstraints violations. Jackson enforces its read limits in the TOKEN SCANNER, so
     // these never reach a decode arm or the per-cell coercionFailure sink — they belong to the

@@ -9,19 +9,18 @@
 
 package org.elasticsearch.nativeaccess;
 
+import org.elasticsearch.foreign.LibraryProvider;
 import org.elasticsearch.foreign.Upcall;
 import org.elasticsearch.nativeaccess.jdk.JdkMappedSegment;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library.Address;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library.Handle;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library.MemoryBasicInformation;
-import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -52,9 +51,9 @@ public class WindowsNativeAccess extends AbstractNativeAccess {
 
     private final Kernel32Library kernel;
 
-    WindowsNativeAccess(NativeLibraryProvider libraryProvider) {
-        super("Windows", libraryProvider);
-        this.kernel = libraryProvider.getLibrary(Kernel32Library.class);
+    WindowsNativeAccess() {
+        super("Windows");
+        this.kernel = LibraryProvider.lookupLibrary(Kernel32Library.class);
     }
 
     /**
@@ -223,16 +222,6 @@ public class WindowsNativeAccess extends AbstractNativeAccess {
     @Override
     public ProcessLimits getProcessLimits() {
         return new ProcessLimits(ProcessLimits.UNKNOWN, ProcessLimits.UNKNOWN, ProcessLimits.UNKNOWN);
-    }
-
-    @Override
-    public Optional<SimdVecLibrary> getVectorSimilarityFunctions() {
-        return Optional.empty(); // not supported yet
-    }
-
-    @Override
-    public Optional<ParquetRsFunctions> getParquetRsFunctions() {
-        return Optional.empty(); // not supported yet
     }
 
     @Override

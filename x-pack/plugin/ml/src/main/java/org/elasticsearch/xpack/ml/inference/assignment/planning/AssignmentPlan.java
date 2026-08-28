@@ -135,9 +135,18 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         }
 
         int findOptimalAllocations(int maxAllocations, long availableMemoryBytes) {
-            if (perDeploymentMemoryBytes > 0 && perAllocationMemoryBytes > 0) {
+            // As soon as we know the per-allocation memory (whether from model metadata or from observed runtime memory)
+            // we can bound the number of allocations by the memory available on the node. A zero per-deployment base is fine.
+            if (perAllocationMemoryBytes > 0) {
+                // Guard first: if the node cannot afford even a single allocation (including MEMORY_OVERHEAD and the
+                // model-zip transient), the division below would over-count because fixedCostBytes only covers
+                // perDeploymentMemoryBytes + memoryBytes and omits MEMORY_OVERHEAD.
+                if (availableMemoryBytes < minimumMemoryRequiredBytes()) {
+                    return 0;
+                }
+                long fixedCostBytes = perDeploymentMemoryBytes + memoryBytes;
                 return (int) Math.max(
-                    Math.min(maxAllocations, Math.floorDiv(availableMemoryBytes - estimateMemoryUsageBytes(0), perAllocationMemoryBytes)),
+                    Math.min(maxAllocations, Math.floorDiv(availableMemoryBytes - fixedCostBytes, perAllocationMemoryBytes)),
                     0
                 );
             }
@@ -145,8 +154,8 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         }
 
         int findExcessAllocations(int maxAllocations, long availableMemoryBytes) {
-            if (perDeploymentMemoryBytes > 0 && perAllocationMemoryBytes > 0) {
-                return (int) Math.min(maxAllocations, Math.floorDiv(availableMemoryBytes, perAllocationMemoryBytes));
+            if (perAllocationMemoryBytes > 0) {
+                return (int) Math.max(0, Math.min(maxAllocations, Math.floorDiv(availableMemoryBytes, perAllocationMemoryBytes)));
             }
             return maxAllocations;
         }

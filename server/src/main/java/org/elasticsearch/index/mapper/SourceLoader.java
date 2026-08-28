@@ -480,6 +480,72 @@ public interface SourceLoader {
     }
 
     /**
+     * Overlays each {@code doc_values.updatable} field's current doc-values value onto the {@code _source} from a delegate loader.
+     * Needed for {@code columnar_stored} source, a whole-document blob computed at index time that an in-place doc-values update does
+     * not rewrite; reading the live doc values back and replacing the stale values keeps the returned {@code _source} correct. Other
+     * source modes need no overlay: synthetic already rebuilds every field from doc values.
+     */
+    class DocValuesUpdateOverlay implements SourceLoader {
+        private final SourceLoader delegate;
+        private final List<FieldMapper> updatableFields;
+
+        DocValuesUpdateOverlay(SourceLoader delegate, List<FieldMapper> updatableFields) {
+            this.delegate = delegate;
+            this.updatableFields = updatableFields;
+        }
+
+        @Override
+        public boolean reordersFieldValues() {
+            return delegate.reordersFieldValues();
+        }
+
+        @Override
+        public Set<String> requiredStoredFields() {
+            return delegate.requiredStoredFields();
+        }
+
+        @Override
+        public Leaf leaf(LeafReaderContext context, int[] docIdsInLeaf) throws IOException {
+            var delegateLeaf = delegate.leaf(context, docIdsInLeaf);
+            List<Map.Entry<String, FieldMapper.DocValuesUpdateSourceReader>> readers = new ArrayList<>(updatableFields.size());
+            for (FieldMapper field : updatableFields) {
+                readers.add(Map.entry(field.fullPath(), field.docValuesUpdateSourceReader(context.reader())));
+            }
+            return new Leaf() {
+                @Override
+                public Source source(LeafStoredFieldLoader storedFields, int docId) throws IOException {
+                    Source source = delegateLeaf.source(storedFields, docId);
+                    List<Map.Entry<String, Object>> overlay = null;
+                    for (var reader : readers) {
+                        Object value = reader.getValue().read(docId);
+                        if (value != null) {
+                            if (overlay == null) {
+                                overlay = new ArrayList<>(readers.size());
+                            }
+                            overlay.add(Map.entry(reader.getKey(), value));
+                        }
+                    }
+                    if (overlay == null) {
+                        return source;
+                    }
+                    List<Map.Entry<String, Object>> patches = overlay;
+                    return source.withMutations(map -> {
+                        for (var patch : patches) {
+                            XContentMapValues.insertValue(patch.getKey(), map, patch.getValue(), false);
+                        }
+                    });
+                }
+
+                @Override
+                public void write(LeafStoredFieldLoader storedFields, int docId, XContentBuilder b) throws IOException {
+                    Source source = source(storedFields, docId);
+                    b.rawValue(source.internalSourceRef().streamInput(), source.sourceContentType());
+                }
+            };
+        }
+    }
+
+    /**
      * Applies a list of {@link SyntheticVectorPatch} instances to the given {@link Source}.
      *
      * @param originalSource the original source object

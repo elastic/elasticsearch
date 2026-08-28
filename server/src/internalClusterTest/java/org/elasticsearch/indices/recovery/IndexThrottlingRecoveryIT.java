@@ -9,9 +9,11 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -19,6 +21,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocatio
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.recovery.RecoveryStats;
@@ -30,6 +33,7 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.MockIndexEventListener;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collection;
 import java.util.Map;
@@ -40,7 +44,9 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -51,6 +57,11 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.appendToCopyNoNullElements(super.nodePlugins(), MockIndexEventListener.TestPlugin.class);
+    }
+
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable HTTP so that testRecoveryApisReportsBothActiveAndQueuedRecoveries can query the REST endpoints
     }
 
     /// Verifies that the source node queues peer recovery requests that exceed
@@ -511,6 +522,56 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
 
         releaseRecoveries.countDown();
         ensureGreen(indexNames.toArray(String[]::new));
+    }
+
+    public void testRecoveryApisReportsBothActiveAndQueuedRecoveries() throws Exception {
+        final var node = internalCluster().startNode(
+            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build()
+        );
+        final var indexOne = randomIndexName();
+        final var indexTwo = randomIndexName();
+
+        final var recoveryStarted = new CountDownLatch(1);
+        final var proceedWithRecovery = new CountDownLatch(1);
+
+        final IndexEventListener indexEventListener = new IndexEventListener() {
+            @Override
+            public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+                if (indexShard.shardId().getIndexName().equals(indexOne)) {
+                    recoveryStarted.countDown();
+                    safeAwait(proceedWithRecovery);
+                }
+                listener.onResponse(null);
+            }
+        };
+        internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, node).setNewDelegate(indexEventListener);
+
+        try {
+            // Block the first index recovery to occupy the single recovery slot
+            assertAcked(prepareCreate(indexOne).setSettings(indexSettings(1, 0).build()).setWaitForActiveShards(ActiveShardCount.NONE));
+            safeAwait(recoveryStarted);
+
+            // Second index's recovery is queued
+            assertAcked(prepareCreate(indexTwo).setSettings(indexSettings(1, 0).build()).setWaitForActiveShards(ActiveShardCount.NONE));
+            awaitRecoveryCountStats(Map.of(node, stats -> stats.currentFromStore() == 1 && stats.currentFromStoreQueued() == 1));
+
+            final var recoveryResponse = getRestClient().performRequest(new Request("GET", "/_recovery"));
+            final Map<String, Object> recoveryBody = XContentHelper.convertToMap(
+                XContentType.JSON.xContent(),
+                recoveryResponse.getEntity().getContent(),
+                false
+            );
+            assertThat("expected active recovery to be reported by /_recovery", recoveryBody, hasKey(indexOne));
+            assertThat("expected queued recovery to be reported by /_recovery", recoveryBody, hasKey(indexTwo));
+
+            final var catResponse = getRestClient().performRequest(new Request("GET", "/_cat/recovery"));
+            final String catBody = EntityUtils.toString(catResponse.getEntity());
+            assertThat("expected active recovery to be reported by /_cat/recovery", catBody, containsString(indexOne));
+            assertThat("expected queued recovery to be reported by /_cat/recovery", catBody, containsString(indexTwo));
+        } finally {
+            proceedWithRecovery.countDown();
+        }
+        ensureGreen(indexOne, indexTwo);
     }
 
     private static RecoveryStats getRecoveryStats(String node) {

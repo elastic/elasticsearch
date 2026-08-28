@@ -508,19 +508,18 @@ public class BoundsCheckTests extends ProcessorTestCase {
     }
 
     public void testOffsetSegmentNegativePaddingBytesFails() {
-        String source =
-            """
-                package test;
-                import java.lang.foreign.MemorySegment;
-                import org.elasticsearch.foreign.LibrarySpecification;
-                import org.elasticsearch.foreign.Function;
-                import org.elasticsearch.foreign.OffsetSegment;
-                @LibrarySpecification(name = "testlib")
-                public interface BadLib {
-                    @Function("native_fn")
-                    int fn(@OffsetSegment(offset = "offset", length = "len", paddingBytes = -1) MemorySegment buf, int offset, int len);
-                }
-                """;
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.OffsetSegment;
+            @LibrarySpecification(name = "testlib")
+            public interface BadLib {
+                @Function("native_fn")
+                int fn(@OffsetSegment(offset = "offset", length = "len", paddingBytes = -1) MemorySegment buf, int offset, int len);
+            }
+            """;
 
         CompilationResult result = compile("test.BadLib", source);
 
@@ -551,19 +550,18 @@ public class BoundsCheckTests extends ProcessorTestCase {
     }
 
     public void testOffsetSegmentWithPaddingCompiles() {
-        String source =
-            """
-                package test;
-                import java.lang.foreign.MemorySegment;
-                import org.elasticsearch.foreign.LibrarySpecification;
-                import org.elasticsearch.foreign.Function;
-                import org.elasticsearch.foreign.OffsetSegment;
-                @LibrarySpecification(name = "testlib")
-                public interface GoodLib {
-                    @Function("native_fn")
-                    int fn(@OffsetSegment(offset = "offset", length = "len", paddingBytes = 64) MemorySegment buf, int offset, int len);
-                }
-                """;
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.OffsetSegment;
+            @LibrarySpecification(name = "testlib")
+            public interface GoodLib {
+                @Function("native_fn")
+                int fn(@OffsetSegment(offset = "offset", length = "len", paddingBytes = 64) MemorySegment buf, int offset, int len);
+            }
+            """;
 
         CompilationResult result = compile("test.GoodLib", source);
 

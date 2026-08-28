@@ -516,7 +516,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
 
         // Unified attributes: data columns followed by the appended partition 'year' (shadows physical).
-        List<Attribute> attributes = List.of(ref("id", DataType.INTEGER), ref("value", DataType.INTEGER), ref("year", DataType.INTEGER));
+        // id is LONG because the mapping casts INT -> LONG; attributes carry the plan's output type, not the file's physical type.
+        List<Attribute> attributes = List.of(ref("id", DataType.LONG), ref("value", DataType.INTEGER), ref("year", DataType.INTEGER));
 
         // Non-identity, data-only mapping (cast id INT->LONG) so adaptSchema does not short-circuit.
         ExternalSchema fileSchema = new ExternalSchema(List.of(ref("id", DataType.INTEGER), ref("value", DataType.INTEGER)));

@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
@@ -55,12 +55,10 @@ final class CoalescedRangeReader {
 
     /**
      * Result of a coalesced read: the slices delivered to each original {@link ByteRange}, plus a
-     * {@link Releasable} that owns the underlying direct memory. The caller must close
+     * {@link Releasable} that owns the underlying buffers. The caller must close
      * {@link #release()} when the slices are no longer needed (typically at row-group rollover) so
-     * the breaker-accounted bytes are returned to the allocator eagerly instead of waiting for the
-     * JVM {@code Cleaner}. The {@code release} closes every {@link DirectReadBuffer} obtained from
-     * {@link StorageObject#readBytesAsync}, which decrements each backing {@code ArrowBuf}'s
-     * reference count and returns the memory to {@code allocator}.
+     * the breaker-accounted bytes are released eagerly instead of waiting for GC. The {@code release}
+     * closes every {@link DirectReadBuffer} obtained from {@link StorageObject#readBytesAsync}.
      */
     record CoalescedRangeResult(Map<ByteRange, ByteBuffer> ranges, Releasable release) {}
 
@@ -71,13 +69,12 @@ final class CoalescedRangeReader {
      *
      * <p>The {@link DirectReadBuffer}s returned by each underlying read are surfaced as a single
      * composite {@link Releasable} on {@link CoalescedRangeResult#release()}; the caller owns them
-     * from that point on and must close the result to release the native memory back to
-     * {@code allocator}.
+     * from that point on and must close the result to release the breaker charge.
      *
      * @param storageObject the storage object to read from
      * @param ranges the byte ranges to fetch (need not be sorted)
      * @param maxCoalesceGap maximum gap in bytes between two ranges to merge them
-     * @param allocator allocator used by the storage object to back each merged-range buffer
+     * @param breaker circuit breaker charged for each merged-range buffer
      * @param executor executor for async dispatch
      * @param listener receives the per-range slices plus the composite {@link Releasable}
      */
@@ -85,7 +82,7 @@ final class CoalescedRangeReader {
         StorageObject storageObject,
         List<ByteRange> ranges,
         long maxCoalesceGap,
-        BufferAllocator allocator,
+        CircuitBreaker breaker,
         Executor executor,
         ActionListener<CoalescedRangeResult> listener
     ) {
@@ -105,9 +102,9 @@ final class CoalescedRangeReader {
         AtomicInteger remaining = new AtomicInteger(merged.size());
         AtomicReference<Exception> firstFailure = new AtomicReference<>();
 
-        // Bridge the Arrow allocator to the SPI's allocator-agnostic factory once, here at the
-        // boundary, so backends do not need to know about BufferAllocator at all.
-        DirectBufferFactory factory = DirectBufferFactory.forAllocator(allocator);
+        // Bridge the circuit breaker to the SPI's factory once, here at the boundary, so
+        // backends do not need to know about CircuitBreaker at all.
+        DirectBufferFactory factory = DirectBufferFactory.forBreaker(breaker);
 
         for (MergedRange mr : merged) {
             storageObject.readBytesAsync(mr.offset, mr.length, factory, executor, new ActionListener<>() {
@@ -124,7 +121,7 @@ final class CoalescedRangeReader {
                     } catch (Throwable t) {
                         // Do not rethrow. {@code result} is already in {@code buffers}, so the terminal
                         // complete() will close it. Rethrowing would let the SPI's default readBytesAsync
-                        // catch also close {@code result}, double-freeing the backing ArrowBuf. Folding
+                        // catch also close {@code result}, double-releasing the buffer. Folding
                         // every throwable (not just Exception) into firstFailure guarantees a failure is
                         // delivered: with the finally below already calling complete(), letting an Error
                         // through instead would deliver a spurious success with truncated slices.
@@ -139,7 +136,7 @@ final class CoalescedRangeReader {
 
                 @Override
                 public void onFailure(Exception e) {
-                    // The backend has already released its ArrowBuf on the failure path; nothing
+                    // The backend has already released its buffer on the failure path; nothing
                     // to clean up for this merged range. Siblings that succeeded are released by
                     // complete() below.
                     if (firstFailure.compareAndSet(null, e) == false) {

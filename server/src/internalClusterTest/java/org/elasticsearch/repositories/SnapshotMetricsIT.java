@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -197,7 +198,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertMetricsHaveAttributes(InstrumentType.DOUBLE_HISTOGRAM, SnapshotMetrics.SNAPSHOT_DURATION, expectedAttrsWithSnapshotState);
 
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_SHARDS_STARTED, expectedAttrs);
-        assertMetricsHaveAttributes(InstrumentType.LONG_GAUGE, SnapshotMetrics.SNAPSHOT_SHARDS_IN_PROGRESS, expectedAttrs);
+        assertMetricsHaveAttributes(InstrumentType.LONG_ASYNC_GAUGE, SnapshotMetrics.SNAPSHOT_SHARDS_IN_PROGRESS, expectedAttrs);
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_SHARDS_COMPLETED, expectedAttrsWithShardStage);
         assertMetricsHaveAttributes(InstrumentType.DOUBLE_HISTOGRAM, SnapshotMetrics.SNAPSHOT_SHARDS_DURATION, expectedAttrsWithShardStage);
         assertMetricsHaveAttributes(InstrumentType.DOUBLE_HISTOGRAM, SnapshotMetrics.SNAPSHOT_SHARDS_QUEUE_TIME, expectedAttrs);
@@ -205,6 +206,79 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_UPLOAD_DURATION, expectedAttrs);
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_BYTES_UPLOADED, expectedAttrs);
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_BLOBS_UPLOADED, expectedAttrs);
+
+        // Clean snapshot: no unsuccessful shards at all; the counter is not emitted (nothing to iterate), and
+        // the histogram records exactly one observation of zero.
+        assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_SHARDS_UNSUCCESSFUL), equalTo(0L));
+        final List<Measurement> cleanHistogramMeasurements = getClusterMeasurements(
+            InstrumentType.LONG_HISTOGRAM,
+            SnapshotMetrics.SNAPSHOT_SHARDS_UNSUCCESSFUL_HISTOGRAM
+        );
+        assertThat(cleanHistogramMeasurements, hasSize(1));
+        assertThat(cleanHistogramMeasurements.getFirst().getLong(), equalTo(0L));
+        assertMetricsHaveAttributes(
+            InstrumentType.LONG_HISTOGRAM,
+            SnapshotMetrics.SNAPSHOT_SHARDS_UNSUCCESSFUL_HISTOGRAM,
+            expectedAttrsWithSnapshotState
+        );
+    }
+
+    /**
+     * Verifies that unsuccessful shard metrics are emitted when a partial snapshot completes
+     * with MISSING shards (unallocated primaries).
+     */
+    public void testUnsuccessfulShardMetrics() throws Exception {
+        final int numShards = randomIntBetween(1, 3);
+        final String indexName = randomIdentifier();
+        // Routing requirement that can never be satisfied forces all primaries to stay unallocated,
+        // so the snapshot records each shard as MISSING (partial=true mode).
+        // Use setWaitForActiveShards(NONE) so createIndex does not time out waiting for an
+        // allocation that will never arrive.
+        prepareCreate(indexName).setSettings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(REQUIRE_NODE_NAME_SETTING, "nonexistent-node")
+        ).setWaitForActiveShards(ActiveShardCount.NONE).get();
+
+        final String repositoryName = randomIdentifier();
+        createRepository(repositoryName, "mock");
+
+        final CreateSnapshotResponse response = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            repositoryName,
+            randomIdentifier()
+        ).setIndices(indexName).setPartial(true).setWaitForCompletion(true).get();
+
+        assertThat(response.getSnapshotInfo().state(), equalTo(SnapshotState.PARTIAL));
+        assertThat(response.getSnapshotInfo().failedShards(), equalTo(numShards));
+
+        awaitNoMoreRunningOperations();
+        collectMetrics();
+
+        // Counter: each MISSING shard adds one, broken down by shard state.
+        assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_SHARDS_UNSUCCESSFUL), equalTo((long) numShards));
+
+        // Histogram: one observation recording the total across all shard states for this snapshot.
+        final List<Measurement> histogramMeasurements = getClusterMeasurements(
+            InstrumentType.LONG_HISTOGRAM,
+            SnapshotMetrics.SNAPSHOT_SHARDS_UNSUCCESSFUL_HISTOGRAM
+        );
+        assertThat(histogramMeasurements, hasSize(1));
+        assertThat(histogramMeasurements.getFirst().getLong(), equalTo((long) numShards));
+
+        // Assert attribute dimensions.
+        final Map<String, Object> expectedAttrs = Map.of("repo_name", repositoryName, "repo_type", "mock");
+        assertMetricsHaveAttributes(
+            InstrumentType.LONG_COUNTER,
+            SnapshotMetrics.SNAPSHOT_SHARDS_UNSUCCESSFUL,
+            Maps.copyMapWithAddedEntry(expectedAttrs, "state", SnapshotsInProgress.ShardState.MISSING.name())
+        );
+        assertMetricsHaveAttributes(
+            InstrumentType.LONG_HISTOGRAM,
+            SnapshotMetrics.SNAPSHOT_SHARDS_UNSUCCESSFUL_HISTOGRAM,
+            Maps.copyMapWithAddedEntry(expectedAttrs, "state", SnapshotState.PARTIAL.name())
+        );
     }
 
     public void testThrottlingMetrics() throws Exception {
@@ -376,12 +450,12 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
         // Ensure all common attributes are present
         assertMetricsHaveAttributes(
-            InstrumentType.LONG_GAUGE,
+            InstrumentType.LONG_ASYNC_GAUGE,
             SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATE,
             Map.of("repo_name", repositoryName, "repo_type", "mock")
         );
         assertMetricsHaveAttributes(
-            InstrumentType.LONG_GAUGE,
+            InstrumentType.LONG_ASYNC_GAUGE,
             SnapshotMetrics.SNAPSHOTS_BY_STATE,
             Map.of("repo_name", repositoryName, "repo_type", "mock")
         );
@@ -446,12 +520,12 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
         // Ensure all common attributes are present
         assertMetricsHaveAttributes(
-            InstrumentType.LONG_GAUGE,
+            InstrumentType.LONG_ASYNC_GAUGE,
             SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATE,
             Map.of("repo_name", repositoryName, "repo_type", "mock")
         );
         assertMetricsHaveAttributes(
-            InstrumentType.LONG_GAUGE,
+            InstrumentType.LONG_ASYNC_GAUGE,
             SnapshotMetrics.SNAPSHOTS_BY_STATE,
             Map.of("repo_name", repositoryName, "repo_type", "mock")
         );
@@ -526,12 +600,12 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
         // Ensure all common attributes are present
         assertMetricsHaveAttributes(
-            InstrumentType.LONG_GAUGE,
+            InstrumentType.LONG_ASYNC_GAUGE,
             SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATE,
             Map.of("repo_name", repositoryName, "repo_type", "mock")
         );
         assertMetricsHaveAttributes(
-            InstrumentType.LONG_GAUGE,
+            InstrumentType.LONG_ASYNC_GAUGE,
             SnapshotMetrics.SNAPSHOTS_BY_STATE,
             Map.of("repo_name", repositoryName, "repo_type", "mock")
         );

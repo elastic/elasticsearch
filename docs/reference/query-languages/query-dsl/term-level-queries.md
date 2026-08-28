@@ -18,6 +18,9 @@ Term-level queries still normalize search terms for `keyword` fields with the `n
 
 ## Types of term-level queries [term-level-query-types]
 
+[`bitmap_terms` query](/reference/query-languages/query-dsl/query-dsl-bitmap-terms-query.md) {applies_to}`stack: ga 9.6` {applies_to}`serverless: ga`
+:   Returns documents whose `integer` or `long` field value is contained in a roaring bitmap. Use it in place of a `terms` query when the set of values is very large.
+
 [`exists` query](/reference/query-languages/query-dsl/query-dsl-exists-query.md)
 :   Returns documents that contain any indexed value for a field.
 

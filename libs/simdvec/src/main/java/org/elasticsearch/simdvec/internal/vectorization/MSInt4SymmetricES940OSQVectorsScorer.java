@@ -52,12 +52,12 @@ final class MSInt4SymmetricES940OSQVectorsScorer extends MemorySegmentES940OSQVe
 
     private long quantizeScore256(byte[] q) throws IOException {
         int size = length / 4;
-        return IndexInputUtils.withSlice(in, size, scratch::get, segment -> fourStripeBitDotProduct256(q, segment, 0L, size));
+        return IndexInputUtils.withSlice(in, size, scratch, segment -> fourStripeBitDotProduct256(q, segment, 0L, size));
     }
 
     private long quantizeScore128(byte[] q) throws IOException {
         int size = length / 4;
-        return IndexInputUtils.withSlice(in, size, scratch::get, segment -> fourStripeBitDotProduct128(q, segment, 0L, size));
+        return IndexInputUtils.withSlice(in, size, scratch, segment -> fourStripeBitDotProduct128(q, segment, 0L, size));
     }
 
     @Override

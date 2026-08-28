@@ -7,13 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LimitedBreaker;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.parquet.CoalescedRangeReader.ByteRange;
@@ -48,25 +45,18 @@ import static org.hamcrest.Matchers.instanceOf;
 public class CoalescedRangeReaderTests extends ESTestCase {
 
     private CircuitBreaker breaker;
-    private BufferAllocator allocator;
-    private BlockFactory blockFactory;
 
     @Before
     public void initAllocator() {
-        // A real (limited) breaker rather than a noop one: BlockFactory wires it into the Arrow
-        // allocator via CircuitBreakerAllocationListener, so every coalesced buffer is charged on
-        // allocate and uncharged on close. breaker.getUsed() is therefore the ground-truth leak
-        // signal - a NoopCircuitBreaker reports 0 unconditionally and would hide a leak.
+        // A real (limited) breaker rather than a noop one so breaker.getUsed() is the ground-truth
+        // leak signal - a NoopCircuitBreaker reports 0 unconditionally and would hide a leak.
         breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
-        allocator = blockFactory.arrowAllocator();
     }
 
     @After
     public void assertNoOutstandingMemory() {
         // Global leak net: whatever each test did, no coalesced buffer may remain charged.
         assertEquals("circuit breaker still holds bytes at teardown", 0L, breaker.getUsed());
-        assertEquals("allocator still holds bytes at teardown", 0L, allocator.getAllocatedMemory());
     }
 
     public void testMergeAdjacentRanges() {
@@ -176,7 +166,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         AtomicReference<CoalescedRangeResult> resultRef = new AtomicReference<>();
         AtomicReference<Exception> failureRef = new AtomicReference<>();
 
-        CoalescedRangeReader.readCoalesced(storageObject, ranges, 50, allocator, Runnable::run, new ActionListener<>() {
+        CoalescedRangeReader.readCoalesced(storageObject, ranges, 50, breaker, Runnable::run, new ActionListener<>() {
             @Override
             public void onResponse(CoalescedRangeResult result) {
                 resultRef.set(result);
@@ -228,7 +218,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         AtomicReference<CoalescedRangeResult> resultRef = new AtomicReference<>();
 
         // null StorageObject is safe here: the empty-ranges path returns before any I/O
-        CoalescedRangeReader.readCoalesced(null, List.of(), 0, allocator, Runnable::run, new ActionListener<>() {
+        CoalescedRangeReader.readCoalesced(null, List.of(), 0, breaker, Runnable::run, new ActionListener<>() {
             @Override
             public void onResponse(CoalescedRangeResult result) {
                 resultRef.set(result);
@@ -287,7 +277,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
             failingObject,
             List.of(new ByteRange(0, 100)),
             0,
-            allocator,
+            breaker,
             Runnable::run,
             new ActionListener<>() {
                 @Override
@@ -403,7 +393,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         AtomicReference<CoalescedRangeResult> resultRef = new AtomicReference<>();
         AtomicReference<Exception> failureRef = new AtomicReference<>();
 
-        CoalescedRangeReader.readCoalesced(shortReadObject, ranges, 1024, allocator, Runnable::run, new ActionListener<>() {
+        CoalescedRangeReader.readCoalesced(shortReadObject, ranges, 1024, breaker, Runnable::run, new ActionListener<>() {
             @Override
             public void onResponse(CoalescedRangeResult result) {
                 resultRef.set(result);
@@ -516,7 +506,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
                 AtomicReference<CoalescedRangeResult> resultRef = new AtomicReference<>();
                 AtomicReference<Exception> failureRef = new AtomicReference<>();
 
-                CoalescedRangeReader.readCoalesced(injecting, ranges, 1024, allocator, executor, new ActionListener<>() {
+                CoalescedRangeReader.readCoalesced(injecting, ranges, 1024, breaker, executor, new ActionListener<>() {
                     @Override
                     public void onResponse(CoalescedRangeResult result) {
                         resultRef.set(result);

@@ -480,8 +480,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         }
         List<Integer> keepIndices = new ArrayList<>();
         for (int i = 0; i < qe.outputSchema().size(); i++) {
-            if (qe.outputSchema().get(i).name().startsWith(ApproximationPlan.CONFIDENCE_INTERVAL_COLUMN_PREFIX) == false
-                && qe.outputSchema().get(i).name().startsWith(ApproximationPlan.CERTIFIED_COLUMN_PREFIX) == false) {
+            if (ApproximationPlan.isApproximationColumn(qe.outputSchema().get(i).name()) == false) {
                 keepIndices.add(i);
             }
         }

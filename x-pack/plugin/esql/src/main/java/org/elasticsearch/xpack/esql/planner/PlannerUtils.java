@@ -255,8 +255,8 @@ public class PlannerUtils {
     }
 
     /**
-     * Promotes a {@link LimitByExec} to {@link LimitByExec.CategorizeGroupingMode#INTERMEDIATE} when
-     * it was mapped with {@link LimitByExec.CategorizeGroupingMode#INITIAL} by {@link LocalMapper}.
+     * Promotes a {@link LimitByExec} to {@link AggregatorMode#INTERMEDIATE} when
+     * it was mapped with {@link AggregatorMode#INITIAL} by {@link LocalMapper}.
      * SINGLE nodes (no CATEGORIZE) are returned unchanged.
      */
     private static LimitByExec asNodeReduction(LimitByExec limitBy) {
@@ -272,14 +272,14 @@ public class PlannerUtils {
     }
 
     /**
-     * Promotes a {@link TopNByExec} to {@link LimitByExec.CategorizeGroupingMode#INTERMEDIATE} when
-     * it was mapped with {@link LimitByExec.CategorizeGroupingMode#INITIAL} by {@link LocalMapper}.
+     * Promotes a {@link TopNByExec} to {@link AggregatorMode#INTERMEDIATE} when
+     * it was mapped with {@link AggregatorMode#INITIAL} by {@link LocalMapper}.
      * SINGLE nodes (no CATEGORIZE) are returned unchanged.
      */
     private static TopNByExec asNodeReduction(TopNByExec topNBy) {
         return switch (topNBy.categorizeMode()) {
             case SINGLE -> topNBy;
-            case INITIAL -> topNBy.withCategorizeMode(LimitByExec.CategorizeGroupingMode.INTERMEDIATE);
+            case INITIAL -> topNBy.withCategorizeMode(AggregatorMode.INTERMEDIATE);
             // LocalMapper only ever produces SINGLE or INITIAL; guard against future modes.
             case INTERMEDIATE, FINAL -> throw new EsqlIllegalArgumentException(
                 "unexpected TOPN BY categorize mode [{}] when planning node-level reduction",

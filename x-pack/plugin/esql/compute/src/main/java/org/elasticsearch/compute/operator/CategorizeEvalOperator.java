@@ -7,24 +7,15 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash.CategorizeDef;
+import org.elasticsearch.compute.aggregation.blockhash.CategorizeBlockHash;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
-import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationBytesRefHash;
-import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationPartOfSpeechDictionary;
-import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategorizer;
-import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
-
-import java.io.IOException;
 
 /**
  * Data-node operator for distributed {@code LIMIT BY CATEGORIZE} and {@code TOPN BY CATEGORIZE}.
@@ -90,19 +81,10 @@ public class CategorizeEvalOperator implements Operator {
         }
     }
 
-    private static final CategorizationAnalyzerConfig DEFAULT_ANALYZER_CONFIG = CategorizationAnalyzerConfig
-        .buildStandardEsqlCategorizationAnalyzer();
-
-    /** Ordinal reserved for null values and strings that produce no tokens after analysis. */
-    private static final int NULL_ORD = 0;
-
     private final int textChannel;
-    private final TokenListCategorizer.CloseableTokenListCategorizer categorizer;
-    private final CategorizationAnalyzer analyzer;
+    private final CategorizeBlockHash blockHash;
     private final Operator inner;
-    private final BlockFactory blockFactory;
     private final CategorizerStateBuffer buffer;
-    private boolean seenNull;
 
     private CategorizeEvalOperator(
         int textChannel,
@@ -114,23 +96,10 @@ public class CategorizeEvalOperator implements Operator {
     ) {
         this.textChannel = textChannel;
         this.inner = inner;
-        this.blockFactory = blockFactory;
-        this.categorizer = new TokenListCategorizer.CloseableTokenListCategorizer(
-            new CategorizationBytesRefHash(new BytesRefHash(2048, blockFactory.bigArrays())),
-            CategorizationPartOfSpeechDictionary.getInstance(),
-            categorizeDef.similarityThreshold() / 100.0f
-        );
-        try {
-            CategorizationAnalyzerConfig config = categorizeDef.analyzer() == null
-                ? DEFAULT_ANALYZER_CONFIG
-                : new CategorizationAnalyzerConfig.Builder().setAnalyzer(categorizeDef.analyzer()).build();
-            this.analyzer = new CategorizationAnalyzer(analysisRegistry, config);
-        } catch (IOException e) {
-            categorizer.close();
-            throw new RuntimeException(e);
-        }
+        AggregatorMode aggregatorMode = isSingleNode ? AggregatorMode.SINGLE : AggregatorMode.INITIAL;
+        this.blockHash = new CategorizeBlockHash(blockFactory, 0, aggregatorMode, categorizeDef, analysisRegistry);
         // emitState == true only for distributed (non-single-node) execution
-        this.buffer = new CategorizerStateBuffer(blockFactory, inner, categorizer, isSingleNode == false, () -> seenNull);
+        this.buffer = new CategorizerStateBuffer(blockFactory, inner, blockHash, isSingleNode == false);
     }
 
     @Override
@@ -140,7 +109,7 @@ public class CategorizeEvalOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
-        IntBlock catIds = categorize(page.getBlock(textChannel));
+        IntBlock catIds = blockHash.categorize(page.getBlock(textChannel));
         boolean success = false;
         try {
             Page withCatIds = page.appendBlock(catIds);
@@ -181,50 +150,6 @@ public class CategorizeEvalOperator implements Operator {
         return buffer.getOutput();
     }
 
-    private IntBlock categorize(BytesRefBlock vBlock) {
-        BytesRefVector vVector = vBlock.asVector();
-        if (vVector != null) {
-            try (IntVector.FixedBuilder result = blockFactory.newIntVectorFixedBuilder(vBlock.getPositionCount())) {
-                BytesRef scratch = new BytesRef();
-                for (int p = 0; p < vBlock.getPositionCount(); p++) {
-                    result.appendInt(p, computeCategory(vVector.getBytesRef(p, scratch)));
-                }
-                return result.build().asBlock();
-            }
-        }
-        try (IntBlock.Builder result = blockFactory.newIntBlockBuilder(vBlock.getPositionCount())) {
-            BytesRef scratch = new BytesRef();
-            for (int p = 0; p < vBlock.getPositionCount(); p++) {
-                if (vBlock.isNull(p)) {
-                    seenNull = true;
-                    result.appendInt(NULL_ORD);
-                    continue;
-                }
-                int first = vBlock.getFirstValueIndex(p);
-                int count = vBlock.getValueCount(p);
-                if (count == 1) {
-                    result.appendInt(computeCategory(vBlock.getBytesRef(first, scratch)));
-                    continue;
-                }
-                result.beginPositionEntry();
-                for (int i = first; i < first + count; i++) {
-                    result.appendInt(computeCategory(vBlock.getBytesRef(i, scratch)));
-                }
-                result.endPositionEntry();
-            }
-            return result.build();
-        }
-    }
-
-    private int computeCategory(BytesRef v) {
-        var category = categorizer.computeCategory(v.utf8ToString(), analyzer);
-        if (category == null) {
-            seenNull = true;
-            return NULL_ORD;
-        }
-        return category.getId() + 1;
-    }
-
     @Override
     public String toString() {
         return "CategorizeEvalOperator[channel=" + textChannel + ", inner=" + inner + "]";
@@ -232,6 +157,6 @@ public class CategorizeEvalOperator implements Operator {
 
     @Override
     public void close() {
-        Releasables.close(buffer, inner, categorizer, analyzer);
+        Releasables.close(buffer, inner, blockHash);
     }
 }

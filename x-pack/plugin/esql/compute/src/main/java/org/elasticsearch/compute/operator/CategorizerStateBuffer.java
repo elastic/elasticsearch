@@ -8,15 +8,14 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.aggregation.blockhash.CategorizeBlockHash;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategorizer;
 
 import java.util.ArrayDeque;
-import java.util.function.BooleanSupplier;
 
 /**
  * Shared buffering logic for {@link CategorizeEvalOperator} (INITIAL mode) and
@@ -29,10 +28,10 @@ import java.util.function.BooleanSupplier;
  * withholds every output page that the inner operator produces until the owning operator has received
  * all input (i.e. until its {@link #finish()} is called). Once input is exhausted the
  * categorizer model is final. On the first call to {@link #getOutput()} after {@code finish()},
- * the model is serialized once via {@link CategorizerStateCodec#serialize} and a constant
+ * the model is serialized once via {@link CategorizeBlockHash#serializeCategorizer} and a constant
  * {@link BytesRefBlock} carrying that state is appended to every page before it is returned.
  *
- * <p>The buffer borrows {@code inner} and {@code model}; the owning operator remains responsible
+ * <p>The buffer borrows {@code inner} and {@code blockHash}; the owning operator remains responsible
  * for closing them. This object owns only the queued {@link Page} instances, which are released
  * in {@link #close()}.
  *
@@ -47,9 +46,8 @@ final class CategorizerStateBuffer implements Releasable {
 
     private final BlockFactory blockFactory;
     private final Operator inner;
-    private final TokenListCategorizer.CloseableTokenListCategorizer model;
+    private final CategorizeBlockHash blockHash;
     private final boolean emitState;
-    private final BooleanSupplier seenNull;
 
     /** Pages held back until input is exhausted. Only used when {@code emitState == true}. */
     private final ArrayDeque<Page> buffered = new ArrayDeque<>();
@@ -66,23 +64,14 @@ final class CategorizerStateBuffer implements Releasable {
     /**
      * @param blockFactory used to allocate the constant state block appended to each output page
      * @param inner        the inner grouping operator; borrowed — caller closes it
-     * @param model        the local categorizer; borrowed — caller closes it
+     * @param blockHash    the categorizer state owner; borrowed — caller closes it
      * @param emitState    {@code true} for INITIAL and INTERMEDIATE phases; {@code false} for SINGLE/FINAL
-     * @param seenNull     returns {@code true} if any null or zero-token value was encountered;
-     *                     queried once at first {@link #getOutput()} after {@link #finish()}
      */
-    CategorizerStateBuffer(
-        BlockFactory blockFactory,
-        Operator inner,
-        TokenListCategorizer.CloseableTokenListCategorizer model,
-        boolean emitState,
-        BooleanSupplier seenNull
-    ) {
+    CategorizerStateBuffer(BlockFactory blockFactory, Operator inner, CategorizeBlockHash blockHash, boolean emitState) {
         this.blockFactory = blockFactory;
         this.inner = inner;
-        this.model = model;
+        this.blockHash = blockHash;
         this.emitState = emitState;
-        this.seenNull = seenNull;
     }
 
     /**
@@ -153,7 +142,7 @@ final class CategorizerStateBuffer implements Releasable {
 
         // Lazily compute the final state once.
         if (finalState == null) {
-            finalState = CategorizerStateCodec.serialize(model, seenNull.getAsBoolean());
+            finalState = blockHash.serializeCategorizer();
         }
 
         Page p = buffered.isEmpty() ? inner.getOutput() : buffered.poll();
@@ -177,7 +166,7 @@ final class CategorizerStateBuffer implements Releasable {
 
     @Override
     public void close() {
-        // The inner operator and the model are closed by the owning operator.
+        // The inner operator and blockHash are closed by the owning operator.
         Releasables.closeExpectNoException(() -> Releasables.close(buffered));
     }
 }

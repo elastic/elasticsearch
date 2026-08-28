@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -27,32 +28,6 @@ import java.util.Objects;
  */
 public class LimitByExec extends UnaryExec implements EstimatesRowSize {
 
-    /**
-     * Execution mode for CATEGORIZE groupings in a distributed plan.
-     * <ul>
-     *   <li>{@link #SINGLE} — default; local-only execution (no exchange, or no CATEGORIZE in the
-     *       groupings).
-     *   <li>{@link #INITIAL} — data-node driver; appends serialized categorizer state to each
-     *       output page after running the per-group limit.
-     *   <li>{@link #INTERMEDIATE} — node-reduce driver; merges shard-level categorizer states into
-     *       one node-level model, applies the per-group limit again, and re-emits the node-level
-     *       state. Enables one pruning pass per node before rows travel to the coordinator.
-     *   <li>{@link #FINAL} — coordinator; merges node-level (or shard-level on single-node) states,
-     *       applies the global per-group limit, and produces the final output without a state channel.
-     * </ul>
-     *
-     * <p>Not serialized — determined locally by {@link
-     * org.elasticsearch.xpack.esql.planner.mapper.Mapper} (coordinator) and {@link
-     * org.elasticsearch.xpack.esql.planner.mapper.LocalMapper} (data nodes), mirroring the
-     * pattern used by {@code TopNByExec.outputOrdering}.
-     */
-    public enum CategorizeGroupingMode {
-        SINGLE,
-        INITIAL,
-        INTERMEDIATE,
-        FINAL
-    }
-
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
         "LimitByExec",
@@ -65,14 +40,20 @@ public class LimitByExec extends UnaryExec implements EstimatesRowSize {
 
     /**
      * Local-only execution mode for CATEGORIZE groupings. Not serialized.
-     * Defaults to {@link CategorizeGroupingMode#SINGLE}.
+     * Defaults to {@link AggregatorMode#SINGLE}.
+     * <ul>
+     *   <li>{@link AggregatorMode#SINGLE} — default; local-only execution (no exchange, or no CATEGORIZE in the groupings).
+     *   <li>{@link AggregatorMode#INITIAL} — data-node driver; appends serialized categorizer state to each output page.
+     *   <li>{@link AggregatorMode#INTERMEDIATE} — node-reduce driver; merges shard-level states, re-emits node-level state.
+     *   <li>{@link AggregatorMode#FINAL} — coordinator; merges node-level states, produces final output without a state channel.
+     * </ul>
      */
-    private final CategorizeGroupingMode mode;
+    private final AggregatorMode mode;
 
     /**
      * Snapshot of the logical output taken at INITIAL-mode creation time.
      * <p>
-     * In {@link CategorizeGroupingMode#INITIAL} mode, the data node's local physical optimizer
+     * In {@link AggregatorMode#INITIAL} mode, the data node's local physical optimizer
      * may add technical fields (e.g. {@code _doc}) to the child plan's output for late
      * materialization. Because {@link #output()} delegates to {@code child().output()}, those
      * extra fields would propagate upward, causing {@code LocalPhysicalPlanOptimizer.verify} to
@@ -84,7 +65,7 @@ public class LimitByExec extends UnaryExec implements EstimatesRowSize {
     private final List<Attribute> initialCategorizeOutput;
 
     public LimitByExec(Source source, PhysicalPlan child, Expression limitPerGroup, List<Expression> groupings, Integer estimatedRowSize) {
-        this(source, child, limitPerGroup, groupings, estimatedRowSize, CategorizeGroupingMode.SINGLE);
+        this(source, child, limitPerGroup, groupings, estimatedRowSize, AggregatorMode.SINGLE);
     }
 
     public LimitByExec(
@@ -93,7 +74,7 @@ public class LimitByExec extends UnaryExec implements EstimatesRowSize {
         Expression limitPerGroup,
         List<Expression> groupings,
         Integer estimatedRowSize,
-        CategorizeGroupingMode mode
+        AggregatorMode mode
     ) {
         this(source, child, limitPerGroup, groupings, estimatedRowSize, mode, null);
     }
@@ -104,7 +85,7 @@ public class LimitByExec extends UnaryExec implements EstimatesRowSize {
         Expression limitPerGroup,
         List<Expression> groupings,
         Integer estimatedRowSize,
-        CategorizeGroupingMode mode,
+        AggregatorMode mode,
         List<Attribute> initialCategorizeOutput
     ) {
         super(source, child);
@@ -121,15 +102,7 @@ public class LimitByExec extends UnaryExec implements EstimatesRowSize {
      * {@code channelsBefore} computation is consistent with the data-node channel layout.
      */
     public LimitByExec withInitialCategorizeMode(List<Attribute> logicalOutput) {
-        return new LimitByExec(
-            source(),
-            child(),
-            limitPerGroup,
-            groupings,
-            estimatedRowSize,
-            CategorizeGroupingMode.INITIAL,
-            logicalOutput
-        );
+        return new LimitByExec(source(), child(), limitPerGroup, groupings, estimatedRowSize, AggregatorMode.INITIAL, logicalOutput);
     }
 
     /**
@@ -138,11 +111,11 @@ public class LimitByExec extends UnaryExec implements EstimatesRowSize {
      * is already stable; no snapshot is required.
      */
     public LimitByExec withIntermediateCategorizeMode() {
-        return new LimitByExec(source(), child(), limitPerGroup, groupings, estimatedRowSize, CategorizeGroupingMode.INTERMEDIATE, null);
+        return new LimitByExec(source(), child(), limitPerGroup, groupings, estimatedRowSize, AggregatorMode.INTERMEDIATE, null);
     }
 
     public LimitByExec withFinalCategorizeMode() {
-        return new LimitByExec(source(), child(), limitPerGroup, groupings, estimatedRowSize, CategorizeGroupingMode.FINAL, null);
+        return new LimitByExec(source(), child(), limitPerGroup, groupings, estimatedRowSize, AggregatorMode.FINAL, null);
     }
 
     @Override
@@ -150,13 +123,13 @@ public class LimitByExec extends UnaryExec implements EstimatesRowSize {
         // In INITIAL mode the local physical optimizer may add _doc to the child plan's output
         // for late materialization. Return the snapshot taken at INITIAL-mode creation time so
         // LocalPhysicalPlanOptimizer.verify sees a stable output.
-        if (mode == CategorizeGroupingMode.INITIAL && initialCategorizeOutput != null) {
+        if (mode == AggregatorMode.INITIAL && initialCategorizeOutput != null) {
             return initialCategorizeOutput;
         }
         return super.output();
     }
 
-    public CategorizeGroupingMode mode() {
+    public AggregatorMode mode() {
         return mode;
     }
 
@@ -166,7 +139,7 @@ public class LimitByExec extends UnaryExec implements EstimatesRowSize {
         Expression limit = in.readNamedWriteable(Expression.class);
         Integer estimatedRowSize = in.readOptionalVInt();
         List<Expression> groupings = in.readNamedWriteableCollectionAsList(Expression.class);
-        return new LimitByExec(source, child, limit, groupings, estimatedRowSize, CategorizeGroupingMode.SINGLE, null);
+        return new LimitByExec(source, child, limit, groupings, estimatedRowSize, AggregatorMode.SINGLE, null);
     }
 
     @Override

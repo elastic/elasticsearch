@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator.OutputOrdering;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -68,15 +69,15 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
 
     /**
      * Local-only execution mode for CATEGORIZE groupings. Not serialized.
-     * Defaults to {@link LimitByExec.CategorizeGroupingMode#SINGLE}.
-     * See {@link LimitByExec.CategorizeGroupingMode} for semantics.
+     * Defaults to {@link AggregatorMode#SINGLE}.
+     * See {@link AggregatorMode} for semantics.
      */
-    private final LimitByExec.CategorizeGroupingMode categorizeMode;
+    private final AggregatorMode mode;
 
     /**
      * Snapshot of the logical output taken at INITIAL-mode creation time.
      * <p>
-     * In {@link LimitByExec.CategorizeGroupingMode#INITIAL} mode, the data node's local physical
+     * In {@link AggregatorMode#INITIAL} mode, the data node's local physical
      * optimizer may add technical fields (e.g. {@code _doc}) to the child plan's output for late
      * materialization. Because the default {@link #output()} delegates to {@code child().output()},
      * those extra fields would propagate upward, causing {@code LocalPhysicalPlanOptimizer.verify}
@@ -95,7 +96,7 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
         List<Expression> groupings,
         Integer estimatedRowSize
     ) {
-        this(source, child, order, limitPerGroup, groupings, estimatedRowSize, LimitByExec.CategorizeGroupingMode.SINGLE);
+        this(source, child, order, limitPerGroup, groupings, estimatedRowSize, AggregatorMode.SINGLE);
     }
 
     public TopNByExec(
@@ -105,7 +106,7 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
         Expression limitPerGroup,
         List<Expression> groupings,
         Integer estimatedRowSize,
-        LimitByExec.CategorizeGroupingMode mode
+        AggregatorMode mode
     ) {
         this(source, child, order, limitPerGroup, groupings, estimatedRowSize, Set.of(), OutputOrdering.SORTED, mode, null);
     }
@@ -129,7 +130,7 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
             estimatedRowSize,
             docValuesAttributes,
             outputOrdering,
-            LimitByExec.CategorizeGroupingMode.SINGLE,
+            AggregatorMode.SINGLE,
             null
         );
     }
@@ -143,7 +144,7 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
         Integer estimatedRowSize,
         Set<Attribute> docValuesAttributes,
         OutputOrdering outputOrdering,
-        LimitByExec.CategorizeGroupingMode categorizeMode,
+        AggregatorMode mode,
         List<Attribute> initialCategorizeOutput
     ) {
         super(source, child);
@@ -153,7 +154,7 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
         this.estimatedRowSize = estimatedRowSize;
         this.docValuesAttributes = docValuesAttributes;
         this.outputOrdering = outputOrdering;
-        this.categorizeMode = categorizeMode;
+        this.mode = mode;
         this.initialCategorizeOutput = initialCategorizeOutput;
     }
 
@@ -211,7 +212,7 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
             limitPerGroup,
             groupings,
             estimatedRowSize,
-            categorizeMode
+            mode
         );
     }
 
@@ -226,7 +227,7 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
             estimatedRowSize,
             docValuesAttributes,
             outputOrdering,
-            categorizeMode,
+            mode,
             initialCategorizeOutput
         );
     }
@@ -241,7 +242,7 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
             estimatedRowSize,
             docValuesAttributes,
             outputOrdering,
-            categorizeMode,
+            mode,
             initialCategorizeOutput
         );
     }
@@ -256,7 +257,7 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
             estimatedRowSize,
             docValuesAttributes,
             OutputOrdering.SORTED,
-            categorizeMode,
+            mode,
             initialCategorizeOutput
         );
     }
@@ -271,12 +272,12 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
             estimatedRowSize,
             docValuesAttributes,
             OutputOrdering.NOT_SORTED,
-            categorizeMode,
+            mode,
             initialCategorizeOutput
         );
     }
 
-    public TopNByExec withCategorizeMode(LimitByExec.CategorizeGroupingMode newMode) {
+    public TopNByExec withCategorizeMode(AggregatorMode newMode) {
         return new TopNByExec(
             source(),
             child(),
@@ -306,7 +307,7 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
             estimatedRowSize,
             docValuesAttributes,
             outputOrdering,
-            LimitByExec.CategorizeGroupingMode.INITIAL,
+            AggregatorMode.INITIAL,
             logicalOutput
         );
     }
@@ -321,7 +322,7 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
             estimatedRowSize,
             docValuesAttributes,
             outputOrdering,
-            LimitByExec.CategorizeGroupingMode.FINAL,
+            AggregatorMode.FINAL,
             null
         );
     }
@@ -331,14 +332,14 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
         // In INITIAL mode the local physical optimizer may add _doc to the child plan's output
         // for late materialization. Return the snapshot taken at INITIAL-mode creation time so
         // LocalPhysicalPlanOptimizer.verify sees a stable output.
-        if (categorizeMode == LimitByExec.CategorizeGroupingMode.INITIAL && initialCategorizeOutput != null) {
+        if (mode == AggregatorMode.INITIAL && initialCategorizeOutput != null) {
             return initialCategorizeOutput;
         }
         return super.output();
     }
 
-    public LimitByExec.CategorizeGroupingMode categorizeMode() {
-        return categorizeMode;
+    public AggregatorMode categorizeMode() {
+        return mode;
     }
 
     public OutputOrdering outputOrdering() {
@@ -387,23 +388,14 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
                 size,
                 docValuesAttributes,
                 outputOrdering,
-                categorizeMode,
+                mode,
                 initialCategorizeOutput
             );
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-            super.hashCode(),
-            order,
-            limitPerGroup,
-            groupings,
-            estimatedRowSize,
-            docValuesAttributes,
-            outputOrdering,
-            categorizeMode
-        );
+        return Objects.hash(super.hashCode(), order, limitPerGroup, groupings, estimatedRowSize, docValuesAttributes, outputOrdering, mode);
     }
 
     @Override
@@ -417,7 +409,7 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
                 && Objects.equals(estimatedRowSize, other.estimatedRowSize)
                 && Objects.equals(docValuesAttributes, other.docValuesAttributes)
                 && outputOrdering == other.outputOrdering
-                && categorizeMode == other.categorizeMode;
+                && mode == other.mode;
         }
         return equals;
     }

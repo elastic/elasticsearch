@@ -212,6 +212,8 @@ import org.elasticsearch.xpack.stateless.recovery.StatelessSearchNodeRecoveryLis
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction;
+import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction;
+import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationPrewarmAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotableRelocationAction;
 import org.elasticsearch.xpack.stateless.recovery.metering.StatelessPrimaryRelocationMetricsCollector;
 import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector;
@@ -678,6 +680,14 @@ public class StatelessPlugin extends Plugin
 
             new ActionHandler(EnsureDocsSearchableAction.TYPE, TransportEnsureDocsSearchableAction.class),
             new ActionHandler(StatelessPrimaryRelocationAction.TYPE, TransportStatelessPrimaryRelocationAction.class),
+            new ActionHandler(
+                TransportStatelessPrimaryRelocationPrewarmAction.TYPE,
+                TransportStatelessPrimaryRelocationPrewarmAction.class
+            ),
+            new ActionHandler(
+                TransportStatelessPrimaryRelocationHandoffAction.TYPE,
+                TransportStatelessPrimaryRelocationHandoffAction.class
+            ),
             new ActionHandler(TransportRegisterCommitForRecoveryAction.TYPE, TransportRegisterCommitForRecoveryAction.class),
             new ActionHandler(TransportSendRecoveryCommitRegistrationAction.TYPE, TransportSendRecoveryCommitRegistrationAction.class),
             new ActionHandler(TransportConsistentClusterStateReadAction.TYPE, TransportConsistentClusterStateReadAction.class),
@@ -1032,7 +1042,7 @@ public class StatelessPlugin extends Plugin
                 commitServiceProvider,
                 indexShardCacheWarmer,
                 hollowShardMetrics.get(),
-                services.remoteTransportClient()
+                services.client()
             )
         );
         components.add(primaryRelocationSourceService);

@@ -268,7 +268,6 @@ import org.elasticsearch.transport.RemoteTransportClient;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -1069,22 +1068,6 @@ class NodeConstruction {
                     throw new AssertionError("TransportService is not initialized yet");
                 }
                 transportService.sendRequest(node, action, request, handler);
-            }
-
-            @Override
-            public <T extends TransportResponse> void sendChildRequest(
-                DiscoveryNode node,
-                String action,
-                TransportRequest request,
-                Task parentTask,
-                TransportRequestOptions options,
-                TransportResponseHandler<T> handler
-            ) {
-                TransportService transportService = transportServiceRef.get();
-                if (transportService == null) {
-                    throw new AssertionError("TransportService is not initialized yet");
-                }
-                transportService.sendChildRequest(node, action, request, parentTask, options, handler);
             }
         };
 

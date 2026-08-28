@@ -46,6 +46,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
@@ -605,10 +606,10 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             ActionListener<Model> modelVerificationActionListener = ActionListener.wrap(
                 (model) -> { fail("parse request should fail"); },
                 (e) -> {
-                    assertThat(e, instanceOf(ElasticsearchStatusException.class));
+                    assertThat(e, instanceOf(XContentParseException.class));
                     assertThat(
                         e.getMessage(),
-                        is("Configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
+                        Matchers.endsWith(Strings.format("[%s] unknown field [extra_key]", ModelConfigurations.SERVICE_SETTINGS))
                     );
                 }
             );
@@ -622,15 +623,17 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             var secretSettingsMap = getSecretSettingsMap(API_KEY_VALUE);
             secretSettingsMap.put("extra_key", "value");
 
+            // The test helper folds the secret settings map into the service_settings block, so the strict parser is what rejects the
+            // extra key. This matches the behavior of the other parser-based services (for example Anthropic).
             var config = getRequestConfigMap(buildServiceSettingsMap(URL_VALUE), secretSettingsMap);
 
             ActionListener<Model> modelVerificationActionListener = ActionListener.wrap(
                 (model) -> { fail("parse request should fail"); },
                 (e) -> {
-                    assertThat(e, instanceOf(ElasticsearchStatusException.class));
+                    assertThat(e, instanceOf(XContentParseException.class));
                     assertThat(
                         e.getMessage(),
-                        is("Configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
+                        Matchers.endsWith(Strings.format("[%s] unknown field [extra_key]", ModelConfigurations.SERVICE_SETTINGS))
                     );
                 }
             );

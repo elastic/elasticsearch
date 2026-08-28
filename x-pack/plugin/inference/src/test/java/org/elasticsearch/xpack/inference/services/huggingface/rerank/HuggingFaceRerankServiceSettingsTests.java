@@ -28,7 +28,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.is;
@@ -58,8 +57,6 @@ public class HuggingFaceRerankServiceSettingsTests extends AbstractWireSerializi
             updatedServiceSettings,
             is(new HuggingFaceRerankServiceSettings(INITIAL_TEST_URI, new RateLimitSettings(TEST_RATE_LIMIT)))
         );
-        // The caller relies on updateServiceSettings consuming the parsed entries to verify that no unknown settings remain.
-        assertThat(updateMap, is(anEmptyMap()));
     }
 
     public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
@@ -107,8 +104,6 @@ public class HuggingFaceRerankServiceSettingsTests extends AbstractWireSerializi
         var serviceSettings = HuggingFaceRerankServiceSettings.fromMap(settingsMap, randomFrom(ConfigurationParseContext.values()));
 
         assertThat(serviceSettings, is(new HuggingFaceRerankServiceSettings(TEST_URI, new RateLimitSettings(TEST_RATE_LIMIT))));
-        // The caller relies on fromMap consuming the parsed entries to verify that no unknown settings remain.
-        assertThat(settingsMap, is(anEmptyMap()));
     }
 
     public void testFromMap_OnlyMandatoryFields_Success() {

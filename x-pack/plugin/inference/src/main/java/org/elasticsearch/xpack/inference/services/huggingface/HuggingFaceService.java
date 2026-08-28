@@ -222,6 +222,11 @@ public class HuggingFaceService extends HuggingFaceBaseService implements Rerank
     }
 
     @Override
+    public boolean usesParserForServiceSettings() {
+        return true;
+    }
+
+    @Override
     public int rerankerWindowSize(String modelId) {
         // Assume a small window size as the true value is not known.
         // TODO make the rerank window size configurable

@@ -24,8 +24,10 @@ import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceActio
 import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceUsageAccumulator;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
+import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.After;
 import org.junit.Before;
@@ -39,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -197,6 +200,15 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
             )
         );
 
+        // Snapshot accumulator before the query so assertions use deltas (SUITE-scoped cluster).
+        long parseRowsBefore = clusterTotal(DataSourceUsageAccumulator::parseRows);
+        long storageRequestsBefore = clusterTotal(a -> a.storageRequests(DataSourceUsageAccumulator.SCHEME_FILE));
+        long storageBytesReadBefore = clusterTotal(a -> a.storageBytesRead(DataSourceUsageAccumulator.SCHEME_FILE));
+        long queriesSuccessBefore = clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS));
+        long queriesFailureBefore = clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_FAILURE));
+        long filesScannedBucketBefore = clusterTotal(a -> a.discoveryFilesScanned(1));
+        long discoveryFailuresBefore = clusterTotal(DataSourceUsageAccumulator::discoveryFailures);
+
         // Isolate: only this query's measurements should be present on any node.
         resetAllMeters();
 
@@ -256,6 +268,46 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
             counterTotalForScheme(ExternalSourceMetrics.STORAGE_BYTES_READ_TOTAL, "file"),
             greaterThan(0L)
         );
+
+        // ---- phone-home accumulator (DataSourceUsageAccumulator) — delta assertions ----
+        // The accumulator is never reset (it is a lifetime counter), so compare fresh readings
+        // against the before-values captured above.
+        assertThat(
+            "phone-home: parse.rows must increase by 10",
+            clusterTotal(DataSourceUsageAccumulator::parseRows) - parseRowsBefore,
+            equalTo(10L)
+        );
+        assertThat(
+            "phone-home: storage.requests (file scheme) must fire",
+            clusterTotal(a -> a.storageRequests(DataSourceUsageAccumulator.SCHEME_FILE)) - storageRequestsBefore,
+            greaterThan(0L)
+        );
+        assertThat(
+            "phone-home: storage.bytes_read (file scheme) must fire",
+            clusterTotal(a -> a.storageBytesRead(DataSourceUsageAccumulator.SCHEME_FILE)) - storageBytesReadBefore,
+            greaterThan(0L)
+        );
+        assertThat(
+            "phone-home: queries.total (success outcome) must increase by 1",
+            clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS)) - queriesSuccessBefore,
+            equalTo(1L)
+        );
+        assertThat(
+            "phone-home: queries.total (failure outcome) must not fire for a successful query",
+            clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_FAILURE)) - queriesFailureBefore,
+            equalTo(0L)
+        );
+        assertThat(
+            "phone-home: discovery.files_scanned bucket for 2 files must be populated",
+            clusterTotal(a -> a.discoveryFilesScanned(1)) - filesScannedBucketBefore,  // COUNT_THRESHOLDS[1]=10, so 2 files → bucket 1
+                                                                                       // (lt_10)
+            greaterThan(0L)
+        );
+        assertThat(
+            "phone-home: no discovery failures on a clean scan",
+            clusterTotal(DataSourceUsageAccumulator::discoveryFailures) - discoveryFailuresBefore,
+            equalTo(0L)
+        );
     }
 
     /**
@@ -293,6 +345,10 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
             )
         );
 
+        // Snapshot before so delta assertions are order-independent.
+        long discoveryFailuresBefore = clusterTotal(DataSourceUsageAccumulator::discoveryFailures);
+        long queriesSuccessBefore = clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS));
+
         resetAllMeters();
 
         expectThrows(Exception.class, () -> {
@@ -313,6 +369,18 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         assertThat(
             "a resolution failure must not record a successful query",
             counterTotalForOutcome(ExternalSourceMetrics.QUERIES_TOTAL, ExternalSourceMetrics.OUTCOME_SUCCESS),
+            equalTo(0L)
+        );
+
+        // ---- phone-home accumulator — delta assertions ----
+        assertThat(
+            "phone-home: discovery.failures must increase when resolution of a missing file fails",
+            clusterTotal(DataSourceUsageAccumulator::discoveryFailures) - discoveryFailuresBefore,
+            greaterThanOrEqualTo(1L)
+        );
+        assertThat(
+            "phone-home: queries.total (success) must not increase for a resolution failure",
+            clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS)) - queriesSuccessBefore,
             equalTo(0L)
         );
     }
@@ -389,5 +457,29 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         List<Measurement> found = forScheme(measurements, scheme);
         assertThat("expected exactly one measurement for scheme [" + scheme + "]", found, hasSize(1));
         return found.get(0);
+    }
+
+    /**
+     * Sums a single accumulator field across all cluster nodes that have a live
+     * {@link DataSourceUsageAccumulator}. Using a per-field lambda keeps the SPI surface
+     * clean — the accumulator has no cross-node merge method.
+     */
+    private long clusterTotal(ToLongFunction<DataSourceUsageAccumulator> fn) {
+        long total = 0;
+        boolean found = false;
+        for (String node : internalCluster().getNodeNames()) {
+            PlanExecutor planExecutor = internalCluster().getInstance(PlanExecutor.class, node);
+            if (planExecutor.dataSourceModule() == null) {
+                continue;
+            }
+            DataSourceUsageAccumulator acc = planExecutor.dataSourceModule().externalSourceMetrics().usageAccumulator();
+            if (acc == null) {
+                continue;
+            }
+            found = true;
+            total += fn.applyAsLong(acc);
+        }
+        assertTrue("No node has a DataSourceModule with a non-null usageAccumulator", found);
+        return total;
     }
 }

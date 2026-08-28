@@ -41,9 +41,21 @@ public class TsidBuilder {
      * This is a trade-off between clustering similar time series together and the size of the TSID.
      * More fields improve clustering but also increase the size of the TSID.
      */
-    private static final int MAX_TSID_VALUE_SIMILARITY_FIELDS = 4;
+    static final int MAX_TSID_VALUE_SIMILARITY_FIELDS = 4;
     static final String OTEL_METRIC_FIELD = "_metric_names_hash";
     static final String PROMETHEUS_LABEL_FIELD = "labels.__name__";
+
+    private static final int FULL_HASH_BYTES = 16;
+
+    static final long LONG_VALUE_TAG = 1L;
+    static final long DOUBLE_VALUE_TAG = 2L;
+    static final long BOOLEAN_VALUE_TAG = 3L;
+
+    /** {@link #prefixByteRank} of a path that is not special. */
+    static final int PREFIX_RANK_NONE = Integer.MAX_VALUE;
+
+    /** Sentinel for "no path seen yet" in the columnar path's per-row dedup cursor. */
+    static final int NO_PATH_GROUP = -1;
 
     private final BufferedMurmur3Hasher murmur3Hasher = new BufferedMurmur3Hasher(0L);
 
@@ -78,7 +90,7 @@ public class TsidBuilder {
      * @return the TsidBuilder instance for method chaining
      */
     public TsidBuilder addIntDimension(String path, int value) {
-        addDimension(path, new MurmurHash3.Hash128(1, value));
+        addDimension(path, new MurmurHash3.Hash128(LONG_VALUE_TAG, value));
         return this;
     }
 
@@ -90,7 +102,7 @@ public class TsidBuilder {
      * @return the TsidBuilder instance for method chaining
      */
     public TsidBuilder addLongDimension(String path, long value) {
-        addDimension(path, new MurmurHash3.Hash128(1, value));
+        addDimension(path, new MurmurHash3.Hash128(LONG_VALUE_TAG, value));
         return this;
     }
 
@@ -102,7 +114,7 @@ public class TsidBuilder {
      * @return the TsidBuilder instance for method chaining
      */
     public TsidBuilder addDoubleDimension(String path, double value) {
-        addDimension(path, new MurmurHash3.Hash128(2, Double.doubleToLongBits(value)));
+        addDimension(path, new MurmurHash3.Hash128(DOUBLE_VALUE_TAG, Double.doubleToLongBits(value)));
         return this;
     }
 
@@ -114,7 +126,7 @@ public class TsidBuilder {
      * @return the TsidBuilder instance for method chaining
      */
     public TsidBuilder addBooleanDimension(String path, boolean value) {
-        addDimension(path, new MurmurHash3.Hash128(3, value ? 1 : 0));
+        addDimension(path, new MurmurHash3.Hash128(BOOLEAN_VALUE_TAG, value ? 1 : 0));
         return this;
     }
 
@@ -195,9 +207,7 @@ public class TsidBuilder {
     }
 
     private void addDimension(String path, MurmurHash3.Hash128 valueHash) {
-        murmur3Hasher.reset();
-        murmur3Hasher.addString(path);
-        MurmurHash3.Hash128 pathHash = murmur3Hasher.digestHash();
+        MurmurHash3.Hash128 pathHash = hashPath(murmur3Hasher, path);
         dimensions.add(new Dimension(path, pathHash, valueHash, dimensions.size()));
     }
 
@@ -280,7 +290,7 @@ public class TsidBuilder {
             Dimension dim = dimensions.get(i);
             murmur3Hasher.addLong(dim.pathHash.h1 ^ dim.pathHash.h2);
         }
-        hash[index++] = (byte) murmur3Hasher.digestHash(hashBuffer).h1;
+        hash[index++] = similarityByte(murmur3Hasher.digestHash(hashBuffer));
 
         // similarity hash for dimension values
         String previousPath = null;
@@ -292,9 +302,7 @@ public class TsidBuilder {
                 continue;
             }
             MurmurHash3.Hash128 valueHash = dim.valueHash();
-            murmur3Hasher.reset();
-            murmur3Hasher.addLong(valueHash.h1 ^ valueHash.h2);
-            hash[index++] = (byte) murmur3Hasher.digestHash(hashBuffer).h1;
+            hash[index++] = similarityByte(valueHash.h1, valueHash.h2, hashBuffer);
             previousPath = path;
         }
 
@@ -320,8 +328,7 @@ public class TsidBuilder {
             murmur3Hasher.addLongs(dim.pathHash.h1, dim.pathHash.h2, dim.valueHash.h1, dim.valueHash.h2);
         }
         murmur3Hasher.digestHash(hashBuffer);
-        ByteUtils.writeLongLE(hashBuffer.h2, tsid, 0);
-        ByteUtils.writeLongLE(hashBuffer.h1, tsid, 8);
+        writeHash128(hashBuffer, tsid, 0);
         tsid[0] = computeSingleBytePrefix(hashBuffer);
         return new BytesRef(tsid);
     }
@@ -330,19 +337,17 @@ public class TsidBuilder {
         murmur3Hasher.reset();
         Dimension otelMetric = findDimension(dimensions, OTEL_METRIC_FIELD);
         if (otelMetric != null) {
-            murmur3Hasher.addLong(otelMetric.valueHash().h1 ^ otelMetric.valueHash().h2);
-            return (byte) murmur3Hasher.digestHash(scratch).h1;
+            return similarityByte(otelMetric.valueHash().h1, otelMetric.valueHash().h2, scratch);
         }
         Dimension prometheusLabel = findDimension(dimensions, PROMETHEUS_LABEL_FIELD);
         if (prometheusLabel != null) {
-            murmur3Hasher.addLong(prometheusLabel.valueHash().h1 ^ prometheusLabel.valueHash().h2);
-            return (byte) murmur3Hasher.digestHash(scratch).h1;
+            return similarityByte(prometheusLabel.valueHash().h1, prometheusLabel.valueHash().h2, scratch);
         }
         // similarity hash for dimension names
         for (Dimension dim : dimensions) {
             murmur3Hasher.addLong(dim.pathHash.h1 ^ dim.pathHash.h2);
         }
-        return (byte) murmur3Hasher.digestHash(scratch).h1;
+        return similarityByte(murmur3Hasher.digestHash(scratch));
     }
 
     private static Dimension findDimension(List<Dimension> sortedDimensions, String name) {
@@ -358,9 +363,120 @@ public class TsidBuilder {
     }
 
     private void throwIfEmpty() {
-        if (dimensions.isEmpty()) {
+        throwIfNoDimensions(dimensions.size());
+    }
+
+    /**
+     * Re-hashes one 128-bit hash down to a similarity byte: murmur3-128 (seed 0) over the little-endian
+     * bytes of {@code h1 ^ h2}, reduced to the low byte of the result.
+     */
+    static byte similarityByte(long h1, long h2, MurmurHash3.Hash128 scratch) {
+        return (byte) MurmurHash3.hashLongToH1(h1 ^ h2, scratch);
+    }
+
+    /** Similarity byte of a hash already accumulated over a stream of words, which needs no re-hash. */
+    static byte similarityByte(MurmurHash3.Hash128 streamHash) {
+        return (byte) streamHash.h1;
+    }
+
+    /** Hashes a dimension path. {@code hasher} is borrowed and reset before use. */
+    static MurmurHash3.Hash128 hashPath(BufferedMurmur3Hasher hasher, String path) {
+        hasher.reset();
+        hasher.addString(path);
+        return hasher.digestHash();
+    }
+
+    static void throwIfNoDimensions(int dimensionCount) {
+        if (dimensionCount == 0) {
             throw new IllegalArgumentException("Dimensions are empty");
         }
+    }
+
+    // Below: used only by the column-major path (ColumnarTsidCalculator / ColumnarTsidAccumulator).
+    // Each restates a rule the code above expresses in a shape a column-major scan cannot call, so the
+    // two are kept in agreement by tests comparing their bytes rather than by sharing code.
+
+    /**
+     * Value hash of a string dimension: murmur3-128 of its UTF-8 bytes, seed 0.
+     *
+     * @param out output holder; callers retaining the result must pass a fresh instance, not a scratch
+     */
+    static MurmurHash3.Hash128 hashStringValue(byte[] utf8Bytes, int offset, int length, MurmurHash3.Hash128 out) {
+        return MurmurHash3.hash128(utf8Bytes, offset, length, 0L, out);
+    }
+
+    /**
+     * Priority of a path as the source of the single prefix byte; lower wins. Callers must take the
+     * minimum over a row's dimensions on a <em>strictly</em> lower rank, so an array-valued special
+     * dimension contributes its first value — as {@link #findDimension} does for the row path.
+     */
+    static int prefixByteRank(String path) {
+        if (OTEL_METRIC_FIELD.equals(path)) {
+            return 0;
+        }
+        if (PROMETHEUS_LABEL_FIELD.equals(path)) {
+            return 1;
+        }
+        return PREFIX_RANK_NONE;
+    }
+
+    /**
+     * The single prefix byte, given the winning {@link #prefixByteRank} for a row.
+     *
+     * <p>The two paths are asymmetric by design. When no special dimension is present,
+     * {@code nameSimilarityHash} is read directly ({@code h1} as-is, no re-hash), so the caller must
+     * supply a finalized hash — the output of {@link BufferedMurmur3Hasher#digestHash}. When a special
+     * field is present, {@code bestValueH1}/{@code bestValueH2} are re-hashed internally via
+     * {@link MurmurHash3#hashLongToH1}, using {@code scratch} as a temporary buffer.
+     *
+     * @param nameSimilarityHash finalized hash over the {@code pathH1 ^ pathH2} words of the row's
+     *                           dimensions in sorted order, duplicates included. Needed only when no
+     *                           dimension is special, so callers can otherwise skip that fold.
+     */
+    static byte singleBytePrefix(
+        int bestRank,
+        long bestValueH1,
+        long bestValueH2,
+        MurmurHash3.Hash128 nameSimilarityHash,
+        MurmurHash3.Hash128 scratch
+    ) {
+        assert (bestRank == PREFIX_RANK_NONE) == (nameSimilarityHash != null)
+            : "name similarity hash must be supplied exactly when no special dimension is present";
+        return bestRank == PREFIX_RANK_NONE ? similarityByte(nameSimilarityHash) : similarityByte(bestValueH1, bestValueH2, scratch);
+    }
+
+    /**
+     * The single-prefix-byte layout, mirroring the tail of {@link #buildSingleBytePrefixTsid}. The
+     * prefix byte is written last because it deliberately clobbers the low byte of {@code h2}.
+     */
+    static BytesRef writeSingleBytePrefixTsid(byte prefixByte, MurmurHash3.Hash128 fullHash) {
+        final byte[] tsid = new byte[FULL_HASH_BYTES];
+        writeHash128(fullHash, tsid, 0);
+        tsid[0] = prefixByte;
+        return new BytesRef(tsid);
+    }
+
+    /**
+     * The legacy multi-prefix-byte layout: a name-similarity byte, {@code valueSimilarityByteCount}
+     * value-similarity bytes, then the 16-byte full hash. Equivalent to the array
+     * {@link #buildMultiBytePrefixTsid} fills in place, except that this sizes exactly — that one is
+     * sized for the worst case because it does not know the final byte count until it has written them.
+     */
+    static BytesRef writeMultiBytePrefixTsid(
+        byte nameSimilarityByte,
+        byte[] valueSimilarityBytes,
+        int valueSimilarityByteCount,
+        MurmurHash3.Hash128 fullHash
+    ) {
+        assert valueSimilarityByteCount <= MAX_TSID_VALUE_SIMILARITY_FIELDS : valueSimilarityByteCount;
+        assert valueSimilarityByteCount <= valueSimilarityBytes.length : valueSimilarityByteCount;
+        final byte[] tsid = new byte[1 + valueSimilarityByteCount + FULL_HASH_BYTES];
+        int index = 0;
+        tsid[index++] = nameSimilarityByte;
+        System.arraycopy(valueSimilarityBytes, 0, tsid, index, valueSimilarityByteCount);
+        index += valueSimilarityByteCount;
+        writeHash128(fullHash, tsid, index);
+        return new BytesRef(tsid);
     }
 
     private static int writeHash128(MurmurHash3.Hash128 hash128, byte[] buffer, int index) {

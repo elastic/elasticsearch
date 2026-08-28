@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
+import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -206,6 +207,23 @@ public class NdJsonPageDecoder implements Closeable {
      * this scan out of the stats cache (safe-miss). Mirrors CSV's {@code recordCapDropped} guard.
      */
     private boolean capDropped = false;
+
+    /**
+     * Set when a lenient-mode drop was decided by the PROJECTION rather than by the line itself: a projected
+     * column's value failing coercion or shape under SKIP_ROW ({@link BlockDecoder#coercionFailure} /
+     * {@link BlockDecoder#shapeConflict} -- unprojected fields are skipped undecoded and cannot fail), or a
+     * lazily-validated {@code StreamReadConstraints} violation (string length trips only when a projected
+     * column's decode arm reads the value). Which columns are projected is per-query and NOT in the cache
+     * identity (path + mtime + config fingerprint + read configuration): a COUNT(*) over the same file decodes
+     * nothing, drops nothing, and answers N where this scan measured N-1. {@link NdJsonPageIterator} must
+     * suppress the whole publish -- the row count AND every column family, since a co-projected column's
+     * statistics are computed over the same projection-dependent survivor set. Whole-line drops (malformed or
+     * truncated JSON) are decided while tokenising, are identical for every projection, and still commit.
+     * Mirrors CSV's projectionDependentDrop. (Under ALL column scope the decode is widened to every file
+     * column, so these drops are scan-uniform there and this suppression is over-broad -- a safe miss, never
+     * a wrong answer.)
+     */
+    private boolean projectionDependentDrop = false;
     /**
      * Set when a lenient-mode parse-error recovery on the STREAMING ({@link InputStream}) path rebuilt the parser
      * over the remaining stream ({@link #recoverFromParseException}'s {@code sourceBytes == null} branch): the new
@@ -225,6 +243,25 @@ public class NdJsonPageDecoder implements Closeable {
     // What blocks got a value on the current line? Needed because Block.Builder doesn't provide
     // the number of positions that were added.
     private final BitSet blockTracker;
+    /**
+     * Tracks which projected columns were present in at least one committed record. Used at {@link #close()}
+     * to emit absent-column warnings for columns never seen in any committed record (effectively absent from the
+     * file). We do NOT warn for columns absent from individual records but present in others: that is normal sparse
+     * NdJson data and not an error condition.
+     * <p>
+     * The bit is set whenever a field was decoded into a block builder for a committed record — including records
+     * where the field's value was explicit JSON {@code null}. The semantics are "field present in at least one
+     * committed record", not "field ever non-null".
+     */
+    private BitSet columnEverPresent;
+    /**
+     * Number of records successfully committed to a page across all batches. Guards the absent-column check in
+     * {@link #close()} against false positives when all records were dropped by {@code skip_row}.
+     */
+    private long committedRowCount;
+    /** Informational warning sink for absent declared columns; {@code null} when no sink is wired. */
+    @Nullable
+    private Consumer<String> absentColumnWarningSink;
     private final ErrorPolicy errorPolicy;
     private final SkipWarnings skipWarnings;
     private final NdJsonReaderCounters counters;
@@ -694,6 +731,10 @@ public class NdJsonPageDecoder implements Closeable {
         this.blockFactory = blockFactory;
         this.projectedAttributes = projectedAttributes;
         this.blockTracker = new BitSet(projectedAttributes.size());
+        if (warningSink != null) {
+            this.absentColumnWarningSink = warningSink;
+            this.columnEverPresent = new BitSet(projectedAttributes.size());
+        }
         this.initialSliceStart = sourceOffset;
         this.rowPositionSlot = SyntheticColumns.rowPositionIndexInAttributes(projectedAttributes);
 
@@ -803,6 +844,15 @@ public class NdJsonPageDecoder implements Closeable {
                 description + "; set error_mode=skip_row (or null_field) to skip the line and warn instead of failing"
             );
         }
+        if (e instanceof StreamConstraintsException) {
+            // String length is validated LAZILY: only a projected column's decode arm reads the value, so a
+            // skipped field never trips it and this drop is projection-dependent -- a COUNT(*) scan keeps the
+            // line this scan lost. The other three limits are scanner-raised and projection-independent, but
+            // the exception type does not say which limit fired, so the whole class suppresses: an unnecessary
+            // safe miss on those pathological records, never a wrong answer. Malformed or truncated JSON stays
+            // out of this -- those lines drop under every projection.
+            projectionDependentDrop = true;
+        }
         if (recordChargedToBudget == false) {
             // Once per record across the two sinks: a per-cell coercion failure earlier in this same record may
             // already have charged it. (Per-cell charges among themselves are still per-cell under null_field --
@@ -851,6 +901,13 @@ public class NdJsonPageDecoder implements Closeable {
     private void chargeErrorBudget() {
         errorCount++;
         recordChargedToBudget = true;
+    }
+
+    /** Records that column {@code idx} was present in a committed record. */
+    private void markColumnSeen(int idx) {
+        if (columnEverPresent != null) {
+            columnEverPresent.set(idx);
+        }
     }
 
     /**
@@ -941,6 +998,11 @@ public class NdJsonPageDecoder implements Closeable {
         return capDropped;
     }
 
+    /** True when a lenient-mode drop was decided by the projection; see {@link #projectionDependentDrop}. */
+    boolean projectionDependentDrop() {
+        return projectionDependentDrop;
+    }
+
     /** Whether a streaming-path recovery reset the parser byte baseline (record offsets no longer file-global). */
     boolean offsetBaselineLost() {
         return offsetBaselineLost;
@@ -985,6 +1047,7 @@ public class NdJsonPageDecoder implements Closeable {
             return null;
         }
         long startNanos = System.nanoTime();
+        long startCpuNanos = ThreadCpuTimer.currentNanos();
         long startTotalRowCount = totalRowCount;
         long startErrorCount = errorCount;
         var blockBuilders = new Block.Builder[projectedAttributes.size()];
@@ -1007,6 +1070,9 @@ public class NdJsonPageDecoder implements Closeable {
             counters.addRowsEmitted(deltaTotal - deltaErrors);
             counters.addParseErrors(deltaErrors);
             counters.addReadNanos(System.nanoTime() - startNanos);
+            if (startCpuNanos >= 0) {
+                counters.addReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
+            }
         }
     }
 
@@ -1070,9 +1136,12 @@ public class NdJsonPageDecoder implements Closeable {
                 lastPageRecordOffsets[lineCount] = stripeRecordStart;
             }
             lineCount++;
+            committedRowCount++;
             for (int i = 0; i < blockBuilders.length; i++) {
                 if (blockTracker.get(i) == false) {
                     blockBuilders[i].appendNull();
+                } else {
+                    markColumnSeen(i);
                 }
             }
         }
@@ -1169,6 +1238,13 @@ public class NdJsonPageDecoder implements Closeable {
                         // Byte-array: the oversized record is fully buffered, so drop it and keep decoding. The
                         // dropped record makes the row count external_max_record_size-dependent, so mark the scan
                         // uncacheable (the iterator safe-misses on capDropped) — the cap is not fingerprinted.
+                        // Track column presence even for dropped records so absent-column warnings reflect
+                        // file-level absence, not just committed-record absence (same as the skip_row path).
+                        for (int i = 0; i < rowScratch.length; i++) {
+                            if (blockTracker.get(i)) {
+                                markColumnSeen(i);
+                            }
+                        }
                         capDropped = true;
                         continue;
                     }
@@ -1178,15 +1254,30 @@ public class NdJsonPageDecoder implements Closeable {
                     blockTracker.set(rowPositionSlot);
                 }
                 if (rowDroppedBySkipRow) {
+                    // The drop was decided by the projection (a projected column's coercion or shape failure) --
+                    // the class of drop the publish gate refuses to commit. Set here, at the single point every
+                    // skip_row record discard funnels through, so BOTH sinks (coercionFailure and shapeConflict)
+                    // are covered; a record that ALSO hits a later whole-line parse error exits through the
+                    // parse-error path instead, which is correct -- that line drops under every projection.
+                    projectionDependentDrop = true;
                     // error_mode: skip_row. An uncoercible value makes the whole record bad, so it never reaches
                     // the page — matching CsvFormatReader, and matching ErrorPolicy.Mode.SKIP_ROW's contract
                     // ("drop the entire bad row"). The scratch builders are released by the finally below and
                     // rebuilt for the next record; nothing partial is committed. NULL_FIELD still null-fills.
+                    // Still track column presence for absent-column warnings: a column that only appears in
+                    // dropped records is present in the FILE and must not be falsely reported as absent.
+                    for (int i = 0; i < rowScratch.length; i++) {
+                        if (blockTracker.get(i)) {
+                            markColumnSeen(i);
+                        }
+                    }
                     continue;
                 }
                 for (int i = 0; i < rowScratch.length; i++) {
                     if (blockTracker.get(i) == false) {
                         rowScratch[i].appendNull();
+                    } else {
+                        markColumnSeen(i);
                     }
                 }
                 appendDecodedScratchRow(blockBuilders, rowScratch);
@@ -1198,6 +1289,7 @@ public class NdJsonPageDecoder implements Closeable {
                 lastPageRecordOffsets[lineCount] = stripeRecordStart;
             }
             lineCount++;
+            committedRowCount++;
         }
         if (recordOffsetTracking) {
             lastPageRecordCount = lineCount;
@@ -1330,6 +1422,23 @@ public class NdJsonPageDecoder implements Closeable {
 
     @Override
     public void close() throws IOException {
+        // Emit absent-column warnings for columns that were declared but never appeared in any committed
+        // record. We wait until close() because we need to see all records before we can distinguish
+        // "always absent" (warn) from "absent in some records but present in others" (normal sparse data,
+        // do not warn). Only fires when at least one record was committed — guards against false positives
+        // when all records were dropped by skip_row (totalRowCount > 0 but nothing committed). A column
+        // absent from every committed record is effectively absent from the file, so we use
+        // absentDeclaredColumnMessage to deduplicate cleanly with Parquet/SAI warnings via InformationalWarningBudget.
+        if (absentColumnWarningSink != null && committedRowCount > 0) {
+            for (int i = 0; i < projectedAttributes.size(); i++) {
+                if (columnEverPresent.get(i) == false) {
+                    Attribute attr = projectedAttributes.get(i);
+                    if (attr.dataType() != DataType.NULL && attr.dataType() != DataType.UNSUPPORTED) {
+                        absentColumnWarningSink.accept(SkipWarnings.absentDeclaredColumnMessage(attr.name()));
+                    }
+                }
+            }
+        }
         // input may be null on the byte-array fast path; IOUtils.close tolerates null entries.
         // We also close `parser` so its internal buffers (small but real) are released on the byte-array
         // path, where there is no `input` to close. AUTO_CLOSE_SOURCE is disabled on the shared

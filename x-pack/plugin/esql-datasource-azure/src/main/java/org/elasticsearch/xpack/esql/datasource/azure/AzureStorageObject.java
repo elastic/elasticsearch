@@ -24,7 +24,9 @@ import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.time.Instant;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 /**
@@ -133,8 +135,13 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
     private Exception mapReadFailure(String context, Throwable cause) {
         if (cause instanceof BlobStorageException bse && ExternalUnavailableException.isRetryableStatus(bse.getStatusCode())) {
             boolean throttling = ExternalUnavailableException.isThrottlingStatus(bse.getStatusCode());
+            long retryAfterMs = 0L;
+            if (throttling && bse.getResponse() != null) {
+                retryAfterMs = ExternalUnavailableException.parseRetryAfterMs(bse.getResponse().getHeaderValue("Retry-After"));
+            }
             return new ExternalUnavailableException(
                 throttling,
+                retryAfterMs,
                 cause,
                 "Azure store unavailable reading [{}] (HTTP {})",
                 path,
@@ -300,8 +307,9 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
 
         BlobRange range = new BlobRange(position, length);
         long startNanos = System.nanoTime();
-        onReadComplete(
-            blobAsyncClient.downloadWithResponse(range, null, null, false)
+        final CompletableFuture<ByteBuffer> future;
+        try {
+            future = blobAsyncClient.downloadWithResponse(range, null, null, false)
                 .flatMapMany(response -> response.getValue())
                 .reduce(drb.buffer(), (acc, chunk) -> {
                     if (chunk.remaining() > acc.remaining()) {
@@ -314,20 +322,26 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
                     buffer.flip();
                     return buffer;
                 })
-                .toFuture(),
-            (buffer, error) -> {
-                if (error != null) {
-                    counters.addRequest(System.nanoTime() - startNanos, 0L);
-                    // Release eagerly on the failure path so the breaker charge does not outlive
-                    // the failed request.
-                    drb.close();
-                    Throwable cause = error.getCause() != null ? error.getCause() : error;
-                    listener.onFailure(mapReadFailure("Failed to read bytes from", cause));
-                } else {
-                    deliverRead(listener, drb, startNanos);
-                }
+                .toFuture();
+        } catch (RuntimeException e) {
+            // Assembly-time throw from Reactor operator construction. No request was issued,
+            // so counters are not updated.
+            drb.close();
+            listener.onFailure(mapReadFailure("Failed to read bytes from", e));
+            return;
+        }
+        onReadComplete(future, (buffer, error) -> {
+            if (error != null) {
+                counters.addRequest(System.nanoTime() - startNanos, 0L);
+                // Release eagerly on the failure path so the breaker charge does not outlive
+                // the failed request.
+                drb.close();
+                Throwable cause = error.getCause() != null ? error.getCause() : error;
+                listener.onFailure(mapReadFailure("Failed to read bytes from", cause));
+            } else {
+                deliverRead(listener, drb, startNanos);
             }
-        );
+        });
     }
 
     @Override

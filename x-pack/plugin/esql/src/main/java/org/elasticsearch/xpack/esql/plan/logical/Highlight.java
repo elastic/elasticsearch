@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -51,6 +52,9 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         Highlight::new
     );
 
+    /** Minimum transport version that knows how to deserialize this plan node. */
+    public static final TransportVersion ESQL_HIGHLIGHT = TransportVersion.fromName("esql_highlight");
+
     public static final String DEFAULT_PREFIX = "highlight_";
 
     public static final String PRE_TAGS = "pre_tags";
@@ -65,12 +69,6 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
     public static final String ORDER = "order";
     public static final String MAX_ANALYZED_OFFSET = "max_analyzed_offset";
 
-    // Accepted for Query DSL parity but only used by the FastVectorHighlighter, so they are no-ops for the unified
-    // highlighter that HIGHLIGHT always uses.
-    public static final String BOUNDARY_CHARS = "boundary_chars";
-    public static final String BOUNDARY_MAX_SCAN = "boundary_max_scan";
-    public static final String PHRASE_LIMIT = "phrase_limit";
-
     private static final List<String> VALID_OPTION_NAMES = List.of(
         PRE_TAGS,
         POST_TAGS,
@@ -80,12 +78,9 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         ANALYZER,
         BOUNDARY_SCANNER,
         BOUNDARY_SCANNER_LOCALE,
-        BOUNDARY_CHARS,
-        BOUNDARY_MAX_SCAN,
         ORDER,
         NO_MATCH_SIZE,
-        MAX_ANALYZED_OFFSET,
-        PHRASE_LIMIT
+        MAX_ANALYZED_OFFSET
     );
 
     private final String prefix;
@@ -287,7 +282,9 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         try {
             HighlightQueryBuilders.verify(query, fieldNames, analyzer);
         } catch (IllegalArgumentException e) {
-            failures.add(fail(this, "{}", e.getMessage()));
+            // Attach to the query node, not this Highlight node: failures dedupe by node, so pinning it here would let a
+            // co-located option/analyzer failure on this node swallow the query error (see VerifierTests#testHighlightAnalyzerOption).
+            failures.add(fail(query, "{}", e.getMessage()));
         }
     }
 

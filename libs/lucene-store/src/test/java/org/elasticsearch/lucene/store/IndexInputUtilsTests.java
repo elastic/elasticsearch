@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.instanceOf;
@@ -72,6 +74,78 @@ public class IndexInputUtilsTests extends ESTestCase {
                 assertThat(in, not(instanceOf(MemorySegmentAccessInput.class)));
                 assertThat(in, not(instanceOf(DirectAccessInput.class)));
                 verifyWithSlice(in, data);
+            }
+        }
+    }
+
+    public void testWithFloatSliceMemorySegmentAccessInput() throws Exception {
+        float[] data = randomFloatArrayOfLength(256);
+        try (Directory dir = new MMapDirectory(createTempDir())) {
+            writeData(dir, data);
+            try (IndexInput in = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
+                assertThat(in, instanceOf(MemorySegmentAccessInput.class));
+                verifyWithFloatSlice(in, data);
+            }
+        }
+    }
+
+    public void testWithFloatSliceDirectAccessInput() throws Exception {
+        float[] data = randomFloatArrayOfLength(256);
+        try (Directory dir = new NIOFSDirectory(createTempDir())) {
+            writeData(dir, data);
+            try (IndexInput rawIn = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
+                byte[] rawData = new byte[data.length * Float.BYTES];
+                ByteBuffer.wrap(rawData).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer().put(data);
+                IndexInput in = new DirectAccessIndexInput("dai", rawIn, rawData);
+                assertThat(in, instanceOf(DirectAccessInput.class));
+                verifyWithFloatSlice(in, data);
+            }
+        }
+    }
+
+    public void testWithFloatSlicePlainIndexInput() throws Exception {
+        float[] data = randomFloatArrayOfLength(256);
+        try (Directory dir = new NIOFSDirectory(createTempDir())) {
+            writeData(dir, data);
+            try (IndexInput in = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
+                assertThat(in, not(instanceOf(MemorySegmentAccessInput.class)));
+                assertThat(in, not(instanceOf(DirectAccessInput.class)));
+                verifyWithFloatSlice(in, data);
+            }
+        }
+    }
+
+    public void testWithVoidSliceMemorySegmentAccessInput() throws Exception {
+        byte[] data = randomByteArrayOfLength(256);
+        try (Directory dir = new MMapDirectory(createTempDir())) {
+            writeData(dir, data);
+            try (IndexInput in = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
+                assertThat(in, instanceOf(MemorySegmentAccessInput.class));
+                verifyWithVoidSlice(in, data);
+            }
+        }
+    }
+
+    public void testWithVoidSliceDirectAccessInput() throws Exception {
+        byte[] data = randomByteArrayOfLength(256);
+        try (Directory dir = new NIOFSDirectory(createTempDir())) {
+            writeData(dir, data);
+            try (IndexInput rawIn = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
+                IndexInput in = new DirectAccessIndexInput("dai", rawIn, data);
+                assertThat(in, instanceOf(DirectAccessInput.class));
+                verifyWithVoidSlice(in, data);
+            }
+        }
+    }
+
+    public void testWithVoidSlicePlainIndexInput() throws Exception {
+        byte[] data = randomByteArrayOfLength(256);
+        try (Directory dir = new NIOFSDirectory(createTempDir())) {
+            writeData(dir, data);
+            try (IndexInput in = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
+                assertThat(in, not(instanceOf(MemorySegmentAccessInput.class)));
+                assertThat(in, not(instanceOf(DirectAccessInput.class)));
+                verifyWithVoidSlice(in, data);
             }
         }
     }
@@ -214,6 +288,78 @@ public class IndexInputUtilsTests extends ESTestCase {
         assertEquals(expectedData.length, in.getFilePointer());
     }
 
+    private void verifyWithVoidSlice(IndexInput in, byte[] expectedData) throws IOException {
+        final int firstChunk = 64;
+        final byte[] result1 = new byte[firstChunk];
+        IndexInputUtils.withVoidSlice(in, firstChunk, byte[]::new, segment -> {
+            assertEquals(result1.length, segment.byteSize());
+            MemorySegment.ofArray(result1).copyFrom(segment);
+        });
+        assertArrayEquals(Arrays.copyOfRange(expectedData, 0, firstChunk), result1);
+        assertEquals(firstChunk, in.getFilePointer());
+
+        final int secondChunk = 128;
+        final byte[] result2 = new byte[secondChunk];
+        IndexInputUtils.withVoidSlice(in, secondChunk, byte[]::new, segment -> {
+            assertEquals(result2.length, segment.byteSize());
+            MemorySegment.ofArray(result2).copyFrom(segment);
+        });
+        assertArrayEquals(Arrays.copyOfRange(expectedData, firstChunk, firstChunk + secondChunk), result2);
+        assertEquals(firstChunk + secondChunk, in.getFilePointer());
+
+        final int remaining = expectedData.length - firstChunk - secondChunk;
+        final byte[] result3 = new byte[remaining];
+        IndexInputUtils.withVoidSlice(in, remaining, byte[]::new, segment -> {
+            assertEquals(result3.length, segment.byteSize());
+            MemorySegment.ofArray(result3).copyFrom(segment);
+        });
+        assertArrayEquals(Arrays.copyOfRange(expectedData, firstChunk + secondChunk, expectedData.length), result3);
+        assertEquals(expectedData.length, in.getFilePointer());
+    }
+
+    private void verifyWithFloatSlice(IndexInput in, float[] expectedData) throws IOException {
+        final int firstChunk = 64;
+
+        float result1 = IndexInputUtils.withFloatSlice(in, firstChunk * Float.BYTES, byte[]::new, segment -> {
+            var data = getAsFloat(segment);
+            return getResult(data, 0, data.length);
+        });
+        assertEquals(getResult(expectedData, 0, firstChunk), result1, 0f);
+        assertEquals(firstChunk * Float.BYTES, in.getFilePointer());
+
+        final int secondChunk = 128;
+        float result2 = IndexInputUtils.withFloatSlice(in, secondChunk * Float.BYTES, byte[]::new, segment -> {
+            var data = getAsFloat(segment);
+            return getResult(data, 0, data.length);
+        });
+        assertEquals(getResult(expectedData, firstChunk, firstChunk + secondChunk), result2, 0f);
+        assertEquals((firstChunk + secondChunk) * Float.BYTES, in.getFilePointer());
+
+        long remaining = expectedData.length - firstChunk - secondChunk;
+        float result3 = IndexInputUtils.withFloatSlice(in, remaining * Float.BYTES, byte[]::new, segment -> {
+            var data = getAsFloat(segment);
+            return getResult(data, 0, data.length);
+        });
+        assertEquals(getResult(expectedData, firstChunk + secondChunk, expectedData.length), result3, 0f);
+        assertEquals(expectedData.length * Float.BYTES, in.getFilePointer());
+    }
+
+    private static float[] getAsFloat(MemorySegment segment) {
+        byte[] buf = new byte[(int) segment.byteSize()];
+        float[] out = new float[buf.length >>> 2];
+        MemorySegment.ofArray(buf).copyFrom(segment);
+        ByteBuffer.wrap(buf).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer().get(out);
+        return out;
+    }
+
+    private static float getResult(float[] data, long start, long end) {
+        float result = 0;
+        for (int i = (int) start; i < end; ++i) {
+            result += data[i];
+        }
+        return result;
+    }
+
     /** Stands in for the reusable pointer-array scratch buffer that production callers own. */
     private static MemorySegment addressesScratch(int count) {
         return Arena.ofAuto().allocate((long) count * ValueLayout.ADDRESS.byteSize(), ValueLayout.ADDRESS.byteAlignment());
@@ -225,4 +371,19 @@ public class IndexInputUtilsTests extends ESTestCase {
         }
     }
 
+    private static void writeData(Directory dir, float[] data) throws IOException {
+        try (IndexOutput out = dir.createOutput(FILE_NAME, IOContext.DEFAULT)) {
+            ByteBuffer buffer = ByteBuffer.allocate(data.length * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+            buffer.asFloatBuffer().put(data);
+            out.writeBytes(buffer.array(), buffer.capacity());
+        }
+    }
+
+    private static float[] randomFloatArrayOfLength(int size) {
+        float[] floats = new float[size];
+        for (int i = 0; i < size; i++) {
+            floats[i] = randomFloat();
+        }
+        return floats;
+    }
 }

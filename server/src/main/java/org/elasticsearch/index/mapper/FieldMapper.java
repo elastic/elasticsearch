@@ -125,9 +125,8 @@ public abstract class FieldMapper extends Mapper {
     );
 
     /**
-     * Guards {@code doc_values.on_failure=ignore} (mapping parameter and {@link #DOC_VALUES_ON_FAILURE_SETTING} index setting) while the
-     * feature is incomplete: the failure column it redirects to isn't wired into synthetic source reconstruction, block loaders, or
-     * search yet, so a field configured with it today would silently lose the offending value on reconstruction.
+     * Guards {@code doc_values.on_failure=ignore}. The {@code ._on_failure} sidecar is surfaced in synthetic {@code _source} only —
+     * not block loaders, ESQL, or aggregations, since {@code multi_value=false} advertises a single-valued column to those paths.
      */
     public static final FeatureFlag DOC_VALUES_ON_FAILURE_FEATURE_FLAG = new FeatureFlag("doc_values_on_failure");
 
@@ -250,18 +249,6 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
-     * Whether this mapper can be driven through {@link #parse(DocumentParserContext)} by the
-     * bulk batch-indexing fast path (see {@code ShardBatchMapper}). The fast path pre-resolves
-     * one mapper per schema column and bypasses the normal document-level traversal, so mappers
-     * that rely on the surrounding parsing flow — scripts, {@code copy_to}, multi-fields,
-     * dimensions, compound structures, etc. — must return {@code false}. Defaults to
-     * {@code false}; supported mappers override after validating their configuration.
-     */
-    public boolean supportsBatchIndexing() {
-        return false;
-    }
-
-    /**
      * Whether this mapper can be driven through the columnar bulk batch-mapping path (see
      * {@code ShardBatchMapper}), which invokes each mapper once per batch over whole columns rather
      * than once per document. Defaults to {@code false}; supported mappers override once they
@@ -336,7 +323,7 @@ public abstract class FieldMapper extends Mapper {
             if (builderParams.hasScript) {
                 throwIndexingWithScriptParam();
             }
-            if (isSingleValueEnforced()) {
+            if (shouldEnforceSingleValue(context.parser().currentToken())) {
                 redirectedToFailureColumn = context.enforceSingleValue(fullPath(), onFailureBehavior());
             }
             if (redirectedToFailureColumn == false) {
@@ -436,11 +423,13 @@ public abstract class FieldMapper extends Mapper {
     protected abstract void parseCreateField(DocumentParserContext context) throws IOException;
 
     /**
-     * Whether this mapper enforces single-valued semantics (ie. {@code multi_value=false}). When {@code true}, a second value for the
-     * same document violates the constraint: it either throws or is redirected to a failure column, depending on {@link
-     * #onFailureBehavior()}. Override on mappers that expose the {@code multi_value} doc values mapping parameter.
+     * Whether the current token should consume the single-value slot enforced by {@link #onFailureBehavior()}. Returns {@code true}
+     * when single-value semantics are active (ie. {@code multi_value=false}) and the token is a genuine value. Mappers that support a
+     * {@code null_value} parameter must override this to exempt {@link XContentParser.Token#VALUE_NULL} when no {@code null_value} is
+     * configured — a bare null is silently discarded and must not occupy the slot so that {@code [null, value]} is treated as
+     * {@code [value]}. Mappers without {@code null_value} support (eg. text) should exempt {@code VALUE_NULL} unconditionally.
      */
-    protected boolean isSingleValueEnforced() {
+    protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
         return false;
     }
 
@@ -451,6 +440,17 @@ public abstract class FieldMapper extends Mapper {
      */
     protected DocValuesParameter.Values.OnFailure onFailureBehavior() {
         return DocValuesParameter.Values.OnFailure.FAIL;
+    }
+
+    /**
+     * Whether this mapper writes extra values to the {@code ._on_failure} sidecar column; when {@code true}, append
+     * {@link CompositeSyntheticFieldLoader#onFailureValuesLayer} <em>last</em> so encounter order is preserved.
+     * Uses {@link #onFailureBehavior()} not {@link #shouldEnforceSingleValue(XContentParser.Token)} because {@code NumberFieldMapper}
+     * diverges the two;
+     * FALLBACK excluded because those fields reconstruct from {@code _ignored_source} and have no composite loader.
+     */
+    protected final boolean onFailureColumnEnabled() {
+        return onFailureBehavior() == DocValuesParameter.Values.OnFailure.IGNORE && syntheticSourceMode() != SyntheticSourceMode.FALLBACK;
     }
 
     /**
@@ -1805,10 +1805,9 @@ public abstract class FieldMapper extends Mapper {
          *   <li>{@code "doc_values": { "nullability": true }} - allow documents to omit the field or supply null (default)</li>
          *   <li>{@code "doc_values": { "nullability": false }} - reject any document that omits the field or supplies null (sealed)</li>
          *   <li>{@code "doc_values": { "on_failure": "fail" }} - reject the document if it violates multi_value/nullability (default)</li>
-         *   <li>{@code "doc_values": { "on_failure": "ignore" }} - accept the document, routing the offending value to a per-field
-         *       failure column instead of rejecting it (see {@link DocumentParserContext#enforceSingleValue}). Rejected at parse time
-         *       unless {@link #DOC_VALUES_ON_FAILURE_FEATURE_FLAG} is enabled, since reconstruction of the failure column isn't wired
-         *       into synthetic source, block loaders, or search yet.</li>
+         *   <li>{@code "doc_values": { "on_failure": "ignore" }} - route the offending value to a per-field failure column
+         *       (see {@link DocumentParserContext#enforceSingleValue}). Requires {@link #DOC_VALUES_ON_FAILURE_FEATURE_FLAG}.
+         *       Surfaced in synthetic {@code _source} only; not exposed to block loaders, ESQL, or aggregations.</li>
          * </ul>
          * <p>
          * The presence of {@code doc_values} as a map indicates the user wants doc_values enabled. The map format allows specifying

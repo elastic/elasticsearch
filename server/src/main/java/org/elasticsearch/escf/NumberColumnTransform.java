@@ -53,6 +53,25 @@ public final class NumberColumnTransform {
         return builder.finish(source.docCount());
     }
 
+    /**
+     * Converts a LONG {@link EscfColumn} whose values are
+     * {@link HalfFloatPoint#halfFloatToSortableShort} encoded sortable shorts into a LONG
+     * {@link EscfColumnData} containing {@link NumericUtils#floatToSortableInt} encoded sortable ints
+     * (widened to long). Use the result with a {@link org.elasticsearch.escf.LuceneLongColumn} and
+     * {@link org.apache.lucene.document.column.LongColumn.NumericKind#FLOAT} to emit the stored-fields
+     * column for a {@code half_float} field.
+     */
+    public static EscfColumnData toHalfFloatStoredLongColumn(EscfColumn source, Recycler<BytesRef> recycler) {
+        assert source.kind() == EscfColumnKind.LONG : "expected LONG, got " + EscfColumnKind.name(source.kind());
+        EscfColumnBuilder builder = newLongBuilder(recycler);
+        LongTupleCursor cursor = source.longCursor();
+        for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+            float f = HalfFloatPoint.sortableShortToHalfFloat((short) cursor.longValue());
+            builder.setLong(doc, NumericUtils.floatToSortableInt(f));
+        }
+        return builder.finish(source.docCount());
+    }
+
     public static EscfColumnData toSortableLongColumn(
         EscfColumn source,
         NumberFieldMapper.NumberType type,

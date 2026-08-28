@@ -39,7 +39,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -89,9 +91,10 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
     public void testPrefetchWithTightBreakerLimit() throws Exception {
         MessageType wideSchema = buildWideSchema(10);
         byte[] parquetData = createMultiRowGroupFile(wideSchema, 5000, 50 * 1024);
-        // Add DEFAULT_WINDOW_SIZE so the window fits; the remaining ~2 MB budget is still tight
-        // enough that decode or prefetch allocations may trip the breaker.
-        var breaker = new TrackingBreaker("test", ByteSizeValue.ofBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 2 * 1024 * 1024));
+        // Cover the clamped window (file length, or 4 MiB if the object is larger) and leave ~2 MB
+        // so decode or prefetch allocations may still trip the breaker.
+        long windowCharge = Math.min(parquetData.length, ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE);
+        var breaker = new TrackingBreaker("test", ByteSizeValue.ofBytes(windowCharge + 2 * 1024 * 1024));
         BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
 
         StorageObject storage = createAsyncStorageObject(parquetData);
@@ -150,11 +153,12 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
         }
         assertTrue("Should have read rows", totalRows > 0);
         assertEquals("Breaker should return to zero", 0, breaker.getUsed());
-        // The window buffer (DEFAULT_WINDOW_SIZE) is now tracked by the circuit breaker, so the
-        // peak includes the window. Prefetch and decode allocations are still bounded by parquetData.length.
+        // Peak includes the clamped window (file length when the object fits, else 4 MiB) plus
+        // prefetch/decode. Bound against that window, not the historical 4 MiB floor.
+        long windowCharge = Math.min(parquetData.length, ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE);
         assertTrue(
             "Peak prefetch breaker usage should be bounded (was " + breaker.peakUsed + " bytes)",
-            breaker.peakUsed.get() < parquetData.length + ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE
+            breaker.peakUsed.get() < parquetData.length + windowCharge
         );
     }
 
@@ -175,6 +179,84 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
             }
         }
         assertEquals("Breaker should return to zero after early close", 0, breaker.getUsed());
+    }
+
+    /**
+     * N concurrent optimized readers share one breaker and one Arrow allocator. After every
+     * thread finishes iterating, both accounts must return to baseline. Uses zstd so the
+     * decompress path is exercised under concurrency, not only uncompressed prefetch.
+     * Peak is not compared to N times a single-reader peak: N concurrent windows can
+     * legitimately reach about N times one window. Sharing is the accounts returning to zero.
+     */
+    public void testConcurrentReadersShareBreaker() throws Exception {
+        int readers = 4;
+        ConcurrentPipeline pipeline = newConcurrentPipeline(3000);
+
+        startInParallel(readers, i -> {
+            int totalRows = 0;
+            try {
+                try (
+                    CloseableIterator<Page> iter = new ParquetFormatReader(pipeline.blockFactory, true).read(
+                        pipeline.storage(),
+                        FormatReadContext.of(null, 1024)
+                    )
+                ) {
+                    while (iter.hasNext()) {
+                        Page page = iter.next();
+                        totalRows += page.getPositionCount();
+                        page.releaseBlocks();
+                    }
+                }
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+            assertTrue("Should have read rows", totalRows > 0);
+        });
+        assertEquals("Breaker should return to zero after concurrent readers finish", 0, pipeline.breaker.getUsed());
+        assertEquals(
+            "Arrow allocator should return to baseline after concurrent readers finish",
+            pipeline.allocBaseline,
+            pipeline.blockFactory.arrowAllocator().getAllocatedMemory()
+        );
+        assertTrue("Prefetch should have reserved breaker bytes", pipeline.breaker.peakUsed.get() > 0);
+    }
+
+    /**
+     * Concurrent early close of the optimized iterator after a synchronized partial read.
+     * Each worker consumes one page, waits so all hold an open iterator, then closes on the
+     * iterating thread. This is not {@code AsyncExternalSourceBuffer.discardPages} cancel
+     * (covered in {@code AsyncExternalSourceBufferTests}) and not other-thread close.
+     */
+    public void testConcurrentEarlyCloseReclaimsMemory() throws Exception {
+        int readers = 4;
+        ConcurrentPipeline pipeline = newConcurrentPipeline(5000);
+
+        CyclicBarrier hold = new CyclicBarrier(readers);
+        startInParallel(readers, i -> {
+            try {
+                try (
+                    CloseableIterator<Page> iter = new ParquetFormatReader(pipeline.blockFactory, true).read(
+                        pipeline.storage(),
+                        FormatReadContext.of(null, 1024)
+                    )
+                ) {
+                    assertTrue("optimized reader must produce a page before early close", iter.hasNext());
+                    Page page = iter.next();
+                    assertTrue("page must contain rows", page.getPositionCount() > 0);
+                    page.releaseBlocks();
+                    hold.await(30, TimeUnit.SECONDS);
+                }
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+        });
+        assertEquals("Breaker should return to zero after concurrent early close", 0, pipeline.breaker.getUsed());
+        assertEquals(
+            "Arrow allocator should return to baseline after concurrent early close",
+            pipeline.allocBaseline,
+            pipeline.blockFactory.arrowAllocator().getAllocatedMemory()
+        );
+        assertTrue("Prefetch should have reserved breaker bytes before early close", pipeline.breaker.peakUsed.get() > 0);
     }
 
     // --- Helpers ---
@@ -317,11 +399,73 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
         return builder.named("wide_schema");
     }
 
+    /**
+     * Allocator-backed in-memory storage: default {@code readBytesAsync} allocates through
+     * {@link DirectBufferFactory}. Distinct from {@link #createAsyncStorageObject}, which uses a
+     * heap {@code ByteBuffer} and a no-op closer so older breaker tests do not charge the breaker for
+     * prefetch bytes. Do not merge the two stubs.
+     */
+    private static final class InMemoryStorageObject implements StorageObject {
+        private final byte[] data;
+
+        InMemoryStorageObject(byte[] data) {
+            this.data = data;
+        }
+
+        @Override
+        public InputStream newStream() {
+            return new ByteArrayInputStream(data);
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            return new ByteArrayInputStream(data, (int) position, (int) Math.min(length, data.length - position));
+        }
+
+        @Override
+        public long length() {
+            return data.length;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return Instant.EPOCH;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return StoragePath.of("memory://breaker-concurrent.parquet");
+        }
+    }
+
+    private ConcurrentPipeline newConcurrentPipeline(int rowCount) throws IOException {
+        byte[] parquetData = createMultiRowGroupFile(buildWideSchema(8), rowCount, 2048, CompressionCodecName.ZSTD);
+        var breaker = new TrackingBreaker("test", ByteSizeValue.ofMb(256));
+        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+        return new ConcurrentPipeline(parquetData, breaker, blockFactory, blockFactory.arrowAllocator().getAllocatedMemory());
+    }
+
+    private record ConcurrentPipeline(byte[] parquetData, TrackingBreaker breaker, BlockFactory blockFactory, long allocBaseline) {
+        StorageObject storage() {
+            return new InMemoryStorageObject(parquetData);
+        }
+    }
+
     private byte[] createMultiRowGroupFile(int rowCount, int rowGroupSize) throws IOException {
-        return createMultiRowGroupFile(SCHEMA, rowCount, rowGroupSize);
+        return createMultiRowGroupFile(SCHEMA, rowCount, rowGroupSize, CompressionCodecName.UNCOMPRESSED);
     }
 
     private byte[] createMultiRowGroupFile(MessageType schema, int rowCount, int rowGroupSize) throws IOException {
+        return createMultiRowGroupFile(schema, rowCount, rowGroupSize, CompressionCodecName.UNCOMPRESSED);
+    }
+
+    private byte[] createMultiRowGroupFile(MessageType schema, int rowCount, int rowGroupSize, CompressionCodecName codec)
+        throws IOException {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         OutputFile outputFile = createOutputFile(outputStream);
         SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
@@ -334,7 +478,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
                 .withConf(new PlainParquetConfiguration())
                 .withCodecFactory(new PlainCompressionCodecFactory())
                 .withType(schema)
-                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withCompressionCodec(codec)
                 .withRowGroupSize(rowGroupSize)
                 .withPageSize(256)
                 .build()

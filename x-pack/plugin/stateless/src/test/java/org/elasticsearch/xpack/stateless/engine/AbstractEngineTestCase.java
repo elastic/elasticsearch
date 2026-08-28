@@ -218,6 +218,25 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         );
     }
 
+    /**
+     * Creates an {@link IndexEngine} with a caller-supplied {@link IndexEngineDynamicSettings}.
+     * Use this overload when a test needs to update the settings dynamically after engine construction.
+     */
+    protected IndexEngine newIndexEngine(final EngineConfig indexConfig, final IndexEngineDynamicSettings dynamicSettings) {
+        StatelessCommitService commitService = mockCommitService(indexConfig.getIndexSettings().getNodeSettings());
+        return newIndexEngine(
+            indexConfig,
+            mock(TranslogReplicator.class),
+            mock(ObjectStoreService.class),
+            commitService,
+            mock(HollowShardsService.class),
+            mock(SharedBlobCacheWarmingService.class),
+            DocumentParsingProvider.EMPTY_INSTANCE,
+            new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP, HollowShardsMetrics.NOOP),
+            dynamicSettings
+        );
+    }
+
     protected static StatelessCommitService mockCommitService(Settings settings) {
         StatelessCommitService commitService = mock(StatelessCommitService.class);
         doAnswer(invocation -> {
@@ -268,6 +287,23 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         );
     }
 
+    /**
+     * Builds an {@link IndexEngineDynamicSettings} pre-initialized from the given node settings.
+     * All tests that construct an {@link IndexEngine} directly should use this helper so the engine
+     * receives a properly wired dynamic-settings holder rather than reading stale constructor-time values.
+     */
+    protected static IndexEngineDynamicSettings newIndexEngineDynamicSettings(Settings nodeSettings) {
+        ClusterSettings clusterSettings = new ClusterSettings(
+            nodeSettings,
+            Sets.addToCopy(
+                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                IndexEngine.MERGE_FORCE_REFRESH_SIZE,
+                IndexEngine.MERGE_BACKLOG_THROTTLE_FACTOR
+            )
+        );
+        return new IndexEngineDynamicSettings(clusterSettings);
+    }
+
     protected IndexEngine newIndexEngine(
         EngineConfig indexConfig,
         TranslogReplicator translogReplicator,
@@ -277,6 +313,30 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         SharedBlobCacheWarmingService sharedBlobCacheWarmingService,
         DocumentParsingProvider documentParsingProvider,
         IndexEngine.EngineMetrics engineMetrics
+    ) {
+        return newIndexEngine(
+            indexConfig,
+            translogReplicator,
+            objectStoreService,
+            commitService,
+            hollowShardsService,
+            sharedBlobCacheWarmingService,
+            documentParsingProvider,
+            engineMetrics,
+            newIndexEngineDynamicSettings(indexConfig.getIndexSettings().getNodeSettings())
+        );
+    }
+
+    protected IndexEngine newIndexEngine(
+        EngineConfig indexConfig,
+        TranslogReplicator translogReplicator,
+        ObjectStoreService objectStoreService,
+        StatelessCommitService commitService,
+        HollowShardsService hollowShardsService,
+        SharedBlobCacheWarmingService sharedBlobCacheWarmingService,
+        DocumentParsingProvider documentParsingProvider,
+        IndexEngine.EngineMetrics engineMetrics,
+        IndexEngineDynamicSettings dynamicSettings
     ) {
         var indexEngine = new IndexEngine(
             indexConfig,
@@ -290,6 +350,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             commitService.getCommitBCCResolverForShard(indexConfig.getShardId()),
             documentParsingProvider,
             engineMetrics,
+            dynamicSettings,
             commitService.getShardLocalCommitsTracker(indexConfig.getShardId()).shardLocalReadersTracker()
         ) {
 
@@ -509,7 +570,13 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         ) {};
         SearchDirectory directory = new SearchDirectory(
             cache,
-            new CacheBlobReaderService(indexSettings.getSettings(), cache, mock(Client.class), threadPool) {
+            new CacheBlobReaderService(
+                indexSettings.getSettings(),
+                cache,
+                mock(Client.class),
+                threadPool,
+                TestUtils.unmeteredFillCacheMemoryPressure(indexSettings.getSettings(), threadPool)
+            ) {
                 @Override
                 public CacheBlobReader getCacheBlobReader(
                     ShardId shardId,
@@ -520,7 +587,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                     LongConsumer totalBytesReadFromIndexing,
                     BlobCacheMetrics.CachePopulationReason cachePopulationReason,
                     Executor objectStoreFetchExecutor,
-                    String fileName
+                    String fileName,
+                    boolean speculativeFill
                 ) {
                     getBlobReader.accept(this, blobFile);
                     return super.getCacheBlobReader(
@@ -532,7 +600,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                         totalBytesReadFromIndexing,
                         cachePopulationReason,
                         objectStoreFetchExecutor,
-                        fileName
+                        fileName,
+                        speculativeFill
                     );
                 }
             },
@@ -660,7 +729,13 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         );
         var directory = new SearchDirectory(
             sharedBlobCacheService,
-            new CacheBlobReaderService(indexSettings.getSettings(), sharedBlobCacheService, mock(Client.class), threadPool),
+            new CacheBlobReaderService(
+                indexSettings.getSettings(),
+                sharedBlobCacheService,
+                mock(Client.class),
+                threadPool,
+                TestUtils.unmeteredFillCacheMemoryPressure(indexSettings.getSettings(), threadPool)
+            ),
             objectStoreUploadTracker,
             shardId,
             randomBoolean()

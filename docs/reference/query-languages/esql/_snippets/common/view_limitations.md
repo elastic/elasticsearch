@@ -1,3 +1,7 @@
+#### Document- and field-level security
+
+A role entry that grants `read` on a view name must not carry DLS or FLS restrictions. If it does, the query fails with a `403`. DLS/FLS on the underlying indices is applied normally. Refer to [view privileges](/reference/query-languages/esql/esql-views.md#esql-views-privileges).
+
 #### Branching inside views
 
 Commands that also generate branched query plans
@@ -43,5 +47,5 @@ that is likely to change in the future:
       view, not the source indices.
 * `METADATA` directives inside and outside a view definition behave the same
   as they do for
-  [`METADATA` in subqueries](/reference/query-languages/esql/esql-subquery.md#subqueries-with-metadata).
+  [`METADATA` in subqueries](/reference/query-languages/esql/esql-from-subquery.md#subqueries-with-metadata).
   This will change for views.

@@ -78,9 +78,14 @@ import org.elasticsearch.index.codec.vectors.diskbbq.TestIvfQueryConfigResolver;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.atomic.LongAccumulator;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.frequently;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
@@ -100,10 +105,6 @@ public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCas
     @Before
     public void setUpIVFKnnVectorQuery() throws Exception {
         format = new ES920DiskBBQVectorsFormat(128, 4);
-    }
-
-    public final void setUp() throws Exception {
-        super.setUp();
     }
 
     abstract AbstractIVFKnnVectorQuery getKnnVectorQuery(String field, V query, int k, Query queryFilter, float visitRatio);
@@ -897,6 +898,114 @@ public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCas
                     () -> searcher.search(getKnnVectorQuery("vector", randomVector(dim), 10, filter), numDocs)
                 );
             }
+        }
+    }
+
+    /**
+     * The cross-leaf min-competitive {@link LongAccumulator} must be a single instance shared by every
+     * per-leaf collector manager; otherwise each leaf accumulates in isolation and cross-leaf pruning is
+     * inert. Wiring regression: fails if the accumulator is (re)created per collector manager.
+     */
+    public void testAccumulatorSharedAcrossLeaves() throws IOException {
+        try (Directory dir = buildMultiSegmentIndex(); IndexReader reader = DirectoryReader.open(dir)) {
+            assertTrue("test requires multiple segments", reader.leaves().size() > 1);
+            List<LongAccumulator> captured = Collections.synchronizedList(new ArrayList<>());
+            new AccumulatorCapturingQuery("field", 3, testResolver(), captured).rewrite(newSearcher(reader));
+
+            assertEquals("one collector manager per leaf", reader.leaves().size(), captured.size());
+            Set<LongAccumulator> distinct = Collections.newSetFromMap(new IdentityHashMap<>());
+            distinct.addAll(captured);
+            assertEquals("all leaves must share a single accumulator instance", 1, distinct.size());
+            assertNotNull("multi-leaf accumulator must be non-null", captured.get(0));
+        }
+    }
+
+    /** With a single leaf there is nothing to share, so the accumulator is left null (no atomic churn). */
+    public void testAccumulatorNullForSingleLeaf() throws IOException {
+        int dim = randomIntBetween(4, 64);
+        int numDocs = randomIntBetween(10, 100);
+        try (Directory dir = newDirectoryForTest()) {
+            IndexWriterConfig iwc = new IndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format));
+            decorateIWC(iwc);
+            try (IndexWriter w = new IndexWriter(dir, iwc)) {
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = getDocumentToIndex();
+                    doc.add(getKnnVectorField("field", randomVector(dim)));
+                    w.addDocument(doc);
+                }
+                w.forceMerge(1);
+            }
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                assertEquals(1, reader.leaves().size());
+                List<LongAccumulator> captured = Collections.synchronizedList(new ArrayList<>());
+                new AccumulatorCapturingQuery("field", 3, testResolver(), captured).rewrite(newSearcher(reader));
+                assertEquals(1, captured.size());
+                assertNull("single-leaf accumulator must be null", captured.get(0));
+            }
+        }
+    }
+
+    private Directory buildMultiSegmentIndex() throws IOException {
+        int numSegments = randomIntBetween(2, 10);
+        int dim = randomIntBetween(4, 64);
+        Directory dir = newDirectoryForTest();
+        IndexWriterConfig iwc = new IndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format));
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        decorateIWC(iwc);
+        try (IndexWriter w = new IndexWriter(dir, iwc)) {
+            for (int s = 0; s < numSegments; s++) {
+                int docsPerSegment = randomIntBetween(1, 20);
+                for (int i = 0; i < docsPerSegment; i++) {
+                    Document doc = getDocumentToIndex();
+                    doc.add(getKnnVectorField("field", randomVector(dim)));
+                    w.addDocument(doc);
+                }
+                w.commit(); // new segment per commit (merges disabled)
+            }
+        }
+        return dir;
+    }
+
+    /**
+     * Minimal {@link AbstractIVFKnnVectorQuery} that records the {@link LongAccumulator} handed to each
+     * per-leaf collector manager during {@code rewrite()}. {@code getLeafResults} is stubbed out: the wiring
+     * under test — that {@code rewrite()} threads a single shared accumulator into every leaf's collector
+     * manager — is established in the task-setup loop before any leaf search runs, so no real vector scoring
+     * (and hence no per-variant query type) is needed to observe it.
+     */
+    private static class AccumulatorCapturingQuery extends AbstractIVFKnnVectorQuery {
+        private final List<LongAccumulator> captured;
+
+        AccumulatorCapturingQuery(String field, int k, TestIvfQueryConfigResolver resolver, List<LongAccumulator> captured) {
+            super(field, 0f, k, k, null, resolver);
+            this.captured = captured;
+        }
+
+        @Override
+        protected IVFCollectorManager getKnnCollectorManager(int k, LongAccumulator longAccumulator) {
+            captured.add(longAccumulator);
+            return super.getKnnCollectorManager(k, longAccumulator);
+        }
+
+        @Override
+        TopDocs getLeafResults(
+            LeafReaderContext ctx,
+            Weight filterWeight,
+            IVFCollectorManager knnCollectorManager,
+            float visitRatio,
+            boolean usePrecondition
+        ) {
+            return NO_RESULTS;
+        }
+
+        @Override
+        Query getAutoRescoreQuery(IndexSearcher indexSearcher, TopDocs topOversampled, int effectiveK) {
+            return null;
+        }
+
+        @Override
+        public String toString(String field) {
+            return "AccumulatorCapturingQuery[" + field + "]";
         }
     }
 

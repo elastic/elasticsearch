@@ -140,7 +140,7 @@ public class DateFormatters {
     private static final DateFormatter STRICT_DATE_OPTIONAL_TIME = new JavaDateFormatter(
         "strict_date_optional_time",
         new JavaTimeDateTimePrinter(STRICT_DATE_OPTIONAL_TIME_PRINTER),
-        new Iso8601DateTimeParser(Set.of(), false, null, DecimalSeparator.BOTH, TimezonePresence.OPTIONAL).withLocale(Locale.ROOT)
+        new FastDateTimeParser(Set.of(), false, null, DecimalSeparator.BOTH, TimezonePresence.OPTIONAL).withLocale(Locale.ROOT)
     );
 
     private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS = new DateTimeFormatterBuilder().append(
@@ -173,7 +173,7 @@ public class DateFormatters {
     private static final DateFormatter STRICT_DATE_OPTIONAL_TIME_NANOS = new JavaDateFormatter(
         "strict_date_optional_time_nanos",
         new JavaTimeDateTimePrinter(STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS),
-        new Iso8601DateTimeParser(
+        new FastDateTimeParser(
             Set.of(HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE),
             true,
             null,
@@ -190,7 +190,49 @@ public class DateFormatters {
     private static final DateFormatter ISO_8601 = new JavaDateFormatter(
         "iso8601",
         new JavaTimeDateTimePrinter(STRICT_DATE_OPTIONAL_TIME_PRINTER),
-        new Iso8601DateTimeParser(Set.of(), false, null, DecimalSeparator.BOTH, TimezonePresence.OPTIONAL).withLocale(Locale.ROOT)
+        new FastDateTimeParser(Set.of(), false, null, DecimalSeparator.BOTH, TimezonePresence.OPTIONAL).withLocale(Locale.ROOT)
+    );
+
+    /**
+     * The literal date patterns for which we provide a {@link FastDateTimeParser}-based parser instead of the slower,
+     * allocation-heavy generic java.time.* parsing. These are not registered format names, so without these they would
+     * otherwise fall through to the generic path in {@link #forPattern(String)}.
+     */
+    private static final String ISO_LOCAL_DATE_TIME_NO_T_PATTERN = "yyyy-MM-dd HH:mm:ss";
+    private static final String FAST_DATE_PATTERN = "yyyy-MM-dd";
+
+    /*
+     * A fast formatter equivalent to the literal pattern 'yyyy-MM-dd HH:mm:ss'. This is the same as
+     * strict_date_hour_minute_second (uuuu-MM-dd'T'HH:mm:ss) except that the date and time components are separated by a
+     * space instead of 'T'. The printer is built from the literal pattern so format() output is identical to the generic path.
+     */
+    private static final DateFormatter ISO_LOCAL_DATE_TIME_NO_T = new JavaDateFormatter(
+        ISO_LOCAL_DATE_TIME_NO_T_PATTERN,
+        new JavaTimeDateTimePrinter(
+            new DateTimeFormatterBuilder().appendPattern(ISO_LOCAL_DATE_TIME_NO_T_PATTERN)
+                .toFormatter(Locale.ROOT)
+                .withResolverStyle(ResolverStyle.STRICT)
+        ),
+        new FastDateTimeParser(
+            Set.of(MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE),
+            false,
+            SECOND_OF_MINUTE,
+            DecimalSeparator.BOTH,
+            TimezonePresence.FORBIDDEN,
+            ' '
+        ).withLocale(Locale.ROOT)
+    );
+
+    /*
+     * A fast formatter equivalent to the literal pattern 'yyyy-MM-dd', a date with no time component or timezone.
+     */
+    private static final DateFormatter FAST_DATE = new JavaDateFormatter(
+        FAST_DATE_PATTERN,
+        new JavaTimeDateTimePrinter(
+            new DateTimeFormatterBuilder().appendPattern(FAST_DATE_PATTERN).toFormatter(Locale.ROOT).withResolverStyle(ResolverStyle.STRICT)
+        ),
+        new FastDateTimeParser(Set.of(MONTH_OF_YEAR, DAY_OF_MONTH), false, DAY_OF_MONTH, DecimalSeparator.BOTH, TimezonePresence.FORBIDDEN)
+            .withLocale(Locale.ROOT)
     );
 
     /////////////////////////////////////////
@@ -621,8 +663,9 @@ public class DateFormatters {
                 .toFormatter(Locale.ROOT)
                 .withResolverStyle(ResolverStyle.STRICT)
         ),
-        new Iso8601DateTimeParser(Set.of(MONTH_OF_YEAR), false, MONTH_OF_YEAR, DecimalSeparator.BOTH, TimezonePresence.FORBIDDEN)
-            .withLocale(Locale.ROOT)
+        new FastDateTimeParser(Set.of(MONTH_OF_YEAR), false, MONTH_OF_YEAR, DecimalSeparator.BOTH, TimezonePresence.FORBIDDEN).withLocale(
+            Locale.ROOT
+        )
     );
 
     /*
@@ -635,13 +678,11 @@ public class DateFormatters {
                 .toFormatter(Locale.ROOT)
                 .withResolverStyle(ResolverStyle.STRICT)
         ),
-        new Iso8601DateTimeParser(Set.of(), false, ChronoField.YEAR, DecimalSeparator.BOTH, TimezonePresence.FORBIDDEN).withLocale(
-            Locale.ROOT
-        )
+        new FastDateTimeParser(Set.of(), false, ChronoField.YEAR, DecimalSeparator.BOTH, TimezonePresence.FORBIDDEN).withLocale(Locale.ROOT)
     );
 
     /*
-     * A strict formatter that formats or parses a hour, minute and second, such as '09:43:25'.
+     * A strict formatter that formats or parses an hour, minute, and second, such as '09:43:25'.
      */
     private static final DateFormatter STRICT_HOUR_MINUTE_SECOND = newDateFormatter(
         "strict_hour_minute_second",
@@ -656,15 +697,6 @@ public class DateFormatters {
         .toFormatter(Locale.ROOT)
         .withResolverStyle(ResolverStyle.STRICT);
 
-    private static final DateTimeFormatter STRICT_DATE_FORMATTER = new DateTimeFormatterBuilder().append(STRICT_YEAR_MONTH_DAY_FORMATTER)
-        .appendLiteral('T')
-        .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
-        .optionalStart()
-        .appendFraction(NANO_OF_SECOND, 1, 9, true)
-        .optionalEnd()
-        .toFormatter(Locale.ROOT)
-        .withResolverStyle(ResolverStyle.STRICT);
-
     /*
      * Returns a formatter that combines a full date and time, separated by a 'T'
      * (uuuu-MM-dd'T'HH:mm:ss.SSSZZ).
@@ -672,7 +704,7 @@ public class DateFormatters {
     private static final DateFormatter STRICT_DATE_TIME = new JavaDateFormatter(
         "strict_date_time",
         new JavaTimeDateTimePrinter(STRICT_DATE_PRINTER),
-        new Iso8601DateTimeParser(
+        new FastDateTimeParser(
             Set.of(MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE),
             false,
             null,
@@ -730,7 +762,7 @@ public class DateFormatters {
                 .toFormatter(Locale.ROOT)
                 .withResolverStyle(ResolverStyle.STRICT)
         ),
-        new Iso8601DateTimeParser(
+        new FastDateTimeParser(
             Set.of(MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE),
             false,
             SECOND_OF_MINUTE,
@@ -739,7 +771,7 @@ public class DateFormatters {
         ).withLocale(Locale.ROOT)
     );
 
-    // NOTE: this is not a strict formatter to retain the joda time based behaviour, even though it's named like this
+    // NOTE: this is not a strict formatter to retain the joda time based behavior, even though it's named like this
     private static final DateTimeFormatter STRICT_HOUR_MINUTE_SECOND_MILLIS_FORMATTER = new DateTimeFormatterBuilder().append(
         STRICT_HOUR_MINUTE_SECOND_FORMATTER
     ).appendFraction(NANO_OF_SECOND, 1, 9, true).toFormatter(Locale.ROOT).withResolverStyle(ResolverStyle.STRICT);
@@ -753,7 +785,7 @@ public class DateFormatters {
      * hour, two digit second of minute, and three digit fraction of
      * second (HH:mm:ss.SSS).
      *
-     * NOTE: this is not a strict formatter to retain the joda time based behaviour,
+     * NOTE: this is not a strict formatter to retain the joda time based behavior,
      *       even though it's named like this
      */
     private static final DateFormatter STRICT_HOUR_MINUTE_SECOND_MILLIS = newDateFormatter(
@@ -782,7 +814,7 @@ public class DateFormatters {
                 .toFormatter(Locale.ROOT)
                 .withResolverStyle(ResolverStyle.STRICT)
         ),
-        new Iso8601DateTimeParser(
+        new FastDateTimeParser(
             Set.of(MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE, NANO_OF_SECOND),
             false,
             null,
@@ -800,7 +832,7 @@ public class DateFormatters {
                 .toFormatter(Locale.ROOT)
                 .withResolverStyle(ResolverStyle.STRICT)
         ),
-        new Iso8601DateTimeParser(
+        new FastDateTimeParser(
             Set.of(MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE, NANO_OF_SECOND),
             false,
             null,
@@ -1124,7 +1156,7 @@ public class DateFormatters {
     private static final DateFormatter STRICT_DATE_HOUR_MINUTE_SECOND = new JavaDateFormatter(
         "strict_date_hour_minute_second",
         new JavaTimeDateTimePrinter(DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss", Locale.ROOT)),
-        new Iso8601DateTimeParser(
+        new FastDateTimeParser(
             Set.of(MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE),
             false,
             SECOND_OF_MINUTE,
@@ -1564,7 +1596,7 @@ public class DateFormatters {
     );
 
     /*
-     * A strict formatter that formats or parses a hour, minute and second, such as '09:43:25'.
+     * A strict formatter that formats or parses an hour, minute and second, such as '09:43:25'.
      */
     private static final DateFormatter HOUR_MINUTE_SECOND = newDateFormatter(
         "hour_minute_second",
@@ -2072,16 +2104,24 @@ public class DateFormatters {
             return STRICT_YEAR_MONTH;
         } else if (FormatNames.STRICT_YEAR_MONTH_DAY.matches(input)) {
             return STRICT_YEAR_MONTH_DAY;
+        } else if (ISO_LOCAL_DATE_TIME_NO_T_PATTERN.equals(input)) { // fast formatter/parser for yyyy-MM-dd HH:mm:ss
+            return ISO_LOCAL_DATE_TIME_NO_T;
+        } else if (FAST_DATE_PATTERN.equals(input)) { // fast formatter/parser for yyyy-MM-dd
+            return FAST_DATE;
         } else {
-            try {
-                return newDateFormatter(
-                    input,
-                    new DateTimeFormatterBuilder().appendPattern(input).toFormatter(Locale.ROOT).withResolverStyle(ResolverStyle.STRICT)
-                );
-            } catch (IllegalArgumentException | ClassCastException e) {
-                // ClassCastException catches this bug https://bugs.openjdk.org/browse/JDK-8193877
-                throw new IllegalArgumentException("Invalid format: [" + input + "]: " + e.getMessage(), e);
-            }
+            return genericPatternFormatter(input);
+        }
+    }
+
+    static DateFormatter genericPatternFormatter(String input) {
+        try {
+            return newDateFormatter(
+                input,
+                new DateTimeFormatterBuilder().appendPattern(input).toFormatter(Locale.ROOT).withResolverStyle(ResolverStyle.STRICT)
+            );
+        } catch (IllegalArgumentException | ClassCastException e) {
+            // ClassCastException catches this bug https://bugs.openjdk.org/browse/JDK-8193877
+            throw new IllegalArgumentException("Invalid format: [" + input + "]: " + e.getMessage(), e);
         }
     }
 
@@ -2093,10 +2133,10 @@ public class DateFormatters {
      * or Instant.from(accessor). This results in a huge performance penalty and should be prevented
      * This method prevents exceptions by querying the accessor for certain capabilities
      * and then act on it accordingly
-     *
+     * <p>
      * This action assumes that we can reliably fall back to some defaults if not all parts of a
      * zoned date time are set
-     *
+     * <p>
      * - If a zoned date time is passed, it is returned
      * - If no timezone is found, ZoneOffset.UTC is used
      * - If we find a time and a date, converting to a ZonedDateTime is straight forward,
@@ -2168,7 +2208,7 @@ public class DateFormatters {
         throw new IllegalArgumentException("temporal accessor [" + accessor + "] cannot be converted to zoned date time");
     }
 
-    private static LocalDate localDateFromWeekBasedDate(TemporalAccessor accessor, Locale locale, WeekFields weekFields) {
+    private static LocalDate localDateFromWeekBasedDate(TemporalAccessor accessor, Locale ignored, WeekFields weekFields) {
         if (accessor.isSupported(weekFields.weekOfWeekBasedYear())) {
             return LocalDate.ofEpochDay(0)
                 .with(weekFields.weekBasedYear(), accessor.get(weekFields.weekBasedYear()))
@@ -2185,9 +2225,9 @@ public class DateFormatters {
     /**
      * extending the java.time.temporal.TemporalQueries.LOCAL_DATE implementation to also create local dates
      * when YearOfEra was used instead of Year.
-     * This is to make it compatible with Joda behaviour
+     * This is to make it compatible with Joda behavior
      */
-    static final TemporalQuery<LocalDate> LOCAL_DATE_QUERY = new TemporalQuery<LocalDate>() {
+    static final TemporalQuery<LocalDate> LOCAL_DATE_QUERY = new TemporalQuery<>() {
         @Override
         public LocalDate queryFrom(TemporalAccessor temporal) {
             if (temporal.isSupported(ChronoField.EPOCH_DAY)) {

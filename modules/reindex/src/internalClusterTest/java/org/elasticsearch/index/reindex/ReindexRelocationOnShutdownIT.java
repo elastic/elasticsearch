@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.node.ListenableShutdownPrepareService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.plugins.Plugin;
@@ -32,7 +33,6 @@ import org.elasticsearch.reindex.RethrottleRequestBuilder;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.reindex.management.ReindexManagementPlugin;
 import org.elasticsearch.search.SearchContextMissingException;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
@@ -96,7 +96,12 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexPlugin.class, ReindexManagementPlugin.class, MockTransportService.TestPlugin.class);
+        return Arrays.asList(
+            ReindexPlugin.class,
+            ReindexManagementPlugin.class,
+            MockTransportService.TestPlugin.class,
+            ListenableShutdownPrepareService.TestPlugin.class
+        );
     }
 
     @Override
@@ -114,7 +119,6 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
      * all documents and that the relocated task's reported {@code Status#total} equals the source doc count.
      */
     public void testReindexTaskRelocatesOnNodeShutdown() throws Exception {
-        assumeTrue("pit relocation must be enabled", SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled());
 
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
@@ -235,7 +239,6 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
      * </ol>
      */
     public void testReindexFailsWhenPitRelocationFails() throws Exception {
-        assumeTrue("pit relocation must be enabled", SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled());
 
         internalCluster().startMasterOnlyNode();
 
@@ -366,7 +369,6 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
      * and so an error is returned to the client
      */
     public void testReindexTaskFailsWhenDataNodeIsShuttingDownAndTaskDoesNotFinishInTime() throws Exception {
-        assumeTrue("pit relocation must be enabled", SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled());
 
         final String masterNodeName = internalCluster().startMasterOnlyNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();
@@ -453,7 +455,6 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
      * the task attempts to complete before node shutdown. Here we allow the test to complete and expect no errors
      */
     public void testReindexTaskFinishesBeforeNodeShutsDown() throws Exception {
-        assumeTrue("pit relocation must be enabled", SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled());
 
         final String masterNodeName = internalCluster().startMasterOnlyNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();
@@ -676,7 +677,6 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         reason = "So we can know when the task cancellation was attempted"
     )
     public void testRelocatingTaskIsNotCancelledOnShutdownTimeout() throws Exception {
-        assumeTrue("pit relocation must be enabled", SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled());
 
         internalCluster().startMasterOnlyNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();
@@ -689,18 +689,21 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
         ensureStableCluster(3);
 
-        final int numDocs = randomIntBetween(10, 40);
+        final int numDocs = randomIntBetween(100, 120);
         createIndex(SOURCE);
         indexRandom(true, SOURCE, numDocs);
         assertHitCount(prepareSearch(SOURCE).setSize(0).setTrackTotalHits(true), numDocs);
 
+        // Reindex should take 30s, doing about 3 docs/s
+        final float requestsPerSecond = numDocs / 30.0f;
         final ReindexRequest request = new ReindexRequest().setSourceIndices(SOURCE)
             .setDestIndex(DEST)
             .setRefresh(true)
             .setShouldStoreResult(true)
             .setEligibleForRelocationOnShutdown(true)
-            .setRequestsPerSecond(0.000001f);
-        request.getSearchRequest().source().size(1000);
+            .setRequestsPerSecond(requestsPerSecond);
+        // Batches of 1 should only delay ~300ms, meaning the relocation should start sooner
+        request.getSearchRequest().source().size(1);
 
         final CountDownLatch listenerDone = new CountDownLatch(1);
         final AtomicReference<Throwable> failure = new AtomicReference<>();
@@ -741,23 +744,26 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
                 )
             );
 
+            // Prevent the cancellation from beginning until the task is in HANDOFF_INITIATED state.
+            final var shutdownPrepareService = asInstanceOf(
+                ListenableShutdownPrepareService.class,
+                internalCluster().getInstance(ShutdownPrepareService.class, coordNodeName)
+            );
+            shutdownPrepareService.addTaskTimeoutListener((taskName, tasks) -> {
+                if (ReindexAction.NAME.equals(taskName)) {
+                    safeAwait(resumeStarted);
+                }
+            });
+
             // Run prepareForShutdown in a background thread: it marks the task for relocation then blocks
             // waiting for the task to exit (which won’t happen until we release the transport block).
-            Future<?> shutdownFuture = executor.submit(
-                () -> internalCluster().getInstance(ShutdownPrepareService.class, coordNodeName).prepareForShutdown()
-            );
-
-            // Rethrottle so the task quickly processes its page and commits the relocation handoff.
-            rethrottleRunningRootReindex(numDocs);
-
-            // Wait until the ResumeReindexAction is in-flight: the task is now in HANDOFF_INITIATED state.
-            safeAwait(resumeStarted);
+            Future<?> shutdownFuture = executor.submit(shutdownPrepareService::prepareForShutdown);
 
             // Wait for the cancellation to fail
             mockLog.awaitAllExpectationsMatched();
 
             // Release the transport block. With the fix the task was NOT cancelled, so the destination
-            // handler runs and the relocation completes normally.
+            // handler runs, and the relocation completes normally.
             resumeBlocked.countDown();
 
             // The source task should complete via TaskRelocatedException (relocated, not cancelled).
@@ -767,6 +773,9 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
             // Wait for prepareForShutdown to return (it will see the task is gone and exit its inner loop).
             safeGet(shutdownFuture);
+
+            // We've seen everything we need to see, rethrottle to allow the task to finish
+            rethrottleRunningRootReindex(numDocs);
 
             // The relocated task should complete successfully on the data node.
             final GetTaskResponse relocatedResult = clusterAdmin().prepareGetTask(new TaskId(relocatedTaskIdString))

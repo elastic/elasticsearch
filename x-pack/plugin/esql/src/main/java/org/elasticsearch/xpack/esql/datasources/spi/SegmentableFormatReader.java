@@ -23,7 +23,7 @@ public interface SegmentableFormatReader extends FormatReader {
     /**
      * Default cap on the bytes a single record may occupy; the streaming splitter fails the query rather
      * than buffering past this when a scanner cannot find a boundary. Overridable via the
-     * {@code max_record_size} pragma.
+     * {@code external_max_record_size} pragma.
      */
     int DEFAULT_MAX_RECORD_BYTES = 64 * 1024 * 1024;
 
@@ -53,5 +53,13 @@ public interface SegmentableFormatReader extends FormatReader {
     default long minimumSegmentSize() {
         return 1024 * 1024;
     }
+
+    /**
+     * Called once by the coordinator at close time to deliver the total CPU nanoseconds spent on
+     * background threads (segmentator + all parser threads) back into this reader's own counters.
+     * <p>
+     * The default no-op is correct for readers that do not track read CPU.
+     */
+    default void acceptReadCpuNanos(long nanos) {}
 
 }

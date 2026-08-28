@@ -12,24 +12,23 @@ package org.elasticsearch.columnar.numeric;
 import org.elasticsearch.columnar.ColumnarFieldType;
 
 /**
- * Selects the {@link NumericPipeline} to use when writing a numeric column. The library calls
- * {@link #select} once per field at write time and uses whatever pipeline is returned.
+ * Selects the {@link NumericPipelineTemplate} to use when writing a numeric column. The library
+ * calls {@link #select} once per field at write time and then applies the format's block size to
+ * the returned template to obtain the concrete {@link NumericPipeline}.
  *
- * <p>Implementations live outside {@code libs/columnar}: the server module supplies a concrete
- * implementation that inspects field type, index mode, and metric role via the mapper. The
- * library never imports mapper types. A typical server-side implementation closes over mapper
- * context and routes by field semantics:
+ * <p>The selector only chooses the logical pipeline for a field. Implementations live outside
+ * {@code libs/columnar}: the server module supplies a concrete implementation that inspects field
+ * type, index mode, and metric role via the mapper. The library never imports mapper types. A
+ * typical server-side implementation routes by field semantics:
  *
  * <pre>{@code
- * new ColumNARDocValuesFormat((fieldName, type, blockSize) -> {
- *     if (type == ColumnarFieldType.LONG && isMonotonicLong(fieldName))
- *         return NumericPipeline.monotonicLongPipeline(blockSize);
- *     if (type == ColumnarFieldType.DOUBLE && isGauge(fieldName))
- *         return NumericPipeline.doubleGaugePipeline(blockSize);
- *     if (type == ColumnarFieldType.DOUBLE && isCounter(fieldName))
- *         return NumericPipeline.doubleCounterPipeline(blockSize);
- *     return NumericPipeline.defaultPipeline(blockSize);
- * });
+ * new ColumNARDocValuesFormat(
+ *     (fieldName, type) -> switch (type) {
+ *         case DOUBLE -> NumericPipeline::doubleGaugePipeline;
+ *         default     -> NumericPipeline::defaultPipeline;
+ *     },
+ *     blockSize
+ * )
  * }</pre>
  *
  * <p>The no-arg {@link org.elasticsearch.columnar.ColumNARDocValuesFormat} constructor wires a
@@ -39,12 +38,11 @@ import org.elasticsearch.columnar.ColumnarFieldType;
 public interface NumericPipelineSelector {
 
     /**
-     * Returns the pipeline to use for the named field.
+     * Returns a template for the pipeline to use for the named field. The template is called with
+     * the format's block size to produce the concrete {@link NumericPipeline}.
      *
      * @param fieldName the Lucene field name
      * @param type      the columnar field type resolved from {@link org.apache.lucene.index.FieldInfo} attributes
-     * @param blockSize the number of values per block; pass to the chosen
-     *                  {@link NumericPipeline} factory so stateful stages are sized correctly
      */
-    NumericPipeline select(String fieldName, ColumnarFieldType type, int blockSize);
+    NumericPipelineTemplate select(String fieldName, ColumnarFieldType type);
 }

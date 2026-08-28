@@ -116,7 +116,6 @@ Mary              |Sluis            |[-7.82, 3.48, 8.73, 10.35]
 ;
 
 sortingOnNumbersFromStrings
-skip_flattened_rewrite: field_extract_multivalue_null
 request_stored: skip
 from employees 
 | eval long_from_string = to_long(salary_change.keyword) 
@@ -359,4 +358,31 @@ FROM mv_* | SORT decade | LIMIT 1000 | WHERE date_range IS NOT NULL | STATS MAX(
 
 MAX(decade):integer
 2000
+;
+
+
+compoundSortWithNonPushableTrailingKeyNotPartiallyPushed
+required_capability: fix_partial_prefix_compound_topn_pushdown
+
+// Regression test for https://github.com/elastic/elasticsearch/pull/155923.
+// 'languages' is pushable but the trailing 'tiebreak' expression is not, so the compound SORT must not be partially
+// pushed to Lucene. Within emp_no <= 10019, 'languages' has ties (four rows =1, five rows =2) that straddle the
+// LIMIT 6 boundary, and the full sort orders those ties by emp_no DESC (tiebreak = 0 - emp_no). Before the fix Lucene
+// truncated to six documents by 'languages' alone, dropping the high-emp_no languages=2 rows (10018, 10017) at the
+// source so they could never be recovered - returning 10008 and 10001 instead.
+FROM employees
+| WHERE emp_no <= 10019
+| EVAL tiebreak = 0 - emp_no
+| SORT languages ASC, tiebreak ASC
+| LIMIT 6
+| KEEP emp_no, languages
+;
+
+emp_no:integer | languages:integer
+10019          | 1
+10013          | 1
+10009          | 1
+10005          | 1
+10018          | 2
+10017          | 2
 ;

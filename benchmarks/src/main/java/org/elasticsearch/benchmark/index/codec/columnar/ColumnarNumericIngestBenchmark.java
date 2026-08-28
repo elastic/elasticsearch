@@ -58,6 +58,9 @@ public class ColumnarNumericIngestBenchmark {
         Utils.configureBenchmarkLogging();
     }
 
+    /** Segments the indexing loop flushes, so that the merge parameter has something to merge. */
+    private static final int SEGMENTS = 10;
+
     private static final String FIELD = NumericFormat.FIELD;
 
     public enum Merge {
@@ -75,6 +78,9 @@ public class ColumnarNumericIngestBenchmark {
     @Param({ "NONE", "NATURAL", "FORCE" })
     private Merge merge;
 
+    @Param({ "128", "512" })
+    private int blockSize;
+
     @Param("200000")
     private int docCount;
 
@@ -84,7 +90,7 @@ public class ColumnarNumericIngestBenchmark {
     @Setup(Level.Trial)
     public void setup() {
         values = NumericData.generate(workload, docCount);
-        codec = format.codec(workload);
+        codec = format.codec(workload, blockSize);
     }
 
     /** Secondary metrics: bytes on disk at the end, and total bytes written across all segments. */
@@ -109,11 +115,17 @@ public class ColumnarNumericIngestBenchmark {
             config.setMergePolicy(NoMergePolicy.INSTANCE); // otherwise the default policy merges naturally
         }
         final BytesRefBuilder builder = new BytesRefBuilder();
+        // Flush periodically so the index holds more than one segment. Buffered on its own, the whole run
+        // lands in a single segment, and NoMergePolicy and forceMerge(1) then produce identical output.
+        final int docsPerSegment = Math.max(1, docCount / SEGMENTS);
         try (IndexWriter writer = new IndexWriter(directory, config)) {
             for (int i = 0; i < docCount; i++) {
                 final Document doc = new Document();
                 format.addField(doc, FIELD, values[i], builder);
                 writer.addDocument(doc);
+                if ((i + 1) % docsPerSegment == 0) {
+                    writer.flush();
+                }
             }
             if (merge == Merge.FORCE) {
                 writer.forceMerge(1);

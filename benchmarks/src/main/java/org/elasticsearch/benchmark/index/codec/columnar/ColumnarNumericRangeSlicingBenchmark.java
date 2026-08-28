@@ -73,6 +73,9 @@ public class ColumnarNumericRangeSlicingBenchmark {
     @Param({ "MONOTONIC_TIMESTAMPS", "RANDOM_FULL" })
     private String workload;
 
+    @Param({ "128", "512" })
+    private int blockSize;
+
     // 0.0 is the near-empty worst case
     @Param({ "0.0", "0.001" })
     private double selectivity;
@@ -85,7 +88,7 @@ public class ColumnarNumericRangeSlicingBenchmark {
     @Setup(Level.Trial)
     public void setup() throws IOException {
         final long[] values = NumericData.generate(workload, numDocs);
-        directory = format.buildSegment(FIELD, workload, values, "columnar-range-slicing-");
+        directory = format.buildSegment(FIELD, workload, values, "columnar-range-slicing-", blockSize);
         reader = DirectoryReader.open(directory);
         maxDoc = reader.maxDoc();
 
@@ -95,7 +98,12 @@ public class ColumnarNumericRangeSlicingBenchmark {
         final int loRank = numDocs / 2;
         final int hiRank = Math.min(numDocs - 1, loRank + (int) (numDocs * selectivity));
         final Query query = format.rangeQuery(FIELD, sorted[loRank], sorted[hiRank]);
-        weight = new IndexSearcher(reader).createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1f);
+        final IndexSearcher searcher = new IndexSearcher(reader);
+        // createWeight wraps the weight in the query cache whenever scores are not needed, and this weight
+        // is reused by every invocation, so the cache would serve a stored bit set instead of running the
+        // format's range path.
+        searcher.setQueryCache(null);
+        weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1f);
     }
 
     @Benchmark

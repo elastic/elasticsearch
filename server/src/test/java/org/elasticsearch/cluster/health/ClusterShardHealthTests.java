@@ -135,7 +135,7 @@ public class ClusterShardHealthTests extends AbstractXContentSerializingTestCase
                 )
             )
             .build();
-        assertThat(getInactivePrimaryHealth(primary), equalTo(ClusterHealthStatus.YELLOW));
+        assertThat(getInactivePrimaryHealth(primary), equalTo(ClusterHealthStatus.RED));
     }
 
     @Override

@@ -1477,18 +1477,19 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         );
     }
 
-    public void testRecoveryCancelledPrimaryKeepsGraceDespitePriorFailures() {
+    public void testRecoveryCancelledPrimaryGoesRedWithPriorFailures() {
         final var projectId = randomProjectIdOrDefault();
         final var unassignedTimeWithinGracePeriod = new TimeValue(
             System.currentTimeMillis() + TimeValue.timeValueHours(1).getMillis(),
             TimeUnit.MILLISECONDS
         );
         final var failedAllocations = randomIntBetween(1, 5);
+        final var indexName = randomIndexName();
         final var clusterState = createClusterStateWith(
             projectId,
             List.of(
                 index(
-                    "test-index",
+                    indexName,
                     new ShardAllocation(
                         randomNodeId(),
                         UNAVAILABLE,
@@ -1516,52 +1517,8 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             Collections.emptyMap()
         );
         final var result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
-        assertThat(result.status(), equalTo(GREEN));
-        assertThat(result.symptom(), equalTo("This cluster has 1 creating primary shard."));
-    }
-
-    public void testRecoveryCancelledReplicaKeepsGraceDespitePriorFailures() {
-        final var projectId = randomProjectIdOrDefault();
-        final var unassignedTimeWithinGracePeriod = new TimeValue(
-            System.currentTimeMillis() + TimeValue.timeValueHours(1).getMillis(),
-            TimeUnit.MILLISECONDS
-        );
-        final var failedAllocations = randomIntBetween(1, 5);
-        final var clusterState = createClusterStateWith(
-            projectId,
-            List.of(
-                index(
-                    "test-index",
-                    new ShardAllocation(randomNodeId(), AVAILABLE),
-                    new ShardAllocation(
-                        randomNodeId(),
-                        UNAVAILABLE,
-                        new UnassignedInfo(
-                            UnassignedInfo.Reason.RECOVERY_CANCELLED,
-                            null,
-                            null,
-                            failedAllocations,
-                            unassignedTimeWithinGracePeriod.nanos(),
-                            unassignedTimeWithinGracePeriod.millis(),
-                            false,
-                            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
-                            Collections.emptySet(),
-                            null
-                        )
-                    )
-                )
-            ),
-            List.of()
-        );
-        final var service = createShardsAvailabilityIndicatorService(
-            projectId,
-            Settings.builder().put(ShardsAvailabilityHealthIndicatorService.REPLICA_INACTIVE_BUFFER_TIME.getKey(), "20s").build(),
-            clusterState,
-            Collections.emptyMap()
-        );
-        final var result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
-        assertThat(result.status(), equalTo(GREEN));
-        assertThat(result.symptom(), equalTo("This cluster has 1 creating replica shard."));
+        assertThat(result.status(), equalTo(RED));
+        assertThat(result.symptom(), equalTo("This cluster has 1 unavailable primary shard."));
     }
 
     public void testMixedGraceAndNonGracePrimaryAndReplicaState() {

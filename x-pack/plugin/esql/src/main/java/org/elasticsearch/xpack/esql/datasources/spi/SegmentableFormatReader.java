@@ -43,7 +43,13 @@ public interface SegmentableFormatReader extends FormatReader {
 
     /**
      * Returns the minimum segment size in bytes below which splitting is not worthwhile.
-     * Segments smaller than this will be merged with an adjacent segment.
+     * <p>
+     * It is a guarantee about the tail and advice about everything before it. Splitting stops once fewer than
+     * this many bytes are left, so the final segment is never short. Between two segments it only sets the
+     * spacing of the offsets that get probed: a boundary resolves somewhere inside its probe window, so a
+     * segment can come out shorter than this by up to the width of that window, and no pass merges it into its
+     * neighbour. Implementations must therefore read a segment of any size, and should read this as the size
+     * they are asking to be aimed at rather than the size they are promised.
      * <p>
      * Defaults to 1 MiB. ClickHouse benchmarks show 1 MiB chunks are optimal for
      * parallel parsing — 100 KB chunks are ~40% slower due to per-chunk overhead,

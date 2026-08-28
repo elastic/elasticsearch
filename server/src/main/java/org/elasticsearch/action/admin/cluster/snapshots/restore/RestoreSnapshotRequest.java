@@ -174,6 +174,15 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         if (ignoreIndexSettings == null) {
             validationException = addValidationError("ignoreIndexSettings are missing", validationException);
         }
+        // Restoring over an existing destination matches it by its final name, so combining it with renaming (which changes that name)
+        // is ambiguous and unsafe: it could delete a bystander resource that merely shares the snapshot's original name. Reject the
+        // combination rather than guess which resource the caller meant to overwrite.
+        if (restoreOverExisting && (renamePattern != null || renameReplacement != null)) {
+            validationException = addValidationError(
+                "restore_over_existing is not supported together with rename_pattern or rename_replacement",
+                validationException
+            );
+        }
         return validationException;
     }
 

@@ -18,10 +18,10 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader.ArrayOrderSource;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.BinaryAndCounts;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.SortedDvSingletonOrSet;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
@@ -58,17 +58,17 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
 
     private final String fieldName;
     private final ByteSizeValue size;
-    private final ArrayOrderSource arrayOrderSource;
+    private final BinaryDocValuesFormat binaryFormat;
 
     public Utf8CodePointsFromOrdsBlockLoader(Warnings warnings, String fieldName, ByteSizeValue size) {
-        this(warnings, fieldName, size, ArrayOrderSource.NONE);
+        this(warnings, fieldName, size, BinaryDocValuesFormat.SEPARATE_COUNT);
     }
 
-    public Utf8CodePointsFromOrdsBlockLoader(Warnings warnings, String fieldName, ByteSizeValue size, ArrayOrderSource arrayOrderSource) {
+    public Utf8CodePointsFromOrdsBlockLoader(Warnings warnings, String fieldName, ByteSizeValue size, BinaryDocValuesFormat binaryFormat) {
         this.warnings = warnings;
         this.fieldName = fieldName;
         this.size = size;
-        this.arrayOrderSource = arrayOrderSource;
+        this.binaryFormat = binaryFormat;
     }
 
     @Override
@@ -91,7 +91,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             }
             return new SortedSet(warnings, dv.set());
         }
-        if (arrayOrderSource == ArrayOrderSource.COLUMNAR_PAYLOAD) {
+        if (binaryFormat == BinaryDocValuesFormat.COLUMNAR_PAYLOAD) {
             // The count travels in the blob, so there is no companion column to load or advance on.
             TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);
             return binary == null ? ConstantNull.COLUMN_READER : new MultiValuedBinaryColumnarPayload(warnings, binary);
@@ -100,7 +100,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
         if (bc == null) {
             return ConstantNull.COLUMN_READER;
         }
-        if (arrayOrderSource == ArrayOrderSource.INLINE) {
+        if (binaryFormat == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL) {
             return new MultiValuedBinaryArrayOrderInlineNull(warnings, bc.counts(), bc.binary());
         }
         return new MultiValuedBinaryWithSeparateCounts(warnings, bc.counts(), bc.binary());

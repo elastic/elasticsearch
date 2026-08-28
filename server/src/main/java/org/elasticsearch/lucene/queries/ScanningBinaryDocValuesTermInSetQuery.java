@@ -16,6 +16,7 @@ import org.apache.lucene.util.BytesRefComparator;
 import org.apache.lucene.util.StringSorter;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 
 import java.io.UncheckedIOException;
 import java.util.List;
@@ -32,12 +33,12 @@ public final class ScanningBinaryDocValuesTermInSetQuery extends AbstractBinaryD
     private final PrefixCodedTerms termData;
     private final int termDataHashCode;
 
-    public ScanningBinaryDocValuesTermInSetQuery(String fieldName, List<BytesRef> terms, BinaryFormat binaryFormat) {
-        this(fieldName, packTerms(fieldName, Objects.requireNonNull(terms)), binaryFormat);
+    public ScanningBinaryDocValuesTermInSetQuery(String fieldName, List<BytesRef> terms, BinaryDocValuesFormat format) {
+        this(fieldName, packTerms(fieldName, Objects.requireNonNull(terms)), format);
     }
 
-    private ScanningBinaryDocValuesTermInSetQuery(String fieldName, PrefixCodedTerms termData, BinaryFormat binaryFormat) {
-        super(fieldName, buildMatchPredicate(termData), binaryFormat);
+    private ScanningBinaryDocValuesTermInSetQuery(String fieldName, PrefixCodedTerms termData, BinaryDocValuesFormat format) {
+        super(fieldName, buildMatchPredicate(termData), format);
         this.termData = termData;
         this.termDataHashCode = termData.hashCode();
     }

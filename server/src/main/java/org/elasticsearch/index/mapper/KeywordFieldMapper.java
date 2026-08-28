@@ -79,7 +79,6 @@ import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader.ArrayOrderSource;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.ByteLengthFromBytesRefDocValuesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFromBinaryBlockLoader;
@@ -90,7 +89,6 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.fn.Utf8CodePointsFro
 import org.elasticsearch.index.query.AutomatonQueryWithDescription;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
-import org.elasticsearch.lucene.queries.AbstractBinaryDocValuesQuery.BinaryFormat;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRangeQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
@@ -857,20 +855,17 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         /**
-         * Whether the blobs carry the inline-null framing. Only fielddata still asks in these terms, because it
-         * predates the columnar payload and has no reader for one; the doc-values queries take {@link #binaryFormat()}
-         * and the block loaders {@link #arrayOrderSource()}, both of which name all three framings.
+         * How this field's binary doc values are framed, and so which decoder reads them back. Every reader of them
+         * takes this — the doc-values queries, fielddata, index sorting and the block loaders alike.
+         *
+         * <p>A field with no binary doc values at all answers {@link BinaryDocValuesFormat#SEPARATE_COUNT}, which is
+         * harmless because nothing consults this without {@link #usesBinaryDocValues()} already holding.
          */
-        private boolean usesArrayOrderInlineNull() {
-            return diskFormat == DocValuesDiskFormat.BINARY_ARRAY_ORDER_INLINE_NULL;
-        }
-
-        /** Which framing a doc-values query has to decode for this field. */
-        public BinaryFormat binaryFormat() {
+        public BinaryDocValuesFormat binaryFormat() {
             return switch (diskFormat) {
-                case BINARY_COLUMNAR_PAYLOAD -> BinaryFormat.COLUMNAR_STRING_PAYLOAD;
-                case BINARY_ARRAY_ORDER_INLINE_NULL -> BinaryFormat.ARRAY_ORDER_INLINE_NULL;
-                case NONE, SORTED_SET, BINARY_SEPARATE_COUNT -> BinaryFormat.SEPARATE_COUNT;
+                case BINARY_COLUMNAR_PAYLOAD -> BinaryDocValuesFormat.COLUMNAR_PAYLOAD;
+                case BINARY_ARRAY_ORDER_INLINE_NULL -> BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL;
+                case NONE, SORTED_SET, BINARY_SEPARATE_COUNT -> BinaryDocValuesFormat.SEPARATE_COUNT;
             };
         }
 
@@ -895,15 +890,6 @@ public final class KeywordFieldMapper extends FieldMapper {
          */
         public boolean storesArrayOrderInline() {
             return preservesArrayOrder && diskFormat.isBinary();
-        }
-
-        /** How a reader of this field's binary doc values finds a document's slots. */
-        public ArrayOrderSource arrayOrderSource() {
-            return switch (diskFormat) {
-                case BINARY_COLUMNAR_PAYLOAD -> ArrayOrderSource.COLUMNAR_PAYLOAD;
-                case BINARY_ARRAY_ORDER_INLINE_NULL -> ArrayOrderSource.INLINE;
-                case NONE, SORTED_SET, BINARY_SEPARATE_COUNT -> ArrayOrderSource.NONE;
-            };
         }
 
         public boolean usesBinaryDocValuesForIgnoredFields() {
@@ -1129,7 +1115,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                             && docValuesParams.multiValue() == false) {
                             return new BytesRefsFromBinaryBlockLoader(name());
                         } else {
-                            return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name(), arrayOrderSource());
+                            return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name(), binaryFormat());
                         }
                     } else {
                         // Sorted-set doc values keep any array order in the .offsets sidecar, which this loader reads
@@ -1137,20 +1123,20 @@ public final class KeywordFieldMapper extends FieldMapper {
                         return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize(), preservesArrayOrder);
                     }
                 }
-                ArrayOrderSource arrayOrderSource = arrayOrderSource();
+                BinaryDocValuesFormat binaryFormat = binaryFormat();
                 return switch (cfg.function()) {
-                    case BYTE_LENGTH -> new ByteLengthFromBytesRefDocValuesBlockLoader(blContext.warnings(), name(), arrayOrderSource);
+                    case BYTE_LENGTH -> new ByteLengthFromBytesRefDocValuesBlockLoader(blContext.warnings(), name(), binaryFormat);
                     case LENGTH -> new Utf8CodePointsFromOrdsBlockLoader(
                         blContext.warnings(),
                         name(),
                         blContext.ordinalsByteSize(),
-                        arrayOrderSource
+                        binaryFormat
                     );
                     case MV_MAX -> usesBinaryDocValues()
-                        ? new MvMaxBytesRefsFromBinaryBlockLoader(name(), arrayOrderSource)
+                        ? new MvMaxBytesRefsFromBinaryBlockLoader(name(), binaryFormat)
                         : new MvMaxBytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                     case MV_MIN -> usesBinaryDocValues()
-                        ? new MvMinBytesRefsFromBinaryBlockLoader(name(), arrayOrderSource)
+                        ? new MvMinBytesRefsFromBinaryBlockLoader(name(), binaryFormat)
                         : new MvMinBytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                     default -> throw new UnsupportedOperationException("unknown fusion config [" + cfg.function() + "]");
                 };
@@ -1295,7 +1281,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     CoreValuesSourceType.KEYWORD,
                     KeywordDocValuesField::new,
                     indexVersion,
-                    usesArrayOrderInlineNull()
+                    binaryFormat()
                 );
             } else {
                 return new SortedSetOrdinalsIndexFieldData.Builder(

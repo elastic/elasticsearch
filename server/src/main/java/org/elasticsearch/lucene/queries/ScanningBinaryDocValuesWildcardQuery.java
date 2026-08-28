@@ -18,6 +18,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -34,8 +35,8 @@ public final class ScanningBinaryDocValuesWildcardQuery extends AbstractBinaryDo
     private final String pattern;
     private final boolean caseInsensitive;
 
-    public ScanningBinaryDocValuesWildcardQuery(String fieldName, String pattern, boolean caseInsensitive, BinaryFormat binaryFormat) {
-        super(fieldName, buildByteRunAutomaton(fieldName, pattern, caseInsensitive), binaryFormat);
+    public ScanningBinaryDocValuesWildcardQuery(String fieldName, String pattern, boolean caseInsensitive, BinaryDocValuesFormat format) {
+        super(fieldName, buildByteRunAutomaton(fieldName, pattern, caseInsensitive), format);
         this.pattern = Objects.requireNonNull(pattern);
         this.caseInsensitive = caseInsensitive;
     }
@@ -56,7 +57,7 @@ public final class ScanningBinaryDocValuesWildcardQuery extends AbstractBinaryDo
         if (caseInsensitive == false) {
             var innerPattern = getContainsPattern(pattern);
             if (innerPattern != null) {
-                return new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef(innerPattern), binaryFormat);
+                return new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef(innerPattern), format);
             }
         }
         return super.rewrite(indexSearcher);

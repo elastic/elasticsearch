@@ -14,6 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -32,7 +33,7 @@ public class KeyedArrayOrderInlineNullTermQuery extends AbstractBinaryDocValuesQ
     private final BytesRef term;
 
     public KeyedArrayOrderInlineNullTermQuery(String fieldName, BytesRef term) {
-        super(fieldName, term::equals, BinaryFormat.ARRAY_ORDER_INLINE_NULL);
+        super(fieldName, term::equals, BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL);
         this.term = Objects.requireNonNull(term);
     }
 

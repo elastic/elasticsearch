@@ -40,8 +40,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.lucene.queries.AbstractBinaryDocValuesQuery.BinaryFormat.ARRAY_ORDER_INLINE_NULL;
-import static org.elasticsearch.lucene.queries.AbstractBinaryDocValuesQuery.BinaryFormat.SEPARATE_COUNT;
+import static org.elasticsearch.index.mapper.BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL;
+import static org.elasticsearch.index.mapper.BinaryDocValuesFormat.SEPARATE_COUNT;
 
 public class BinaryDocValuesLengthQueryTests extends ESTestCase {
 

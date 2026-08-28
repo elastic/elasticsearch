@@ -27,6 +27,7 @@ import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueArrayOrderInlineNullBinaryDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueColumnarPayloadBinaryDocValuesReader;
@@ -39,30 +40,16 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 
-public abstract class AbstractBinaryDocValuesQuery extends Query {
-
-    /**
-     * How a field lays out its binary doc values, and so which decoder reads them back. The three are not interchangeable — decoding one
-     * as another silently returns wrong hits rather than failing — so a query is told which to expect when it is built, from the mapping
-     * that decided how to write it.
-     */
-    public enum BinaryFormat {
-        /** {@code [len][value]...} with the count in a {@code .counts} companion; a lone value stored raw. */
-        SEPARATE_COUNT,
-        /** {@code [len+1][value]...} with inline nulls and the slot count in {@code .counts}; a lone value stored raw. */
-        ARRAY_ORDER_INLINE_NULL,
-        /** {@code [slotCount][len+1][value]...} — the ColumNAR codec's payload, which carries its own count and has no companion. */
-        COLUMNAR_STRING_PAYLOAD
-    }
+abstract class AbstractBinaryDocValuesQuery extends Query {
 
     protected final String fieldName;
     protected final Predicate<BytesRef> matcher;
-    protected final BinaryFormat binaryFormat;
+    protected final BinaryDocValuesFormat format;
 
-    AbstractBinaryDocValuesQuery(String fieldName, Predicate<BytesRef> matcher, BinaryFormat binaryFormat) {
+    AbstractBinaryDocValuesQuery(String fieldName, Predicate<BytesRef> matcher, BinaryDocValuesFormat format) {
         this.fieldName = Objects.requireNonNull(fieldName);
         this.matcher = Objects.requireNonNull(matcher);
-        this.binaryFormat = Objects.requireNonNull(binaryFormat);
+        this.format = Objects.requireNonNull(format);
     }
 
     @Override
@@ -111,8 +98,8 @@ public abstract class AbstractBinaryDocValuesQuery extends Query {
         if (values == null) {
             return null;
         }
-        return switch (binaryFormat) {
-            case COLUMNAR_STRING_PAYLOAD -> {
+        return switch (format) {
+            case COLUMNAR_PAYLOAD -> {
                 assert assertColumnarPayload(context, fieldName);
                 // The payload carries its own count, so the binary column drives iteration on its own.
                 yield columnarPayloadIterator(values, matcher, matchCost);

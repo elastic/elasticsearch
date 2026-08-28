@@ -50,14 +50,12 @@ import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader.ArrayOrderSource;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.lucene.queries.AbstractBinaryDocValuesQuery.BinaryFormat;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRangeQuery;
 import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.script.IpFieldScript;
@@ -495,7 +493,7 @@ public class IpFieldMapper extends FieldMapper {
                     field,
                     lower,
                     upper,
-                    arrayOrderInlineNull ? BinaryFormat.ARRAY_ORDER_INLINE_NULL : BinaryFormat.SEPARATE_COUNT
+                    arrayOrderInlineNull ? BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL : BinaryDocValuesFormat.SEPARATE_COUNT
                 );
             } else {
                 return XSortedSetDocValuesRangeQuery.newSlowRangeQuery(field, lower, upper, true, true);
@@ -608,19 +606,23 @@ public class IpFieldMapper extends FieldMapper {
                         }
                         return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(
                             name(),
-                            useArrayOrderBinaryDocValues ? ArrayOrderSource.INLINE : ArrayOrderSource.NONE
+                            useArrayOrderBinaryDocValues
+                                ? BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL
+                                : BinaryDocValuesFormat.SEPARATE_COUNT
                         );
                     } else {
                         return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize(), readInArrayOrder);
                     }
                 }
-                ArrayOrderSource arrayOrderSource = useArrayOrderBinaryDocValues ? ArrayOrderSource.INLINE : ArrayOrderSource.NONE;
+                BinaryDocValuesFormat binaryFormat = useArrayOrderBinaryDocValues
+                    ? BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL
+                    : BinaryDocValuesFormat.SEPARATE_COUNT;
                 return switch (cfg.function()) {
                     case MV_MAX -> usesBinaryDocValues
-                        ? new MvMaxBytesRefsFromBinaryBlockLoader(name(), arrayOrderSource)
+                        ? new MvMaxBytesRefsFromBinaryBlockLoader(name(), binaryFormat)
                         : new MvMaxBytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                     case MV_MIN -> usesBinaryDocValues
-                        ? new MvMinBytesRefsFromBinaryBlockLoader(name(), arrayOrderSource)
+                        ? new MvMinBytesRefsFromBinaryBlockLoader(name(), binaryFormat)
                         : new MvMinBytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                     default -> throw new UnsupportedOperationException("unknown fusion config [" + cfg.function() + "]");
                 };
@@ -689,7 +691,7 @@ public class IpFieldMapper extends FieldMapper {
                     CoreValuesSourceType.IP,
                     IpDocValuesField::new,
                     indexVersion,
-                    useArrayOrderBinaryDocValues
+                    useArrayOrderBinaryDocValues ? BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL : BinaryDocValuesFormat.SEPARATE_COUNT
                 );
             }
             return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.IP, IpDocValuesField::new);

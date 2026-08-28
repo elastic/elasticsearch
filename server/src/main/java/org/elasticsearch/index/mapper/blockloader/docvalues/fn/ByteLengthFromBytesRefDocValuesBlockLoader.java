@@ -12,11 +12,11 @@ package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader.ArrayOrderSource;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.BinaryAndCounts;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
@@ -29,16 +29,16 @@ import java.io.IOException;
 public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
     private final String fieldName;
     private final Warnings warnings;
-    private final ArrayOrderSource arrayOrderSource;
+    private final BinaryDocValuesFormat binaryFormat;
 
     public ByteLengthFromBytesRefDocValuesBlockLoader(Warnings warnings, String fieldName) {
-        this(warnings, fieldName, ArrayOrderSource.NONE);
+        this(warnings, fieldName, BinaryDocValuesFormat.SEPARATE_COUNT);
     }
 
-    public ByteLengthFromBytesRefDocValuesBlockLoader(Warnings warnings, String fieldName, ArrayOrderSource arrayOrderSource) {
+    public ByteLengthFromBytesRefDocValuesBlockLoader(Warnings warnings, String fieldName, BinaryDocValuesFormat binaryFormat) {
         this.warnings = warnings;
         this.fieldName = fieldName;
-        this.arrayOrderSource = arrayOrderSource;
+        this.binaryFormat = binaryFormat;
     }
 
     @Override
@@ -48,7 +48,7 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
 
     @Override
     public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        if (arrayOrderSource == ArrayOrderSource.COLUMNAR_PAYLOAD) {
+        if (binaryFormat == BinaryDocValuesFormat.COLUMNAR_PAYLOAD) {
             // The count travels in the blob, so there is no companion column to load or advance on.
             TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);
             return binary == null ? ConstantNull.COLUMN_READER : new MultiValuedBinaryColumnarPayload(warnings, binary);
@@ -60,7 +60,7 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
         if (bc.counts() == null) {
             return new SingleValued(bc.binary());
         }
-        if (arrayOrderSource == ArrayOrderSource.INLINE) {
+        if (binaryFormat == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL) {
             return new MultiValuedBinaryArrayOrderInlineNull(warnings, bc.counts(), bc.binary());
         }
         return new MultiValuedBinaryWithSeparateCounts(warnings, bc.counts(), bc.binary());

@@ -15,6 +15,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.BinaryAndCounts;
@@ -28,25 +29,16 @@ import java.io.IOException;
  */
 public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
 
-    /**
-     * Where a document's array order is recorded.
-     */
-    public enum ArrayOrderSource {
-        NONE,  // no ordering
-        INLINE,  // order is already preserved in the binary blob, so reads the blob directly
-        COLUMNAR_PAYLOAD  // order and count both live in the blob (the columnar codec's format); there is no companion field
-    }
-
     private final String fieldName;
-    private final ArrayOrderSource arrayOrderSource;
+    private final BinaryDocValuesFormat format;
 
     public BytesRefsFromBinaryMultiSeparateCountBlockLoader(String fieldName) {
-        this(fieldName, ArrayOrderSource.NONE);
+        this(fieldName, BinaryDocValuesFormat.SEPARATE_COUNT);
     }
 
-    public BytesRefsFromBinaryMultiSeparateCountBlockLoader(String fieldName, ArrayOrderSource arrayOrderSource) {
+    public BytesRefsFromBinaryMultiSeparateCountBlockLoader(String fieldName, BinaryDocValuesFormat format) {
         this.fieldName = fieldName;
-        this.arrayOrderSource = arrayOrderSource;
+        this.format = format;
     }
 
     @Override
@@ -82,7 +74,7 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
 
     @Override
     public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        if (arrayOrderSource == ArrayOrderSource.COLUMNAR_PAYLOAD) {
+        if (format == BinaryDocValuesFormat.COLUMNAR_PAYLOAD) {
             // The count travels in the blob, so there is no companion column to load or advance on.
             TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);
             return binary == null ? ConstantNull.COLUMN_READER : new ColumnarPayload(binary);
@@ -96,7 +88,7 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
             // present blob is a single raw value and an absent blob is a lone null / empty array, which the plain reader emits as null.
             return new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(bc.binary());
         }
-        if (arrayOrderSource == ArrayOrderSource.INLINE) {
+        if (format == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL) {
             // Multi-slot documents exist (maxValue >= 2): decode the in-order inline-null format, advancing on the counts column since an
             // all-null or empty array writes a count but no binary blob.
             return new ArrayOrderInlineNull(bc.binary(), bc.counts());

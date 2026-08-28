@@ -27,9 +27,9 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
-import org.elasticsearch.lucene.queries.AbstractBinaryDocValuesQuery.BinaryFormat;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
@@ -42,13 +42,13 @@ final class BinaryDocValuesLengthQuery extends Query {
 
     final String fieldName;
     final int length;
-    // See AbstractBinaryDocValuesQuery.BinaryFormat: selects the decoder for the multi-valued fallback path.
-    final BinaryFormat binaryFormat;
+    // Selects the decoder for the multi-valued fallback path; see BinaryDocValuesFormat.
+    final BinaryDocValuesFormat format;
 
-    BinaryDocValuesLengthQuery(String fieldName, int length, BinaryFormat binaryFormat) {
+    BinaryDocValuesLengthQuery(String fieldName, int length, BinaryDocValuesFormat format) {
         this.fieldName = Objects.requireNonNull(fieldName);
         this.length = length;
-        this.binaryFormat = Objects.requireNonNull(binaryFormat);
+        this.format = Objects.requireNonNull(format);
     }
 
     @Override
@@ -82,7 +82,7 @@ final class BinaryDocValuesLengthQuery extends Query {
                         }
 
                         Predicate<BytesRef> lengthPredicate = bytes -> bytes.length == length;
-                        if (binaryFormat == BinaryFormat.COLUMNAR_STRING_PAYLOAD) {
+                        if (format == BinaryDocValuesFormat.COLUMNAR_PAYLOAD) {
                             assert ColumnarBinaryDocValuesField.isColumnarStringPayload(context.reader(), fieldName)
                                 : "field [" + fieldName + "] is mapped as a columnar payload but this segment does not carry one";
                             // The payload carries its own count; its blob is never a bare value, so no fast path applies.
@@ -97,7 +97,7 @@ final class BinaryDocValuesLengthQuery extends Query {
                             // BlockLoader.OptionalLengthReader), so sub-segment slicing scales with cores.
                             return direct.tryLengthIterator(length);
                         }
-                        if (binaryFormat == BinaryFormat.ARRAY_ORDER_INLINE_NULL) {
+                        if (format == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL) {
                             return AbstractBinaryDocValuesQuery.arrayOrderInlineNullIterator(values, counts, lengthPredicate, matchCost);
                         } else if (countsSkipper != null) {
                             return AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, lengthPredicate, matchCost);

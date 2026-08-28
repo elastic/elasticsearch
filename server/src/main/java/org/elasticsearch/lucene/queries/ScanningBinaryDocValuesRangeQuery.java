@@ -13,6 +13,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -35,8 +36,8 @@ public final class ScanningBinaryDocValuesRangeQuery extends AbstractBinaryDocVa
     private final boolean includeLower;
     private final boolean includeUpper;
 
-    public ScanningBinaryDocValuesRangeQuery(String fieldName, BytesRef lower, BytesRef upper, BinaryFormat binaryFormat) {
-        this(fieldName, lower, upper, true, true, binaryFormat);
+    public ScanningBinaryDocValuesRangeQuery(String fieldName, BytesRef lower, BytesRef upper, BinaryDocValuesFormat format) {
+        this(fieldName, lower, upper, true, true, format);
     }
 
     public ScanningBinaryDocValuesRangeQuery(
@@ -45,9 +46,9 @@ public final class ScanningBinaryDocValuesRangeQuery extends AbstractBinaryDocVa
         BytesRef upper,
         boolean includeLower,
         boolean includeUpper,
-        BinaryFormat binaryFormat
+        BinaryDocValuesFormat format
     ) {
-        super(fieldName, rangeMatcher(lower, upper, includeLower, includeUpper), binaryFormat);
+        super(fieldName, rangeMatcher(lower, upper, includeLower, includeUpper), format);
         this.lower = lower;
         this.upper = upper;
         this.includeLower = includeLower;
@@ -77,7 +78,7 @@ public final class ScanningBinaryDocValuesRangeQuery extends AbstractBinaryDocVa
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
         if (lower != null && upper != null && includeLower && includeUpper && lower.bytesEquals(upper)) {
-            return new ScanningBinaryDocValuesTermQuery(fieldName, lower, binaryFormat);
+            return new ScanningBinaryDocValuesTermQuery(fieldName, lower, format);
         }
         return super.rewrite(indexSearcher);
     }
@@ -106,11 +107,11 @@ public final class ScanningBinaryDocValuesRangeQuery extends AbstractBinaryDocVa
             && Objects.equals(upper, that.upper)
             && includeLower == that.includeLower
             && includeUpper == that.includeUpper
-            && binaryFormat == that.binaryFormat;
+            && format == that.format;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), fieldName, lower, upper, includeLower, includeUpper, binaryFormat);
+        return Objects.hash(classHash(), fieldName, lower, upper, includeLower, includeUpper, format);
     }
 }

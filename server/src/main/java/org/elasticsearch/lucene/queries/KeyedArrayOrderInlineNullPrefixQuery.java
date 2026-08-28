@@ -14,6 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -31,7 +32,7 @@ public class KeyedArrayOrderInlineNullPrefixQuery extends AbstractBinaryDocValue
     private final BytesRef prefix;
 
     public KeyedArrayOrderInlineNullPrefixQuery(String fieldName, BytesRef prefix) {
-        super(fieldName, slot -> startsWith(slot, prefix), BinaryFormat.ARRAY_ORDER_INLINE_NULL);
+        super(fieldName, slot -> startsWith(slot, prefix), BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL);
         this.prefix = Objects.requireNonNull(prefix);
     }
 

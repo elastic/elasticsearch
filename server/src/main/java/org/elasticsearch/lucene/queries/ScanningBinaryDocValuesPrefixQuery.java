@@ -12,6 +12,7 @@ package org.elasticsearch.lucene.queries;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 
 import java.util.Arrays;
 import java.util.Objects;
@@ -29,8 +30,8 @@ public final class ScanningBinaryDocValuesPrefixQuery extends AbstractBinaryDocV
     private final String prefix;
     private final boolean caseInsensitive;
 
-    public ScanningBinaryDocValuesPrefixQuery(String fieldName, String prefix, boolean caseInsensitive, BinaryFormat binaryFormat) {
-        super(fieldName, buildMatcher(Objects.requireNonNull(prefix), caseInsensitive), binaryFormat);
+    public ScanningBinaryDocValuesPrefixQuery(String fieldName, String prefix, boolean caseInsensitive, BinaryDocValuesFormat format) {
+        super(fieldName, buildMatcher(Objects.requireNonNull(prefix), caseInsensitive), format);
         this.prefix = prefix;
         this.caseInsensitive = caseInsensitive;
     }

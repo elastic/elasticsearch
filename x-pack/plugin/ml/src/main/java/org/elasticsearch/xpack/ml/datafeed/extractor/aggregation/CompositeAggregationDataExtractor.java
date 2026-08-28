@@ -152,7 +152,19 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         }
         searchSourceBuilder.aggregation(compositeAggregationBuilder);
         ActionRequestBuilder<SearchRequest, SearchResponse> searchRequest = requestBuilder.build(searchSourceBuilder);
-        SearchResponse searchResponse = AbstractAggregationDataExtractor.executeSearchRequest(client, context.queryContext, searchRequest);
+
+        SearchResponse searchResponse;
+        try {
+            searchResponse = AbstractAggregationDataExtractor.executeSearchRequest(client, context.queryContext, searchRequest);
+        } catch (SkippedClustersException e) {
+            lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(
+                lastLinkedClusterStates,
+                e.getLinkedClusterStates()
+            );
+            // Re-throw the original ResourceNotFoundException so callers and exception unwrappers
+            // see the same type and HTTP status as before this wrapper was introduced.
+            throw e.getResourceNotFoundException();
+        }
         try {
             LOGGER.trace("[{}] Search composite response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
@@ -238,16 +250,26 @@ class CompositeAggregationDataExtractor implements DataExtractor {
     }
 
     @Override
+    public List<LinkedClusterState> getLinkedClusterStates() {
+        return lastLinkedClusterStates;
+    }
+
+    @Override
     public DataSummary getSummary() {
         ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder = DataExtractorUtils.getSearchRequestBuilderForSummary(
             client,
             context.queryContext
         );
-        SearchResponse searchResponse = AbstractAggregationDataExtractor.executeSearchRequest(
-            client,
-            context.queryContext,
-            searchRequestBuilder
-        );
+        SearchResponse searchResponse;
+        try {
+            searchResponse = AbstractAggregationDataExtractor.executeSearchRequest(client, context.queryContext, searchRequestBuilder);
+        } catch (SkippedClustersException e) {
+            lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(
+                lastLinkedClusterStates,
+                e.getLinkedClusterStates()
+            );
+            throw e.getResourceNotFoundException();
+        }
         try {
             LOGGER.debug("[{}] Aggregating Data summary response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());

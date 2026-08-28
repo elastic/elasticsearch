@@ -32,8 +32,8 @@ import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.query.TimeSeriesSourceOperator;
+import org.elasticsearch.compute.operator.CategorizeEvalOperator;
 import org.elasticsearch.compute.operator.CategorizeGroupingMergeOperator;
-import org.elasticsearch.compute.operator.CategorizeGroupingOperator;
 import org.elasticsearch.compute.operator.ChangePointOperator;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.ColumnLoadOperator;
@@ -1192,7 +1192,7 @@ public class LocalExecutionPlanner {
     /**
      * SINGLE mode: local execution with no exchange. If CATEGORIZE is present (single-node queries),
      * wraps {@link org.elasticsearch.compute.operator.topn.GroupedTopNOperator} in
-     * {@link CategorizeGroupingOperator} with {@code isSingleNode=true}.
+     * {@link CategorizeEvalOperator} with {@code isSingleNode=true}.
      */
     private PhysicalOperation planTopNBySingle(TopNByExec topNByExec, LocalExecutionPlannerContext context) {
         final Integer rowSize = topNByExec.estimatedRowSize();
@@ -1252,7 +1252,7 @@ public class LocalExecutionPlanner {
     }
 
     /**
-     * INITIAL mode (data node): wraps {@link GroupedTopNOperator} in {@link CategorizeGroupingOperator}
+     * INITIAL mode (data node): wraps {@link GroupedTopNOperator} in {@link CategorizeEvalOperator}
      * so each output page carries the current categorizer state inline.
      * The exchange carries {@code [base | catId | state]} channels.
      */
@@ -1263,7 +1263,7 @@ public class LocalExecutionPlanner {
         // Project to declared logical output (strips sort keys not in the exchange output).
         source = projectToLogicalOutput(source, topNByExec.output());
 
-        // catId channel will be appended at this position by CategorizeGroupingOperator.
+        // catId channel will be appended at this position by CategorizeEvalOperator.
         int catIdChannel = source.layout.numberOfChannels();
         Layout innerLayout = source.layout.builder().append(new Layout.ChannelSet(Set.of(new NameId()), DataType.INTEGER)).build();
 
@@ -1310,7 +1310,7 @@ public class LocalExecutionPlanner {
 
         Layout stateLayout = innerLayout.builder().append(new Layout.ChannelSet(Set.of(new NameId()), DataType.KEYWORD)).build();
         source = source.with(
-            new CategorizeGroupingOperator.Factory(fieldChannel, categorizeDef, context.analysisRegistry(), topNFactory, false),
+            new CategorizeEvalOperator.Factory(fieldChannel, categorizeDef, context.analysisRegistry(), topNFactory, false),
             stateLayout
         );
         return source; // exchange carries [base | catId | state] channels
@@ -2456,7 +2456,7 @@ public class LocalExecutionPlanner {
 
     /**
      * SINGLE mode: local execution with no exchange. If CATEGORIZE is present (single-node queries
-     * without an exchange), wraps {@link GroupedLimitOperator} in {@link CategorizeGroupingOperator}
+     * without an exchange), wraps {@link GroupedLimitOperator} in {@link CategorizeEvalOperator}
      * with {@code isSingleNode=true} so no state channel is appended.
      */
     private PhysicalOperation planLimitBySingle(LimitByExec limitBy, LocalExecutionPlannerContext context) {
@@ -2483,7 +2483,7 @@ public class LocalExecutionPlanner {
     }
 
     /**
-     * INITIAL mode (data node): wraps {@link GroupedLimitOperator} in {@link CategorizeGroupingOperator}
+     * INITIAL mode (data node): wraps {@link GroupedLimitOperator} in {@link CategorizeEvalOperator}
      * so each output page carries the current categorizer state inline.
      * The exchange carries {@code [base | catId | state]} channels.
      */
@@ -2494,7 +2494,7 @@ public class LocalExecutionPlanner {
         // Project to declared logical output (strips sort keys not in the exchange output).
         source = projectToLogicalOutput(source, limitBy.output());
 
-        // catId channel will be appended at this position by CategorizeGroupingOperator.
+        // catId channel will be appended at this position by CategorizeEvalOperator.
         int catIdChannel = source.layout.numberOfChannels();
         Layout innerLayout = source.layout.builder().append(new Layout.ChannelSet(Set.of(new NameId()), DataType.INTEGER)).build();
 
@@ -2520,7 +2520,7 @@ public class LocalExecutionPlanner {
         var limitFactory = new GroupedLimitOperator.Factory(limitValue, groupKeys, buildElementTypes(innerLayout));
         Layout stateLayout = innerLayout.builder().append(new Layout.ChannelSet(Set.of(new NameId()), DataType.KEYWORD)).build();
         source = source.with(
-            new CategorizeGroupingOperator.Factory(fieldChannel, categorizeDef, context.analysisRegistry(), limitFactory, false),
+            new CategorizeEvalOperator.Factory(fieldChannel, categorizeDef, context.analysisRegistry(), limitFactory, false),
             stateLayout
         );
         return source; // exchange carries [base | catId | state] channels
@@ -2601,7 +2601,7 @@ public class LocalExecutionPlanner {
 
     /**
      * Shared SINGLE-mode CATEGORIZE path for {@link #planLimitBySingle} and {@link #planTopNBySingle}.
-     * Wraps {@code innerFactory} in {@link CategorizeGroupingOperator} with {@code isSingleNode=true}
+     * Wraps {@code innerFactory} in {@link CategorizeEvalOperator} with {@code isSingleNode=true}
      * so the categorizer runs locally without appending a state channel.
      */
     @FunctionalInterface
@@ -2639,7 +2639,7 @@ public class LocalExecutionPlanner {
         int fieldChannel = source.layout.get(fieldAttr.id()).channel();
 
         source = source.with(
-            new CategorizeGroupingOperator.Factory(
+            new CategorizeEvalOperator.Factory(
                 fieldChannel,
                 categorizeDef,
                 context.analysisRegistry(),

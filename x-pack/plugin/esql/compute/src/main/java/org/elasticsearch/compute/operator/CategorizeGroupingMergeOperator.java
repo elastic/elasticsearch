@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash.CategorizeDef;
 import org.elasticsearch.compute.data.Block;
@@ -29,7 +30,7 @@ import java.util.Map;
  * <p>Wraps an inner grouping operator (e.g. {@link GroupedLimitOperator} or
  * {@link org.elasticsearch.compute.operator.topn.GroupedTopNOperator}). Each page received from
  * the exchange carries the current categorizer state as a constant {@link BytesRefBlock} at
- * {@code stateChannel} (appended by {@link CategorizeGroupingOperator} in INITIAL mode, or by
+ * {@code stateChannel} (appended by {@link CategorizeEvalOperator} in INITIAL mode, or by
  * this operator in INTERMEDIATE mode). For each page, this operator:
  * <ol>
  *   <li>Deserializes the state and merges each category into the operator's global categorizer
@@ -43,7 +44,7 @@ import java.util.Map;
  * output is withheld until input is exhausted. The final node-level categorizer state is then
  * serialized once and appended as a constant {@link BytesRefBlock} to every output page, so that
  * the downstream FINAL instance receives an accurate, complete model. Buffering is required for
- * the same reason as {@link CategorizeGroupingOperator}: the inner {@link GroupedLimitOperator}
+ * the same reason as {@link CategorizeEvalOperator}: the inner {@link GroupedLimitOperator}
  * can process pages without emitting output, and a mid-stream snapshot would leave the global
  * category set stale.
  *
@@ -114,6 +115,7 @@ public class CategorizeGroupingMergeOperator implements Operator {
     private final BlockFactory blockFactory;
     private final boolean emitState;
     private final CategorizerStateBuffer buffer;
+    private final CategorizerStateCodec categorizerStateCodec;
 
     private CategorizeGroupingMergeOperator(
         int catIdChannel,
@@ -133,7 +135,8 @@ public class CategorizeGroupingMergeOperator implements Operator {
             CategorizationPartOfSpeechDictionary.getInstance(),
             categorizeDef.similarityThreshold() / 100.0f
         );
-        this.buffer = new CategorizerStateBuffer(blockFactory, inner, globalCategorizer, emitState);
+        this.categorizerStateCodec = new CategorizerStateCodec();
+        this.buffer = new CategorizerStateBuffer(blockFactory, inner, globalCategorizer, emitState, categorizerStateCodec::getSeenNull);
     }
 
     @Override
@@ -144,7 +147,7 @@ public class CategorizeGroupingMergeOperator implements Operator {
     @Override
     public void addInput(Page page) {
         inner.addInput(mergeAndRemap(page));
-        // See CategorizeGroupingOperator.addInput for the rationale: GroupedLimitOperator can
+        // See CategorizeEvalOperator.addInput for the rationale: GroupedLimitOperator can
         // leave a page in `lastOutput` which turns inner.needsInput() false. Drain eagerly so
         // our own needsInput() (which delegates) does not stall the driver pipeline.
         buffer.drainInner();
@@ -174,8 +177,9 @@ public class CategorizeGroupingMergeOperator implements Operator {
     private Page mergeAndRemap(Page page) {
         BytesRefBlock stateBlock = page.getBlock(stateChannel);
         IntBlock localCatIds = page.getBlock(catIdChannel);
+        BytesRef stateBytes = stateBlock.getBytesRef(stateBlock.getFirstValueIndex(0), new BytesRef());
 
-        Map<Integer, Integer> idMap = CategorizerStateCodec.buildIdMap(stateBlock, globalCategorizer);
+        Map<Integer, Integer> idMap = categorizerStateCodec.buildIdMap(stateBytes, globalCategorizer);
         IntBlock globalCatIds = remapIntBlock(localCatIds, idMap);
 
         boolean success = false;

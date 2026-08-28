@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.xpack.ml.aggs.categorization.SerializableTokenListCategory;
 import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategorizer;
 
@@ -20,27 +19,47 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Wire-format codec shared by {@link CategorizeGroupingOperator} (write) and
+ * Wire-format codec shared by {@link CategorizeEvalOperator} (write) and
  * {@link CategorizeGroupingMergeOperator} (read + write in INTERMEDIATE mode).
  *
- * <p>Format: {@code boolean seenNull} (always {@code false}; the null ordinal is encoded as
- * {@link #NULL_ORD}) followed by {@code int count} (varint) followed by {@code count}
- * serialized {@link SerializableTokenListCategory} values.
+ * <p>Format: {@code boolean seenNull} followed by {@code int count} (varint) followed by
+ * {@code count} serialized {@link SerializableTokenListCategory} values.
  *
- * <p>This format must stay byte-identical with {@code CategorizeBlockHash.serializeCategorizer()}.
+ * <p>This format is byte-identical with {@code CategorizeBlockHash.serializeCategorizer()}.
  */
-final class CategorizerStateCodec {
+public class CategorizerStateCodec {
 
-    static final int NULL_ORD = 0;
+    public static final int NULL_ORD = 0;
 
-    private CategorizerStateCodec() {}
+    public CategorizerStateCodec() {}
+
+    /**
+     * Store whether we've seen any {@code null} values.
+     * <p>
+     *     Null gets the {@link #NULL_ORD} ord.
+     * </p>
+     */
+    private boolean seenNull = false;
+
+    public boolean getSeenNull() {
+        return seenNull;
+    }
+
+    public void setSeenNull() {
+        this.seenNull = true;
+    }
 
     /**
      * Serializes the current categorizer state to a {@link BytesRef}.
+     *
+     * @param seenNull {@code true} if any null or zero-token value was encountered; maps to
+     *                 {@link #NULL_ORD} in the row data and must be propagated so downstream
+     *                 operators can correctly reconstruct the null group when needed.
      */
-    static BytesRef serialize(TokenListCategorizer.CloseableTokenListCategorizer categorizer) {
+    public static BytesRef serialize(TokenListCategorizer.CloseableTokenListCategorizer categorizer, boolean seenNull) {
+        // TODO: This BytesStreamOutput is not accounted for by the circuit breaker. Fix that!
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.writeBoolean(false); // seenNull: uses NULL_ORD=0, not a separate null flag
+            out.writeBoolean(seenNull);
             int count = categorizer.getCategoryCount();
             out.writeVInt(count);
             for (SerializableTokenListCategory category : categorizer.toCategoriesById()) {
@@ -53,24 +72,21 @@ final class CategorizerStateCodec {
     }
 
     /**
-     * Deserializes the state from a constant {@link BytesRefBlock} and merges each category
+     * Gets the state already deserialized {@link BytesRef} and merges each category
      * into {@code globalCategorizer} via
      * {@link TokenListCategorizer#mergeWireCategory}, building and returning a
      * local-ordinal → global-ordinal map.
      *
-     * <p>{@link #NULL_ORD} always maps to itself.
+     * <p>{@link #NULL_ORD} maps to itself only when the serialized state has {@code seenNull=true}.
+     * Callers that use {@link Map#getOrDefault} with {@link #NULL_ORD} as the default are
+     * unaffected by its absence.
      */
-    static Map<Integer, Integer> buildIdMap(
-        BytesRefBlock stateBlock,
-        TokenListCategorizer.CloseableTokenListCategorizer globalCategorizer
-    ) {
+    public Map<Integer, Integer> buildIdMap(BytesRef stateBytes, TokenListCategorizer.CloseableTokenListCategorizer globalCategorizer) {
         Map<Integer, Integer> idMap = new HashMap<>();
-        idMap.put(NULL_ORD, NULL_ORD);
 
-        BytesRef stateBytes = stateBlock.getBytesRef(stateBlock.getFirstValueIndex(0), new BytesRef());
         try (StreamInput in = new BytesArray(stateBytes).streamInput()) {
-            boolean seenNull = in.readBoolean();
-            if (seenNull) {
+            if (in.readBoolean()) {  // seenNull
+                this.seenNull = true;
                 idMap.put(NULL_ORD, NULL_ORD);
             }
             int count = in.readVInt();

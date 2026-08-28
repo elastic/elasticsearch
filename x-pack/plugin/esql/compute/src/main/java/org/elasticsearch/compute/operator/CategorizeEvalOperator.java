@@ -49,7 +49,7 @@ import java.io.IOException;
  * <p>When {@code isSingleNode=true} (local-only queries without an exchange), no state channel
  * is appended; the inner operator's output is returned directly.
  */
-public class CategorizeGroupingOperator implements Operator {
+public class CategorizeEvalOperator implements Operator {
 
     public static final class Factory implements Operator.OperatorFactory {
         private final int textChannel;
@@ -73,8 +73,8 @@ public class CategorizeGroupingOperator implements Operator {
         }
 
         @Override
-        public CategorizeGroupingOperator get(DriverContext driverContext) {
-            return new CategorizeGroupingOperator(
+        public CategorizeEvalOperator get(DriverContext driverContext) {
+            return new CategorizeEvalOperator(
                 textChannel,
                 categorizeDef,
                 analysisRegistry,
@@ -86,7 +86,7 @@ public class CategorizeGroupingOperator implements Operator {
 
         @Override
         public String describe() {
-            return "CategorizeGroupingOperator[channel=" + textChannel + ", inner=" + innerFactory.describe() + "]";
+            return "CategorizeEvalOperator[channel=" + textChannel + ", inner=" + innerFactory.describe() + "]";
         }
     }
 
@@ -102,8 +102,9 @@ public class CategorizeGroupingOperator implements Operator {
     private final Operator inner;
     private final BlockFactory blockFactory;
     private final CategorizerStateBuffer buffer;
+    private boolean seenNull;
 
-    private CategorizeGroupingOperator(
+    private CategorizeEvalOperator(
         int textChannel,
         CategorizeDef categorizeDef,
         AnalysisRegistry analysisRegistry,
@@ -129,7 +130,7 @@ public class CategorizeGroupingOperator implements Operator {
             throw new RuntimeException(e);
         }
         // emitState == true only for distributed (non-single-node) execution
-        this.buffer = new CategorizerStateBuffer(blockFactory, inner, categorizer, isSingleNode == false);
+        this.buffer = new CategorizerStateBuffer(blockFactory, inner, categorizer, isSingleNode == false, () -> seenNull);
     }
 
     @Override
@@ -195,6 +196,7 @@ public class CategorizeGroupingOperator implements Operator {
             BytesRef scratch = new BytesRef();
             for (int p = 0; p < vBlock.getPositionCount(); p++) {
                 if (vBlock.isNull(p)) {
+                    seenNull = true;
                     result.appendInt(NULL_ORD);
                     continue;
                 }
@@ -217,6 +219,7 @@ public class CategorizeGroupingOperator implements Operator {
     private int computeCategory(BytesRef v) {
         var category = categorizer.computeCategory(v.utf8ToString(), analyzer);
         if (category == null) {
+            seenNull = true;
             return NULL_ORD;
         }
         return category.getId() + 1;
@@ -224,7 +227,7 @@ public class CategorizeGroupingOperator implements Operator {
 
     @Override
     public String toString() {
-        return "CategorizeGroupingOperator[channel=" + textChannel + ", inner=" + inner + "]";
+        return "CategorizeEvalOperator[channel=" + textChannel + ", inner=" + inner + "]";
     }
 
     @Override

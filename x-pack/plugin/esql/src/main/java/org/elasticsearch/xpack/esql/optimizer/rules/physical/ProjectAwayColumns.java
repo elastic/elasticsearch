@@ -110,7 +110,7 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                     //
                     // Also skip projection for TopNBy / LimitBy with CATEGORIZE groupings. Data nodes append extra
                     // physical-only channels (cat_id + serialized state) beyond the logical output via
-                    // CategorizeGroupingOperator and CategorizeGroupingMergeOperator. A logical Project wrapping the
+                    // CategorizeEvalOperator and CategorizeGroupingMergeOperator. A logical Project wrapping the
                     // fragment would strip those channels before they reach the exchange sink, breaking multi-phase
                     // CATEGORIZE.
                     if ((logicalFragment instanceof Aggregate == false

@@ -16,9 +16,10 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategorizer;
 
 import java.util.ArrayDeque;
+import java.util.function.BooleanSupplier;
 
 /**
- * Shared buffering logic for {@link CategorizeGroupingOperator} (INITIAL mode) and
+ * Shared buffering logic for {@link CategorizeEvalOperator} (INITIAL mode) and
  * {@link CategorizeGroupingMergeOperator} (INTERMEDIATE mode).
  *
  * <p>When {@code emitState} is {@code false} (SINGLE and FINAL phases), every method
@@ -48,6 +49,7 @@ final class CategorizerStateBuffer implements Releasable {
     private final Operator inner;
     private final TokenListCategorizer.CloseableTokenListCategorizer model;
     private final boolean emitState;
+    private final BooleanSupplier seenNull;
 
     /** Pages held back until input is exhausted. Only used when {@code emitState == true}. */
     private final ArrayDeque<Page> buffered = new ArrayDeque<>();
@@ -66,17 +68,21 @@ final class CategorizerStateBuffer implements Releasable {
      * @param inner        the inner grouping operator; borrowed — caller closes it
      * @param model        the local categorizer; borrowed — caller closes it
      * @param emitState    {@code true} for INITIAL and INTERMEDIATE phases; {@code false} for SINGLE/FINAL
+     * @param seenNull     returns {@code true} if any null or zero-token value was encountered;
+     *                     queried once at first {@link #getOutput()} after {@link #finish()}
      */
     CategorizerStateBuffer(
         BlockFactory blockFactory,
         Operator inner,
         TokenListCategorizer.CloseableTokenListCategorizer model,
-        boolean emitState
+        boolean emitState,
+        BooleanSupplier seenNull
     ) {
         this.blockFactory = blockFactory;
         this.inner = inner;
         this.model = model;
         this.emitState = emitState;
+        this.seenNull = seenNull;
     }
 
     /**
@@ -147,7 +153,7 @@ final class CategorizerStateBuffer implements Releasable {
 
         // Lazily compute the final state once.
         if (finalState == null) {
-            finalState = CategorizerStateCodec.serialize(model);
+            finalState = CategorizerStateCodec.serialize(model, seenNull.getAsBoolean());
         }
 
         Page p = buffered.isEmpty() ? inner.getOutput() : buffered.poll();

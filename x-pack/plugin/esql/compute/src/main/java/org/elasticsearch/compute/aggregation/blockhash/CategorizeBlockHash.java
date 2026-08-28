@@ -9,9 +9,6 @@ package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -25,6 +22,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CategorizerStateCodec;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
@@ -37,7 +35,6 @@ import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategorizer;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -56,14 +53,7 @@ public class CategorizeBlockHash extends BlockHash {
     private final CategorizeDef categorizeDef;
     private final TokenListCategorizer.CloseableTokenListCategorizer categorizer;
     private final CategorizeEvaluator evaluator;
-
-    /**
-     * Store whether we've seen any {@code null} values.
-     * <p>
-     *     Null gets the {@link #NULL_ORD} ord.
-     * </p>
-     */
-    private boolean seenNull = false;
+    private final CategorizerStateCodec categorizerStateCodec;
 
     CategorizeBlockHash(
         BlockFactory blockFactory,
@@ -77,7 +67,7 @@ public class CategorizeBlockHash extends BlockHash {
         this.channel = channel;
         this.aggregatorMode = aggregatorMode;
         this.categorizeDef = categorizeDef;
-
+        this.categorizerStateCodec = new CategorizerStateCodec();
         this.categorizer = new TokenListCategorizer.CloseableTokenListCategorizer(
             new CategorizationBytesRefHash(new BytesRefHash(2048, blockFactory.bigArrays())),
             CategorizationPartOfSpeechDictionary.getInstance(),
@@ -103,7 +93,11 @@ public class CategorizeBlockHash extends BlockHash {
     }
 
     boolean seenNull() {
-        return seenNull;
+        return categorizerStateCodec.getSeenNull();
+    }
+
+    void setSeenNull() {
+        categorizerStateCodec.setSeenNull();
     }
 
     @Override
@@ -120,12 +114,12 @@ public class CategorizeBlockHash extends BlockHash {
 
     @Override
     public IntVector nonEmpty() {
-        return blockFactory.newIntRangeVector(seenNull ? 0 : 1, categorizer.getCategoryCount() + 1);
+        return blockFactory.newIntRangeVector(seenNull() ? 0 : 1, categorizer.getCategoryCount() + 1);
     }
 
     @Override
     public int numKeys() {
-        if (seenNull) {
+        if (seenNull()) {
             return categorizer.getCategoryCount() + 1;
         } else {
             return categorizer.getCategoryCount();
@@ -134,7 +128,7 @@ public class CategorizeBlockHash extends BlockHash {
 
     @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
-        return new Range(seenNull ? 0 : 1, Math.toIntExact(categorizer.getCategoryCount() + 1)).seenGroupIds(bigArrays);
+        return new Range(seenNull() ? 0 : 1, Math.toIntExact(categorizer.getCategoryCount() + 1)).seenGroupIds(bigArrays);
     }
 
     @Override
@@ -167,7 +161,7 @@ public class CategorizeBlockHash extends BlockHash {
         }
         BytesRefBlock categorizerState = page.getBlock(channel);
         if (categorizerState.areAllValuesNull()) {
-            seenNull = true;
+            setSeenNull();
             return blockFactory.newConstantIntBlockWith(NULL_ORD, 1);
         }
         return recategorize(categorizerState.getBytesRef(0, new BytesRef()), null).asBlock();
@@ -179,21 +173,7 @@ public class CategorizeBlockHash extends BlockHash {
      * (So 0...N-1 or 1...N, depending on whether null is present.)
      */
     IntVector recategorize(BytesRef bytes, IntVector ids) {
-        Map<Integer, Integer> idMap = new HashMap<>();
-        try (StreamInput in = new BytesArray(bytes).streamInput()) {
-            if (in.readBoolean()) {
-                seenNull = true;
-                idMap.put(NULL_ORD, NULL_ORD);
-            }
-            int count = in.readVInt();
-            for (int oldCategoryId = 0; oldCategoryId < count; oldCategoryId++) {
-                int newCategoryId = categorizer.mergeWireCategory(new SerializableTokenListCategory(in)).getId();
-                // +1 because the 0 ordinal is reserved for null
-                idMap.put(oldCategoryId + 1, newCategoryId + 1);
-            }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        Map<Integer, Integer> idMap = categorizerStateCodec.buildIdMap(bytes, categorizer);
         try (IntVector.Builder newIdsBuilder = blockFactory.newIntVectorBuilder(idMap.size())) {
             if (ids == null) {
                 int idOffset = idMap.containsKey(0) ? 0 : 1;
@@ -214,32 +194,22 @@ public class CategorizeBlockHash extends BlockHash {
      */
     private Block buildIntermediateBlock() {
         if (categorizer.getCategoryCount() == 0) {
-            return blockFactory.newConstantNullBlock(seenNull ? 1 : 0);
+            return blockFactory.newConstantNullBlock(seenNull() ? 1 : 0);
         }
-        int positionCount = categorizer.getCategoryCount() + (seenNull ? 1 : 0);
+        int positionCount = categorizer.getCategoryCount() + (seenNull() ? 1 : 0);
         // We're returning a block with N positions just because the Page must have all blocks with the same position count!
         return blockFactory.newConstantBytesRefBlockWith(serializeCategorizer(), positionCount);
     }
 
     BytesRef serializeCategorizer() {
-        // TODO: This BytesStreamOutput is not accounted for by the circuit breaker. Fix that!
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.writeBoolean(seenNull);
-            out.writeVInt(categorizer.getCategoryCount());
-            for (SerializableTokenListCategory category : categorizer.toCategoriesById()) {
-                category.writeTo(out);
-            }
-            return out.bytes().toBytesRef();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        return CategorizerStateCodec.serialize(categorizer, seenNull());
     }
 
     private Block buildFinalBlock(IntVector selected) {
         BytesRefBuilder scratch = new BytesRefBuilder();
         List<SerializableTokenListCategory> categoriesById = categorizer.toCategoriesById();
 
-        if (seenNull) {
+        if (seenNull()) {
             try (BytesRefBlock.Builder result = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     if (selected.getInt(i) == NULL_ORD) {
@@ -295,7 +265,7 @@ public class CategorizeBlockHash extends BlockHash {
                 BytesRef vScratch = new BytesRef();
                 for (int p = 0; p < positionCount; p++) {
                     if (vBlock.isNull(p)) {
-                        seenNull = true;
+                        setSeenNull();
                         result.appendInt(NULL_ORD);
                         continue;
                     }
@@ -329,7 +299,7 @@ public class CategorizeBlockHash extends BlockHash {
         int process(BytesRef v) {
             var category = categorizer.computeCategory(v.utf8ToString(), analyzer);
             if (category == null) {
-                seenNull = true;
+                setSeenNull();
                 return NULL_ORD;
             }
             return category.getId() + 1;

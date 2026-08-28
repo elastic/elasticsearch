@@ -261,7 +261,12 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     @Override
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
         query = extractQuery(query);
-        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false || checkMatchAllOrRangeQuery(query, fieldType.name()) == false) {
+        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false
+            // PointsSortedDocsProducer walks the BKD tree, and a dense index is not necessarily a points
+            // index: an [index_terms] numeric has an inverted index but no BKD tree, so it would collect
+            // no documents at all.
+            || fieldType.indexType().hasPoints() == false
+            || checkMatchAllOrRangeQuery(query, fieldType.name()) == false) {
             return null;
         }
         final byte[] lowerPoint;

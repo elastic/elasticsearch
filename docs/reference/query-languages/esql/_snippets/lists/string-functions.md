@@ -76,6 +76,9 @@
 * [`SUBSTRING`](../../functions-operators/string-functions/substring.md)
   :::{include} ../generated/x-pack-esql/functions/briefSummary/substring.md
   :::
+* [`TO_ASCII`](../../functions-operators/string-functions/to_ascii.md) {applies_to}`stack: ga 9.4`
+  :::{include} ../generated/x-pack-esql/functions/briefSummary/to_ascii.md
+  :::
 * [`TO_BASE64`](../../functions-operators/string-functions/to_base64.md)
   :::{include} ../generated/x-pack-esql/functions/briefSummary/to_base64.md
   :::

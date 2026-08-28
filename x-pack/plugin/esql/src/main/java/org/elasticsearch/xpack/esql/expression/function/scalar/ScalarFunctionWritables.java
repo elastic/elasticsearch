@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Sha256;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Split;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToAscii;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
@@ -141,6 +142,7 @@ public class ScalarFunctionWritables {
         entries.add(Substring.ENTRY);
         entries.add(StartsWith.ENTRY);
         entries.add(Tau.ENTRY);
+        entries.add(ToAscii.ENTRY);
         entries.add(ToLower.ENTRY);
         entries.add(ToUpper.ENTRY);
         entries.add(HistogramFraction.ENTRY);

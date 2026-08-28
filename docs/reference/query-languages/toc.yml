@@ -325,6 +325,7 @@ toc:
                   - file: esql/functions-operators/string-functions/split.md
                   - file: esql/functions-operators/string-functions/starts_with.md
                   - file: esql/functions-operators/string-functions/substring.md
+                  - file: esql/functions-operators/string-functions/to_ascii.md
                   - file: esql/functions-operators/string-functions/to_base64.md
                   - file: esql/functions-operators/string-functions/to_lower.md
                   - file: esql/functions-operators/string-functions/to_upper.md

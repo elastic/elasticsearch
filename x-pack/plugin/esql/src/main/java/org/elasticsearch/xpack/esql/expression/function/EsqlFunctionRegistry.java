@@ -248,6 +248,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Space;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Split;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToAscii;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.TopSnippets;
@@ -501,6 +502,7 @@ public class EsqlFunctionRegistry {
                 Space.DEFINITION,
                 StartsWith.DEFINITION,
                 Substring.DEFINITION,
+                ToAscii.DEFINITION,
                 ToLower.DEFINITION,
                 ToUpper.DEFINITION,
                 Trim.DEFINITION,

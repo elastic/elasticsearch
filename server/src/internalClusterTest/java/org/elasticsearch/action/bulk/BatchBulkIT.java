@@ -1951,8 +1951,9 @@ public class BatchBulkIT extends ESIntegTestCase {
         );
     }
 
-    public void testPreBuiltBatchSingleShard() throws IOException {
-        String index = "test-prebuilt-single-shard";
+    public void testPreBuiltBatch() throws IOException {
+        String index = "test-prebuilt-batch";
+        int numShards = randomIntBetween(1, 4);
 
         XContentBuilder mapping = JsonXContent.contentBuilder();
         mapping.startObject();
@@ -1975,7 +1976,7 @@ public class BatchBulkIT extends ESIntegTestCase {
             indicesAdmin().prepareCreate(index)
                 .setSettings(
                     Settings.builder()
-                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_shards", numShards)
                         .put("index.number_of_replicas", 1)
                         .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
                         .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
@@ -1985,10 +1986,10 @@ public class BatchBulkIT extends ESIntegTestCase {
         ensureGreen(index);
 
         String coordinatingNode = findCoordinatingNode();
-        int numDocs = randomIntBetween(5, 20);
+        int numDocs = randomIntBetween(10, 40);
 
-        // Build the ESCF batch from JSON documents. One batch for all docs — the coordinator will
-        // scatter it (single shard means no actual scatter, just a passthrough).
+        // Build a single whole-index batch. Row indices are assigned sequentially; the coordinator
+        // scatters row references to each shard's sub-request.
         SourceBatch batch;
         try (EscfEncoder encoder = new EscfEncoder()) {
             for (int i = 0; i < numDocs; i++) {
@@ -2041,93 +2042,6 @@ public class BatchBulkIT extends ESIntegTestCase {
         assertTrue(getResponse.isExists());
         assertThat(getResponse.getSourceAsMap().get("host"), equalTo("host-0"));
         assertThat(getResponse.getSourceAsMap().get("value"), equalTo(0));
-    }
-
-    public void testPreBuiltBatchMultiShard() throws IOException {
-        String index = "test-prebuilt-multi-shard";
-        int numShards = 3;
-
-        XContentBuilder mapping = JsonXContent.contentBuilder();
-        mapping.startObject();
-        {
-            mapping.startObject("_doc");
-            {
-                mapping.field("dynamic", "strict");
-                mapping.startObject("properties");
-                {
-                    mapping.startObject("host").field("type", "keyword").endObject();
-                    mapping.startObject("value").field("type", "long").endObject();
-                }
-                mapping.endObject();
-            }
-            mapping.endObject();
-        }
-        mapping.endObject();
-
-        assertAcked(
-            indicesAdmin().prepareCreate(index)
-                .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_shards", numShards)
-                        .put("index.number_of_replicas", 1)
-                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-                        .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
-                )
-                .setMapping(mapping)
-        );
-        ensureGreen(index);
-
-        String coordinatingNode = findCoordinatingNode();
-        int numDocs = 30;
-
-        // Build a single whole-index batch. Row indices are assigned sequentially.
-        SourceBatch batch;
-        try (EscfEncoder encoder = new EscfEncoder()) {
-            for (int i = 0; i < numDocs; i++) {
-                XContentBuilder doc = JsonXContent.contentBuilder();
-                doc.startObject();
-                doc.field("host", "host-" + (i % 5));
-                doc.field("value", (long) i);
-                doc.endObject();
-                encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON);
-                encoder.commitScratchTo(0); // single whole-index partition
-            }
-            batch = encoder.buildPartition(0);
-        }
-
-        // Build sourceless IndexRequests referencing rows 0..numDocs-1 in the whole-index batch.
-        BulkRequest bulkRequest = new BulkRequest();
-        for (int i = 0; i < numDocs; i++) {
-            IndexRequest ir = new IndexRequest(index).id("doc-" + i).opType(DocWriteRequest.OpType.INDEX);
-            ir.indexSource().setSourceRow(batch, i, XContentType.JSON);
-            bulkRequest.add(ir);
-        }
-        bulkRequest.setPreBuiltBatches(Map.of(index, batch));
-
-        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
-        final Level origLevel = batchLogger.getLevel();
-        Loggers.setLevel(batchLogger, Level.TRACE);
-        try (var mockLog = MockLog.capture(ShardBatchIndexer.class)) {
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "batch indexed on primary",
-                    ShardBatchIndexer.class.getName(),
-                    Level.TRACE,
-                    "batch indexed * operations on primary shard *"
-                )
-            );
-            BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
-            assertNoFailures(bulkResponse);
-            mockLog.assertAllExpectationsMatched();
-        } finally {
-            Loggers.setLevel(batchLogger, origLevel);
-        }
-
-        refresh(index);
-        assertResponse(prepareSearch(index).setTrackTotalHits(true), response -> {
-            assertNoFailures(response);
-            assertThat(response.getHits().getTotalHits().value(), equalTo((long) numDocs));
-        });
     }
 
     public void testPreBuiltBatchRejectsSourceExtractedRouting() throws IOException {

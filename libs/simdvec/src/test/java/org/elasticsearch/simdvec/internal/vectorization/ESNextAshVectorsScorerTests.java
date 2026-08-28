@@ -68,8 +68,8 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
      * for a bulk of random vectors.
      */
     public void testScoreBulk() throws Exception {
-        int nDims = (randomIntBetween(16, 512) + 7) & ~7;
-        int planeBytes = nDims / 8;
+        int nDims = randomIntBetween(16, 512);
+        int planeBytes = (nDims + 7) / 8;
         int packedCodeBytes = bitsPerDim * planeBytes;
         int numVectors = BULK_SIZE * randomIntBetween(1, 4);
 
@@ -146,8 +146,8 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
      * Tests scoring a tail block (smaller than BULK_SIZE) to exercise non-aligned paths.
      */
     public void testScoreBulkTail() throws Exception {
-        int nDims = (randomIntBetween(16, 256) + 7) & ~7;
-        int planeBytes = nDims / 8;
+        int nDims = randomIntBetween(16, 256);
+        int planeBytes = (nDims + 7) / 8;
         int packedCodeBytes = bitsPerDim * planeBytes;
         int tailSize = randomIntBetween(1, BULK_SIZE - 1);
 
@@ -215,8 +215,8 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
      * Tests that the single-vector score() method produces the same result as scoreBulk() with blockSize=1.
      */
     public void testSingleScoreMatchesBulk() throws Exception {
-        int nDims = (randomIntBetween(16, 256) + 7) & ~7;
-        int planeBytes = nDims / 8;
+        int nDims = randomIntBetween(16, 256);
+        int planeBytes = (nDims + 7) / 8;
         int packedCodeBytes = bitsPerDim * planeBytes;
 
         byte[] packedCode = new byte[packedCodeBytes];

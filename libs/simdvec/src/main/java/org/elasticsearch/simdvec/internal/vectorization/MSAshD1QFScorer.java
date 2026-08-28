@@ -95,7 +95,7 @@ final class MSAshD1QFScorer extends MemorySegmentESNextAshVectorsScorer.AshMemor
      */
     static float ipFloatBitSegment256(float[] q, MemorySegment d, long baseOffset, int qLength) {
         int i = 0;
-        float sum = 0;
+        FloatVector acc = FloatVector.zero(FLOAT_SPECIES_256);
 
         int sectionLength = FLOAT_SPECIES_256.length() * 4;
         if (qLength >= sectionLength) {
@@ -122,27 +122,31 @@ final class MSAshD1QFScorer extends MemorySegmentESNextAshVectorsScorer.AshMemor
                 acc2 = acc2.add(floats2, mask2);
                 acc3 = acc3.add(floats3, mask3);
             }
-            sum += acc0.reduceLanes(VectorOperators.ADD) + acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD)
-                + acc3.reduceLanes(VectorOperators.ADD);
+            acc = acc0.add(acc1).add(acc2).add(acc3);
         }
 
-        int sectionLength2 = FLOAT_SPECIES_256.length();
-        if (qLength - i >= sectionLength2) {
-            FloatVector acc = FloatVector.zero(FLOAT_SPECIES_256);
-            int limit = i + ((qLength - i) / sectionLength2) * sectionLength2;
-            for (; i < limit; i += sectionLength2) {
+        // 8-float tail (1 byte of bits)
+        sectionLength = FLOAT_SPECIES_256.length();
+        if (qLength - i >= sectionLength) {
+            int limit = i + ((qLength - i) / sectionLength) * sectionLength;
+            for (; i < limit; i += sectionLength) {
                 var floats = FloatVector.fromArray(FLOAT_SPECIES_256, q, i);
                 long maskBits = Integer.reverse(d.get(ValueLayout.JAVA_BYTE, baseOffset + i / 8)) >> 24;
                 var mask = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits);
                 acc = acc.add(floats, mask);
             }
-            sum += acc.reduceLanes(VectorOperators.ADD);
         }
 
+        // any remaining
         if (i < qLength) {
-            sum += ipFloatBitScalarTail(q, i, d, baseOffset + i / 8, qLength - i);
+            var loadMask = FLOAT_SPECIES_256.indexInRange(i, qLength);
+            var floats = FloatVector.fromArray(FLOAT_SPECIES_256, q, i, loadMask);
+            long maskBits = Integer.reverse(d.get(ValueLayout.JAVA_BYTE, baseOffset + i / 8)) >> 24;
+            var addMask = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits);
+            acc = acc.add(floats, addMask);
         }
-        return sum;
+
+        return acc.reduceLanes(VectorOperators.ADD);
     }
 
     /**
@@ -150,7 +154,7 @@ final class MSAshD1QFScorer extends MemorySegmentESNextAshVectorsScorer.AshMemor
      */
     static float ipFloatBitSegment128(float[] q, MemorySegment d, long baseOffset, int qLength) {
         int i = 0;
-        float sum = 0;
+        FloatVector acc = FloatVector.zero(FLOAT_SPECIES_128);
 
         int sectionLength = FLOAT_SPECIES_128.length() * 4;
         if (qLength >= sectionLength) {
@@ -176,16 +180,16 @@ final class MSAshD1QFScorer extends MemorySegmentESNextAshVectorsScorer.AshMemor
                 acc2 = acc2.add(floats2, mask2);
                 acc3 = acc3.add(floats3, mask3);
             }
-            sum += acc0.reduceLanes(VectorOperators.ADD) + acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD)
-                + acc3.reduceLanes(VectorOperators.ADD);
+            acc = acc0.add(acc1).add(acc2).add(acc3);
         }
 
-        int sectionLength2 = FLOAT_SPECIES_128.length() * 2;
-        if (qLength - i >= sectionLength2) {
+        // 8-float tail (1 byte of bits)
+        sectionLength = FLOAT_SPECIES_128.length() * 2;
+        if (qLength - i >= sectionLength) {
             FloatVector acc0 = FloatVector.zero(FLOAT_SPECIES_128);
             FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES_128);
-            int limit = i + ((qLength - i) / sectionLength2) * sectionLength2;
-            for (; i < limit; i += sectionLength2) {
+            int limit = i + ((qLength - i) / sectionLength) * sectionLength;
+            for (; i < limit; i += sectionLength) {
                 var floats0 = FloatVector.fromArray(FLOAT_SPECIES_128, q, i);
                 var floats1 = FloatVector.fromArray(FLOAT_SPECIES_128, q, i + FLOAT_SPECIES_128.length());
                 long maskBits = Integer.reverse(d.get(ValueLayout.JAVA_BYTE, baseOffset + i / 8)) >> 24;
@@ -194,39 +198,21 @@ final class MSAshD1QFScorer extends MemorySegmentESNextAshVectorsScorer.AshMemor
                 acc0 = acc0.add(floats0, mask0);
                 acc1 = acc1.add(floats1, mask1);
             }
-            sum += acc0.reduceLanes(VectorOperators.ADD) + acc1.reduceLanes(VectorOperators.ADD);
+            acc = acc.add(acc0).add(acc1);
         }
 
+        // any remaining (less than 8 floats)
         if (i < qLength) {
-            sum += ipFloatBitScalarTail(q, i, d, baseOffset + i / 8, qLength - i);
-        }
-        return sum;
-    }
-
-    /** Scalar tail for ipFloatBit from MemorySegment. */
-    private static float ipFloatBitScalarTail(float[] q, int qOffset, MemorySegment d, long dOffset, int length) {
-        float acc = 0;
-        int byteCount = length >>> 3;
-        for (int i = 0; i < byteCount; i++) {
-            byte mask = d.get(ValueLayout.JAVA_BYTE, dOffset + i);
-            int base = qOffset + i * Byte.SIZE;
-            acc = Math.fma(q[base], (mask >> 7) & 1, acc);
-            acc = Math.fma(q[base + 1], (mask >> 6) & 1, acc);
-            acc = Math.fma(q[base + 2], (mask >> 5) & 1, acc);
-            acc = Math.fma(q[base + 3], (mask >> 4) & 1, acc);
-            acc = Math.fma(q[base + 4], (mask >> 3) & 1, acc);
-            acc = Math.fma(q[base + 5], (mask >> 2) & 1, acc);
-            acc = Math.fma(q[base + 6], (mask >> 1) & 1, acc);
-            acc = Math.fma(q[base + 7], mask & 1, acc);
-        }
-        int tail = length & 7;
-        if (tail > 0) {
-            byte mask = d.get(ValueLayout.JAVA_BYTE, dOffset + byteCount);
-            int base = qOffset + byteCount * Byte.SIZE;
-            for (int j = 0; j < tail; j++) {
-                acc = Math.fma(q[base + j], (mask >> (7 - j)) & 1, acc);
+            long maskBits = Integer.reverse(d.get(ValueLayout.JAVA_BYTE, baseOffset + i / 8)) >> 24;
+            for (; i < qLength; i += FLOAT_SPECIES_128.length()) {
+                var mask = FLOAT_SPECIES_128.indexInRange(i, qLength);
+                var floats = FloatVector.fromArray(FLOAT_SPECIES_128, q, i, mask);
+                var addMask = VectorMask.fromLong(FLOAT_SPECIES_128, maskBits);
+                acc = acc.add(floats, addMask);
+                maskBits >>= 4;
             }
         }
-        return acc;
+
+        return acc.reduceLanes(VectorOperators.ADD);
     }
 }

@@ -1,0 +1,17 @@
+---
+version: ${xpack.oteldata.template.version}
+index_patterns: ["profiling-stacktraces.otel-*"]
+priority: 100
+data_stream: {}
+allow_auto_create: true
+_meta:
+  description: OTel data stream template for eBPF Profiler stacktraces
+  managed: true
+composed_of:
+  - profiling-stacktraces-otel@mappings
+  - profiling-stacktraces-otel@custom
+ignore_missing_component_templates:
+  - profiling-stacktraces-otel@custom
+template:
+  lifecycle:
+    data_retention: 60d

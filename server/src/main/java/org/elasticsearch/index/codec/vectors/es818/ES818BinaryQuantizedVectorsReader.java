@@ -479,7 +479,7 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader impleme
             );
             docsWithField.add(docV);
             // pack and store the 4bit query vector
-            ESVectorUtil.transposeHalfByte(quantizationScratch, toQuery);
+            ESVectorUtil.stride4BitValues(quantizationScratch, toQuery);
             binarizedQueryData.writeBytes(toQuery, toQuery.length);
             binarizedQueryData.writeInt(Float.floatToIntBits(r.lowerInterval()));
             binarizedQueryData.writeInt(Float.floatToIntBits(r.upperInterval()));

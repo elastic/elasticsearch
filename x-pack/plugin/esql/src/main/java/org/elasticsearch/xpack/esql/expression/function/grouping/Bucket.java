@@ -15,8 +15,16 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.data.DoubleRangeBlock;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exponentialhistogram.BucketIterator;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialScaleUtils;
+import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -40,6 +48,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.ThreeOptionalArguments;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
@@ -79,6 +88,12 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
  * this function: with a user-provided span (explicit invocation mode), or a span derived
  * from a number of desired buckets (as a hint) and a range (auto mode).
  * In the former case, two parameters will be provided, in the latter four.
+ * <p>
+ * Histogram fields ({@code exponential_histogram} and {@code tdigest}) are bucketed like numbers,
+ * but instead of a single {@code double} the function returns the multi-valued {@code double_range}
+ * buckets that are non-empty according to
+ * {@link org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramFraction}
+ * (or {@code null} for an empty histogram).
  */
 public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     implements
@@ -90,6 +105,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Bucket", Bucket::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Bucket.class)
         .quinaryConfigWithOptions(Bucket::new)
+        .capabilities("histogram_types")
         .name("bucket", "bin");
     public static final TransportVersion ESQL_BUCKET_OFFSET = TransportVersion.fromName("esql_bucket_offset");
     public static final TransportVersion ESQL_SUPPORT_EXPLICIT_BUCKET_ROUNDING_CONFIGURATION = TransportVersion.fromName(
@@ -107,6 +123,14 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
 
     private static final String OPTIONS_APPLIES_TO = """
         {"serverless": "ga", "stack": "ga 9.6.0"}""";
+
+    /**
+     * Maximum number of candidate buckets scanned for a single t-digest value. The scan covers the whole value
+     * range of the histogram, so a bucket size that is tiny relative to that range would require an unbounded
+     * amount of work (and produce an equally unbounded number of mostly non-empty buckets). Exceeding the cap
+     * raises a warning and yields {@code null} for the row.
+     */
+    static final double MAX_TDIGEST_CANDIDATE_BUCKETS = 10_000;
 
     // Visible for testing
     record DateRoundingPicker(long buckets, long from, long to, ZoneId zoneId) {
@@ -352,7 +376,21 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
 
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
-        returnType = { "double", "date", "date_nanos" },
+        returnType = { "double", "date", "date_nanos", "double_range" },
+        signatures = {
+            @Signature(params = { "date", "date_period|time_duration" }, returnType = "date"),
+            @Signature(params = { "date", "integer|long", "date|STRING", "date|STRING" }, returnType = "date"),
+            @Signature(params = { "date_nanos", "date_period|time_duration" }, returnType = "date_nanos"),
+            @Signature(params = { "date_nanos", "integer|long", "date|STRING", "date|STRING" }, returnType = "date_nanos"),
+            // unsigned_long is in NUMERIC but not supported by BUCKET; list the accepted numerics explicitly.
+            @Signature(params = { "integer|long|double", "double|integer|long" }, returnType = "double"),
+            @Signature(params = { "integer|long|double", "integer", "integer|long|double", "integer|long|double" }, returnType = "double"),
+            // Histograms are bucketed like numbers, but return the non-empty double_range buckets.
+            @Signature(params = { "exponential_histogram|tdigest", "double|integer|long" }, returnType = "double_range"),
+            @Signature(
+                params = { "exponential_histogram|tdigest", "integer", "integer|long|double", "integer|long|double" },
+                returnType = "double_range"
+            ) },
         briefSummary = "Creates groups of values (buckets) from a datetime or numeric input.",
         description = """
             Creates groups of values - buckets - out of a datetime or numeric input.
@@ -450,8 +488,8 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         Source source,
         @Param(
             name = "field",
-            type = { "integer", "long", "double", "date", "date_nanos" },
-            description = "Numeric or date expression from which to derive buckets."
+            type = { "integer", "long", "double", "date", "date_nanos", "exponential_histogram", "tdigest" },
+            description = "Numeric, date or histogram expression from which to derive buckets."
         ) Expression field,
         @Param(
             name = "buckets",
@@ -621,7 +659,121 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             Mul mul = new Mul(source(), floor, rounding);
             return toEvaluator.apply(mul);
         }
+        if (isSupportedHistogramType(field.dataType())) {
+            double roundTo = getNumberRoundTo(toEvaluator.foldCtx());
+            var fieldEvaluator = toEvaluator.apply(field);
+            return switch (field.dataType()) {
+                case EXPONENTIAL_HISTOGRAM -> new BucketExponentialHistogramEvaluator.Factory(source(), fieldEvaluator, roundTo);
+                case TDIGEST -> new BucketTDigestEvaluator.Factory(source(), fieldEvaluator, roundTo);
+                default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
+            };
+        }
         throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
+    }
+
+    /**
+     * Emits the non-empty buckets of an exponential histogram.
+     * We assume that for each bucket all values lie on the point of least error.
+     * So all we have to do is to just iterate over the internal histogram buckets
+     * and convert them in to buckets of the desired size (potentially combining them).
+     */
+    @Evaluator(extraName = "ExponentialHistogram", warnExceptions = ArithmeticException.class)
+    static void process(DoubleRangeBlock.Builder builder, ExponentialHistogram histogram, @Fixed double roundTo) {
+        if (histogram.isEmpty()) {
+            builder.appendNull();
+            return;
+        }
+        double min = histogram.min();
+        double max = histogram.max();
+
+        long lastBucketIndex = Long.MIN_VALUE;
+        boolean hasMultipleBuckets = false;
+
+        for (BucketIterator it = histogram.negativeBuckets().iterator(); it.hasNext(); it.advance()) {
+            double center = Math.clamp(-ExponentialScaleUtils.getPointOfLeastRelativeError(it.peekIndex(), it.scale()), min, max);
+            long bucketIndex = (long) Math.floor(center / roundTo);
+            if (bucketIndex != lastBucketIndex) {
+                if (lastBucketIndex != Long.MIN_VALUE) {
+                    if (hasMultipleBuckets == false) {
+                        builder.beginPositionEntry();
+                        hasMultipleBuckets = true;
+                    }
+                    builder.appendDoubleRange(lastBucketIndex * roundTo, (lastBucketIndex + 1) * roundTo);
+                }
+                lastBucketIndex = bucketIndex;
+            }
+        }
+        if (histogram.zeroBucket().count() > 0) {
+            if (lastBucketIndex != Long.MIN_VALUE) {
+                if (hasMultipleBuckets == false) {
+                    builder.beginPositionEntry();
+                    hasMultipleBuckets = true;
+                }
+                builder.appendDoubleRange(lastBucketIndex * roundTo, (lastBucketIndex + 1) * roundTo);
+            }
+            lastBucketIndex = 0; // zero bucket
+        }
+        for (BucketIterator it = histogram.positiveBuckets().iterator(); it.hasNext(); it.advance()) {
+            double center = Math.clamp(ExponentialScaleUtils.getPointOfLeastRelativeError(it.peekIndex(), it.scale()), min, max);
+            long bucketIndex = (long) Math.floor(center / roundTo);
+            if (bucketIndex != lastBucketIndex) {
+                if (lastBucketIndex != Long.MIN_VALUE) {
+                    if (hasMultipleBuckets == false) {
+                        builder.beginPositionEntry();
+                        hasMultipleBuckets = true;
+                    }
+                    builder.appendDoubleRange(lastBucketIndex * roundTo, (lastBucketIndex + 1) * roundTo);
+                }
+                lastBucketIndex = bucketIndex;
+            }
+        }
+        assert lastBucketIndex != Long.MIN_VALUE : "at least one bucket should be populated";
+        builder.appendDoubleRange(lastBucketIndex * roundTo, (lastBucketIndex + 1) * roundTo);
+        if (hasMultipleBuckets) {
+            builder.endPositionEntry();
+        }
+    }
+
+    /**
+     * Emits the non-empty buckets of a t-digest. Because T-Digest interpolates, that is all buckets between the first and the last centroid
+     */
+    @Evaluator(extraName = "TDigest", warnExceptions = ArithmeticException.class)
+    static void process(DoubleRangeBlock.Builder builder, TDigestHolder histogram, @Fixed double roundTo) {
+        if (histogram.size() == 0) {
+            builder.appendNull();
+            return;
+        }
+
+        double firstCentroid = Double.NaN;
+        double lastCentroid = Double.NaN;
+        for (Centroid centroid : histogram.centroids()) {
+            if (Double.isNaN(firstCentroid)) {
+                firstCentroid = centroid.mean();
+            }
+            lastCentroid = centroid.mean();
+        }
+
+        long firstBucketIndex = (long) Math.floor(firstCentroid / roundTo);
+        long lastBucketIndex = (long) Math.floor(lastCentroid / roundTo);
+        if (lastBucketIndex - firstBucketIndex > MAX_TDIGEST_CANDIDATE_BUCKETS) {
+            throw new ArithmeticException(
+                "T-Digest is too large to create buckets of size "
+                    + roundTo
+                    + ", would yield "
+                    + (lastBucketIndex - firstBucketIndex)
+                    + " buckets"
+            );
+        }
+        if (firstBucketIndex != lastBucketIndex) {
+            builder.beginPositionEntry();
+        }
+        for (long i = firstBucketIndex; i <= lastBucketIndex; i++) {
+            builder.appendDoubleRange(i * roundTo, (i + 1) * roundTo);
+        }
+        if (firstBucketIndex != lastBucketIndex) {
+            builder.endPositionEntry();
+        }
+
     }
 
     /**
@@ -725,6 +877,18 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         if (optionsResolution.unresolved()) {
             return optionsResolution;
         }
+        var fieldType = field.dataType();
+        if (includeEmptyBuckets() && fieldType.isHistogram()) {
+            return new TypeResolution(
+                format(
+                    null,
+                    "function [{}] does not support option [{}] for [{}] inputs",
+                    sourceText(),
+                    INCLUDE_EMPTY_BUCKETS,
+                    fieldType.typeName()
+                )
+            );
+        }
         // Emitting empty buckets requires a bounded range to iterate over, i.e. the four-argument (from, to) form.
         if (includeEmptyBuckets() && (from == null || to == null)) {
             return new TypeResolution(
@@ -736,7 +900,6 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                 )
             );
         }
-        var fieldType = field.dataType();
         var bucketsType = buckets.dataType();
         if (fieldType == DataType.NULL || bucketsType == DataType.NULL) {
             return TypeResolution.TYPE_RESOLVED;
@@ -764,7 +927,8 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             // e.g. BUCKET(@timestamp, 1 day)
             return resolution.and(checkArgsCount(2));
         }
-        if (fieldType.isNumeric()) {
+        // Histogram fields take the same bucket size arguments as numbers.
+        if (fieldType.isNumeric() || isSupportedHistogramType(fieldType)) {
             return isNumeric(buckets, sourceText(), SECOND).and(() -> {
                 if (bucketsType.isRationalNumber()) {
                     return checkArgsCount(2);
@@ -779,6 +943,10 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             });
         }
         return isType(field, e -> false, sourceText(), FIRST, "datetime", "numeric");
+    }
+
+    private static boolean isSupportedHistogramType(DataType fieldType) {
+        return fieldType == DataType.TDIGEST || fieldType == DataType.EXPONENTIAL_HISTOGRAM;
     }
 
     private TypeResolution checkArgsCount(int expectedCount) {
@@ -838,6 +1006,9 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
 
     @Override
     public DataType dataType() {
+        if (isSupportedHistogramType(field.dataType())) {
+            return DataType.DOUBLE_RANGE;
+        }
         if (field.dataType().isNumeric()) {
             return DataType.DOUBLE;
         }
@@ -954,7 +1125,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             Rounding.Interval interval = rounding.getInterval();
             return Map.of("bucket", Map.of("interval", interval.size(), "unit", interval.unit()));
         }
-        if (fieldType.isNumeric()) {
+        if (fieldType.isNumeric() || isSupportedHistogramType(fieldType)) {
             double roundTo = getNumberRoundTo(foldContext);
             // Impossible bucket configurations (zero/negative buckets count, zero/inverted ranges) yield NaN,
             // ±Infinity, or non-positive widths. Skip metadata emission in those cases — the query itself fails
@@ -964,8 +1135,8 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             }
             return Map.of("bucket", Map.of("interval", roundTo));
         }
-        // BUCKET only supports date/date_nanos and numeric fields. Any new type added to BUCKET that hasn't been
-        // taught to this metadata path should fail loudly rather than silently dropping metadata.
+        // BUCKET only supports date/date_nanos, numeric and histogram fields. Any new type added to BUCKET that
+        // hasn't been taught to this metadata path should fail loudly rather than silently dropping metadata.
         throw new IllegalStateException("BUCKET metadata not implemented for field type [" + fieldType + "]");
     }
 }

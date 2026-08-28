@@ -35,11 +35,10 @@ public class ESVectorUtil {
             // On ARM Long::bitCount is not vectorized, and therefore produces less than optimal code, when
             // compared to Integer::bitCount. While Long::bitCount is optimal on x64. See
             // https://bugs.openjdk.org/browse/JDK-8336000
+            MethodType type = MethodType.methodType(int.class, byte[].class, int.class, byte[].class, int.class, int.class);
             BIT_COUNT_MH = Constants.OS_ARCH.equals("aarch64")
-                ? MethodHandles.lookup()
-                    .findStatic(ESVectorUtil.class, "andBitCountInt", MethodType.methodType(int.class, byte[].class, byte[].class))
-                : MethodHandles.lookup()
-                    .findStatic(ESVectorUtil.class, "andBitCountLong", MethodType.methodType(int.class, byte[].class, byte[].class));
+                ? MethodHandles.lookup().findStatic(ESVectorUtil.class, "andBitCountInt", type)
+                : MethodHandles.lookup().findStatic(ESVectorUtil.class, "andBitCountLong", type);
         } catch (NoSuchMethodException | IllegalAccessException e) {
             throw new AssertionError(e);
         }
@@ -101,7 +100,7 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
         }
         Objects.checkFromIndexSize(0, length, a.length);
-        return IMPL.dotProduct(a, b, 0, length);
+        return IMPL.dotProduct(a, 0, b, 0, length);
     }
 
     /**
@@ -112,7 +111,16 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
         }
         Objects.checkFromIndexSize(offset, length, a.length);
-        return IMPL.dotProduct(a, b, offset, length);
+        return IMPL.dotProduct(a, offset, b, offset, length);
+    }
+
+    /**
+     * Dot product over {@code [[ab]Offset, [ab]Offset + length)}.
+     */
+    public static float dotProduct(float[] a, int aOffset, float[] b, int bOffset, int length) {
+        Objects.checkFromIndexSize(aOffset, length, a.length);
+        Objects.checkFromIndexSize(bOffset, length, b.length);
+        return IMPL.dotProduct(a, aOffset, b, bOffset, length);
     }
 
     /**
@@ -393,7 +401,21 @@ public class ESVectorUtil {
         if (q.length != d.length * Byte.SIZE) {
             throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!= " + Byte.SIZE + " x " + d.length);
         }
-        return IMPL.ipFloatBit(q, d);
+        return ipFloatBit(q, 0, d, 0, q.length);
+    }
+
+    /**
+     * Inner product of {@code q} where the respective bit in {@code d} is set
+     * @param q         Float values
+     * @param qOffset   Offset into q
+     * @param d         Bit values
+     * @param dOffset   Starting byte offset into d
+     * @param qLength    Number of float values to check
+     */
+    public static float ipFloatBit(float[] q, int qOffset, byte[] d, int dOffset, int qLength) {
+        Objects.checkFromIndexSize(qOffset, qLength, q.length);
+        Objects.checkFromIndexSize(dOffset, (qLength + Byte.SIZE - 1) / Byte.SIZE, d.length);    // round UP length/Byte.SIZE
+        return IMPL.ipFloatBit(q, qOffset, d, dOffset, qLength);
     }
 
     /**
@@ -420,8 +442,21 @@ public class ESVectorUtil {
         if (a.length != b.length) {
             throw new IllegalArgumentException("vector dimensions differ: " + a.length + "!=" + b.length);
         }
+        return andBitCount(a, 0, b, 0, a.length);
+    }
+
+    /**
+     * AND bit count computed over signed bytes.
+     *
+     * @param a bytes containing a vector
+     * @param b bytes containing another vector, of the same dimension
+     * @return the value of the AND bit count of the two vectors
+     */
+    public static int andBitCount(byte[] a, int aOffset, byte[] b, int bOffset, int length) {
+        Objects.checkFromIndexSize(aOffset, length, a.length);
+        Objects.checkFromIndexSize(bOffset, length, b.length);
         try {
-            return (int) BIT_COUNT_MH.invokeExact(a, b);
+            return (int) BIT_COUNT_MH.invokeExact(a, aOffset, b, bOffset, length);
         } catch (Throwable e) {
             if (e instanceof Error err) {
                 throw err;
@@ -442,29 +477,31 @@ public class ESVectorUtil {
     }
 
     /** AND bit count striding over 4 bytes at a time. */
-    static int andBitCountInt(byte[] a, byte[] b) {
+    static int andBitCountInt(byte[] a, int aOffset, byte[] b, int bOffset, int length) {
         int distance = 0, i = 0;
         // limit to number of int values in the array iterating by int byte views
-        for (final int upperBound = a.length & -Integer.BYTES; i < upperBound; i += Integer.BYTES) {
-            distance += Integer.bitCount((int) BitUtil.VH_NATIVE_INT.get(a, i) & (int) BitUtil.VH_NATIVE_INT.get(b, i));
+        for (final int upperBound = length & -Integer.BYTES; i < upperBound; i += Integer.BYTES) {
+            distance += Integer.bitCount((int) BitUtil.VH_NATIVE_INT.get(a, aOffset + i) & (int) BitUtil.VH_NATIVE_INT.get(b, bOffset + i));
         }
         // tail:
-        for (; i < a.length; i++) {
-            distance += Integer.bitCount((a[i] & b[i]) & 0xFF);
+        for (; i < length; i++) {
+            distance += Integer.bitCount((a[aOffset + i] & b[bOffset + i]) & 0xFF);
         }
         return distance;
     }
 
     /** AND bit count striding over 8 bytes at a time**/
-    static int andBitCountLong(byte[] a, byte[] b) {
+    static int andBitCountLong(byte[] a, int aOffset, byte[] b, int bOffset, int length) {
         int distance = 0, i = 0;
         // limit to number of long values in the array iterating by long byte views
-        for (final int upperBound = a.length & -Long.BYTES; i < upperBound; i += Long.BYTES) {
-            distance += Long.bitCount((long) BitUtil.VH_NATIVE_LONG.get(a, i) & (long) BitUtil.VH_NATIVE_LONG.get(b, i));
+        for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES) {
+            distance += Long.bitCount(
+                (long) BitUtil.VH_NATIVE_LONG.get(a, aOffset + i) & (long) BitUtil.VH_NATIVE_LONG.get(b, bOffset + i)
+            );
         }
         // tail:
-        for (; i < a.length; i++) {
-            distance += Integer.bitCount((a[i] & b[i]) & 0xFF);
+        for (; i < length; i++) {
+            distance += Integer.bitCount((a[aOffset + i] & b[bOffset + i]) & 0xFF);
         }
         return distance;
     }
@@ -491,122 +528,6 @@ public class ESVectorUtil {
         if (scoresScratch.length < source.vectorCount()) {
             throw new IllegalArgumentException("scores array too small: " + scoresScratch.length + " < " + source.vectorCount());
         }
-    }
-
-    /**
-     * Calculate the loss for optimized-scalar quantization for the given parameteres
-     * @param target The vector being quantized, assumed to be centered
-     * @param lowerInterval The lower interval value for which to calculate the loss
-     * @param upperInterval The upper interval value for which to calculate the loss
-     * @param points the quantization points
-     * @param norm2 The norm squared of the target vector
-     * @param lambda The lambda parameter for controlling anisotropic loss calculation
-     * @param quantize array to store the computed quantize vector.
-     *
-     * @return The loss for the given parameters
-     */
-    public static float calculateOSQLoss(
-        float[] target,
-        float lowerInterval,
-        float upperInterval,
-        int points,
-        float norm2,
-        float lambda,
-        int[] quantize
-    ) {
-        assert upperInterval >= lowerInterval
-            : "upperInterval must be greater than or equal to lowerInterval, but was: " + upperInterval + " < " + lowerInterval;
-        float step = ((upperInterval - lowerInterval) / (points - 1.0F));
-        float invStep = 1f / step;
-        return IMPL.calculateOSQLoss(target, lowerInterval, upperInterval, step, invStep, norm2, lambda, quantize);
-    }
-
-    /**
-     * Calculate the grid points for optimized-scalar quantization
-     * @param target The vector being quantized, assumed to be centered
-     * @param quantize The quantize vector which should have at least the target vector length
-     * @param points the quantization points
-     * @param pts The array to store the grid points, must be of length 5
-     */
-    public static void calculateOSQGridPoints(float[] target, int[] quantize, int points, float[] pts) {
-        assert target.length <= quantize.length;
-        assert pts.length == 5;
-        IMPL.calculateOSQGridPoints(target, quantize, points, pts);
-    }
-
-    /**
-     * Center the target vector and calculate the optimized-scalar quantization statistics
-     * @param target The vector being quantized
-     * @param centroid The centroid of the target vector
-     * @param centered The destination of the centered vector, will be overwritten
-     * @param stats The array to store the statistics, must be of length 5
-     */
-    public static void centerAndCalculateOSQStatsEuclidean(float[] target, float[] centroid, float[] centered, float[] stats) {
-        assert target.length == centroid.length;
-        assert stats.length == 5;
-        if (target.length != centroid.length) {
-            throw new IllegalArgumentException("vector dimensions differ: " + target.length + "!=" + centroid.length);
-        }
-        if (centered.length != target.length) {
-            throw new IllegalArgumentException("vector dimensions differ: " + centered.length + "!=" + target.length);
-        }
-        IMPL.centerAndCalculateOSQStatsEuclidean(target, centroid, centered, stats);
-    }
-
-    /**
-     * Center the target vector and calculate the optimized-scalar quantization statistics
-     * @param target The vector being quantized
-     * @param centroid The centroid of the target vector
-     * @param centered The destination of the centered vector, will be overwritten
-     * @param stats The array to store the statistics, must be of length 6
-     */
-    public static void centerAndCalculateOSQStatsDp(float[] target, float[] centroid, float[] centered, float[] stats) {
-        if (target.length != centroid.length) {
-            throw new IllegalArgumentException("vector dimensions differ: " + target.length + "!=" + centroid.length);
-        }
-        if (centered.length != target.length) {
-            throw new IllegalArgumentException("vector dimensions differ: " + centered.length + "!=" + target.length);
-        }
-        assert stats.length == 6;
-        IMPL.centerAndCalculateOSQStatsDp(target, centroid, centered, stats);
-    }
-
-    /**
-     * Center the byte target vector against a byte centroid and calculate the optimized-scalar quantization statistics
-     * for euclidean similarity.
-     * @param target The byte vector being quantized
-     * @param centroid The byte centroid of the target vector
-     * @param centered The destination of the centered vector, will be overwritten
-     * @param stats The array to store the statistics, must be of length 5
-     */
-    public static void centerAndCalculateOSQStatsEuclidean(byte[] target, byte[] centroid, float[] centered, float[] stats) {
-        assert stats.length == 5;
-        if (target.length != centroid.length) {
-            throw new IllegalArgumentException("vector dimensions differ: " + target.length + "!=" + centroid.length);
-        }
-        if (centered.length != target.length) {
-            throw new IllegalArgumentException("vector dimensions differ: " + centered.length + "!=" + target.length);
-        }
-        IMPL.centerAndCalculateOSQStatsEuclidean(target, centroid, centered, stats);
-    }
-
-    /**
-     * Center the byte target vector against a byte centroid and calculate the optimized-scalar quantization statistics
-     * for dot-product similarity.
-     * @param target The byte vector being quantized
-     * @param centroid The byte centroid of the target vector
-     * @param centered The destination of the centered vector, will be overwritten
-     * @param stats The array to store the statistics, must be of length 6
-     */
-    public static void centerAndCalculateOSQStatsDp(byte[] target, byte[] centroid, float[] centered, float[] stats) {
-        if (target.length != centroid.length) {
-            throw new IllegalArgumentException("vector dimensions differ: " + target.length + "!=" + centroid.length);
-        }
-        if (centered.length != target.length) {
-            throw new IllegalArgumentException("vector dimensions differ: " + centered.length + "!=" + target.length);
-        }
-        assert stats.length == 6;
-        IMPL.centerAndCalculateOSQStatsDp(target, centroid, centered, stats);
     }
 
     /** Calculates the difference between two vectors and stores the result in a third vector.
@@ -664,27 +585,6 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("vector dimensions differ: " + originalResidual.length + "!=" + v1.length);
         }
         return IMPL.soarDistance(v1, centroid, originalResidual, soarLambda, rnorm);
-    }
-
-    /**
-     * Optimized-scalar quantization of the provided vector to the provided destination array.
-     *
-     * @param vector the vector to quantize
-     * @param destination the array to store the result
-     * @param lowInterval the minimum value, lower values in the original array will be replaced by this value
-     * @param upperInterval the maximum value, bigger values in the original array will be replaced by this value
-     * @param bit the number of bits to use for quantization, must be between 1 and 8
-     *
-     * @return return the sum of all the elements of the resulting quantized vector.
-     */
-    public static int quantizeVectorWithIntervals(float[] vector, int[] destination, float lowInterval, float upperInterval, byte bit) {
-        if (vector.length > destination.length) {
-            throw new IllegalArgumentException("vector dimensions differ: " + vector.length + "!=" + destination.length);
-        }
-        if (bit <= 0 || bit > Byte.SIZE) {
-            throw new IllegalArgumentException("bit must be between 1 and 8, but was: " + bit);
-        }
-        return IMPL.quantizeVectorWithIntervals(vector, destination, lowInterval, upperInterval, bit);
     }
 
     /**
@@ -880,43 +780,47 @@ public class ESVectorUtil {
      * @param vector the int array to pack, must contain only "0" and "1" values.
      * @param packed the byte array to store the packed result, must be large enough to hold the packed data.
      */
-    public static void packAsBinary(int[] vector, byte[] packed) {
+    public static void pack1BitValues(int[] vector, byte[] packed) {
         if (packed.length * Byte.SIZE < vector.length) {
             throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE + " < " + vector.length);
         }
-        IMPL.packAsBinary(vector, packed);
-    }
-
-    public static void packDibit(int[] vector, byte[] packed) {
-        if (packed.length * Byte.SIZE / 2 < vector.length) {
-            throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE / 2 + " < " + vector.length);
-        }
-        IMPL.packDibit(vector, packed);
-    }
-
-    public static void packDibitQuad(int[] vector, byte[] packed) {
-        if (packed.length * Byte.SIZE / 2 < vector.length) {
-            throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE / 2 + " < " + vector.length);
-        }
-        IMPL.packDibitQuad(vector, packed);
+        IMPL.pack1BitValues(vector, packed);
     }
 
     /**
-     * The idea here is to organize the query vector bits such that the first bit
-     * of every dimension is in the first set dimensions bits, or (dimensions/8) bytes. The second,
-     * third, and fourth bits are in the second, third, and fourth set of dimensions bits,
-     * respectively. This allows for direct bitwise comparisons with the stored index vectors through
-     * summing the bitwise results with the relative required bit shifts.
-     *
-     * @param q the query vector, assumed to be half-byte quantized with values between 0 and 15
-     * @param quantQueryByte the byte array to store the transposed query vector.
-     *
-     **/
-    public static void transposeHalfByte(int[] q, byte[] quantQueryByte) {
-        if (quantQueryByte.length * Byte.SIZE < 4 * q.length) {
-            throw new IllegalArgumentException("packed array is too small: " + quantQueryByte.length * Byte.SIZE + " < " + 4 * q.length);
+     * Stride 2-bit values into a byte array
+     * @param vector    The input vector, each value should be 0-3
+     * @param packed    The output bytes - the first MSB of all values first, followed by the second MSB
+     */
+    public static void stride2BitValues(int[] vector, byte[] packed) {
+        if (packed.length * Byte.SIZE / 2 < vector.length) {
+            throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE / 2 + " < " + vector.length);
         }
-        IMPL.transposeHalfByte(q, quantQueryByte);
+        IMPL.stride2BitValues(vector, packed);
+    }
+
+    /**
+     * Pack 2-bit values into a byte array
+     * @param vector    The input vector, each value should be 0-3
+     * @param packed    The output packed bytes, each byte containing 4 values concatenated together
+     */
+    public static void pack2BitValues(int[] vector, byte[] packed) {
+        if (packed.length * Byte.SIZE / 2 < vector.length) {
+            throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE / 2 + " < " + vector.length);
+        }
+        IMPL.pack2BitValues(vector, packed);
+    }
+
+    /**
+     * Stride 4-bit values into a byte array
+     * @param vector    The input vector, each value should be 0-15
+     * @param packed    The output bytes - the first MSB of all values first, followed by the second MSB, then the third, and the fourth
+     */
+    public static void stride4BitValues(int[] vector, byte[] packed) {
+        if (packed.length * Byte.SIZE < 4 * vector.length) {
+            throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE + " < " + 4 * vector.length);
+        }
+        IMPL.stride4BitValues(vector, packed);
     }
 
     /**
@@ -979,6 +883,32 @@ public class ESVectorUtil {
     }
 
     /**
+     * Computes {@code dest[destOffset..destOffset+length) = scaleOther * other[otherOffset..otherOffset+length)
+     *          + scaleDest * dest[destOffset..destOffset+length)}.
+     *
+     * @param scaleOther a multiplicative factor for other
+     * @param other the other vector
+     * @param otherOffset starting index into other
+     * @param scaleDest a multiplicative factor for dest
+     * @param dest the destination vector
+     * @param destOffset starting index into dest
+     * @param length number of elements to process
+     */
+    public static void linearCombination(
+        float scaleOther,
+        float[] other,
+        int otherOffset,
+        float scaleDest,
+        float[] dest,
+        int destOffset,
+        int length
+    ) {
+        Objects.checkFromIndexSize(otherOffset, length, other.length);
+        Objects.checkFromIndexSize(destOffset, length, dest.length);
+        IMPL.linearCombination(scaleOther, other, otherOffset, scaleDest, dest, destOffset, length);
+    }
+
+    /**
      * Computes dest = scale * other + scaledDes * dest
      *
      * @param scaleOther a multiplicative factor for other
@@ -990,7 +920,23 @@ public class ESVectorUtil {
         if (other.length != dest.length) {
             throw new IllegalArgumentException("vector dimensions differ: " + other.length + "!=" + dest.length);
         }
-        IMPL.linearCombination(scaleOther, other, scaleDest, dest);
+        IMPL.linearCombination(scaleOther, other, 0, scaleDest, dest, 0, dest.length);
+    }
+
+    /**
+     * Computes {@code dest[destOffset..destOffset+length) += scaleOther * other[otherOffset..otherOffset+length)}.
+     *
+     * @param scaleOther a multiplicative factor for other
+     * @param other the other vector
+     * @param otherOffset starting index into other
+     * @param dest the destination vector
+     * @param destOffset starting index into dest
+     * @param length number of elements to process
+     */
+    public static void linearCombination(float scaleOther, float[] other, int otherOffset, float[] dest, int destOffset, int length) {
+        Objects.checkFromIndexSize(otherOffset, length, other.length);
+        Objects.checkFromIndexSize(destOffset, length, dest.length);
+        IMPL.linearCombination(scaleOther, other, otherOffset, dest, destOffset, length);
     }
 
     /**
@@ -1004,7 +950,7 @@ public class ESVectorUtil {
         if (other.length != dest.length) {
             throw new IllegalArgumentException("vector dimensions differ: " + other.length + "!=" + dest.length);
         }
-        IMPL.linearCombination(scaleOther, other, dest);
+        IMPL.linearCombination(scaleOther, other, 0, dest, 0, dest.length);
     }
 
     /**
@@ -1086,5 +1032,23 @@ public class ESVectorUtil {
      */
     public static void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches) {
         IMPL.inRangeBitmask(values, lowerValue, upperValue, matches);
+    }
+
+    /**
+     * Transposes a row-major matrix from (rows x cols) to (cols x rows).
+     *
+     * @param m    input matrix in row-major order, length rows*cols
+     * @param rows number of rows in the input
+     * @param cols number of columns in the input
+     * @return transposed matrix in row-major order, length cols*rows
+     */
+    public static float[] transposeMatrix(float[] m, int rows, int cols) {
+        float[] t = new float[cols * rows];
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                t[j * rows + i] = m[i * cols + j];
+            }
+        }
+        return t;
     }
 }

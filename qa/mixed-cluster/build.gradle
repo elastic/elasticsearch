@@ -8,20 +8,11 @@
  */
 
 
-import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
-import org.elasticsearch.gradle.testclusters.TestClusterValueSource
-import org.elasticsearch.gradle.testclusters.TestClustersRegistry
-import org.elasticsearch.gradle.util.GradleUtils
-import org.elasticsearch.gradle.testclusters.TestClustersPlugin
-import org.gradle.api.artifacts.type.ArtifactTypeDefinition
 
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
-apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
   restTestConfig project(path: ':modules:aggregations', configuration: 'restTests')
@@ -32,18 +23,6 @@ restResources {
   restTests {
     includeCore '*'
   }
-}
-
-// Resolve feature metadata from the full default distribution so that cluster_features-based
-// skip conditions in YAML tests honour test features (e.g. index.time_series_synthetic_id).
-// The :distribution project aggregates feature metadata from :server and all bundled modules.
-def featuresMetadataConfig = configurations.create('featuresMetadataDeps') {
-  canBeConsumed = false
-  canBeResolved = true
-  attributes {
-    attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ClusterFeaturesMetadataPlugin.FEATURES_METADATA_TYPE)
-  }
-  dependencies.add(project.dependencies.project(path: ':distribution', configuration: ClusterFeaturesMetadataPlugin.FEATURES_METADATA_CONFIGURATION))
 }
 
 def excludeList = []
@@ -90,74 +69,42 @@ excludeList.add("cat.shards/10_basic/Help")
 excludeList.add('msearch/50_circuit_breaker/msearch circuit breaker trips and returns failure item without aborting the request')
 
 excludeList.add('search.highlight/70_number_of_fragments/number_of_fragments above the maximum should FAIL')
+excludeList.add('search.highlight/70_number_of_fragments/negative number_of_fragments should FAIL')
 excludeList.add('search.highlight/70_number_of_fragments/raising index.highlight.max_number_of_fragments should allow more fragments')
 excludeList.add(
   'search.highlight/70_number_of_fragments/lowering index.highlight.max_number_of_fragments should reject the default number of fragments'
 )
 
-def clusterPath = getPath()
-
 buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   if (bwcVersion != VersionProperties.getElasticsearchVersion()) {
     /* This project runs the core REST tests against a 4 node cluster where two of
-     the nodes has a different minor.  */
-    def baseCluster = testClusters.register(baseName) {
-      versions = [bwcVersion.toString(), project.version]
-      numberOfNodes = 4
-      setting 'path.repo', "${layout.buildDirectory.asFile.get()}/cluster/shared/repo/${baseName}"
-      setting 'xpack.security.enabled', 'false'
-      setting "xpack.license.self_generated.type", "trial"
-      /* There is a chance we have more master changes than "normal", so to avoid this test from failing,
-       we increase the threshold (as this purpose of this test isn't to test that specific indicator). */
-      if (bwcVersion.onOrAfter(Version.fromString("8.4.0"))) {
-        setting 'health.master_history.no_master_transitions_threshold', '10'
-      }
-      requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
-      // Enable test features on all ES nodes so that cluster_features-based skip conditions
-      // in YAML tests correctly reflect features declared in getTestFeatures().
-      systemProperty 'tests.testfeatures.enabled', 'true'
-      if (bwcVersion.before(Version.fromString("8.18.0"))) {
-        jvmArgs '-da:org.elasticsearch.index.mapper.DocumentMapper'
-        jvmArgs '-da:org.elasticsearch.index.mapper.MapperService'
-      }
-    }
-
-    tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
-      useCluster baseCluster
-      mustRunAfter("precommit")
-      // Pass feature metadata so that YAML test cluster_features skip conditions work correctly.
-      inputs.files(featuresMetadataConfig).withPathSensitivity(PathSensitivity.NONE)
-      nonInputProperties.systemProperty('tests.features.metadata.path', { -> featuresMetadataConfig.asPath })
-      def baseInfo = getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") }
-      def baseInfoAfterOneNodeUpdate = getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") }
-      def baseInfoAfterTwoNodesUpdate = getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") }
-      def sharedRepoFolder = layout.buildDirectory.file("cluster/shared/repo/${baseName}").get().asFile
-      doFirst {
-        delete(sharedRepoFolder)
-        // Getting the endpoints causes a wait for the cluster
-        println "Test cluster endpoints are: ${-> baseInfo.get().join(",")}"
-        println "Upgrading one node to create a mixed cluster"
-        getRegistry().get().nextNodeToNextVersion(baseCluster)
-
-        // Getting the endpoints causes a wait for the cluster
-        println "Upgrade complete, endpoints are: ${-> baseInfoAfterOneNodeUpdate.get()}"
-        println "Upgrading another node to create a mixed cluster"
-        getRegistry().get().nextNodeToNextVersion(baseCluster)
-      }
+     the nodes has a different minor. The cluster is built by
+     org.elasticsearch.backwards.Clusters in the yamlRestTest source set. */
+    def yamlRestTest = tasks.register("v${bwcVersion}#yamlRestTest", StandaloneRestIntegTestTask) {
+      // The full distribution is required both because the BWC nodes are only published as the default distribution and
+      // because the core REST tests exercise features aggregated from every bundled module.
+      usesDefaultDistribution("mixed-cluster BWC tests run the full core REST suite against the default distribution")
+      usesBwcDistribution(bwcVersion)
+      // Clusters#CLUSTER is declared shared(true) so all suites reuse one four-node cluster, as the legacy
+      // mixedClusterTest task did. Sharing is per-JVM, so a single fork is required to realise the saving.
+      maxParallelForks = 1
+      systemProperty("tests.old_cluster_version", bwcVersion.toString())
+      systemProperty("tests.bwc_nodes_version", bwcVersion.toString().replace('-SNAPSHOT', ''))
+      testClassesDirs = sourceSets.yamlRestTest.output.classesDirs
+      classpath = sourceSets.yamlRestTest.runtimeClasspath
       if (excludeList.isEmpty() == false) {
         systemProperty 'tests.rest.blacklist', excludeList.join(',')
       }
-      nonInputProperties.systemProperty('tests.rest.cluster', baseInfoAfterTwoNodesUpdate)
-      nonInputProperties.systemProperty('tests.clustername', baseName)
-      systemProperty 'tests.path.repo', "${layout.buildDirectory.file("cluster/shared/repo/${baseName}").get().asFile}"
-      systemProperty 'tests.bwc_nodes_version', bwcVersion.toString().replace('-SNAPSHOT', '')
-      systemProperty 'tests.new_nodes_version', project.version.toString().replace('-SNAPSHOT', '')
-      def bwcEnabled = project.bwc_tests_enabled
-      onlyIf("BWC tests disabled") { bwcEnabled }
     }
 
     tasks.register(bwcTaskName(bwcVersion)) {
-      dependsOn "${baseName}#mixedClusterTest"
+      dependsOn yamlRestTest
     }
   }
+}
+
+// The base (unversioned) yamlRestTest task cannot run: the cluster requires tests.old_cluster_version, which is only
+// supplied by the per-BWC-version tasks registered above.
+tasks.named("yamlRestTest") {
+  enabled = false
 }

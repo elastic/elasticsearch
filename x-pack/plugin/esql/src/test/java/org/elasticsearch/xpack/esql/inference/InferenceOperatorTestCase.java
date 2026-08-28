@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -141,40 +142,44 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
                 Request request,
                 ActionListener<Response> listener
             ) {
-                runWithRandomDelay(() -> {
-                    if (shouldFail.get()) {
-                        listener.onFailure(failureException);
-                        return;
-                    }
-                    if (action instanceof InferenceAction && request instanceof InferenceAction.Request inferenceRequest) {
-                        listener.onResponse((Response) new InferenceAction.Response(mockInferenceResult(inferenceRequest)));
-                        return;
-                    }
-                    if (action instanceof EmbeddingAction && request instanceof EmbeddingAction.Request embeddingRequest) {
-                        List<String> inputs = embeddingRequest.getEmbeddingRequest()
-                            .inputs()
-                            .stream()
-                            .map(group -> group.value().value())
-                            .toList();
-                        InferenceAction.Request syntheticRequest = InferenceAction.Request.builder(
-                            embeddingRequest.getInferenceEntityId(),
-                            embeddingRequest.getTaskType()
-                        ).setInput(inputs).build();
-                        listener.onResponse((Response) new InferenceAction.Response(mockInferenceResult(syntheticRequest)));
-                        return;
-                    }
-                    if (action instanceof RerankAction && request instanceof RerankAction.Request rerankRequest) {
-                        List<String> inputs = rerankRequest.getRerankRequest().inputs().stream().map(InferenceString::value).toList();
-                        InferenceAction.Request syntheticRequest = InferenceAction.Request.builder(
-                            rerankRequest.getInferenceEntityId(),
-                            rerankRequest.getTaskType()
-                        ).setInput(inputs).build();
-                        listener.onResponse((Response) new InferenceAction.Response(mockInferenceResult(syntheticRequest)));
-                        return;
-                    }
+                try {
+                    runWithRandomDelay(() -> {
+                        if (shouldFail.get()) {
+                            listener.onFailure(failureException);
+                            return;
+                        }
+                        if (action instanceof InferenceAction && request instanceof InferenceAction.Request inferenceRequest) {
+                            listener.onResponse((Response) new InferenceAction.Response(mockInferenceResult(inferenceRequest)));
+                            return;
+                        }
+                        if (action instanceof EmbeddingAction && request instanceof EmbeddingAction.Request embeddingRequest) {
+                            List<String> inputs = embeddingRequest.getEmbeddingRequest()
+                                .inputs()
+                                .stream()
+                                .map(group -> group.value().value())
+                                .toList();
+                            InferenceAction.Request syntheticRequest = InferenceAction.Request.builder(
+                                embeddingRequest.getInferenceEntityId(),
+                                embeddingRequest.getTaskType()
+                            ).setInput(inputs).build();
+                            listener.onResponse((Response) new InferenceAction.Response(mockInferenceResult(syntheticRequest)));
+                            return;
+                        }
+                        if (action instanceof RerankAction && request instanceof RerankAction.Request rerankRequest) {
+                            List<String> inputs = rerankRequest.getRerankRequest().inputs().stream().map(InferenceString::value).toList();
+                            InferenceAction.Request syntheticRequest = InferenceAction.Request.builder(
+                                rerankRequest.getInferenceEntityId(),
+                                rerankRequest.getTaskType()
+                            ).setInput(inputs).build();
+                            listener.onResponse((Response) new InferenceAction.Response(mockInferenceResult(syntheticRequest)));
+                            return;
+                        }
 
-                    listener.onFailure(new UnsupportedOperationException("Unexpected action: " + action));
-                });
+                        listener.onFailure(new UnsupportedOperationException("Unexpected action: " + action));
+                    });
+                } catch (EsRejectedExecutionException e) {
+                    listener.onFailure(e);
+                }
             }
 
             private void runWithRandomDelay(Runnable runnable) {

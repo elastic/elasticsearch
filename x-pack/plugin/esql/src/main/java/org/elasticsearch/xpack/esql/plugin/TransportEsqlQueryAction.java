@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.logging.activity.ActivityLogger;
 import org.elasticsearch.common.logging.activity.QueryLogger;
@@ -460,6 +461,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                     ci.cpuNanos(),
                     QueryMetricsListener.READ_NANOS,
                     ci.readNanos(),
+                    QueryMetricsListener.READ_CPU_NANOS,
+                    ci.readCpuNanos(),
                     QueryMetricsListener.SPLIT_DISCOVERY_NANOS,
                     qp.splitDiscoveryNanos(),
                     QueryMetricsListener.BYTES_READ,
@@ -563,7 +566,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             services.blockFactoryProvider().blockFactory(),
             services.plannerSettings().get()
         );
-        // A lenient external read (e.g. a max_record_size truncation under a non-strict error_mode) returns fewer
+        // A lenient external read (e.g. a external_max_record_size truncation under a non-strict error_mode) returns fewer
         // records than the source held. Surface that as is_partial on the response — the structured counterpart of
         // the client Warning header — here at the single Result->response chokepoint, so every execution path
         // (coordinator-only, distributed, subplan/fork) is covered uniformly. External-only queries carry no
@@ -573,6 +576,13 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             if (result.executionInfo() != null) {
                 result.executionInfo().markPartial();
             }
+        }
+        /*
+         * Shift all of ESQL's carefully maintained Warnings onto the spooky ThreadLocal
+         * for render.
+         */
+        for (String warning : result.completionInfo().warnings()) {
+            HeaderWarning.addWarning(warning);
         }
         List<ColumnInfoImpl> columns = result.schema().stream().map(c -> {
             List<String> originalTypes;
@@ -602,6 +612,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 result.completionInfo().rowsEmitted(),
                 result.completionInfo().bytesRead(),
                 result.completionInfo().readNanos(),
+                result.completionInfo().readCpuNanos(),
                 result.completionInfo().cpuNanos(),
                 profile,
                 request.columnar(),
@@ -622,6 +633,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             result.completionInfo().rowsEmitted(),
             result.completionInfo().bytesRead(),
             result.completionInfo().readNanos(),
+            result.completionInfo().readCpuNanos(),
             result.completionInfo().cpuNanos(),
             profile,
             request.columnar(),

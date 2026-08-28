@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.FileSplitProvider;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
+import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 
 import java.util.HashMap;
@@ -28,6 +29,7 @@ import java.util.function.BooleanSupplier;
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationUtils.rejectUnknownFields;
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationUtils.validateEnum;
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationUtils.validateInt;
+import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationUtils.validateStringList;
 
 /**
  * {@link DataSourceValidator} for file-based external sources (S3, GCS, Azure).
@@ -40,7 +42,7 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationU
  * <p>The {@code format} dataset setting selects a file format explicitly (any
  * registered format name, or {@link FormatNameResolver#FORMAT_AUTO} / absent to infer
  * from the resource extension). Format-specific dataset fields (e.g. CSV's
- * {@code delimiter}, Parquet's {@code optimized_reader}) are validated against the
+ * {@code delimiter}) are validated against the
  * <em>resolved</em> format: explicit {@code format} → resource extension → unknown.
  * Both require a {@link FormatConfigKeyResolver} set via
  * {@link #withFormatConfigKeyResolver}. Without a resolver the validator cannot know
@@ -51,12 +53,12 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
     /**
      * Error shown when a data source is provisioned with federated authentication settings while the
-     * {@code esql.datasource.federated_identity.enabled} cluster setting is disabled. The federated fields
+     * {@code esql.external.federated_identity.enabled} cluster setting is disabled. The federated fields
      * themselves remain registered on each configuration regardless of the setting, so a PUT carrying them
      * produces this explicit message rather than an "unknown setting" error.
      */
     public static final String FEDERATED_IDENTITY_DISABLED_MESSAGE =
-        "federated authentication settings require the [esql.datasource.federated_identity.enabled] cluster setting to be enabled; "
+        "federated authentication settings require the [esql.external.federated_identity.enabled] cluster setting to be enabled; "
             + "it is disabled by default";
 
     // Dataset settings are plain values — no secrets. Credentials are inherited from the parent datasource.
@@ -88,6 +90,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         fields.add(FormatNameResolver.CONFIG_FORMAT);
         fields.addAll(ErrorPolicy.CONFIG_KEYS);
         fields.addAll(PartitionConfig.CONFIG_KEYS);
+        fields.addAll(ExclusionConfig.CONFIG_KEYS);
         fields.addAll(FileSplitProvider.CONFIG_KEYS);
         COORDINATOR_DATASET_KEYS = Set.copyOf(fields);
     }
@@ -180,7 +183,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * Returns a new validator that gates {@code auth=managed_identity} on the supplied boolean supplier.
      * The supplier is called on each validation. Pass a live supplier (e.g. backed by an
      * {@code AtomicBoolean} updated via {@code ClusterSettings.addSettingsUpdateConsumer}) so
-     * that operator changes to {@code esql.datasource.managed_identity.enabled} take effect
+     * that operator changes to {@code esql.external.managed_identity.enabled} take effect
      * without a node restart.
      */
     public FileDataSourceValidator withManagedIdentityEnabled(BooleanSupplier supplier) {
@@ -271,8 +274,10 @@ public class FileDataSourceValidator implements DataSourceValidator {
         // would produce at query time. Each parser reads the keys it owns from the settings map.
         // error_mode + max_errors + max_error_ratio (incl. mutual exclusion) via the owning policy parser.
         validate(() -> ErrorPolicy.fromConfig(settings, ErrorPolicy.STRICT), errors);
-        // partition_detection enum via its owning parser (partition_path/hive_partitioning are free-form,
-        // matching the query path which treats any non-"false" hive value as enabled).
+        // partition_detection enum, plus the combinations in which one of the three partition settings would be
+        // silently ignored, via the owning parser. Stricter than the query path deliberately: PartitionConfig
+        // resolves stored datasets leniently so an upgrade cannot turn a working dataset into a query-time error,
+        // which means a new registration is the only place a contradiction can still be caught.
         validateEnum(
             settings,
             result,
@@ -281,6 +286,13 @@ public class FileDataSourceValidator implements DataSourceValidator {
             PartitionConfig.Strategy::parse,
             errors
         );
+        validate(() -> PartitionConfig.validate(settings), errors);
+        // file_exclusions: array-of-strings shape here, pattern compilation via the owning parser. Stricter than the query path for the
+        // same reason as the partition
+        // settings above: ExclusionConfig.fromConfig degrades a malformed stored value to its default so an
+        // upgrade cannot break a working dataset, which leaves registration as the only place to catch it.
+        validateStringList(settings, result, ExclusionConfig.CONFIG_FILE_EXCLUSIONS, errors);
+        validate(() -> ExclusionConfig.validate(settings), errors);
         Object schemaResolution = settings.get(ExternalSourceResolver.CONFIG_SCHEMA_RESOLUTION);
         if (schemaResolution != null) {
             validate(() -> FormatReader.SchemaResolution.parse(schemaResolution.toString()), errors);

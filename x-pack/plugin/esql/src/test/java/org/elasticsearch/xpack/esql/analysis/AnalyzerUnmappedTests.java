@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -43,7 +44,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -72,6 +72,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -97,8 +98,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         DataType.COUNTER_INTEGER,
         DataType.COUNTER_LONG,
         DataType.DENSE_VECTOR,
-        // TODO: DOUBLE_RANGE: fix for double range
-        DataType.DOUBLE_RANGE,
         DataType.EXPONENTIAL_HISTOGRAM,
         DataType.FLATTENED,
         DataType.HISTOGRAM,
@@ -1182,7 +1181,13 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             );
 
             var plan = analyzer().addIndex(
-                new EsIndex("test*", mapping, Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD), Map.of(), Map.of())
+                new EsIndex(
+                    "test*",
+                    mapping,
+                    Map.of("test1", new IndexProperties(IndexMode.STANDARD, 0), "test2", new IndexProperties(IndexMode.STANDARD, 0)),
+                    Map.of(),
+                    Map.of()
+                )
             ).statement(setUnmappedLoad("""
                 FROM test*
                 | SORT sort_field
@@ -1467,7 +1472,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
      */
     public void testLoadAllModeRejectsUnsupportedCommands() {
         for (var commandAndLabel : List.of(
-            Tuple.tuple("| STATS COUNT(*) BY languages", "STATS"),
             Tuple.tuple("| DISSECT first_name \"%{a}\"", "DISSECT"),
             Tuple.tuple("| GROK first_name \"%{WORD:a}\"", "GROK"),
             Tuple.tuple("| MV_EXPAND first_name", "MV_EXPAND"),
@@ -1478,7 +1482,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 .statementError(
                     setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
                     containsString(
-                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT and LIMIT commands; ["
+                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
+                            + "STATS and INLINE STATS commands; ["
                             + commandAndLabel.v2()
                             + "] is not supported yet"
                     )
@@ -1497,7 +1502,49 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             | SORT name
             | LIMIT 10
             """));
-        assertThat(Expressions.names(plan.output()), equalTo(List.of("name", "x", UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
+        assertThat(Expressions.names(plan.output()), equalTo(List.of("name", "x")));
+    }
+
+    public void testLoadAllModeAllowsInlineStats() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("""
+            FROM test
+            | INLINE STATS c = COUNT(*)
+            | INLINE STATS m = MAX(salary) BY languages
+            """));
+        assertThat(Expressions.names(plan.output()), hasItems("c", "m"));
+    }
+
+    public void testLoadAllModeAllowsStats() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | STATS c = COUNT(*) BY languages"));
+        assertThat(Expressions.names(plan.output()), equalTo(List.of("c", "languages")));
+    }
+
+    public void testLoadAllModeAllowsStatsCombinedWithInlineStats() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | INLINE STATS c = COUNT(*) | STATS s = SUM(c)"));
+        assertThat(Expressions.names(plan.output()), equalTo(List.of("s")));
+    }
+
+    /**
+     * The {@code TS} command creates an {@link EsRelation} with {@link IndexMode#TIME_SERIES}, which is rejected by the allow-list.
+     * The error names the source command ({@code TS}), not the internal node type. Tested both with and without a downstream STATS.
+     */
+    public void testLoadAllModeRejectsTimeSeriesCommand() {
+        test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
+            .statementError(
+                setUnmappedLoadAll("TS test | STATS MAX(RATE(network.bytes_in)) BY host"),
+                containsString(
+                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
+                        + "STATS and INLINE STATS commands; [TS] is not supported yet"
+                )
+            );
+        test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
+            .statementError(
+                setUnmappedLoadAll("TS test | SORT @timestamp | LIMIT 10"),
+                containsString(
+                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
+                        + "STATS and INLINE STATS commands; [TS] is not supported yet"
+                )
+            );
     }
 
     /**
@@ -1577,7 +1624,14 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         var merged = new EsIndex(
             "idx*",
             Map.of("partial_long", partialLong, "conflicted", conflicted),
-            Map.of("idx_a", IndexMode.STANDARD, "idx_b", IndexMode.STANDARD, "idx_unmapped", IndexMode.STANDARD),
+            Map.of(
+                "idx_a",
+                new IndexProperties(IndexMode.STANDARD, 0),
+                "idx_b",
+                new IndexProperties(IndexMode.STANDARD, 0),
+                "idx_unmapped",
+                new IndexProperties(IndexMode.STANDARD, 0)
+            ),
             Map.of(),
             Map.of()
         );
@@ -1617,7 +1671,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         var merged = new EsIndex(
             pattern,
             Map.of("partial_long", partialLong, "common", keywordField("common")),
-            Map.of("idx_a", IndexMode.STANDARD, "idx_b", IndexMode.STANDARD),
+            Map.of("idx_a", new IndexProperties(IndexMode.STANDARD, 0), "idx_b", new IndexProperties(IndexMode.STANDARD, 0)),
             Map.of(),
             Map.of()
         );
@@ -1634,7 +1688,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         var merged = new EsIndex(
             pattern,
             Map.of("partial_long", partialLong, "common", keywordField("common")),
-            Map.of("idx_a", IndexMode.STANDARD, "idx_b", IndexMode.STANDARD),
+            Map.of("idx_a", new IndexProperties(IndexMode.STANDARD, 0), "idx_b", new IndexProperties(IndexMode.STANDARD, 0)),
             Map.of(),
             Map.of()
         );
@@ -1837,7 +1891,13 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
         var sub = new PotentiallyUnmappedSingleTypeEsField(longField("sub"), Set.of("idx_mapped"));
         var obj = new EsField("obj", DataType.OBJECT, Map.of("sub", sub), true, EsField.TimeSeriesFieldType.NONE);
-        var esIndex = new EsIndex("idx*", Map.of("obj", obj), Map.of("idx_mapped", IndexMode.STANDARD), Map.of(), Map.of());
+        var esIndex = new EsIndex(
+            "idx*",
+            Map.of("obj", obj),
+            Map.of("idx_mapped", new IndexProperties(IndexMode.STANDARD, 0)),
+            Map.of(),
+            Map.of()
+        );
 
         var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM idx* | SORT `obj.sub`"));
         assertThat(plan, not(nullValue()));
@@ -1861,11 +1921,11 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             Map.of("@timestamp", tsField),
             Map.of(
                 "sample_data",
-                IndexMode.STANDARD,
+                new IndexProperties(IndexMode.STANDARD, 0),
                 "sample_data_ts_nanos",
-                IndexMode.STANDARD,
+                new IndexProperties(IndexMode.STANDARD, 0),
                 "no_mapping_sample_data",
-                IndexMode.STANDARD
+                new IndexProperties(IndexMode.STANDARD, 0)
             ),
             Map.of(),
             Map.of()
@@ -1990,7 +2050,9 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     private static TestAnalyzer index1() {
         Map<String, EsField> mapping = Map.of("field", new UnsupportedEsField("field", List.of("flattened")));
-        return analyzer().addIndex(new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of()));
+        return analyzer().addIndex(
+            new EsIndex("test", mapping, Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of())
+        );
     }
 
     private static void assertUnmappedLoadError(TestAnalyzer analyzer, String query, Matcher<String> matcher) {
@@ -2015,7 +2077,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 (k, field) -> IndexResolver.wrapPartiallyUnmappedField(field, fieldName, fieldName, mappedIndices)
             );
         }
-        return new EsIndex("idx*", wrappedMapping, Map.of("idx_mapped", IndexMode.STANDARD), Map.of(), Map.of());
+        return new EsIndex("idx*", wrappedMapping, Map.of("idx_mapped", new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of());
     }
 
     private static EsIndex partialAmdAndCommonIndex() {

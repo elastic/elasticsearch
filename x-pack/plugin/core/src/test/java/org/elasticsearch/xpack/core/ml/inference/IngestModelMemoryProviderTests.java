@@ -8,16 +8,16 @@
 package org.elasticsearch.xpack.core.ml.inference;
 
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class IngestModelMemoryProviderTests extends ESTestCase {
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void resetModelMemoryProvider() throws Exception {
         IngestModelMemoryProvider.setInstance(IngestModelMemoryProvider.Noop.INSTANCE);
-        super.tearDown();
     }
 
     public void testNoopProviderReturnsZeroExactBytes() {

@@ -349,6 +349,36 @@ public class KnnIndexer {
         }
     }
 
+    /**
+     * Opens a stateless <em>indexing-node</em> directory for the given index path. Files are written locally and never
+     * uploaded, so every reopen reads from the local copy. This is the read path a stateless indexing node takes when a merge
+     * reopens a segment file it has just written for scoring.
+     * <p>
+     * The index is always built from scratch: the underlying directory only tracks the files it creates itself, so
+     * {@code indexPath} is wiped when the directory is opened. This is why the {@code stateless-index} directory type
+     * requires {@code reindex: true}.
+     */
+    static Directory openStatelessIndexDirectory(Path indexPath) throws IOException {
+        Path workPath = indexPath.resolveSibling(indexPath.getFileName() + ".stateless_index_work");
+        Files.createDirectories(workPath);
+        logger.info("Opening stateless index directory for index at {} with work path {}", indexPath, workPath);
+        return newStatelessIndexDirectory(indexPath, workPath);
+    }
+
+    /**
+     * Creates a directory backed by stateless indexing-node infrastructure. Loaded via reflection for the same reason as
+     * {@link #newStatelessDirectory}.
+     */
+    private static Directory newStatelessIndexDirectory(Path indexPath, Path workPath) throws IOException {
+        try {
+            Class<?> factoryClass = Class.forName("org.elasticsearch.xpack.stateless.lucene.StatelessDirectoryFactory");
+            var method = factoryClass.getMethod("newIndexDirectory", Path.class, Path.class);
+            return (Directory) method.invoke(null, indexPath, workPath);
+        } catch (Exception e) {
+            throw new IOException("Failed to create stateless index directory. Ensure the stateless test artifact is on the classpath.", e);
+        }
+    }
+
     static void logStatelessCacheStats(Directory dir, String label) {
         try {
             Class<?> factoryClass = Class.forName("org.elasticsearch.xpack.stateless.lucene.StatelessDirectoryFactory");

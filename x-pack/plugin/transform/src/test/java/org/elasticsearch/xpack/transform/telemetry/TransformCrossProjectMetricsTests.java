@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.transform.telemetry;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.telemetry.metric.LongGauge;
+import org.elasticsearch.telemetry.metric.LongAsyncGauge;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -45,15 +45,12 @@ public class TransformCrossProjectMetricsTests extends ESTestCase {
 
     private TransformCrossProjectMetrics component;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
-
+    public void initTransformCrossProjectMetrics() throws Exception {
         var meterRegistry = mock(MeterRegistry.class);
-        when(meterRegistry.registerLongsGauge(anyString(), anyString(), anyString(), any())).thenAnswer(inv -> {
+        when(meterRegistry.registerLongsAsyncGauge(anyString(), anyString(), anyString(), any())).thenAnswer(inv -> {
             observersByMetricName.put(inv.getArgument(0), inv.getArgument(3));
-            return mock(LongGauge.class);
+            return mock(LongAsyncGauge.class);
         });
 
         component = new TransformCrossProjectMetrics(

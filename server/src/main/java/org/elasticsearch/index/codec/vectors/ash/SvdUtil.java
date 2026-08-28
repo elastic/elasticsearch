@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.vectors.ash;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.util.Arrays;
+import java.util.Random;
 
 import static org.elasticsearch.simdvec.ESVectorUtil.transposeMatrix;
 
@@ -27,6 +28,17 @@ import static org.elasticsearch.simdvec.ESVectorUtil.transposeMatrix;
 final class SvdUtil {
 
     private SvdUtil() {}
+
+    /**
+     * Returns an array of floats each with a Gaussian distribution around 0.0
+     */
+    public static float[] randomGaussians(Random random, int dims) {
+        float[] v = new float[dims];
+        for (int i = 0; i < dims; i++) {
+            v[i] = (float) random.nextGaussian();
+        }
+        return v;
+    }
 
     /**
      * Result of a thin SVD decomposition.
@@ -60,8 +72,9 @@ final class SvdUtil {
             return new SvdResult(transposeMatrix(result.vt(), m, m), result.s(), transposeMatrix(result.u(), n, m));
         }
 
-        // Copy A into working matrix (m x n)
-        float[] work = a.clone();
+        // Copy A into working matrix; Jacobi rotations are applied in-place and after
+        // column normalization this array becomes U (m x n).
+        float[] u = a.clone();
 
         // V starts as identity (n x n)
         float[] v = new float[n * n];
@@ -69,7 +82,7 @@ final class SvdUtil {
             v[i * n + i] = 1.0f;
         }
 
-        // One-sided Jacobi: apply rotations to columns of work until convergence
+        // One-sided Jacobi: apply rotations to columns of u until convergence
         int maxIterations = 100 * n;
         for (int iter = 0; iter < maxIterations; iter++) {
             boolean converged = true;
@@ -78,9 +91,9 @@ final class SvdUtil {
                     // Compute 2x2 Gram matrix elements for columns p, q
                     double app = 0, aqq = 0, apq = 0;
                     for (int i = 0; i < m; i++) {
-                        app = Math.fma(work[i * n + p], work[i * n + p], app);
-                        aqq = Math.fma(work[i * n + q], work[i * n + q], aqq);
-                        apq = Math.fma(work[i * n + p], work[i * n + q], apq);
+                        app = Math.fma(u[i * n + p], u[i * n + p], app);
+                        aqq = Math.fma(u[i * n + q], u[i * n + q], aqq);
+                        apq = Math.fma(u[i * n + p], u[i * n + q], apq);
                     }
 
                     if (Math.abs(apq) < 1e-10 * Math.sqrt(app * aqq)) {
@@ -99,12 +112,12 @@ final class SvdUtil {
                     double cos = 1.0 / Math.sqrt(1.0 + t * t);
                     double sin = t * cos;
 
-                    // Apply rotation to columns p, q of work
+                    // Apply rotation to columns p, q of u
                     for (int i = 0; i < m; i++) {
-                        double wp = work[i * n + p];
-                        double wq = work[i * n + q];
-                        work[i * n + p] = (float) (cos * wp - sin * wq);
-                        work[i * n + q] = (float) (sin * wp + cos * wq);
+                        double wp = u[i * n + p];
+                        double wq = u[i * n + q];
+                        u[i * n + p] = (float) (cos * wp - sin * wq);
+                        u[i * n + q] = (float) (sin * wp + cos * wq);
                     }
 
                     // Apply rotation to columns p, q of V
@@ -121,24 +134,14 @@ final class SvdUtil {
             }
         }
 
-        // Extract singular values and normalize columns of work to get U
+        // normalize columns of u in-place, and use the norms as singular values
         float[] s = new float[n];
-        float[] u = new float[m * n];
         for (int j = 0; j < n; j++) {
-            double norm = 0;
-            for (int i = 0; i < m; i++) {
-                norm = Math.fma(work[i * n + j], work[i * n + j], norm);
-            }
-            s[j] = (float) Math.sqrt(norm);
-            if (s[j] > 1e-10f) {
-                float invNorm = 1.0f / s[j];
-                for (int i = 0; i < m; i++) {
-                    u[i * n + j] = work[i * n + j] * invNorm;
-                }
-            }
+            s[j] = normalizeColumn(u, j, n, m);
         }
 
         // Sort by descending singular value
+        // TODO: can we transpose the matrix now so the column swaps become row swaps -> arraycopy?
         sortDescending(u, s, v, m, n);
 
         // Vt = transpose of V
@@ -214,6 +217,7 @@ final class SvdUtil {
             }
 
             // X_new = X @ B (row-broadcast for JIT vectorization)
+            // this uses doubles, so can't use matrixMultiply nor ESVectorUtil methods
             double[] xNew = new double[k * k];
             for (int i = 0; i < k; i++) {
                 int xBase = i * k;
@@ -244,39 +248,31 @@ final class SvdUtil {
         // Power iteration on M^T M to find largest eigenvalue (= sigma_max^2)
         float[] v = new float[k];
         // Initialize with uniform vector
-        float initVal = (float) (1.0 / Math.sqrt(k));
-        Arrays.fill(v, initVal);
+        Arrays.fill(v, (float) (1.0 / Math.sqrt(k)));
         float[] mv = new float[k];
         float[] mtmv = new float[k];
+
         for (int iter = 0; iter < iterations; iter++) {
             // mv = M @ v
+            matrixVectorMultiply(m, k, k, v, mv);
+            // mtmv = M^T @ mv: row-broadcast so M is read contiguously
             for (int i = 0; i < k; i++) {
-                mv[i] = ESVectorUtil.dotProduct(m, i * k, v, 0, k);
+                ESVectorUtil.linearCombination(mv[i], m, i * k, mtmv, 0, k);
             }
-            // mtmv = M^T @ mv
-            double normSq = 0;
-            for (int j = 0; j < k; j++) {
-                double sum = 0;
-                for (int i = 0; i < k; i++) {
-                    sum = Math.fma(m[i * k + j], mv[i], sum);
-                }
-                mtmv[j] = (float) sum;
-                normSq += sum * sum;
-            }
-            // Normalize
-            double norm = Math.sqrt(normSq);
-            if (norm < 1e-30) return 0f;
-            for (int j = 0; j < k; j++) {
-                v[j] = (float) (mtmv[j] / norm);
-            }
+            // Normalize mtmv - this becomes the new v for the next iteration
+            float normSq = ESVectorUtil.l2Normalize(mtmv);
+            if (normSq == 0f || !Float.isFinite(normSq)) return 0f;
+
+            float[] nextV = mtmv;
+            // re-use v for the next mtmv (less allocations woo!) and zero it out for re-use
+            Arrays.fill(v, 0f);
+            mtmv = v;
+            v = nextV;
         }
+
         // Compute ||M @ v|| which approximates sigma_max
-        double mvNormSq = 0;
-        for (int i = 0; i < k; i++) {
-            double sum = ESVectorUtil.dotProduct(m, i * k, v, 0, k);
-            mvNormSq += sum * sum;
-        }
-        return (float) Math.sqrt(mvNormSq);
+        matrixVectorMultiply(m, k, k, v, mv);
+        return (float) Math.sqrt(ESVectorUtil.dotProduct(mv, mv, k));
     }
 
     private static void sortDescending(float[] u, float[] s, float[] v, int m, int n) {
@@ -312,7 +308,7 @@ final class SvdUtil {
 
     /**
      * Computes the top-k right singular vectors of matrix A (m x n) using power iteration
-     * on the Gram matrix A^T A with deflation. Much faster than full SVD when k is small.
+     * on the Gram matrix A^T A. Much faster than full SVD when k is small.
      *
      * @param a   matrix in row-major order, length m*n
      * @param m   number of rows
@@ -337,46 +333,14 @@ final class SvdUtil {
         // Block (subspace) power iteration: process all k vectors simultaneously.
         // V = random (n x k), iterate: V <- A^T (A V), then QR-orthogonalize.
         // This is O(iterations * m * n * k) total -- much faster than deflation for large k.
-        //
-        // We store V in column-major form (n x k) for QR, but use a transposed (k x n) copy
-        // for the matmul inner loops to enable row-contiguous access and JIT vectorization.
-        java.util.Random rng = new java.util.Random(seed);
         int iters = 20; // sufficient for PCA init that gets refined by Procrustes
 
-        // V: (n x k) row-major -- each column is a candidate eigenvector
-        float[] v = new float[n * k];
-        for (int i = 0; i < n * k; i++) {
-            v[i] = (float) rng.nextGaussian();
-        }
+        float[] v = randomGaussians(new Random(seed), n * k);
         qrOrthogonalize(v, n, k);
 
         for (int iter = 0; iter < iters; iter++) {
-            // Build transposed view vT (k x n) for cache-friendly row access in matmul
-            float[] vT = transposeMatrix(v, n, k);
-
-            // W = A @ V (m x k): w[i*k + j] = dot(a[i*n..], vT[j*n..])
-            float[] w = new float[m * k];
-            for (int i = 0; i < m; i++) {
-                int aBase = i * n;
-                int wBase = i * k;
-                for (int j = 0; j < k; j++) {
-                    w[wBase + j] = ESVectorUtil.dotProduct(a, aBase, vT, j * n, n);
-                }
-            }
-
-            // V_new = A^T @ W (n x k): use row-broadcast accumulation
-            float[] vNew = new float[n * k];
-            for (int i = 0; i < m; i++) {
-                int aBase = i * n;
-                int wBase = i * k;
-                for (int d = 0; d < n; d++) {
-                    float aVal = a[aBase + d];
-                    int vNewBase = d * k;
-                    for (int j = 0; j < k; j++) {
-                        vNew[vNewBase + j] = Math.fma(aVal, w[wBase + j], vNew[vNewBase + j]);
-                    }
-                }
-            }
+            float[] w = matrixMultiply(a, v, m, n, k);          // W = A @ V (m x k)
+            float[] vNew = matrixMultiplyTA(a, w, m, n, k); // V_new = A^T @ W (n x k)
             qrOrthogonalize(vNew, n, k);
             v = vNew;
         }
@@ -385,10 +349,122 @@ final class SvdUtil {
         return transposeMatrix(v, n, k);
     }
 
+    private static float[] topKEigenvectorsGramTranspose(float[] a, int m, int n, int k, long seed) {
+        // A is (m x n) with m < n. Block power iteration on A A^T (m x m).
+        // U = random (m x k), iterate: U <- A (A^T U), then QR-orthogonalize.
+        // After convergence, recover right singular vectors: V = A^T U, normalize columns.
+        int iters = 20;
+
+        float[] u = randomGaussians(new Random(seed), m * k);
+        qrOrthogonalize(u, m, k);
+
+        for (int iter = 0; iter < iters; iter++) {
+            float[] w = matrixMultiplyTA(a, u, m, n, k);   // W = A^T @ U (n x k)
+            float[] uNew = matrixMultiply(a, w, m, n, k);  // U_new = A @ W (m x k)
+            qrOrthogonalize(uNew, m, k);
+            u = uNew;
+        }
+
+        // Recover right singular vectors: V = A^T U (n x k), normalize each column
+        float[] v = matrixMultiplyTA(a, u, m, n, k);
+        for (int j = 0; j < k; j++) {
+            normalizeColumn(v, j, k, n);
+        }
+        return transposeMatrix(v, n, k);
+    }
+
+    /**
+     * Computes {@code C = A @ B} where A is (m x k) and B is (k x n), both row-major.
+     * Result C is (m x n).
+     */
+    static float[] matrixMultiply(float[] a, float[] b, int m, int k, int n) {
+        float[] c = new float[m * n];
+        for (int i = 0; i < m; i++) {
+            int aBase = i * k;
+            int cBase = i * n;
+            for (int l = 0; l < k; l++) {
+                ESVectorUtil.linearCombination(a[aBase + l], b, l * n, c, cBase, n);
+            }
+        }
+        return c;
+    }
+
+    /**
+     * Computes {@code C = A^T @ B} where A is (m x k) and B is (m x n), both row-major.
+     * Result C is (k x n).
+     */
+    static float[] matrixMultiplyTA(float[] aT, float[] b, int m, int k, int n) {
+        float[] c = new float[k * n];
+        for (int l = 0; l < m; l++) {
+            int aBase = l * k;
+            int bBase = l * n;
+            for (int i = 0; i < k; i++) {
+                ESVectorUtil.linearCombination(aT[aBase + i], b, bBase, c, i * n, n);
+            }
+        }
+        return c;
+    }
+
+    /**
+     * Computes {@code result = A @ v} where A is a (rows x cols) row-major matrix.
+     *
+     * @param a      flat row-major matrix, length rows*cols
+     * @param rows   number of rows in A
+     * @param cols   number of columns in A (and length of v)
+     * @param v      input vector, length cols
+     * @return output vector, length rows
+     */
+    static float[] matrixVectorMultiply(float[] a, int rows, int cols, float[] v) {
+        float[] result = new float[rows];
+        matrixVectorMultiply(a, rows, cols, v, result);
+        return result;
+    }
+
+    /**
+     * Computes {@code result = A @ v} where A is a (rows x cols) row-major matrix.
+     *
+     * @param a      flat row-major matrix, length rows*cols
+     * @param rows   number of rows in A
+     * @param cols   number of columns in A (and length of v)
+     * @param v      input vector, length cols
+     * @param result output vector, length rows
+     */
+    static void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result) {
+        for (int i = 0; i < rows; i++) {
+            result[i] = ESVectorUtil.dotProduct(a, i * cols, v, 0, cols);
+        }
+    }
+
+    /**
+     * Normalizes column {@code col} of a row-major matrix in-place and returns the column norm.
+     * Elements are at indices {@code col}, {@code col + stride}, ..., {@code col + (length-1)*stride}.
+     * No-ops (but still returns the norm) if the norm is zero or non-finite.
+     *
+     * @param matrix flat row-major array
+     * @param col    column index within a row (starting offset of the column)
+     * @param stride number of columns in the matrix
+     * @param length number of rows to normalize
+     * @return the column norm before normalization
+     */
+    static float normalizeColumn(float[] matrix, int col, int stride, int length) {
+        double normSq = 0;
+        for (int i = 0; i < length; i++) {
+            normSq = Math.fma(matrix[i * stride + col], matrix[i * stride + col], normSq);
+        }
+        float norm = (float) Math.sqrt(normSq);
+        float invNorm = 1.0f / norm;
+        if (Float.isFinite(invNorm)) {
+            for (int i = 0; i < length; i++) {
+                matrix[i * stride + col] *= invNorm;
+            }
+        }
+        return norm;
+    }
+
     /**
      * Modified Gram-Schmidt QR orthogonalization in-place on columns of V (n x k), row-major.
      */
-    private static void qrOrthogonalize(float[] v, int n, int k) {
+    static void qrOrthogonalize(float[] v, int n, int k) {
         for (int j = 0; j < k; j++) {
             // Subtract projections of previous columns
             for (int prev = 0; prev < j; prev++) {
@@ -400,77 +476,7 @@ final class SvdUtil {
                     v[i * k + j] = (float) Math.fma(-dot, v[i * k + prev], v[i * k + j]);
                 }
             }
-            // Normalize column j
-            double normSq = 0;
-            for (int i = 0; i < n; i++) {
-                normSq = Math.fma(v[i * k + j], v[i * k + j], normSq);
-            }
-            float invNorm = (float) (1.0 / Math.sqrt(normSq));
-            if (Float.isFinite(invNorm)) {
-                for (int i = 0; i < n; i++) {
-                    v[i * k + j] *= invNorm;
-                }
-            }
+            normalizeColumn(v, j, k, n);
         }
-    }
-
-    private static float[] topKEigenvectorsGramTranspose(float[] a, int m, int n, int k, long seed) {
-        // A is (m x n) with m < n. Find top-k eigenvectors of A A^T (m x m), then transform.
-        // u_i = eigenvector of A A^T => v_i = A^T u_i / sigma_i (right singular vector)
-        float[] result = new float[k * n];
-        java.util.Random rng = new java.util.Random(seed);
-        float[][] deflated = new float[k][];
-        int found = 0;
-
-        for (int vec = 0; vec < k; vec++) {
-            // Random initial vector (m-dimensional)
-            float[] u = new float[m];
-            for (int i = 0; i < m; i++) {
-                u[i] = (float) rng.nextGaussian();
-            }
-            ESVectorUtil.l2Normalize(u);
-
-            // Power iteration on A A^T: u <- A (A^T u) / ||...||
-            for (int iter = 0; iter < 100; iter++) {
-                // w = A^T u (n-dimensional)
-                float[] w = new float[n];
-                for (int j = 0; j < n; j++) {
-                    double sum = 0;
-                    for (int i = 0; i < m; i++) {
-                        sum = Math.fma(a[i * n + j], u[i], sum);
-                    }
-                    w[j] = (float) sum;
-                }
-                // u_new = A w (m-dimensional)
-                float[] uNew = new float[m];
-                for (int i = 0; i < m; i++) {
-                    uNew[i] = ESVectorUtil.dotProduct(a, i * n, w, 0, n);
-                }
-                // Deflate
-                for (int d = 0; d < found; d++) {
-                    double dot = ESVectorUtil.dotProduct(uNew, deflated[d]);
-                    for (int i = 0; i < m; i++) {
-                        uNew[i] = (float) Math.fma(-dot, deflated[d][i], uNew[i]);
-                    }
-                }
-                ESVectorUtil.l2Normalize(uNew);
-                u = uNew;
-            }
-            deflated[found] = u;
-            found++;
-
-            // Recover right singular vector: v = A^T u, then normalize
-            float[] sv = new float[n];
-            for (int j = 0; j < n; j++) {
-                double sum = 0;
-                for (int i = 0; i < m; i++) {
-                    sum = Math.fma(a[i * n + j], u[i], sum);
-                }
-                sv[j] = (float) sum;
-            }
-            ESVectorUtil.l2Normalize(sv);
-            System.arraycopy(sv, 0, result, vec * n, n);
-        }
-        return result;
     }
 }

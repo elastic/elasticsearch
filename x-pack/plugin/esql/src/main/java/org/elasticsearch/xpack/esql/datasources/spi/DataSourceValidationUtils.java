@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.elasticsearch.common.ValidationException;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -74,6 +75,40 @@ public final class DataSourceValidationUtils {
             }
             if (parsed == null) {
                 errors.addValidationError("[" + field + "] must be one of " + Arrays.toString(values) + ", got [" + value + "]");
+                return;
+            }
+            result.put(field, value);
+        }
+    }
+
+    /**
+     * Validates that a setting value is a list of non-empty strings (a JSON array).
+     * If present and valid, the original value is stored as-is (no normalization) —
+     * glob entries are case-sensitive user data.
+     *
+     * @param settings the raw settings map
+     * @param result the validated result map to add to
+     * @param field the setting field name
+     * @param errors the exception to accumulate errors into
+     */
+    public static void validateStringList(
+        Map<String, Object> settings,
+        Map<String, Object> result,
+        String field,
+        ValidationException errors
+    ) {
+        Object value = settings.get(field);
+        if (value != null) {
+            if (value instanceof List<?> list) {
+                for (Object element : list) {
+                    if (element instanceof String s && s.isEmpty() == false) {
+                        continue;
+                    }
+                    errors.addValidationError("[" + field + "] must be a JSON array of non-empty strings, got [" + element + "]");
+                    return;
+                }
+            } else {
+                errors.addValidationError("[" + field + "] must be a JSON array of strings, got [" + value + "]");
                 return;
             }
             result.put(field, value);

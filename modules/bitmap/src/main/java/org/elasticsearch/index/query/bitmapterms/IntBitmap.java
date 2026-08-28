@@ -30,9 +30,14 @@ public final class IntBitmap implements BitmapValues {
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(IntBitmap.class);
 
     private final RoaringBitmap bitmap;
+    private final long cardinality;
 
     IntBitmap(RoaringBitmap bitmap) {
         this.bitmap = bitmap;
+        // Frozen at construction as LongBitmap freezes its own: getLongCardinality() sums every
+        // container, and every run within a run container, while the queries ask for it once per
+        // segment to size their cost estimate.
+        this.cardinality = bitmap.getLongCardinality();
     }
 
     /**
@@ -72,7 +77,7 @@ public final class IntBitmap implements BitmapValues {
 
     @Override
     public long cardinality() {
-        return bitmap.getLongCardinality();
+        return cardinality;
     }
 
     @Override
@@ -103,6 +108,15 @@ public final class IntBitmap implements BitmapValues {
     @Override
     public void encodeLast(byte[] dest) {
         NumericUtils.intToSortableBytes(bitmap.last(), dest, 0);
+    }
+
+    /**
+     * Whether the bitmap covers the inclusive range {@code [min, max]}, meaning it holds every value in
+     * that range.
+     */
+    @Override
+    public boolean coversRange(long min, long max) {
+        return bitmap.contains(min, max + 1);
     }
 
     @Override

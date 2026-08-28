@@ -17,6 +17,7 @@ toc:
       - file: configuration-reference/index-recovery-settings.md
       - file: configuration-reference/indexing-buffer-settings.md
       - file: configuration-reference/indexing-pressure-settings.md
+      - file: configuration-reference/ingest-settings.md
       - file: configuration-reference/license-settings.md
       - file: configuration-reference/local-gateway.md
       - file: configuration-reference/machine-learning-settings.md
@@ -162,8 +163,6 @@ toc:
           - file: mapping-reference/date.md
           - file: mapping-reference/date_nanos.md
           - file: mapping-reference/dense-vector.md
-            children:
-              - file: mapping-reference/gpu-vector-indexing.md
           - file: mapping-reference/flattened.md
           - file: mapping-reference/geo-point.md
           - file: mapping-reference/geo-shape.md

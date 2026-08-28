@@ -113,6 +113,16 @@ public class PushFiltersToSourceTests extends ESTestCase {
         assertSame("the filter must stay above the source, unpushed", filterExec, result);
     }
 
+    /**
+     * The stub above reaches {@code false} by saying nothing, which is the point: the SPI default is the conservative
+     * answer, so a reader written without a thought for {@code skip_row} loses the pushdown rather than the row-drop.
+     * Pinned separately from the rule so a flip of the default is a failure here and not only a silent correctness
+     * regression in whichever reader forgot to opt out.
+     */
+    public void testReaderSilentAboutRowDropTakesTheConservativeDefault() {
+        assertFalse(new StubReader().dropsRowsUnderPushedFilter());
+    }
+
     /** The same read on a reader that does drop rows on its filtered path (ORC) keeps the pushdown. */
     public void testPushesWhenReaderDropsRowsUnderPushedFilter() {
         FilterExec filterExec = filterOverExternalSource("skip_row", Set.of("salary"));
@@ -183,27 +193,19 @@ public class PushFiltersToSourceTests extends ESTestCase {
 
     private static FormatReaderRegistry registry(boolean dropsRowsUnderPushedFilter) {
         FormatReaderRegistry registry = new FormatReaderRegistry(null);
-        registry.registerLazy("parquet", (settings, blockFactory) -> new StubReader(dropsRowsUnderPushedFilter), null, null);
+        FormatReader reader = dropsRowsUnderPushedFilter ? new DroppingStubReader() : new StubReader();
+        registry.registerLazy("parquet", (settings, blockFactory) -> reader, null, null);
         return registry;
     }
 
     /**
      * Reader stub whose only interesting behaviour is the pair the rule consults: it always offers pushdown (via a
-     * support object that swallows every conjunct) and answers {@link FormatReader#dropsRowsUnderPushedFilter()} as
-     * configured. The remaining {@link NoConfigFormatReader} methods stay unimplemented so accidental use during a
-     * rule pass is loud.
+     * support object that swallows every conjunct) and says nothing at all about
+     * {@link FormatReader#dropsRowsUnderPushedFilter()} — the shape a newly written reader has, so it takes the SPI
+     * default. The remaining {@link NoConfigFormatReader} methods stay unimplemented so accidental use during a rule
+     * pass is loud.
      */
-    private static final class StubReader implements NoConfigFormatReader {
-        private final boolean dropsRows;
-
-        StubReader(boolean dropsRows) {
-            this.dropsRows = dropsRows;
-        }
-
-        @Override
-        public boolean dropsRowsUnderPushedFilter() {
-            return dropsRows;
-        }
+    private static class StubReader implements NoConfigFormatReader {
 
         @Override
         public FilterPushdownSupport filterPushdownSupport() {
@@ -237,5 +239,13 @@ public class PushFiltersToSourceTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    /** The opt-in half: a reader that does declare the row-drop on its filtered path, as ORC does. */
+    private static final class DroppingStubReader extends StubReader {
+        @Override
+        public boolean dropsRowsUnderPushedFilter() {
+            return true;
+        }
     }
 }

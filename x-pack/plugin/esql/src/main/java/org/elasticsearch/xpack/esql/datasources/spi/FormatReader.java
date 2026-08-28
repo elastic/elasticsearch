@@ -367,17 +367,23 @@ public interface FormatReader extends Closeable {
      * coercion across the batch and compacting every block at the page emit point. A reader that evaluates
      * a pushed predicate on a <em>separate</em> decode path (late materialization, two-phase decode) may
      * never reach that emit point, in which case the failed cell is merely nulled and the row survives —
-     * silently serving {@code null_field} semantics for a {@code skip_row} read. Such readers must return
-     * {@code false} so {@code PushFiltersToSource} withholds the pushdown and leaves the predicate in a
-     * {@code FilterExec} above the source; results stay correct (the filter still runs, just one level up)
-     * and every batch stays on the path that drops rows.
+     * silently serving {@code null_field} semantics for a {@code skip_row} read.
+     * <p>
+     * The default is therefore {@code false}: a reader is assumed <em>not</em> to drop rows once filtered
+     * until it declares that it does, so a new reader is correct while silent and only an explicit
+     * override can trade correctness for speed. On {@code false}, {@code PushFiltersToSource} withholds the
+     * pushdown and leaves the predicate in a {@code FilterExec} above the source; results stay correct on
+     * both counts (the filter still runs, just one level up, and every batch stays on the path that drops
+     * rows) and the only cost is the row-group / page-index skipping the pushdown would have bought.
+     * Overriding to {@code true} is a promise about a specific decode path and has to be demonstrated —
+     * see {@code OrcFormatReaderTests#testDropsRowsUnderPushedFilter}.
      * <p>
      * Only consulted when the read actually combines {@code skip_row} with declared-type columns — see
      * {@code DeclaredReadSpec#dropsRowsOnCoercionFailure}. With no declared types there is nothing to
      * coerce, hence no row to drop, and pushdown is always allowed.
      */
     default boolean dropsRowsUnderPushedFilter() {
-        return true;
+        return false;
     }
 
     default boolean supportsNativeAsync() {

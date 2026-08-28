@@ -1975,8 +1975,8 @@ public class OrcFormatReaderTests extends ESTestCase {
         }
         drainWarnings();
 
-        // ...which is why the reader may advertise the capability. Pinned so a future row-level ORC predicate path
-        // cannot quietly inherit "true" and start null-filling instead of dropping.
+        // ...which is why the reader may opt into the capability the SPI withholds by default. Pinned so a future
+        // row-level ORC predicate path cannot keep the now-stale "true" and start null-filling instead of dropping.
         assertTrue(new OrcFormatReader(blockFactory).dropsRowsUnderPushedFilter());
     }
 

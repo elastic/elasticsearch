@@ -54,9 +54,10 @@ import java.util.Arrays;
  * in the current batch, and where the batch is exactly as wide as {@link #beginBatch} was told. A caller
  * on a path that pre-filters rows (late materialization, two-phase predicate evaluation) would have to
  * transform its post-predicate positions back into batch coordinates first; none does today, which is
- * why {@code FormatReader#dropsRowsUnderPushedFilter} lets such a reader decline the pushdown outright
- * rather than silently mixing the two spaces. Both ends are checked: {@link #markFailed} rejects an
- * out-of-range position and {@link #filterBlocks} asserts each block's width.
+ * why {@code FormatReader#dropsRowsUnderPushedFilter} declines the pushdown by default rather than let a
+ * reader silently mix the two spaces — a reader claims the pushdown only by overriding it. Both ends are
+ * checked: {@link #markFailed} rejects an out-of-range position and {@link #filterBlocks} asserts each
+ * block's width.
  *
  * <h2>Exception contract</h2>
  * Budget-exceeded failures surface as {@link ParsingException} (an HTTP 400 client-data error), matching

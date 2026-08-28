@@ -412,8 +412,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
     }
 
     /**
-     * Parquet cannot drop rows once a filter is pushed into it. A pushed
-     * {@link ParquetPushedExpressions} turns on late materialization in
+     * Parquet cannot drop rows once a filter is pushed into it. This restates the SPI default rather than
+     * relying on it: Parquet is the concrete reason the default is the conservative one, so the reasoning
+     * belongs where the decode paths it names live.
+     * <p>
+     * A pushed {@link ParquetPushedExpressions} turns on late materialization in
      * {@link OptimizedParquetColumnIterator}, whose {@code nextWithLateMaterialization} /
      * {@code nextTwoPhaseBatch} paths emit their pages without going through
      * {@code ColumnarRowDropHelper#filterBlocks} — a coercion failure there would null the cell and keep

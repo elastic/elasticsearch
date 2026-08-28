@@ -65,7 +65,7 @@ import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
  * {@link WildcardLike} (and {@code Not(WildcardLike)}, and conjunctions thereof) are exceptions:
  * they push as {@link Pushability#YES} so {@code FilterExec} can be dropped entirely. The late-mat
  * evaluator handles {@code NOT (col LIKE p)} with three-valued logic by AND-ing out nulls before
- * negation (see {@link ParquetPushedExpressions#evaluateExpression}'s {@code Not(WildcardLike)}
+ * negation (see {@link ParquetPushedExpressions#evaluateNot}'s {@code Not(WildcardLike)}
  * special case), so removing the safety net does not change result semantics. The motivation: with
  * {@code RECHECK}, every surviving row pays the LIKE cost twice — once in the reader's late-mat
  * filter, once again in {@code FilterExec}. On large keyword scans (e.g. {@code URL LIKE
@@ -170,7 +170,7 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
      * nulls to bit {@code 0}. The LIKE-family — {@link WildcardLike}, {@link StartsWith},
      * {@code EndsWith}, {@code Contains} — satisfies this on the positive side and is also
      * routed through a TVL-aware {@code Not} branch in
-     * {@link ParquetPushedExpressions#evaluateExpression} that AND-s out the null mask before
+     * {@link ParquetPushedExpressions#evaluateNot} that AND-s out the null mask before
      * negating, so both bare and negated forms are YES.
      *
      * <p>{@code Not(EsqlBinaryComparison)}, {@code Not(In)}, and {@code Not(Range)} on a single
@@ -179,21 +179,24 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
      * LIKE-family does. These predicates could therefore be promoted to {@link Pushability#YES}
      * (dropping the double-evaluation RECHECK cost), but that promotion is left as a follow-up.
      * {@code IsNull}/{@code IsNotNull} and {@code Not(And(...))} stay {@link Pushability#RECHECK}:
-     * the null/MV gate can't be derived from a single column block for those forms.
+     * the null/MV gate can't be derived from a single column block for those forms, and
+     * {@code Not(And)} De Morgan-expands to an {@code Or} of Nots, inheriting OR's hazard that
+     * an unevaluable arm at runtime (e.g. {@code Range} over keyword) yields all-survive.
      *
      * <p>{@code AND} of YES-eligible predicates is YES (a {@code 0} on either side blocks the
      * row regardless of provenance). {@code OR} is excluded: {@code evaluateExpression}'s
      * {@code Or} branch returns {@code null} ("all rows survive") when an arm is unevaluable,
-     * which is fine under RECHECK but unsafe under YES.
+     * which is fine under RECHECK but unsafe under YES. Do not promote {@code Not(And)} to YES
+     * because De Morgan is exact when both arms evaluate; the unevaluable-arm case is not.
      */
     static boolean isFullyEvaluable(Expression expr) {
         if (isLikeFamily(expr)) {
             return true;
         }
         if (expr instanceof Not not) {
-            // LIKE-family and simple single-column comparisons (Eq/In/Range) are TVL-correct.
-            // The comparison cases are handled via valueColumnBlockForNot + tvlNegate in
-            // ParquetPushedExpressions. Promoting those to YES is a follow-up TODO.
+            // LIKE-family is TVL-correct in evaluateNot. Comparisons use valueColumnBlockForNot
+            // + tvlNegate. Promoting those to YES is a follow-up TODO. Not(And) must stay
+            // RECHECK: De Morgan inherits Or's unevaluable-arm hazard (see method javadoc).
             return isLikeFamily(not.field());
         }
         if (expr instanceof And and) {

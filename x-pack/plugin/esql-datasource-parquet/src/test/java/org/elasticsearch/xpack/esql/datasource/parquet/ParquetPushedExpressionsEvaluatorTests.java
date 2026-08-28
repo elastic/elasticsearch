@@ -535,6 +535,82 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         }
     }
 
+    public void testNotOverPartialOrKeepsNegatedEvaluableArm() {
+        // NOT(a == 1 OR tag == "x") with only `a`. Partial AND of Nots keeps Not(a==1).
+        int[] values = { 1, 2, 3 };
+        Block block = blockFactory.newIntArrayVector(values, values.length).asBlock();
+        Map<String, Block> blocks = Map.of("a", block);
+
+        Expression eqA = new Equals(Source.EMPTY, attr("a", DataType.INTEGER), lit(1, DataType.INTEGER), null);
+        Expression eqTag = new Equals(Source.EMPTY, attr("tag", DataType.KEYWORD), lit(new BytesRef("x"), DataType.KEYWORD), null);
+        Expression not = new Not(Source.EMPTY, new Or(Source.EMPTY, eqA, eqTag));
+        assertSurvivors(new ParquetPushedExpressions(List.of(not)), blocks, 3, new WordMask(), new int[] { 1, 2 });
+    }
+
+    public void testNotOverOrShortCircuitsWhenLeftNotIsEmpty() {
+        // a == 1 on every row → Not(a==1) is empty → Not(a OR b) is empty without evaluating b.
+        int[] aValues = { 1, 1, 1 };
+        int[] bValues = { 9, 2, 9 };
+        Block a = blockFactory.newIntArrayVector(aValues, aValues.length).asBlock();
+        Block b = blockFactory.newIntArrayVector(bValues, bValues.length).asBlock();
+        Map<String, Block> blocks = Map.of("a", a, "b", b);
+
+        Expression eqA = new Equals(Source.EMPTY, attr("a", DataType.INTEGER), lit(1, DataType.INTEGER), null);
+        Expression eqB = new Equals(Source.EMPTY, attr("b", DataType.INTEGER), lit(2, DataType.INTEGER), null);
+        Expression not = new Not(Source.EMPTY, new Or(Source.EMPTY, eqA, eqB));
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(not));
+        WordMask result = pushed.evaluateFilter(blocks, 3, new WordMask());
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+        // evaluateExpression(Not) + evaluateNot(Or) + evaluateNot(eqA) + evaluateExpression(eqA)
+        assertEquals(4, pushed.lastEvaluateExpressionCallsForTesting());
+    }
+
+    public void testNotNotOverPartialOrDoesNotDropRows() {
+        // NOT(NOT(a == 1 OR tag == "x")) ≡ a OR tag. Missing tag → all survive, not the
+        // under-admit from bitwise-negating the over-admitting Not(Or) mask.
+        int[] values = { 1, 2, 3 };
+        Block block = blockFactory.newIntArrayVector(values, values.length).asBlock();
+        Map<String, Block> blocks = Map.of("a", block);
+
+        Expression eqA = new Equals(Source.EMPTY, attr("a", DataType.INTEGER), lit(1, DataType.INTEGER), null);
+        Expression eqTag = new Equals(Source.EMPTY, attr("tag", DataType.KEYWORD), lit(new BytesRef("x"), DataType.KEYWORD), null);
+        Expression notNot = new Not(Source.EMPTY, new Not(Source.EMPTY, new Or(Source.EMPTY, eqA, eqTag)));
+        WordMask result = new ParquetPushedExpressions(List.of(notNot)).evaluateFilter(blocks, 3, new WordMask());
+        assertNull(result);
+    }
+
+    public void testNotOverAndWithUnevaluableKeywordRangeDoesNotDropRows() {
+        // evaluateRange is numeric-only; a keyword Range is unevaluable even with the column
+        // present. NOT(AND(range, eq)) must not bitwise-negate the partial AND.
+        int[] aValues = { 1, 2, 3 };
+        Block a = blockFactory.newIntArrayVector(aValues, aValues.length).asBlock();
+        try (var builder = blockFactory.newBytesRefBlockBuilder(3)) {
+            builder.appendBytesRef(new BytesRef("aa"));
+            builder.appendBytesRef(new BytesRef("bb"));
+            builder.appendBytesRef(new BytesRef("cc"));
+            Block s = builder.build();
+            Map<String, Block> blocks = Map.of("a", a, "s", s);
+
+            Expression range = new Range(
+                Source.EMPTY,
+                attr("s", DataType.KEYWORD),
+                lit(new BytesRef("a"), DataType.KEYWORD),
+                true,
+                lit(new BytesRef("z"), DataType.KEYWORD),
+                true,
+                ZoneOffset.UTC
+            );
+            Expression eqA = new Equals(Source.EMPTY, attr("a", DataType.INTEGER), lit(1, DataType.INTEGER), null);
+            Expression not = new Not(Source.EMPTY, new And(Source.EMPTY, range, eqA));
+            ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(not));
+            WordMask result = pushed.evaluateFilter(blocks, 3, new WordMask());
+            assertNull(result);
+            // evaluateExpression(Not) + evaluateNot(And) + evaluateNot(range) + evaluateExpression(range)
+            assertEquals(4, pushed.lastEvaluateExpressionCallsForTesting());
+        }
+    }
+
     // ---- Test 6c: dictionary-match shape classifier and fast-path semantics ----
 
     public void testDictionaryMatchShapeClassifier() {

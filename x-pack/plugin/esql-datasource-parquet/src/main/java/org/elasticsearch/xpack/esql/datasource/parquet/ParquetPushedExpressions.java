@@ -1391,9 +1391,10 @@ final class ParquetPushedExpressions {
     // top-level conjuncts the most recent evaluateFilter actually walked before either
     // short-circuiting on an empty mask or running to completion.
     // {@code lastEvaluateExpressionCalls} counts every entry to {@code evaluateExpression}
-    // — including recursive descents into nested And/Or — and resets at the start of each
-    // evaluateFilter. The pair lets tests distinguish the top-level loop's early exit from
-    // the nested-And short-circuit. Production code does not read these fields.
+    // and {@code evaluateNot} — including recursive descents into nested And/Or/Not — and
+    // resets at the start of each evaluateFilter. The pair lets tests distinguish the
+    // top-level loop's early exit from the nested-And short-circuit. Production code does
+    // not read these fields.
     private int lastExpressionsEvaluated;
     private int lastEvaluateExpressionCalls;
 
@@ -1541,6 +1542,9 @@ final class ParquetPushedExpressions {
     // AND is never bitwise-negated; LIKE-family children keep their TVL helpers. Recurses on the
     // existing children rather than allocating Not wrappers or calling And.negate()/Or.negate()
     // (those rewrite Equals to NotEquals in the tree this evaluator walks).
+    // Not(And) must stay RECHECK: De Morgan is TVL-exact when both arms evaluate, but an arm
+    // unevaluable at runtime (e.g. Range over keyword) makes the whole mask null / all-survive,
+    // the same YES-unsafe hazard as Or.
     private WordMask evaluateNot(
         Expression inner,
         Map<String, Block> blocks,
@@ -1548,6 +1552,7 @@ final class ParquetPushedExpressions {
         @Nullable WordMask intermediateMask,
         @Nullable Map<Expression, boolean[]> dictCache
     ) {
+        lastEvaluateExpressionCalls++;
         // NOT (LIKE-family) needs TVL: null rows must stay filtered out, so each LIKE-family
         // child routes through a tvlNegate helper instead of the generic bitwise negate below.
         // YES pushability of WildcardLike/Contains/EndsWith depends on this branch.
@@ -1569,8 +1574,11 @@ final class ParquetPushedExpressions {
         }
         if (inner instanceof And and) {
             WordMask left = evaluateNot(and.left(), blocks, rowCount, intermediateMask, dictCache);
+            if (left == null) {
+                return null;
+            }
             WordMask right = evaluateNot(and.right(), blocks, rowCount, intermediateMask, dictCache);
-            if (left != null && right != null) {
+            if (right != null) {
                 left.or(right);
                 return left;
             }
@@ -1587,6 +1595,11 @@ final class ParquetPushedExpressions {
                 return left;
             }
             return left != null ? left : right;
+        }
+        if (inner instanceof Not n) {
+            // Unwrap rather than negate a possibly over-admitting inner mask (e.g. Not(Or)
+            // with an unevaluable arm returns a superset; negating that under-admits).
+            return evaluateExpression(n.field(), blocks, rowCount, intermediateMask, dictCache);
         }
         WordMask mask = evaluateExpression(inner, blocks, rowCount, intermediateMask, dictCache);
         if (mask != null) {
@@ -2187,7 +2200,7 @@ final class ParquetPushedExpressions {
      * is wrong for nulls: bit {@code 0} for "no match" is correctly flipped to bit {@code 1}, but
      * bit {@code 0} for "null" is also flipped to bit {@code 1} — and SQL TVL says
      * {@code NOT (NULL LIKE p)} is unknown and must not survive. The {@code Not(WildcardLike)}
-     * branch in {@link #evaluateExpression} routes through {@link #evaluateNotWildcardLike}, which
+     * branch in {@link #evaluateNot} routes through {@link #evaluateNotWildcardLike}, which
      * OR-s the explicit null mask before negating. <b>YES pushability for {@code NOT (col LIKE p)}
      * depends on that special case</b>, and on the gating in
      * {@link ParquetFilterPushdownSupport#isFullyEvaluable}, which only allows {@code YES} for

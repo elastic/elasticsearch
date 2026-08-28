@@ -3763,6 +3763,12 @@ public class EsqlCapabilities {
          */
         PER_AGGREGATE_WINDOWS,
 
+        /**
+         * Warning, emitted before optimization, when an expression will always evaluate to NULL because
+         * of an explicitly written NULL literal. Comparisons suggest {@code IS NULL} / {@code IS NOT NULL}.
+         */
+        FOLD_NULL_LITERAL_WARNING,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

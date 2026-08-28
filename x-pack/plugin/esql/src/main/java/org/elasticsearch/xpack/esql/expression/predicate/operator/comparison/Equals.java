@@ -16,8 +16,10 @@ import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NullMisuseSuggestion;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
@@ -40,7 +42,7 @@ import java.util.Optional;
 
 import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
-public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison>, AnyNullIsNull {
+public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison>, AnyNullIsNull, NullMisuseSuggestion {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "Equals",
@@ -302,6 +304,24 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
     @Evaluator(extraName = "ExponentialHistogram")
     static boolean processExponentialHistogram(ExponentialHistogram lhs, ExponentialHistogram rhs) {
         return ExponentialHistogram.equals(lhs, rhs);
+    }
+
+    @Override
+    public String nullMisuseAlternative() {
+        Expression kept;
+        if (Expressions.isGuaranteedNull(right())) {
+            kept = left();
+        } else if (Expressions.isGuaranteedNull(left())) {
+            kept = right();
+        } else {
+            return null;
+        }
+        // Suggesting `<literal> IS NULL` (e.g. `5 IS NULL`) is never what the user meant.
+        if (kept instanceof Literal) {
+            return null;
+        }
+        String text = kept.sourceText().isEmpty() ? Expressions.name(kept) : kept.sourceText();
+        return text.isEmpty() ? null : text + " IS NULL";
     }
 
 }

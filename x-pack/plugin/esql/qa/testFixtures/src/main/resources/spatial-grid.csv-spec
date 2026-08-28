@@ -314,6 +314,7 @@ FROM airports
 ;
 warningRegex:evaluation of \[TO_GEOSHAPE.*\] failed, treating result as null. Only first 20 failures recorded
 warningRegex:.*max y cannot be less than min y.*
+warningRegex:Expression \[.*\] always evaluates to NULL\.
 
 total:long | nonNull:long
 891        | 0
@@ -329,6 +330,7 @@ FROM airports
 ;
 warningRegex:evaluation of \[TO_GEOSHAPE.*\] failed, treating result as null. Only first 20 failures recorded
 warningRegex:.*max y cannot be less than min y.*
+warningRegex:Expression \[.*\] always evaluates to NULL\.
 
 total:long | nonNull:long
 891        | 0
@@ -344,6 +346,7 @@ FROM airports
 ;
 warningRegex:evaluation of \[TO_GEOSHAPE.*\] failed, treating result as null. Only first 20 failures recorded
 warningRegex:.*max y cannot be less than min y.*
+warningRegex:Expression \[.*\] always evaluates to NULL\.
 
 total:long | nonNull:long
 891        | 0

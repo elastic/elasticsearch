@@ -53,10 +53,12 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSort
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvUnion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
@@ -67,6 +69,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
@@ -306,6 +309,51 @@ public class FoldNullTests extends ESTestCase {
         Literal folded = as(foldNull(add), Literal.class);
         assertNull(folded.value());
         assertEquals(add.dataType(), folded.dataType());
+    }
+
+    public void testAnyNullIsNullFoldsEvenIfASiblingIsUnknownNullable() {
+        Concat concat = new Concat(
+            EMPTY,
+            new Coalesce(EMPTY, getFieldAttribute("a", KEYWORD), List.of(Literal.keyword(EMPTY, "x"))),
+            List.of(NULL)
+        );
+        assertNullLiteral(foldNull(concat));
+    }
+
+    public void testEqualsNullSuggestsIsNull() {
+        var field = getFieldAttribute("emp_no");
+        Source source = new Source(1, 19, "emp_no == NULL");
+        assertNullLiteral(foldNull(new Equals(source, field, NULL)));
+        assertWarnings("Line 1:20: Expression [emp_no == NULL] always evaluates to NULL, did you mean [emp_no IS NULL]?");
+    }
+
+    public void testNotEqualsNullSuggestsIsNotNull() {
+        var field = getFieldAttribute("emp_no");
+        Source source = new Source(1, 19, "emp_no != NULL");
+        assertNullLiteral(foldNull(new NotEquals(source, field, NULL)));
+        assertWarnings("Line 1:20: Expression [emp_no != NULL] always evaluates to NULL, did you mean [emp_no IS NOT NULL]?");
+    }
+
+    public void testInsensitiveEqualsNullSuggestsIsNull() {
+        var field = getFieldAttribute("name", KEYWORD);
+        Source source = new Source(1, 12, "name =~ NULL");
+        assertNullLiteral(foldNull(new InsensitiveEquals(source, field, NULL)));
+        assertWarnings("Line 1:13: Expression [name =~ NULL] always evaluates to NULL, did you mean [name IS NULL]?");
+    }
+
+    public void testNotSuggestsIsNotNullWhenChildIsEquals() {
+        var field = getFieldAttribute("emp_no");
+        Equals equals = new Equals(new Source(1, 24, "emp_no == NULL"), field, NULL);
+        Source source = new Source(1, 19, "NOT (emp_no == NULL)");
+        assertNullLiteral(foldNull(new Not(source, equals)));
+        assertWarnings("Line 1:20: Expression [NOT (emp_no == NULL)] always evaluates to NULL, did you mean [emp_no IS NOT NULL]?");
+    }
+
+    public void testArithmeticNullHasNoAlternative() {
+        var field = getFieldAttribute("emp_no");
+        Source source = new Source(1, 16, "emp_no + NULL");
+        assertNullLiteral(foldNull(new Add(source, field, NULL, TEST_CFG)));
+        assertWarnings("Line 1:17: Expression [emp_no + NULL] always evaluates to NULL.");
     }
 
     private void assertNullLiteral(Expression expression) {

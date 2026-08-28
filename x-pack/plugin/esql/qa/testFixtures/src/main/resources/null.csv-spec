@@ -1088,3 +1088,116 @@ emp_no:integer|gender:keyword
 10008         |M
 10009         |F
 ;
+
+equalsNullWarning
+required_capability: fold_null_literal_warning
+
+ROW emp_no = 1
+| EVAL x = emp_no == NULL
+;
+
+warning:Line 2:12: Expression [emp_no == NULL] always evaluates to NULL, did you mean [emp_no IS NULL]?
+
+emp_no:integer|x:boolean
+1             |null
+;
+
+notEqualsNullWarning
+required_capability: fold_null_literal_warning
+
+ROW emp_no = 1
+| EVAL x = emp_no != NULL
+;
+
+warning:Line 2:12: Expression [emp_no != NULL] always evaluates to NULL, did you mean [emp_no IS NOT NULL]?
+
+emp_no:integer|x:boolean
+1             |null
+;
+
+notWrappedEqualsNullWarning
+required_capability: fold_null_literal_warning
+
+ROW emp_no = 1
+| EVAL x = NOT (emp_no == NULL)
+;
+
+warning:Line 2:12: Expression [NOT (emp_no == NULL)] always evaluates to NULL, did you mean [emp_no IS NOT NULL]?
+
+emp_no:integer|x:boolean
+1             |null
+;
+
+addNullWarning
+required_capability: fold_null_literal_warning
+
+ROW emp_no = 1
+| EVAL x = emp_no + NULL
+;
+
+warning:Line 2:12: Expression [emp_no + NULL] always evaluates to NULL.
+
+emp_no:integer|x:integer
+1             |null
+;
+
+concatNullWarning
+required_capability: fold_null_literal_warning
+
+ROW name = "a"
+| EVAL x = CONCAT(name, NULL)
+;
+
+warning:Line 2:12: Expression [CONCAT(name, NULL)] always evaluates to NULL.
+
+name:keyword|x:keyword
+a           |null
+;
+
+nullOnLeftEqualsWarning
+required_capability: fold_null_literal_warning
+
+ROW emp_no = 1
+| EVAL x = NULL == emp_no
+;
+
+warning:Line 2:12: Expression [NULL == emp_no] always evaluates to NULL, did you mean [emp_no IS NULL]?
+
+emp_no:integer|x:boolean
+1             |null
+;
+
+# The null is nested two levels deep: the outermost viral-null expression folds first, so a single
+# warning covers the whole expression and there is no IS NULL suggestion (neither direct operand
+# of == is a guaranteed null).
+nestedConcatNullWarning
+required_capability: fold_null_literal_warning
+
+FROM employees
+| EVAL x = first_name == CONCAT(first_name, CONCAT(NULL, last_name))
+| KEEP emp_no, x
+| SORT emp_no
+| LIMIT 1
+;
+
+warning:Line 2:12: Expression [first_name == CONCAT(first_name, CONCAT(NULL, last_name))] always evaluates to NULL.
+
+emp_no:integer|x:boolean
+10001         |null
+;
+
+# Both the outer and the inner CONCAT have their own direct NULL literal: each gets its own warning,
+# pointing at the exact NULL the user wrote, even though one is a child of the other.
+multipleNullsInSameBranchWarnTwice
+required_capability: fold_null_literal_warning
+
+ROW name = "a"
+| EVAL x = CONCAT(CONCAT(name, NULL), NULL)
+;
+
+warning:Line 2:12: Expression [CONCAT(CONCAT(name, NULL), NULL)] always evaluates to NULL.
+warning:Line 2:19: Expression [CONCAT(name, NULL)] always evaluates to NULL.
+
+name:keyword|x:keyword
+a           |null
+;

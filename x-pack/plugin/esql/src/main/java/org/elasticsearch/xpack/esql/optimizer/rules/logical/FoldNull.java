@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -16,6 +17,8 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+
+import java.util.function.Predicate;
 
 public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression> {
 
@@ -35,21 +38,32 @@ public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression>
             }
         }
 
+        if (foldsToNull(e, FoldNull::isNull)) {
+            return Literal.of(e, null);
+        }
+        return e;
+    }
+
+    /**
+     * Whether {@code e} is guaranteed to evaluate to {@code NULL}, judging null-ness of its direct inputs
+     * with {@code isNullChild}.
+     * <p>
+     * This rule passes its transitive null check, folding anything provably null; the pre-optimizer
+     * {@code WarnNullMisuse} passes a stricter predicate matching only explicit, user-written {@code NULL} literals,
+     * so that both agree on <em>which</em> expression shapes collapse while warning only where the user wrote the null.
+     */
+    public static boolean foldsToNull(Expression e, Predicate<Expression> isNullChild) {
         if (e instanceof In in) {
-            if (Expressions.isGuaranteedNull(in.value())) {
-                return Literal.of(in, null);
-            }
-        } else if (e instanceof Alias == false && e.nullable() == Nullability.TRUE
+            return isNullChild.test(in.value());
+        }
+        return e instanceof Alias == false && e instanceof AnyNullIsNull
         // Non-evaluatable functions stay as a STATS grouping (It isn't moved to an early EVAL like other groupings),
         // so folding it to null would currently break the plan, as we don't create an attribute/channel for that null value.
             && e instanceof GroupingFunction.NonEvaluatableGroupingFunction == false
             // We cannot fold aggregate functions until we resolve https://github.com/elastic/elasticsearch/issues/100634.
             // AggregateMapper cannot handle aggregate functions with literal values.
             && e instanceof AggregateFunction == false
-            && e.children().stream().anyMatch(FoldNull::isNull)) {
-                return Literal.of(e, null);
-            }
-        return e;
+            && e.children().stream().anyMatch(isNullChild);
     }
 
     private static boolean isNull(Expression e) {

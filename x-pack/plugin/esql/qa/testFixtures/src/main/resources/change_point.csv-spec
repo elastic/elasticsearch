@@ -1100,6 +1100,7 @@ time:integer | values:null | type:keyword | pvalue:double
 
 values evals to null
 required_capability: change_point
+required_capability: fold_null_literal_warning
 
 FROM employees
   | KEEP emp_no
@@ -1108,6 +1109,7 @@ FROM employees
   | LIMIT 5
 ;
 
+warning: Line 3:19: Expression [emp_no + NULL] always evaluates to NULL.
 warning: Line 4:3: evaluation of [CHANGE_POINT values ON emp_no] failed, treating result as null. Only first 20 failures recorded.
 warning: Line 4:3: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; found [0]
 warning: Line 4:3: java.lang.IllegalArgumentException: values contain nulls; skipping them

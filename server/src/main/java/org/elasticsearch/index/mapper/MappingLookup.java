@@ -671,9 +671,12 @@ public final class MappingLookup {
                 mapping.ignoredSourceFormat()
             );
         }
-        var syntheticVectorsLoader = mapping.syntheticVectorsLoader(filter);
-        if (syntheticVectorsLoader != null) {
-            return new SourceLoader.SyntheticVectors(removeExcludedSyntheticVectorFields(filter), syntheticVectorsLoader);
+        // Only walk the mapping when it has vectors to restore.
+        if (syntheticVectorFields.isEmpty() == false) {
+            var syntheticVectorsLoader = mapping.syntheticVectorsLoader(filter);
+            if (syntheticVectorsLoader != null) {
+                return new SourceLoader.SyntheticVectors(removeExcludedSyntheticVectorFields(filter), syntheticVectorsLoader);
+            }
         }
         if (nestedDocuments != null && nestedLookup != NestedLookup.EMPTY) {
             return new NestedStoredSourceLoader(filter, nestedDocuments);

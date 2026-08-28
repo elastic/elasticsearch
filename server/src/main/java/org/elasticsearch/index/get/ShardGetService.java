@@ -711,9 +711,9 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
         List<String> lateExcludes = new ArrayList<>();
         var excludes = vectorFields.stream().filter(f -> {
-            // Keep the vector fields that are explicitly included and not explicitly excluded
-            if (filter != null && filter.isExplicitlyIncluded(f)) {
-                return filter.isPathFiltered(f, false);
+            // Match the few vector fields against source paths without compiling the filter.
+            if (filter != null && filter.isExplicitlyIncludedWithoutCompiling(f)) {
+                return filter.isPathFilteredWithoutCompiling(f);
             }
             // Exclude the field specified by the `fields` option
             if (Regex.simpleMatch(fetchFieldsPatterns, f)) {

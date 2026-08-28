@@ -1382,49 +1382,27 @@ public class NdJsonPageDecoder implements Closeable {
     }
 
     /**
-     * Place {@code name} in the decode tree. A dotted name is walked as nested segments
-     * ({@code a.b.c} is {@code root → a → b → c}) and every multi-segment remainder is also
-     * aliased on the ancestor so a flat key hits the same node: {@code root} maps {@code "a.b"}
-     * to {@code b} and {@code "a.b.c"} to {@code c}, and {@code a} maps {@code "b.c"} to {@code c}.
-     * Aliases live off the structural {@code children} map so recursive walks still visit each
-     * node once. A name that is not a path is a single literal child.
+     * Place {@code name} in the decode tree. A dotted name is walked as nested segments, so {@code a.b.c} is
+     * {@code root → a → b → c} and a name without a dot is a single literal child. The flat spelling of any
+     * contiguous run of those segments resolves back to the same node at read time by the reverse walk
+     * ({@link BlockDecoder#resolveDottedPath}), so nothing else has to be installed for it.
+     * <p>
+     * A segment may be empty, since a JSON field name may be empty: {@code a.} is {@code root → a → ""}, reached by
+     * {@code {"a":{"":1}}} nested and by {@code {"a.":1}} flat. Walking with {@code substring} rather than
+     * {@code String#split} is what keeps the trailing empty segment, and so keeps those two spellings on one node.
      */
     private static BlockDecoder installPath(BlockDecoder root, String name) {
         if (NdJsonUtils.isFieldPath(name) == false) {
             return root.child(name);
         }
-        int segments = 1;
-        for (int i = 0; i < name.length(); i++) {
-            if (name.charAt(i) == '.') {
-                segments++;
-            }
-        }
-        BlockDecoder[] nodes = new BlockDecoder[segments + 1];
-        int[] starts = new int[segments];
-        nodes[0] = root;
-        starts[0] = 0;
         BlockDecoder decoder = root;
-        int seg = 0;
         int start = 0;
-        while (true) {
-            int dot = name.indexOf('.', start);
-            String segment = dot < 0 ? name.substring(start) : name.substring(start, dot);
-            decoder = decoder.child(segment);
-            seg++;
-            nodes[seg] = decoder;
-            if (dot < 0) {
-                break;
-            }
+        int dot;
+        while ((dot = name.indexOf('.', start)) >= 0) {
+            decoder = decoder.child(name.substring(start, dot));
             start = dot + 1;
-            starts[seg] = start;
         }
-        for (int i = 0; i < segments - 1; i++) {
-            for (int k = i + 1; k < segments; k++) {
-                int end = (k + 1 < segments) ? starts[k + 1] - 1 : name.length();
-                nodes[i].alias(name.substring(starts[i], end), nodes[k + 1]);
-            }
-        }
-        return decoder;
+        return decoder.child(name.substring(start));
     }
 
     /**
@@ -1513,9 +1491,9 @@ public class NdJsonPageDecoder implements Closeable {
      * directly from this.
      * <p>
      * It travels down the recursion rather than living on the node because the answer depends on how the node was
-     * reached, not on the node: {@link BlockDecoder#beginPositionEntry} recurses into children as
-     * {@code (true, true)}, so a node inside an ancestor's array of objects has both its own and its children's
-     * entries open, while a node that opened an array itself has exactly one of the two.
+     * reached, not on the node: {@link BlockDecoder#beginPositionEntry} recurses into children with
+     * {@code includeChildren}, so a node inside an ancestor's array of objects has both its own and its children's
+     * entries open, while a node that opened an array itself has open exactly the entries the array can fill.
      */
     private enum ArrayEntry {
         /** Not inside an array. No entry is open, so this node may open its own. */
@@ -1541,14 +1519,6 @@ public class NdJsonPageDecoder implements Closeable {
         DateFormatter declaredFormatter;
         Map<String, BlockDecoder> children;
         /**
-         * Multi-segment remainders of a projected dotted name, pointing at the same node the
-         * nested walk already built. {@link #lookupChild} consults this after {@code children}
-         * so a flat key is one HashMap get even when the identity cache is full. Not walked by
-         * {@link #setupBuilders} / {@link #beginPositionEntry} / {@link #endPositionEntry}:
-         * those recurse the structural tree, and each aliased node already lives there.
-         */
-        Map<String, BlockDecoder> pathAliases;
-        /**
          * Identity-keyed cache of field-name {@link String} instances previously seen by this
          * object's decoder, mapped to either a child {@link BlockDecoder} (projected) or
          * {@link #unprojected} (unprojected). Lazily allocated on the first field probe so
@@ -1571,15 +1541,6 @@ public class NdJsonPageDecoder implements Closeable {
                 children = new HashMap<>();
             }
             return children.computeIfAbsent(segment, k -> new BlockDecoder());
-        }
-
-        /** Point a multi-segment remainder at an existing node already in the structural tree. */
-        void alias(String dottedName, BlockDecoder target) {
-            if (pathAliases == null) {
-                pathAliases = new HashMap<>();
-            }
-            BlockDecoder existing = pathAliases.putIfAbsent(dottedName, target);
-            assert existing == null || existing == target : "dotted alias [" + dottedName + "] maps to two nodes";
         }
 
         void setAttribute(Attribute attribute, int blockIdx) {
@@ -1643,8 +1604,8 @@ public class NdJsonPageDecoder implements Closeable {
                 throw new NdJsonParseException(parser, "Expected JSON object");
             }
             // This object's members decode into the children of this node. When the object is an element of an
-            // enclosing array, beginPositionEntry recursed into those children as (true, true), so each of them has
-            // both its own entry and its children's open.
+            // enclosing array, beginPositionEntry recursed into those children, so each of them has both its own
+            // entry and its children's open.
             ArrayEntry childEntry = entry == ArrayEntry.NONE ? ArrayEntry.NONE : ArrayEntry.BOTH;
             String fieldName;
             boolean poisoned = false;
@@ -1679,11 +1640,11 @@ public class NdJsonPageDecoder implements Closeable {
          * canonicalised {@code String} instance.
          * <p>
          * On cache miss (first time this object's decoder sees this identity) the call falls
-         * back to {@code children.get(fieldName)}, then {@code pathAliases} for a multi-segment
-         * remainder installed by {@link #installPath}, then {@link #resolveDottedPath} for an
-         * unprojected dotted leftover, and primes the cache with either the resolved decoder or
-         * {@link #unprojected}. A projected flat key is therefore one HashMap get even when the
-         * identity cache is full. The fallback count is exposed via {@link #hashMapFallbacks()}
+         * back to {@code children.get(fieldName)}, then, for a dotted name, to
+         * {@link #resolveDottedPath}, and primes the cache with either the resolved decoder or
+         * {@link #unprojected}. So the flat spelling of a dotted column costs one walk of its
+         * segments the first time this decoder sees that name instance, and an identity compare
+         * afterwards. The fallback count is exposed via {@link #hashMapFallbacks()}
          * so tests can pin that the cache is doing its job.
          * <p>
          * When {@code children} is {@code null} the decoder cannot match any projection, so the
@@ -1703,9 +1664,9 @@ public class NdJsonPageDecoder implements Closeable {
             }
             int maxEntries = identityCacheMaxEntries();
             if (identityCache == null) {
-                // Seed to the bound so narrow projections over wide objects avoid rehashing during
-                // warm-up as unprojected names fill the floor-sized working set.
-                identityCache = new IdentityHashMap<>(maxEntries);
+                // Seed to the floor-sized working set so narrow projections over wide objects avoid rehashing
+                // during warm-up as unprojected names fill it.
+                identityCache = new IdentityHashMap<>(identityCacheInitialSize());
             }
             BlockDecoder cached = identityCache.get(fieldName);
             if (cached != null) {
@@ -1713,12 +1674,10 @@ public class NdJsonPageDecoder implements Closeable {
             }
             hashMapFallbacks++;
             BlockDecoder resolved = children.get(fieldName);
-            if (resolved == null && pathAliases != null) {
-                resolved = pathAliases.get(fieldName);
-            }
             if (resolved == null && NdJsonUtils.isFieldPath(fieldName)) {
-                // Unprojected dotted leftover: no alias was installed for this name. Walk the
-                // structural tree and treat a miss as unprojected, same as an unknown field.
+                // A dot in a key is not part of a literal name here, so the key addresses a path.
+                // A path that runs off the tree is unreachable, and treated as unprojected exactly
+                // as an unknown field is.
                 resolved = resolveDottedPath(fieldName);
             }
             BlockDecoder toCache = resolved == null ? unprojected : resolved;
@@ -1731,6 +1690,8 @@ public class NdJsonPageDecoder implements Closeable {
         /**
          * Resolve a flat dotted field name (e.g. {@code "a.b"} or {@code "a.b.c"}) as a path through this
          * decoder's {@code children} subtree, splitting on {@code .} and descending one segment at a time.
+         * This is what makes both spellings of a dotted column reach one node: {@link #installPath} walks the
+         * projected name into nested segments, and this walks a flat key back down the same segments.
          * The walk is relative to {@code this} node, so a caller on the {@code x} structural node resolves
          * {@code "a.b"} as {@code x → a → b}, not from the tree root.
          * Returns the node the whole path lands on: a leaf decoder (the flat spelling of a dotted column) or a
@@ -1760,46 +1721,72 @@ public class NdJsonPageDecoder implements Closeable {
         }
 
         /**
-         * Upper bound for {@link #identityCache} entries on this decoder. The local
-         * {@code children} fanout is the projected fanout at this object level, not the full
-         * observed object width. The hard floor ({@value #IDENTITY_CACHE_MIN_CAP}) gives narrow
-         * projections a usable working set for unprojected names, while wider projections get
-         * additional space proportional to their projected children.
+         * Upper bound for {@link #identityCache} entries on this decoder. Scaled by the size of this node's
+         * subtree, not its direct {@code children} fanout, because a flat dotted key resolves to any descendant
+         * ({@link #resolveDottedPath}): a schema of a thousand {@code a.b.<n>} columns presents a thousand
+         * distinct names at the root while the root has one child. Sizing by fanout there would cap the cache
+         * below the set of names that recur on every record, which is the set worth caching. The hard floor
+         * ({@value #IDENTITY_CACHE_MIN_CAP}) gives narrow projections a usable working set for unprojected names.
          */
         private int identityCacheMaxEntries() {
+            return Math.max(IDENTITY_CACHE_MIN_CAP, descendantCount() * IDENTITY_CACHE_FANOUT_MULT);
+        }
+
+        /**
+         * Initial table size for {@link #identityCache}. Deliberately the local fanout rather than
+         * {@link #identityCacheMaxEntries}: the cap has to cover a deep subtree, but only the names actually
+         * seen at this node are ever stored, so seeding at the cap would eagerly allocate a table for a wide
+         * schema that a given file may address at one level only.
+         */
+        private int identityCacheInitialSize() {
             return Math.max(IDENTITY_CACHE_MIN_CAP, children.size() * IDENTITY_CACHE_FANOUT_MULT);
         }
 
         /**
-         * @param includeSelf     when {@code true}, begins an MV entry on this node's own column. Use this for an array
-         *        of primitives, whose elements land in this column. An array of objects contributes nothing to it, and
-         *        opening it would leave an empty multivalue that cannot be committed.
-         * @param includeChildren when {@code true}, also begins MV entries on child decoders. Use this only for JSON
-         *        arrays of objects (e.g. {@code [{"a":1},{"a":2}]}) where every child column shares one MV slot per
-         *        element. For arrays of primitives (e.g. {@code salary_change} as doubles while {@code salary_change.int}
-         *        is a separate top-level field), {@code false} so children are not opened for values they will never
-         *        receive from this array.
+         * Number of decoder nodes below this one, i.e. how many distinct field names can resolve here, counting
+         * both a direct child and the flat spelling of any path through it. Memoized: the tree is built once by
+         * {@link #prepareSchema} and never mutated during decoding.
          */
-        private void beginPositionEntry(boolean includeSelf, boolean includeChildren) {
-            // We may have DataType.NULL for unknown columns. And NullBlock.Builder throws on beginPositionEntry()
-            if (includeSelf && blockBuilder != null && dataType != DataType.NULL) {
-                if (blockTracker.get(blockIdx) == false) {
-                    blockBuilder.beginPositionEntry();
+        private int descendantCount() {
+            if (descendantCount == 0 && children != null) {
+                int count = children.size();
+                for (var child : children.values()) {
+                    count += child.descendantCount();
                 }
+                descendantCount = count;
+            }
+            return descendantCount;
+        }
+
+        private int descendantCount = 0;
+
+        /**
+         * @param includeChildren when {@code true}, also begins MV entries on child decoders. Use this for a JSON
+         *        array that holds objects (e.g. {@code [{"a":1},{"a":2}]}), where every child column shares one MV
+         *        slot per element. For an array of primitives only (e.g. {@code salary_change} as doubles while
+         *        {@code salary_change.int} is a separate top-level field), {@code false} so children are not opened
+         *        for values they will never receive from this array.
+         */
+        private void beginPositionEntry(boolean includeChildren) {
+            // We may have DataType.NULL for unknown columns. And NullBlock.Builder throws on beginPositionEntry()
+            if (blockBuilder != null && dataType != DataType.NULL) {
                 // A claimed cell is left closed. The first append into this array reopens it (see decodeValue);
                 // if this array never writes the leaf, the committed value survives a poison of a sibling.
                 // Reopening eagerly would put every claimed child on the cancelAndNullPositionEntry path,
                 // so a bad value in {"a":[{"c":"notanumber"}]} would also null a sibling {"a.b":1}.
+                if (blockTracker.get(blockIdx) == false) {
+                    blockBuilder.beginPositionEntry();
+                }
             }
             if (includeChildren && children != null) {
                 for (var child : children.values()) {
-                    child.beginPositionEntry(true, true);
+                    child.beginPositionEntry(true);
                 }
             }
         }
 
-        private void endPositionEntry(boolean includeSelf, boolean includeChildren) {
-            if (includeSelf && blockBuilder != null && dataType != DataType.NULL) {
+        private void endPositionEntry(boolean includeChildren) {
+            if (blockBuilder != null && dataType != DataType.NULL) {
                 AbstractBlockBuilder abb = (AbstractBlockBuilder) blockBuilder;
                 // A refused reopen left no entry open and the cell as the null it already was: nothing to commit.
                 if (abb.isPositionEntryOpen()) {
@@ -1818,7 +1805,7 @@ public class NdJsonPageDecoder implements Closeable {
             }
             if (includeChildren && children != null) {
                 for (var child : children.values()) {
-                    child.endPositionEntry(true, true);
+                    child.endPositionEntry(true);
                 }
             }
         }
@@ -1832,19 +1819,28 @@ public class NdJsonPageDecoder implements Closeable {
          * A node that has no entry open (a prior spelling already committed the cell and this array never
          * wrote it, or a reopen refused because the cell is already null) is left alone:
          * {@code cancelPositionEntry} asserts when no entry is open.
+         * <p>
+         * A node whose entry is open but empty contributed nothing to the poisoned position: the array opened its
+         * entry speculatively and no element ever named it. Its entry is cancelled without claiming the cell, for
+         * the reason {@link #endPositionEntry} gives, so a later spelling in the same record can still fill it and
+         * the end-of-record fill supplies the null when none does. Nulling it here instead would make the outcome
+         * depend on key order, since an already-claimed sibling of the poisoned value survives untouched.
          */
-        private void cancelAndNullPositionEntry(boolean includeSelf, boolean includeChildren) {
-            if (includeSelf && blockBuilder != null && dataType != DataType.NULL) {
+        private void cancelAndNullPositionEntry(boolean includeChildren) {
+            if (blockBuilder != null && dataType != DataType.NULL) {
                 AbstractBlockBuilder abb = (AbstractBlockBuilder) blockBuilder;
                 if (abb.isPositionEntryOpen()) {
+                    boolean contributed = abb.currentPositionEntryIsEmpty() == false;
                     abb.cancelPositionEntry();
-                    blockTracker.set(blockIdx);
-                    blockBuilder.appendNull();
+                    if (contributed) {
+                        blockTracker.set(blockIdx);
+                        blockBuilder.appendNull();
+                    }
                 }
             }
             if (includeChildren && children != null) {
                 for (var child : children.values()) {
-                    child.cancelAndNullPositionEntry(true, true);
+                    child.cancelAndNullPositionEntry(true);
                 }
             }
         }
@@ -1852,47 +1848,35 @@ public class NdJsonPageDecoder implements Closeable {
         /**
          * Merges a further occurrence of this column in the same record into the cell the first occurrence committed,
          * as a multivalue: {@code {"a":{"b":1},"a.b":2}} yields {@code [1, 2]}, the same values indexing that document
-         * would produce. The already-committed position is reopened and this occurrence decodes into it as if it were an
-         * array element, so a scalar contributes one value, an array contributes each of its elements, and a JSON null
-         * contributes none. Closing the reopened position always succeeds: it holds the first occurrence's value even
-         * when this one appends nothing.
+         * would produce. The occurrence decodes as if it were an array element, so a scalar contributes one value, an
+         * array contributes each of its elements, and a JSON null contributes none. The merge is order-dependent, as
+         * it is on ingest: the values appear in the order the record spells them.
          *
          * <p>A cell an error policy already nulled cannot be widened, so this occurrence is dropped: the policy has
          * decided (and warned) that the column is null for this record. A failure in this occurrence nulls the whole
          * cell, matching the array contract that a poisoned position is nulled rather than committed in part.
          */
         private void appendFurtherOccurrence(JsonParser parser) throws IOException {
-            if (parser.currentToken() == JsonToken.VALUE_NULL) {
-                // Contributes no value, so the cell is already final: return before reopening, which would otherwise
-                // build the multivalue index for a block that stays single-valued.
-                return;
-            }
-            if (((AbstractBlockBuilder) blockBuilder).reopenLastPositionEntry() == false) {
-                parser.skipChildren();
-                return;
-            }
-            // This occurrence fills this node's own reopened entry, so an object among its values has no open entry of
-            // its own and is dropped like a stray array element.
             try {
+                // Decoded as if this occurrence were an array element, so the reopen happens at the append site, on
+                // the first value that actually lands. That leaves the cell as the first occurrence committed it
+                // whenever this one contributes nothing (a JSON null, an empty array, an array of nulls), without
+                // building a multivalue index the block does not need. This occurrence fills this node's own entry,
+                // so an object among its values has no entry of its own and is dropped like a stray array element.
                 decodeValue(parser, ArrayEntry.SELF);
-                blockBuilder.endPositionEntry();
+                if (((AbstractBlockBuilder) blockBuilder).isPositionEntryOpen()) {
+                    blockBuilder.endPositionEntry();
+                }
             } catch (PoisonedPositionException e) {
-                cancelAndNullPositionEntry(true, false);
+                cancelAndNullPositionEntry(false);
             }
         }
 
         /**
          * An empty JSON array {@code []} contributes no values, exactly like a missing field, which is what ingest
          * does with {@code subobjects: false}: {@code {"a.b":[],"a":[{"b":1}]}} indexes {@code a.b} as {@code [1]}.
-         * So this neither appends a cell nor sets {@link #blockTracker}. Leaving the cell unclaimed is what lets a
-         * later spelling in the same record still fill it; when none does, the end-of-record fill nulls it.
-         * <p>
-         * Claiming it here instead (appending the null eagerly) would both pin the column to {@code null} against
-         * a later value and, because a null cannot be reopened to gain values, leave a following array on an
-         * ancestor with no open entry to append into.
-         * <p>
-         * This also keeps {@link Block.Builder#beginPositionEntry()} from being run with no values, which
-         * {@link AbstractBlockBuilder#endPositionEntry()} asserts against.
+         * So this neither appends a cell nor sets {@link #blockTracker}, leaving the cell to a later spelling in the
+         * same record, or to the end-of-record fill when there is none.
          * <p>
          * The key itself was present, so a leaf counts as seen for the absent-declared-column warning, the same
          * way a JSON null does. Columns nested <em>under</em> an empty array get no such mark: their own keys
@@ -1917,6 +1901,11 @@ public class NdJsonPageDecoder implements Closeable {
          *   <li>a stray scalar among a heterogeneous array of objects is likewise null-filled and {@code DEBUG}-logged,
          *       and symmetrically a stray object among a heterogeneous array of scalars is simply omitted from that
          *       column's multi-value entry and {@code DEBUG}-logged. Neither direction is a value error.</li>
+         *   <li>a scalar spelled at a structural prefix node, where the schema knows only dotted columns underneath
+         *       ({@code {"address":"unstructured"}} against {@code address.city}/{@code address.zip}), addresses no
+         *       column at all: {@code address} is not a column name, so the value is unprojected rather than a
+         *       contradiction of the columns below. It is dropped, the columns underneath are null for that row, and
+         *       the drop is {@code DEBUG}-logged so an operator can see where a subtree went.</li>
          * </ul>
          * A cell that genuinely cannot be REPRESENTED under the column's type, by contrast, is governed by
          * {@code error_mode}, identically for a declared or an inferred column: a bad value or a cross-kind token
@@ -1964,23 +1953,28 @@ public class NdJsonPageDecoder implements Closeable {
                 // Note: the entry state is needed because blockBuilder.beginPositionEntry() is not idempotent.
                 // Calling it twice implicitly calls endPositionEntry().
                 if (entry == ArrayEntry.NONE) {
-                    // `includeChildren` gates opening the child MV entries and must reflect whether the array
-                    // actually contains an object: otherwise later objects append into never-opened child builders,
-                    // misaligning rows across columns. Skip leading elements that cannot open this node's MV entry:
+                    // Drain leading elements this node cannot take at all, so an array made up entirely of them is
+                    // recognised as contributing nothing (see noteEmptyArray) rather than opening an entry that then
+                    // receives no value:
                     // - a structural (prefix) node carries no scalar values of its own, so it skips leading
                     // stray scalars (e.g. [null, "x", {"type":"a"}]) until the first object or the array end;
                     // - symmetrically, a scalar leaf skips leading stray objects (e.g. [null, {"x":1}, "a"]) until
-                    // the first scalar or the array end: without this, an all-object array on a scalar leaf would
-                    // call beginPositionEntry() and then never append a value before endPositionEntry(), which
-                    // AbstractBlockBuilder#endPositionEntry() asserts against (see noteEmptyArray).
+                    // the first scalar or the array end.
+                    // A node that takes both kinds skips only leading nulls, which are values in no column.
                     JsonToken first = parser.nextToken();
                     // What this node can take from an array: scalars when it has a column of its own, objects when it
-                    // has columns underneath. A scalar column that also prefixes dotted columns can take both, and the
-                    // element kind that opens the position decides which one this array contributes to.
+                    // has columns underneath. A scalar column that also prefixes dotted columns can take both, and
+                    // contributes to both.
                     boolean takesScalars = blockBuilder != null;
                     boolean takesObjects = children != null;
+                    // A nested array is never drained: flattening looks straight through it, so its elements are
+                    // this node's elements and decide nothing here. Draining it would discard every value inside.
                     while (first == JsonToken.VALUE_NULL
-                        || (takesScalars == false && first != null && first != JsonToken.START_OBJECT && first != JsonToken.END_ARRAY)
+                        || (takesScalars == false
+                            && first != null
+                            && first != JsonToken.START_OBJECT
+                            && first != JsonToken.START_ARRAY
+                            && first != JsonToken.END_ARRAY)
                         || (takesObjects == false && first == JsonToken.START_OBJECT)) {
                         if (first != JsonToken.VALUE_NULL && logger.isDebugEnabled()) {
                             if (blockBuilder == null) {
@@ -2006,23 +2000,32 @@ public class NdJsonPageDecoder implements Closeable {
                         noteEmptyArray();
                         return;
                     }
-                    boolean includeChildren = first == JsonToken.START_OBJECT;
-                    // Only the entries the array's element kind will actually fill are opened: an entry that is opened
-                    // and never appended to cannot be committed (endPositionEntry rejects an empty multivalue).
-                    boolean includeSelf = includeChildren == false;
-                    ArrayEntry elementEntry = includeChildren ? ArrayEntry.CHILDREN : ArrayEntry.SELF;
-                    beginPositionEntry(includeSelf, includeChildren);
+                    // A node that can take both kinds opens both entries, so a heterogeneous array fills each column
+                    // from the elements that address it: [1,{"b":2}] and [{"b":2},1] both give this node 1 and its
+                    // child b 2, which is what indexing either document produces. Gating on the FIRST element instead
+                    // would make the answer depend on element order and drop the other kind. Whichever entry ends up
+                    // empty is cancelled without claiming its cell (see endPositionEntry), so opening an entry the
+                    // array turns out not to fill is safe.
+                    boolean takesBoth = takesScalars && takesObjects;
+                    // A leading nested array hides what kind its elements are, so a node with children opens their
+                    // entries on the chance that an object is in there. An entry the array never fills is cancelled
+                    // without claiming its cell, so guessing wide costs nothing.
+                    boolean includeChildren = takesBoth
+                        || first == JsonToken.START_OBJECT
+                        || (takesObjects && first == JsonToken.START_ARRAY);
+                    ArrayEntry elementEntry = takesBoth ? ArrayEntry.BOTH : (includeChildren ? ArrayEntry.CHILDREN : ArrayEntry.SELF);
+                    beginPositionEntry(includeChildren);
                     try {
                         decodeValue(parser, elementEntry);
                         while (parser.nextToken() != JsonToken.END_ARRAY) {
                             decodeValue(parser, elementEntry);
                         }
-                        endPositionEntry(includeSelf, includeChildren);
+                        endPositionEntry(includeChildren);
                     } catch (PoisonedPositionException e) {
                         while (parser.nextToken() != JsonToken.END_ARRAY) {
                             parser.skipChildren();
                         }
-                        cancelAndNullPositionEntry(includeSelf, includeChildren);
+                        cancelAndNullPositionEntry(includeChildren);
                     }
                     return;
                 }
@@ -2088,25 +2091,25 @@ public class NdJsonPageDecoder implements Closeable {
                 // or a stray scalar in an array that was opened for objects, whose own entry is not open. A JSON null
                 // is the common, legitimate case (e.g. CloudTrail "responseElements": null) and stays silent either way.
                 if (token != JsonToken.VALUE_NULL) {
-                    if (entry != ArrayEntry.NONE) {
-                        // A stray scalar among a heterogeneous array of objects is a distinct, supported
-                        // shape (see the array-handling block above), not the record-level scalar/object
-                        // conflict this issue targets. Leave the leaf descendants untracked so the
-                        // end-of-row fill assigns them null, mirroring missing fields/empty arrays.
-                        // Guarded by isDebugEnabled() so the JsonPointer/JsonLocation allocations are
-                        // skipped when DEBUG is off, since this can fire per-row across millions of records.
-                        if (logger.isDebugEnabled()) {
-                            logger.debug(
-                                "Expected object for nested field [{}] but got {} at {}",
-                                parser.getParsingContext().pathAsPointer(),
-                                token,
-                                parser.getTokenLocation()
-                            );
-                        }
+                    // Two shapes reach here, both of them dropped values rather than errors:
+                    // - a stray scalar among a heterogeneous array of objects, whose own entry is not open (see the
+                    // array-handling block above);
+                    // - a scalar spelled at a structural prefix node, whose name is a prefix of column names and
+                    // never a column itself, so the value is unprojected rather than a contradiction of the
+                    // columns below: they are named a.b, and nothing names a.
+                    // Either way the leaf descendants are left untracked so the end-of-record fill assigns them
+                    // null, mirroring missing fields and empty arrays. Logged so an operator can find where a
+                    // value or a whole subtree was dropped, and guarded by isDebugEnabled() so the
+                    // JsonPointer/JsonLocation allocations are skipped when DEBUG is off, since this can fire
+                    // per-row across millions of records.
+                    if (logger.isDebugEnabled()) {
+                        logger.debug(
+                            "Expected object for nested field [{}] but got {} at {}",
+                            parser.getParsingContext().pathAsPointer(),
+                            token,
+                            parser.getTokenLocation()
+                        );
                     }
-                    // This node's name is a prefix of column names, never a column itself, so a scalar spelled at
-                    // it is an unprojected field rather than a contradiction of the columns below: they are named
-                    // a.b, and nothing names a. Skipped silently, and their cells are left for the end-of-record fill.
                 }
                 parser.skipChildren();
                 return;
@@ -2130,6 +2133,9 @@ public class NdJsonPageDecoder implements Closeable {
                     return;
                 }
             }
+            // Claims the cell. Every path below commits exactly one position for it: the decoded value, or the null
+            // nullPolicyDecidedCell appends when the policy rejects the value. A further spelling of this column in
+            // the same record relies on that, since it reopens the position this bit promises.
             blockTracker.set(blockIdx);
 
             // This node's own entry is open for every state that reaches here (CHILDREN returned above), so the leaf
@@ -2446,9 +2452,10 @@ public class NdJsonPageDecoder implements Closeable {
             if (rowDroppedBySkipRow) {
                 // This record is already being dropped by an earlier skip_row error. Advance past this value but do
                 // not double-count it: CsvFormatReader charges the error budget once per dropped row (it stops at the
-                // first bad field), not once per bad field. The record's scratch is discarded, so no null-fill is
-                // needed and further coercion failures on the same doomed record must not consume the budget again.
+                // first bad field), not once per bad field. Further coercion failures on the same doomed record must
+                // not consume the budget again.
                 parser.skipChildren();
+                nullPolicyDecidedCell(builder, inArray);
                 if (inArray) {
                     // Inside an array, a normal return would let the array loop call endPositionEntry with no
                     // values appended — an AssertionError. Throw so the array handler drains and cancels instead.
@@ -2484,9 +2491,7 @@ public class NdJsonPageDecoder implements Closeable {
             // unrepresentable cell drops under skip_row uniformly.
             boolean skipRow = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW;
             String message = base + (skipRow ? " — this record is skipped" : " — this record's [" + name + "] is null");
-            if (inArray == false) {
-                builder.appendNull();
-            }
+            nullPolicyDecidedCell(builder, inArray);
             if (skipRow) {
                 rowDroppedBySkipRow = true;
             }
@@ -2502,6 +2507,31 @@ public class NdJsonPageDecoder implements Closeable {
             }
         }
 
+        /**
+         * Nulls this column's cell for the current record, after the error policy decided the value is
+         * unrepresentable. Inside an array the open entry is rolled back first, discarding the elements that already
+         * landed, because a poisoned position is nulled rather than committed in part.
+         * <p>
+         * Always leaves a committed position behind, which is what keeps {@link #blockTracker} meaning "this column
+         * holds a position for this record". {@link #decodeValue} sets that bit before dispatching to the decode
+         * arms, and a further spelling of the column in the same record reopens the position the bit promises. That
+         * includes the record already doomed by {@code skip_row}: its cell never reaches the page, but a later
+         * spelling still runs and would otherwise reopen a position that was never committed.
+         * <p>
+         * Deliberately not {@link #cancelAndNullPositionEntry}: that leaves an empty entry unclaimed, which is right
+         * for a bystander column the poisoned array never wrote, but here the empty entry belongs to the column whose
+         * own value failed, and the policy nulls exactly that cell.
+         */
+        private void nullPolicyDecidedCell(Block.Builder builder, boolean inArray) {
+            if (inArray) {
+                AbstractBlockBuilder abb = (AbstractBlockBuilder) builder;
+                if (abb.isPositionEntryOpen()) {
+                    abb.cancelPositionEntry();
+                }
+                blockTracker.set(blockIdx);
+            }
+            builder.appendNull();
+        }
     }
 
     /**

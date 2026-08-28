@@ -114,6 +114,8 @@ public final class DoubleRangeBlockBuilder extends AbstractBlockBuilder implemen
 
     @Override
     public boolean reopenLastPositionEntry() {
+        // As for cancelPositionEntry: this builder's state lives in the inner builders, which the inherited
+        // implementation does not touch, so it would leave them behind.
         throw new UnsupportedOperationException("reopenLastPositionEntry is not supported by DoubleRangeBlockBuilder");
     }
 

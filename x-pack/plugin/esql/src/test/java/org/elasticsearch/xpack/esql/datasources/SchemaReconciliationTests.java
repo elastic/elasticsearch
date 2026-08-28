@@ -354,8 +354,8 @@ public class SchemaReconciliationTests extends ESTestCase {
 
     // === Cross-file dotted names under UNION_BY_NAME ===
     //
-    // NDJSON treats a dot as an ordinary character in a column name, the same as CSV: {@code user}
-    // and {@code user.id} are independent columns. UNION_BY_NAME keeps both and null-fills per file.
+    // NDJSON treats a dot as an ordinary character in a column name, the same as CSV: user and
+    // user.id are independent columns. UNION_BY_NAME keeps both and null-fills per file.
 
     public void testUnionByNameNdjsonScalarAndDottedColumnsCoexist() {
         List<Attribute> scalarFile = List.of(attr("event", DataType.INTEGER), attr("user", DataType.KEYWORD));
@@ -429,9 +429,9 @@ public class SchemaReconciliationTests extends ESTestCase {
     /**
      * {@code STRICT} rejects files whose column sets differ (scalar {@code user} vs dotted
      * {@code user.id}/{@code user.tier}) rather than attempting UNION_BY_NAME-style resolution.
-     * This is a column-count mismatch, not a decode-time shape conflict.
+     * It is the differing column count that is rejected, not the pair of names.
      */
-    public void testStrictRejectsScalarVsObjectShapeConflict() {
+    public void testStrictRejectsScalarAndDottedColumnSets() {
         List<Attribute> scalarFile = List.of(attr("event", DataType.INTEGER), attr("user", DataType.KEYWORD));
         List<Attribute> objectFile = List.of(
             attr("event", DataType.INTEGER),
@@ -450,7 +450,7 @@ public class SchemaReconciliationTests extends ESTestCase {
     /**
      * A {@code root}/{@code root.*} pair that merely shares a naming prefix must both survive in
      * the unified schema, NULL-filled in whichever file lacks them. CSV headers are never nested,
-     * so these are unrelated column names, not a shape conflict that drops one of them.
+     * so these are unrelated column names and neither one may be dropped.
      */
     public void testUnionByNameScalarAndDottedLiteralCoexistForNonNdjsonFormat() {
         List<Attribute> scalarFile = List.of(attr("event", DataType.INTEGER), attr("user", DataType.KEYWORD));
@@ -481,12 +481,11 @@ public class SchemaReconciliationTests extends ESTestCase {
     }
 
     /**
-     * Same as {@link #testUnionByNameScalarAndDottedLiteralCoexistForNonNdjsonFormat} for Parquet:
-     * Parquet flattens nested structs into dotted names, but has no read-time fallback for a
-     * column pinned to a shape that disagrees with the file's footer-declared type, so this pass
-     * must not touch Parquet files either. See {@code supportsShapeConflictResolution}.
+     * Same as {@link #testUnionByNameScalarAndDottedLiteralCoexistForNonNdjsonFormat} for Parquet, which does
+     * flatten nested structs into dotted names: even there, reconciliation merges by exact name only, so the
+     * scalar and the dotted columns coexist rather than one shape being chosen for the whole query.
      */
-    public void testUnionByNameScalarVsObjectConflictIgnoredForParquetFormat() {
+    public void testUnionByNameScalarAndDottedColumnsCoexistForParquetFormat() {
         List<Attribute> scalarFile = List.of(attr("event", DataType.INTEGER), attr("user", DataType.KEYWORD));
         List<Attribute> objectFile = List.of(
             attr("event", DataType.INTEGER),
@@ -506,12 +505,11 @@ public class SchemaReconciliationTests extends ESTestCase {
     }
 
     /**
-     * A single NDJSON file's nested {@code user.*} shape must not be treated as conflicting with a
-     * literal {@code user.tag} column from an unrelated CSV file in the same query — only files
-     * whose format actually supports shape-conflict resolution ever enter the family vote, and one
-     * ndjson contributor alone (agreeing with itself) is not a conflict.
+     * A query that mixes formats keeps every name each file contributes: an NDJSON file's nested
+     * {@code user.id}/{@code user.tier} and an unrelated CSV file's literal {@code user.tag} are three
+     * columns, and the format a name came from does not change how it merges.
      */
-    public void testUnionByNameMixedFormatsOnlyNdjsonParticipatesInFamily() {
+    public void testUnionByNameMixedFormatsKeepEveryDottedName() {
         List<Attribute> ndjsonFile = List.of(
             attr("event", DataType.INTEGER),
             attr("user.id", DataType.KEYWORD),

@@ -394,6 +394,26 @@ public class BlockBuilderTests extends ESTestCase {
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
 
+    /**
+     * There is nothing to reopen on an empty builder. Refused rather than asserted, so a caller that tracks
+     * "this column already has a value" outside the builder and gets that bit wrong loses a value instead of
+     * driving the position count negative, which assertions would catch only in development.
+     */
+    public void testReopenLastPositionEntryRefusesEmptyBuilder() {
+        assumeAbstractBlockBuilder();
+        assumeMultiValued();
+        Object value = BlockTestUtils.randomValue(elementType);
+        try (Block.Builder builder = elementType.newBlockBuilder(1, blockFactory)) {
+            assertThat(((AbstractBlockBuilder) builder).reopenLastPositionEntry(), is(false));
+            BlockTestUtils.append(builder, value);
+            try (Block block = builder.build()) {
+                assertThat("the refused reopen left the builder usable", block.getPositionCount(), equalTo(1));
+                assertThat(BlockUtils.toJavaObject(block, 0), equalTo(value));
+            }
+        }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
     /** Only the last position is reopened: the positions before it keep their own values and offsets. */
     public void testReopenLastPositionEntryLeavesEarlierPositionsIntact() {
         assumeAbstractBlockBuilder();

@@ -305,9 +305,8 @@ public class NdJsonPageDecoderFieldNameCacheTests extends ESTestCase {
 
     /**
      * A projected flat dotted key that first appears after the identity cache is already full
-     * must still decode: {@link NdJsonPageDecoder} aliases the remaining dotted suffix onto the
-     * ancestor at prepare time, so {@code children}/{@code pathAliases} hit the leaf without a
-     * per-record path walk.
+     * must still decode: the cache is an optimisation over the {@code children} probe and the
+     * segment walk, so a name it has no room for resolves the same way, just more slowly.
      */
     public void testFlatDottedKeyDecodesAfterIdentityCacheIsFull() throws IOException {
         int extras = NdJsonPageDecoder.IDENTITY_CACHE_MIN_CAP + 16;

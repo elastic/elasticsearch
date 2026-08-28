@@ -6,8 +6,8 @@
 //
 // employees_no_mv.ndjson is generated from the typed-header CSV, so each record's keys are the CSV column names
 // and the values carry JSON types: emp_no a number, first_name a string, salary a number. The generated keys include
-// the sibling pair `languages` and `languages.long`, both literal flat keys, which is what the dotted-binding cases
-// below read.
+// the sibling pair `languages` and `languages.long`, both literal flat keys, which is what the dotted-binding case
+// below reads.
 
 // Overlay (`dynamic: true`): the declaration retypes one key and inference supplies every other key. `salary` is
 // declared without a `path`, so it binds to the key of the same name — the declaration's only effect is the type.
@@ -43,22 +43,8 @@ id:long | languages:long | langs:long
 10003   | 4              | 4
 ;
 
-// The same dotted key bound WITHOUT declaring its prefix. The key is read literally and binding a dotted key
-// does not depend on what else the declaration happens to contain.
-strictDeclaredSchemaBindsDottedKeyWithoutItsPrefixOnNdjson
-required_capability: dataset_in_from_command
-required_capability: external_ndjson_dotted_field_resolution
-dataset: employees_declared_dotted_only_nd: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "langs": {"type": "long", "path": "languages.long"}}}}
-
-FROM employees_declared_dotted_only_nd
-| SORT id
-| LIMIT 3;
-
-id:long | langs:long
-10001   | 2
-10002   | 5
-10003   | 4
-;
+// The same dotted key bound WITHOUT its prefix is not ndjson-specific: it lives in
+// external-declared-schema.csv-spec as sharedStrictDeclaredSchemaBindsDottedColumnName, which this suite runs.
 
 // Coercion from DATETIME (what NDJSON infers for ISO-8601 strings) to KEYWORD. When birth_date is declared as
 // keyword the coercion path runs dateTimeToString, which emits the strict_date_optional_time format; the

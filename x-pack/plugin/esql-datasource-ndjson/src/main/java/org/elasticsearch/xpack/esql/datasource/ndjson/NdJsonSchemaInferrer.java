@@ -219,7 +219,6 @@ public class NdJsonSchemaInferrer {
             return;
         }
         for (Map.Entry<String, FieldInfo> entry : field.children.entrySet()) {
-            // TODO: disallow dots in names (or replace them) as it may cause issues when decoding
             var name = entry.getKey();
             var info = entry.getValue();
             if (parentName != null) {

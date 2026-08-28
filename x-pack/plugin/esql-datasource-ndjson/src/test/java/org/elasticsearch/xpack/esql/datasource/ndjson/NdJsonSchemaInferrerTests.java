@@ -173,6 +173,25 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
             """, field("user.id", DataType.KEYWORD));
     }
 
+    /**
+     * An empty field name is a legal JSON name, so it is an ordinary segment: it composes to a column name with an
+     * empty segment, and the flat spelling of that name unifies onto the same column the way any dotted name does.
+     * {@link NdJsonIngestParityTests} pins that these columns are then actually filled.
+     */
+    public void testEmptyFieldNameIsAnOrdinarySegment() throws IOException {
+        check("""
+            {"a":{"":1},"b":{"":{"c":2}},"keep":3}
+            """, field("a.", DataType.INTEGER), field("b..c", DataType.INTEGER), field("keep", DataType.INTEGER));
+        check("""
+            {"":1,"x":2}
+            """, field("", DataType.INTEGER), field("x", DataType.INTEGER));
+        // The flat spelling of the same column, so one column rather than two attributes with one name.
+        check("""
+            {"a":{"":1}}
+            {"a.":2}
+            """, field("a.", DataType.INTEGER));
+    }
+
     public void testDateTime() throws Exception {
         check("""
             {"timestamp": "2025-03-26T18:12:34Z"}

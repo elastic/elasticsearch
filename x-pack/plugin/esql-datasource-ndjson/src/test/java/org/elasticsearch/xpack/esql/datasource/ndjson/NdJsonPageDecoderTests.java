@@ -45,9 +45,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Targeted unit tests for {@link NdJsonPageDecoder}: keyword-scratch reuse, schema-shape conflicts,
- * declared formats, and block-builder allocation sizing. Sibling {@link NdJsonPageIteratorTests}
- * covers end-to-end correctness across types.
+ * Targeted unit tests for {@link NdJsonPageDecoder}: keyword-scratch reuse, how a record's shape maps onto the
+ * schema's columns, declared formats, and block-builder allocation sizing. Sibling
+ * {@link NdJsonPageIteratorTests} covers end-to-end correctness across types.
  */
 public class NdJsonPageDecoderTests extends ESTestCase {
 
@@ -59,7 +59,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
-     * Non-strict {@link ErrorPolicy} shape-conflict tests below emit response-header warnings via
+     * The non-strict {@link ErrorPolicy} tests below emit response-header warnings via
      * {@code HeaderWarning.addWarning(...)}; drop them so the parent {@code ensureNoWarnings} post-check passes.
      */
     @After
@@ -356,7 +356,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * The flat key {@code "languages.long"} reaches {@code languages → long} via {@code resolveDottedPath}. Both
      * columns decode from a single record.
      */
-    public void testScalarSiblingPrefixConflictStillDecodes() throws IOException {
+    public void testScalarSiblingAndDottedColumnBothDecode() throws IOException {
         String ndjson = "{\"languages\":5,\"languages.long\":42}\n";
 
         try (Page page = decodePage(ndjson, List.of(attribute("languages", DataType.LONG), attribute("languages.long", DataType.LONG)))) {
@@ -638,6 +638,90 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
+     * Under {@code skip_row} a second bad value in an already-doomed record must still leave its column with a
+     * committed position, because a later spelling of that column reopens the position the column's tracker bit
+     * promises. Reopening one that was never committed drives the builder's position count negative, which trips
+     * an assertion in development and silently corrupts the block in production.
+     * <p>
+     * Both later spellings are covered: the nested object reaches the leaf through the merge path, and the array
+     * reaches it through the append site's reopen. The record itself is dropped, so the surviving row is the
+     * clean one, and what this pins is that decoding the doomed record does not throw.
+     */
+    public void testSkipRowSecondBadValueThenAnotherSpellingDoesNotCorruptTheBuilder() throws IOException {
+        for (String doomed : List.of(
+            "{\"x\":\"bad\",\"a.b\":\"bad\",\"a\":{\"b\":5}}",
+            "{\"x\":\"bad\",\"a.b\":\"bad\",\"a\":[{\"b\":5}]}"
+        )) {
+            String ndjson = doomed + "\n{\"x\":1,\"a.b\":2}\n";
+            try (
+                Page page = decodePage(
+                    ndjson,
+                    List.of(attribute("x", DataType.LONG), attribute("a.b", DataType.LONG)),
+                    // Ratio 0.0 disables the ratio check: the doomed record carries two bad values and this is
+                    // about the builder state, not the error budget.
+                    new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 100, 0.0, false)
+                )
+            ) {
+                assertNotNull(page);
+                assertEquals("the doomed record is dropped whole", 1, page.getPositionCount());
+                LongBlock x = page.getBlock(0);
+                LongBlock ab = page.getBlock(1);
+                assertEquals(1L, x.getLong(x.getFirstValueIndex(0)));
+                assertEquals(2L, ab.getLong(ab.getFirstValueIndex(0)));
+            }
+            assertFalse("skip_row must warn about the dropped record", drainWarnings().isEmpty());
+        }
+    }
+
+    /**
+     * A heterogeneous array on a node that is both a leaf and a prefix fills both columns, from whichever
+     * elements address them, and the element order does not change the answer. Both entries are opened, so
+     * neither element kind is dropped for want of somewhere to land; the entry an array turns out not to fill is
+     * cancelled without claiming its cell.
+     */
+    public void testHeterogeneousArrayOnLeafAndPrefixFillsBothColumns() throws IOException {
+        for (String ndjson : List.of("{\"a\":[1,{\"b\":2}],\"id\":10}\n", "{\"a\":[{\"b\":2},1],\"id\":10}\n")) {
+            try (
+                Page page = decodePage(
+                    ndjson,
+                    List.of(attribute("a", DataType.LONG), attribute("a.b", DataType.LONG), attribute("id", DataType.LONG))
+                )
+            ) {
+                assertNotNull(page);
+                assertEquals(1, page.getPositionCount());
+                LongBlock a = page.getBlock(0);
+                LongBlock ab = page.getBlock(1);
+                LongBlock id = page.getBlock(2);
+                assertEquals("the scalar element belongs to the column [a]", 1L, a.getLong(a.getFirstValueIndex(0)));
+                assertEquals("the object element belongs to the column [a.b]", 2L, ab.getLong(ab.getFirstValueIndex(0)));
+                assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+            }
+        }
+    }
+
+    /**
+     * The same shape where one kind never appears: the entry opened for the absent kind is empty and must be
+     * cancelled without claiming, leaving the cell to the end-of-record fill rather than committing a second
+     * position for the column.
+     */
+    public void testHomogeneousArrayOnLeafAndPrefixLeavesTheOtherColumnNull() throws IOException {
+        try (
+            Page page = decodePage(
+                "{\"a\":[1,2],\"id\":10}\n",
+                List.of(attribute("a", DataType.LONG), attribute("a.b", DataType.LONG), attribute("id", DataType.LONG))
+            )
+        ) {
+            assertNotNull(page);
+            assertEquals(1, page.getPositionCount());
+            LongBlock a = page.getBlock(0);
+            LongBlock ab = page.getBlock(1);
+            assertEquals(2, a.getValueCount(0));
+            assertEquals(1, ab.getPositionCount());
+            assertTrue(ab.isNull(0));
+        }
+    }
+
+    /**
      * A coercion failure inside an array poisons the position, and {@code cancelAndNullPositionEntry} rolls every
      * column under that array back to a null. A column whose reopen was refused (see
      * {@link #testArrayOnPrefixCannotWidenAPolicyNulledCell}) has no entry to roll back and already holds that
@@ -661,6 +745,34 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             assertTrue(((LongBlock) page.getBlock(0)).isNull(0));
             assertTrue("the poisoned array nulls the whole position for this column", ((LongBlock) page.getBlock(1)).isNull(0));
             assertEquals(10L, ((LongBlock) page.getBlock(2)).getLong(0));
+        }
+    }
+
+    /**
+     * The same record as {@link #testObjectArrayPoisonDoesNotNullAnUntouchedClaimedSibling} with the two keys
+     * swapped, which must give the same columns. Here the array comes first, so it opens an entry for {@code a.b}
+     * speculatively and no element ever writes it; that empty entry is cancelled without claiming the cell, which
+     * is what leaves the later flat {@code "a.b":1} free to fill it. Claiming it would pin the cell to null and
+     * make the answer depend on key order.
+     */
+    public void testObjectArrayPoisonBeforeTheFlatSpellingLeavesItFillable() throws IOException {
+        String ndjson = "{\"a\":[{\"c\":\"notanumber\"}],\"a.b\":1,\"id\":10}\n";
+
+        try (
+            Page page = decodePage(
+                ndjson,
+                List.of(attribute("a.b", DataType.LONG), attribute("a.c", DataType.LONG), attribute("id", DataType.LONG)),
+                new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false)
+            )
+        ) {
+            assertNotNull(page);
+            assertEquals(1, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            LongBlock ac = page.getBlock(1);
+            LongBlock id = page.getBlock(2);
+            assertEquals("the poisoned array never wrote a.b, so the flat spelling still fills it", 1L, ab.getLong(0));
+            assertTrue("null_field nulls the leaf the array actually wrote", ac.isNull(0));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
         }
     }
 

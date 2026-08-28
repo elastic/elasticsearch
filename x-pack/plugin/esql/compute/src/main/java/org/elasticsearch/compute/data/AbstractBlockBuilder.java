@@ -90,8 +90,11 @@ public abstract class AbstractBlockBuilder implements Block.Builder {
 
     /**
      * Whether {@link #beginPositionEntry()} is open and no values have been appended into it.
-     * {@link #endPositionEntry()} asserts in that state; the caller must {@link #cancelPositionEntry()}
-     * and {@link #appendNull()} instead.
+     * {@link #endPositionEntry()} asserts in that state, so the caller must {@link #cancelPositionEntry()}
+     * instead. That leaves the position uncommitted, which the caller must still resolve before moving on
+     * to the next position: either by supplying a value or a null for it here, or by leaving it to a later
+     * fill pass of its own. Appending a null immediately is not always the right choice, since a null
+     * cannot later be widened into a multivalue (see {@link #reopenLastPositionEntry()}).
      */
     public boolean currentPositionEntryIsEmpty() {
         return positionEntryIsOpen && valueCount == firstValueIndexes[positionCount];
@@ -131,16 +134,26 @@ public abstract class AbstractBlockBuilder implements Block.Builder {
      * only after having appended the first one (e.g. a columnar decoder reading a format where one cell can be spelled
      * more than once in a record) merge them without buffering every cell on the chance a second value arrives.
      *
-     * <p>Returns {@code false} when the last position is null, which cannot gain values: a null is a property of the
-     * whole position, not a member of its value list. The caller must then leave the position as it is.
+     * <p>Returns {@code false} when there is no last position to reopen, and when the last position is null. A null
+     * cannot gain values: it is a property of the whole position, not a member of its value list. The caller must then
+     * leave the position as it is.
      *
      * <p>Unlike {@link #beginPositionEntry()} this keeps the values already written, so the reopened position is never
      * empty and the following {@link #endPositionEntry()} always satisfies its non-empty assertion. Subclasses that
      * delegate to inner builders cannot express the reopen and must override it to throw.
+     *
+     * <p>A successful reopen forces {@code firstValueIndexes} into existence and the following append sets
+     * {@code hasMultiValues} for the rest of the builder's life, so one widened position changes the block
+     * representation of every position this builder holds, not just its own.
      */
     public boolean reopenLastPositionEntry() {
         assert positionEntryIsOpen == false : "reopenLastPositionEntry called with a position entry already open";
-        assert positionCount > 0 : "reopenLastPositionEntry called before any position was committed";
+        if (positionCount == 0) {
+            // No committed position to widen. Refused rather than asserted: reopening would drive positionCount
+            // negative and corrupt the builder silently wherever assertions are disabled, and a caller that tracks
+            // "this column has a value for the current row" outside the builder can get that bit wrong.
+            return false;
+        }
         if (nullsMask != null && nullsMask.get(positionCount - 1)) {
             return false;
         }

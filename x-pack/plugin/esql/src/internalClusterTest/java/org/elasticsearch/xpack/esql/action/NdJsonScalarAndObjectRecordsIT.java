@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
 import org.junit.Before;
 
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -41,11 +40,12 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * End-to-end: one file's scalar {@code user} and another's nested {@code user.id}/{@code user.tier}
- * are independent columns under {@code UNION_BY_NAME}. Both files' rows return; the object file
- * null-fills {@code user}. Runs through a real {@code FROM <dataset>} query.
+ * End-to-end: a field ({@code user}) that is a scalar in some NDJSON records and a JSON object in others
+ * reads without error. The object record has no value for the {@code user} column, which is null-filled
+ * there, and the query succeeds under every {@code error_mode}, including STRICT. Runs through a real
+ * {@code FROM <dataset>} query.
  */
-public class NdJsonCrossFileScalarObjectConflictIT extends AbstractEsqlIntegTestCase {
+public class NdJsonScalarAndObjectRecordsIT extends AbstractEsqlIntegTestCase {
 
     private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
 
@@ -82,7 +82,7 @@ public class NdJsonCrossFileScalarObjectConflictIT extends AbstractEsqlIntegTest
         }
     }
 
-    private Path fixtureDir;
+    private Path fixture;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -108,36 +108,38 @@ public class NdJsonCrossFileScalarObjectConflictIT extends AbstractEsqlIntegTest
     }
 
     /**
-     * {@code a.ndjson}'s {@code user} is a string; {@code b.ndjson}'s is a nested object.
-     * Registers {@code strict_ds} (default error policy) and {@code lenient_ds}
-     * ({@code error_mode: skip_row}) over the same two-file directory.
+     * {@code user} is a string in two records and a nested object in one. Registers {@code default_ds}
+     * (default error policy) and {@code skip_row_ds} ({@code error_mode: skip_row}).
      */
     @Before
     public void writeFixtureAndRegister() throws Exception {
-        fixtureDir = createTempDir().resolve("cross_file_shape_conflict");
-        Files.createDirectories(fixtureDir);
-        Files.writeString(fixtureDir.resolve("a.ndjson"), "{\"event\":1,\"user\":\"alice\"}\n", StandardCharsets.UTF_8);
+        fixture = createTempDir().resolve("scalar-then-object.ndjson");
         Files.writeString(
-            fixtureDir.resolve("b.ndjson"),
-            "{\"event\":2,\"user\":{\"id\":\"bob\",\"tier\":\"gold\"}}\n",
-            StandardCharsets.UTF_8
+            fixture,
+            String.join(
+                "\n",
+                "{\"event\":1,\"user\":\"alice\"}",
+                "{\"event\":2,\"user\":{\"id\":\"bob\",\"tier\":\"gold\"}}",
+                "{\"event\":3,\"user\":\"carol\"}",
+                ""
+            )
         );
-        String resource = StoragePath.fileUri(fixtureDir) + "/*.ndjson";
+        String resource = StoragePath.fileUri(fixture);
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         assertAcked(
-            client().execute(PutDatasetAction.INSTANCE, putDatasetRequest("strict_ds", "local_ds", resource, Map.of("format", "ndjson")))
+            client().execute(PutDatasetAction.INSTANCE, putDatasetRequest("default_ds", "local_ds", resource, Map.of("format", "ndjson")))
         );
         assertAcked(
             client().execute(
                 PutDatasetAction.INSTANCE,
-                putDatasetRequest("lenient_ds", "local_ds", resource, Map.of("format", "ndjson", "error_mode", "skip_row"))
+                putDatasetRequest("skip_row_ds", "local_ds", resource, Map.of("format", "ndjson", "error_mode", "skip_row"))
             )
         );
     }
 
     @After
     public void cleanupRegistry() throws Exception {
-        for (String dataset : List.of("strict_ds", "lenient_ds")) {
+        for (String dataset : List.of("default_ds", "skip_row_ds")) {
             try {
                 client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(dataset)).get(30, TimeUnit.SECONDS);
             } catch (ResourceNotFoundException ignored) {
@@ -153,47 +155,36 @@ public class NdJsonCrossFileScalarObjectConflictIT extends AbstractEsqlIntegTest
         } catch (Exception e) {
             logger.warn("data source cleanup [local_ds] failed", e);
         }
-        Files.walk(fixtureDir).sorted((a, b) -> b.compareTo(a)).forEach(p -> {
-            try {
-                Files.deleteIfExists(p);
-            } catch (Exception ignored) {
-                // best-effort cleanup
-            }
-        });
+        Files.deleteIfExists(fixture);
     }
 
     /**
-     * Default settings ({@code UNION_BY_NAME}, strict error policy) keep both files: a scalar
-     * {@code user} and dotted {@code user.id}/{@code user.tier} are independent columns, not a
-     * value error. The object file null-fills {@code user}.
+     * STRICT keeps every record. The object-valued {@code user} null-fills that column; the two scalar
+     * records keep their strings.
      */
-    public void testDefaultSettingsKeepsBothFiles() {
-        try (var response = run(syncEsqlQueryRequest("FROM strict_ds | KEEP event, user, `user.id`, `user.tier` | SORT event"), TIMEOUT)) {
+    public void testStrictKeepsObjectRecordWithNullUser() {
+        try (var response = run(syncEsqlQueryRequest("FROM default_ds | KEEP event, user | SORT event"), TIMEOUT)) {
             List<List<Object>> rows = getValuesList(response);
-            assertThat(rows.size(), equalTo(2));
+            assertThat(rows.size(), equalTo(3));
             assertThat(((Number) rows.get(0).get(0)).intValue(), equalTo(1));
             assertThat(rows.get(0).get(1), equalTo("alice"));
-            assertNull(rows.get(0).get(2));
-            assertNull(rows.get(0).get(3));
             assertThat(((Number) rows.get(1).get(0)).intValue(), equalTo(2));
             assertNull(rows.get(1).get(1));
-            assertThat(rows.get(1).get(2), equalTo("bob"));
-            assertThat(rows.get(1).get(3), equalTo("gold"));
+            assertThat(((Number) rows.get(2).get(0)).intValue(), equalTo(3));
+            assertThat(rows.get(2).get(1), equalTo("carol"));
         }
     }
 
     /**
-     * {@code skip_row} has nothing to drop: a scalar in one file and an object in another are
-     * independent columns, not a value error.
+     * {@code skip_row} has nothing to drop: a scalar/object mix is not a value error.
      */
-    public void testSkipRowAlsoKeepsBothFiles() {
-        try (var response = run(syncEsqlQueryRequest("FROM lenient_ds | KEEP event, user | SORT event"), TIMEOUT)) {
+    public void testSkipRowAlsoKeepsObjectRecord() {
+        try (var response = run(syncEsqlQueryRequest("FROM skip_row_ds | KEEP event, user | SORT event"), TIMEOUT)) {
             List<List<Object>> rows = getValuesList(response);
-            assertThat(rows.size(), equalTo(2));
-            assertThat(((Number) rows.get(0).get(0)).intValue(), equalTo(1));
+            assertThat(rows.size(), equalTo(3));
             assertThat(rows.get(0).get(1), equalTo("alice"));
-            assertThat(((Number) rows.get(1).get(0)).intValue(), equalTo(2));
             assertNull(rows.get(1).get(1));
+            assertThat(rows.get(2).get(1), equalTo("carol"));
         }
     }
 

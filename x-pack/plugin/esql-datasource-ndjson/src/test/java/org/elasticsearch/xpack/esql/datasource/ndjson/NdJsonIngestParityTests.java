@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -30,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -41,6 +43,9 @@ import static org.hamcrest.Matchers.equalTo;
  *
  * <p>All fixtures use integer values, because ingest maps a dynamic string to {@code text} plus a {@code .keyword}
  * multi-field. That would compare a mapping detail rather than the flattening behavior under test.
+ *
+ * <p>{@link #testRepeatedFlatKeyMergesWhereIngestRejectsTheDocument} is the one case that asserts a difference
+ * rather than agreement, and says why.
  */
 public class NdJsonIngestParityTests extends MapperServiceTestCase {
 
@@ -193,6 +198,116 @@ public class NdJsonIngestParityTests extends MapperServiceTestCase {
     public void testSparseObjectArrayOverLeafAndPrefix() throws IOException {
         assertParity("""
             {"x":[{"a":1},{"a":{"b":2}}],"id":10}""");
+    }
+
+    /** Mirror of {@link #testBothSpellingsOfOneLeafBecomeAMultivalue}: the values land in document order either way. */
+    public void testBothSpellingsOfOneLeafMergeInDocumentOrder() throws IOException {
+        assertParity("""
+            {"a.b":2,"a":{"b":1}}""");
+    }
+
+    /**
+     * A key repeated verbatim is the one shape here where the reader is deliberately the more permissive of the two.
+     * Ingest parses with duplicate detection on and rejects the whole document; the reader has no such check and
+     * treats the second occurrence as another value of the same leaf, the way it treats the two dotted spellings.
+     * Rejecting instead would fail a file the query does not control over a shape JSON parsers accept by default.
+     */
+    public void testRepeatedFlatKeyMergesWhereIngestRejectsTheDocument() throws IOException {
+        String json = """
+            {"a.b":1,"a.b":2}""";
+        assertThat(readerLeaves(json), equalTo(Map.of("a.b", List.of(1L, 2L))));
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> ingestLeaves(json));
+        assertThat(e.getMessage(), containsString("Duplicate field 'a.b'"));
+    }
+
+    /**
+     * A JSON null under one spelling contributes nothing, so the other spelling's value is the leaf's only value
+     * rather than one half of a multivalue.
+     */
+    public void testNullUnderOneSpellingContributesNothing() throws IOException {
+        assertParity("""
+            {"a":{"b":null},"a.b":2,"id":10}""");
+        assertParity("""
+            {"a.b":2,"a":{"b":null},"id":20}""");
+    }
+
+    /** A null at a prefix position leaves the dotted leaf spelled beside it untouched. */
+    public void testNullAtPrefixThenFlatKey() throws IOException {
+        assertParity("""
+            {"a":null,"a.b":1,"id":10}""");
+    }
+
+    /** An empty object holds no leaves, so it contributes nothing, exactly as an empty array does. */
+    public void testEmptyObjectUnderFlatKeyContributesNothing() throws IOException {
+        assertParity("""
+            {"a.b":{},"id":10}""");
+    }
+
+    /** A flat dotted key holding an array of scalars: the leaf takes every element. */
+    public void testScalarArrayUnderFlatKey() throws IOException {
+        assertParity("""
+            {"a.b":[1,2],"id":10}""");
+    }
+
+    /** The same leaf's values split across the two spellings, each holding its own single-element array. */
+    public void testScalarArraysSplitAcrossBothSpellings() throws IOException {
+        assertParity("""
+            {"a.b":[1],"a":{"b":[2]},"id":10}""");
+    }
+
+    /** Nested arrays are flattened, so an object one level deeper inside the array still reaches the leaf. */
+    public void testNestedArrayIsFlattened() throws IOException {
+        assertParity("""
+            {"a":[[{"b":1}]],"id":10}""");
+    }
+
+    /** Both spellings of one leaf inside array elements of a prefix, so the merge happens under an open array entry. */
+    public void testBothSpellingsInsideArrayElements() throws IOException {
+        assertParity("""
+            {"x":[{"a.b":1},{"a":{"b":2}}],"id":10}""");
+    }
+
+    /** Three spellings of one leaf in one document: flat, split at the first dot, and split at the second. */
+    public void testThreeSpellingsOfOneLeafMerge() throws IOException {
+        assertParity("""
+            {"a.b.c":1,"a":{"b.c":2},"a.b":{"c":3}}""");
+    }
+
+    /**
+     * A flat key with an empty dotted segment. This is the shape ingest's dot-expanding parser rejects, so it is
+     * worth pinning that the {@code subobjects: false} semantics the reader mirrors accept it.
+     */
+    public void testFlatKeysWithEmptyDottedSegments() throws IOException {
+        assertParity("""
+            {"a..b":1,"id":10}""");
+        assertParity("""
+            {".a":1,"id":10}""");
+        assertParity("""
+            {"a.":1,"id":10}""");
+    }
+
+    /**
+     * An empty JSON field name is an ordinary segment, so ingest concatenates it into a leaf with an empty segment
+     * and the reader addresses that leaf the same way. Without this the value would be read as null while the same
+     * bytes indexed cleanly, which is the divergence this whole path exists to remove.
+     *
+     * <p>Only an empty name holding a scalar is compared. An empty name holding an <em>object</em>
+     * ({@code {"a":{"":{"b":1}}}}) makes ingest build the intermediate prefix {@code "a."} and trip an assertion in
+     * {@code ObjectMapper#hasMappedFieldsWithPrefix}, so there is no ingest behavior to compare against.
+     */
+    public void testEmptyFieldNameIsAnOrdinarySegment() throws IOException {
+        assertParity("""
+            {"a":{"":1},"id":10}""");
+        assertParity("""
+            {"a":{"b":{"":1}},"id":10}""");
+    }
+
+    /** Both spellings of a column whose last segment is empty, so they merge as any other pair of spellings does. */
+    public void testBothSpellingsOfAnEmptyLastSegmentMerge() throws IOException {
+        assertParity("""
+            {"a":{"":1},"a.":2,"id":10}""");
+        assertParity("""
+            {"a.":1,"a":{"":2},"id":20}""");
     }
 
     private void assertParity(String json) throws IOException {

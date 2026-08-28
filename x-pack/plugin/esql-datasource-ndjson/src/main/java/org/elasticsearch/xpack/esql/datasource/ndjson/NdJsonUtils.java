@@ -66,24 +66,20 @@ class NdJsonUtils {
         .build();
 
     /**
-     * Whether {@code name} addresses a path of nested field names rather than one literal name, i.e. whether it holds a
-     * dot with a non-empty segment on either side of every dot it contains. {@link NdJsonSchemaInferrer} and
-     * {@link NdJsonPageDecoder} must agree on this: a name the inferrer records as one literal column has to be the
-     * same name the decoder resolves as one literal field, or the column would be inferred and then never filled.
+     * Whether {@code name} addresses a path of nested field names rather than one literal name, which is to say
+     * whether it holds a dot at all. {@link NdJsonSchemaInferrer} and {@link NdJsonPageDecoder} must agree on this: a
+     * name the inferrer records as one literal column has to be the same name the decoder resolves as one literal
+     * field, or the column would be inferred and then never filled.
      *
-     * <p>A name with an empty segment ({@code "a."}, {@code ".a"}, {@code "a..b"}) is a literal leaf name. It cannot be
-     * a path, since no field name is empty, and treating it as one would silently drop a segment: splitting
-     * {@code "a."} yields the single segment {@code "a"}, which is a different column.
+     * <p>A segment may be empty, because a JSON field name may be empty: {@code "a."} addresses {@code a → ""}, which
+     * is how {@code {"a":{"":1}}} spells it, and {@code {"a.":1}} is the flat spelling of that same column. Both
+     * resolve to the one node, exactly as they do when every segment is non-empty. This holds only because every walk
+     * over these names steps segment by segment with {@code indexOf}/{@code substring}. {@code String#split} would
+     * drop a trailing empty segment and turn {@code "a."} into the different column {@code "a"}, so it must not be
+     * used on them.
      */
     static boolean isFieldPath(String name) {
-        int dot = name.indexOf('.');
-        if (dot < 0) {
-            return false;
-        }
-        if (dot == 0 || name.charAt(name.length() - 1) == '.') {
-            return false;
-        }
-        return name.contains("..") == false;
+        return name.indexOf('.') >= 0;
     }
 
     /**

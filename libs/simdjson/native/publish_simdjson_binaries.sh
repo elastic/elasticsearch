@@ -14,8 +14,6 @@
 #   ./publish_simdjson_binaries.sh                       # build all platforms and upload to Artifactory
 #   ./publish_simdjson_binaries.sh --local               # build all platforms, package zip, skip upload
 #   ./publish_simdjson_binaries.sh --local --force-upload # build locally, then upload to Artifactory
-#   ./publish_simdjson_binaries.sh --local --install-to-gradle-platform
-#                        # also copy into libs/native/libraries/build/platform/ (make install layout)
 #
 # Environment:
 #   TOOLCHAIN_IMAGE      Docker image for cross-compilation
@@ -32,12 +30,10 @@ DEFAULT_TOOLCHAIN_IMAGE="${LOCAL_TOOLCHAIN_IMAGE}"
 
 LOCAL=false
 FORCE_UPLOAD=false
-INSTALL_TO_GRADLE_PLATFORM=false
 for arg in "$@"; do
   case "$arg" in
     --local)                      LOCAL=true ;;
     --force-upload)               FORCE_UPLOAD=true ;;
-    --install-to-gradle-platform) INSTALL_TO_GRADLE_PLATFORM=true ;;
     *) echo "Unknown option: $arg"; exit 1 ;;
   esac
 done
@@ -107,17 +103,6 @@ run_make_all_in_toolchain() {
 ARTIFACTORY_REPOSITORY="${ARTIFACTORY_REPOSITORY:-https://artifactory.elastic.dev/artifactory/elasticsearch-native/}"
 TEMP=$(mktemp -d)
 
-install_to_gradle_platform() {
-  local install_root
-  install_root="$(cd "$(dirname "$0")/../../native/libraries/prebuild/platform" && pwd)"
-  mkdir -p "$install_root/darwin-aarch64" "$install_root/linux-aarch64" "$install_root/linux-x64"
-  cp build/libs/es_simdjson/shared/aarch64/libes_simdjson.dylib "$install_root/darwin-aarch64/"
-  cp build/libs/es_simdjson/shared/aarch64/libes_simdjson.so    "$install_root/linux-aarch64/"
-  cp build/libs/es_simdjson/shared/amd64/libes_simdjson.so      "$install_root/linux-x64/"
-  echo "Installed native libs to $install_root (commit these; Gradle copies into build/platform/)"
-  ls -la "$install_root"/*/libes_simdjson.*
-}
-
 if [ "$UPLOAD" = true ]; then
   if curl -sS -I --fail --location "${ARTIFACTORY_REPOSITORY}/org/elasticsearch/es-simdjson/${VERSION}/es-simdjson-${VERSION}.zip" > /dev/null 2>&1; then
     echo "Error: Artifacts already exist for version '${VERSION}'. Bump version before republishing."
@@ -156,11 +141,7 @@ else
   rm -rf "$TEMP" "$TEMP_DBG"
   echo "Local build complete. Artifact: $ZIP"
   echo "Debug info:  $DBG_ZIP"
-  if [ "$INSTALL_TO_GRADLE_PLATFORM" = true ]; then
-    install_to_gradle_platform
-  else
-    echo "Stage for Gradle (example, aarch64):"
-    echo "  ./publish_simdjson_binaries.sh --local --install-to-gradle-platform"
-    echo "  or: unzip -p ${ZIP} linux-aarch64/libes_simdjson.so > ../../native/libraries/build/platform/linux-aarch64/libes_simdjson.so"
-  fi
+  echo "For local Gradle builds, either:"
+  echo "  cd libs/simdjson/native && make install   # current platform only"
+  echo "  or set LOCAL_SIMDJSON_BINARY=1 and copy from the zip into libs/native/libraries/build/platform/<os>-<arch>/"
 fi

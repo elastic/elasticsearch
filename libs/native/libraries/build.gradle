@@ -90,12 +90,9 @@ dependencies {
     libs "org.elasticsearch:es-parquet-rs:${pqrsVersion}@zip"
   }
   // See `libs/simdjson/native/Makefile` for local builds.
-  // TEMPORARY(simdjson_stage1): prebuilt libes_simdjson.* checked in under prebuild/platform/
-  // (same layout as `make install` → build/platform/). Regenerate with:
-  //   cd libs/simdjson/native && ./publish_simdjson_binaries.sh --local --install-to-gradle-platform
-  def simdjsonCheckedIn = file("prebuild/platform/linux-aarch64/libes_simdjson.so").exists()
-    && file("prebuild/platform/linux-x64/libes_simdjson.so").exists()
-  if (System.getenv("LOCAL_SIMDJSON_BINARY") == null && simdjsonCheckedIn == false) {
+  // To use a locally built libes_simdjson, set LOCAL_SIMDJSON_BINARY=1 and copy the library to
+  // libs/native/libraries/build/platform/<os>-<arch>/libes_simdjson.so (or .dylib on macOS).
+  if (System.getenv("LOCAL_SIMDJSON_BINARY") == null) {
     libs "org.elasticsearch:es-simdjson:${simdjsonVersion}@zip"
   }
 }
@@ -103,12 +100,6 @@ dependencies {
 def extractLibs = tasks.register('extractLibs', Copy) {
   into layout.buildDirectory.dir('platform')
   from configurations.libs
-  def simdjsonCheckedIn = file("prebuild/platform/linux-aarch64/libes_simdjson.so").exists()
-    && file("prebuild/platform/linux-x64/libes_simdjson.so").exists()
-  if (System.getenv("LOCAL_SIMDJSON_BINARY") == null && simdjsonCheckedIn) {
-    from layout.projectDirectory.dir("prebuild/platform")
-    include "**/libes_simdjson.*"
-  }
   // TODO: fix architecture in uploaded libs
   filesMatching("*-x86-64/*") {
     it.path = it.path.replace("x86-64", "x64")

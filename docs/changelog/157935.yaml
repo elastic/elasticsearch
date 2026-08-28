@@ -2,6 +2,6 @@ area: Infra/Core
 issues: []
 pr: 157935
 summary: >
-  Scrub JDK_JAVA_OPTIONS, JAVA_TOOL_OPTIONS, and _JAVA_OPTIONS from the environment on startup.
-  Use jvm.options.d or ES_JAVA_OPTS to pass JVM parameters to Elasticsearch.
+  JDK_JAVA_OPTIONS was not being scrubbed from the environment on startup, unlike JAVA_TOOL_OPTIONS
+  and _JAVA_OPTIONS. Use jvm.options.d or ES_JAVA_OPTS to pass JVM parameters to Elasticsearch.
 type: bug

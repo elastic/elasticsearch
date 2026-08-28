@@ -503,9 +503,15 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         var searchEngine = getShardEngine(findSearchShard(indexName), SearchEngine.class);
         assertThat(searchEngine.getTotalPrefetchedBytes(), is(equalTo(0L)));
 
+        // Track the search node's pools so we can drain them after indexing.
+        // N-notifications submit async VBCC chunk reads to FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+        // (irrespective of backgroundPrefetch) — draining REFRESH alone is not sufficient.
         ThreadPool searchThreadPool = internalCluster().getInstance(ThreadPool.class, DiscoveryNodeRole.SEARCH_ROLE);
         long preIndexingRefreshTasks = getNumberOfCompletedTasks(searchThreadPool, ThreadPool.Names.REFRESH);
-        long preIndexingPrewarmTasks = getNumberOfCompletedTasks(searchThreadPool, StatelessPlugin.PREWARM_THREAD_POOL);
+        long preIndexingFillTasks = getNumberOfCompletedTasks(
+            searchThreadPool,
+            StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+        );
 
         var numberOfCommits = randomIntBetween(5, 8);
         for (int j = 0; j < numberOfCommits; j++) {
@@ -515,12 +521,14 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         }
 
         // Wait for all N-notification segment openings (and their VBCC reads) to complete.
-        // When backgroundPrefetch=true, background prefetch tasks run on PREWARM_THREAD_POOL and may contact
-        // the indexing node after REFRESH drains — drain PREWARM too so the snapshot is stable.
+        // VBCC chunk fills run asynchronously on FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL and
+        // may contact the indexing node after REFRESH drains — drain it too so the snapshot is stable.
         assertNoRunningAndQueueTasks(searchThreadPool, ThreadPool.Names.REFRESH, preIndexingRefreshTasks);
-        if (backgroundPrefetch) {
-            assertNoRunningAndQueueTasks(searchThreadPool, StatelessPlugin.PREWARM_THREAD_POOL, preIndexingPrewarmTasks);
-        }
+        assertNoRunningAndQueueTasks(
+            searchThreadPool,
+            StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL,
+            preIndexingFillTasks
+        );
 
         // Snapshot indexing-node reads before the flush so we can assert M's prefetch adds nothing
         var indexingNodeReadsBeforeFlush = bytesReadFromIndexingNode.bytesCount();

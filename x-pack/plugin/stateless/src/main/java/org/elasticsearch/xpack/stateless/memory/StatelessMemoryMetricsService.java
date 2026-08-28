@@ -275,7 +275,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * Computes node and shard heap usage estimates from the same snapshot of shard memory metrics.
      */
     public EstimatedHeapUsageStats getEstimatedHeapUsageStats(ClusterState clusterState) {
-        Map<ShardId, ShardMemoryMetrics> shardMemoryMetricsSnapshot = copyShardMemoryMetrics();
+        Map<ShardId, ShardMemoryMetrics> shardMemoryMetricsSnapshot = snapshotShardMemoryMetrics();
         return new EstimatedHeapUsageStats(
             getPerNodeMemoryMetrics(clusterState, shardMemoryMetricsSnapshot),
             getShardHeapUsageEstimates(shardMemoryMetricsSnapshot)
@@ -687,7 +687,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             );
         }
 
-        public synchronized ShardMemoryMetrics clone() {
+        synchronized ShardMemoryMetrics snapshot() {
             return new ShardMemoryMetrics(
                 mappingSizeInBytes,
                 numSegments,
@@ -955,9 +955,9 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         return new ShardHeapUsageEstimates(heapUsagePerShard, defaultForShardsWithoutMetrics);
     }
 
-    private Map<ShardId, ShardMemoryMetrics> copyShardMemoryMetrics() {
+    private Map<ShardId, ShardMemoryMetrics> snapshotShardMemoryMetrics() {
         Map<ShardId, ShardMemoryMetrics> snapshot = new HashMap<>();
-        shardMemoryMetrics.forEach((shardId, shardMemoryMetric) -> snapshot.put(shardId, shardMemoryMetric.clone()));
+        shardMemoryMetrics.forEach((shardId, shardMemoryMetric) -> snapshot.put(shardId, shardMemoryMetric.snapshot()));
         return snapshot;
     }
 

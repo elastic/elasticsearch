@@ -8,18 +8,23 @@
 package org.elasticsearch.xpack.stateless.memory;
 
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EstimatedHeapUsageStats;
-import org.elasticsearch.cluster.NodeHeapEstimates;
-import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
-import org.elasticsearch.cluster.ShardHeapUsageEstimates;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 
-import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -27,21 +32,17 @@ import static org.mockito.Mockito.when;
 
 public class StatelessHeapUsageReaderTests extends ESTestCase {
 
-    public void testCollectEstimatedHeapUsageDelegatesToServiceWithPluginClusterState() {
-        ClusterState clusterState = mock(ClusterState.class);
-        EstimatedHeapUsageStats estimatedHeapUsageStats = new EstimatedHeapUsageStats(
-            Map.of("node-id", new NodeHeapEstimates(100L, 20L)),
-            new ShardHeapUsageEstimates(
-                Map.of(new ShardId("index", "uuid", 0), new ShardAndIndexHeapUsage(10L, 5L)),
-                new ShardAndIndexHeapUsage(1L, 2L)
-            )
+    public void testCollectEstimatedHeapUsageReadsRealServiceUsingPluginClusterState() {
+        ClusterState clusterState = ClusterStateCreationUtils.state(randomIdentifier(), 2, 1);
+        StatelessMemoryMetricsService memoryMetricsService = new StatelessMemoryMetricsService(
+            () -> 1L,
+            new ClusterSettings(Settings.EMPTY, allSettings())
         );
-        StatelessMemoryMetricsService memoryMetricsService = mock(StatelessMemoryMetricsService.class);
-        when(memoryMetricsService.getEstimatedHeapUsageStats(clusterState)).thenReturn(estimatedHeapUsageStats);
+        memoryMetricsService.clusterChanged(new ClusterChangedEvent("init", clusterState, ClusterState.EMPTY_STATE));
+        EstimatedHeapUsageStats expectedStats = memoryMetricsService.getEstimatedHeapUsageStats(clusterState);
         StatelessHeapUsageReader reader = new StatelessHeapUsageReader(createPlugin(memoryMetricsService, clusterState));
 
-        assertThat(invokeCollect(reader), sameInstance(estimatedHeapUsageStats));
-        verify(memoryMetricsService).getEstimatedHeapUsageStats(clusterState);
+        assertThat(invokeCollect(reader), equalTo(expectedStats));
     }
 
     public void testCollectEstimatedHeapUsagePropagatesFailures() throws Exception {
@@ -70,5 +71,21 @@ public class StatelessHeapUsageReaderTests extends ESTestCase {
         when(plugin.getClusterService()).thenReturn(clusterService);
         when(plugin.getStatelessMemoryMetricsService()).thenReturn(memoryMetricsService);
         return plugin;
+    }
+
+    private static Set<Setting<?>> allSettings() {
+        return Stream.concat(
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),
+            Stream.of(
+                StatelessMemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING,
+                StatelessMemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING,
+                StatelessMemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING,
+                StatelessMemoryMetricsService.MERGE_MEMORY_ESTIMATE_ENABLED_SETTING,
+                StatelessMemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING,
+                StatelessMemoryMetricsService.SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING,
+                StatelessMemoryMetricsService.ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING,
+                SETTING_CLUSTER_MAX_SHARDS_PER_NODE
+            )
+        ).collect(Collectors.toSet());
     }
 }

@@ -10,6 +10,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -269,33 +270,36 @@ public final class ColumnMapping implements Writeable {
      * Rebuilds a mapping whose width and order match {@code queryDataSchema}, indexing into the
      * reader's projected page ({@code perFileCols}) rather than the file-natural schema.
      * <p>
-     * Used when a caller still holds a unified-width mapping (the zero-split multi-file arm, or
-     * any future producer that yields a resolved file list without pruned splits) and would
-     * otherwise fail {@link SchemaAdaptingIterator}'s size-vs-width guard. Missing query columns
-     * become {@code -1} (null-fill); type disagreement vs the file's read schema becomes a cast
-     * to the query type, matching {@link SchemaReconciliation#computeMapping}.
+     * This is the adapter's output contract: {@link SchemaAdaptingIterator} emits
+     * {@code queryDataSchema} order, so the mapping must follow that list even when a
+     * unified-width or file-natural mapping was still attached (zero-split multi-file, Hive
+     * partition keys that are not last, KEEP reorder). Missing query columns become {@code -1}
+     * (null-fill). A file/query type disagreement becomes a cast to the query type when the pair
+     * is a {@link CastType} target that {@link DeclaredTypeCoercions#supports} admits; otherwise
+     * this fails at open rather than on a later page.
      */
     static ColumnMapping alignToQuery(
         ExternalSchema queryDataSchema,
         @Nullable List<Attribute> perFileReadSchema,
-        @Nullable List<String> perFileCols
+        List<String> perFileCols
     ) {
+        assert perFileCols != null : "perFileCols comes from perFileQueryProjection and is never null at adaptSchema";
         int width = queryDataSchema.size();
         int[] index = new int[width];
         DataType[] casts = new DataType[width];
         boolean anyCasts = false;
 
-        HashMap<String, DataType> fileTypes = new HashMap<>();
-        if (perFileReadSchema != null) {
-            for (Attribute attr : perFileReadSchema) {
-                fileTypes.put(attr.name(), attr.dataType());
-            }
+        Map<String, DataType> fileTypes = typesByName(perFileReadSchema);
+        Map<String, Integer> colIndex = Maps.newHashMapWithExpectedSize(perFileCols.size());
+        for (int c = 0; c < perFileCols.size(); c++) {
+            colIndex.putIfAbsent(perFileCols.get(c), c);
         }
 
         for (int i = 0; i < width; i++) {
             Attribute queryAttr = queryDataSchema.get(i);
             String name = queryAttr.name();
-            int local = perFileCols == null ? -1 : perFileCols.indexOf(name);
+            Integer localObj = colIndex.get(name);
+            int local = localObj == null ? -1 : localObj;
             index[i] = local;
             if (local == -1) {
                 continue;
@@ -303,6 +307,18 @@ public final class ColumnMapping implements Writeable {
             DataType fileType = fileTypes.get(name);
             DataType queryType = queryAttr.dataType();
             if (fileType != null && fileType != queryType) {
+                if (DeclaredTypeCoercions.supports(fileType, queryType) == false) {
+                    throw new IllegalArgumentException(
+                        "Cannot align column ["
+                            + name
+                            + "]: file type ["
+                            + fileType.typeName()
+                            + "] cannot be cast to query type ["
+                            + queryType.typeName()
+                            + "]"
+                    );
+                }
+                CastType.fromDataType(queryType);
                 casts[i] = queryType;
                 anyCasts = true;
             }
@@ -419,13 +435,21 @@ public final class ColumnMapping implements Writeable {
         if (perFileReadSchema == null || perFileReadSchema.isEmpty() || perFileCols == null || perFileCols.isEmpty()) {
             return null;
         }
-        HashMap<String, DataType> nameToType = new HashMap<>(perFileReadSchema.size());
-        for (Attribute attr : perFileReadSchema) {
-            nameToType.put(attr.name(), attr.dataType());
-        }
+        Map<String, DataType> nameToType = typesByName(perFileReadSchema);
         DataType[] types = new DataType[perFileCols.size()];
         for (int i = 0; i < perFileCols.size(); i++) {
             types[i] = nameToType.get(perFileCols.get(i));
+        }
+        return types;
+    }
+
+    private static Map<String, DataType> typesByName(@Nullable List<Attribute> schema) {
+        if (schema == null || schema.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, DataType> types = Maps.newHashMapWithExpectedSize(schema.size());
+        for (Attribute attr : schema) {
+            types.put(attr.name(), attr.dataType());
         }
         return types;
     }

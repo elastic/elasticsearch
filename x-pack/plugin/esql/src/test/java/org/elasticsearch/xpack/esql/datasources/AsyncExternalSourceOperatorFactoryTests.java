@@ -578,6 +578,90 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     /**
+     * FFW Hive partition key that is not last: physical {@code [a, city, b]}, {@code city}
+     * partitioned. {@code computeMapping([a, b], physical)} is {@code [0, 2]} — same width as
+     * {@code queryDataSchema} — while the reader emits the projected page {@code [a, b]}.
+     * Unconditional {@code alignToQuery} must rewrite the mapping to {@code [0, 1]} so
+     * {@code mapPage} does not ask for block 2 of a 2-block page.
+     */
+    public void testHiveMiddlePartitionKeyEqualWidthStillRealigns() throws Exception {
+        StoragePath filePath = StoragePath.of("s3://bucket/data/city=10/f1.parquet");
+        List<StorageEntry> entries = List.of(new StorageEntry(filePath, 100, Instant.EPOCH));
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/data/**/*.parquet");
+
+        // Reader is asked for [a, b]; city is the partition key, not a physical block.
+        Page filePage = new Page(
+            2,
+            new IntBlock[] {
+                TEST_BLOCK_FACTORY.newIntArrayVector(new int[] { 1, 2 }, 2).asBlock(),
+                TEST_BLOCK_FACTORY.newIntArrayVector(new int[] { 3, 4 }, 2).asBlock() }
+        );
+        FormatReader formatReader = new SinglePageReader(() -> filePage);
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        List<Attribute> attributes = List.of(ref("a", DataType.INTEGER), ref("b", DataType.INTEGER), ref("city", DataType.INTEGER));
+
+        ExternalSchema fileSchema = new ExternalSchema(
+            List.of(ref("a", DataType.INTEGER), ref("city", DataType.INTEGER), ref("b", DataType.INTEGER))
+        );
+        // File-natural mapping of data columns [a, b] into physical [a, city, b].
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0, 2 }, null);
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
+            filePath,
+            new SchemaReconciliation.FileSchemaInfo(fileSchema, mapping, null)
+        );
+
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            formatReader,
+            filePath,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).fileList(fileList).schemaMap(schemaMap).partitionColumnNames(Set.of("city")).partitionValues(Map.of("city", 10)).build();
+
+        SourceOperator operator = factory.get(driverContext);
+        assertNotNull(operator);
+
+        List<Page> pages = new ArrayList<>();
+        try {
+            while (operator.isFinished() == false) {
+                Page page = operator.getOutput();
+                if (page != null) {
+                    pages.add(page);
+                }
+            }
+
+            assertEquals("one page produced", 1, pages.size());
+            Page page = pages.get(0);
+            assertEquals("data columns + injected partition column", 3, page.getBlockCount());
+            assertEquals(2, page.getPositionCount());
+
+            IntBlock aBlock = page.getBlock(0);
+            assertEquals(1, aBlock.getInt(0));
+            assertEquals(2, aBlock.getInt(1));
+            IntBlock bBlock = page.getBlock(1);
+            assertEquals(3, bBlock.getInt(0));
+            assertEquals(4, bBlock.getInt(1));
+            IntBlock cityBlock = page.getBlock(2);
+            assertEquals(10, cityBlock.getInt(0));
+            assertEquals(10, cityBlock.getInt(1));
+        } finally {
+            for (Page p : pages) {
+                p.releaseBlocks();
+            }
+            operator.close();
+        }
+    }
+
+    /**
      * Zero-split multi-file + unified-width {@code schemaMap} + narrow query. Discovery left a
      * resolved {@link FileList} and no splits, so the read takes {@code openNextMultiFile} which
      * used to pass the unified-width mapping to {@link SchemaAdaptingIterator} and trip the

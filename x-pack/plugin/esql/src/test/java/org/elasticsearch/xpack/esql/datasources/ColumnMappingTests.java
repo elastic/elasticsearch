@@ -48,8 +48,9 @@ import static org.hamcrest.Matchers.equalTo;
  *   <li>partitions-present — regression guard for the partition-column seed bug
  *       (an enriched Unified passed alongside a data-only-sized mapping would
  *       overrun {@code index.length}; the precondition assertion catches the mismatch)
- *   <li>align-to-query — query subset of file, missing column ({@code -1} null-fill), and
- *       INT→LONG widening cast
+ *   <li>align-to-query — query subset of file, missing column ({@code -1} null-fill),
+ *       INT→LONG widening cast, Hive middle-partition projected-page indices, query-schema
+ *       order, and fail-fast on a non-{@code CastType} target
  * </ul>
  */
 public class ColumnMappingTests extends ESTestCase {
@@ -212,6 +213,50 @@ public class ColumnMappingTests extends ESTestCase {
         } finally {
             filePage.releaseBlocks();
         }
+    }
+
+    public void testAlignToQueryHiveMiddlePartitionIndexesProjectedPage() {
+        // FFW Hive: physical [a, city, b] with city partitioned. computeMapping([a, b], physical)
+        // is [0, 2], but the reader emits the projected page [a, b], so indices must be [0, 1].
+        ExternalSchema query = schema("a", "b");
+        List<Attribute> fileAttrs = schema("a", "city", "b").attributes();
+        List<String> perFileCols = List.of("a", "b");
+
+        ColumnMapping aligned = ColumnMapping.alignToQuery(query, fileAttrs, perFileCols);
+
+        assertEquals(2, aligned.width());
+        assertEquals(0, aligned.localIndex(0));
+        assertEquals(1, aligned.localIndex(1));
+        assertTrue("projected [a, b] with matching types is identity-shaped", aligned.isIdentity());
+    }
+
+    public void testAlignToQueryFollowsQuerySchemaOrder() {
+        ExternalSchema query = schema("b", "a");
+        List<Attribute> fileAttrs = schema("a", "city", "b").attributes();
+        // perFileQueryProjection walks the file schema, so the reader's page is [a, b].
+        List<String> perFileCols = List.of("a", "b");
+
+        ColumnMapping aligned = ColumnMapping.alignToQuery(query, fileAttrs, perFileCols);
+
+        assertEquals(2, aligned.width());
+        assertEquals("b is the second projected block", 1, aligned.localIndex(0));
+        assertEquals("a is the first projected block", 0, aligned.localIndex(1));
+    }
+
+    public void testAlignToQueryRejectsUnsupportedCastTarget() {
+        // LONG→INTEGER is a DeclaredTypeCoercions pair, but INTEGER is not a CastType target.
+        ExternalSchema query = new ExternalSchema(List.of(intAttr("id")));
+        List<Attribute> fileAttrs = List.of(longAttr("id"));
+        List<String> perFileCols = List.of("id");
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ColumnMapping.alignToQuery(query, fileAttrs, perFileCols)
+        );
+        assertTrue(
+            "message names the unsupported CastType target, got: " + e.getMessage(),
+            e.getMessage() != null && e.getMessage().contains("Unsupported cast target type")
+        );
     }
 
     // ===== mapFilters =====

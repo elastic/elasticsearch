@@ -1399,14 +1399,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         if (mapping == null || queryDataSchema.isEmpty()) {
             return pages;
         }
-        // Zero-split multi-file (and any future producer that yields a resolved FileList
-        // without pruned splits) can still hold a unified-width mapping while queryDataSchema
-        // is the pruned query width. Rebuild from names so SchemaAdaptingIterator's
-        // size-vs-width guard does not fire. The slice-queue path already prunes at split
-        // construction; this is the adapter-side backstop.
-        if (mapping.width() != queryDataSchema.size()) {
-            mapping = ColumnMapping.alignToQuery(queryDataSchema, perFileReadSchema, perFileCols);
-        }
+        // Name-driven realign: the mapping that arrived may still be unified-width, file-natural,
+        // or ordered by unified schema, while the iterator emits queryDataSchema. Width equality
+        // is not a sufficient proxy (Hive partition keys that are not last keep width and still
+        // index into the unprojected page). alignToQuery is correct for the equal-width case too.
+        assert perFileCols != null : "perFileQueryProjection always yields a list when a mapping is present";
+        mapping = ColumnMapping.alignToQuery(queryDataSchema, perFileReadSchema, perFileCols);
         // Identity mappings are no longer short-circuited here: SchemaAdaptingIterator validates
         // output block element types on every page, catching reader bugs (wrong block type for a
         // declared column) before they reach a consumer that casts and throws a bare
@@ -1443,40 +1441,46 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     /**
+     * Returns a format reader with an adapted pushed filter for this mapping, or the original
+     * reader if no adaptation is needed. The mapping must already be query-width (as
+     * {@link ColumnMapping#mapFilters} indexes {@code queryDataSchema} by mapping slot).
+     */
+    private FormatReader readerForMapping(@Nullable ColumnMapping mapping) {
+        FormatReader reader = formatReader;
+        if (pushedExpressions.isEmpty() == false && pushdownSupport != null && mapping != null) {
+            List<Expression> adapted = mapping.mapFilters(pushedExpressions, queryDataSchema);
+            if (adapted != pushedExpressions) {
+                if (adapted.isEmpty()) {
+                    reader = formatReader.withPushedFilter(null);
+                } else {
+                    // adapted is logical (mapFilters + queryDataSchema); physicalize it so the re-minted opaque
+                    // predicate references the file's physical columns, matching the plan-time mint.
+                    List<Expression> physicalAdapted = PhysicalNames.translateExpressionNames(adapted, renames);
+                    // Same invariant as the plan-time mint: no logical rename-source name may reach the reader's filter.
+                    assert PhysicalNames.noLogicalNamesRemain(
+                        physicalAdapted.stream().flatMap(e -> e.references().stream()).map(Attribute::name).toList(),
+                        renames
+                    ) : "logical rename-source name leaked into the re-minted pushed filter: " + physicalAdapted;
+                    FilterPushdownSupport.PushdownResult result = pushdownSupport.pushFilters(physicalAdapted);
+                    reader = result.hasPushedFilter()
+                        ? formatReader.withPushedFilter(result.pushedFilter())
+                        : formatReader.withPushedFilter(null);
+                }
+            }
+        }
+        return readerWithDynamicThreshold(reader);
+    }
+
+    /**
      * Returns a format reader with an adapted pushed filter for this file, or the original reader
      * if no adaptation is needed. Adaptation is needed when the file has missing columns and
      * pushed expressions reference those columns.
      */
     private FormatReader readerForFile(FileSplit fileSplit) {
-        FormatReader reader = formatReader;
-        if (pushedExpressions.isEmpty() == false && pushdownSupport != null) {
-            ColumnMapping mapping = fileSplit.columnMapping();
-            if (mapping != null) {
-                List<Expression> adapted = mapping.mapFilters(pushedExpressions, queryDataSchema);
-                if (adapted != pushedExpressions) {
-                    if (adapted.isEmpty()) {
-                        reader = formatReader.withPushedFilter(null);
-                    } else {
-                        // adapted is logical (mapFilters + queryDataSchema); physicalize it so the re-minted opaque
-                        // predicate references the file's physical columns, matching the plan-time mint.
-                        List<Expression> physicalAdapted = PhysicalNames.translateExpressionNames(adapted, renames);
-                        // Same invariant as the plan-time mint: no logical rename-source name may reach the reader's filter.
-                        assert PhysicalNames.noLogicalNamesRemain(
-                            physicalAdapted.stream().flatMap(e -> e.references().stream()).map(Attribute::name).toList(),
-                            renames
-                        ) : "logical rename-source name leaked into the re-minted pushed filter: " + physicalAdapted;
-                        FilterPushdownSupport.PushdownResult result = pushdownSupport.pushFilters(physicalAdapted);
-                        reader = result.hasPushedFilter()
-                            ? formatReader.withPushedFilter(result.pushedFilter())
-                            : formatReader.withPushedFilter(null);
-                    }
-                }
-            }
-        }
         // Stamp how THIS file is read, from the split's own coordinator-minted schema. Deliberately not from the
         // schema handed to the reader below: that one is physicalized and narrowed to the per-file projection, so a
         // value derived from it would not match the coordinator's.
-        return readerWithDynamicThreshold(reader).withReadConfig(readConfigFingerprinter.apply(fileSplit.readSchema()));
+        return readerForMapping(fileSplit.columnMapping()).withReadConfig(readConfigFingerprinter.apply(fileSplit.readSchema()));
     }
 
     @Nullable
@@ -1557,12 +1561,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     /**
-     * Multi-file read path (legacy, non-slice-queue). Per-file filter adaptation is not applied
-     * here because this path does not carry {@link FileSplit} with {@link ColumnMapping}.
-     * UNION_BY_NAME queries usually take the slice-queue path ({@link #startSliceQueueRead}),
-     * but this arm still runs when a resolved {@link FileList} is present and splits were not
-     * attached. {@link #adaptSchema} then realigns a unified-width {@code schemaMap} mapping
-     * to {@code queryDataSchema} so the adapter's size-vs-width guard does not fire.
+     * Multi-file read path (legacy, non-slice-queue). Per-file {@link ColumnMapping} still arrives
+     * via {@code schemaMap}. {@link #openNextMultiFile} realigns it to {@code queryDataSchema} and
+     * runs the same filter adaptation as the slice-queue path ({@link #readerForMapping}) before
+     * the reader sees {@code pushedExpressions}.
      */
     private void startMultiFileRead(List<String> projectedColumns, AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
         ActionListener<Void> completionListener = ActionListener.assertOnce(ActionListener.wrap(v -> {
@@ -2294,7 +2296,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         try {
             StorageObject obj = storageProvider.newObject(files.path(fileIndex));
             attachStorageMetrics(obj); // before any read — see note at the single-object dispatch above
-            FormatReader fileReader = readerWithDynamicThreshold(formatReader);
             // Pull this file's coordinator-inferred schema from schemaInfo when available, so the
             // reader is pinned to the same inference the per-file ColumnMapping was built against.
             ColumnMapping mapping = null;
@@ -2307,11 +2308,15 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 }
             }
             List<String> perFileCols = perFileQueryProjection(cols, perFileReadSchema);
-            // This rail harvests statistics too (the iterator is stats-capturing below), so it must stamp the read configuration
-            // like the split rails do. From the UNTRANSLATED per-file schema: the encoder physicalizes internally, and
-            // the value handed to the reader below is already translated, so deriving from that would physicalize
-            // twice and disagree with the coordinator.
-            fileReader = fileReader.withReadConfig(readConfigFingerprinter.apply(perFileReadSchema));
+            if (mapping != null && queryDataSchema.isEmpty() == false) {
+                mapping = ColumnMapping.alignToQuery(queryDataSchema, perFileReadSchema, perFileCols);
+            }
+            // Filter adaptation uses the query-width mapping. An empty queryDataSchema (COUNT(*),
+            // KEEP-partition-only) skips adaptSchema and must not hand mapFilters a unified-width
+            // mapping; pass null so pushedExpressions reach the reader unchanged, as before.
+            FormatReader fileReader = readerForMapping(queryDataSchema.isEmpty() ? null : mapping).withReadConfig(
+                readConfigFingerprinter.apply(perFileReadSchema)
+            );
             pages = openWithParallelism(
                 fileReader,
                 obj,

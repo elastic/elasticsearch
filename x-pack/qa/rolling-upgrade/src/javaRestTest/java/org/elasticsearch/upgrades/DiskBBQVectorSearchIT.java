@@ -48,6 +48,12 @@ public class DiskBBQVectorSearchIT extends AbstractXpackRollingUpgradeTestCase {
     public void testSingleBitDiskBBQVectorSearch() throws Exception {
         if (isOldCluster()) {
             assumeTrue("DiskBBQ vector format is not supported on this version", oldClusterHasFeature(MapperFeatures.BBQ_DISK_SUPPORT));
+            // Old clusters without this feature have a DiskBBQPlugin that ignores experimental_features=false and writes
+            // segments with the unstable ESNextDiskBBQVectorsFormat, which is not BWC-stable across snapshot versions.
+            assumeTrue(
+                "Old cluster must support stable DiskBBQ format selection",
+                oldClusterHasFeature(MapperFeatures.DISK_BBQ_STABLE_FORMAT_SELECTION)
+            );
             String mapping = """
                 {
                   "properties": {
@@ -77,6 +83,12 @@ public class DiskBBQVectorSearchIT extends AbstractXpackRollingUpgradeTestCase {
     public void testDiskBBQVectorSearchWithExplicitBits() throws Exception {
         if (isOldCluster()) {
             assumeTrue("DiskBBQ bits are not supported on this version", oldClusterHasFeature(MapperFeatures.ES940_DISK_BBQ));
+            // Old clusters without this feature have a DiskBBQPlugin that ignores experimental_features=false and writes
+            // segments with the unstable ESNextDiskBBQVectorsFormat, which is not BWC-stable across snapshot versions.
+            assumeTrue(
+                "Old cluster must support stable DiskBBQ format selection",
+                oldClusterHasFeature(MapperFeatures.DISK_BBQ_STABLE_FORMAT_SELECTION)
+            );
             for (int bits : SUPPORTED_BITS) {
                 String mapping = String.format(Locale.ROOT, """
                     {

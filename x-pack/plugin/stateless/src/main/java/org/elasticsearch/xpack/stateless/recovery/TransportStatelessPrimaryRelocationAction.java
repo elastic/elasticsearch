@@ -335,6 +335,10 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             return latestBccBlob;
         }
 
+        public boolean hasRecentIdLookup() {
+            return hasRecentIdLookup;
+        }
+
         public RecoveryInfoFromSource recoveryInfoFromSource() {
             if (latestBccBlob == null && hasRecentIdLookup == false) {
                 return null;

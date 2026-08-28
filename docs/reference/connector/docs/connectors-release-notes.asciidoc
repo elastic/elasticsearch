@@ -10,6 +10,19 @@ Prior to version *8.16.0*, the connector release notes were published as part of
 ====
 
 [discrete]
+[[es-connectors-release-notes-8-19-21]]
+=== 8.19.21
+
+[discrete]
+[[es-connectors-release-notes-8-19-21-bug-fixes]]
+===== Bug fixes
+
+* Fixed long-running syncs being falsely marked as idle when Elasticsearch was temporarily slow or refresh calls timed out. The connector service no longer forces an index refresh on every job status check, keeps the ingestion heartbeat alive through transient errors, and retries job status checks during active syncs.
+See: https://github.com/elastic/connectors/pull/4369[*PR 4369*]
+* Fixed long-running syncs failing permanently on transient non-JSON Elasticsearch bulk responses, such as `Client Closed Request`. Failed concurrent bulk tasks are no longer silently dropped.
+See: https://github.com/elastic/connectors/pull/4387[*PR 4387*]
+
+[discrete]
 [[es-connectors-release-notes-8-19-20]]
 === 8.19.20
 

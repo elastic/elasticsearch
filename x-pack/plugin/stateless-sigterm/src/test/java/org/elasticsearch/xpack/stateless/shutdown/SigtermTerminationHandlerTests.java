@@ -31,6 +31,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.readiness.ReadinessRequest;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.readiness.TransportReadinessAction;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
@@ -42,6 +43,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportClient;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.xpack.shutdown.GetShutdownStatusAction;
@@ -643,6 +645,18 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
                 @SuppressWarnings("unchecked")
                 var readinessHandler = (TransportResponseHandler<ActionResponse.Empty>) handler;
                 readinessCheck.accept(node, readinessHandler);
+            }
+
+            @Override
+            public <T extends TransportResponse> void sendChildRequest(
+                DiscoveryNode node,
+                String action,
+                TransportRequest request,
+                Task parentTask,
+                TransportRequestOptions options,
+                TransportResponseHandler<T> handler
+            ) {
+                throw new UnsupportedOperationException("sendChildRequest not used by SigtermTerminationHandler");
             }
         };
         Client client = mock(Client.class);

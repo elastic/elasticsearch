@@ -12,9 +12,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -39,6 +39,8 @@ import org.elasticsearch.indices.recovery.RecoveryClusterStateDelay;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteTransportClient;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.xpack.stateless.IndexShardCacheWarmer;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
@@ -58,6 +60,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.Strings.format;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.BlobFileWithLength;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.ID_LOOKUP_RECENCY_THRESHOLD_SETTING;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING;
 
@@ -76,7 +79,7 @@ public class StatelessPrimaryRelocationSourceService {
     private final StatelessCommitServiceProvider statelessCommitServiceProvider;
     private final IndexShardCacheWarmer indexShardCacheWarmer;
     private final HollowShardsMetrics hollowShardsMetrics;
-    private final Client client;
+    private final RemoteTransportClient remoteTransportClient;
     private volatile CompositeRecoverySchedulingListener schedulingListeners;
 
     private volatile TimeValue slowRelocationWarningThreshold;
@@ -90,7 +93,7 @@ public class StatelessPrimaryRelocationSourceService {
         StatelessCommitServiceProvider statelessCommitServiceProvider,
         IndexShardCacheWarmer indexShardCacheWarmer,
         HollowShardsMetrics hollowShardsMetrics,
-        Client client
+        RemoteTransportClient remoteTransportClient
     ) {
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -101,7 +104,7 @@ public class StatelessPrimaryRelocationSourceService {
         this.statelessCommitServiceProvider = statelessCommitServiceProvider;
         this.indexShardCacheWarmer = indexShardCacheWarmer;
         this.hollowShardsMetrics = hollowShardsMetrics;
-        this.client = client;
+        this.remoteTransportClient = remoteTransportClient;
 
         clusterService.getClusterSettings()
             .initializeAndWatch(SLOW_RELOCATION_THRESHOLD_SETTING, value -> this.slowRelocationWarningThreshold = value);
@@ -161,15 +164,21 @@ public class StatelessPrimaryRelocationSourceService {
             // If the shard is not about to be hollowed, then send an action to the target node to begin warming the cache immediately.
             // Note that if the shard is already hollow, the target warming will just read a single region.
             if (hollowShardsService.isHollowableIndexShard(indexShard) == false) {
-                client.execute(
-                    TransportStatelessPrimaryRelocationPrewarmAction.TYPE,
-                    new TransportStatelessPrimaryRelocationPrewarmAction.Request(
-                        request.targetNode(),
+                remoteTransportClient.sendChildRequest(
+                    request.targetNode(),
+                    TransportStatelessPrimaryRelocationAction.PREWARM_RELOCATION_ACTION_NAME,
+                    new TransportStatelessPrimaryRelocationAction.PrewarmRelocationRequest(
                         shardId,
                         new BlobFileWithLength(latestBcc.toBlobFile(), latestBcc.calculateBccBlobLength()),
                         hasRecentIdLookup
                     ),
-                    ActionListener.noop()
+                    task,
+                    TransportRequestOptions.EMPTY,
+                    // The response (whether prewarm succeeded or not) does not affect the relocation listener, so we use a noop listener
+                    new ActionListenerResponseHandler<>(ActionListener.noop().delegateResponse((l, e) -> {
+                        logger.debug(() -> format("%s ignoring prewarm action failure", shardId), e);
+                        l.onFailure(e);
+                    }), in -> ActionResponse.Empty.INSTANCE, recoveryExecutor)
                 );
             }
         } catch (Exception e) {
@@ -420,10 +429,10 @@ public class StatelessPrimaryRelocationSourceService {
                     latestBccBlobLength.set(blobLength);
                     otherBlobFilesCount.set(otherBlobFiles.size());
 
-                    client.execute(
-                        TransportStatelessPrimaryRelocationHandoffAction.TYPE,
-                        new TransportStatelessPrimaryRelocationHandoffAction.Request(
-                            request.targetNode(),
+                    remoteTransportClient.sendChildRequest(
+                        request.targetNode(),
+                        TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME,
+                        new TransportStatelessPrimaryRelocationAction.PrimaryContextHandoffRequest(
                             request.recoveryId(),
                             request.shardId(),
                             new ReplicationTracker.PrimaryContext(
@@ -439,7 +448,9 @@ public class StatelessPrimaryRelocationSourceService {
                             lastCommitBlobs,
                             lastCommitIsHollow
                         ),
-                        finalHandoffListener
+                        task,
+                        TransportRequestOptions.EMPTY,
+                        new ActionListenerResponseHandler<>(finalHandoffListener, in -> ActionResponse.Empty.INSTANCE, recoveryExecutor)
                     );
                 }), recoveryExecutor, threadContext);
             }, listener0.map(unused -> new StartRelocationResponse(relocationSourceMetricsBuilder.build())));

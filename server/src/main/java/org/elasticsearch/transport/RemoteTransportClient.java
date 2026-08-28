@@ -10,6 +10,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.tasks.Task;
 
 /**
  * Utility for sending requests over the transport protocol to nodes in the cluster.
@@ -29,6 +30,26 @@ public interface RemoteTransportClient {
         DiscoveryNode node,
         String action,
         TransportRequest request,
+        TransportResponseHandler<T> handler
+    );
+
+    /**
+     * Send a transport request to a node, linking the outgoing request as a child of the given parent task.
+     *
+     * @param node The node to send the request to
+     * @param action The transport action name to execute on the node
+     * @param request The request object to send
+     * @param parentTask The task to register as the parent of the outgoing request
+     * @param options Transport request options
+     * @param handler A handler for the success/failure of the request
+     * @param <T> The response type expected from the transport action
+     */
+    <T extends TransportResponse> void sendChildRequest(
+        DiscoveryNode node,
+        String action,
+        TransportRequest request,
+        Task parentTask,
+        TransportRequestOptions options,
         TransportResponseHandler<T> handler
     );
 }

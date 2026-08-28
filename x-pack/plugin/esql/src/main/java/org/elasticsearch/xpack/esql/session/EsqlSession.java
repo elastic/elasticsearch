@@ -1344,7 +1344,7 @@ public class EsqlSession {
                 indexPattern.indexPattern(),
                 result.fieldNames,
                 createQueryFilter(indexMode, requestFilter),
-                indexMode == IndexMode.TIME_SERIES,
+                includeAllDimensions(indexMode, preAnalysis),
                 // TODO: In case of subqueries, the different main index resolutions don't know about each other's minimum version.
                 // This is bad because `FROM (FROM remote1:*) (FROM remote2:*)` can have different minimum versions
                 // while resolving each subquery's main index pattern. We'll determine the correct overall minimum transport version
@@ -1401,7 +1401,7 @@ public class EsqlSession {
             projectRouting,
             result.fieldNames,
             createQueryFilter(indexMode, requestFilter),
-            indexMode == IndexMode.TIME_SERIES,
+            includeAllDimensions(indexMode, preAnalysis),
             // TODO: Same problem with subqueries as preAnalyzeMainIndices, see above.
             result.minimumTransportVersion(),
             preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
@@ -1432,6 +1432,14 @@ public class EsqlSession {
                 });
             })
         );
+    }
+
+    /**
+     * Whether to ask field caps for every time-series dimension of the index on top of the fields the query names. See
+     * {@link PreAnalyzer.PreAnalysis#requiresAllDimensionFields()} for who needs this and what it costs.
+     */
+    private static boolean includeAllDimensions(IndexMode indexMode, PreAnalyzer.PreAnalysis preAnalysis) {
+        return indexMode == IndexMode.TIME_SERIES && preAnalysis.requiresAllDimensionFields();
     }
 
     private static QueryBuilder createQueryFilter(IndexMode indexMode, QueryBuilder requestFilter) {

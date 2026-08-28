@@ -204,7 +204,7 @@ Serverless patch releases are made on the `patch/serverless-fix` branch, which
 tracks whatever is currently deployed to serverless production, and are then
 merged back into `main`. That branch is therefore behind `main`, so a transport
 version created there with a normal increment would take an id `main` has very
-likely already used.
+likely already been used.
 
 Transport versions created on `patch/serverless-fix` are instead patch ids,
 which slot in below the next id `main` will allocate. For example, if the branch

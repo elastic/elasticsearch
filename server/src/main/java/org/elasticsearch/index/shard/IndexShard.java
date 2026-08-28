@@ -1031,6 +1031,70 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         );
     }
 
+    /**
+     * Apply an in-place doc-values update on the primary (see {@code doc_values.updatable}). {@code version} is the current version of
+     * the document, carried through so the replica records the same value. There is no optimistic-concurrency check on the engine side,
+     * so doc-values updates are last-writer-wins (the {@code if_seq_no} check is enforced earlier, in the update helper).
+     */
+    public Engine.DocValuesUpdateResult applyDocValuesUpdateOnPrimary(
+        long version,
+        String id,
+        List<Translog.DocValuesUpdate.FieldUpdate> updates
+    ) throws IOException {
+        return applyDocValuesUpdate(
+            getEngine(),
+            UNASSIGNED_SEQ_NO,
+            getOperationPrimaryTerm(),
+            version,
+            id,
+            updates,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY
+        );
+    }
+
+    /**
+     * Apply an in-place doc-values update on a replica, replaying the primary's {@code seqNo}, {@code opPrimaryTerm}, and {@code version}.
+     */
+    public Engine.DocValuesUpdateResult applyDocValuesUpdateOnReplica(
+        long seqNo,
+        long opPrimaryTerm,
+        long version,
+        String id,
+        List<Translog.DocValuesUpdate.FieldUpdate> updates
+    ) throws IOException {
+        return applyDocValuesUpdate(getEngine(), seqNo, opPrimaryTerm, version, id, updates, null, Engine.Operation.Origin.REPLICA);
+    }
+
+    private Engine.DocValuesUpdateResult applyDocValuesUpdate(
+        Engine engine,
+        long seqNo,
+        long opPrimaryTerm,
+        long version,
+        String id,
+        List<Translog.DocValuesUpdate.FieldUpdate> updates,
+        @Nullable VersionType versionType,
+        Engine.Operation.Origin origin
+    ) throws IOException {
+        ensureWriteAllowed(origin);
+        try {
+            final Engine.DocValuesUpdate engineOp = new Engine.DocValuesUpdate(
+                id,
+                Uid.encodeId(id),
+                seqNo,
+                opPrimaryTerm,
+                version,
+                versionType,
+                origin,
+                System.nanoTime(),
+                updates
+            );
+            return engine.docValuesUpdate(engineOp);
+        } finally {
+            active.set(true);
+        }
+    }
+
     private Engine.IndexResult applyIndexOperation(
         Engine engine,
         long seqNo,
@@ -1406,6 +1470,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long ifPrimaryTerm
     ) {
         return prepareDelete(id, null, false, seqNo, primaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm);
+    }
+
+    private Engine.DocValuesUpdateResult applyDocValuesUpdateOperation(
+        Engine engine,
+        Translog.DocValuesUpdate update,
+        @Nullable VersionType versionType,
+        Engine.Operation.Origin origin
+    ) throws IOException {
+        return applyDocValuesUpdate(
+            engine,
+            update.seqNo(),
+            update.primaryTerm(),
+            update.version(),
+            Uid.decodeId(update.uid()),
+            update.updates(),
+            versionType,
+            origin
+        );
     }
 
     public Engine.GetResult get(Engine.Get get, SplitShardCountSummary splitShardCountSummary) {
@@ -2374,6 +2456,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             case NO_OP -> {
                 final Translog.NoOp noOp = (Translog.NoOp) operation;
                 result = markSeqNoAsNoop(engine, noOp.seqNo(), noOp.primaryTerm(), noOp.reason(), origin);
+            }
+            case DOC_VALUES_UPDATE -> {
+                final Translog.DocValuesUpdate update = (Translog.DocValuesUpdate) operation;
+                result = applyDocValuesUpdateOperation(engine, update, versionType, origin);
             }
             default -> throw new IllegalStateException("No operation defined for [" + operation + "]");
         }

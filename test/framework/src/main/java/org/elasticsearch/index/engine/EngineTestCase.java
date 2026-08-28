@@ -1067,7 +1067,13 @@ public abstract class EngineTestCase extends ESTestCase {
         );
         for (int i = 0; i < numOps; i++) {
             final String id = Integer.toString(randomInt(maxIdValue));
-            final Engine.Operation.TYPE opType = randomFrom(Engine.Operation.TYPE.values());
+            // DOC_VALUES_UPDATE is excluded: it needs a pre-existing document with an updatable doc-values field, which this generic
+            // history generator does not set up.
+            final Engine.Operation.TYPE opType = randomFrom(
+                Engine.Operation.TYPE.INDEX,
+                Engine.Operation.TYPE.DELETE,
+                Engine.Operation.TYPE.NO_OP
+            );
             final boolean isNestedDoc = includeNestedDocs && opType == Engine.Operation.TYPE.INDEX && randomBoolean();
             final int nestedValues = between(0, 3);
             final long startTime = threadPool.relativeTimeInNanos();
@@ -1231,6 +1237,7 @@ public abstract class EngineTestCase extends ESTestCase {
             case INDEX -> engine.index((Engine.Index) operation);
             case DELETE -> engine.delete((Engine.Delete) operation);
             case NO_OP -> engine.noOp((Engine.NoOp) operation);
+            case DOC_VALUES_UPDATE -> engine.docValuesUpdate((Engine.DocValuesUpdate) operation);
         };
         return result;
     }

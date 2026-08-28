@@ -11,6 +11,8 @@ package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
@@ -2284,6 +2286,97 @@ public class InternalEngine extends Engine {
         }
         maybePruneDeletes();
         return deleteResult;
+    }
+
+    @Override
+    public DocValuesUpdateResult docValuesUpdate(DocValuesUpdate docValuesUpdate) throws IOException {
+        // An in-place doc-values update is not append-only: it changes an existing document, so the version map must resolve versions
+        // safely from here on, exactly as for deletes and regular updates.
+        versionMap.enforceSafeAccess();
+        assert assertIncomingSequenceNumber(docValuesUpdate.origin(), docValuesUpdate.seqNo());
+        DocValuesUpdate op = docValuesUpdate;
+        DocValuesUpdateResult result;
+        try (var ignored = acquireEnsureOpenRef(); Releasable ignored2 = versionMap.acquireLock(op.uid())) {
+            lastWriteNanos = op.startTime();
+            if (op.origin() == Operation.Origin.PRIMARY) {
+                op = new DocValuesUpdate(
+                    op.id(),
+                    op.uid(),
+                    generateSeqNoForOperationOnPrimary(op),
+                    op.primaryTerm(),
+                    op.version(),
+                    op.versionType(),
+                    op.origin(),
+                    op.startTime(),
+                    op.updates()
+                );
+                advanceMaxSeqNoOfUpdatesOnPrimary(op.seqNo());
+            } else {
+                advanceMaxSeqNo(op.seqNo());
+            }
+            assert op.seqNo() >= 0 : "ops should have an assigned seq no.; origin: " + op.origin();
+            result = updateDocValuesInLucene(op);
+            if (op.origin().isFromTranslog() == false && result.getResultType() == Result.Type.SUCCESS) {
+                final Translog.Location location = translog.add(
+                    new Translog.DocValuesUpdate(op.uid(), op.seqNo(), op.primaryTerm(), op.version(), op.updates())
+                );
+                result.setTranslogLocation(location);
+            }
+            localCheckpointTracker.markSeqNoAsProcessed(result.getSeqNo());
+            if (result.getTranslogLocation() == null) {
+                assert op.origin().isFromTranslog() || result.getSeqNo() == UNASSIGNED_SEQ_NO;
+                localCheckpointTracker.markSeqNoAsPersisted(result.getSeqNo());
+            }
+            result.setTook(System.nanoTime() - op.startTime());
+            result.freeze();
+        } catch (RuntimeException | IOException e) {
+            try {
+                maybeFailEngine("doc_values_update", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw e;
+        }
+        return result;
+    }
+
+    private DocValuesUpdateResult updateDocValuesInLucene(DocValuesUpdate op) throws IOException {
+        assert assertMaxSeqNoOfUpdatesIsAdvanced(op.uid(), op.seqNo(), false, false);
+        try {
+            final Term uidTerm = new Term(IdFieldMapper.NAME, op.uid());
+            // 1. apply the in-place update to the live document's doc-values columns. Applied before the history document is added so
+            // that it only touches the pre-existing document, not the (identically identified) history document.
+            final Field[] fields = new Field[op.updates().size()];
+            int i = 0;
+            for (Translog.DocValuesUpdate.FieldUpdate update : op.updates()) {
+                fields[i++] = switch (update) {
+                    case Translog.DocValuesUpdate.NumericFieldUpdate n -> new NumericDocValuesField(n.field(), n.value());
+                    case Translog.DocValuesUpdate.BinaryFieldUpdate b -> new BinaryDocValuesField(b.field(), b.value());
+                };
+            }
+            indexWriter.updateDocValues(uidTerm, fields);
+
+            // 2. write a born-soft-deleted history document so the operation is visible when history is reconstructed from Lucene
+            // (peer recovery and CCR), which the in-place update alone leaves no trace for.
+            final ParsedDocument history = ParsedDocument.docValuesUpdateHistory(
+                engineConfig.getIndexSettings().seqNoIndexOptions(),
+                op.id(),
+                Translog.DocValuesUpdate.serializeUpdates(op.uid(), op.updates()).toBytesRef()
+            );
+            history.updateSeqID(op.seqNo(), op.primaryTerm());
+            history.version().setLongValue(op.version());
+            final LuceneDocument doc = history.docs().getFirst();
+            doc.add(softDeletesField);
+            indexWriter.addDocument(doc);
+            return new DocValuesUpdateResult(op.version(), op.primaryTerm(), op.seqNo(), op.id());
+        } catch (final Exception ex) {
+            // A document-level failure here is unexpected (e.g. the field is not a doc-values-only field, or a corrupt index). A sequence
+            // number has already been issued, so this is fatal: fail the engine, mirroring deleteInLucene.
+            if (ex instanceof AlreadyClosedException == false && indexWriter.getTragicException() == null) {
+                failEngine("doc values update id[" + op.id() + "] origin[" + op.origin() + "] seq#[" + op.seqNo() + "] failed", ex);
+            }
+            throw ex;
+        }
     }
 
     private Exception tryAcquireInFlightDocs(Operation operation, int addingDocs) {

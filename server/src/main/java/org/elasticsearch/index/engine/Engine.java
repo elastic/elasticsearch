@@ -760,6 +760,14 @@ public abstract class Engine implements Closeable {
     public abstract NoOpResult noOp(NoOp noOp) throws IOException;
 
     /**
+     * Update the doc-values columns of an existing document in place, without reindexing its other fields. Only engines that support
+     * the write path (i.e. {@link InternalEngine}) override this; read-only and search-only engines inherit the default rejection.
+     */
+    public DocValuesUpdateResult docValuesUpdate(DocValuesUpdate docValuesUpdate) throws IOException {
+        throw new UnsupportedOperationException("doc values updates are not supported by " + getClass().getSimpleName());
+    }
+
+    /**
      * Base class for index and delete operation results
      * Holds result meta data (e.g. translog location, updated version)
      * for an executed write {@link Operation}
@@ -960,6 +968,20 @@ public abstract class Engine implements Closeable {
             super(Operation.TYPE.NO_OP, failure, 0, term, seqNo, null);
         }
 
+    }
+
+    /**
+     * Result of an in-place doc-values update. Reports the document's version, which the update leaves unchanged.
+     */
+    public static class DocValuesUpdateResult extends Result {
+
+        public DocValuesUpdateResult(long version, long term, long seqNo, String id) {
+            super(Operation.TYPE.DOC_VALUES_UPDATE, version, term, seqNo, id);
+        }
+
+        public DocValuesUpdateResult(Exception failure, long version, long term, long seqNo, String id) {
+            super(Operation.TYPE.DOC_VALUES_UPDATE, failure, version, term, seqNo, id);
+        }
     }
 
     protected final GetResult getFromSearcher(Get get, Engine.Searcher searcher, boolean uncachedLookup) throws EngineException {
@@ -1862,7 +1884,8 @@ public abstract class Engine implements Closeable {
         public enum TYPE {
             INDEX,
             DELETE,
-            NO_OP;
+            NO_OP,
+            DOC_VALUES_UPDATE;
 
             private final String lowercase;
 
@@ -2171,6 +2194,58 @@ public abstract class Engine implements Closeable {
             return 2 * reason.length() + 2 * Long.BYTES;
         }
 
+    }
+
+    /**
+     * An in-place update of the doc-values columns named in {@link #updates()} for the document identified by {@link #uid()}. All the
+     * document's other fields are left untouched. See {@code doc_values.updatable}.
+     */
+    public static class DocValuesUpdate extends Operation {
+
+        private final String id;
+        private final List<Translog.DocValuesUpdate.FieldUpdate> updates;
+
+        public DocValuesUpdate(
+            String id,
+            BytesRef uid,
+            long seqNo,
+            long primaryTerm,
+            long version,
+            VersionType versionType,
+            Origin origin,
+            long startTime,
+            List<Translog.DocValuesUpdate.FieldUpdate> updates
+        ) {
+            super(uid, seqNo, primaryTerm, version, versionType, origin, startTime);
+            this.id = id;
+            this.updates = List.copyOf(updates);
+        }
+
+        @Override
+        public String id() {
+            return id;
+        }
+
+        public List<Translog.DocValuesUpdate.FieldUpdate> updates() {
+            return updates;
+        }
+
+        @Override
+        public TYPE operationType() {
+            return TYPE.DOC_VALUES_UPDATE;
+        }
+
+        @Override
+        public int estimatedSizeInBytes() {
+            int size = uid().length + (3 * Long.BYTES); // seq_no, primary_term, version
+            for (Translog.DocValuesUpdate.FieldUpdate update : updates) {
+                size += 2 * update.field().length() + switch (update) {
+                    case Translog.DocValuesUpdate.NumericFieldUpdate n -> Long.BYTES;
+                    case Translog.DocValuesUpdate.BinaryFieldUpdate b -> b.value().length;
+                };
+            }
+            return size;
+        }
     }
 
     public static class Get {

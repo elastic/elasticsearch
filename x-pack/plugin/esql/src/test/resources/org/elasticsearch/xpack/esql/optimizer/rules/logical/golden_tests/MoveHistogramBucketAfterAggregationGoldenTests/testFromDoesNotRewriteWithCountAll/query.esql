@@ -1,0 +1,2 @@
+FROM exp_histo_sample
+| STATS count = COUNT(responseTime, bucket), total = COUNT(*) BY bucket = BUCKET(responseTime, 42)

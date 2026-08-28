@@ -1,0 +1,6 @@
+Project[[count{r}#0, total{r}#1, bucket{r}#2]]
+\_Eval[[CASE(ISNOTNULL(bucket{r}#2),COALESCE(TOLONG(HISTOGRAMFRACTION($$HISTOGRAMMERGE$count$0{r$}#3,bucket{r}#2,0[INTEGER])),0[LONG])) AS count#0]]
+  \_Limit[1000[INTEGER],false,false]
+    \_Aggregate[[bucket{r}#2],[HISTOGRAMMERGE(responseTime{f}#4,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$HISTOGRAMMERGE$count$0#3, COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS total#1, bucket{r}#2]]
+      \_Eval[[BUCKET(responseTime{f}#4,42[INTEGER]) AS bucket#2]]
+        \_EsRelation[exp_histo_sample][@timestamp{f}#5, instance{f}#6, mostly_empty{f}#7, responseTime{f}#4]

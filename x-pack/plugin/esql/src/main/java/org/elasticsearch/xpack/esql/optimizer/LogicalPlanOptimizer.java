@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistRemoteEnrichLim
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistRemoteEnrichTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.InsertEmptyBucketsAfterAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.MoveHistogramBucketAfterAggregation;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PartiallyFoldCase;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEquals;
@@ -176,6 +177,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // removing this would fail in ccs scenarios where the remote cluster is on an older version (caught by bwc tests)
             new SubstituteSurrogateAggregations(),
             new ReplaceAggregateNestedExpressionWithEval(),
+            new MoveHistogramBucketAfterAggregation(),
             // this one needs to be placed before ReplaceAliasingEvalWithProject, so that any potential aliasing eval (eval x = y)
             // is not replaced with a Project before the eval to be copied on the left hand side of an InlineJoin
             new PropagateInlineEvals(),

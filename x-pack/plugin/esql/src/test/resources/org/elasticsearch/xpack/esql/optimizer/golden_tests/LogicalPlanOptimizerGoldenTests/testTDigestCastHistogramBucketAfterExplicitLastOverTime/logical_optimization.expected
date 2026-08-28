@@ -1,8 +1,0 @@
-Project[[count{r}#0, bucket{r}#1]]
-\_Eval[[CASE(ISNOTNULL(bucket{r}#1),COALESCE(TOLONG(HISTOGRAMFRACTION($$HISTOGRAMMERGE$count$0{r$}#2,bucket{r}#1,0[INTEGER])),0[LONG])) AS count#0]]
-  \_Limit[10000[INTEGER],false,false]
-    \_Aggregate[[bucket{r}#1],[HISTOGRAMMERGE(LASTOVERTIME_$1{r}#3,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$HISTOGRAMMERGE$count$0#2, bucket{r}#1]]
-      \_Eval[[BUCKET(LASTOVERTIME_$1{r}#3,42[INTEGER]) AS bucket#1]]
-        \_TimeSeriesAggregate[[_tsid{m}#4],[LASTOVERTIME($$responseTime::t>$LASTOVERTIME$1{r$}#5,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#6) AS LASTOVERTIME_$1#3],null,@timestamp{f}#6,TS_COMMAND]
-          \_Eval[[TOTDIGEST(responseTime{f}#7) AS $$responseTime::t>$LASTOVERTIME$1#5]]
-            \_EsRelation[exp_histo_sample][@timestamp{f}#6, instance{f}#8, mostly_empty{f}#9, responseTime{f}#7, _tsid{m}#4]

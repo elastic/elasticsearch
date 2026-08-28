@@ -1,0 +1,8 @@
+Project[[count{r}#0, bucket{r}#1]]
+\_Eval[[CASE(ISNOTNULL(bucket{r}#1),COALESCE(TOLONG(HISTOGRAMFRACTION($$HISTOGRAMMERGE$count$0{r$}#2,bucket{r}#1,0[INTEGER])),0[LONG])) AS count#0]]
+  \_Limit[1000[INTEGER],true,false]
+    \_MvExpand[bucket{r}#1,bucket{r}#1]
+      \_Eval[[BUCKET($$HISTOGRAMMERGE$count$0{r$}#2,42[INTEGER]) AS bucket#1]]
+        \_Limit[1000[INTEGER],false,false]
+          \_Aggregate[[],[HISTOGRAMMERGE(responseTime{f}#3,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$HISTOGRAMMERGE$count$0#2]]
+            \_EsRelation[exp_histo_sample][@timestamp{f}#4, instance{f}#5, mostly_empty{f}#6, responseTime{f}#3]

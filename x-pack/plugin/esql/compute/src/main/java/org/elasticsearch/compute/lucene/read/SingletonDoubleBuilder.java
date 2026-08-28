@@ -42,6 +42,11 @@ public final class SingletonDoubleBuilder implements BlockLoader.SingletonDouble
     }
 
     @Override
+    public Block.Builder cancelPositionEntry() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public Block.Builder endPositionEntry() {
         throw new UnsupportedOperationException();
 

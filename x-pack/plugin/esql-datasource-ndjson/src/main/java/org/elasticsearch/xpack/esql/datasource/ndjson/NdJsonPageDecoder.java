@@ -21,7 +21,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.compute.data.AbstractBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -1691,7 +1690,7 @@ public class NdJsonPageDecoder implements Closeable {
          */
         private void cancelAndNullPositionEntry(boolean includeChildren) {
             if (blockBuilder != null && dataType != DataType.NULL) {
-                ((AbstractBlockBuilder) blockBuilder).cancelPositionEntry();
+                blockBuilder.cancelPositionEntry();
                 blockTracker.set(blockIdx);
                 blockBuilder.appendNull();
             }

@@ -215,7 +215,7 @@ public class BlockBuilderTests extends ESTestCase {
             builder.beginPositionEntry();
             BlockTestUtils.append(builder, BlockTestUtils.randomValue(elementType));
             BlockTestUtils.append(builder, BlockTestUtils.randomValue(elementType));
-            ((AbstractBlockBuilder) builder).cancelPositionEntry();
+            builder.cancelPositionEntry();
             builder.appendNull();                                                       // position 1 = null
             BlockTestUtils.append(builder, BlockTestUtils.randomValue(elementType));   // position 2
             try (Block block = builder.build()) {
@@ -235,7 +235,7 @@ public class BlockBuilderTests extends ESTestCase {
         try (Block.Builder builder = elementType.newBlockBuilder(1, blockFactory)) {
             builder.beginPositionEntry();
             BlockTestUtils.append(builder, BlockTestUtils.randomValue(elementType));
-            ((AbstractBlockBuilder) builder).cancelPositionEntry();
+            builder.cancelPositionEntry();
             builder.beginPositionEntry();
             BlockTestUtils.append(builder, good);
             builder.endPositionEntry();
@@ -260,7 +260,7 @@ public class BlockBuilderTests extends ESTestCase {
         try (Block.Builder builder = elementType.newBlockBuilder(1, blockFactory)) {
             builder.beginPositionEntry();
             BlockTestUtils.append(builder, BlockTestUtils.randomValue(elementType));
-            ((AbstractBlockBuilder) builder).cancelPositionEntry();
+            builder.cancelPositionEntry();
             builder.appendNull();
             try (Block block = builder.build()) {
                 assertThat(block.getPositionCount(), equalTo(1));
@@ -287,7 +287,7 @@ public class BlockBuilderTests extends ESTestCase {
             builder.beginPositionEntry();
             builder.appendBytesRef(bad1);
             builder.appendBytesRef(bad2);
-            ((AbstractBlockBuilder) builder).cancelPositionEntry();
+            builder.cancelPositionEntry();
             builder.appendNull();                    // position 1 = null
             builder.appendBytesRef(gamma);           // position 2
             try (BytesRefBlock block = builder.build()) {
@@ -302,14 +302,27 @@ public class BlockBuilderTests extends ESTestCase {
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
 
-    private void assumeMultiValued() {
+    public void testCancelPositionEntryCompositeBuilder() {
         assumeTrue(
-            "Type must support multi-values",
-            // TODO: DOUBLE_RANGE support
-            elementType != ElementType.AGGREGATE_METRIC_DOUBLE
-                && elementType != ElementType.LONG_RANGE
-                && elementType != ElementType.DOUBLE_RANGE
+            "Type must use a composite builder",
+            elementType == ElementType.EXPONENTIAL_HISTOGRAM || elementType == ElementType.TDIGEST
         );
+        try (Block.Builder builder = elementType.newBlockBuilder(2, blockFactory)) {
+            builder.beginPositionEntry();
+            BlockTestUtils.append(builder, BlockTestUtils.randomValue(elementType));
+            BlockTestUtils.append(builder, BlockTestUtils.randomValue(elementType));
+            builder.cancelPositionEntry();
+            builder.appendNull();
+            try (Block block = builder.build()) {
+                assertThat(block.getPositionCount(), equalTo(1));
+                assertThat(block.isNull(0), is(true));
+            }
+        }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    private void assumeMultiValued() {
+        assumeTrue("Type must support multi-values", elementType != ElementType.AGGREGATE_METRIC_DOUBLE);
     }
 
     private void assumeAbstractBlockBuilder() {

@@ -129,6 +129,11 @@ $if(BytesRef)$
         super.cancelPositionEntry();
         return this;
     }
+
+    @Override
+    void truncateValueStorageTo(int newValueCount) {
+        values.truncateTo(newValueCount);
+    }
 $endif$
 
     @Override

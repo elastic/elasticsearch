@@ -111,6 +111,29 @@ public abstract class AbstractBlockBuilder implements Block.Builder {
         return this;
     }
 
+    /**
+     * Removes the last scalar value appended to this builder. Composite builders use this to
+     * roll back the scalar values they delegated to their child builders.
+     */
+    void rollbackLastValue() {
+        assert positionEntryIsOpen == false : "cannot roll back a value inside an open position entry";
+        assert valueCount > 0 : "cannot roll back an empty builder";
+        assert firstValueIndexes == null || firstValueIndexes[positionCount - 1] == valueCount - 1
+            : "only scalar values can be rolled back";
+        valueCount--;
+        positionCount--;
+        truncateValueStorageTo(valueCount);
+        if (nullsMask != null) {
+            nullsMask.clear(positionCount);
+        }
+        hasNonNullValue = valueCount > (nullsMask == null ? 0 : nullsMask.cardinality());
+    }
+
+    /**
+     * Truncates storage maintained by a concrete builder after a value rollback.
+     */
+    void truncateValueStorageTo(int newValueCount) {}
+
     protected final boolean isDense() {
         return nullsMask == null;
     }

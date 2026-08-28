@@ -458,6 +458,17 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
         Builder beginPositionEntry();
 
         /**
+         * Cancels the current multivalued entry and discards every value appended since
+         * {@link #beginPositionEntry()} was called.
+         *
+         * <p>After cancellation, the builder is positioned as it was before the matching
+         * {@code beginPositionEntry()} call. Callers must append a replacement value, usually
+         * with {@link #appendNull()}, before starting the next position. Builders that do not
+         * support multivalued entries may throw {@link UnsupportedOperationException}.
+         */
+        Builder cancelPositionEntry();
+
+        /**
          * Ends the current multi-value entry.
          */
         Builder endPositionEntry();

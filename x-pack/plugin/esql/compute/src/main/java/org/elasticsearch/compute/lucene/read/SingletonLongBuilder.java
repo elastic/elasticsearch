@@ -41,6 +41,11 @@ public final class SingletonLongBuilder implements BlockLoader.SingletonLongBuil
     }
 
     @Override
+    public Block.Builder cancelPositionEntry() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public Block.Builder endPositionEntry() {
         throw new UnsupportedOperationException();
 

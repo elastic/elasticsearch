@@ -8,6 +8,12 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -16,12 +22,14 @@ import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Tests for {@link org.elasticsearch.xpack.esql.analysis.rules.DetermineUnmappedFieldsToKeep}, the rule that annotates each non-LOOKUP
@@ -325,98 +333,101 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertNotKept(pattern, excl("_unmapped_fields", "len"));
     }
 
-    public void testKeepOrderCapturedForTopKeep() {
-        assertThat(
-            keepOrderFor("FROM test | KEEP *, unmapped.*, unmapped"),
-            equalTo(List.of(pat("*"), pat("unmapped.*"), lit("unmapped")))
-        );
-        assertThat(
-            keepOrderFor("FROM test | KEEP unmapped.*, unmapped, *"),
-            equalTo(List.of(pat("unmapped.*"), lit("unmapped"), pat("*")))
-        );
+    /** An explicit term still beats a wildcard and keeps its written position, because the real KEEP resolver decides. */
+    public void testKeepOrderingHonouredForDiscoveredFields() {
+        assertThat(orderFor("FROM test | KEEP unmapped.*, emp_no", "unmapped.a"), equalTo(List.of("unmapped.a", "emp_no")));
+        assertThat(orderFor("FROM test | KEEP emp_no, unmapped.*", "unmapped.a"), equalTo(List.of("emp_no", "unmapped.a")));
     }
 
-    public void testKeepOrderEmptyWithoutGoverningKeep() {
-        assertThat(keepOrderFor("FROM test"), empty());
-        assertThat(keepOrderFor("FROM test | DROP salary"), empty());
-    }
-
-    public void testKeepOrderSeenThroughDropAboveKeep() {
-        assertThat(keepOrderFor("FROM test | KEEP first_name*, salary | DROP salary"), equalTo(List.of(pat("first_name*"), lit("salary"))));
+    /** A DROP above the KEEP is replayed too, so it removes real columns and discovered fields alike. */
+    public void testDropAboveKeepAppliesToDiscoveredFields() {
         assertThat(
-            keepOrderFor("FROM test | KEEP first_name*, salary | DROP salary | DROP first_name"),
-            equalTo(List.of(pat("first_name*"), lit("salary")))
+            orderFor("FROM test | KEEP emp_no, first_name, unmapped.* | DROP first_name", "unmapped.a"),
+            equalTo(List.of("emp_no", "unmapped.a"))
         );
         assertThat(
-            keepOrderFor("FROM test | KEEP emp_no, first_name* | RENAME emp_no AS id | DROP first_name"),
-            equalTo(List.of(lit("emp_no"), pat("first_name*")))
+            orderFor("FROM test | KEEP emp_no, unmapped.* | DROP unmapped.b*", "unmapped.a", "unmapped.b1"),
+            equalTo(List.of("emp_no", "unmapped.a"))
         );
     }
 
-    public void testKeepOrderSeenThroughRenameAboveKeep() {
+    public void testRenameAboveKeepAppliesToDiscoveredFields() {
         assertThat(
-            keepOrderFor("FROM test | KEEP emp_no, unmapped.* | RENAME emp_no AS id"),
-            equalTo(List.of(lit("emp_no"), pat("unmapped.*")))
-        );
-        assertThat(
-            keepOrderFor("FROM test | KEEP unmapped.*, emp_no | EVAL x = 1 | RENAME x AS y"),
-            equalTo(List.of(pat("unmapped.*"), lit("emp_no")))
+            orderFor("FROM test | KEEP emp_no, unmapped.* | RENAME emp_no AS id", "unmapped.a"),
+            equalTo(List.of("id", "unmapped.a"))
         );
     }
 
-    public void testKeepOrderSeenThroughTransparentCommandsAboveKeep() {
+    public void testTransparentCommandsAboveKeepDoNotDisturbOrder() {
         assertThat(
-            keepOrderFor("FROM test | KEEP emp_no, unmapped.* | WHERE emp_no > 0 | LIMIT 5"),
-            equalTo(List.of(lit("emp_no"), pat("unmapped.*")))
+            orderFor("FROM test | KEEP emp_no, unmapped.* | WHERE emp_no > 0 | LIMIT 5", "unmapped.a"),
+            equalTo(List.of("emp_no", "unmapped.a"))
         );
     }
 
-    public void testRenamesAboveKeepMapSurvivingColumnToItsAtKeepName() {
-        assertThat(renamesFor("FROM test | KEEP emp_no, unmapped.*"), equalTo(Map.of()));
-        assertThat(renamesFor("FROM test | KEEP emp_no, unmapped.* | RENAME emp_no AS id"), equalTo(Map.of("id", "emp_no")));
-        // A RENAME below the KEEP is already reflected in the KEEP's own terms, so the walk stops before it.
-        assertThat(renamesFor("FROM test | RENAME emp_no AS id | KEEP id, unmapped.*"), equalTo(Map.of()));
+    /** Without a governing KEEP the discovered fields still sit with the relation columns, after them and before anything later. */
+    public void testWithoutGoverningKeepDiscoveredFieldsFollowTheRelationColumns() {
+        List<String> order = orderFor("FROM test | DROP salary", "unmapped.a");
+        assertThat(order, hasItem("unmapped.a"));
+        assertThat(order, not(hasItem("salary")));
+        assertThat(order.get(order.size() - 1), equalTo("unmapped.a"));
+    }
+
+    public void testDiscoveredFieldsTakeTheRelationSlotSoKeepPositionsThem() {
         assertThat(
-            renamesFor("FROM test | KEEP emp_no, first_name, unmapped.* | RENAME emp_no AS id, first_name AS fn"),
-            equalTo(Map.of("id", "emp_no", "fn", "first_name"))
+            orderFor("FROM test | KEEP emp_no, unmapped.*", "unmapped.a", "unmapped.b"),
+            equalTo(List.of("emp_no", "unmapped.a", "unmapped.b"))
+        );
+        assertThat(orderFor("FROM test | KEEP unmapped.*, emp_no", "unmapped.a"), equalTo(List.of("unmapped.a", "emp_no")));
+    }
+
+    /** An EVAL column is added on top of the relation, so it trails the discovered fields rather than being interleaved with them. */
+    public void testEvalColumnTrailsDiscoveredFields() {
+        assertThat(
+            orderFor("FROM test | KEEP emp_no, unmapped.* | EVAL x = 1", "unmapped.a"),
+            equalTo(List.of("emp_no", "unmapped.a", "x"))
         );
     }
 
-    public void testChainedRenamesAboveKeepCollapseToTheSurvivingColumn() {
-        assertThat(renamesFor("FROM test | KEEP emp_no, unmapped.* | RENAME emp_no AS a | RENAME a AS b"), equalTo(Map.of("b", "emp_no")));
+    /**
+     * A RENAME that swaps two names used to collapse the derived rename map onto one entry; replaying the real RENAME keeps both
+     * columns distinct because it works on aliases, not on a name-to-name map.
+     */
+    public void testRenameSwapAboveKeep() {
         assertThat(
-            renamesFor("FROM test | KEEP emp_no, unmapped.* | RENAME emp_no AS a | RENAME a AS b | RENAME b AS c"),
-            equalTo(Map.of("c", "emp_no"))
-        );
-        // Chained inside a single RENAME: the analyzer collapses it to one alias, so only the survivor is ever seen.
-        assertThat(renamesFor("FROM test | KEEP emp_no, unmapped.* | RENAME emp_no AS a, a AS b"), equalTo(Map.of("b", "emp_no")));
-    }
-
-    public void testShadowingRenameAboveKeepKeepsTheOuterBinding() {
-        assertThat(
-            renamesFor("FROM test | KEEP emp_no, first_name, unmapped.* | RENAME emp_no AS x | RENAME first_name AS x"),
-            equalTo(Map.of("x", "first_name"))
+            orderFor(
+                "FROM test | KEEP emp_no, first_name, unmapped.* | RENAME emp_no AS t, first_name AS emp_no, t AS first_name",
+                "unmapped.a"
+            ),
+            equalTo(List.of("first_name", "emp_no", "unmapped.a"))
         );
     }
 
-    private static Map<String, String> renamesFor(String query) {
-        LogicalPlan plan = test().statement(setUnmappedLoadAll(query));
-        EsRelation relation = EsqlTestUtils.singleValue(plan.collect(EsRelation.class));
-        return EsqlTestUtils.singleValue(CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)).renames();
+    /** An EVAL re-creating a renamed-away name used to alias two live columns onto one original, dropping one of them. */
+    public void testEvalRecreatingRenamedAwayNameAboveKeep() {
+        assertThat(
+            orderFor(
+                "FROM test | KEEP emp_no, unmapped.* | RENAME emp_no AS a | RENAME a AS b | EVAL emp_no = 1 | RENAME emp_no AS c",
+                "unmapped.a"
+            ),
+            equalTo(List.of("b", "unmapped.a", "c"))
+        );
     }
 
-    private static List<UnmappedFieldsPattern.KeepTerm> keepOrderFor(String query) {
-        LogicalPlan plan = test().statement(setUnmappedLoadAll(query));
-        EsRelation relation = EsqlTestUtils.singleValue(plan.collect(EsRelation.class));
-        return EsqlTestUtils.singleValue(CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)).keepOrder();
+    /** With nothing discovered the replay must reproduce the real columns exactly - this is the invariant {@code expand()} asserts. */
+    public void testReplayWithNoDiscoveredFieldsReproducesTheRealColumns() {
+        assertThat(orderFor("FROM test | KEEP emp_no, unmapped.* | RENAME emp_no AS id"), equalTo(List.of("id")));
     }
 
-    private static UnmappedFieldsPattern.KeepTerm pat(String name) {
-        return new UnmappedFieldsPattern.KeepTerm(name, true);
-    }
-
-    private static UnmappedFieldsPattern.KeepTerm lit(String name) {
-        return new UnmappedFieldsPattern.KeepTerm(name, false);
+    private static List<String> orderFor(String query, String... discovered) {
+        TestAnalyzer analyzer = test();
+        analyzer.statement(setUnmappedLoadAll(query));
+        UnmappedFieldsOrdering ordering = analyzer.lastContext().unmappedFieldsOrdering();
+        assertThat("no ordering captured for [" + query + "]", ordering, notNullValue());
+        List<Attribute> leaves = Arrays.stream(discovered)
+            .map(name -> (Attribute) new ReferenceAttribute(Source.EMPTY, null, name, DataType.KEYWORD))
+            .toList();
+        return Expressions.names(ordering.order(leaves));
     }
 
     private static void assertKept(UnmappedFieldsPattern pattern, String... names) {

@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.IpLocationResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
+import org.elasticsearch.xpack.esql.analysis.UnmappedFieldsOrdering;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.anonymizer.PlanAnonymizer;
@@ -133,6 +134,7 @@ import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.ExpandUnmappedFieldsPostProcessor;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
@@ -293,6 +295,8 @@ public class EsqlSession {
     }
 
     private volatile PlanSnapshot planSnapshot = PlanSnapshot.EMPTY;
+    // Coordinator-only: where the fields discovered from _source belong in the output. Null unless unmapped_fields="LOAD_ALL".
+    private volatile UnmappedFieldsOrdering unmappedFieldsOrdering;
 
     public EsqlSession(
         String sessionId,
@@ -578,9 +582,22 @@ public class EsqlSession {
                                 l
                             );
                         })
-                        .<Versioned<Result>>andThen(
-                            (l, r) -> l.onResponse(attachMetadataAndVersion(r, columnMetadata.get(), minimumVersion))
-                        )
+                        .<Versioned<Result>>andThen((l, r) -> {
+                            // Expanded here rather than in TransportEsqlQueryAction so the ordering recipe captured during analysis
+                            // is still in scope: it never has to be squeezed into the plan and shipped to the data nodes.
+                            Versioned<Result> withMetadata = attachMetadataAndVersion(r, columnMetadata.get(), minimumVersion);
+                            l.onResponse(
+                                new Versioned<>(
+                                    ExpandUnmappedFieldsPostProcessor.expand(
+                                        withMetadata.inner(),
+                                        unmappedFieldsOrdering,
+                                        blockFactory,
+                                        plannerSettings
+                                    ),
+                                    withMetadata.minimumVersion()
+                                )
+                            );
+                        })
                         .addListener(listener);
                 }
             }
@@ -2507,6 +2524,7 @@ public class EsqlSession {
         );
         Analyzer analyzer = new Analyzer(analyzerContext, verifier);
         LogicalPlan plan = analyzer.analyze(parsed);
+        unmappedFieldsOrdering = analyzerContext.unmappedFieldsOrdering();
         plan.setAnalyzed();
         return plan;
     }

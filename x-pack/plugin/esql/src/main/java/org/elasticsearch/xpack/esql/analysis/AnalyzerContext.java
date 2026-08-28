@@ -46,6 +46,7 @@ public class AnalyzerContext {
     private final ProjectMetadata projectMetadata;
     private final UnmappedResolution unmappedResolution;
     private final Set<String> deferredHeaderWarnings = new LinkedHashSet<>();
+    private UnmappedFieldsOrdering unmappedFieldsOrdering;
     private final TimestampBounds timestampBounds;
     private final IpLocationResolution ipLocationResolution;
 
@@ -183,6 +184,21 @@ public class AnalyzerContext {
      */
     public Set<String> deferredHeaderWarnings() {
         return deferredHeaderWarnings;
+    }
+
+    /**
+     * Set by {@code DetermineUnmappedFieldsToKeep} while the {@code ResolvingProject}s are still intact, and read by the session
+     * once the discovered {@code _source} fields are known. {@code null} unless {@code unmapped_fields="LOAD_ALL"} is in effect
+     * and the query can surface unmapped fields at all.
+     */
+    public void unmappedFieldsOrdering(UnmappedFieldsOrdering ordering) {
+        this.unmappedFieldsOrdering = ordering;
+    }
+
+    /** See {@link #unmappedFieldsOrdering(UnmappedFieldsOrdering)}. */
+    @Nullable
+    public UnmappedFieldsOrdering unmappedFieldsOrdering() {
+        return unmappedFieldsOrdering;
     }
 
     /**

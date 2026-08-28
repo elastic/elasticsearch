@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
@@ -69,7 +68,8 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
 
     private final List<String> globExcludes;
 
-    private final Set<String> exactExcludes;
+    // TODO: find ways of shrinking the size of this thing
+    private final Set<String> exactExcludes; // this one could potentially be large and IS serialized
 
     public static UnmappedFieldsPattern excludes(List<String> excludes) {
         return excludes.isEmpty() ? ALL : new UnmappedFieldsPattern(INCLUDES_ALL, excludes, List.of());
@@ -101,55 +101,6 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
 
     public static UnmappedFieldsPattern includes(List<String> includes) {
         return includes.isEmpty() ? NONE : new UnmappedFieldsPattern(List.of(includes), List.of(), List.of());
-    }
-
-    public record KeepTerm(String name, boolean pattern) {}
-
-    /**
-     * The ordered projection terms of a {@code KEEP} command
-     */
-    public static List<KeepTerm> orderTerms(List<? extends NamedExpression> projections) {
-        List<KeepTerm> terms = new ArrayList<>(projections.size());
-        for (NamedExpression proj : projections) {
-            switch (proj) {
-                case UnresolvedStar ignored -> terms.add(new KeepTerm("*", true));
-                case UnresolvedNamePattern unp -> terms.add(new KeepTerm(unp.pattern(), true));
-                case UnsupportedAttribute ua -> terms.add(new KeepTerm(ua.name(), false));
-                case UnresolvedAttribute ua -> terms.add(new KeepTerm(ua.name(), false));
-                default -> throw new IllegalStateException("Unsupported KEEP projection [" + proj + "]");
-            }
-        }
-        return terms;
-    }
-
-    /**
-     * Replays {@code KEEP}'s column-ordering contract over {@code childOutput} — the real columns followed by the discovered unmapped
-     * leaves (alphabetical) — using {@code keepTerms} from {@link #orderTerms}.
-     */
-    public static List<String> keepOrdered(List<String> childOutput, List<KeepTerm> keepTerms) {
-        LinkedHashMap<String, Integer> priorities = new LinkedHashMap<>();
-        for (KeepTerm term : keepTerms) {
-            boolean explicit = term.pattern() == false;
-            // TODO: integrate this logic with the one from Analyzer.keepResolver
-            int priority = explicit ? 1 : (term.name().equals("*") ? 4 : 3);
-            for (String name : childOutput) {
-                boolean matched = explicit ? name.equals(term.name()) : Regex.simpleMatch(term.name(), name);
-                if (matched) {
-                    Integer previous = priorities.get(name);
-                    if (previous == null || previous >= priority) {
-                        priorities.remove(name);
-                        priorities.put(name, priority);
-                    }
-                }
-            }
-        }
-        List<String> ordered = new ArrayList<>(priorities.keySet());
-        for (String name : childOutput) {
-            if (priorities.containsKey(name) == false) {
-                ordered.add(name);
-            }
-        }
-        return ordered;
     }
 
     /**

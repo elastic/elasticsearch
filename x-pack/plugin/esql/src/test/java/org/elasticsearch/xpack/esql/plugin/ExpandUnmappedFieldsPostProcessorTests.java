@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -399,112 +398,6 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         }
     }
 
-    public void testKeepOrderPlacesLeavesPerKeepContractStarFirst() {
-        BlockFactory bf = blockFactory();
-        Result result = result(
-            List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.ALL, List.of("*", "unmapped.*", "unmapped"))),
-            List.of(page(bf, List.of(row(1, jsonObject(KEEP_ORDER_JSON)))))
-        );
-
-        Result expanded = expand(result, bf);
-        try {
-            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "unmapped.bar", "unmapped.deep.leaf", "unmapped.foo", "unmapped")));
-            assertThat(
-                nonNullRows(expanded),
-                contains(
-                    matchesMap().entry(INT_ATTR, 1)
-                        .entry("unmapped.bar", "b")
-                        .entry("unmapped.deep.leaf", "d")
-                        .entry("unmapped.foo", "f")
-                        .entry("unmapped", "s")
-                )
-            );
-        } finally {
-            Releasables.close(expanded.pages());
-        }
-    }
-
-    public void testKeepOrderCanPlaceRealColumnAfterExpandedLeaves() {
-        BlockFactory bf = blockFactory();
-        Result result = result(
-            List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.ALL, List.of("unmapped.*", "unmapped", "*"))),
-            List.of(page(bf, List.of(row(1, jsonObject(KEEP_ORDER_JSON)))))
-        );
-
-        Result expanded = expand(result, bf);
-        try {
-            assertThat(names(expanded), equalTo(List.of("unmapped.bar", "unmapped.deep.leaf", "unmapped.foo", "unmapped", INT_ATTR)));
-            assertThat(
-                nonNullRows(expanded),
-                contains(
-                    matchesMap().entry("unmapped.bar", "b")
-                        .entry("unmapped.deep.leaf", "d")
-                        .entry("unmapped.foo", "f")
-                        .entry("unmapped", "s")
-                        .entry(INT_ATTR, 1)
-                )
-            );
-        } finally {
-            Releasables.close(expanded.pages());
-        }
-    }
-
-    public void testKeepOrderTrailsEvalColumnAppendedAboveKeep() {
-        BlockFactory bf = blockFactory();
-        Result result = result(
-            List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.ALL, List.of("*")), keywordAttr("z")),
-            List.of(page(bf, List.of(row(1, jsonObject(KEEP_ORDER_JSON), "e"))))
-        );
-
-        Result expanded = expand(result, bf);
-        try {
-            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "unmapped", "unmapped.bar", "unmapped.deep.leaf", "unmapped.foo", "z")));
-            assertThat(
-                nonNullRows(expanded),
-                contains(
-                    matchesMap().entry(INT_ATTR, 1)
-                        .entry("unmapped", "s")
-                        .entry("unmapped.bar", "b")
-                        .entry("unmapped.deep.leaf", "d")
-                        .entry("unmapped.foo", "f")
-                        .entry("z", "e")
-                )
-            );
-        } finally {
-            Releasables.close(expanded.pages());
-        }
-    }
-
-    public void testKeepOrderWithEvalBelowKeepPlacesEvalColInKeptGroup() {
-        BlockFactory bf = blockFactory();
-        Result result = result(
-            List.of(keywordAttr("foo"), intAttr(), unmappedAttr(UnmappedFieldsPattern.ALL, List.of("foo*", "*", "bar*"))),
-            List.of(page(bf, List.of(row("v", 1, jsonObject("{'unmapped.foo':'uf','unmapped.bar':'ub'}")))))
-        );
-
-        Result expanded = expand(result, bf);
-        try {
-            assertThat(names(expanded), equalTo(List.of("foo", INT_ATTR, "unmapped.bar", "unmapped.foo")));
-        } finally {
-            Releasables.close(expanded.pages());
-        }
-    }
-
-    public void testKeepOrderWithEvalBelowAndAboveKeepPlacesEvalColsCorrectly() {
-        BlockFactory bf = blockFactory();
-        Result result = result(
-            List.of(keywordAttr("foo"), intAttr(), unmappedAttr(UnmappedFieldsPattern.ALL, List.of("foo*", "*")), keywordAttr("z")),
-            List.of(page(bf, List.of(row("v", 1, jsonObject("{'unmapped.foo':'uf','unmapped.other':'uo'}"), "ev"))))
-        );
-
-        Result expanded = expand(result, bf);
-        try {
-            assertThat(names(expanded), equalTo(List.of("foo", INT_ATTR, "unmapped.foo", "unmapped.other", "z")));
-        } finally {
-            Releasables.close(expanded.pages());
-        }
-    }
-
     public void testExpandReleasesInputPagesWhenExpansionFails() {
         BlockFactory bf = blockFactory();
         Block intBlock;
@@ -530,8 +423,10 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         assertThat("expand leaked the input pages on failure", bf.breaker().getUsed(), equalTo(0L));
     }
 
+    // No ordering recipe: these exercise the expansion mechanics, so the natural real-then-discovered fallback applies. The ordering
+    // itself is covered against real plans in DetermineUnmappedFieldsToKeepTests.
     private static Result expand(Result result, BlockFactory blockFactory) {
-        return ExpandUnmappedFieldsPostProcessor.expand(result, blockFactory, PlannerSettings.DEFAULTS);
+        return ExpandUnmappedFieldsPostProcessor.expand(result, null, blockFactory, PlannerSettings.DEFAULTS);
     }
 
     private static Result result(List<Attribute> schema, List<Page> pages) {
@@ -552,13 +447,6 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     private static UnmappedFieldsAttribute unmappedAttr(UnmappedFieldsPattern pattern) {
         return new UnmappedFieldsAttribute(Source.EMPTY, pattern);
-    }
-
-    private static UnmappedFieldsAttribute unmappedAttr(UnmappedFieldsPattern pattern, List<String> keepOrder) {
-        List<UnmappedFieldsPattern.KeepTerm> terms = keepOrder.stream()
-            .map(name -> new UnmappedFieldsPattern.KeepTerm(name, Regex.isSimpleMatchPattern(name)))
-            .toList();
-        return new UnmappedFieldsAttribute(Source.EMPTY, pattern, terms);
     }
 
     /** Builds a single page whose blocks are inferred from {@code rows} (one {@link #row} per position). */

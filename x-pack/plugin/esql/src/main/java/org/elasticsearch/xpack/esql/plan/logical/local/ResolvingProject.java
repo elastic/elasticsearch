@@ -135,17 +135,6 @@ public class ResolvingProject extends Project {
         return command.kind() == Kind.RENAME;
     }
 
-    /**
-     * This {@code KEEP}'s projection terms in written order, for replaying its column ordering over {@code LOAD_ALL}-expanded leaves on
-     * the coordinator (see {@link UnmappedFieldsPattern#keepOrdered}). Only valid on a KEEP; reads the same still-unresolved projections
-     * {@link Command#unmappedFieldsPattern()} does, so it must run while the {@link ResolvingProject} is intact (before
-     * {@code ResolvedProjects}).
-     */
-    public List<UnmappedFieldsPattern.KeepTerm> keepOrderTerms() {
-        assert isKeep() : "keepOrderTerms is only defined for a KEEP, not " + command.kind();
-        return UnmappedFieldsPattern.orderTerms(command.projections());
-    }
-
     @Override
     protected NodeInfo<Project> info() {
         return NodeInfo.create(

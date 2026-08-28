@@ -48,14 +48,14 @@ FROM partial_mapping_sample_data
 | SORT @timestamp
 ;
 
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | unmapped_message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | DISCONNECTED FROM 10.1.0.3      | 4                     | g                       | 3450234
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | DISCONNECTED FROM 10.1.0.2      | 3                     | f                       | 2764890
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 43                              | 2                     | e                       | 1232383
-2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | DISCONNECTION ERROR             | 1                     | d                       | 725449
-2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | DISCONNECTION ERROR             | 3                     | c                       | 8268154
-2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | DISCONNECTION ERROR             | 2                     | b                       | 5033756
-2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | DISCONNECTED FROM 10.1.0.1      | 1                     | a                       | 1756468
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | DISCONNECTED FROM 10.1.0.3
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | DISCONNECTED FROM 10.1.0.2
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449                          | DISCONNECTION ERROR
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154                         | DISCONNECTION ERROR
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756                         | DISCONNECTION ERROR
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | DISCONNECTED FROM 10.1.0.1
 ;
 
 evalShadowsUnmappedFieldWithLiteral
@@ -67,14 +67,14 @@ FROM partial_mapping_sample_data
 | SORT @timestamp
 ;
 
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | unmapped_message:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | x                        | 4                     | g                       | 3450234
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | x                        | 3                     | f                       | 2764890
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | x                        | 2                     | e                       | 1232383
-2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | x                        | 1                     | d                       | 725449
-2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | x                        | 3                     | c                       | 8268154
-2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | x                        | 2                     | b                       | 5033756
-2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | x                        | 1                     | a                       | 1756468
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | x
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | x
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | x
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449                          | x
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154                         | x
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756                         | x
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | x
 ;
 
 keepUnmappedFieldByName
@@ -250,10 +250,10 @@ FROM partial_mapping_sample_data
 | LIMIT 3
 ;
 
-@timestamp:datetime      | unmapped_message:keyword | unmapped_event_duration:long | language_code:keyword | unmapped.nested:keyword
-2024-10-23T12:15:03.360Z | Connected to 10.1.0.3!   | 3450                         | 4                     | g
-2024-10-23T12:27:28.948Z | Connected to 10.1.0.2!   | 2764                         | 3                     | f
-2024-10-23T13:33:34.937Z | 42                       | 1232                         | 2                     | e
+@timestamp:datetime      | unmapped_message:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:long
+2024-10-23T12:15:03.360Z | Connected to 10.1.0.3!   | 4                     | g                       | 3450
+2024-10-23T12:27:28.948Z | Connected to 10.1.0.2!   | 3                     | f                       | 2764
+2024-10-23T13:33:34.937Z | 42                       | 2                     | e                       | 1232
 ;
 
 allFieldsUnmapped
@@ -1389,14 +1389,14 @@ FROM partial_mapping_sample_data
 | SORT @timestamp
 ;
 
-@timestamp:datetime      | client_ip:ip | event_duration:long | unmapped_message:keyword   | combined:keyword                                        | unmapped.nested:keyword | unmapped_event_duration:keyword | msg:keyword            | lang:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Disconnected from 10.1.0.3 | Connected to 10.1.0.3! -> Disconnected from 10.1.0.3   | g                       | 3450234                         | Connected to 10.1.0.3! | 4
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Disconnected from 10.1.0.2 | Connected to 10.1.0.2! -> Disconnected from 10.1.0.2   | f                       | 2764890                         | Connected to 10.1.0.2! | 3
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 43                         | 42 -> 43                                                | e                       | 1232383                         | 42                     | 2
-2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Disconnection error        | Connection error? -> Disconnection error                | d                       | 725449                          | Connection error?      | 1
-2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Disconnection error        | Connection error? -> Disconnection error                | c                       | 8268154                         | Connection error?      | 3
-2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Disconnection error        | Connection error? -> Disconnection error                | b                       | 5033756                         | Connection error?      | 2
-2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Disconnected from 10.1.0.1 | Connected to 10.1.0.1! -> Disconnected from 10.1.0.1   | a                       | 1756468                         | Connected to 10.1.0.1! | 1
+@timestamp:datetime      | client_ip:ip | event_duration:long | unmapped_message:keyword   | unmapped.nested:keyword | unmapped_event_duration:keyword | combined:keyword                                     | msg:keyword            | lang:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Disconnected from 10.1.0.3 | g                       | 3450234                         | Connected to 10.1.0.3! -> Disconnected from 10.1.0.3 | Connected to 10.1.0.3! | 4
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Disconnected from 10.1.0.2 | f                       | 2764890                         | Connected to 10.1.0.2! -> Disconnected from 10.1.0.2 | Connected to 10.1.0.2! | 3
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 43                         | e                       | 1232383                         | 42 -> 43                                             | 42                     | 2
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Disconnection error        | d                       | 725449                          | Connection error? -> Disconnection error             | Connection error?      | 1
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Disconnection error        | c                       | 8268154                         | Connection error? -> Disconnection error             | Connection error?      | 3
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Disconnection error        | b                       | 5033756                         | Connection error? -> Disconnection error             | Connection error?      | 2
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Disconnected from 10.1.0.1 | a                       | 1756468                         | Connected to 10.1.0.1! -> Disconnected from 10.1.0.1 | Connected to 10.1.0.1! | 1
 ;
 
 // Two chained RENAMEs above a KEEP leave a stale intermediate name in the rename map the coordinator replays; it used to
@@ -1425,7 +1425,7 @@ FROM partial_mapping_sample_data
 // Root cause: outermostRenames composes the accumulated map once per alias instead of once per RENAME node, so the second
 // alias of a swap rewrites the first one's value and the map collapses to {client_ip: client_ip}. The KEEP's original names
 // are then unrecoverable and the order replays as identity. Expected results below are the correct ones.
-swapRenamesAboveKeep-Ignore
+swapRenamesAboveKeep
 required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -1448,7 +1448,7 @@ Connected to 10.1.0.1! | 173.21.3.15  | 2024-10-23T13:55:01.543Z | 1756466      
 // Root cause: the walk only inspects RENAME/KEEP/DROP nodes, so an EVAL that re-creates a renamed-away name is invisible to it.
 // Both b and c end up mapped to the same original (message), and inverting that map picks a winner by iteration order - on half
 // the JVMs c is emitted twice and b is dropped. Expected results below are the correct ones.
-renameOfEvalRecreatedNameAboveKeep-Ignore
+renameOfEvalRecreatedNameAboveKeep
 required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -1812,14 +1812,14 @@ FROM partial_mapping_sample_data
 | SORT @timestamp
 ;
 
-@timestamp:datetime      | message:keyword        | seconds:long | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
-2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! | 3450         | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
-2024-10-23T12:27:28.948Z | Connected to 10.1.0.2! | 2764         | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
-2024-10-23T13:33:34.937Z | 42                     | 1232         | 2                     | e                       | 1232383                         | 43
-2024-10-23T13:51:54.732Z | Connection error?      | 725          | 1                     | d                       | 725449                          | Disconnection error
-2024-10-23T13:52:55.015Z | Connection error?      | 8268         | 3                     | c                       | 8268154                         | Disconnection error
-2024-10-23T13:53:55.832Z | Connection error?      | 5033         | 2                     | b                       | 5033756                         | Disconnection error
-2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | 1756         | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+@timestamp:datetime      | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword   | seconds:long
+2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3 | 3450
+2024-10-23T12:27:28.948Z | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2 | 2764
+2024-10-23T13:33:34.937Z | 42                     | 2                     | e                       | 1232383                         | 43                         | 1232
+2024-10-23T13:51:54.732Z | Connection error?      | 1                     | d                       | 725449                          | Disconnection error        | 725
+2024-10-23T13:52:55.015Z | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error        | 8268
+2024-10-23T13:53:55.832Z | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error        | 5033
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1 | 1756
 ;
 
 evalMultipleFieldsThenDropSome
@@ -1832,14 +1832,14 @@ FROM partial_mapping_sample_data
 | SORT @timestamp
 ;
 
-@timestamp:datetime      | client_ip:ip | message:keyword        | dur_secs:long | nested_up:keyword | language_code:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | Connected to 10.1.0.3! | 3450          | G                 | 4                     | 3450234                         | Disconnected from 10.1.0.3
-2024-10-23T12:27:28.948Z | 173.21.2.113 | Connected to 10.1.0.2! | 2764          | F                 | 3                     | 2764890                         | Disconnected from 10.1.0.2
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 42                     | 1232          | E                 | 2                     | 1232383                         | 43
-2024-10-23T13:51:54.732Z | 173.21.3.15  | Connection error?      | 725           | D                 | 1                     | 725449                          | Disconnection error
-2024-10-23T13:52:55.015Z | 173.21.3.15  | Connection error?      | 8268          | C                 | 3                     | 8268154                         | Disconnection error
-2024-10-23T13:53:55.832Z | 173.21.3.15  | Connection error?      | 5033          | B                 | 2                     | 5033756                         | Disconnection error
-2024-10-23T13:55:01.543Z | 173.21.3.15  | Connected to 10.1.0.1! | 1756          | A                 | 1                     | 1756468                         | Disconnected from 10.1.0.1
+@timestamp:datetime      | client_ip:ip | message:keyword        | language_code:keyword | unmapped_event_duration:keyword | unmapped_message:keyword   | dur_secs:long | nested_up:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | Connected to 10.1.0.3! | 4                     | 3450234                         | Disconnected from 10.1.0.3 | 3450          | G
+2024-10-23T12:27:28.948Z | 173.21.2.113 | Connected to 10.1.0.2! | 3                     | 2764890                         | Disconnected from 10.1.0.2 | 2764          | F
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 42                     | 2                     | 1232383                         | 43                         | 1232          | E
+2024-10-23T13:51:54.732Z | 173.21.3.15  | Connection error?      | 1                     | 725449                          | Disconnection error        | 725           | D
+2024-10-23T13:52:55.015Z | 173.21.3.15  | Connection error?      | 3                     | 8268154                         | Disconnection error        | 8268          | C
+2024-10-23T13:53:55.832Z | 173.21.3.15  | Connection error?      | 2                     | 5033756                         | Disconnection error        | 5033          | B
+2024-10-23T13:55:01.543Z | 173.21.3.15  | Connected to 10.1.0.1! | 1                     | 1756468                         | Disconnected from 10.1.0.1 | 1756          | A
 ;
 
 evalThenMultipleRenamesOfEvalAndUnmappedFields
@@ -1874,14 +1874,14 @@ FROM partial_mapping_sample_data
 | SORT @timestamp
 ;
 
-@timestamp:datetime      | client_ip:ip | message:keyword        | dur_secs:long | language_code:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | Connected to 10.1.0.3! | 3450          | 4
-2024-10-23T12:27:28.948Z | 173.21.2.113 | Connected to 10.1.0.2! | 2764          | 3
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 42                     | 1232          | 2
-2024-10-23T13:51:54.732Z | 173.21.3.15  | Connection error?      | 725           | 1
-2024-10-23T13:52:55.015Z | 173.21.3.15  | Connection error?      | 8268          | 3
-2024-10-23T13:53:55.832Z | 173.21.3.15  | Connection error?      | 5033          | 2
-2024-10-23T13:55:01.543Z | 173.21.3.15  | Connected to 10.1.0.1! | 1756          | 1
+@timestamp:datetime      | client_ip:ip | message:keyword        | language_code:keyword | dur_secs:long
+2024-10-23T12:15:03.360Z | 173.21.2.162 | Connected to 10.1.0.3! | 4                     | 3450
+2024-10-23T12:27:28.948Z | 173.21.2.113 | Connected to 10.1.0.2! | 3                     | 2764
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 42                     | 2                     | 1232
+2024-10-23T13:51:54.732Z | 173.21.3.15  | Connection error?      | 1                     | 725
+2024-10-23T13:52:55.015Z | 173.21.3.15  | Connection error?      | 3                     | 8268
+2024-10-23T13:53:55.832Z | 173.21.3.15  | Connection error?      | 2                     | 5033
+2024-10-23T13:55:01.543Z | 173.21.3.15  | Connected to 10.1.0.1! | 1                     | 1756
 ;
 
 multipleDropsThenEvalThenRename
@@ -1896,14 +1896,14 @@ FROM partial_mapping_sample_data
 | SORT @timestamp
 ;
 
-@timestamp:datetime      | event_duration:long | message:keyword        | uMsg:keyword               | msg_len:integer | language_code:keyword | unmapped.nested:keyword
-2024-10-23T12:15:03.360Z | 3450232             | Connected to 10.1.0.3! | Disconnected from 10.1.0.3 | 22              | 4                     | g
-2024-10-23T12:27:28.948Z | 2764888             | Connected to 10.1.0.2! | Disconnected from 10.1.0.2 | 22              | 3                     | f
-2024-10-23T13:33:34.937Z | 1232381             | 42                     | 43                         | 2               | 2                     | e
-2024-10-23T13:51:54.732Z | 725447              | Connection error?      | Disconnection error        | 17              | 1                     | d
-2024-10-23T13:52:55.015Z | 8268152             | Connection error?      | Disconnection error        | 17              | 3                     | c
-2024-10-23T13:53:55.832Z | 5033754             | Connection error?      | Disconnection error        | 17              | 2                     | b
-2024-10-23T13:55:01.543Z | 1756466             | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | 22              | 1                     | a
+@timestamp:datetime      | event_duration:long | message:keyword        | uMsg:keyword               | language_code:keyword | unmapped.nested:keyword | msg_len:integer
+2024-10-23T12:15:03.360Z | 3450232             | Connected to 10.1.0.3! | Disconnected from 10.1.0.3 | 4                     | g                       | 22
+2024-10-23T12:27:28.948Z | 2764888             | Connected to 10.1.0.2! | Disconnected from 10.1.0.2 | 3                     | f                       | 22
+2024-10-23T13:33:34.937Z | 1232381             | 42                     | 43                         | 2                     | e                       | 2
+2024-10-23T13:51:54.732Z | 725447              | Connection error?      | Disconnection error        | 1                     | d                       | 17
+2024-10-23T13:52:55.015Z | 8268152             | Connection error?      | Disconnection error        | 3                     | c                       | 17
+2024-10-23T13:53:55.832Z | 5033754             | Connection error?      | Disconnection error        | 2                     | b                       | 17
+2024-10-23T13:55:01.543Z | 1756466             | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | 1                     | a                       | 22
 ;
 
 keepThenWhereOnUnmappedField

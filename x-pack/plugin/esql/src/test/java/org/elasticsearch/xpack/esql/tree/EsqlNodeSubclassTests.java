@@ -679,11 +679,6 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return randomBoolean() ? UnmappedFieldsPattern.ALL : UnmappedFieldsPattern.NONE;
         }
 
-        if (argClass == UnmappedFieldsPattern.KeepTerm.class) {
-            // KeepTerm is a record (implicitly final); cannot be mocked
-            return new UnmappedFieldsPattern.KeepTerm(randomAlphaOfLength(5), randomBoolean());
-        }
-
         if (argClass == org.elasticsearch.cluster.metadata.DatasetMapping.class) {
             // final type, can't be mocked — build a small real instance (declared mapping on UnresolvedExternalRelation)
             return new org.elasticsearch.cluster.metadata.DatasetMapping(

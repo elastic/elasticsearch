@@ -239,8 +239,8 @@ public class CsvSchemaInferrer {
         DataType evidence = TYPE_CANDIDATES[evidenceIdx];
         DataType committed = TypeWidening.join(accepted, evidence, TypeWidening.Policy.INFERENCE);
         // The join never invents a third type, so the answer is one of these three rungs and there is
-        // no rung to search for. TypeWideningTests#testJoinNeverInventsAThirdType is what makes this
-        // exhaustive rather than merely true today.
+        // no rung to search for. A test in the lattice's own suite pins that property exhaustively,
+        // rather than it being merely true today.
         if (committed == accepted) {
             return currentIdx;
         }

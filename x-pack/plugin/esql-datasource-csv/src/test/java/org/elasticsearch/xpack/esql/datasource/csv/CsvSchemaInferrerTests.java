@@ -520,14 +520,28 @@ public class CsvSchemaInferrerTests extends ESTestCase {
         for (String value : corpus) {
             DataType inferred = inferOne(value);
             boolean railDecodes;
+            long railNanos = 0L;
             try {
-                EsqlDataTypeConverter.dateNanosToLong(value);
+                railNanos = EsqlDataTypeConverter.dateNanosToLong(value);
                 railDecodes = true;
             } catch (Exception e) {
                 railDecodes = false;
             }
             if (inferred == DataType.DATE_NANOS) {
                 assertTrue("inferred date_nanos for a value the nanos rail cannot decode: [" + value + "]", railDecodes);
+            }
+            // And the other direction, which catches a screen that drifts too BROAD — suppressing
+            // values it should have promoted. Stated over this corpus rather than as a general law:
+            // it holds because every value here reaches the default ISO rail in a form both parsers
+            // read the same way. A corpus that grew, say, lowercase 't'/'z' separators could break it
+            // legitimately — the nanos rail would decode what asDateTime rejects — so extend the
+            // generator and this assertion together.
+            if (railDecodes && railNanos % 1_000_000L != 0L) {
+                assertEquals(
+                    "did not infer date_nanos for a sub-millisecond value the rail decodes: [" + value + "]",
+                    DataType.DATE_NANOS,
+                    inferred
+                );
             }
         }
     }

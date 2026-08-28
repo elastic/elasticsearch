@@ -100,7 +100,10 @@ import java.util.function.IntConsumer;
  * {@link Releasable} is closed at row-group rollover. If the breaker check fails during a
  * prefetch, the iterator drains speculative reservations and retries that row group through
  * the same breaker-accounted chunk machinery using synchronous I/O. The fallback can therefore
- * also be refused when the row group's chunks do not fit.
+ * also be refused when the row group's chunks do not fit. {@link #fillPrefetchQueue} admits
+ * unread queued groups under {@link #MAX_QUEUED_PREFETCH_BYTES}; {@link #prefetchDepth} is a
+ * count wish, not the memory bound. An empty queue always starts the next group so the scan
+ * cannot stall.
  *
  * <p><b>Trivially-passes guard:</b> when late materialization is enabled and row-group
  * statistics prove every row satisfies the pushed filter ({@link TriviallyPassesChecker}),
@@ -241,7 +244,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private final CompressionCodecFactory codecFactory;
     private int rowBudget;
     /**
-     * Async prefetches allowed ahead of the consumed row group. Initialized from
+     * Count wish for async prefetches ahead of the consumed row group. Initialized from
      * {@link #computePrefetchDepth} based on projected column size (1-3), then adapted
      * at runtime: grows by {@link #PREFETCH_DEPTH_GROWTH} on stall detection (the
      * prefetch future was not ready when consumed), shrinks by 1 after
@@ -249,12 +252,26 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      * suppressed when the circuit breaker exceeds {@link #BREAKER_GROWTH_THRESHOLD}
      * utilization. Normally bounded by [{@link #prefetchDepthFloor},
      * {@link #MAX_PREFETCH_DEPTH}]; a failed prefetch temporarily enters one-entry probe mode.
+     * {@link #fillPrefetchQueue} also refuses extra groups once unread queued bytes would
+     * exceed {@link #prefetchByteBudget}, so a high wish on a wide file may still queue one
+     * group. The in-use current row group is not counted against that budget.
      */
     private int prefetchDepth;
     private final int prefetchDepthFloor;
     private boolean probing;
     private int consecutiveNoStalls;
     private final ArrayDeque<PendingPrefetch> pendingPrefetches = new ArrayDeque<>();
+    /**
+     * Footer-estimated bytes of unread entries in {@link #pendingPrefetches}. Adjusted on
+     * enqueue, consume, skip-mismatch, and cancel. Does not include the in-use current row group.
+     */
+    private long queuedPrefetchBytes;
+    /**
+     * Cap on {@link #queuedPrefetchBytes}. Defaults to {@link #MAX_QUEUED_PREFETCH_BYTES}.
+     * Tests inject a smaller value after construction so the next {@link #fillPrefetchQueue}
+     * honors it without needing large fixtures.
+     */
+    private long prefetchByteBudget = MAX_QUEUED_PREFETCH_BYTES;
     /**
      * Breaker-accounted heap buffers holding the chunks currently in use by {@link #rowGroup}.
      * Released at row-group rollover so the charge returns immediately rather than waiting for
@@ -503,8 +520,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     }
 
     /**
-     * Fills the prefetch queue up to {@link #prefetchDepth} entries, starting from ordinal
-     * {@code fromOrdinal}. Stops early when no more surviving row groups remain. Breaker
+     * Fills the prefetch queue starting from ordinal {@code fromOrdinal}. Admission requires
+     * both {@code size < prefetchDepth} (count wish) and, when the queue is non-empty,
+     * {@code queuedPrefetchBytes + next <= prefetchByteBudget}. An empty queue always
+     * dispatches the next surviving group, even when that group exceeds the byte cap, so the
+     * scan cannot stall. Stops early when no more surviving row groups remain. Breaker
      * accounting for the prefetched bytes happens inside {@code readBytesAsync} via
      * {@code DirectBufferFactory.forBreaker}; if a prefetch trips the breaker it surfaces as
      * a failed future and {@link #takePendingPrefetch} falls back to breaker-accounted sync I/O
@@ -537,6 +557,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             if (prefetchBytes <= 0) {
                 nextOrdinal = nextSurvivingRowGroupOrdinal(nextOrdinal + 1);
                 continue;
+            }
+            // Remaining capacity, not a sum: a huge footer length cannot wrap a long add and
+            // admit a group we already know cannot fit. When queued already exceeds the cap
+            // (empty-queue overrun), the right-hand side is negative and any positive
+            // prefetchBytes fails the check.
+            if (pendingPrefetches.isEmpty() == false && prefetchBytes > prefetchByteBudget - queuedPrefetchBytes) {
+                break;
             }
             try {
                 RowRanges nextRowRanges = allRowRanges != null && nextOrdinal < allRowRanges.length ? allRowRanges[nextOrdinal] : null;
@@ -573,7 +600,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 } else {
                     future = ColumnChunkPrefetcher.prefetchAsync(storageObject, nextBlock, phaseColumns, breaker);
                 }
-                pendingPrefetches.addLast(new PendingPrefetch(nextOrdinal, future));
+                pendingPrefetches.addLast(new PendingPrefetch(nextOrdinal, future, prefetchBytes));
+                queuedPrefetchBytes += prefetchBytes;
             } catch (Exception e) {
                 logger.debug("Failed to initiate prefetch for row group [{}] in [{}]: {}", nextOrdinal, fileLocation, e.getMessage());
                 break;
@@ -864,11 +892,19 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         return ParquetColumnDecoding.isUnsignedInt64(sortColumnPrimitiveType) ? ParquetColumnDecoding.encodeUnsignedLong(raw) : null;
     }
 
+    /** Projected-size threshold that raises the initial count floor to 3. Not a memory cap; see {@link #MAX_QUEUED_PREFETCH_BYTES}. */
     private static final long DEEPER_PREFETCH_BYTES = 32_000_000L;
+    /**
+     * Cap on unread queued prefetch bytes per iterator. Distinct from {@link #DEEPER_PREFETCH_BYTES},
+     * which only sizes the initial count floor. An empty queue always admits one row group even
+     * when that group exceeds this cap, so the scan cannot stall waiting for a group that never
+     * starts.
+     */
+    static final long MAX_QUEUED_PREFETCH_BYTES = 32_000_000L;
     private static final long SHALLOW_PREFETCH_BYTES = 8_000_000L;
     static final int MAX_PREFETCH_DEPTH = 8;
     private static final int PREFETCH_DEPTH_GROWTH = 2;
-    private static final int SHRINK_AFTER_NO_STALLS = 3;
+    static final int SHRINK_AFTER_NO_STALLS = 3;
     private static final double BREAKER_GROWTH_THRESHOLD = 0.75;
 
     /**
@@ -891,9 +927,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 projectedBytes += col.getTotalSize();
             }
         }
-        // Larger projected sizes need deeper prefetch: an S3 GET for a 20MB string column takes
-        // ~200ms while decode takes ~10ms, so single-ahead can't hide the latency. The circuit
-        // breaker caps actual memory regardless of depth.
+        // Larger projected sizes need a higher count floor: an S3 GET for a 20MB string column
+        // takes ~200ms while decode takes ~10ms, so single-ahead can't hide the latency.
+        // {@link #MAX_QUEUED_PREFETCH_BYTES} limits unread queued bytes; the circuit breaker is
+        // the allocate-time backstop if a footer estimate is wrong.
         //
         // Two-phase note: under two-phase the queued prefetches carry only predicate columns, so
         // the actual queued bytes are a fraction of {@code projectedBytes}. We intentionally keep
@@ -1248,7 +1285,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     } else if (useTwoPhase) {
                         // Cancellation is not a release barrier: wait for all speculative reads and
                         // release their results before reserving the synchronous fallback buffers.
-                        prefetch.drainForFallback(pendingPrefetches);
+                        prefetch.drainForFallback(detachPendingPrefetches());
                         ColumnChunkPrefetcher.PrefetchedChunks fetched = ColumnChunkPrefetcher.fetchSync(
                             storageObjectForFallback(),
                             block,
@@ -1825,7 +1862,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             try {
                 // This drains only the speculative queue. It never touches
                 // currentChunksReleasable, so the trivially-passes path can keep Phase 1 live.
-                drainPendingPrefetches(pendingPrefetches);
+                drainPendingPrefetches(detachPendingPrefetches());
                 return rowRanges == null
                     ? ColumnChunkPrefetcher.fetchSync(storageObjectForFallback(), block, projectionOnlyColumnPaths, breaker)
                     : ColumnChunkPrefetcher.fetchSync(
@@ -2013,14 +2050,14 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 }
                 assert head.ordinal() <= expectedOrdinal
                     : "prefetch queue has ordinal " + head.ordinal() + " > expected " + expectedOrdinal;
-                selection.stage(pendingPrefetches.pollFirst());
+                selection.stage(dequeuePending());
             }
 
             if (pendingPrefetches.isEmpty()) {
                 return selection;
             }
 
-            PendingPrefetch head = pendingPrefetches.pollFirst();
+            PendingPrefetch head = dequeuePending();
             selection.stage(head);
             boolean wasReady = head.future().isDone();
             ColumnChunkPrefetcher.PrefetchedChunks result;
@@ -2133,6 +2170,52 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         return probing;
     }
 
+    // Visible for testing
+    int pendingPrefetchCount() {
+        return pendingPrefetches.size();
+    }
+
+    // Visible for testing
+    long queuedPrefetchBytes() {
+        return queuedPrefetchBytes;
+    }
+
+    /**
+     * Test-only: replace the queued-byte cap. The next {@link #fillPrefetchQueue} (typically via
+     * {@link #refillPrefetchQueue()}) honors the new value; in-flight entries are unchanged until
+     * cancelled.
+     */
+    void setPrefetchByteBudget(long prefetchByteBudget) {
+        this.prefetchByteBudget = prefetchByteBudget;
+    }
+
+    /**
+     * Test-only: cancel in-flight prefetches and refill from the next surviving ordinal after
+     * the current row group. After construction that is the first group, so tests can inject a
+     * budget and re-admit without 32MB fixtures.
+     */
+    void refillPrefetchQueue() {
+        cancelPendingPrefetch();
+        fillPrefetchQueue(nextSurvivingRowGroupOrdinal(rowGroupOrdinal + 1));
+    }
+
+    private PendingPrefetch dequeuePending() {
+        PendingPrefetch pending = pendingPrefetches.pollFirst();
+        assert pending != null : "dequeue from empty prefetch queue";
+        queuedPrefetchBytes -= pending.bytes();
+        assert queuedPrefetchBytes >= 0 : "queuedPrefetchBytes went negative: " + queuedPrefetchBytes;
+        return pending;
+    }
+
+    private ArrayDeque<PendingPrefetch> detachPendingPrefetches() {
+        ArrayDeque<PendingPrefetch> detached = new ArrayDeque<>(pendingPrefetches.size());
+        while (pendingPrefetches.isEmpty() == false) {
+            detached.addLast(dequeuePending());
+        }
+        assert queuedPrefetchBytes == 0 : "queuedPrefetchBytes leaked after detach: " + queuedPrefetchBytes;
+        return detached;
+    }
+
     /**
      * Refills the prefetch queue after consuming an entry in {@link #advanceRowGroup()}.
      * Starts from the ordinal after the last queued entry (or after the current row group
@@ -2157,7 +2240,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      * rethrown after the queue is empty with later failures suppressed.
      */
     private void cancelPendingPrefetch() {
-        cancelPendingPrefetches(pendingPrefetches);
+        cancelPendingPrefetches(detachPendingPrefetches());
     }
 
     /**
@@ -3032,8 +3115,15 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      * Queue removal first transfers the entry to {@link PendingPrefetchSelection}. A usable
      * current result then transfers its releasable to {@link #currentChunksReleasable}; otherwise
      * the guard either cancels this entry or includes it in the synchronous-fallback barrier.
+     *
+     * <p>{@link #bytes} is the footer estimate from {@link ColumnChunkPrefetcher#computePrefetchBytes}
+     * used for queued-byte admission; it is not the live breaker charge.
      */
-    record PendingPrefetch(int ordinal, CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future) {
+    record PendingPrefetch(int ordinal, CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future, long bytes) {
+
+        PendingPrefetch(int ordinal, CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future) {
+            this(ordinal, future, 0);
+        }
 
         void release() {
             // Non-blocking cancellation cleanup: if I/O is still in flight, FutureUtils.cancel()

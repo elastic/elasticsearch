@@ -418,7 +418,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     LoggingAuditTrail(Settings settings, ClusterService clusterService, Logger logger, ThreadContext threadContext) {
-        this(settings, clusterService, logger, threadContext, AuditLogCustomizer.NOOP, new NoopCircuitBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS));
+        this(
+            settings,
+            clusterService,
+            logger,
+            threadContext,
+            AuditLogCustomizer.NOOP,
+            new NoopCircuitBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS)
+        );
     }
 
     LoggingAuditTrail(

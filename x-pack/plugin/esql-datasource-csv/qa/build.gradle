@@ -366,6 +366,11 @@ def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
   classpath = sourceSets.csvSpecTest.runtimeClasspath
   systemProperty 'tests.rest.client_timeout', '60'
   systemProperty 'tests.rest.socket_timeout', '60'
+  // The vector suites cross the corpus with every expressible vector, so this task carries thousands of
+  // cases rather than hundreds: csv measured 13,594 at ~44ms. That is past randomizedtesting's 600s
+  // default. Raising the ceiling lets the suite FINISH; it does not make it faster, and the wall clock is
+  // why the full crossing belongs in a nightly pipeline rather than on the PR path.
+  systemProperty 'tests.timeoutSuite', '3600000!'
 }
 
 tasks.named('check').configure { dependsOn csvSpecTests }

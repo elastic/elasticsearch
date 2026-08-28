@@ -47,8 +47,12 @@ public final class FixtureContractAudit {
         return RESOLVER_CAPABILITIES.contains(dimension + "=" + value + "@" + format);
     }
 
-    /** Whether the pragma seam is wired. A declared pragma key alone does not make a value runnable. */
-    private static final boolean PRAGMA_SEAM_WIRED = false;
+    /**
+     * Whether the pragma seam is wired. A declared pragma key alone never made a value runnable; what
+     * makes it runnable is EsqlSpecTestCase.addSuitePragmas carrying it onto the query, which
+     * AbstractExternalSourceSpecTestCase overrides. Flipped with that wiring, not before it.
+     */
+    private static final boolean PRAGMA_SEAM_WIRED = true;
 
     private FixtureContractAudit() {}
 

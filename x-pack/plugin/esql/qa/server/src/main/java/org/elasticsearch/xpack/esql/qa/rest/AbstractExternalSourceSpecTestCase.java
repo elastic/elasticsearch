@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.qa.rest;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -992,6 +993,11 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      */
     protected Map<String, String> vectorSettings() {
         return Map.of();
+    }
+
+    @Override
+    protected void addSuitePragmas(Settings.Builder settings) {
+        FixtureDimensions.get().pragmaSettings(vector(), FixtureMatrix.baseFormat(format)).forEach(settings::put);
     }
 
     /**

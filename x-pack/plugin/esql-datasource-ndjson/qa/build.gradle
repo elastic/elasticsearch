@@ -165,6 +165,9 @@ tasks.named('processCsvSpecTestResources').configure {
 // declares the shared ElasticsearchCluster at the abstract-class level — INGEST fires exactly
 // once for the entire suite.
 def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
+  // Vector crossing puts thousands of cases in this task, past randomizedtesting's 600s default.
+  // Raising the ceiling lets it finish; it does not make it faster.
+  systemProperty 'tests.timeoutSuite', '3600000!'
   dependsOn 'generateStandaloneNdjsonFixtures'
   dependsOn generateEsqlSpecTests
   usesDefaultDistribution("to be triaged")

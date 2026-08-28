@@ -509,6 +509,15 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
     }
 
+    /**
+     * Pragmas this suite applies to every query it runs.
+     *
+     * <p>No-op by default, so a suite that does not use them sends byte-identical requests to before. A
+     * vector-driven suite overrides it to apply the pragma-bound slots its vector pins -- a pragma travels
+     * with the QUERY, not the dataset registration, so it cannot ride the WITH clause.
+     */
+    protected void addSuitePragmas(Settings.Builder settings) {}
+
     private void addPragmas(RequestObjectBuilder builder) throws IOException {
         MappedFieldType.FieldExtractPreference preference = fieldExtractPreference();
         Settings.Builder pragmaBuilder = Settings.builder();
@@ -516,6 +525,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             pragmaBuilder.put(QueryPragmas.FIELD_EXTRACT_PREFERENCE.getKey(), preference.toString()).build();
         }
         addRandomPragma(pragmaBuilder);
+        addSuitePragmas(pragmaBuilder);
         testCase.pragmas.forEach(pragmaBuilder::put);
 
         Settings pragma = pragmaBuilder.build();

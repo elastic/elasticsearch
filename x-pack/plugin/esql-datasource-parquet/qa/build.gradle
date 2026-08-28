@@ -344,6 +344,9 @@ tasks.named('processCsvSpecTestResources').configure {
 // entire suite. Isolation from ClickBenchParquetSpecIT (which fires INGEST with an empty
 // indicesToLoad) is achieved by having the spec ITs live in the csvSpecTest source set.
 def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
+  // Vector crossing puts thousands of cases in this task, past randomizedtesting's 600s default.
+  // Raising the ceiling lets it finish; it does not make it faster.
+  systemProperty 'tests.timeoutSuite', '3600000!'
   dependsOn generateParquetFixtures
   dependsOn generateEsqlSpecTests
   usesDefaultDistribution("to be triaged")

@@ -238,6 +238,25 @@ public final class FixtureDimensions {
     }
 
     /**
+     * The query pragmas a vector pins: pragma-bound slots sitting off their declared default.
+     *
+     * <p>Separate from {@link #directiveSettings} because a pragma is not a dataset setting -- it travels
+     * with the query, not the registration, and putting it in the WITH clause would make the reader
+     * reject an unknown key.
+     */
+    public Map<String, String> pragmaSettings(Map<String, String> vector, String format) {
+        Map<String, String> out = new LinkedHashMap<>();
+        for (Map.Entry<String, String> slot : vector.entrySet()) {
+            String key = pragmaKey(slot.getKey());
+            if (key == null || slot.getValue().equals(defaultValue(slot.getKey(), format))) {
+                continue;
+            }
+            out.put(key, slot.getValue());
+        }
+        return out;
+    }
+
+    /**
      * The reader settings a vector's fixture-bound slots must announce.
      *
      * <p>Bytes alone are not enough: a file written in a dialect the reader is not told about is parsed
@@ -952,9 +971,11 @@ public final class FixtureDimensions {
                 && directiveKeyByName.containsKey(dimension)
                 && derivedFromForValue(dimension, value) == null;
             case "fixture" -> seams.contains(Seam.FIXTURE) && FixtureCapabilities.renders(dimension, value, format);
+            // A pragma needs no fixture and no cluster -- only a suite that carries it onto the query.
+            case "pragma" -> seams.contains(Seam.PRAGMA) && pragmaKeyByName.containsKey(dimension);
             // The remaining seams reject until their own wiring lands; the contract already carries a
             // typed reason for every cell they would otherwise have to serve.
-            case "resolver", "backend", "pragma", "cluster" -> false;
+            case "resolver", "backend", "cluster" -> false;
             default -> throw new IllegalStateException("unhandled binds [" + binds(dimension) + "]");
         };
     }

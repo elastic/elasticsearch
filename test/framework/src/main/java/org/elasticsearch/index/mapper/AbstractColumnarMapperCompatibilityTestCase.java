@@ -22,6 +22,7 @@ import org.apache.lucene.document.column.TokenStreamColumn;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -417,7 +418,16 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         // so the raw 2-byte sortable encoding is compared, which the BinaryColumn columnar path also emits.
         final boolean useBinary = ft.pointDimensionCount() == 1 && ft.pointNumBytes() == 2;
         final Number numeric = useBinary ? null : field.numericValue();
-        final Long longValue = numeric != null ? numeric.longValue() : null;
+        // For stored Float/Double fields, longValue() truncates — compare at sortable bit level instead,
+        // matching the raw encoding the columnar path carries in its LongColumn cursor.
+        final Long longValue;
+        if (numeric instanceof Float f) {
+            longValue = (long) NumericUtils.floatToSortableInt(f);
+        } else if (numeric instanceof Double d) {
+            longValue = NumericUtils.doubleToSortableLong(d);
+        } else {
+            longValue = numeric != null ? numeric.longValue() : null;
+        }
         BytesRef bytesValue = null;
         if (longValue == null) {
             final BytesRef binary = field.binaryValue();

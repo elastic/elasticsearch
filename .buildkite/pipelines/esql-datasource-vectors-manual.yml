@@ -1,0 +1,41 @@
+# MANUAL TRIGGER ONLY -- deliberately not scheduled. The `-manual` suffix follows
+# flakiness-detection-manual.yml; a `periodic-` name would claim a cron this does not have and
+# should not get without a decision. Nothing here schedules itself: Buildkite schedules live in the
+# UI, so this file is the definition and someone has to choose to run it.
+#
+# It is also NOT a licence to season cells out of the PR path. Seasoning removes a cell from CI on
+# the grounds that the nightly still covers it; until this actually runs on a cadence, that premise
+# is false and seasoning would remove coverage with nothing behind it.
+#
+# The full vector crossing: every routed spec case against every vector the contract makes
+# expressible, per format. This is where COMPLETENESS lives -- the PR path carries a declared
+# subset, and a subset is only honest if the whole set demonstrably runs somewhere.
+#
+# One step per module rather than one step for all: Buildkite steps get separate agents, and
+# maxParallelForks is pinned to 1 inside each module because the csv-spec ITs share a cluster.
+# So cross-module parallelism is the only parallelism available, and it is per-step.
+#
+# NO -Dbuild.snapshot=false here. csvSpecTests is `enabled = buildParams.snapshotBuild`, so a
+# release build silently disables it -- the pipeline would go green having executed nothing,
+# which is the one outcome worse than red.
+#
+# csv carries both the csv and tsv vector suites (there is no :esql-datasource-tsv project) and
+# is by far the largest: measured 19,531 cases at ~95ms, about 31 minutes. The 300-minute ceiling
+# is headroom for the seams still to land -- schema_mode alone roughly triples the vector count.
+steps:
+  - group: esql-datasource-vectors
+    steps:
+      - label: "{{matrix.module}} / vector crossing"
+        command: .ci/scripts/run-gradle.sh :x-pack:plugin:{{matrix.module}}:qa:csvSpecTests --tests '*VectorSpecIT*'
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            module:
+              - esql-datasource-csv
+              - esql-datasource-ndjson
+              - esql-datasource-parquet
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk

@@ -19,9 +19,6 @@ tests:
 - class: org.elasticsearch.search.aggregations.metrics.LargeTopHitsIT
   method: test500Queries
   issue: https://github.com/elastic/elasticsearch/issues/148056
-- class: org.elasticsearch.threadpool.SimpleThreadPoolIT
-  method: testThreadPoolMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/156130
 - class: org.elasticsearch.packaging.test.KeystoreManagementTests
   method: test50CreateKeystoreManually
   issue: https://github.com/elastic/elasticsearch/issues/155335
@@ -34,10 +31,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.continuous.TransformContinuousIT
   method: testContinuousEvents
   issue: https://github.com/elastic/elasticsearch/issues/153782
-- class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
-  issue: https://github.com/elastic/elasticsearch/issues/156233
-- class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/156234
 - class: org.elasticsearch.search.SearchWithRejectionsIT
   method: testOpenContextsAfterRejections
   issue: https://github.com/elastic/elasticsearch/issues/156244
@@ -47,15 +40,38 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/42_knn_search_int4_flat/Test bad parameters}
   issue: https://github.com/elastic/elasticsearch/issues/156975
-- class: org.elasticsearch.xpack.ccr.ChainIT
-  method: testFollowIndex {targetCluster=FOLLOWER}
-  issue: https://github.com/elastic/elasticsearch/issues/157152
 - class: org.elasticsearch.index.query.SearchExecutionContextTests
   method: testFielddataLookupSometimesLoop
   issue: https://github.com/elastic/elasticsearch/issues/157154
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
   method: testBottomFieldSort
   issue: https://github.com/elastic/elasticsearch/issues/157329
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search/40_indices_boost/Indices boost with wildcard}
+  issue: https://github.com/elastic/elasticsearch/issues/157451
+- class: org.elasticsearch.xpack.ml.integration.PyTorchModelIT
+  method: testFailedDeploymentStats
+  issue: https://github.com/elastic/elasticsearch/issues/157341
+- class: org.elasticsearch.index.reindex.remote.ReindexFromRemote7xIT
+  issue: https://github.com/elastic/elasticsearch/issues/157454
+- class: org.elasticsearch.xpack.esql.heap_attack.ManyRequestsIT
+  method: testManyRequests
+  issue: https://github.com/elastic/elasticsearch/issues/151627
+- class: org.elasticsearch.xpack.inference.InferenceRestIT
+  method: test {p0=inference/30_semantic_text_inference/Calculates embeddings using the default ELSER 2 endpoint}
+  issue: https://github.com/elastic/elasticsearch/issues/157795
+- class: org.elasticsearch.xpack.ilm.actions.RolloverActionIT
+  method: testILMRolloverRetriesOnReadOnlyBlock
+  issue: https://github.com/elastic/elasticsearch/issues/157832
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
+  issue: https://github.com/elastic/elasticsearch/issues/157941
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old outlier_detection job}
+  issue: https://github.com/elastic/elasticsearch/issues/157942
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Explain data frame analytics}
+  issue: https://github.com/elastic/elasticsearch/issues/157943
 
 # Examples:
 #

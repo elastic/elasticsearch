@@ -98,6 +98,11 @@ public class EsqlCapabilities {
         FN_ROUND_UL_FIXES,
 
         /**
+         * Fix on function {@code ROUND} that reports integer overflow as a warning and a null result.
+         */
+        FN_ROUND_INT_OVERFLOW_WARNS,
+
+        /**
          * Support for function {@code SCALB}.
          */
         FN_SCALB,
@@ -685,6 +690,13 @@ public class EsqlCapabilities {
         IMPLICIT_CASTING_STRING_LITERAL_TO_TEMPORAL_AMOUNT,
 
         /**
+         * When multiple aliases are defined in a single EVAL, an implicit CASTing is missed because of a premature exit due
+         * to failing to immediately resolve a field referenced in one of the EVALed aliases.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/155979">#155979</a>.
+         */
+        FIX_MISSED_IMPLICIT_CASTING_INSIDE_INTERLEAVED_EVALS,
+
+        /**
          * LOOKUP JOIN
          */
         JOIN_LOOKUP_V12,
@@ -1164,6 +1176,16 @@ public class EsqlCapabilities {
          * See <a href="https://github.com/elastic/elasticsearch/pull/155923">#155923</a>.
          */
         FIX_PARTIAL_PREFIX_COMPOUND_TOPN_PUSHDOWN,
+
+        /**
+         * Reject doubles at the exactly representable 2^63 boundary when converting to long.
+         */
+        FIX_DOUBLE_TO_LONG_OVERFLOW,
+
+        /**
+         * Clamp {@code COUNT_DISTINCT} precision thresholds before narrowing them to integers.
+         */
+        FN_COUNT_DISTINCT_PRECISION_CLAMP,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

@@ -1226,8 +1226,13 @@ public class SharedBlobCacheWarmingService {
         final long totalBytesToWarm = endTargetsToWarm.values().stream().mapToLong(WarmTarget::endOffset).sum();
         final long warmingCacheBytes = Math.round(cacheService.getCacheSize() * searchRecoveryWarmingCacheRatio);
         final double dataVolumeMs = warmingCacheBytes > 0 ? ((double) totalBytesToWarm / warmingCacheBytes) * remaining : 0;
+        int ongoingRelocations = countOngoingRelocationsBetween(state, sourceNodeId, targetNodeId);
+        // The current shard is itself one such relocation; floor at 1 in case it is not yet visible on the source's RoutingNode.
+        if (ongoingRelocations <= 0) {
+            ongoingRelocations = 1;
+        }
 
-        double timeoutMs;
+        final double timeoutMs;
         final String context;
         // The decision below is per-shard whereas the two heuristics above assume all shards opt with the same heuristic
         // this is an inherent problem of the fact that, during relocation, we don't know apriori all the shards that are going
@@ -1235,18 +1240,12 @@ public class SharedBlobCacheWarmingService {
         // Though the per-shard local decision here is OKish, because it's all relative to the remaining deadline and shards,
         // so the impact of currently choosing a different heuristic from previous (or future) relocating shards is partially mitigated
         if (dataVolumeMs > equalShareMs) {
-            timeoutMs = dataVolumeMs;
+            timeoutMs = Math.min(remaining, dataVolumeMs * ongoingRelocations);
             context = "relocation source shutting down (data volume proportional share of remaining time to capped grace deadline)";
         } else {
-            timeoutMs = equalShareMs;
+            timeoutMs = Math.min(remaining, equalShareMs * ongoingRelocations);
             context = "relocation source shutting down (equal share of remaining time to capped grace deadline)";
         }
-        int ongoingRelocations = countOngoingRelocationsBetween(state, sourceNodeId, targetNodeId);
-        // The current shard is itself one such relocation; floor at 1 in case it is not yet visible on the source's RoutingNode.
-        if (ongoingRelocations <= 0) {
-            ongoingRelocations = 1;
-        }
-        timeoutMs = Math.min(remaining, timeoutMs * ongoingRelocations);
         return new SearchRecoveryTimeout(TimeValue.timeValueMillis(Math.round(timeoutMs)), context);
     }
 

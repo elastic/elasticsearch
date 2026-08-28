@@ -36,6 +36,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
+import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReader;
 import org.elasticsearch.xpack.stateless.cache.reader.LazyRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
@@ -182,6 +183,17 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         Setting.Property.NodeScope
     );
 
+    /**
+     * Whether {@link CacheFileReader#tryPrefetch} may schedule asynchronous downloads from the object store on a
+     * cache miss. When disabled, prefetching is best-effort and only succeeds for data already present in the
+     * local cache. Defaults to true.
+     */
+    public static final Setting<Boolean> STATELESS_CACHE_OBJECT_STORE_PREFETCH_ENABLED_SETTING = Setting.boolSetting(
+        "stateless.cache.object_store_prefetch.enabled",
+        true,
+        Setting.Property.NodeScope
+    );
+
     // Stateless shared blob cache service populates-and-reads in-thread. And it relies on the cache service to fetch gap bytes
     // asynchronously using a CacheBlobReader.
     private static final Executor IO_EXECUTOR = EsExecutors.DIRECT_EXECUTOR_SERVICE;
@@ -189,6 +201,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     private final Executor shardReadThreadPoolExecutor;
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder;
     private final boolean hasSearchRole;
+    private final boolean objectStorePrefetchEnabled;
     private final boolean cacheBoostPreferenceEnabled;
     private volatile boolean metadataTimestampBackfillEnabled;
     private volatile boolean evictObsoleteRegionsEnabled;
@@ -237,6 +250,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         this.shardReadThreadPoolExecutor = shardReadThreadPoolExecutor;
         this.metricsHolder = metricsHolder;
         this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
+        this.objectStorePrefetchEnabled = STATELESS_CACHE_OBJECT_STORE_PREFETCH_ENABLED_SETTING.get(settings);
         this.cacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
         this.evictionDegradationThreshold = (int) (numRegions * STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING.get(settings)
             .getAsRatio());
@@ -360,6 +374,10 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
 
     public boolean hasSearchRole() {
         return hasSearchRole;
+    }
+
+    public boolean isObjectStorePrefetchEnabled() {
+        return objectStorePrefetchEnabled;
     }
 
     public Executor getShardReadThreadPoolExecutor() {

@@ -59,6 +59,7 @@ public class CacheFileReaderStoreMetricsTests extends ESTestCase {
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT,
+            true,
             true
         );
         reader.accountBytesReadTo(storeMetrics);

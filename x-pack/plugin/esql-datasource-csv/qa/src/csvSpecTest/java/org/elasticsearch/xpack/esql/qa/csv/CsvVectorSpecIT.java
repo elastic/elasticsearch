@@ -45,7 +45,7 @@ public class CsvVectorSpecIT extends AbstractDelimitedTextSpecTestCase {
         String vectorName,
         StorageBackend storageBackend
     ) {
-        super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, "csv");
+        super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, vectorReaderName("csv", vectorName));
         this.vectorSettings = FixtureDimensions.get().directiveSettings(FixtureDimensions.get().parseRendered(vectorName));
     }
 

@@ -284,6 +284,30 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         return out;
     }
 
+    /**
+     * The reader name a vector runs under: the base format, plus the extension its codec appends.
+     *
+     * <p>The reader dispatches on the suffix, and the compressed suites already spell it {@code csv.gz},
+     * so a codec vector needs no new resolution path -- only the right token. A vector at the default
+     * codec gets the bare format, which is why an unvaried suite resolves byte-identically to before.
+     *
+     * <p>Static because it is consumed in a {@code super(...)} argument, before the instance exists.
+     */
+    protected static String vectorReaderName(String baseFormat, String vectorName) {
+        FixtureDimensions dimensions = FixtureDimensions.get();
+        String codec = dimensions.parseRendered(vectorName).get("text_codec");
+        if (codec == null) {
+            return baseFormat;
+        }
+        String extension = dimensions.extensionFor("text_codec", codec);
+        if (extension == null) {
+            throw new IllegalStateException(
+                "vector names text_codec [" + codec + "] but the contract declares no extension for it; nothing could resolve its files"
+            );
+        }
+        return baseFormat + "." + extension;
+    }
+
     /** One parameter row: the base case, the vector's rendered name, and the backend its scheme names. */
     private static Object[] appendVectorAndBackend(FixtureDimensions dimensions, Object[] baseTest, Map<String, String> vector) {
         String scheme = vector.get("storage_scheme");

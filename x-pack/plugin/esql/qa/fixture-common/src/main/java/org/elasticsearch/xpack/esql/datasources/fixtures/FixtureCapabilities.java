@@ -34,7 +34,24 @@ public final class FixtureCapabilities {
      * fixtures are generated in full, which is exactly why the absence has to be declared rather than
      * inferred from an empty directory.
      */
-    private static final Set<String> RENDERED_AND_SELECTABLE = Set.of("format=tsv@tsv", "format=ndjson@ndjson", "format=parquet@parquet");
+    private static final Set<String> RENDERED_AND_SELECTABLE = Set.of(
+        "format=tsv@tsv",
+        "format=ndjson@ndjson",
+        "format=parquet@parquet",
+        // Compressed variants of every text fixture are written at fixture-load time by
+        // AbstractExternalSourceSpecTestCase.generateCompressedFixtures, so these bytes already exist for
+        // all three text formats -- no generator work earned these rows, only the consumption that reads
+        // them. lz4 and snappy are absent because COMPRESSED_EXTENSIONS does not produce them yet.
+        "text_codec=gzip@csv",
+        "text_codec=gzip@tsv",
+        "text_codec=gzip@ndjson",
+        "text_codec=zstd@csv",
+        "text_codec=zstd@tsv",
+        "text_codec=zstd@ndjson",
+        "text_codec=bzip2@csv",
+        "text_codec=bzip2@tsv",
+        "text_codec=bzip2@ndjson"
+    );
 
     /** Whether a generator writes this cell's bytes and a suite can select them. */
     public static boolean renders(String dimension, String value, String format) {

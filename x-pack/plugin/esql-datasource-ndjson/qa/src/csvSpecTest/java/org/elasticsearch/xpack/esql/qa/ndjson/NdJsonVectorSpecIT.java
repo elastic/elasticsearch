@@ -41,7 +41,7 @@ public class NdJsonVectorSpecIT extends AbstractNdJsonExternalSpecTestCase {
         String vectorName,
         StorageBackend storageBackend
     ) {
-        super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, "ndjson");
+        super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, vectorReaderName("ndjson", vectorName));
         this.vectorSettings = FixtureDimensions.get().directiveSettings(FixtureDimensions.get().parseRendered(vectorName));
     }
 

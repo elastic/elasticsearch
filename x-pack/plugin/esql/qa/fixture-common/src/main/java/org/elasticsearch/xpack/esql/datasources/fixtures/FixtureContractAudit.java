@@ -35,27 +35,17 @@ import java.util.Set;
  *
  * <p>The fixture seam is deliberately NOT satisfied by a {@code read_key}. A read key says how a value
  * would announce itself if the bytes existed; it says nothing about whether anything writes them. Only
- * an explicit row in {@link #FIXTURE_CAPABILITIES} counts, and a row is added by the same change that
+ * an explicit row in {@link FixtureCapabilities} counts, and a row is added by the same change that
  * implements the rendering -- so the gate can go red the day it lands rather than two increments later.
  */
 public final class FixtureContractAudit {
 
-    /**
-     * The (dimension, value, format) cells some generator renders AND some suite can select today.
-     *
-     * <p>Deliberately sparse. It grows one row per increment that teaches a generator a new variant, and
-     * every row it does NOT contain is a cell that must carry a typed reason instead.
-     */
-    private static final Set<String> FIXTURE_CAPABILITIES = Set.of(
-        // The per-format fixture trees are generated for all five formats, but only these four have a
-        // vector suite that can select them. ORC's absence is declared, not inferred from this omission.
-        "format=tsv@tsv",
-        "format=ndjson@ndjson",
-        "format=parquet@parquet"
-    );
-
-    /** Values of a resolver-bound dimension the suites can currently ask for. Empty until that seam lands. */
+    /** Values of a resolver-bound dimension the suites can currently ask for. None until that seam lands. */
     private static final Set<String> RESOLVER_CAPABILITIES = Set.of();
+
+    private static boolean resolverServes(String dimension, String value, String format) {
+        return RESOLVER_CAPABILITIES.contains(dimension + "=" + value + "@" + format);
+    }
 
     /** Whether the pragma seam is wired. A declared pragma key alone does not make a value runnable. */
     private static final boolean PRAGMA_SEAM_WIRED = false;
@@ -183,10 +173,10 @@ public final class FixtureContractAudit {
             case "backend" -> dimensions.backendFor(dimension, value) != null
                 ? "BACKEND(" + dimensions.backendFor(dimension, value) + ")"
                 : null;
-            case "resolver" -> RESOLVER_CAPABILITIES.contains(cell(dimension, value, format)) ? "RESOLVER" : null;
+            case "resolver" -> resolverServes(dimension, value, format) ? "RESOLVER" : null;
             // read_key presence is NOT enough: it describes how bytes would announce themselves, not
             // whether anything writes them.
-            case "fixture" -> FIXTURE_CAPABILITIES.contains(cell(dimension, value, format)) ? "FIXTURE" : null;
+            case "fixture" -> FixtureCapabilities.renders(dimension, value, format) ? "FIXTURE" : null;
             case "cluster" -> null;
             default -> throw new IllegalStateException("unhandled binds [" + dimensions.binds(dimension) + "]");
         };

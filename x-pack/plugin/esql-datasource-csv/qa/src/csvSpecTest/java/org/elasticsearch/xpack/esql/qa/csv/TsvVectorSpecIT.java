@@ -41,7 +41,7 @@ public class TsvVectorSpecIT extends AbstractDelimitedTextSpecTestCase {
         String vectorName,
         StorageBackend storageBackend
     ) {
-        super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, "tsv");
+        super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, vectorReaderName("tsv", vectorName));
         this.vectorSettings = FixtureDimensions.get().directiveSettings(FixtureDimensions.get().parseRendered(vectorName));
     }
 

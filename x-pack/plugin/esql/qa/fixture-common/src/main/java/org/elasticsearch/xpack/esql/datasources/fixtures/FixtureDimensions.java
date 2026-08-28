@@ -90,6 +90,7 @@ public final class FixtureDimensions {
     private final Map<String, String> pragmaKeyByName;
     private final Map<String, Map<String, String>> formatDefaultsByName;
     private final Map<String, Map<String, String>> backendByName;
+    private final Map<String, Map<String, String>> extensionByName;
     private final Map<String, Map<String, String>> absenceByName;
     private final Map<String, Set<String>> valueDisjointByPair;
     private final Map<String, Verdict> verdicts;
@@ -108,6 +109,7 @@ public final class FixtureDimensions {
         Map<String, String> pragmaKeyByName,
         Map<String, Map<String, String>> formatDefaultsByName,
         Map<String, Map<String, String>> backendByName,
+        Map<String, Map<String, String>> extensionByName,
         Map<String, Map<String, String>> absenceByName,
         Map<String, Set<String>> valueDisjointByPair,
         Map<String, Verdict> verdicts
@@ -125,6 +127,7 @@ public final class FixtureDimensions {
         this.pragmaKeyByName = Map.copyOf(pragmaKeyByName);
         this.formatDefaultsByName = Map.copyOf(formatDefaultsByName);
         this.backendByName = Map.copyOf(backendByName);
+        this.extensionByName = Map.copyOf(extensionByName);
         this.absenceByName = Map.copyOf(absenceByName);
         this.valueDisjointByPair = Map.copyOf(valueDisjointByPair);
         this.verdicts = Map.copyOf(verdicts);
@@ -187,6 +190,17 @@ public final class FixtureDimensions {
             }
         }
         return false;
+    }
+
+    /**
+     * The file extension a value appends to the format token, or null when it appends none.
+     *
+     * <p>The reader dispatches on the suffix, so this is how a codec becomes real without any new
+     * resolution path: the suite's format token becomes {@code csv.gz} exactly as the compressed suites
+     * already spell it.
+     */
+    public String extensionFor(String dimension, String value) {
+        return extensionByName.getOrDefault(dimension, Map.of()).get(value);
     }
 
     /** The storage backend a value corresponds to, or null when the dimension names none. */
@@ -282,6 +296,7 @@ public final class FixtureDimensions {
         Map<String, String> pragmaKeys = new LinkedHashMap<>();
         Map<String, Map<String, String>> formatDefaults = new LinkedHashMap<>();
         Map<String, Map<String, String>> backends = new LinkedHashMap<>();
+        Map<String, Map<String, String>> extensions = new LinkedHashMap<>();
         Map<String, Map<String, String>> absences = new LinkedHashMap<>();
         Map<String, Verdict> verdicts = new LinkedHashMap<>();
         Map<String, Set<String>> valueDisjoint = new LinkedHashMap<>();
@@ -329,6 +344,7 @@ public final class FixtureDimensions {
                     case "value" -> directiveValues.computeIfAbsent(name, k -> new LinkedHashMap<>())
                         .put(requireQualified(key, tail), value);
                     case "backend" -> backends.computeIfAbsent(name, k -> new LinkedHashMap<>()).put(requireQualified(key, tail), value);
+                    case "ext" -> extensions.computeIfAbsent(name, k -> new LinkedHashMap<>()).put(requireQualified(key, tail), value);
                     // `gap.<v>`, `gap.<v>.<format>`, and the `rule.` pair. The kind comes from the key and
                     // the reason text must repeat it, so a copied line whose text says the other kind is a
                     // build failure rather than a report that quietly contradicts itself.
@@ -592,6 +608,7 @@ public final class FixtureDimensions {
             pragmaKeys,
             formatDefaults,
             backends,
+            extensions,
             absences,
             normalisedDisjoint,
             verdicts

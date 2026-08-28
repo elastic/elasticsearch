@@ -298,25 +298,22 @@ public class FixtureDimensionsTests extends ESTestCase {
     }
 
     /**
-     * Every vector this returns has to be runnable through the directive seam alone -- that is the whole
-     * claim the method makes. A slot bound to anything else would be silently ignored at injection time
-     * and the test would report a combination it never actually ran.
+     * Every off-default slot of a selected vector must be servable by a seam the suite declares. A slot
+     * served by nothing would be injected nowhere and run at its default, so the case would assert a
+     * configuration it never used -- the misbind this contract exists to catch.
      */
-    public void testDirectiveExpressibleVectorsVaryOnlyDirectiveBoundSlots() {
+    public void testEveryOffDefaultSlotIsServedBySomeDeclaredSeam() {
         FixtureDimensions d = FixtureDimensions.get();
-        List<Map<String, String>> vectors = d.directiveExpressibleVectors("csv");
-        assertThat(vectors, not(empty()));
-        for (Map<String, String> vector : vectors) {
-            assertThat(vector.get("format"), equalTo("csv"));
-            for (Map.Entry<String, String> slot : vector.entrySet()) {
-                if (slot.getKey().equals("format") || slot.getValue().equals(d.defaultValue(slot.getKey()))) {
-                    continue;
+        for (String format : List.of("csv", "tsv", "ndjson", "parquet")) {
+            for (Map<String, String> vector : d.directiveExpressibleVectors(format)) {
+                for (Map.Entry<String, String> slot : vector.entrySet()) {
+                    String dimension = slot.getKey();
+                    if (dimension.equals("format") || slot.getValue().equals(d.defaultValue(dimension, format))) {
+                        continue;
+                    }
+                    boolean served = d.directiveKey(dimension) != null || FixtureCapabilities.renders(dimension, slot.getValue(), format);
+                    assertThat(dimension + "=" + slot.getValue() + " on " + format + " is served by nothing", served, equalTo(true));
                 }
-                assertThat(
-                    "off-default slot [" + slot.getKey() + "] must be expressible as a directive",
-                    d.directiveKey(slot.getKey()),
-                    notNullValue()
-                );
             }
         }
     }
@@ -410,9 +407,9 @@ public class FixtureDimensionsTests extends ESTestCase {
      */
     public void testDirectiveExpressibleCountsPerFormat() {
         FixtureDimensions d = FixtureDimensions.get();
-        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(24));
-        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(18));
-        assertThat(d.directiveExpressibleVectors("ndjson").size(), equalTo(18));
+        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(33));
+        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(27));
+        assertThat(d.directiveExpressibleVectors("ndjson").size(), equalTo(27));
         assertThat(d.directiveExpressibleVectors("parquet").size(), equalTo(9));
     }
 
@@ -466,14 +463,14 @@ public class FixtureDimensionsTests extends ESTestCase {
     }
 
     /**
-     * The removal must not touch what any suite runs. Every one of the 688 is unconstructible, so if a
-     * per-format count moved, the declaration had caught something expressible and would be wrong.
+     * The disjoint removal must not touch what any suite runs. Every one of the 688 is unconstructible,
+     * so a moved count would mean the declaration had caught something expressible and was wrong.
      */
     public void testDisjointRemovalLeavesEveryFormatsSelectionUntouched() {
         FixtureDimensions d = FixtureDimensions.get();
-        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(24));
-        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(18));
-        assertThat(d.directiveExpressibleVectors("ndjson").size(), equalTo(18));
+        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(33));
+        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(27));
+        assertThat(d.directiveExpressibleVectors("ndjson").size(), equalTo(27));
         assertThat(d.directiveExpressibleVectors("parquet").size(), equalTo(9));
     }
 
@@ -580,23 +577,27 @@ public class FixtureDimensionsTests extends ESTestCase {
     }
 
     /**
-     * Today the fixture seam adds nothing: no capability row exists for any cell a vector could vary, so
-     * every selectable vector needs the directive seam alone. This is the measurement that makes the
-     * fixture seam's arrival visible -- when a generator starts rendering a dialect or a codec and earns
-     * its row, these two numbers separate, and that separation IS the seam landing.
+     * The fixture seam is now load-bearing, and this is the measurement of it. Withdraw FIXTURE and the
+     * codec vectors vanish, because a compressed file is bytes a suite must be able to read, not a
+     * setting it can pass. The gap between the two numbers IS the seam: it was zero before any cell
+     * rendered, and it grows by exactly the cells that earned a capability row.
      */
-    public void testTheFixtureSeamAddsNothingUntilACellCanBeRendered() {
+    public void testWithdrawingTheFixtureSeamWithdrawsTheCellsItRenders() {
         FixtureDimensions d = FixtureDimensions.get();
         Set<FixtureDimensions.Seam> directiveOnly = Set.of(FixtureDimensions.Seam.DIRECTIVE);
         Set<FixtureDimensions.Seam> both = Set.of(FixtureDimensions.Seam.DIRECTIVE, FixtureDimensions.Seam.FIXTURE);
-        for (String format : List.of("csv", "tsv", "ndjson", "parquet")) {
+        for (String format : List.of("csv", "tsv", "ndjson")) {
             assertThat(
-                "adding FIXTURE must change nothing while no varied cell renders",
-                d.expressibleVectors(format, directiveOnly).size(),
-                equalTo(d.expressibleVectors(format, both).size())
+                "three codecs became selectable on " + format,
+                d.expressibleVectors(format, both).size() - d.expressibleVectors(format, directiveOnly).size(),
+                equalTo(9)
             );
         }
-        assertThat("the only fixture cells that render are format cells", FixtureCapabilities.cells().size(), equalTo(3));
+        assertThat(
+            "parquet has no text codec, so the seam adds nothing there",
+            d.expressibleVectors("parquet", both).size(),
+            equalTo(d.expressibleVectors("parquet", directiveOnly).size())
+        );
     }
 
     /** csv needs no capability row: it is the default format, so its vectors never carry the slot off default. */

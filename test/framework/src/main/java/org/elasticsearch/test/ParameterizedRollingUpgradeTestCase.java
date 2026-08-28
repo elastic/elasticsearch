@@ -7,11 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.upgrades;
+package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
@@ -45,12 +46,16 @@ import static org.hamcrest.Matchers.notNullValue;
  * <pre>{@code smartRetry.pruneIndividualTests.set(false)}</pre>
  */
 public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase {
+
     protected static final int NODE_NUM = 3;
+
+    private static final String CURRENT_ES_VERSION = Build.current().version();
     private static final String OLD_CLUSTER_VERSION = System.getProperty("tests.old_cluster_version");
     private static final Set<Integer> upgradedNodes = new HashSet<>();
     private static TestFeatureService oldClusterTestFeatureService = null;
     private static boolean upgradeFailed = false;
     private static IndexVersion oldIndexVersion;
+
     private final int requestedUpgradedNodes;
 
     protected ParameterizedRollingUpgradeTestCase(@Name("upgradedNodes") int upgradedNodes) {
@@ -61,8 +66,6 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
     public static Iterable<Object[]> parameters() {
         return IntStream.rangeClosed(0, NODE_NUM).boxed().map(n -> new Object[] { n }).toList();
     }
-
-    protected abstract ElasticsearchCluster getUpgradeCluster();
 
     protected void beforeUpgrade() {
         if (getOldClusterVersion().endsWith("-SNAPSHOT")) {
@@ -121,12 +124,9 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
             for (int n = 0; n < requestedUpgradedNodes; n++) {
                 if (upgradedNodes.add(n)) {
                     try {
-                        Version upgradeVersion = System.getProperty("tests.new_cluster_version") == null
-                            ? Version.CURRENT
-                            : Version.fromString(System.getProperty("tests.new_cluster_version"));
-
-                        logger.info("Upgrading node {} to version {}", n, upgradeVersion);
-                        getUpgradeCluster().upgradeNodeToVersion(n, upgradeVersion);
+                        String newClusterVersion = System.getProperty("tests.new_cluster_version", CURRENT_ES_VERSION);
+                        logger.info("Upgrading node {} to version {}", n, newClusterVersion);
+                        getUpgradeCluster().upgradeNodeToVersion(n, Version.fromString(newClusterVersion));
                     } catch (Exception e) {
                         upgradeFailed = true;
                         throw e;
@@ -135,6 +135,13 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
             }
             initClient();
         }
+    }
+
+    protected abstract ElasticsearchCluster getUpgradeCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return getUpgradeCluster().getHttpAddresses();
     }
 
     @AfterClass
@@ -167,7 +174,7 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
         return System.getProperty("tests.bwc.main.version", OLD_CLUSTER_VERSION);
     }
 
-    protected static boolean isOldClusterVersion(String nodeVersion, String buildHash) {
+    public static boolean isOldClusterVersion(String nodeVersion, String buildHash) {
         if (isOldClusterDetachedVersion()) {
             return System.getProperty("tests.bwc.refspec.main").equals(buildHash);
         }
@@ -188,11 +195,6 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
 
     protected static boolean isUpgradedCluster() {
         return upgradedNodes.size() == NODE_NUM;
-    }
-
-    @Override
-    protected String getTestRestCluster() {
-        return getUpgradeCluster().getHttpAddresses();
     }
 
     @Override

@@ -106,6 +106,14 @@ setup:
   - match: { test_index.shards.0.type: SNAPSHOT }
   - match: { test_index.shards.0.stage: DONE }
 
+  # wait for the shard to be allocated and available before searching: recovery reporting DONE covers the indexing shard, but in a
+  # stateless deployment the search shard is a separate copy that may not be available at that instant, so an immediate search can race it
+  - do:
+      cluster.health:
+        index: test_index
+        wait_for_status: green
+        wait_for_no_initializing_shards: true
+
   # the index was never closed, so it must still accept ordinary requests once the restore completes
   - do:
       search:

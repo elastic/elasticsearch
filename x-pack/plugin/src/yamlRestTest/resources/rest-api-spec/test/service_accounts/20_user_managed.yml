@@ -1,0 +1,290 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_security/service/{namespace}/{service}
+          capabilities: [user_managed_service_accounts]
+      test_runner_features: capabilities
+      reason: "User-managed service accounts are unavailable in multi-project clusters"
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "user_managed_monitor"
+        body: >
+          {
+            "cluster": ["monitor"]
+          }
+
+  - do:
+      security.put_role:
+        name: "user_managed_api_key"
+        body: >
+          {
+            "cluster": ["manage_own_api_key"]
+          }
+
+---
+teardown:
+  - do:
+      security.delete_service_token:
+        namespace: apps
+        service: worker_1
+        name: token-1
+        ignore: 404
+
+  - do:
+      security.delete_service_token:
+        namespace: apps
+        service: worker_1
+        name: token-after-recreate
+        ignore: 404
+
+  - do:
+      security.delete_service_token:
+        namespace: apps
+        service: guard_worker
+        name: guard-token
+        ignore: 404
+
+  - do:
+      security.delete_user_managed_service_account:
+        namespace: apps
+        service: worker_1
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_user_managed_service_account:
+        namespace: apps
+        service: guard_worker
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "user_managed_monitor"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "user_managed_api_key"
+        ignore: 404
+
+---
+"Test user-managed service account lifecycle":
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: worker_1
+        body: >
+          {
+            "roles": ["user_managed_monitor"],
+            "enabled": true
+          }
+  - match: { created: true }
+
+  - do:
+      security.get_service_accounts: {}
+  - length: { '': 4 }
+  - is_false: "apps/worker_1"
+
+  - do:
+      security.get_service_accounts:
+        managed_by: "elastic,user"
+  - length: { '': 5 }
+  - is_true: "apps/worker_1"
+  - match: { "elastic/kibana.managed_by": "elastic" }
+
+  - do:
+      security.get_service_accounts:
+        managed_by: "user"
+  - length: { '': 1 }
+  - is_true: "apps/worker_1"
+
+  - do:
+      security.get_service_accounts:
+        namespace: apps
+        service: worker_1
+  - length: { '': 1 }
+  - match:
+      "apps/worker_1":
+        managed_by: user
+        roles: ["user_managed_monitor"]
+        enabled: true
+
+  - do:
+      security.get_service_accounts:
+        namespace: apps
+  - length: { '': 1 }
+  - is_true: "apps/worker_1"
+
+  - do:
+      security.get_service_accounts:
+        namespace: apps
+        service: worker_1
+        managed_by: elastic
+  - length: { '': 0 }
+
+  - do:
+      security.create_service_token:
+        namespace: apps
+        service: worker_1
+        name: token-1
+  - is_true: created
+  - match: { "token.name": "token-1" }
+  - set: { "token.value": user_managed_service_token }
+
+  - do:
+      headers:
+        Authorization: Bearer ${user_managed_service_token}
+      security.authenticate: {}
+  - match: { username: "apps/worker_1" }
+  - match: { roles: ["user_managed_monitor"] }
+  - match: { full_name: "User-managed service account - apps/worker_1" }
+  - match: { metadata._user_managed_service_account: true }
+
+  - do:
+      headers:
+        Authorization: Bearer ${user_managed_service_token}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["monitor", "manage_own_api_key"]
+          }
+  - match: { "cluster.monitor": true }
+  - match: { "cluster.manage_own_api_key": false }
+  - match: { has_all_requested: false }
+
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: worker_1
+        body: >
+          {
+            "roles": ["user_managed_api_key"],
+            "enabled": true
+          }
+  - match: { created: false }
+
+  - do:
+      headers:
+        Authorization: Bearer ${user_managed_service_token}
+      security.authenticate: {}
+  - match: { roles: ["user_managed_api_key"] }
+
+  - do:
+      headers:
+        Authorization: Bearer ${user_managed_service_token}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["monitor", "manage_own_api_key"]
+          }
+  - match: { "cluster.monitor": false }
+  - match: { "cluster.manage_own_api_key": true }
+  - match: { has_all_requested: false }
+
+  - do:
+      catch: bad_request
+      security.delete_user_managed_service_account:
+        namespace: apps
+        service: worker_1
+
+  - do:
+      security.delete_user_managed_service_account:
+        namespace: apps
+        service: worker_1
+        force: true
+  - match: { found: true }
+
+  - do:
+      catch: unauthorized
+      headers:
+        Authorization: Bearer ${user_managed_service_token}
+      security.authenticate: {}
+
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: worker_1
+        body: >
+          {
+            "roles": ["user_managed_monitor"],
+            "enabled": true
+          }
+  - match: { created: true }
+
+  - do:
+      headers:
+        Authorization: Bearer ${user_managed_service_token}
+      security.authenticate: {}
+  - match: { username: "apps/worker_1" }
+
+  - do:
+      security.create_service_token:
+        namespace: apps
+        service: worker_1
+        name: token-after-recreate
+  - set: { "token.value": user_managed_service_token_recreated }
+
+  - do:
+      headers:
+        Authorization: Bearer ${user_managed_service_token_recreated}
+      security.authenticate: {}
+  - match: { username: "apps/worker_1" }
+
+---
+"Test delete of a user-managed service account that does not exist":
+  - do:
+      catch: missing
+      security.delete_user_managed_service_account:
+        namespace: apps
+        service: never_created
+  - match: { found: false }
+
+---
+"Test delete after tokens are removed":
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: guard_worker
+        body: >
+          {
+            "roles": ["user_managed_monitor"],
+            "enabled": true
+          }
+
+  - do:
+      security.create_service_token:
+        namespace: apps
+        service: guard_worker
+        name: guard-token
+
+  - do:
+      catch: /cannot delete service account \[apps\/guard_worker\] because it has service tokens/
+      security.delete_user_managed_service_account:
+        namespace: apps
+        service: guard_worker
+
+  - do:
+      security.delete_service_token:
+        namespace: apps
+        service: guard_worker
+        name: guard-token
+  - is_true: found
+
+  - do:
+      security.delete_user_managed_service_account:
+        namespace: apps
+        service: guard_worker
+  - match: { found: true }

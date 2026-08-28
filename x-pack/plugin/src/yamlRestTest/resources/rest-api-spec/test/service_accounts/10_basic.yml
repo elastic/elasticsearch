@@ -222,4 +222,15 @@ teardown:
   - match: { "error.type": "illegal_argument_exception" }
   - match: { "error.reason": "service account [foo/bar] does not exist" }
 
+---
+"Test delete service token for an unknown service account":
+  - do:
+      catch: missing
+      security.delete_service_token:
+        namespace: foo
+        service: bar
+        name: api-token-foo
+
+  - match: { found: false }
+
 

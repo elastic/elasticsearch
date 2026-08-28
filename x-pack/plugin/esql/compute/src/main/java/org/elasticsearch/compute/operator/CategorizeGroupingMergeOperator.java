@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash.CategorizeDef;
 import org.elasticsearch.compute.data.Block;
@@ -28,10 +27,10 @@ import java.util.Map;
  * distributed {@code LIMIT BY CATEGORIZE} and {@code TOPN BY CATEGORIZE}.
  *
  * <p>Wraps an inner grouping operator (e.g. {@link GroupedLimitOperator} or
- * {@link org.elasticsearch.compute.operator.topn.GroupedTopNOperator}). Each page received from the exchange carries the current
- * categorizer state as a constant {@link BytesRefBlock} at {@code stateChannel} (appended by
- * {@link CategorizeGroupingOperator} in INITIAL mode, or by this operator in INTERMEDIATE mode).
- * For each page, this operator:
+ * {@link org.elasticsearch.compute.operator.topn.GroupedTopNOperator}). Each page received from
+ * the exchange carries the current categorizer state as a constant {@link BytesRefBlock} at
+ * {@code stateChannel} (appended by {@link CategorizeGroupingOperator} in INITIAL mode, or by
+ * this operator in INTERMEDIATE mode). For each page, this operator:
  * <ol>
  *   <li>Deserializes the state and merges each category into the operator's global categorizer
  *       via {@link TokenListCategorizer#mergeWireCategory}, building a local→global ID map.</li>
@@ -40,14 +39,20 @@ import java.util.Map;
  *   <li>Drops the state channel and passes the remapped page to the inner operator.</li>
  * </ol>
  *
- * <p>When {@code emitState=true} (INTERMEDIATE mode, node-reduce driver), after the inner operator
- * produces a page, this operator appends its own global categorizer state as a constant
- * {@link BytesRefBlock}. The downstream coordinator's FINAL instance merges that state. When
- * {@code emitState=false} (FINAL mode, coordinator), output pages carry only the base columns.
+ * <p>When {@code emitState=true} (INTERMEDIATE mode, node-reduce driver), all inner-operator
+ * output is withheld until input is exhausted. The final node-level categorizer state is then
+ * serialized once and appended as a constant {@link BytesRefBlock} to every output page, so that
+ * the downstream FINAL instance receives an accurate, complete model. Buffering is required for
+ * the same reason as {@link CategorizeGroupingOperator}: the inner {@link GroupedLimitOperator}
+ * can process pages without emitting output, and a mid-stream snapshot would leave the global
+ * category set stale.
  *
- * <p>Because {@code mergeWireCategory} is idempotent and categories are monotonically growing,
- * re-merging an older state snapshot from a previous page is safe. This makes three-phase (or
- * four-phase in CCS) categorization equivalent to single-phase categorization.
+ * <p>When {@code emitState=false} (FINAL mode, coordinator), output pages carry only the base
+ * columns. Category IDs are assigned per incoming page as the global model grows — identical to
+ * the append-only behaviour of {@code CategorizeBlockHash} in FINAL mode. Three-phase (or
+ * four-phase in CCS) categorization is equivalent to single-phase categorization because the
+ * INITIAL and INTERMEDIATE operators now guarantee that every page they emit carries the
+ * complete shard- or node-level model.
  */
 public class CategorizeGroupingMergeOperator implements Operator {
 
@@ -106,8 +111,9 @@ public class CategorizeGroupingMergeOperator implements Operator {
     private final int stateChannel;
     private final TokenListCategorizer.CloseableTokenListCategorizer globalCategorizer;
     private final Operator inner;
-    private final boolean emitState;
     private final BlockFactory blockFactory;
+    private final boolean emitState;
+    private final CategorizerStateBuffer buffer;
 
     private CategorizeGroupingMergeOperator(
         int catIdChannel,
@@ -127,6 +133,7 @@ public class CategorizeGroupingMergeOperator implements Operator {
             CategorizationPartOfSpeechDictionary.getInstance(),
             categorizeDef.similarityThreshold() / 100.0f
         );
+        this.buffer = new CategorizerStateBuffer(blockFactory, inner, globalCategorizer, emitState);
     }
 
     @Override
@@ -137,45 +144,31 @@ public class CategorizeGroupingMergeOperator implements Operator {
     @Override
     public void addInput(Page page) {
         inner.addInput(mergeAndRemap(page));
+        // See CategorizeGroupingOperator.addInput for the rationale: GroupedLimitOperator can
+        // leave a page in `lastOutput` which turns inner.needsInput() false. Drain eagerly so
+        // our own needsInput() (which delegates) does not stall the driver pipeline.
+        buffer.drainInner();
     }
 
     @Override
     public void finish() {
         inner.finish();
+        buffer.finish();
     }
 
     @Override
     public boolean isFinished() {
-        return inner.isFinished();
+        return buffer.isFinished();
     }
 
     @Override
     public boolean canProduceMoreDataWithoutExtraInput() {
-        return inner.canProduceMoreDataWithoutExtraInput();
+        return buffer.canProduceMoreDataWithoutExtraInput();
     }
 
     @Override
     public Page getOutput() {
-        Page p = inner.getOutput();
-        if (p == null || emitState == false) {
-            return p;
-        }
-        BytesRefBlock stateBlock = null;
-        boolean success = false;
-        try {
-            BytesRef state = CategorizerStateCodec.serialize(globalCategorizer);
-            stateBlock = blockFactory.newConstantBytesRefBlockWith(state, p.getPositionCount());
-            Page result = p.appendBlock(stateBlock);
-            success = true;
-            return result;
-        } finally {
-            if (success == false) {
-                if (stateBlock != null) {
-                    stateBlock.close();
-                }
-                p.releaseBlocks();
-            }
-        }
+        return buffer.getOutput();
     }
 
     private Page mergeAndRemap(Page page) {
@@ -271,6 +264,6 @@ public class CategorizeGroupingMergeOperator implements Operator {
 
     @Override
     public void close() {
-        Releasables.close(inner, globalCategorizer);
+        Releasables.close(buffer, inner, globalCategorizer);
     }
 }

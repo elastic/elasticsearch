@@ -30,18 +30,24 @@ import java.io.IOException;
  * Data-node operator for distributed {@code LIMIT BY CATEGORIZE} and {@code TOPN BY CATEGORIZE}.
  *
  * <p>Wraps an inner grouping operator (e.g. {@link GroupedLimitOperator} or
- * {@link org.elasticsearch.compute.operator.topn.GroupedTopNOperator}). On each call to {@link #addInput}, the text field at
- * {@code textChannel} is classified by the ML categorizer and the resulting integer category-ID
- * block is appended to the page before delegating to the inner operator.
+ * {@link org.elasticsearch.compute.operator.topn.GroupedTopNOperator}). On each call to
+ * {@link #addInput}, the text field at {@code textChannel} is classified by the ML categorizer
+ * and the resulting integer category-ID block is appended to the page before delegating to the
+ * inner operator.
  *
- * <p>On each call to {@link #getOutput}, the inner operator's output page is retrieved and the
- * current categorizer state is serialized and appended as a constant {@link BytesRefBlock}. This
- * per-page state allows the coordinator to merge shard models and remap category IDs without
- * buffering all output — categories are monotonically growing and {@code mergeWireCategory} is
- * idempotent, so any snapshot is valid.
+ * <p>When {@code isSingleNode=false} (distributed query with an exchange), all inner-operator
+ * output is withheld until input is exhausted. The final categorizer state — reflecting every
+ * log line seen by this shard — is then serialized once and appended as a constant
+ * {@link BytesRefBlock} to every page before it is returned. Buffering is necessary because a
+ * mid-stream snapshot would be stale: {@link GroupedLimitOperator} can accept pages and update
+ * the categorizer without producing any output (when every row falls in an already-full group),
+ * so snapshots taken page-by-page omit those refinements. The coordinator's global category set
+ * is append-only and cannot retroactively collapse a category admitted from a stale snapshot.
+ * The resulting memory cost is bounded by {@code limitPerGroup × categoryCount} rows — the same
+ * bound that {@code STATS … BY CATEGORIZE} already carries via {@code CategorizeBlockHash}.
  *
- * <p>When {@code isSingleNode=true} (local-only queries without an exchange), the state channel
- * is not appended; the inner operator's output is returned directly.
+ * <p>When {@code isSingleNode=true} (local-only queries without an exchange), no state channel
+ * is appended; the inner operator's output is returned directly.
  */
 public class CategorizeGroupingOperator implements Operator {
 
@@ -94,8 +100,8 @@ public class CategorizeGroupingOperator implements Operator {
     private final TokenListCategorizer.CloseableTokenListCategorizer categorizer;
     private final CategorizationAnalyzer analyzer;
     private final Operator inner;
-    private final boolean isSingleNode;
     private final BlockFactory blockFactory;
+    private final CategorizerStateBuffer buffer;
 
     private CategorizeGroupingOperator(
         int textChannel,
@@ -106,9 +112,8 @@ public class CategorizeGroupingOperator implements Operator {
         BlockFactory blockFactory
     ) {
         this.textChannel = textChannel;
-        this.isSingleNode = isSingleNode;
-        this.blockFactory = blockFactory;
         this.inner = inner;
+        this.blockFactory = blockFactory;
         this.categorizer = new TokenListCategorizer.CloseableTokenListCategorizer(
             new CategorizationBytesRefHash(new BytesRefHash(2048, blockFactory.bigArrays())),
             CategorizationPartOfSpeechDictionary.getInstance(),
@@ -123,6 +128,8 @@ public class CategorizeGroupingOperator implements Operator {
             categorizer.close();
             throw new RuntimeException(e);
         }
+        // emitState == true only for distributed (non-single-node) execution
+        this.buffer = new CategorizerStateBuffer(blockFactory, inner, categorizer, isSingleNode == false);
     }
 
     @Override
@@ -143,45 +150,34 @@ public class CategorizeGroupingOperator implements Operator {
                 catIds.close();
             }
         }
+        // Drain any pages the inner operator has produced. This is required when the inner is
+        // GroupedLimitOperator: it stores at most one pending page in `lastOutput`, and its
+        // needsInput() returns false while a page is pending. Without eagerly draining here,
+        // our own needsInput() (which delegates to inner.needsInput()) would go false while
+        // getOutput() still returns null (buffered output is withheld pre-finish), stalling the
+        // driver pipeline.
+        buffer.drainInner();
     }
 
     @Override
     public void finish() {
         inner.finish();
+        buffer.finish();
     }
 
     @Override
     public boolean isFinished() {
-        return inner.isFinished();
+        return buffer.isFinished();
     }
 
     @Override
     public boolean canProduceMoreDataWithoutExtraInput() {
-        return inner.canProduceMoreDataWithoutExtraInput();
+        return buffer.canProduceMoreDataWithoutExtraInput();
     }
 
     @Override
     public Page getOutput() {
-        Page p = inner.getOutput();
-        if (p == null || isSingleNode) {
-            return p;
-        }
-        BytesRefBlock stateBlock = null;
-        boolean success = false;
-        try {
-            BytesRef state = serializeCategorizer();
-            stateBlock = blockFactory.newConstantBytesRefBlockWith(state, p.getPositionCount());
-            Page result = p.appendBlock(stateBlock);
-            success = true;
-            return result;
-        } finally {
-            if (success == false) {
-                if (stateBlock != null) {
-                    stateBlock.close();
-                }
-                p.releaseBlocks();
-            }
-        }
+        return buffer.getOutput();
     }
 
     private IntBlock categorize(BytesRefBlock vBlock) {
@@ -226,14 +222,6 @@ public class CategorizeGroupingOperator implements Operator {
         return category.getId() + 1;
     }
 
-    /**
-     * Serializes the current categorizer state as a {@link BytesRef}.
-     * Wire format mirrors {@code CategorizeBlockHash.serializeCategorizer()}.
-     */
-    private BytesRef serializeCategorizer() {
-        return CategorizerStateCodec.serialize(categorizer);
-    }
-
     @Override
     public String toString() {
         return "CategorizeGroupingOperator[channel=" + textChannel + ", inner=" + inner + "]";
@@ -241,6 +229,6 @@ public class CategorizeGroupingOperator implements Operator {
 
     @Override
     public void close() {
-        Releasables.close(inner, categorizer, analyzer);
+        Releasables.close(buffer, inner, categorizer, analyzer);
     }
 }

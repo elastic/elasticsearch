@@ -67,6 +67,7 @@ public class EntitlementBootstrap {
     public static void bootstrap(
         Policy serverPolicyPatch,
         Map<String, Policy> pluginPolicies,
+        Map<String, String> pluginSyntheticModuleNames,
         Function<Class<?>, PolicyManager.PolicyScope> scopeResolver,
         Function<String, Stream<String>> settingResolver,
         Path[] dataDirs,
@@ -101,7 +102,14 @@ public class EntitlementBootstrap {
             pidFile,
             settingResolver
         );
-        PolicyManager policyManager = createPolicyManager(pluginPolicies, pathLookup, serverPolicyPatch, scopeResolver, pluginSourcePaths);
+        PolicyManager policyManager = createPolicyManager(
+            pluginPolicies,
+            pluginSyntheticModuleNames,
+            pathLookup,
+            serverPolicyPatch,
+            scopeResolver,
+            pluginSourcePaths
+        );
         PolicyChecker policyChecker = createPolicyChecker(suppressFailureLogPackages, policyManager, pathLookup);
         InternalInstrumentationRegistry instrumentationRegistry = new InstrumentationRegistryImpl(policyChecker);
         EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(
@@ -183,6 +191,7 @@ public class EntitlementBootstrap {
 
     private static PolicyManager createPolicyManager(
         Map<String, Policy> pluginPolicies,
+        Map<String, String> pluginSyntheticModuleNames,
         PathLookup pathLookup,
         Policy serverPolicyPatch,
         Function<Class<?>, PolicyManager.PolicyScope> scopeResolver,
@@ -194,6 +203,7 @@ public class EntitlementBootstrap {
             HardcodedEntitlements.serverPolicy(pathLookup.pidFile(), serverPolicyPatch),
             HardcodedEntitlements.agentEntitlements(),
             pluginPolicies,
+            pluginSyntheticModuleNames,
             scopeResolver,
             pluginSourcePathsResolver::get,
             pathLookup

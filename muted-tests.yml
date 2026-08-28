@@ -433,9 +433,6 @@ tests:
 - class: org.elasticsearch.upgrades.MlJobSnapshotUpgradeIT
   method: testSnapshotUpgrader
   issue: https://github.com/elastic/elasticsearch/issues/154988
-- class: org.elasticsearch.foreign.DefaultMethodHandleResolverTests
-  method: testDefaultResolverBuildsWorkingMethodHandle
-  issue: https://github.com/elastic/elasticsearch/issues/155012
 - class: org.elasticsearch.xpack.transform.integration.TransformDestIndexIT
   method: testUnattendedTransformDestIndexCreatedDuringUpdate_EmptySourceIndex_NoDeferValidation
   issue: https://github.com/elastic/elasticsearch/issues/152599
@@ -815,3 +812,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.saml.SamlMetadataResolverTests
   method: testHttpMetadataConnectionTimeout
   issue: https://github.com/elastic/elasticsearch/issues/157987
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecTdigestIT
+  method: test {csv-spec:tdigest.count with bucket, time, and instance in FROM}
+  issue: https://github.com/elastic/elasticsearch/issues/158011

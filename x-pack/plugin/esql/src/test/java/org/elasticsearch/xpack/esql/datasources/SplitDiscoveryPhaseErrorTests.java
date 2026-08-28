@@ -99,13 +99,59 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
      * untouched, losing both the 400 and the source-path context this asserts.
      */
     public void testRealSplitProviderRejectsTargetSplitSizeAsClientErrorThroughThePhase() {
+        assertDatasetKeyRejectedAsClientError(FileSplitProvider.CONFIG_TARGET_SPLIT_SIZE, "0b");
+    }
+
+    public void testRealSplitProviderRejectsSplitProbeWindowAsClientErrorThroughThePhase() {
+        assertDatasetKeyRejectedAsClientError(FileSplitProvider.CONFIG_SPLIT_PROBE_WINDOW, "0b");
+    }
+
+    /** A count takes no unit suffix, so a byte size is as invalid here as a non-number is. */
+    public void testRealSplitProviderRejectsMaxSplitProbesAsClientErrorThroughThePhase() {
+        assertDatasetKeyRejectedAsClientError(FileSplitProvider.CONFIG_MAX_SPLIT_PROBES, randomFrom("0", "-1", "1mb", "many"));
+    }
+
+    public void testRealSplitProviderRejectsMaxSplitProbesAboveItsCeiling() {
+        assertDatasetKeyRejectedAsClientError(
+            FileSplitProvider.CONFIG_MAX_SPLIT_PROBES,
+            Integer.toString(FileSplitProvider.MAX_SPLIT_PROBES_CEILING + 1)
+        );
+    }
+
+    /**
+     * Two values that each pass their own parser and together ask for more reads than a query may spend. Neither
+     * key can see the other, so this is what pins that the pair is checked at all rather than only the parts.
+     */
+    public void testRealSplitProviderRejectsAProbeBudgetOverTheCeiling() {
+        long overTheBudget = 2 * FileSplitProvider.MAX_PROBE_BUDGET_BYTES;
+        int probes = 2 * FileSplitProvider.DEFAULT_MAX_SPLIT_PROBES;
+        assertDatasetKeysRejectedAsClientError(
+            Map.of(
+                FileSplitProvider.CONFIG_MAX_SPLIT_PROBES,
+                Integer.toString(probes),
+                FileSplitProvider.CONFIG_SPLIT_PROBE_WINDOW,
+                (overTheBudget / probes) + "b"
+            ),
+            FileSplitProvider.CONFIG_SPLIT_PROBE_WINDOW
+        );
+    }
+
+    private static void assertDatasetKeyRejectedAsClientError(String key, String value) {
+        assertDatasetKeysRejectedAsClientError(Map.of(key, value), key);
+    }
+
+    /**
+     * @param namedInMessage the key the rejection has to name, which for a whole-config failure is whichever of
+     *                       them the message leads with
+     */
+    private static void assertDatasetKeysRejectedAsClientError(Map<String, Object> config, String namedInMessage) {
         StorageEntry file = new StorageEntry(StoragePath.of("s3://bucket/data/events.ndjson"), 3000, Instant.EPOCH);
         ExternalSourceExec exec = new ExternalSourceExec(
             SRC,
             "s3://bucket/data/*.ndjson",
             "ndjson",
             List.of(fieldAttr("id", DataType.LONG)),
-            Map.of(FileSplitProvider.CONFIG_TARGET_SPLIT_SIZE, "0b"),
+            config,
             Map.of(),
             null,
             null
@@ -116,10 +162,14 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
             () -> SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of("ndjson", testFactory(new FileSplitProvider())))
         );
 
-        assertEquals("an invalid target_split_size is the user's mistake, not ours", RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+        assertEquals(
+            "an invalid [" + namedInMessage + "] is the user's mistake, not ours",
+            RestStatus.BAD_REQUEST,
+            ExceptionsHelper.status(e)
+        );
         assertThat(e.getMessage(), containsString("s3://bucket/data/*.ndjson"));
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(e.getCause().getMessage(), containsString(FileSplitProvider.CONFIG_TARGET_SPLIT_SIZE));
+        assertThat(e.getCause().getMessage(), containsString(namedInMessage));
     }
 
     public void testElasticsearchExceptionNotDoubleWrapped() {

@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.junit.ClassRule;
 
@@ -39,7 +40,7 @@ public abstract class AbstractXpackRollingUpgradeWithSecurityTestCase extends Pa
     public static ElasticsearchCluster clusterRule = cluster;
 
     private static ElasticsearchCluster buildCluster() {
-        return ElasticsearchCluster.local()
+        var builder = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .version(getOldClusterVersion())
             .nodes(NODE_NUM)
@@ -61,8 +62,14 @@ public abstract class AbstractXpackRollingUpgradeWithSecurityTestCase extends Pa
             .configFile("testnode.pem", Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
             .configFile("testnode.crt", Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
             .keystore("xpack.security.transport.ssl.secure_key_passphrase", "testnode")
-            .keystore("xpack.watcher.encryption_key", Resource.fromClasspath("system_key"))
-            .build();
+            .keystore("xpack.watcher.encryption_key", Resource.fromClasspath("system_key"));
+
+        if (getOldClusterTestVersion().before(Version.fromString("8.18.0"))) {
+            builder.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
+            builder.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
+        }
+
+        return builder.build();
     }
 
     protected AbstractXpackRollingUpgradeWithSecurityTestCase(@Name("upgradedNodes") int upgradedNodes) {

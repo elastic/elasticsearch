@@ -10,6 +10,7 @@ package org.elasticsearch.upgrades;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.Version;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TemporaryFolder;
@@ -27,7 +28,7 @@ public abstract class AbstractXpackRollingUpgradeTestCase extends ParameterizedR
     public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
 
     private static ElasticsearchCluster buildCluster() {
-        return ElasticsearchCluster.local()
+        var builder = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .version(getOldClusterVersion())
             .nodes(NODE_NUM)
@@ -44,8 +45,14 @@ public abstract class AbstractXpackRollingUpgradeTestCase extends ParameterizedR
                 }
             })
             .setting("xpack.searchable.snapshot.shared_cache.size", "16MB")
-            .setting("xpack.searchable.snapshot.shared_cache.region_size", "256KB")
-            .build();
+            .setting("xpack.searchable.snapshot.shared_cache.region_size", "256KB");
+
+        if (getOldClusterTestVersion().before(Version.fromString("8.18.0"))) {
+            builder.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
+            builder.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
+        }
+
+        return builder.build();
     }
 
     public AbstractXpackRollingUpgradeTestCase(int upgradedNodes) {

@@ -33,7 +33,7 @@ record NodeInfo(
 ) {
 
     boolean isOriginalVersionCluster() {
-        return ParameterizedRollingUpgradeTestCase.isOldClusterVersion(version, buildHash);
+        return ParameterizedRollingUpgradeTestCase.isOldClusterVersion(version);
     }
 
     boolean isUpgradedVersionCluster() {

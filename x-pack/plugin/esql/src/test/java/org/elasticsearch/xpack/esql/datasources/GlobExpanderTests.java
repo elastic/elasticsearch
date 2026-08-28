@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -20,6 +21,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -35,6 +37,14 @@ public class GlobExpanderTests extends ESTestCase {
 
     /** The legacy switch that turns partition detection off, now folded into Strategy.NONE. */
     private static final Map<String, Object> HIVE_OFF = Map.of(PartitionConfig.CONFIG_PARTITIONING_HIVE, "false");
+
+    /** Hive off, and every exclusion off. Directory placeholder keys are still skipped regardless. */
+    private static final Map<String, Object> NO_EXCLUSION = Map.of(
+        PartitionConfig.CONFIG_PARTITIONING_HIVE,
+        "false",
+        ExclusionConfig.CONFIG_FILE_EXCLUSIONS,
+        List.of()
+    );
 
     /** The settings map a PartitionConfig-shaped test intent resolves from. */
     private static Map<String, Object> configMapOf(PartitionConfig config) {
@@ -161,6 +171,11 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals(2, result.fileCount());
         assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
         assertEquals("s3://bucket/data/file2.parquet", result.path(1).toString());
+
+        assertWarnings(
+            "1 of 3 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+        );
     }
 
     /**
@@ -178,6 +193,11 @@ public class GlobExpanderTests extends ESTestCase {
         assertTrue(result.isResolved());
         assertEquals(1, result.fileCount());
         assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
+
+        assertWarnings(
+            "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                + "dataset setting, for example [.part-r-00001.parquet.crc] which matched entry [**/.*]"
+        );
     }
 
     /**
@@ -192,6 +212,11 @@ public class GlobExpanderTests extends ESTestCase {
         assertTrue(result.isResolved());
         assertEquals(1, result.fileCount());
         assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
+
+        assertWarnings(
+            "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                + "dataset setting, for example [_metadata] which matched entry [**/_*]"
+        );
     }
 
     /**
@@ -210,40 +235,63 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * Files under a _delta_log directory must not appear in the expansion result.
-     * A directory whose name begins with '_' and all its descendants are hidden by convention (esql-planning#1544).
+     * The placeholder for the listing prefix ITSELF. Listing `s3://bucket/data/*` returns the console-created
+     * folder marker `s3://bucket/data/`, whose path relative to the prefix is the EMPTY string — it does not end
+     * in a slash, and a `*` glob matches empty, so it survived both the placeholder skip and the name filter and
+     * reached the reader, failing the query on an object the user never referenced.
+     *
+     * <p>The nested case ({@code data/subdir/}) was already covered; only the self-referential one was not.
      */
-    @SuppressWarnings("RegexpMultiline")
-    public void testExpandGlobExcludesDeltaLogContent() throws IOException {
-        List<StorageEntry> listing = List.of(
-            entry("s3://bucket/data/_delta_log/00000000000000000001.json", 500),
-            entry("s3://bucket/data/_delta_log/", 0),
-            entry("s3://bucket/data/file1.parquet", 100)
-        );
+    public void testExpandGlobExcludesThePlaceholderForTheListingPrefixItself() throws IOException {
+        List<StorageEntry> listing = List.of(entry("s3://bucket/data/", 0), entry("s3://bucket/data/part1.csv", 42));
         StubProvider provider = new StubProvider(listing);
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/**", provider, null, HIVE_OFF);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*", provider, null, HIVE_OFF);
         assertTrue(result.isResolved());
-        assertEquals(1, result.fileCount());
-        assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
+        assertEquals("the prefix's own folder marker must not reach the reader", 1, result.fileCount());
+        assertEquals("s3://bucket/data/part1.csv", result.path(0).toString());
     }
 
     /**
-     * Files under a _temporary directory must not appear in the expansion result.
-     * A directory whose name begins with '_' and all its descendants are hidden by convention (esql-planning#1544).
+     * A Delta transaction log sits in a directory holding real data files, so no file-name rule can reach it. The default names the
+     * directory instead, which covers the junk without the wildcard-over-directories shape that would also
+     * swallow partition directories.
      */
-    @SuppressWarnings("RegexpMultiline")
-    public void testExpandGlobExcludesTemporaryDirContent() throws IOException {
+    public void testDeltaLogContentIsExcludedByDefault() throws IOException {
         List<StorageEntry> listing = List.of(
-            entry("s3://bucket/data/_temporary/part-00001.parquet", 100),
-            entry("s3://bucket/data/file1.parquet", 100)
+            entry("s3://bucket/data/_delta_log/00000000000000000001.json", 100),
+            entry("s3://bucket/data/file1.parquet", 200)
         );
-        StubProvider provider = new StubProvider(listing);
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/**", provider, null, HIVE_OFF);
-        assertTrue(result.isResolved());
-        assertEquals(1, result.fileCount());
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/**", new StubProvider(listing), null, HIVE_OFF);
+        assertEquals("only the data file survives", 1, result.fileCount());
         assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
+
+        assertWarnings(
+            "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                + "dataset setting, for example [_delta_log/00000000000000000001.json] which matched entry [**/_delta_log/**]"
+        );
+    }
+
+    /**
+     * A failed job's leftovers sits in a directory holding real data files, so no file-name rule can reach it. The default names the
+     * directory instead, which covers the junk without the wildcard-over-directories shape that would also
+     * swallow partition directories.
+     */
+    public void testTemporaryDirContentIsExcludedByDefault() throws IOException {
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/_temporary/task_0/part.parquet", 100),
+            entry("s3://bucket/data/file1.parquet", 200)
+        );
+
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/**", new StubProvider(listing), null, HIVE_OFF);
+        assertEquals("only the data file survives", 1, result.fileCount());
+        assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
+
+        assertWarnings(
+            "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                + "dataset setting, for example [_temporary/task_0/part.parquet] which matched entry [**/_temporary/**]"
+        );
     }
 
     /**
@@ -265,11 +313,16 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals(2, result.fileCount());
         assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
         assertEquals("s3://bucket/data/file2.parquet", result.path(1).toString());
+
+        assertWarnings(
+            "2 of 4 objects matching the resource under [s3://bucket/data/] were excluded by the [file_exclusions] "
+                + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+        );
     }
 
     /**
-     * The brace-only fast path uses {@code exists()} to probe each candidate and skips {@link
-     * GlobExpander#isHiddenObject}. This is intentional: a brace pattern explicitly names every
+     * The brace-only fast path uses {@code exists()} to probe each candidate and applies no exclusion.
+     * This is intentional: a brace pattern explicitly names every
      * alternative, so the caller is opting in — the same way a literal path would. This test locks in
      * that design so the asymmetry with wildcard expansion is visible and deliberate.
      */
@@ -281,6 +334,72 @@ public class GlobExpanderTests extends ESTestCase {
         FileList result = GlobExpander.expandGlob("s3://bucket/data/{_SUCCESS,file.parquet}", provider);
         assertTrue(result.isResolved());
         assertEquals("brace-enumerated _SUCCESS must be returned: explicit opt-in, not wildcard discovery", 2, result.fileCount());
+    }
+
+    /**
+     * A Hive partition directory whose name begins with '_' is NOT a hidden object: the convention exempts a
+     * segment carrying a {@code key=value} spelling, so {@code _dept=alpha/} survives while a plain {@code _hidden/}
+     * does not. Pinned here through the public expansion path — the predicate-level pin lives with the predicate,
+     * but only this test proves the exemption reaches a real listing, which is what a partitioned dataset depends on.
+     */
+    public void testExpandGlobKeepsUnderscorePrefixedPartitionDirectory() throws IOException {
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/_dept=alpha/part1.csv", 100),
+            entry("s3://bucket/data/_dept=alpha/_SUCCESS", 0)
+        );
+        StubProvider provider = new StubProvider(listing);
+
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/**", provider);
+        assertTrue(result.isResolved());
+        assertEquals("the partition directory survives; only the marker inside it is dropped", 1, result.fileCount());
+        assertEquals("s3://bucket/data/_dept=alpha/part1.csv", result.path(0).toString());
+
+        assertWarnings(
+            "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                + "dataset setting, for example [_dept=alpha/_SUCCESS] which matched entry [**/_*]"
+        );
+    }
+
+    /**
+     * Exclusion applies to the listing the glob REWRITE produced, not only to an un-hinted one. A hint narrows
+     * {@code year=*} to {@code year=2024} before the prefix is listed, and the marker inside that partition must
+     * still be dropped — and dropping it must not be mistaken for "the rewrite narrowed to empty", which would
+     * fire a second, full listing.
+     */
+    public void testNonDataExclusionAppliesToTheRewrittenListing() throws IOException {
+        Map<String, List<StorageEntry>> tree = Map.of(
+            "s3://bucket/logs/year=2024/",
+            List.of(entry("s3://bucket/logs/year=2024/_SUCCESS", 0), entry("s3://bucket/logs/year=2024/part-0.parquet", 100))
+        );
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(tree);
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, "2024"));
+
+        FileList result = GlobExpander.expand("s3://bucket/logs/year=*/*", provider, hints, HIVE_ON, MAX, MAX);
+        assertTrue(result.isResolved());
+        assertEquals("the marker is excluded from the rewritten listing", 1, result.fileCount());
+        assertEquals("s3://bucket/logs/year=2024/part-0.parquet", result.path(0).toString());
+        assertEquals("a non-empty result must not trigger the rewrite fallback re-list", 1, provider.listCallCount);
+
+        assertWarnings(
+            "1 of 2 objects matching the resource under [s3://bucket/logs/year=2024/] was excluded by the [file_exclusions] "
+                + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+        );
+    }
+
+    /**
+     * Characterization of the defensive branch in the listing loop: when a provider returns an entry whose path
+     * does not begin with the listing prefix, the relative path degrades to the object's leaf name, so a hidden
+     * INTERMEDIATE directory is not seen and the entry survives. This documents today's behavior — the branch
+     * carries a TODO to fix it upstream in the providers — so that a change to it is a deliberate one.
+     */
+    public void testHiddenIntermediateDirectoryIsMissedOnPrefixIncompatiblePaths() throws IOException {
+        List<StorageEntry> listing = List.of(entry("s3://bucket/elsewhere/_hidden/x.parquet", 100));
+        StubProvider provider = new StubProvider(listing);
+
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*", provider);
+        assertTrue(result.isResolved());
+        assertEquals("leaf-only relative path hides the _hidden segment from the predicate", 1, result.fileCount());
+        assertEquals("s3://bucket/elsewhere/_hidden/x.parquet", result.path(0).toString());
     }
 
     // -- expandCommaSeparated --
@@ -954,23 +1073,102 @@ public class GlobExpanderTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("discovered too many files"));
     }
 
+    // -- splicing a partition value into a glob --
+
+    /**
+     * A partition value holding a glob metacharacter must not be spliced into the pattern. It used to be escaped,
+     * by wrapping each metacharacter in a one-character class, which produced {@code [[]} for a literal bracket and
+     * the matcher then refused to parse it: {@code WHERE dept == 'a[b'} on a Hive dataset failed the query outright.
+     * Declining the rewrite lists a superset instead, which is always correct because the rewrite only narrows
+     * which prefix is listed and the row filter still runs.
+     */
+    public void testPartitionValueHoldingAMetacharacterDeclinesTheRewrite() {
+        for (String awkward : List.of("a[b", "a*b", "a?b", "a{b")) {
+            var hints = List.of(hint("dept", PartitionFilterHintExtractor.Operator.EQUALS, awkward));
+            String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/dept=*/*.parquet", hints);
+            assertEquals("the wildcard must survive for [" + awkward + "]", "s3://bucket/dept=*/*.parquet", rewritten);
+        }
+    }
+
+    /** An ordinary value is still spliced, so declining is targeted rather than a blanket give-up. */
+    public void testOrdinaryPartitionValueIsStillSpliced() {
+        var hints = List.of(hint("dept", PartitionFilterHintExtractor.Operator.EQUALS, "alpha"));
+        assertEquals("s3://bucket/dept=alpha/*.parquet", GlobExpander.rewriteGlobWithHints("s3://bucket/dept=*/*.parquet", hints));
+    }
+
+    /** The same veto covers the multi-value form, which splices through brace alternation. */
+    public void testMultiValueRewriteDeclinesOnAMetacharacter() {
+        var hints = List.of(hint("dept", PartitionFilterHintExtractor.Operator.IN, "alpha", "b[c"));
+        assertEquals("s3://bucket/dept=*/*.parquet", GlobExpander.rewriteGlobWithHints("s3://bucket/dept=*/*.parquet", hints));
+    }
+
+    // -- entry-point characterization: expand() vs expandGlob() --
+
+    /**
+     * Brace alternation through the entry point datasets actually use. It used to be unreachable: {@code expand}
+     * split on every comma before any brace parsing, so {@code s3://b/data/{a,b}.csv} was torn into
+     * {@code s3://b/data/{a} and {@code b}.csv}, and the second fragment failed for having no scheme. The matcher
+     * had always supported alternation; the entry point simply never let a pattern reach it intact.
+     */
+    public void testBraceAlternationResolvesThroughTheRealEntryPoint() throws IOException {
+        StubProvider provider = new StubProvider(List.of());
+        provider.existingPaths.add("s3://bucket/data/a.csv");
+        provider.existingPaths.add("s3://bucket/data/b.csv");
+
+        FileList result = GlobExpander.expand("s3://bucket/data/{a,b}.csv", provider, null, HIVE_OFF, MAX, MAX);
+        assertTrue(result.isResolved());
+        assertEquals(2, result.fileCount());
+    }
+
+    /** A comma outside braces still separates resources; a comma inside one belongs to the glob. */
+    public void testTopLevelCommasStillSeparateResources() throws IOException {
+        Map<String, List<StorageEntry>> tree = Map.of(
+            "s3://bucket/a/",
+            List.of(entry("s3://bucket/a/one.csv", 10)),
+            "s3://bucket/b/",
+            List.of(entry("s3://bucket/b/two.csv", 20))
+        );
+        FileList result = GlobExpander.expand(
+            "s3://bucket/a/*.csv,s3://bucket/b/*.csv",
+            new PrefixAwareStubProvider(tree),
+            null,
+            HIVE_OFF,
+            MAX,
+            MAX
+        );
+        assertEquals("both resources listed", 2, result.fileCount());
+    }
+
+    /** A numeric range has no comma, so it always survived the split; it must keep working unchanged. */
+    public void testNumericRangeStillResolvesThroughTheRealEntryPoint() throws IOException {
+        StubProvider provider = new StubProvider(List.of());
+        provider.existingPaths.add("s3://bucket/data/1.csv");
+        provider.existingPaths.add("s3://bucket/data/2.csv");
+
+        FileList result = GlobExpander.expand("s3://bucket/data/{1..2}.csv", provider, null, HIVE_OFF, MAX, MAX);
+        assertTrue(result.isResolved());
+        assertEquals(2, result.fileCount());
+    }
+
     // -- listing cache discriminator --
 
     /**
      * The property the listing cache key rests on: equal discriminators must mean equal listings. Hints reach the
      * listing through the glob rewrite and the {@code _file.*} filters, and nothing else. This catches a new listing
-     * channel added to the expansion but not the discriminator — <b>only for the hint shapes and flag values below</b>,
-     * so extend {@code hintSets} and the {@code excludeNonData} loop whenever a new channel or hint kind is introduced,
-     * or it can slip through.
+     * channel added to the expansion but not the discriminator — <b>only for the hint shapes and configs below</b>,
+     * so extend {@code hintSets} and {@code configs} whenever a new channel or hint kind is introduced, or it can
+     * slip through.
      */
     public void testDiscriminatorDeterminesTheListing() throws IOException {
+        // Each partition carries an excludable object as well as data, so crossing the exclusion configs below
+        // actually changes the listings rather than producing the same file set under every config.
         Map<String, List<StorageEntry>> tree = Map.of(
             "s3://bucket/data/",
             List.of(entry("s3://bucket/data/year=2024/a.parquet", 100), entry("s3://bucket/data/year=2025/b.parquet", 200)),
             "s3://bucket/data/year=2024/",
-            List.of(entry("s3://bucket/data/year=2024/a.parquet", 100)),
+            List.of(entry("s3://bucket/data/year=2024/a.parquet", 100), entry("s3://bucket/data/year=2024/_SUCCESS", 0)),
             "s3://bucket/data/year=2025/",
-            List.of(entry("s3://bucket/data/year=2025/b.parquet", 200))
+            List.of(entry("s3://bucket/data/year=2025/b.parquet", 200), entry("s3://bucket/data/year=2025/.b.crc", 4))
         );
         String pattern = "s3://bucket/data/year=*/*.parquet";
 
@@ -983,9 +1181,19 @@ public class GlobExpanderTests extends ESTestCase {
             List.of(hint(FileMetadataColumns.SIZE, PartitionFilterHintExtractor.Operator.GREATER_THAN, 150))
         );
 
+        // Crossing hive with the exclusion settings: the default (absent keys), the explicitly-spelled default
+        // (which must resolve to — and therefore collide with — the absent case), an empty list, and a custom list.
+        List<Map<String, Object>> configs = new ArrayList<>();
+        for (Map<String, Object> hive : List.of(HIVE_ON, HIVE_OFF)) {
+            configs.add(hive);
+            configs.add(withExclusion(hive, ExclusionConfig.DEFAULT_FILE_EXCLUSIONS));
+            configs.add(withExclusion(hive, List.of()));
+            configs.add(withExclusion(hive, List.of("**/*.tmp")));
+        }
+
         Map<String, List<String>> listingByDiscriminator = new HashMap<>();
         for (var hints : hintSets) {
-            for (Map<String, Object> hive : List.of(HIVE_ON, HIVE_OFF)) {
+            for (Map<String, Object> hive : configs) {
                 String discriminator = GlobExpander.listingCacheDiscriminator(pattern, hints, hive);
                 List<String> files = new ArrayList<>();
                 FileList expanded = GlobExpander.expand(pattern, new PrefixAwareStubProvider(tree), hints, hive, MAX, MAX);
@@ -1001,12 +1209,12 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * The {@code excludeNonDataObjects} flag is a listing channel — it changes which entries survive the iterator
-     * loop — so it must be part of the cache key. This test uses a flat {@code *} pattern so that {@code _SUCCESS}
-     * genuinely matches the glob and the two flag values produce different listings. It verifies both that the
-     * discriminator moves (cache-safety) and that the expansions actually differ (the channel is wired in).
+     * The exclusion settings are a listing channel — they change which entries survive the iterator loop — so they
+     * must be part of the cache key. The pattern is a flat {@code *} so that {@code _SUCCESS} genuinely matches the
+     * glob and the two configs produce different listings. It verifies both that the discriminator moves
+     * (cache-safety) and that the expansions actually differ (the channel is wired in).
      */
-    public void testDiscriminatorCoversExcludeNonDataObjectsChannel() throws IOException {
+    public void testDiscriminatorCoversExclusionConfigChannel() throws IOException {
         Map<String, List<StorageEntry>> tree = Map.of(
             "s3://bucket/data/",
             List.of(entry("s3://bucket/data/_SUCCESS", 0), entry("s3://bucket/data/file.parquet", 100))
@@ -1016,36 +1224,48 @@ public class GlobExpanderTests extends ESTestCase {
 
         // The flag must produce different cache keys — a cached filtered listing must not be served to an
         // unfiltered request (or vice versa).
-        String discriminatorOn = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_OFF, true);
-        String discriminatorOff = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_OFF, false);
-        assertNotEquals("excludeNonDataObjects flag must move the discriminator", discriminatorOn, discriminatorOff);
+        String discriminatorOn = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_OFF);
+        String discriminatorOff = GlobExpander.listingCacheDiscriminator(pattern, null, NO_EXCLUSION);
+        assertNotEquals("the exclusion settings must move the discriminator", discriminatorOn, discriminatorOff);
 
-        // The expansions must actually differ — _SUCCESS matches * but is excluded when the flag is on.
-        FileList withExclusion = GlobExpander.expand(pattern, provider, null, HIVE_OFF, MAX, MAX, true);
-        FileList withoutExclusion = GlobExpander.expand(pattern, provider, null, HIVE_OFF, MAX, MAX, false);
-        assertEquals("exclusion on: only data file survives", 1, withExclusion.fileCount());
-        assertEquals("exclusion off: _SUCCESS included", 2, withoutExclusion.fileCount());
+        // The expansions must actually differ — _SUCCESS matches * but the default exclusions drop it.
+        FileList withExclusion = GlobExpander.expand(pattern, provider, null, HIVE_OFF, MAX, MAX);
+        FileList withoutExclusion = GlobExpander.expand(pattern, provider, null, NO_EXCLUSION, MAX, MAX);
+        assertEquals("default exclusions: only the data file survives", 1, withExclusion.fileCount());
+        assertEquals("empty exclusion list: _SUCCESS included", 2, withoutExclusion.fileCount());
+
+        assertWarnings(
+            "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+        );
     }
 
     /**
-     * When non-data exclusion is explicitly disabled the raw listing is returned, restoring the old behavior.
-     * This also proves the flag is not hard-wired to {@code true} inside the expansion.
+     * An empty {@code file_exclusions} list turns name-based exclusion off, so the marker is listed again. It does
+     * NOT restore the whole pre-exclusion listing: directory placeholder keys stay skipped unconditionally, because
+     * that rule is listing normalization rather than exclusion policy. This also proves the default is resolved
+     * from the settings rather than hard-wired inside the expansion.
      */
     public void testNonDataExclusionCanBeDisabled() throws IOException {
         List<StorageEntry> listing = List.of(entry("s3://bucket/data/_SUCCESS", 0), entry("s3://bucket/data/file.parquet", 100));
         StubProvider provider = new StubProvider(listing);
 
-        FileList excluded = GlobExpander.expand("s3://bucket/data/*", provider, null, HIVE_OFF, MAX, MAX, true);
-        assertEquals("exclusion on: _SUCCESS must be filtered out", 1, excluded.fileCount());
+        FileList excluded = GlobExpander.expand("s3://bucket/data/*", provider, null, HIVE_OFF, MAX, MAX);
+        assertEquals("default exclusions: _SUCCESS must be filtered out", 1, excluded.fileCount());
 
-        FileList raw = GlobExpander.expand("s3://bucket/data/*", provider, null, HIVE_OFF, MAX, MAX, false);
-        assertEquals("exclusion off: _SUCCESS must be present", 2, raw.fileCount());
+        FileList raw = GlobExpander.expand("s3://bucket/data/*", provider, null, NO_EXCLUSION, MAX, MAX);
+        assertEquals("empty exclusion list: _SUCCESS must be present", 2, raw.fileCount());
+
+        assertWarnings(
+            "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+        );
     }
 
     /**
      * Non-data exclusion must apply through the comma-separated path ({@code doExpandCommaSeparated}), not just the
-     * single-glob path. Each comma segment independently calls {@link GlobExpander#expandGlobWithRewriteFallback},
-     * which in turn calls {@code doExpandGlob} where the filter lives — so the flag must be threaded all the way.
+     * single-glob path. Each comma segment independently expands with the rewrite fallback, which in turn calls
+     * {@code doExpandGlob} where the filter lives — so the resolved config must be threaded all the way.
      */
     public void testNonDataExclusionAppliesToCommaSeparatedSegments() throws IOException {
         Map<String, List<StorageEntry>> tree = Map.of(
@@ -1056,7 +1276,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
         String paths = "s3://bucket/a/*,s3://bucket/b/*";
 
-        FileList result = GlobExpander.expand(paths, new PrefixAwareStubProvider(tree), null, HIVE_OFF, MAX, MAX, true);
+        FileList result = GlobExpander.expand(paths, new PrefixAwareStubProvider(tree), null, HIVE_OFF, MAX, MAX);
         assertEquals("both segments: only data files survive", 2, result.fileCount());
         List<String> names = new ArrayList<>();
         for (int i = 0; i < result.fileCount(); i++) {
@@ -1064,6 +1284,61 @@ public class GlobExpanderTests extends ESTestCase {
         }
         assertTrue(names.contains("s3://bucket/a/file1.parquet"));
         assertTrue(names.contains("s3://bucket/b/file2.parquet"));
+
+        assertWarnings(
+            "1 of 2 objects matching the resource under [s3://bucket/a/] was excluded by the [file_exclusions] "
+                + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]",
+            "1 of 2 objects matching the resource under [s3://bucket/b/] was excluded by the [file_exclusions] "
+                + "dataset setting, for example [.part-r-00001.parquet.crc] which matched entry [**/.*]"
+        );
+    }
+
+    /**
+     * The refactor from a fixed predicate to a resolved {@link ExclusionConfig} rewrote the discriminator's
+     * encoding. Byte-stability is not required — the string never leaves the node, it only keys an in-process
+     * cache — but the PARTITION must not move: exactly the requests that shared a listing before must share one
+     * now, and exactly those that were separated must stay separated. The expected grouping was derived by
+     * running this same grouping against the parent commit, not guessed.
+     */
+    public void testDiscriminatorPartitionUnchangedByExclusionRefactor() {
+        String pattern = "s3://bucket/data/year=*/*.parquet";
+        List<List<PartitionFilterHintExtractor.PartitionFilterHint>> hintSets = List.of(
+            List.of(),
+            List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024)),
+            List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025)),
+            List.of(hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "us")),
+            List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.EQUALS, "a.parquet")),
+            List.of(hint(FileMetadataColumns.SIZE, PartitionFilterHintExtractor.Operator.GREATER_THAN, 150))
+        );
+
+        Map<String, List<Integer>> cellsByDiscriminator = new LinkedHashMap<>();
+        int cell = 0;
+        for (var hints : hintSets) {
+            for (Map<String, Object> hive : List.of(HIVE_ON, HIVE_OFF)) {
+                cellsByDiscriminator.computeIfAbsent(GlobExpander.listingCacheDiscriminator(pattern, hints, hive), k -> new ArrayList<>())
+                    .add(cell);
+                cell++;
+            }
+        }
+
+        // Cells run hintSet-major: (no hint, year=2024, year=2025, region, _file.name, _file.size) x (HIVE_ON, HIVE_OFF).
+        // [0,6]: a region hint cannot narrow this glob, so it shares the un-hinted entry.
+        // [1,3,5,7]: with hive off there is no rewrite, so every non-_file hint collapses onto the un-hinted entry.
+        List<List<Integer>> expected = List.of(
+            List.of(0, 6),
+            List.of(1, 3, 5, 7),
+            List.of(2),
+            List.of(4),
+            List.of(8),
+            List.of(9),
+            List.of(10),
+            List.of(11)
+        );
+        assertEquals(
+            "the listing-cache partition must survive the encoding change",
+            expected,
+            new ArrayList<>(cellsByDiscriminator.values())
+        );
     }
 
     /**
@@ -1384,6 +1659,12 @@ public class GlobExpanderTests extends ESTestCase {
         public void close() {}
     }
 
+    private static Map<String, Object> withExclusion(Map<String, Object> base, List<String> exclusions) {
+        Map<String, Object> config = new HashMap<>(base);
+        config.put(ExclusionConfig.CONFIG_FILE_EXCLUSIONS, exclusions);
+        return config;
+    }
+
     private static StorageEntry entry(String path, long length) {
         return new StorageEntry(StoragePath.of(path), length, Instant.EPOCH);
     }
@@ -1661,5 +1942,41 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals(2, filtered.size());
         assertEquals("s3://b/events.parquet", filtered.get(0).path().toString());
         assertEquals("s3://b/metrics.parquet", filtered.get(1).path().toString());
+    }
+
+    /**
+     * The warning is the whole point of the setting being visible: discovery silently returning fewer objects than
+     * the bucket holds is the failure mode users cannot diagnose. It reports how many of the objects the resource
+     * selected were dropped, names one of them, and names the entry responsible, in a single header however many
+     * objects were dropped.
+     */
+    public void testExclusionReportsCountsAndTheEntryResponsible() throws IOException {
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/_SUCCESS", 0),
+            entry("s3://bucket/data/_metadata", 0),
+            entry("s3://bucket/data/file1.parquet", 100),
+            entry("s3://bucket/data/file2.parquet", 200)
+        );
+
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/**", new StubProvider(listing), null, HIVE_OFF);
+
+        assertEquals("both data files survive", 2, result.fileCount());
+        assertWarnings(
+            "2 of 4 objects matching the resource under [s3://bucket/data/] were excluded by the [file_exclusions] "
+                + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
+        );
+    }
+
+    /**
+     * A listing that drops nothing must stay quiet. This test carries no {@code assertWarnings} call on purpose:
+     * the framework fails any test that leaves a warning header unasserted, so its passing IS the assertion that
+     * a clean prefix produces no warning. Without this, a warning that fired unconditionally would look correct.
+     */
+    public void testNothingIsReportedWhenNothingIsExcluded() throws IOException {
+        List<StorageEntry> listing = List.of(entry("s3://bucket/data/file1.parquet", 100), entry("s3://bucket/data/file2.parquet", 200));
+
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/**", new StubProvider(listing), null, HIVE_OFF);
+
+        assertEquals(2, result.fileCount());
     }
 }

@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -616,6 +617,7 @@ public class Security extends Plugin
     private final SetOnce<AuthenticationService> authcService = new SetOnce<>();
     private final SetOnce<SecondaryAuthenticator> secondayAuthc = new SetOnce<>();
     private final SetOnce<AuditTrailService> auditTrailService = new SetOnce<>();
+    private final SetOnce<CircuitBreaker> auditCircuitBreaker = new SetOnce<>();
     private final SetOnce<SecurityContext> securityContext = new SetOnce<>();
     private final SetOnce<ThreadContext> threadContext = new SetOnce<>();
     private final SetOnce<TokenService> tokenService = new SetOnce<>();
@@ -994,7 +996,13 @@ public class Security extends Plugin
             extension -> extension.getAuditLogCustomizer(extensionComponents, coreSystemIndices)
         );
         final AuditLogCustomizer auditLogCustomizer = customAuditLogCustomizer == null ? AuditLogCustomizer.NOOP : customAuditLogCustomizer;
-        final AuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, threadPool, auditLogCustomizer);
+        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(
+            settings,
+            clusterService,
+            threadPool,
+            auditLogCustomizer,
+            auditCircuitBreaker::get
+        );
         final AuditTrailService auditTrailService = new AuditTrailService(auditTrail, getLicenseState(), clusterService);
         components.add(auditTrailService);
         this.auditTrailService.set(auditTrailService);
@@ -2149,6 +2157,9 @@ public class Security extends Plugin
         if (enabled == false) { // don't register anything if we are not enabled
             return Collections.emptyMap();
         }
+
+        // getTransports is the first hook handing us a CircuitBreakerService; PluginServices exposes none
+        auditCircuitBreaker.set(circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS));
 
         IPFilter ipFilter = this.ipFilter.get();
         return Map.of(

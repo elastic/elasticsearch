@@ -12,6 +12,7 @@ package org.elasticsearch.common.xcontent;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.Compressor;
@@ -36,9 +37,11 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.BufferedInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -354,6 +357,96 @@ public class XContentHelper {
 
         try (var parser = createParserNotCompressed(XContentParserConfiguration.EMPTY, bytes, xContentType)) {
             return toJsonString(prettyPrint, parser);
+        }
+    }
+
+    /**
+     * Rendering constraints for {@link #convertToJson(BytesReference, boolean, boolean, XContentType, Budget)}: a
+     * hard byte cap ({@code maxJsonBytes <= 0} means unlimited) and an optional circuit-breaker charge
+     * ({@code breaker} and {@code label} are ignored when {@code breaker} is null).
+     */
+    public record Budget(long maxJsonBytes, @Nullable CircuitBreaker breaker, @Nullable String label) {
+        public Budget {
+            if (breaker != null) Objects.requireNonNull(label, "label required when breaker is non-null");
+        }
+
+        void checkSize(long current, long additional) {
+            if (maxJsonBytes > 0 && current + additional > maxJsonBytes) {
+                throw new TooLargeBodyException(maxJsonBytes);
+            }
+        }
+
+        void charge(long bytes) {
+            if (breaker != null) {
+                // If the breaker throws, bytes charged so far are not released — caller must ensure close() is still called.
+                breaker.addEstimateBytesAndMaybeBreak(bytes, label);
+            }
+        }
+
+        void release(int bytes) {
+            if (breaker != null && bytes > 0) {
+                breaker.addWithoutBreaking(-bytes);
+            }
+        }
+    }
+
+    public static String convertToJson(
+        BytesReference bytes,
+        boolean reformatJson,
+        boolean prettyPrint,
+        XContentType xContentType,
+        Budget budget
+    ) throws IOException {
+        Objects.requireNonNull(xContentType);
+        if (xContentType.canonical() == XContentType.JSON && reformatJson == false) {
+            budget.checkSize(0, bytes.length());
+            return bytes.utf8ToString();
+        }
+
+        try (var os = new LimitedOutputStream(budget)) {
+            try (var parser = createParserNotCompressed(XContentParserConfiguration.EMPTY, bytes, xContentType)) {
+                parser.nextToken();
+                try (var builder = XContentFactory.jsonBuilder(os)) {
+                    if (prettyPrint) {
+                        builder.prettyPrint();
+                    }
+                    builder.copyCurrentStructure(parser);
+                }
+            }
+            return os.toString(StandardCharsets.UTF_8);
+        }
+    }
+
+    public static final class TooLargeBodyException extends RuntimeException {
+        public TooLargeBodyException(long maxBytes) {
+            super("JSON output exceeds the configured limit of " + maxBytes + " bytes");
+        }
+    }
+
+    private static final class LimitedOutputStream extends ByteArrayOutputStream {
+        private final Budget budget;
+
+        LimitedOutputStream(Budget budget) {
+            this.budget = budget;
+        }
+
+        @Override
+        public synchronized void write(byte[] b, int off, int len) {
+            budget.checkSize(count, len);
+            budget.charge(len);
+            super.write(b, off, len);
+        }
+
+        @Override
+        public synchronized void write(int b) {
+            budget.checkSize(count, 1);
+            budget.charge(1);
+            super.write(b);
+        }
+
+        @Override
+        public synchronized void close() {
+            budget.release(count);
         }
     }
 

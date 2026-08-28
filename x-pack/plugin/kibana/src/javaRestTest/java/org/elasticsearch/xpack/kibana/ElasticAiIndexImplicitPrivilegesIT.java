@@ -434,6 +434,21 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
             }
             """);
 
+        // HIDDEN: malformed — `count: 0` while still naming an action. The Kibana indexer derives
+        // `count` from the action list, so this shape can only come from a buggy or hostile producer,
+        // and it must fail CLOSED. The named action is one NO test role holds, which is what isolates
+        // the zero-requirement escape: `terms_set` never visits this element (its name is in none of
+        // the query's postings), so before the escape required an absent `name` the bare `count: 0`
+        // arm admitted it for every user.
+        indexDoc("malformed-zero-count", """
+            {
+              "type": "dashboard",
+              "permissions": { "kibana": { "privileges": [
+                { "space": "marketing", "name": ["ai_index:workflow/read"], "count": 0 }
+              ]}}
+            }
+            """);
+
         // VISIBLE: no permissions block at all → public document, via the must_not(nested(match_all)) branch.
         // Kibana never writes this shape, but the branch must keep working for any other producer writing to the index.
         indexDoc("global-no-perms", """
@@ -481,6 +496,8 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
         assertThat(query, containsString(ELASTIC_AI_INDEX_WORKFLOW_READ_ACTION));
         assertThat(query, containsString("terms_set"));
         assertThat(query, containsString("\"permissions.kibana.privileges.count\":{\"value\":0}"));
+        // The zero-requirement escape is gated on the element carrying no action name.
+        assertThat(query, containsString("\"must_not\":[{\"exists\":{\"field\":\"permissions.kibana.privileges.name\""));
         // No delimiter anywhere — space and action are separate fields now.
         assertThat(query, not(containsString("|")));
         // Only ai_index: actions become DLS terms — login:/saved_object: in the same grant are dropped.

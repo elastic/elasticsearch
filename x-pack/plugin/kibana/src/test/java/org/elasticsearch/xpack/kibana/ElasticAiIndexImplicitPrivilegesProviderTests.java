@@ -82,10 +82,9 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
             resolve(role("sml_read", "space:marketing"), storedPrivileges)
         );
 
-        String query = result.iterator().next().getQuery().utf8ToString();
-        assertThat(query, containsString("\"must_not\""));
-        assertThat(query, containsString("\"match_all\""));
-        assertThat(query, not(containsString("\"exists\"")));
+        Map<String, Object> publicBranch = publicDocumentBranch(parseQuery(result.iterator().next().getQuery()));
+        assertThat("public branch must be must_not(nested(match_all)): " + publicBranch, isNestedMatchAll(publicBranch), is(true));
+        assertThat("public branch must not use exists: " + publicBranch, containsExistsQuery(publicBranch), is(false));
     }
 
     /**
@@ -500,7 +499,9 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         {"nested":{"query":{"bool":{"should":[{"bool":{"filter":[\
         {"bool":{"should":[{"terms":{"permissions.kibana.privileges.space":["marketing"],"boost":1.0}},\
         {"term":{"permissions.kibana.privileges.space":{"value":"*"}}}],"minimum_should_match":"1","boost":1.0}},\
-        {"bool":{"should":[{"term":{"permissions.kibana.privileges.count":{"value":0}}},\
+        {"bool":{"should":[{"bool":{"filter":[{"term":{"permissions.kibana.privileges.count":{"value":0}}},\
+        {"bool":{"must_not":[{"exists":{"field":"permissions.kibana.privileges.name","boost":1.0}}],"boost":1.0}}],\
+        "boost":1.0}},\
         {"terms_set":{"permissions.kibana.privileges.name":{"terms":["ai_index:dashboard/read"],\
         "minimum_should_match_field":"permissions.kibana.privileges.count","boost":1.0}}}],\
         "minimum_should_match":"1","boost":1.0}}\
@@ -514,7 +515,9 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         {"nested":{"query":{"bool":{"should":[{"bool":{"filter":[\
         {"bool":{"should":[{"terms":{"permissions.kibana.privileges.space":["a"],"boost":1.0}},\
         {"term":{"permissions.kibana.privileges.space":{"value":"*"}}}],"minimum_should_match":"1","boost":1.0}},\
-        {"bool":{"should":[{"term":{"permissions.kibana.privileges.count":{"value":0}}},\
+        {"bool":{"should":[{"bool":{"filter":[{"term":{"permissions.kibana.privileges.count":{"value":0}}},\
+        {"bool":{"must_not":[{"exists":{"field":"permissions.kibana.privileges.name","boost":1.0}}],"boost":1.0}}],\
+        "boost":1.0}},\
         {"terms_set":{"permissions.kibana.privileges.name":{"terms":["ai_index:x/read"],\
         "minimum_should_match_field":"permissions.kibana.privileges.count","boost":1.0}}}],\
         "minimum_should_match":"1","boost":1.0}}\
@@ -595,6 +598,45 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         return (List<Map<String, Object>>) innerBool.get("should");
     }
 
+    /** The top-level should-arm covering documents with no permission elements at all. */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> publicDocumentBranch(Map<String, Object> queryMap) {
+        List<Map<String, Object>> shoulds = (List<Map<String, Object>>) ((Map<String, Object>) queryMap.get("bool")).get("should");
+        return shoulds.stream()
+            .filter(should -> should.containsKey("nested") == false)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no public-document branch in " + queryMap));
+    }
+
+    /** True for {@code {"bool": {"must_not": [{"nested": {"query": {"match_all": ...}}}]}}}. */
+    @SuppressWarnings("unchecked")
+    private static boolean isNestedMatchAll(Map<String, Object> branch) {
+        if (branch.containsKey("bool") == false) {
+            return false;
+        }
+        Object mustNot = ((Map<String, Object>) branch.get("bool")).get("must_not");
+        if (mustNot instanceof List == false) {
+            return false;
+        }
+        return ((List<Map<String, Object>>) mustNot).stream().anyMatch(clause -> {
+            Object nested = clause.get("nested");
+            return nested instanceof Map && ((Map<String, Object>) ((Map<String, Object>) nested).get("query")).containsKey("match_all");
+        });
+    }
+
+    /** True when {@code exists} appears anywhere in the parsed subtree. */
+    @SuppressWarnings("unchecked")
+    private static boolean containsExistsQuery(Object node) {
+        if (node instanceof Map<?, ?> map) {
+            return map.containsKey("exists")
+                || map.values().stream().anyMatch(ElasticAiIndexImplicitPrivilegesProviderTests::containsExistsQuery);
+        }
+        if (node instanceof List<?> list) {
+            return list.stream().anyMatch(ElasticAiIndexImplicitPrivilegesProviderTests::containsExistsQuery);
+        }
+        return false;
+    }
+
     @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> filtersOfClause(Map<String, Object> clause) {
         return (List<Map<String, Object>>) ((Map<String, Object>) clause.get("bool")).get("filter");
@@ -661,19 +703,55 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         throw new AssertionError("no required-actions bool in clause " + clause);
     }
 
-    /** True when a clause admits elements requiring no action at all, i.e. carries the count:0 escape. */
+    /**
+     * True when a clause admits elements requiring no action at all, i.e. carries the zero-requirement
+     * escape. Asserts the whole pair — {@code count: 0} AND {@code must_not exists} on {@code .name} —
+     * rather than the count term alone: an escape that admitted a malformed {@code count: 0} element
+     * still naming actions would read as public, which is the regression this guards.
+     */
     @SuppressWarnings("unchecked")
     private static boolean hasZeroCountEscape(Map<String, Object> clause) {
         return requiredActionsShouldsOfClause(clause).stream().anyMatch(should -> {
-            if (should.containsKey("term") == false) {
+            if (should.containsKey("bool") == false) {
                 return false;
             }
-            Map<String, Object> term = (Map<String, Object>) should.get("term");
-            if (term.containsKey(COUNT_FIELD) == false) {
+            Object filters = ((Map<String, Object>) should.get("bool")).get("filter");
+            if (filters instanceof List == false) {
                 return false;
             }
-            Object value = ((Map<String, Object>) term.get(COUNT_FIELD)).get("value");
-            return value instanceof Number number && number.intValue() == 0;
+            List<Map<String, Object>> escapeFilters = (List<Map<String, Object>>) filters;
+            return escapeFilters.stream().anyMatch(ElasticAiIndexImplicitPrivilegesProviderTests::isZeroCountTerm)
+                && escapeFilters.stream().anyMatch(ElasticAiIndexImplicitPrivilegesProviderTests::isMissingNameFilter);
+        });
+    }
+
+    /** True for {@code {"term": {"...count": {"value": 0}}}}. */
+    @SuppressWarnings("unchecked")
+    private static boolean isZeroCountTerm(Map<String, Object> filter) {
+        if (filter.containsKey("term") == false) {
+            return false;
+        }
+        Map<String, Object> term = (Map<String, Object>) filter.get("term");
+        if (term.containsKey(COUNT_FIELD) == false) {
+            return false;
+        }
+        Object value = ((Map<String, Object>) term.get(COUNT_FIELD)).get("value");
+        return value instanceof Number number && number.intValue() == 0;
+    }
+
+    /** True for {@code {"bool": {"must_not": [{"exists": {"field": "...name"}}]}}}. */
+    @SuppressWarnings("unchecked")
+    private static boolean isMissingNameFilter(Map<String, Object> filter) {
+        if (filter.containsKey("bool") == false) {
+            return false;
+        }
+        Object mustNot = ((Map<String, Object>) filter.get("bool")).get("must_not");
+        if (mustNot instanceof List == false) {
+            return false;
+        }
+        return ((List<Map<String, Object>>) mustNot).stream().anyMatch(clause -> {
+            Object exists = clause.get("exists");
+            return exists instanceof Map && NAME_FIELD.equals(((Map<String, Object>) exists).get("field"));
         });
     }
 

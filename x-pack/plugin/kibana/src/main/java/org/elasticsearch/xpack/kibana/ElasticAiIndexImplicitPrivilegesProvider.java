@@ -38,9 +38,9 @@ import java.util.stream.Collectors;
  * {@code permissions.kibana.privileges} is a {@code nested} field holding one element per space the
  * document is visible in, each listing the {@code ai_index:} actions that space requires plus a
  * {@code count} of them. An element whose space is {@code "*"} means the document lives in every space,
- * and an element whose {@code count} is {@code 0} requires no action at all — the document is public
- * <em>within that element's space</em>. A document carrying no elements at all is public everywhere,
- * but the Kibana indexer never writes that shape. This shape is currently owned by the Kibana
+ * and an element whose {@code count} is {@code 0} and whose {@code name} is empty requires no action at
+ * all — the document is public <em>within that element's space</em>. A document carrying no elements at
+ * all is public everywhere, but the Kibana indexer never writes that shape. This shape is currently owned by the Kibana
  * agent_builder_sml plugin's storage schema; the {@code ai-index-*} index template deliberately does
  * not declare it, so this Javadoc and {@code ElasticAiIndexImplicitPrivilegesIT} are the de-facto
  * contract.
@@ -128,7 +128,9 @@ public class ElasticAiIndexImplicitPrivilegesProvider implements ImplicitPrivile
      * <p>
      * Documents with no permission elements are public. This must be expressed as
      * {@code must_not nested(match_all)}, never {@code must_not exists} — a root-level {@code exists}
-     * on a nested subfield matches every document, which would void the whole query. Likewise,
+     * on a nested subfield matches every document, which would void the whole query. (The
+     * {@code must_not exists} inside {@link #requiredActionsHeld} is a different case: it is nested,
+     * so it is evaluated per child document.) Likewise,
      * {@code ignore_unmapped} stays {@code false} so a missing nested mapping fails loudly instead of
      * silently failing open through the public-document branch.
      *
@@ -200,7 +202,8 @@ public class ElasticAiIndexImplicitPrivilegesProvider implements ImplicitPrivile
 
     /**
      * Matches elements whose required actions the user holds: either the element requires none
-     * ({@code count: 0}), or {@code terms_set} confirms {@code actions} covers all {@code count} of them.
+     * ({@code count: 0} and no {@code name} value), or {@code terms_set} confirms {@code actions} covers
+     * all {@code count} of them.
      * <p>
      * The {@code count: 0} arm is not redundant with {@code minimum_should_match_field} resolving to
      * {@code 0}. {@code terms_set} is a Lucene {@code CoveringQuery}: its candidate documents are the
@@ -211,7 +214,11 @@ public class ElasticAiIndexImplicitPrivilegesProvider implements ImplicitPrivile
      */
     private static BoolQueryBuilder requiredActionsHeld(Set<String> actions) {
         return QueryBuilders.boolQuery()
-            .should(QueryBuilders.termQuery(COUNT_FIELD, 0))
+            .should(
+                QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery(COUNT_FIELD, 0))
+                    .filter(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery(NAME_FIELD)))
+            )
             .should(new TermsSetQueryBuilder(NAME_FIELD, actions.stream().sorted().toList()).setMinimumShouldMatchField(COUNT_FIELD))
             .minimumShouldMatch(1);
     }

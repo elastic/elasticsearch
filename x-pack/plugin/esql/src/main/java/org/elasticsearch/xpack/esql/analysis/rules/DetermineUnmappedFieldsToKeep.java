@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
@@ -90,6 +91,12 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      * plan's only leaf. (Does not cover n-ary plans.)
      */
     private static UnmappedFieldsPattern computeUnmappedFieldsToKeep(LogicalPlan plan) {
+        if (plan instanceof InlineStats inlineStats) {
+            // INLINE STATS preserves input rows via a left join with its Aggregate. Walk the input, not the
+            // Aggregate: that node returns NONE so STATS can drop expansion, which must not apply here.
+            UnmappedFieldsPattern fromChild = computeUnmappedFieldsToKeep(inlineStats.aggregate().child());
+            return fromChild.withAdditionalExcludes(Expressions.names(plan.output()));
+        }
         if (plan instanceof Aggregate) {
             return UnmappedFieldsPattern.NONE;
         }

@@ -20,6 +20,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.analysis.UnmappedFieldsOrdering;
+import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -58,7 +59,8 @@ import java.util.function.BiConsumer;
  * <p>A leaf is not a column when {@code KEEP} is resolved, so the plan could not position it then. Rather than mirroring the analyzer's
  * projection rules here, {@link UnmappedFieldsOrdering} hands the discovered leaves back to the plan as if they had been mapped all
  * along and asks it for its output: every {@code KEEP}/{@code DROP}/{@code RENAME} re-resolves itself, and {@code EVAL} columns trail
- * the leaves because the leaves take the relation slot the synthetic column occupied.
+ * the leaves because the leaves take the relation slot the synthetic column occupied. Approximation extras
+ * ({@code _approximation_*}) are added after analysis, so they are held out of that replay and pinned last.
  * <p>
  * TODO every row's {@code _source} ends up parsed three times: the data node parses it to filter the column, then the
  *  coordinator parses the column once to collect field names and once more to expand them. A columnar shape — one block of
@@ -210,35 +212,44 @@ public class ExpandUnmappedFieldsPostProcessor {
             leaves.add(leaf);
             leafIdToIdx.put(leaf.id(), i);
         }
+        // Approximation extras (_approximation_*) are appended after analysis, so the replayed plan knows nothing about them. They
+        // are held out of the ordering and pinned last, which is where the response wants them anyway.
         Map<String, Integer> nameToSchemaIdx = new HashMap<>();
+        List<Integer> approximationIdx = new ArrayList<>();
         for (int i = 0; i < originalColumnCount; i++) {
-            if (i != unmappedIdx) {
+            if (i == unmappedIdx) {
+                continue;
+            }
+            if (ApproximationPlan.isApproximationColumn(schema.get(i).name())) {
+                approximationIdx.add(i);
+            } else {
                 nameToSchemaIdx.put(schema.get(i).name(), i);
             }
         }
+        int dataColumnCount = originalColumnCount - 1 - approximationIdx.size();
 
         List<Attribute> ordered = ordering == null ? null : ordering.order(leaves);
-        if (ordered == null || ordered.size() != originalColumnCount - 1 + leaves.size()) {
+        if (ordered == null || ordered.size() != dataColumnCount + leaves.size()) {
             // Either nothing was captured, or the replay disagrees with the executed schema because something rewrote the shape
             // after analysis. Fall back to the natural real-then-discovered order rather than dropping or duplicating a column.
             assert ordering == null : "unmapped fields ordering replay diverged from the executed schema";
-            ordered = new ArrayList<>(originalColumnCount - 1 + leaves.size());
+            ordered = new ArrayList<>(dataColumnCount + leaves.size());
             for (int i = 0; i < originalColumnCount; i++) {
-                if (i != unmappedIdx) {
+                if (i != unmappedIdx && ApproximationPlan.isApproximationColumn(schema.get(i).name()) == false) {
                     ordered.add(schema.get(i));
                 }
             }
             ordered.addAll(leaves);
         }
 
-        List<Attribute> newSchema = new ArrayList<>(ordered.size());
-        int[] blockOrder = new int[ordered.size()];
-        for (int pos = 0; pos < ordered.size(); pos++) {
-            Attribute attribute = ordered.get(pos);
+        List<Attribute> newSchema = new ArrayList<>(ordered.size() + approximationIdx.size());
+        int[] blockOrder = new int[ordered.size() + approximationIdx.size()];
+        int pos = 0;
+        for (Attribute attribute : ordered) {
             Integer leafIdx = leafIdToIdx.get(attribute.id());
             if (leafIdx != null) {
                 newSchema.add(attribute);
-                blockOrder[pos] = originalColumnCount + leafIdx;
+                blockOrder[pos++] = originalColumnCount + leafIdx;
                 continue;
             }
             Integer schemaIdx = nameToSchemaIdx.get(attribute.name());
@@ -248,7 +259,11 @@ public class ExpandUnmappedFieldsPostProcessor {
                 );
             }
             newSchema.add(schema.get(schemaIdx));
-            blockOrder[pos] = schemaIdx;
+            blockOrder[pos++] = schemaIdx;
+        }
+        for (int idx : approximationIdx) {
+            newSchema.add(schema.get(idx));
+            blockOrder[pos++] = idx;
         }
         return new ExpandedLayout(newSchema, blockOrder);
     }

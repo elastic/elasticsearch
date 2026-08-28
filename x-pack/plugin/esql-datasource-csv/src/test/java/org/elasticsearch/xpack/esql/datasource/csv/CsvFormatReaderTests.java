@@ -323,6 +323,23 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals("name", schema.get(1).name());
     }
 
+    /**
+     * In {@code mode: escaped} (quoting off, escaping on) the header splitter must honour the escape
+     * character outside quotes, so a backslash-escaped delimiter is NOT treated as a field boundary.
+     * Before the fix, {@code splitFieldsEscapeAware} had no outside-quotes escape handling, so
+     * {@code a\,b,c} was split into THREE columns ({@code a\}, {@code b}, {@code c}); after the fix
+     * it correctly gives TWO ({@code a\,b} and {@code c}).
+     */
+    public void testEscapedModeHeaderEscapedDelimiterNotSplitPoint() throws IOException {
+        // CSV (comma delimiter) + mode:escaped. The header "a\,b" has a backslash-escaped comma that
+        // must NOT be treated as a field separator. Untyped header so schema inference runs (mixed
+        // typed/untyped would be a format error unrelated to this check).
+        StorageObject object = createStorageObject("a\\,b,c\nval1,val2\n");
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "escaped"));
+        List<String> names = reader.schema(object).stream().map(Attribute::name).toList();
+        assertEquals("escaped delimiter in header must not split the column name", List.of("a\\,b", "c"), names);
+    }
+
     /** The same quote-aware header rules apply for a tab delimiter (TSV with quoting on). */
     public void testTabDelimitedQuotedHeaderNames() throws IOException {
         StorageObject object = createStorageObject("\"i\td\"\t\"c\"\n1\t2\n");
@@ -7223,41 +7240,78 @@ public class CsvFormatReaderTests extends ESTestCase {
     // --- Phase 1A: isBlankOrComment ---
 
     public void testIsBlankOrCommentEmptyLine() {
-        assertTrue(CsvFormatReader.isBlankOrComment("", "//"));
+        assertTrue(CsvFormatReader.isBlankOrComment("", "//", ','));
     }
 
     public void testIsBlankOrCommentWhitespaceOnly() {
-        assertTrue(CsvFormatReader.isBlankOrComment("   \t  ", "//"));
+        // spaces and tab are whitespace under comma delimiter — row is blank
+        assertTrue(CsvFormatReader.isBlankOrComment("   \t  ", "//", ','));
     }
 
     public void testIsBlankOrCommentWithComment() {
-        assertTrue(CsvFormatReader.isBlankOrComment("// this is a comment", "//"));
+        assertTrue(CsvFormatReader.isBlankOrComment("// this is a comment", "//", ','));
     }
 
     public void testIsBlankOrCommentWithLeadingWhitespaceComment() {
-        assertTrue(CsvFormatReader.isBlankOrComment("   // indented comment", "//"));
+        assertTrue(CsvFormatReader.isBlankOrComment("   // indented comment", "//", ','));
     }
 
     public void testIsBlankOrCommentNormalLine() {
-        assertFalse(CsvFormatReader.isBlankOrComment("hello,world", "//"));
+        assertFalse(CsvFormatReader.isBlankOrComment("hello,world", "//", ','));
     }
 
     public void testIsBlankOrCommentWithLeadingWhitespace() {
-        assertFalse(CsvFormatReader.isBlankOrComment("  hello", "//"));
+        assertFalse(CsvFormatReader.isBlankOrComment("  hello", "//", ','));
     }
 
     public void testIsBlankOrCommentNullCommentPrefix() {
-        assertTrue(CsvFormatReader.isBlankOrComment("", null));
-        assertFalse(CsvFormatReader.isBlankOrComment("data", null));
+        assertTrue(CsvFormatReader.isBlankOrComment("", null, ','));
+        assertFalse(CsvFormatReader.isBlankOrComment("data", null, ','));
     }
 
     public void testIsBlankOrCommentEmptyCommentPrefix() {
-        assertTrue(CsvFormatReader.isBlankOrComment("   ", ""));
-        assertFalse(CsvFormatReader.isBlankOrComment("data", ""));
+        assertTrue(CsvFormatReader.isBlankOrComment("   ", "", ','));
+        assertFalse(CsvFormatReader.isBlankOrComment("data", "", ','));
     }
 
     public void testIsBlankOrCommentPrefixLongerThanLine() {
-        assertFalse(CsvFormatReader.isBlankOrComment("x", "//long-prefix"));
+        assertFalse(CsvFormatReader.isBlankOrComment("x", "//long-prefix", ','));
+    }
+
+    public void testIsBlankOrCommentSeparatorOnlyRowIsNotBlank() {
+        // TAB-only row with TAB delimiter: the row has fields — it is not blank
+        assertFalse(CsvFormatReader.isBlankOrComment("\t\t", null, '\t'));
+        assertFalse(CsvFormatReader.isBlankOrComment("\t\t", "//", '\t'));
+        // comma-only row with comma delimiter: same rule
+        assertFalse(CsvFormatReader.isBlankOrComment(",", null, ','));
+        assertFalse(CsvFormatReader.isBlankOrComment(",,", null, ','));
+    }
+
+    public void testIsBlankOrCommentSpacesOnlyWithTabDelimiterIsBlank() {
+        // spaces only, no TAB delimiter → genuinely blank
+        assertTrue(CsvFormatReader.isBlankOrComment("   ", null, '\t'));
+        assertTrue(CsvFormatReader.isBlankOrComment("   ", "//", '\t'));
+    }
+
+    public void testIsBlankOrCommentMixedWhitespaceAndDelimiterIsBlank() {
+        // TAB delimiter: spaces mixed with TAB delimiter → still blank (has non-delimiter whitespace)
+        assertTrue(CsvFormatReader.isBlankOrComment("  \t  ", "//", '\t'));
+        assertTrue(CsvFormatReader.isBlankOrComment(" \t", "//", '\t'));
+        // Comma (0x2C > ' ') is not ASCII whitespace, so " , " is data, not blank
+        assertFalse(CsvFormatReader.isBlankOrComment(" , ", "//", ','));
+    }
+
+    public void testIsBlankOrCommentLeadingDelimiterBlocksComment() {
+        // isBlankOrComment uses the same first-cell rule as isBlankOrCommentFirstCell: a delimiter
+        // seen before the comment prefix means the prefix is in a subsequent cell, not the first —
+        // so the row is data, not a comment. This matches Jackson's first-cell classification.
+        assertFalse(CsvFormatReader.isBlankOrComment("\t// a comment", "//", '\t'));
+        assertFalse(CsvFormatReader.isBlankOrComment("\t\t// x", "//", '\t'));
+        // a comment in the first cell (no leading delimiter) is still detected
+        assertTrue(CsvFormatReader.isBlankOrComment("// a comment", "//", '\t'));
+        assertTrue(CsvFormatReader.isBlankOrComment("   // indented", "//", '\t'));
+        // a leading delimiter alone is data (separator-only row)
+        assertFalse(CsvFormatReader.isBlankOrComment("\t", "//", '\t'));
     }
 
     // --- Phase 1A: emitField ---

@@ -12,7 +12,7 @@ package org.elasticsearch.simdjson.internal;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.foreign.adapter.MemorySegmentAdapter;
-import org.elasticsearch.nativeaccess.GuardPageAllocator;
+import org.elasticsearch.simdvec.GuardPageAllocator;
 import org.elasticsearch.simdjson.SimdJsonSupport;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;

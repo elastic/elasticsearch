@@ -568,7 +568,7 @@ public final class RestoreService implements ClusterStateApplier {
         // name before this update is published, that validation rejects the stale identity rather than silently restoring onto the wrong
         // index.
         final Map<String, Index> openIndexTargets;
-        if (request.restoreOverOpenIndex()) {
+        if (request.restoreOverExisting()) {
             final ProjectMetadata currentProject = clusterService.state().metadata().getProject(projectId);
             openIndexTargets = new HashMap<>();
             for (String renamedIndexName : indicesToRestore.keySet()) {
@@ -1701,7 +1701,7 @@ public final class RestoreService implements ClusterStateApplier {
         /**
          * Renamed index name to the expected exact current {@link Index} identity (name and UUID) for indices that the caller has
          * explicitly authorized restoring over while still open. Empty unless the destination is allowed to be open, i.e. an ordinary
-         * restore with {@link RestoreSnapshotRequest#restoreOverOpenIndex()} set, resolved just before this task was submitted.
+         * restore with {@link RestoreSnapshotRequest#restoreOverExisting()} set, resolved just before this task was submitted.
          */
         private final Map<String, Index> openIndexTargets;
 

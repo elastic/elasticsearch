@@ -68,7 +68,7 @@ setup:
   - match: { test_index.shards.0.index.size.reused_in_bytes: 0}
 
 ---
-"Restore over an open index with restore_over_open_index":
+"Restore over an open index with restore_over_existing":
 
   - requires:
       cluster_features: ["indices.recovery.restore_over_open_index_recreates_index_service"]
@@ -97,7 +97,7 @@ setup:
         wait_for_completion: true
         body:
           indices: "test_index"
-          restore_over_open_index: true
+          restore_over_existing: true
 
   - do:
       indices.recovery:

@@ -77,7 +77,7 @@ import static org.hamcrest.Matchers.nullValue;
  * the restore file diff can reuse identical local Lucene files.
  * <p>
  * {@link #initializeRestoreOverOpenIndex} drives this through the public {@link RestoreService#restoreSnapshot} API, opting in via
- * {@link RestoreSnapshotRequest#restoreOverOpenIndex()}, except for {@link #testOverlappingRestoreTransitionsDoNotCorruptTheSecondRestore},
+ * {@link RestoreSnapshotRequest#restoreOverExisting()}, except for {@link #testOverlappingRestoreTransitionsDoNotCorruptTheSecondRestore},
  * which instead publishes the equivalent transition directly via {@link #initializeRestoreOverOpenIndexBypassingMasterGuard}: that test
  * simulates a hypothetical caller that isn't protected against overlapping restores the way {@link RestoreService#restoreSnapshot} is, so
  * the node-side transition's own robustness needs to be verified independently of any single caller's protection.
@@ -369,7 +369,7 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
             restoreService().restoreSnapshot(
                 ProjectId.DEFAULT,
                 new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(INDEX_NAME, otherIndex)
-                    .restoreOverOpenIndex(true),
+                    .restoreOverExisting(true),
                 future
             );
             expectThrows(SnapshotInProgressException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
@@ -384,7 +384,7 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
 
     /**
      * The ordinary public restore API ({@link RestoreService#restoreSnapshot}) can also reach the open-index restore path, but only when
-     * the caller explicitly opts in via {@link RestoreSnapshotRequest#restoreOverOpenIndex}; the default behavior (reject an open
+     * the caller explicitly opts in via {@link RestoreSnapshotRequest#restoreOverExisting}; the default behavior (reject an open
      * destination) must be unchanged.
      */
     public void testOrdinaryRestoreCanTargetOpenIndexWhenRequested() throws Exception {
@@ -407,7 +407,7 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
         final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
         restoreService().restoreSnapshot(
             ProjectId.DEFAULT,
-            new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(INDEX_NAME).restoreOverOpenIndex(true),
+            new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(INDEX_NAME).restoreOverExisting(true),
             future
         );
         future.actionGet(TEST_REQUEST_TIMEOUT);
@@ -458,7 +458,7 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
 
     /**
      * Drives the transition under test through the real public restore API: an ordinary {@link RestoreService#restoreSnapshot} that opts
-     * into overwriting the open destination via {@link RestoreSnapshotRequest#restoreOverOpenIndex()}. The data node holding the shard
+     * into overwriting the open destination via {@link RestoreSnapshotRequest#restoreOverExisting()}. The data node holding the shard
      * must apply, as a single change, an index that stays open and keeps its index UUID but gains a new history UUID together with a
      * restoring shard assigned to it.
      */
@@ -477,7 +477,7 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
         final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
         restoreService().restoreSnapshot(
             ProjectId.DEFAULT,
-            new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(INDEX_NAME).restoreOverOpenIndex(true),
+            new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(INDEX_NAME).restoreOverExisting(true),
             future
         );
         return future;

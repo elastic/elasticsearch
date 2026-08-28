@@ -42,7 +42,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
  */
 public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotRequest> implements ToXContentObject {
 
-    private static final TransportVersion RESTORE_OVER_OPEN_INDEX = TransportVersion.fromName("restore_over_open_index");
+    private static final TransportVersion RESTORE_OVER_EXISTING = TransportVersion.fromName("restore_over_existing");
 
     private String snapshot;
     private String repository;
@@ -58,7 +58,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private boolean quiet = false;
     private Settings indexSettings = Settings.EMPTY;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
-    private boolean restoreOverOpenIndex = false;
+    private boolean restoreOverExisting = false;
 
     // This field does not get serialised (except toString for debugging purpose) because it is always set locally by authz
     private boolean skipOperatorOnlyState = false;
@@ -99,7 +99,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         indexSettings = readSettingsFromStream(in);
         ignoreIndexSettings = in.readStringArray();
         snapshotUuid = in.readOptionalString();
-        restoreOverOpenIndex = in.getTransportVersion().supports(RESTORE_OVER_OPEN_INDEX) && in.readBoolean();
+        restoreOverExisting = in.getTransportVersion().supports(RESTORE_OVER_EXISTING) && in.readBoolean();
     }
 
     @Override
@@ -120,8 +120,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         indexSettings.writeTo(out);
         out.writeStringArray(ignoreIndexSettings);
         out.writeOptionalString(snapshotUuid);
-        if (out.getTransportVersion().supports(RESTORE_OVER_OPEN_INDEX)) {
-            out.writeBoolean(restoreOverOpenIndex);
+        if (out.getTransportVersion().supports(RESTORE_OVER_EXISTING)) {
+            out.writeBoolean(restoreOverExisting);
         }
     }
 
@@ -368,16 +368,16 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
      *
      * @return true if the destination index for a matching restore may be open
      */
-    public boolean restoreOverOpenIndex() {
-        return restoreOverOpenIndex;
+    public boolean restoreOverExisting() {
+        return restoreOverExisting;
     }
 
     /**
-     * @param restoreOverOpenIndex true to allow restoring over a destination index that is currently open
+     * @param restoreOverExisting true to allow restoring over a destination index that is currently open
      * @return this request
      */
-    public RestoreSnapshotRequest restoreOverOpenIndex(boolean restoreOverOpenIndex) {
-        this.restoreOverOpenIndex = restoreOverOpenIndex;
+    public RestoreSnapshotRequest restoreOverExisting(boolean restoreOverExisting) {
+        this.restoreOverExisting = restoreOverExisting;
         return this;
     }
 
@@ -589,8 +589,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                 includeGlobalState = nodeBooleanValue(entry.getValue(), "include_global_state");
             } else if (name.equals("include_aliases")) {
                 includeAliases = nodeBooleanValue(entry.getValue(), "include_aliases");
-            } else if (name.equals("restore_over_open_index")) {
-                restoreOverOpenIndex = nodeBooleanValue(entry.getValue(), "restore_over_open_index");
+            } else if (name.equals("restore_over_existing")) {
+                restoreOverExisting = nodeBooleanValue(entry.getValue(), "restore_over_existing");
             } else if (name.equals("rename_pattern")) {
                 if (entry.getValue() instanceof String) {
                     renamePattern((String) entry.getValue());
@@ -651,7 +651,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         builder.field("include_global_state", includeGlobalState);
         builder.field("partial", partial);
         builder.field("include_aliases", includeAliases);
-        builder.field("restore_over_open_index", restoreOverOpenIndex);
+        builder.field("restore_over_existing", restoreOverExisting);
         if (indexSettings != null) {
             builder.startObject("index_settings");
             if (indexSettings.isEmpty() == false) {
@@ -677,7 +677,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             && partial == that.partial
             && includeAliases == that.includeAliases
             && quiet == that.quiet
-            && restoreOverOpenIndex == that.restoreOverOpenIndex
+            && restoreOverExisting == that.restoreOverExisting
             && Objects.equals(snapshot, that.snapshot)
             && Objects.equals(repository, that.repository)
             && Arrays.equals(indices, that.indices)
@@ -707,7 +707,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             indexSettings,
             snapshotUuid,
             skipOperatorOnlyState,
-            restoreOverOpenIndex
+            restoreOverExisting
         );
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(ignoreIndexSettings);

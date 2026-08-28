@@ -12,7 +12,6 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -287,7 +286,9 @@ public class InboundHandler {
                 message.close();
                 message = null;
             } catch (Exception e) {
-                assert ignoreDeserializationErrors : e;
+                // A breaker trip is rejected work rather than a deserialization defect, so it must not trip the assertion. The enclosing
+                // catch still sends the failure back to the sender.
+                assert ignoreDeserializationErrors || e instanceof CircuitBreakingException : e;
                 throw e;
             }
             try {
@@ -455,17 +456,26 @@ public class InboundHandler {
             response = handler.read(stream);
             verifyResponseReadFully(inboundMessage.getHeader(), handler, stream);
         } catch (Exception e) {
+            // Reading a message reserves memory for the structures it builds, so a breaker can trip part-way through reading a message
+            // that is itself perfectly well-formed. That is rejected work rather than a deserialization defect, so deliver the breaker
+            // exception itself rather than burying it in a TransportSerializationException: the latter is not an
+            // ElasticsearchWrapperException, so ExceptionsHelper#unwrapCause stops at it and every caller that classifies a rejection by
+            // type stops recognising it, losing both the 429 status and the breaker's byte-limit metadata. Only a breaker trip thrown
+            // directly by the reader is exempt, so that a corrupt stream failing somewhere further down still surfaces as a read failure.
+            if (e instanceof CircuitBreakingException circuitBreakerTrip) {
+                logger.debug(() -> "Circuit breaker tripped deserializing response from [" + remoteAddress + "]", e);
+                doHandleException(
+                    handler,
+                    new RemoteTransportException("Failed to deserialize response from handler [" + handler + "]", circuitBreakerTrip)
+                );
+                return;
+            }
             final TransportException serializationException = new TransportSerializationException(
                 "Failed to deserialize response from handler [" + handler + "]",
                 e
             );
-            if (isCircuitBreakingException(e)) {
-                // A tripped circuit breaker is expected back-pressure rather than a deserialization bug, so log it quietly
-                logger.debug(() -> "Failed to deserialize response from [" + remoteAddress + "]", serializationException);
-            } else {
-                logger.warn(() -> "Failed to deserialize response from [" + remoteAddress + "]", serializationException);
-                assert ignoreDeserializationErrors : e;
-            }
+            logger.warn(() -> "Failed to deserialize response from [" + remoteAddress + "]", serializationException);
+            assert ignoreDeserializationErrors : e;
             doHandleException(handler, serializationException);
             return;
         }
@@ -476,10 +486,6 @@ public class InboundHandler {
         } finally {
             response.decRef();
         }
-    }
-
-    private static boolean isCircuitBreakingException(Exception e) {
-        return ExceptionsHelper.unwrap(e, CircuitBreakingException.class) != null;
     }
 
     /**
@@ -495,7 +501,7 @@ public class InboundHandler {
                 "Failed to deserialize exception response from stream for handler [" + handler + "]",
                 e
             );
-            assert ignoreDeserializationErrors || isCircuitBreakingException(e) : error;
+            assert ignoreDeserializationErrors : error;
         }
         handleException(
             handler,

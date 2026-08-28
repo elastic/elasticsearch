@@ -262,9 +262,8 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
         query = extractQuery(query);
         if (checkIfSortedDocsIsApplicable(reader, fieldType) == false
-            // PointsSortedDocsProducer walks the BKD tree, and a dense index is not necessarily a points
-            // index: an [index_terms] numeric has an inverted index but no BKD tree, so it would collect
-            // no documents at all.
+            // Number fields with index_terms=true use inverted index and PointsSortedDocsProducer needs bkd tree / points.
+            // If index_terms=true, we need to bail here, otherwise composite agg always return zero buckets.
             || fieldType.indexType().hasPoints() == false
             || checkMatchAllOrRangeQuery(query, fieldType.name()) == false) {
             return null;

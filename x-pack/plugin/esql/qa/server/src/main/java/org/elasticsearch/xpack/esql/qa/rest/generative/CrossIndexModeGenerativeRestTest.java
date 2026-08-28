@@ -578,17 +578,6 @@ public abstract class CrossIndexModeGenerativeRestTest extends GenerativeRestTes
             || cmdText.contains("MV_DIFFERENCE(")) {
             return false;
         }
-        // MV_MAX / MV_MIN / MV_MEDIAN / MV_PERCENTILE on numeric fields: columnar mode stores
-        // doc-values in ascending order, and the current columnar execution path returns the first
-        // doc-value element rather than scanning for the true extremum or median. This means mv_max
-        // returns the minimum, mv_median returns the first element, etc. — a known columnar bug.
-        // TODO: remove once the columnar MV scalar-aggregate block-execution bug is fixed.
-        if (cmdText.contains("MV_MAX(")
-            || cmdText.contains("MV_MIN(")
-            || cmdText.contains("MV_MEDIAN(")
-            || cmdText.contains("MV_PERCENTILE(")) {
-            return false;
-        }
         // LEAST / GREATEST applied to multi-value fields are element-wise: they pair up values by
         // position across their arguments and return MV results whose element order depends on the
         // insertion / doc-values order of the input fields. Close the gate whenever either appears.

@@ -318,12 +318,28 @@ public interface FormatReader extends Closeable {
     }
 
     /**
+     * Returns a reader that stamps {@code readConfig} onto the statistics it harvests — the caller-computed identity of
+     * how THIS file is being read (see {@code ReadConfigFingerprint}). Opaque to the reader, exactly like the canonical
+     * config string it sits beside: the reader carries it through onto its contributions and never interprets it.
+     * <p>
+     * The value is per FILE, not per query, so it is applied at the per-file seam rather than at configuration time.
+     * Computed by the caller because the inputs (the file's coordinator-minted read schema and the declared read spec)
+     * live above the reader — and because a reader deriving it from the schema IT was handed would derive a different
+     * value on each side: readers see physicalized, projection-merged schemas, not the file's own.
+     * <p>
+     * Default no-op: a format that harvests no statistics has nothing to stamp.
+     */
+    default FormatReader withReadConfig(String readConfig) {
+        return this;
+    }
+
+    /**
      * Whether this reader can only bind its declared columns when it sees the start of the file, which makes the file
      * unsplittable: every split past the first would have no way to resolve the binding.
      *
      * <p>True only for a headered text reader binding a DECLARED schema by name: the binding is resolved against the
      * file's header line, and only the first split carries it. A headerless file's physical names encode their own
-     * positions ({@code col4} -> field 4), so it binds on any split and stays fully splittable — which is the shape the
+     * positions ({@code col4} -> field 4), so it binds on any split and stays fully splittable — which is the file shape the
      * throughput-sensitive reads actually use.
      */
     default boolean declaredNameBindingNeedsFileStart() {
@@ -341,6 +357,27 @@ public interface FormatReader extends Closeable {
      */
     default FilterPushdownSupport filterPushdownSupport() {
         return null;
+    }
+
+    /**
+     * Whether this reader still drops rows for {@link ErrorPolicy.Mode#SKIP_ROW} on the decode path it
+     * takes once a filter has been pushed into it.
+     * <p>
+     * A columnar reader honours {@code skip_row} by accumulating the positions that failed a declared-type
+     * coercion across the batch and compacting every block at the page emit point. A reader that evaluates
+     * a pushed predicate on a <em>separate</em> decode path (late materialization, two-phase decode) may
+     * never reach that emit point, in which case the failed cell is merely nulled and the row survives —
+     * silently serving {@code null_field} semantics for a {@code skip_row} read. Such readers must return
+     * {@code false} so {@code PushFiltersToSource} withholds the pushdown and leaves the predicate in a
+     * {@code FilterExec} above the source; results stay correct (the filter still runs, just one level up)
+     * and every batch stays on the path that drops rows.
+     * <p>
+     * Only consulted when the read actually combines {@code skip_row} with declared-type columns — see
+     * {@code DeclaredReadSpec#dropsRowsOnCoercionFailure}. With no declared types there is nothing to
+     * coerce, hence no row to drop, and pushdown is always allowed.
+     */
+    default boolean dropsRowsUnderPushedFilter() {
+        return true;
     }
 
     default boolean supportsNativeAsync() {

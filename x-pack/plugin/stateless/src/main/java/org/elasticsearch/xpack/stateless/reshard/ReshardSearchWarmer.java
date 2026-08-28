@@ -23,15 +23,11 @@ public final class ReshardSearchWarmer implements IndexEventListener {
     public void afterIndexCreated(IndexService indexService) {
         final var splitActive = new AtomicBoolean(hasActiveSplit(indexService.getMetadata()));
         indexService.addMetadataListener(indexMetadata -> {
-            final boolean active = hasActiveSplit(indexMetadata);
+            final var active = hasActiveSplit(indexMetadata);
             if (splitActive.getAndSet(active) == false && active) {
                 for (var indexShard : indexService) {
                     indexShard.tryWithEngineOrNull(engine -> {
-                        if (engine != null) {
-                            if (engine instanceof SearchEngine) {
-                                ((SearchEngine) engine).warmReaderCacheAfterResharding();
-                            }
-                        }
+                        if (engine instanceof SearchEngine e) e.warmReaderCacheAfterResharding();
                         return null;
                     });
                 }

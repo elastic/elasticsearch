@@ -1142,9 +1142,11 @@ public class SearchEngine extends Engine {
         if (ReshardSearchFilters.mayContainUnownedDocuments(shardId, indexMetadata.getReshardingMetadata())) {
             engineConfig.getThreadPool().executor(ThreadPool.Names.WARMER).execute(() -> {
                 try (Searcher searcher = acquireSearcher("reshard_unowned_bitset_warming", SearcherScope.INTERNAL)) {
-                    var query = new ShardSplittingQuery(indexMetadata, shardId.id(), engineConfig.getMapperService().hasNested());
-                    var reader = searcher.getDirectoryReader();
-                    reshardSearchFilters.unownedBitsetCache().warmBitSets(query, reader);
+                    reshardSearchFilters.unownedBitsetCache()
+                        .warmBitSets(
+                            new ShardSplittingQuery(indexMetadata, shardId.id(), engineConfig.getMapperService().hasNested()),
+                            searcher.getDirectoryReader()
+                        );
                 } catch (ExecutionException e) {
                     logger.debug(() -> Strings.format("failed to warm resharding unowned-document bitsets for shard [%s]", shardId), e);
                 }

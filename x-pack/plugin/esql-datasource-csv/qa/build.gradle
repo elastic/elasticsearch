@@ -304,6 +304,9 @@ sourceSets.javaRestTest.resources {
 
 tasks.named('processJavaRestTestResources').configure {
   dependsOn csvFixtureTasks
+  // The vector tree lands under the same iceberg-fixtures root this source set globs, so the
+  // dependency is real even though only the csvSpecTest suites read it today.
+  dependsOn vectorVariantTaskList
 }
 
 tasks.named('javaRestTest') {
@@ -345,6 +348,9 @@ sourceSets.csvSpecTest.resources {
 }
 tasks.named('processCsvSpecTestResources').configure {
   dependsOn csvFixtureTasks
+  // The vector tree is written under the same iceberg-fixtures root this source set globs, so without
+  // the dependency the suites can read a half-written or absent tree depending on task order.
+  dependsOn vectorVariantTaskList
 }
 
 // Runs the four csv-spec ITs in their own JVM, separate from javaRestTest. All four extend

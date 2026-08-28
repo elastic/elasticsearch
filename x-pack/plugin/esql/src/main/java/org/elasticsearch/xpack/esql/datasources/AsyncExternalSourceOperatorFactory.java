@@ -1350,6 +1350,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         if (mapping == null || queryDataSchema.isEmpty()) {
             return pages;
         }
+        // Zero-split multi-file (and any future producer that yields a resolved FileList
+        // without pruned splits) can still hold a unified-width mapping while queryDataSchema
+        // is the pruned query width. Rebuild from names so SchemaAdaptingIterator's
+        // size-vs-width guard does not fire. The slice-queue path already prunes at split
+        // construction; this is the adapter-side backstop.
+        if (mapping.width() != queryDataSchema.size()) {
+            mapping = ColumnMapping.alignToQuery(queryDataSchema, perFileReadSchema, perFileCols);
+        }
         // Identity mappings are no longer short-circuited here: SchemaAdaptingIterator validates
         // output block element types on every page, catching reader bugs (wrong block type for a
         // declared column) before they reach a consumer that casts and throws a bare
@@ -1498,8 +1506,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     /**
      * Multi-file read path (legacy, non-slice-queue). Per-file filter adaptation is not applied
-     * here because this path does not carry {@link FileSplit} with {@link ColumnMapping};
-     * UNION_BY_NAME queries use the slice-queue path ({@link #startSliceQueueRead}) instead.
+     * here because this path does not carry {@link FileSplit} with {@link ColumnMapping}.
+     * UNION_BY_NAME queries usually take the slice-queue path ({@link #startSliceQueueRead}),
+     * but this arm still runs when a resolved {@link FileList} is present and splits were not
+     * attached. {@link #adaptSchema} then realigns a unified-width {@code schemaMap} mapping
+     * to {@code queryDataSchema} so the adapter's size-vs-width guard does not fire.
      */
     private void startMultiFileRead(List<String> projectedColumns, AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
         ActionListener<Void> completionListener = ActionListener.assertOnce(ActionListener.wrap(v -> {

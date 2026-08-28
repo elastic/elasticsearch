@@ -266,6 +266,51 @@ public final class ColumnMapping implements Writeable {
     }
 
     /**
+     * Rebuilds a mapping whose width and order match {@code queryDataSchema}, indexing into the
+     * reader's projected page ({@code perFileCols}) rather than the file-natural schema.
+     * <p>
+     * Used when a caller still holds a unified-width mapping (the zero-split multi-file arm, or
+     * any future producer that yields a resolved file list without pruned splits) and would
+     * otherwise fail {@link SchemaAdaptingIterator}'s size-vs-width guard. Missing query columns
+     * become {@code -1} (null-fill); type disagreement vs the file's read schema becomes a cast
+     * to the query type, matching {@link SchemaReconciliation#computeMapping}.
+     */
+    static ColumnMapping alignToQuery(
+        ExternalSchema queryDataSchema,
+        @Nullable List<Attribute> perFileReadSchema,
+        @Nullable List<String> perFileCols
+    ) {
+        int width = queryDataSchema.size();
+        int[] index = new int[width];
+        DataType[] casts = new DataType[width];
+        boolean anyCasts = false;
+
+        HashMap<String, DataType> fileTypes = new HashMap<>();
+        if (perFileReadSchema != null) {
+            for (Attribute attr : perFileReadSchema) {
+                fileTypes.put(attr.name(), attr.dataType());
+            }
+        }
+
+        for (int i = 0; i < width; i++) {
+            Attribute queryAttr = queryDataSchema.get(i);
+            String name = queryAttr.name();
+            int local = perFileCols == null ? -1 : perFileCols.indexOf(name);
+            index[i] = local;
+            if (local == -1) {
+                continue;
+            }
+            DataType fileType = fileTypes.get(name);
+            DataType queryType = queryAttr.dataType();
+            if (fileType != null && fileType != queryType) {
+                casts[i] = queryType;
+                anyCasts = true;
+            }
+        }
+        return new ColumnMapping(index, anyCasts ? casts : null);
+    }
+
+    /**
      * Produces the output page from a file's page: null-fill for missing columns, cast for
      * widened types, ref-counted pass-through otherwise. On mid-page failure, closes any blocks
      * already built before rethrowing.

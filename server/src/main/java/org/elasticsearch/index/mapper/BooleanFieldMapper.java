@@ -790,16 +790,16 @@ public class BooleanFieldMapper extends FieldMapper {
                 )
             );
         }
-        EscfColumnData longData = booleansToLongs(source);
+        EscfColumnData outData = booleansToLongs(source);
         if (fieldType().indexType().hasDocValuesSkipper()) {
             ctx.addColumn(
-                LuceneLongColumn.of(longData, fieldType().name(), SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE, LongColumn.NumericKind.INT)
+                LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE, LongColumn.NumericKind.INT)
             );
         } else if (indexed) {
-            ctx.addColumn(LuceneBinaryColumn.of(booleansToTerms(longData), fieldType().name(), StringField.TYPE_NOT_STORED));
-            ctx.addColumn(LuceneLongColumn.of(longData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, LongColumn.NumericKind.INT));
+            ctx.addColumn(LuceneBinaryColumn.of(booleansToTerms(outData), fieldType().name(), StringField.TYPE_NOT_STORED));
+            ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, LongColumn.NumericKind.INT));
         } else {
-            ctx.addColumn(LuceneLongColumn.of(longData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, LongColumn.NumericKind.INT));
+            ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, LongColumn.NumericKind.INT));
         }
     }
 

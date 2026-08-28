@@ -14,9 +14,12 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -24,15 +27,18 @@ import java.util.Set;
 
 public class AuditUtil {
 
+    private static final Logger logger = LogManager.getLogger(AuditUtil.class);
+
     // We need to expose this to allow-list as a header passed for cross cluster requests; see `CrossClusterAccessServerTransportFilter`
     public static final String AUDIT_REQUEST_ID = "_xpack_audit_request_id";
 
     /**
      * Renders the body of {@code request} as a JSON string for inclusion in audit log events.
      * <p>
-     * If {@code maxBytes > 0} and the rendered JSON length exceeds that limit, an
-     * {@link ElasticsearchStatusException} with status 413 is thrown so the caller can reject
-     * the request before it is written to the audit log.
+     * If the request has no XContent type (e.g. a protobuf endpoint), a short diagnostic string is
+     * returned rather than throwing. If {@code maxBytes > 0} and the rendered JSON length exceeds
+     * that limit, an {@link ElasticsearchStatusException} with status 413 is thrown so the caller
+     * can reject the request before it is written to the audit log.
      *
      * @param maxBytes   maximum allowed length of the rendered JSON string, in characters; {@code 0} = unlimited
      * @param settingKey the cluster setting key to include in the error message; may be {@code null}
@@ -42,7 +48,11 @@ public class AuditUtil {
         if (request.hasContent()) {
             var content = request.content();
             try {
-                String json = XContentHelper.convertToJson(content, false, false, request.getXContentType());
+                final XContentType xContentType = request.getXContentType();
+                if (xContentType == null) {
+                    return "Unrecognized content type [" + request.getParsedContentType().mediaTypeWithoutParameters() + "]";
+                }
+                String json = XContentHelper.convertToJson(content, false, false, xContentType);
                 if (maxBytes > 0 && json.length() > maxBytes) {
                     throw new ElasticsearchStatusException(
                         "Request body size [{}] exceeds the audit body size limit [{}]; "
@@ -57,6 +67,7 @@ public class AuditUtil {
             } catch (ElasticsearchStatusException e) {
                 throw e;
             } catch (Exception e) {
+                logger.warn(() -> Strings.format("failed to read body of REST request [%s] for auditing", request.uri()), e);
                 return "Invalid Format: " + content.utf8ToString();
             }
         }

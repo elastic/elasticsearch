@@ -72,6 +72,9 @@ tests:
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old outlier_detection job}
   issue: https://github.com/elastic/elasticsearch/issues/157942
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Explain data frame analytics}
+  issue: https://github.com/elastic/elasticsearch/issues/157943
 
 # Examples:
 #

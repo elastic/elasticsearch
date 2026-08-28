@@ -351,8 +351,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 // null means unmapped on this shard: loads as nulls, which is always accepted
                 if (mft != null) {
                     DataType shardType = EsqlDataTypeRegistry.INSTANCE.fromEs(mft.familyTypeName(), mft.getMetricType());
-                    // widenSmallNumeric: byte/short/integer (and half_float/float/double) share block types, so they never mismatch
-                    if (shardType.widenSmallNumeric() != fa.dataType().widenSmallNumeric()) {
+                    // Compare block element types (what sanityCheckBlock checks), not DataType identity:
+                    // metadata fields, counters, and flattened all share BYTES_REF/LONG with the type ES|QL planned.
+                    // widenSmallNumeric first: toElementType throws on byte/short/float.
+                    ElementType shardElementType = PlannerUtils.toElementType(shardType.widenSmallNumeric());
+                    ElementType plannedElementType = PlannerUtils.toElementType(fa.dataType().widenSmallNumeric());
+                    if (shardElementType != plannedElementType) {
                         // Report mft.typeName(): exact, and meaningful even for types ES|QL cannot model (where shardType
                         // would just say "unsupported")
                         throw new ElasticsearchStatusException(

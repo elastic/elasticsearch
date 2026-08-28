@@ -115,6 +115,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
@@ -133,6 +134,7 @@ import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrima
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationPrewarmAction.PREWARM_RELOCATION_ACTION_NAME;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -264,6 +266,50 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         } finally {
             masterNodeClusterService.removeListener(verifyGreenListener);
         }
+    }
+
+    public void testPrewarmAndHandoffTaskAreChildrenOfStartRelocationTask() throws Exception {
+        startMasterOnlyNode();
+        final var sourceNode = startIndexNode();
+        final var indexName = randomIdentifier();
+        createIndex(indexName, 1, 0);
+        ensureGreen(indexName);
+        indexDocs(indexName, randomIntBetween(1, 50));
+        if (randomBoolean()) {
+            flush(indexName);
+        }
+
+        final var targetNode = startIndexNode();
+        final var parentTaskId = new AtomicReference<Long>();
+        final var prewarm = new CountDownLatch(1);
+        final var handoff = new CountDownLatch(1);
+        final var targetTransportService = MockTransportService.getInstance(targetNode);
+        final var sourceTransportService = MockTransportService.getInstance(sourceNode);
+        sourceTransportService.addRequestHandlingBehavior(START_RELOCATION_ACTION_NAME, (handler, request, channel, task) -> {
+            parentTaskId.set(task.getId());
+            handler.messageReceived(request, channel, task);
+        });
+        targetTransportService.addRequestHandlingBehavior(PREWARM_RELOCATION_ACTION_NAME, (handler, request, channel, task) -> {
+            assertThat(task.getParentTaskId().getId(), equalTo(parentTaskId.get()));
+            prewarm.countDown();
+            handler.messageReceived(request, channel, task);
+        });
+        targetTransportService.addRequestHandlingBehavior(PRIMARY_CONTEXT_HANDOFF_ACTION_NAME, (handler, request, channel, task) -> {
+            assertThat(task.getParentTaskId().getId(), equalTo(parentTaskId.get()));
+            handoff.countDown();
+            handler.messageReceived(request, channel, task);
+        });
+
+        try {
+            updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", sourceNode), indexName);
+            safeAwait(prewarm);
+            safeAwait(handoff);
+        } finally {
+            targetTransportService.clearAllRules();
+        }
+
+        ensureGreen(indexName);
+        assertEquals(Set.of(targetNode), internalCluster().nodesInclude(indexName));
     }
 
     public void testFailedRelocatingIndexShardHasNoCurrentRecoveries() {

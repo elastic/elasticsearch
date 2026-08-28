@@ -143,12 +143,10 @@ public class NdJsonStatsCaptureTests extends ESTestCase {
     }
 
     /**
-     * SKIP_ROW plus a scalar/object shape conflict on a decoded field: the record drops through shapeConflict,
-     * the OTHER sink that discards a record under skip_row. Only a projected (decoded) field can conflict, so
-     * this drop is projection-dependent too and must suppress. Inference resolves [a] as a scalar from the first
-     * record -- first writer wins, so this is immune to the sample-window size and fires deterministically.
+     * A scalar then an object at the same name is not a value error. skip_row keeps every record and
+     * the stats publish commits: nothing projection-dependent was dropped.
      */
-    public void testSkipRowShapeConflictDropSuppressesPublish() throws Exception {
+    public void testSkipRowScalarThenObjectDoesNotSuppressPublish() throws Exception {
         ErrorPolicy skipRowQuiet = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 10, 1.0, false);
         StorageObject o = obj("{\"a\":1}\n{\"a\":{\"b\":2}}\n{\"a\":3}\n");
         long[] rows = new long[1];
@@ -157,8 +155,8 @@ public class NdJsonStatsCaptureTests extends ESTestCase {
             FormatReadContext.builder().batchSize(10).errorPolicy(skipRowQuiet).build(),
             rows
         );
-        assertEquals("the shape-conflicted record must actually drop", 2L, rows[0]);
-        assertNull("a shape-conflict drop is projection-dependent and must suppress the publish", published);
+        assertEquals("a scalar/object mix is not a skip_row drop", 3L, rows[0]);
+        assertNotNull("no projection-dependent drop, so the publish commits", published);
     }
 
     /**

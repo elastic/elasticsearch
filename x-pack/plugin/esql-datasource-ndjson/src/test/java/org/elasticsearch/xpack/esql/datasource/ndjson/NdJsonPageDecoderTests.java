@@ -1726,7 +1726,6 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     public void testEveryStrictReadFailureIsAClientError() {
         String oversized = "{\"v\":" + "1".repeat(1200) + "}\n";
         String badValue = "{\"v\":\"notanumber\"}\n";
-        String shapeConflict = "{\"v\":1}\n{\"v\":{\"nested\":2}}\n";
 
         assertEquals(
             "whole-line parse failure",

@@ -210,8 +210,8 @@ public class NdJsonPageDecoder implements Closeable {
 
     /**
      * Set when a lenient-mode drop was decided by the PROJECTION rather than by the line itself: a projected
-     * column's value failing coercion or shape under SKIP_ROW ({@link BlockDecoder#coercionFailure} /
-     * {@link BlockDecoder#shapeConflict} -- unprojected fields are skipped undecoded and cannot fail), or a
+     * column's value failing coercion under SKIP_ROW ({@link BlockDecoder#coercionFailure}; unprojected
+     * fields are skipped undecoded and cannot fail), or a
      * lazily-validated {@code StreamReadConstraints} violation (string length trips only when a projected
      * column's decode arm reads the value). Which columns are projected is per-query and NOT in the cache
      * identity (path + mtime + config fingerprint + read configuration): a COUNT(*) over the same file decodes
@@ -1253,11 +1253,11 @@ public class NdJsonPageDecoder implements Closeable {
                     blockTracker.set(rowPositionSlot);
                 }
                 if (rowDroppedBySkipRow) {
-                    // The drop was decided by the projection (a projected column's coercion or shape failure) --
-                    // the class of drop the publish gate refuses to commit. Set here, at the single point every
-                    // skip_row record discard funnels through, so BOTH sinks (coercionFailure and shapeConflict)
-                    // are covered; a record that ALSO hits a later whole-line parse error exits through the
-                    // parse-error path instead, which is correct -- that line drops under every projection.
+                    // The drop was decided by the projection (a projected column's coercion failure), the class
+                    // of drop the publish gate refuses to commit. Set here, at the single point every skip_row
+                    // record discard funnels through. A record that also hits a later whole-line parse error
+                    // exits through the parse-error path instead, which is correct: that line drops under every
+                    // projection.
                     projectionDependentDrop = true;
                     // error_mode: skip_row. An uncoercible value makes the whole record bad, so it never reaches
                     // the page — matching CsvFormatReader, and matching ErrorPolicy.Mode.SKIP_ROW's contract

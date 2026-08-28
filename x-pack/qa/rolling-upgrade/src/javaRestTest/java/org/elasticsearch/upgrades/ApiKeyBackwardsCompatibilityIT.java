@@ -57,7 +57,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractXpackRollingUpgradeW
 
     private static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
 
-    protected ApiKeyBackwardsCompatibilityIT(@Name("upgradedNodes") int upgradedNodes) {
+    public ApiKeyBackwardsCompatibilityIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
     }
 

@@ -330,7 +330,7 @@ final class PageColumnReader implements Releasable {
             // never saw the reference.
             return filterBlock(full, survivorPositions, survivorCount, blockFactory);
         } catch (RuntimeException e) {
-            Releasables.closeExpectNoException(full);
+            ParquetReadFailures.closePreservingCause(e, full);
             throw e;
         }
     }
@@ -430,7 +430,7 @@ final class PageColumnReader implements Releasable {
             return BlockChunks.concat(chunks, blockFactory);
         } catch (RuntimeException e) {
             for (Block chunk : chunks) {
-                Releasables.closeExpectNoException(chunk);
+                ParquetReadFailures.closePreservingCause(e, chunk);
             }
             throw e;
         }
@@ -1301,7 +1301,7 @@ final class PageColumnReader implements Releasable {
             }
             return blockFactory.newConstantBytesRefBlockWith(constant == null ? new BytesRef() : constant, produced);
         } finally {
-            Releasables.closeExpectNoException(builder);
+            Releasables.closeWhileHandlingException(builder);
         }
     }
 
@@ -1346,7 +1346,7 @@ final class PageColumnReader implements Releasable {
                 return empty.build();
             }
         } finally {
-            Releasables.closeExpectNoException(builder);
+            Releasables.closeWhileHandlingException(builder);
         }
     }
 
@@ -1483,17 +1483,13 @@ final class PageColumnReader implements Releasable {
         }
         IntBlock ordinalsBlock = null;
         BytesRefVector dictVector = null;
-        boolean success = false;
         try {
             ordinalsBlock = buildOrdinalsBlock(ordinals, nulls, produced, blockFactory);
             dictVector = buildDictionaryVector(dict, blockFactory);
-            OrdinalBytesRefBlock result = new OrdinalBytesRefBlock(ordinalsBlock, dictVector);
-            success = true;
-            return result;
-        } finally {
-            if (success == false) {
-                Releasables.closeExpectNoException(ordinalsBlock, dictVector);
-            }
+            return new OrdinalBytesRefBlock(ordinalsBlock, dictVector);
+        } catch (RuntimeException e) {
+            ParquetReadFailures.closePreservingCause(e, ordinalsBlock, dictVector);
+            throw e;
         }
     }
 
@@ -1655,7 +1651,7 @@ final class PageColumnReader implements Releasable {
                 return empty.build();
             }
         } finally {
-            Releasables.closeExpectNoException(builder);
+            Releasables.closeWhileHandlingException(builder);
         }
     }
 

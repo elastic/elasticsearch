@@ -314,12 +314,12 @@ final class ParquetColumnExtractor implements ColumnExtractor {
             for (Block[] perBucket : perBucketBlocks) {
                 for (Block b : perBucket) {
                     if (b != null) {
-                        Releasables.closeExpectNoException(b);
+                        Releasables.closeWhileHandlingException(b);
                     }
                 }
             }
             if (built == false) {
-                Releasables.closeExpectNoException(result);
+                Releasables.closeWhileHandlingException(result);
             }
         }
     }
@@ -529,7 +529,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
             return concatenated.filter(true, gather);
         } finally {
             if (concatenated != null) {
-                Releasables.closeExpectNoException(concatenated);
+                Releasables.closeWhileHandlingException(concatenated);
             }
             // Per-bucket blocks live until stitch completes; release any still-present slot here so
             // the caller doesn't have to track them. Null the slots out so the caller's defensive
@@ -537,7 +537,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
             for (int i = 0; i < perBucketBlocks.length; i++) {
                 Block b = perBucketBlocks[i];
                 if (b != null) {
-                    Releasables.closeExpectNoException(b);
+                    Releasables.closeWhileHandlingException(b);
                     perBucketBlocks[i] = null;
                 }
             }
@@ -823,7 +823,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
             return joined;
         } catch (RuntimeException e) {
             for (Block c : chunks) {
-                Releasables.closeExpectNoException(c);
+                ParquetReadFailures.closePreservingCause(e, c);
             }
             throw e;
         }

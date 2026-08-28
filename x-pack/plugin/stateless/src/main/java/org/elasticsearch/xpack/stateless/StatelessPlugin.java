@@ -354,10 +354,9 @@ public class StatelessPlugin extends Plugin
     public static final Set<ShardRouting.Role> STATELESS_SHARD_ROLES = Set.of(ShardRouting.Role.INDEX_ONLY, ShardRouting.Role.SEARCH_ONLY);
 
     public static ExecutorBuilder<?>[] statelessExecutorBuilders(Settings settings, boolean hasIndexRole) {
-        // TODO: Consider modifying these pool counts if we change the object store client connections based on node size.
-        // Right now we have 10 threads for snapshots, 1 or 8 threads for translog and 20 or 28 threads for shard thread pools. This is to
-        // attempt to keep the threads below the default client connections limit of 50. This assumption is currently broken by the snapshot
-        // metadata pool having 50 threads. But we will continue to iterate on this numbers and limits.
+        // Note: The following thread-pool sizes are set in relation to the number of connections of the **default** client.
+        // (see max connections in `AzureStorageSettings` and `S3ClientSettings` were it's currently set to 150; GCP has no max connections).
+        // Naturally the number of threads across blob-store-related pools should be <= client connections limit of the default client.
 
         final int processors = EsExecutors.allocatedProcessors(settings);
         final int shardReadMaxThreads;
@@ -378,11 +377,11 @@ public class StatelessPlugin extends Plugin
         final int blobCopyMaxThreads;
 
         if (hasIndexRole) {
-            shardReadMaxThreads = Math.min(processors * 4, 10);
+            shardReadMaxThreads = Math.min(processors * 4, 16);
             translogCoreThreads = 2;
             translogMaxThreads = Math.min(processors * 2, 8);
             shardWriteCoreThreads = 2;
-            shardWriteMaxThreads = Math.min(processors * 4, 10);
+            shardWriteMaxThreads = Math.min(processors * 4, 16);
             clusterStateReadWriteCoreThreads = 2;
             clusterStateReadWriteMaxThreads = 4;
             getVirtualBatchedCompoundCommitChunkCoreThreads = 1;
@@ -395,12 +394,12 @@ public class StatelessPlugin extends Plugin
             // we use the same amount of max threads as the shard write pool.
             // these threads use a sizeable thread-local direct buffer which might take a while to GC, so we prefer to keep some idle
             // threads around to reduce churn and re-use the existing buffers more
-            uploadPrewarmMaxThreads = Math.min(processors * 4, 10);
+            uploadPrewarmMaxThreads = Math.min(processors * 4, 16);
             uploadPrewarmCoreThreads = uploadPrewarmMaxThreads / 2;
             blobCopyCoreThreads = 0;
             blobCopyMaxThreads = 4;
         } else {
-            shardReadMaxThreads = Math.min(processors * 4, 28);
+            shardReadMaxThreads = Math.min(processors * 4, 56);
             translogCoreThreads = 0;
             translogMaxThreads = 1;
             shardWriteCoreThreads = 0;

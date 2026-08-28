@@ -82,12 +82,38 @@ public final class FixtureContractAudit {
                 )
             );
         }
+        // The same standard the contract holds itself to, applied to the exclusions: a defect that stops a
+        // case running must name a filed issue. Checked HERE rather than in the loader -- FixtureExclusions
+        // is a singleton every suite loads, so throwing there fails every test in every module at class
+        // init, which is an outage rather than enforcement.
+        List<FixtureExclusions.Exclusion> uncited = FixtureExclusions.get().uncitedBugs();
+        for (FixtureExclusions.Exclusion exclusion : uncited) {
+            out.add(
+                String.format(
+                    Locale.ROOT,
+                    "  %-20s %-22s %-8s %-14s %s",
+                    exclusion.suite(),
+                    exclusion.caseName(),
+                    "-",
+                    "UNCITED-BUG",
+                    "excluded as a defect with no filed issue"
+                )
+            );
+        }
         List<Cell> violations = cells.stream().filter(Cell::violation).toList();
         out.add("");
         out.add("cells=" + cells.size() + "  violations=" + violations.size());
         Files.createDirectories(report.getParent());
         Files.writeString(report, String.join("\n", out) + "\n", StandardCharsets.UTF_8);
 
+        if (uncited.isEmpty() == false) {
+            StringBuilder message = new StringBuilder(uncited.size() + " exclusion(s) claim a defect with no filed issue:\n");
+            for (FixtureExclusions.Exclusion exclusion : uncited) {
+                message.append("  ").append(exclusion.suite()).append('.').append(exclusion.caseName()).append('\n');
+            }
+            message.append("Cite elastic/<repo>#<n>, or re-classify as 'rule:' when no fix is owed.");
+            throw new IllegalStateException(message.toString());
+        }
         if (violations.isEmpty() == false) {
             StringBuilder message = new StringBuilder("dimension contract audit failed with " + violations.size() + " violation(s):\n");
             for (Cell violation : violations) {

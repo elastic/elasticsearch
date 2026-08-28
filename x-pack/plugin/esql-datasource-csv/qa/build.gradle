@@ -254,6 +254,16 @@ ext.fixtureLayoutSkip = ['multifile', 'multifile_ubn', 'multifile_type_drift', '
 ext.fixtureLayoutTasks = generateCsvHiveTasks
 apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-layouts.gradle')
 
+// Per-vector dialect trees. The slugs come from the contract inside the generator, so this wiring
+// says only WHICH format and WHERE -- adding a dialect value grows the tree with no change here.
+def vectorVariantTaskList = []
+ext.vectorVariantTasks = vectorVariantTaskList
+ext.vectorVariantFormat = 'csv'
+ext.vectorVariantRoot = file("${csvIcebergFixtureRoot}/iceberg-fixtures")
+ext.vectorVariantMainClass = 'org.elasticsearch.xpack.esql.datasources.CsvFixtureGenerator'
+ext.vectorVariantGenerator = 'csvFixtureGenerator'
+apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-variants.gradle')
+
 // This module hosts BOTH the Csv and Tsv suites, so it owns two columns of the matrix.
 ext.fixtureCoverageFormats = ['csv', 'tsv']
 ext.fixtureCoverageLayoutRoots = [

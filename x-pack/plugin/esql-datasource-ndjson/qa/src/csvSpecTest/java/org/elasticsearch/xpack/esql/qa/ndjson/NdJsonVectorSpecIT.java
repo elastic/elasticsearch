@@ -14,6 +14,7 @@ import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureDimensions;
+import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureMatrix;
 
 import java.util.List;
 import java.util.Map;
@@ -29,6 +30,7 @@ import java.util.Map;
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class NdJsonVectorSpecIT extends AbstractNdJsonExternalSpecTestCase {
 
+    private final Map<String, String> vector;
     private final Map<String, String> vectorSettings;
 
     public NdJsonVectorSpecIT(
@@ -42,7 +44,8 @@ public class NdJsonVectorSpecIT extends AbstractNdJsonExternalSpecTestCase {
         StorageBackend storageBackend
     ) {
         super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, vectorReaderName("ndjson", vectorName));
-        this.vectorSettings = FixtureDimensions.get().directiveSettings(FixtureDimensions.get().parseRendered(vectorName));
+        this.vector = FixtureDimensions.get().parseRendered(vectorName);
+        this.vectorSettings = FixtureDimensions.get().directiveSettings(this.vector);
     }
 
     /** This suite routes its own spec set, so its exclusions are declared under its own token. */
@@ -54,6 +57,16 @@ public class NdJsonVectorSpecIT extends AbstractNdJsonExternalSpecTestCase {
     @Override
     protected Map<String, String> vectorSettings() {
         return vectorSettings;
+    }
+
+    /**
+     * The vector itself, so an exclusion can name the configurations it applies to. Without this the
+     * skip path sees an empty vector and a `@dimension.value` exclusion never matches -- which would
+     * mean either excluding a case under every vector or not at all.
+     */
+    @Override
+    protected Map<String, String> vector() {
+        return vector;
     }
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")

@@ -238,6 +238,25 @@ public final class FixtureDimensions {
     }
 
     /**
+     * The reader settings a vector's fixture-bound slots must announce.
+     *
+     * <p>Bytes alone are not enough: a file written in a dialect the reader is not told about is parsed
+     * under the default and read wrong. The bytes and the announcement are one change, which is why a
+     * fixture-bound dimension carries a {@code read_key}.
+     */
+    public Map<String, String> readSettings(Map<String, String> vector, String format) {
+        Map<String, String> out = new LinkedHashMap<>();
+        for (Map.Entry<String, String> slot : vector.entrySet()) {
+            String key = readKey(slot.getKey());
+            if (key == null || slot.getValue().equals(defaultValue(slot.getKey(), format))) {
+                continue;
+            }
+            out.put(key, slot.getValue());
+        }
+        return out;
+    }
+
+    /**
      * The constant {@code WITH} settings a vector pins: every directive-bound slot sitting off its
      * declared default and expressible as a constant.
      *
@@ -823,6 +842,58 @@ public final class FixtureDimensions {
             out.put(dimension, value);
         }
         return out;
+    }
+
+    /**
+     * Dimensions whose value is written INTO the bytes, so a variant of them is a separate file tree.
+     *
+     * <p>{@code text_codec} is fixture-bound too but is not here: compressed variants are produced at
+     * fixture-load time from whatever tree already exists, so a codec needs no directory of its own.
+     */
+    private static final List<String> DIALECT_SLOTS = List.of("text_mode", "header_row", "mv_syntax");
+
+    /**
+     * The distinct dialect variants a format needs on disk, as slug to the slots it pins.
+     *
+     * <p>Derived from the CONTRACT ALONE, never from the capability table. A capability row lands only
+     * when a suite can select the cell, which is after the bytes exist -- so enumerating from rows would
+     * render an empty tree and then claim the tree was rendered.
+     *
+     * <p>Rule-typed cells are excluded: a value we have decided never to produce should not shape the
+     * directory layout.
+     */
+    public Map<String, Map<String, String>> dialectSlugs(String format) {
+        Map<String, Map<String, String>> slugs = new LinkedHashMap<>();
+        forEachVector(vector -> {
+            if (format.equals(vector.get("format")) == false) {
+                return;
+            }
+            Map<String, String> pinned = new LinkedHashMap<>();
+            for (String slot : DIALECT_SLOTS) {
+                String value = vector.get(slot);
+                if (value == null || value.equals(defaultValue(slot, format))) {
+                    continue;
+                }
+                String reason = absenceReason(slot, value, format);
+                if (reason != null && reason.startsWith("rule:")) {
+                    return;
+                }
+                pinned.put(slot, value);
+            }
+            if (pinned.isEmpty() == false) {
+                slugs.putIfAbsent(slugFor(pinned), pinned);
+            }
+        });
+        return slugs;
+    }
+
+    /** The directory name for a set of pinned dialect slots. Stable, and readable in a failure. */
+    public static String slugFor(Map<String, String> pinned) {
+        StringBuilder out = new StringBuilder();
+        for (Map.Entry<String, String> slot : pinned.entrySet()) {
+            out.append(out.isEmpty() ? "" : "_").append(slot.getKey()).append('-').append(slot.getValue());
+        }
+        return out.toString();
     }
 
     /**

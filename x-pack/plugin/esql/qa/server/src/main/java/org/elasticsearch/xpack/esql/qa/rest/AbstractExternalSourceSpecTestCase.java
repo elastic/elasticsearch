@@ -40,6 +40,7 @@ import java.net.URL;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -601,7 +602,15 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     protected void shouldSkipTest(String testName) throws IOException {
         // One skip path for every external-source suite, reading the single declaration. The message is the
         // declared reason, so a skip explains itself in the log rather than asserting a hard-coded cause.
-        FixtureExclusions.Exclusion exclusion = FixtureExclusions.get().find(exclusionSuiteToken(), specName, testName);
+        // Own token first, then the one it inherits from. A vector suite runs its sibling's corpus, so a
+        // case the sibling excludes is excluded here too -- but it also has entries of its own, naming the
+        // vectors a defect appears under. Consulting only one token loses whichever set is not it.
+        String ownToken = exclusionSuiteToken();
+        String inheritedToken = FixtureMatrix.get().exclusionSource(ownToken);
+        FixtureExclusions.Exclusion exclusion = FixtureExclusions.get().find(ownToken, specName, testName, vector());
+        if (exclusion == null && inheritedToken.equals(ownToken) == false) {
+            exclusion = FixtureExclusions.get().find(inheritedToken, specName, testName, vector());
+        }
         assumeTrue(exclusion == null ? "" : testName + ": " + exclusion.reason(), exclusion == null);
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
@@ -931,6 +940,37 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      */
     protected Map<String, String> vectorSettings() {
         return Map.of();
+    }
+
+    /**
+     * The vector this case runs under, or empty for a suite that does not use them.
+     *
+     * <p>One accessor rather than each suite computing its own settings and its own fixture base: those
+     * two must agree about which slots are off default, and two derivations of the same thing is how
+     * they stop agreeing.
+     */
+    protected Map<String, String> vector() {
+        return Map.of();
+    }
+
+    /**
+     * Where this case reads its files from: the per-vector tree when the vector pins a dialect, the
+     * shared tree otherwise.
+     *
+     * <p>A vector that pins no dialect slot must resolve to exactly the path it resolved to before, which
+     * is what lets a suite move onto vectors without changing what it reads.
+     */
+    protected String vectorFixturesBase(String defaultBase) {
+        Map<String, String> pinned = new LinkedHashMap<>();
+        FixtureDimensions dimensions = FixtureDimensions.get();
+        String baseFormat = FixtureMatrix.baseFormat(format);
+        for (String slot : List.of("text_mode", "header_row", "mv_syntax")) {
+            String value = vector().get(slot);
+            if (value != null && value.equals(dimensions.defaultValue(slot, baseFormat)) == false) {
+                pinned.put(slot, value);
+            }
+        }
+        return pinned.isEmpty() ? defaultBase : "vector/" + FixtureDimensions.slugFor(pinned) + "/standalone";
     }
 
     /**

@@ -60,7 +60,7 @@ public final class FixtureMatrix {
         Pattern.compile("layout\\.[a-z_]+\\.sources\\.[a-z0-9-]+\\.reason"),
         Pattern.compile("layout\\.[a-z_]+\\.split\\.parts"),
         Pattern.compile("layout\\.split\\.parts"),
-        Pattern.compile("suite\\.[a-z0-9-]+\\.(specs|format|outside_shared_specs|seams)"),
+        Pattern.compile("suite\\.[a-z0-9-]+\\.(specs|format|outside_shared_specs|seams|inherits)"),
         Pattern.compile("suite\\.[a-z0-9-]+\\.specs\\.exclude"),
         Pattern.compile("suite\\.[a-z0-9-]+\\.specs\\.exclude\\.reason"),
         Pattern.compile("codec\\.(text|parquet)"),
@@ -352,11 +352,11 @@ public final class FixtureMatrix {
     }
 
     public Set<String> excludedSpecs(String suiteToken) {
-        String value = declaration.getProperty("suite." + suiteToken + ".specs.exclude");
+        String value = declaration.getProperty("suite." + exclusionSource(suiteToken) + ".specs.exclude");
         if (value == null || value.isBlank()) {
             return Set.of();
         }
-        if (declaration.getProperty("suite." + suiteToken + ".specs.exclude.reason") == null) {
+        if (declaration.getProperty("suite." + exclusionSource(suiteToken) + ".specs.exclude.reason") == null) {
             throw new IllegalStateException(
                 "suite ["
                     + suiteToken
@@ -376,6 +376,17 @@ public final class FixtureMatrix {
      * directory that no suite loaded still counted as a consumer -- which reported the csv column covered
      * for hive_shadow while zero shadow cases ran on any CSV suite.
      */
+    /**
+     * The suite whose exclusions this one also applies, or the token itself when it inherits none.
+     *
+     * <p>A vector suite runs its sibling's corpus, so a case excluded because the product cannot yet do
+     * the thing fails for that reason under every vector too. Copying the entries would mean deleting
+     * each one twice when it is fixed, and the second copy is the one that gets forgotten.
+     */
+    public String exclusionSource(String suiteToken) {
+        return declaration.getProperty("suite." + suiteToken + ".inherits", suiteToken);
+    }
+
     /**
      * The dialects that cannot carry a dataset at all, from {@code dataset.<n>.unrepresentable_dialects}.
      *

@@ -10,11 +10,14 @@ package org.elasticsearch.xpack.esql.datasources.fixtures;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -32,6 +35,12 @@ import java.util.stream.Collectors;
 public final class FixtureExclusions {
 
     private static final String RESOURCE = "fixture-exclusions.properties";
+    /**
+     * What a filed issue looks like in a reason. Deliberately narrow: a bare "#123" could be anything,
+     * and the point is that someone can open it.
+     */
+    private static final Pattern ISSUE_REFERENCE = Pattern.compile("elastic/[a-z0-9-]+#\\d+");
+
     private static final FixtureExclusions INSTANCE = load();
 
     /** Kind of exclusion: a defect to fix, or something the suite cannot express at all. */
@@ -50,7 +59,19 @@ public final class FixtureExclusions {
     }
 
     /** One exclusion: which suite, which case, what kind, and the reason in full. */
-    public record Exclusion(String suite, String spec, String caseName, Kind kind, String reason) {}
+    /**
+     * @param vectorSlot the {@code dimension.value} this applies to, or null for every vector.
+     */
+    public record Exclusion(String suite, String spec, String caseName, String vectorSlot, Kind kind, String reason) {
+        /** Whether this exclusion covers a case running under the given vector. */
+        public boolean appliesTo(Map<String, String> vector) {
+            if (vectorSlot == null) {
+                return true;
+            }
+            int dot = vectorSlot.indexOf('.');
+            return vectorSlot.substring(dot + 1).equals(vector.get(vectorSlot.substring(0, dot)));
+        }
+    }
 
     /**
      * Suite token -> (spec, case) -> exclusion. The spec is part of the KEY, not merely a field on the
@@ -61,7 +82,7 @@ public final class FixtureExclusions {
     private final Map<String, Map<SpecCase, Exclusion>> bySuite;
 
     /** The identity of an excluded case: its spec and its name. */
-    private record SpecCase(String spec, String caseName) {}
+    private record SpecCase(String spec, String caseName, String vectorSlot) {}
 
     private final Set<String> declaredSuites;
 
@@ -192,8 +213,22 @@ public final class FixtureExclusions {
             // last value silently, so two entries for one case resolve to whichever happens to be lower
             // in the file. This file carried four such duplicates, one of them with two DIFFERENT
             // reasons. The composite key means a duplicate now collides here, where it can be reported.
+            // `case@dimension=value` narrows an exclusion to the vectors that carry that slot. Without it a
+            // per-vector defect costs the whole case: hivePartitionWhereIsNull fails under six vectors and
+            // PASSES under twenty-one, and a case-wide exclusion would silently discard all twenty-one.
+            int at = caseOnly.indexOf('@');
+            String bare = at < 0 ? caseOnly : caseOnly.substring(0, at);
+            String slot = at < 0 ? null : caseOnly.substring(at + 1);
+            // `@dimension.value`, not `@dimension=value`: Properties splits a key on the first unescaped
+            // '=', so an equals here is read as the key/value separator and the qualifier silently becomes
+            // part of the reason. A dot cannot collide -- dimension names and values are snake_case.
+            if (slot != null && slot.indexOf('.') < 0) {
+                throw new IllegalStateException(
+                    "exclusion [" + key + "] has a vector qualifier [" + slot + "] that is not <dimension>.<value>"
+                );
+            }
             Exclusion previous = parsed.computeIfAbsent(suite, k -> new LinkedHashMap<>())
-                .put(new SpecCase(spec, caseOnly), new Exclusion(suite, spec, caseOnly, kind, reason));
+                .put(new SpecCase(spec, bare, slot), new Exclusion(suite, spec, bare, slot, kind, reason));
             if (previous != null) {
                 throw new IllegalStateException(
                     "duplicate exclusion ["
@@ -218,6 +253,30 @@ public final class FixtureExclusions {
         return bySuite.getOrDefault(suite, Map.of()).values();
     }
 
+    /**
+     * Bug-classified exclusions citing no filed issue.
+     *
+     * <p>Reported rather than thrown. This class is a singleton every suite loads, so a policy failure
+     * here fails every test in every module at class initialisation -- which is not enforcement, it is an
+     * outage. The check belongs in a gate task that can go red on its own, exactly as the dimension
+     * contract's does; the loader's job is to parse.
+     *
+     * <p>Why the policy exists: without a ticket, {@code bug:} is a promise nobody is holding. The case
+     * stops running, the reason ages in a properties file, and nothing tracks the fix. A {@code rule:}
+     * needs no ticket -- it records a decision, not an outage.
+     */
+    public List<Exclusion> uncitedBugs() {
+        List<Exclusion> uncited = new ArrayList<>();
+        for (Map<SpecCase, Exclusion> bySpec : bySuite.values()) {
+            for (Exclusion exclusion : bySpec.values()) {
+                if (exclusion.kind() == Kind.BUG && ISSUE_REFERENCE.matcher(exclusion.reason()).find() == false) {
+                    uncited.add(exclusion);
+                }
+            }
+        }
+        return uncited;
+    }
+
     /** The exclusion for a case on a suite, or {@code null} if the suite runs it. */
     public Exclusion find(String suite, String caseName) {
         return bySuite.getOrDefault(suite, Map.of())
@@ -239,7 +298,26 @@ public final class FixtureExclusions {
      * across the whole spec corpus dozens of names repeat.
      */
     public Exclusion find(String suite, String spec, String caseName) {
-        return bySuite.getOrDefault(suite, Map.of()).get(new SpecCase(spec, caseName));
+        return find(suite, spec, caseName, Map.of());
+    }
+
+    /**
+     * The exclusion covering a case under one vector, or {@code null} if it runs.
+     *
+     * <p>An unqualified entry covers every vector; a {@code @dimension=value} entry covers only the
+     * vectors carrying that slot. Without the distinction a defect that appears under one configuration
+     * would disable the case under all of them, which is coverage lost to bookkeeping.
+     */
+    public Exclusion find(String suite, String spec, String caseName, Map<String, String> vector) {
+        for (Map.Entry<SpecCase, Exclusion> entry : bySuite.getOrDefault(suite, Map.of()).entrySet()) {
+            if (entry.getKey().spec().equals(spec) == false || entry.getKey().caseName().equals(caseName) == false) {
+                continue;
+            }
+            if (entry.getValue().appliesTo(vector)) {
+                return entry.getValue();
+            }
+        }
+        return null;
     }
 
     /**

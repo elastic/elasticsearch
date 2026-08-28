@@ -86,8 +86,11 @@ public class FixtureExclusionsTests extends ESTestCase {
         FixtureExclusions.Exclusion onRs = exclusions.find("parquet-rs", "typeDriftFilterIsStringComparison");
         assertThat(onParquet, not(nullValue()));
         assertThat(onRs, not(nullValue()));
+        // Different KINDS as well as different reasons, which is the sharper form of the same point: on
+        // Java Parquet it is a defect owed a fix (elastic/esql-planning#1772), while parquet-rs is out of
+        // scope by decision, so nothing is owed there and its exclusion is a rule.
         assertThat(onParquet.kind(), equalTo(FixtureExclusions.Kind.BUG));
-        assertThat(onRs.kind(), equalTo(FixtureExclusions.Kind.BUG));
+        assertThat(onRs.kind(), equalTo(FixtureExclusions.Kind.RULE));
     }
 
 }

@@ -7,14 +7,20 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.parquet.column.Encoding;
+import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
+import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
@@ -41,10 +47,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 /**
  * Tests that the prefetch pipeline reduces the number of synchronous I/O calls by serving
@@ -202,6 +211,110 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
             }
             assertEquals("Depth should not drop below the byte-based floor", floor, opi.prefetchDepth());
         }
+    }
+
+    /**
+     * Pins the request shape used to validate the retained depth-three floor. A deterministic
+     * scheduling model with 20 row groups, ten 50 ms requests per group, 10 ms decode, and a
+     * 16-request provider limit reduced modeled elapsed time from 1010 ms at depth 1 to 660 ms at
+     * depth 3 (at 50 slots: 1010 ms to 370 ms). Those measurements are evidence, not wall-clock
+     * assertions; this test fixes only the deterministic fan-out policy.
+     */
+    public void testCappedRequestWaveFanOutPolicy() {
+        BlockMetaData block = createCappedRequestWaveBlock();
+        Set<String> projectedColumns = block.getColumns()
+            .stream()
+            .map(column -> column.getPath().toDotString())
+            .collect(Collectors.toSet());
+        List<CoalescedRangeReader.MergedRange> requests = CoalescedRangeReader.mergeRanges(
+            ColumnChunkPrefetcher.computeColumnChunkRanges(block, projectedColumns),
+            CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP
+        );
+
+        assertEquals("30 contiguous 5 MiB chunks must form ten capped requests", 10, requests.size());
+        int initialDepth = OptimizedParquetColumnIterator.computePrefetchDepth(List.of(block), projectedColumns);
+        assertEquals("the >32 MB projected footprint retains the measured depth-three floor", 3, initialDepth);
+        assertEquals("initial queue-wide request fan-out", 30, initialDepth * requests.size());
+        assertEquals(
+            "adaptive maximum queue-wide request fan-out",
+            80,
+            OptimizedParquetColumnIterator.MAX_PREFETCH_DEPTH * requests.size()
+        );
+    }
+
+    public void testPrefetchFailureEntersAndSuccessfulProbeExitsProbeMode() throws Exception {
+        byte[] parquetData = createLargeUncompressedProjectedRowGroupFile();
+        CountingStorageObject storage = new CountingStorageObject(parquetData, asyncIoExecutor);
+
+        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(storage, FormatReadContext.of(null, 1024))) {
+            OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) iter;
+            int floor = opi.prefetchDepth();
+            assertTrue("fixture must produce a nontrivial byte-based prefetch floor", floor > 1);
+            opi.adaptPrefetchDepth(false);
+            assertTrue(opi.prefetchDepth() > 1);
+
+            opi.prefetchFailed();
+            assertTrue(opi.probingPrefetch());
+            assertEquals(1, opi.prefetchDepth());
+
+            opi.prefetchSucceeded(true);
+            assertFalse(opi.probingPrefetch());
+            assertEquals(floor, opi.prefetchDepth());
+        }
+    }
+
+    private byte[] createLargeUncompressedProjectedRowGroupFile() throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .named("payload")
+            .named("large_projected_row_group");
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(outputStream))
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withDictionaryEncoding(false)
+                .withRowGroupSize(1)
+                .withRowGroupRowCountLimit(1)
+                .withPageSize(10 * 1024 * 1024)
+                .build()
+        ) {
+            // This test only inspects depth transitions and never iterates, so one >8 MB row
+            // group is enough to cross SHALLOW_PREFETCH_BYTES without writing a second fixture.
+            byte[] value = new byte[9 * 1024 * 1024];
+            writer.write(groupFactory.newGroup().append("payload", Binary.fromConstantByteArray(value)));
+        }
+        return outputStream.toByteArray();
+    }
+
+    @SuppressWarnings("deprecation")
+    private static BlockMetaData createCappedRequestWaveBlock() {
+        BlockMetaData block = new BlockMetaData();
+        block.setRowCount(100);
+        long chunkBytes = 5L * 1024 * 1024;
+        long position = 1;
+        for (int i = 0; i < 30; i++) {
+            String name = "col_" + i;
+            block.addColumn(
+                ColumnChunkMetaData.get(
+                    ColumnPath.get(name),
+                    PrimitiveType.PrimitiveTypeName.INT64,
+                    CompressionCodecName.UNCOMPRESSED,
+                    Set.of(Encoding.PLAIN),
+                    Statistics.createStats(Types.required(PrimitiveType.PrimitiveTypeName.INT64).named(name)),
+                    position,
+                    0,
+                    100,
+                    chunkBytes,
+                    chunkBytes
+                )
+            );
+            position += chunkBytes;
+        }
+        return block;
     }
 
     private void readAll(ParquetFormatReader reader, StorageObject storageObject) throws IOException {

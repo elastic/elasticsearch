@@ -1425,19 +1425,18 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * The optimized iterator is page-at-a-time and does not bulk-allocate row groups. The only
-     * tracked allocation that can trip the breaker mid-iteration is the per-row-group prefetch,
-     * whose bytes are accounted via the Arrow allocator on the REQUEST breaker. If the breaker
-     * trips during a prefetch, the future fails and {@code takePendingPrefetch} falls back to
-     * sync I/O for that row group (see {@code OptimizedParquetColumnIterator}).
+     * The optimized iterator accounts both asynchronous prefetch and its synchronous fallback
+     * through breaker-backed storage-read buffers. If an asynchronous prefetch trips, the iterator
+     * drains speculative reservations and retries the current row group synchronously; that retry
+     * can itself be refused if the row group's chunks do not fit.
      *
      * <p>This test verifies two related properties:
      * <ul>
      *   <li>A breaker too tight to accommodate the file footer trips on file-open and releases
      *       all reserved bytes.</li>
-     *   <li>A breaker tight enough that the per-row-group prefetch cannot fit, but large enough
-     *       for the footer and the sliding window, still produces correct results via the sync
-     *       fallback and releases all bytes on close.</li>
+     *   <li>This fixture's small row groups fit within modest headroom beyond the footer and
+     *       sliding window, whether read by prefetch or the accounted synchronous fallback, and
+     *       all bytes are released on close.</li>
      * </ul>
      */
     public void testCircuitBreakerTripsOnLargerRowGroup() throws Exception {
@@ -1486,11 +1485,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
 
         // 2. Breaker fits the footer and the sliding window but leaves only modest headroom.
-        // Per-row-group prefetches that exceed the headroom trip the Arrow allocator, fail their
-        // future, and trigger the sync-I/O fallback in {@code takePendingPrefetch}. The iteration
-        // still produces all rows and releases every byte on close. Exact prefetch-vs-fallback
-        // mix depends on row-group size and codec, which is fine — the regression we care about
-        // here is "no leaks and no errors under a tight allocator budget".
+        // These small row groups fit whether they arrive through prefetch or the breaker-accounted
+        // synchronous fallback. The iteration must produce every row and release every byte.
         {
             var smallBreaker = new LimitedBreaker(
                 "test",

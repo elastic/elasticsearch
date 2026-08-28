@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 154806
+summary: Upgrade Netty to 4.1.137.Final
+type: upgrade

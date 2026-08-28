@@ -15,7 +15,6 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleUserEventChannelHandler;
 import io.netty.handler.ssl.SslClientHelloHandler;
 import io.netty.handler.ssl.SslHandshakeCompletionEvent;
-import io.netty.util.ReferenceCounted;
 import io.netty.util.concurrent.Future;
 
 import org.apache.logging.log4j.LogManager;
@@ -257,27 +256,6 @@ class TlsHandshakeThrottleManager extends AbstractLifecycleComponent {
             }
 
             @Override
-            public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-                if (msg instanceof ReferenceCounted referenceCounted) {
-                    referenceCounted.retain();
-                }
-                handshakeStartedPromise.addListener(new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void unused) {
-                        ctx.fireChannelRead(msg);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        if (msg instanceof ReferenceCounted referenceCounted) {
-                            referenceCounted.release();
-                        }
-                    }
-                });
-                super.channelRead(ctx, msg);
-            }
-
-            @Override
             public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
                 handshakeStartedPromise.addListener(new ActionListener<>() {
                     @Override
@@ -384,7 +362,31 @@ class TlsHandshakeThrottleManager extends AbstractLifecycleComponent {
             }
 
             @Override
-            protected void onLookupComplete(ChannelHandlerContext ctx, Future<Void> future) {}
+            protected void onLookupComplete(ChannelHandlerContext ctx, Future<Void> future) {
+                if (future.isSuccess() == false) {
+                    return;
+                }
+                final ByteBuf cumul = internalBuffer();
+                if (cumul.isReadable()) {
+                    final ByteBuf snapshot = cumul.copy();
+                    handshakeStartedPromise.addListener(new ActionListener<>() {
+                        @Override
+                        public void onResponse(Void unused) {
+                            ctx.fireChannelRead(snapshot);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            snapshot.release();
+                        }
+                    });
+                    // Drain the cumulation so ByteToMessageDecoder.handlerRemoved() sees readableBytes=0
+                    // and releases it without firing channelRead/channelReadComplete downstream.
+                    cumul.skipBytes(cumul.readableBytes());
+                } else {
+                    assert false : "cumulation must be readable: onLookupComplete is called synchronously from decode()";
+                }
+            }
         }
 
         /**

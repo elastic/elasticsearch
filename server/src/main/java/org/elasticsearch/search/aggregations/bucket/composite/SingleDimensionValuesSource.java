@@ -144,8 +144,8 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
      * Returns true if a {@link SortedDocsProducer} should be used to optimize the execution.
      */
     // TODO: Implementing mayDynamicallyPrune(IndexReader)/getUniqueValueCount() on other subclasses than just GlobalOrdinalValuesSource
-    //  would let CompositeAggregator#getLeafCollector return inner.competitiveIterator() for numeric and date sources too.
-    //  This matters for logsdb and tsdb, where @timestamp is always skipper backed.
+    // would let CompositeAggregator#getLeafCollector return inner.competitiveIterator() for numeric and date sources too.
+    // This matters for logsdb and tsdb, where @timestamp is always skipper backed.
     protected boolean checkIfSortedDocsIsApplicable(IndexReader reader, MappedFieldType fieldType) {
         if (fieldType == null || (missingBucket && afterValue == null) || fieldType.indexType().hasDenseIndex() == false ||
         // inverse of the natural order

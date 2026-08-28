@@ -277,25 +277,11 @@ public sealed interface BoundsCheckModel {
         List<NativeType> paramTypes,
         Messager messager
     ) {
-        int offsetIndex = resolveIntSiblingParam(
-            "@OffsetSegment.offset",
-            annotation.offset(),
-            param,
-            params,
-            paramTypes,
-            messager
-        );
+        int offsetIndex = resolveIntSiblingParam("@OffsetSegment.offset", annotation.offset(), param, params, paramTypes, messager);
         if (offsetIndex < 0) {
             return null;
         }
-        int lengthIndex = resolveIntSiblingParam(
-            "@OffsetSegment.length",
-            annotation.length(),
-            param,
-            params,
-            paramTypes,
-            messager
-        );
+        int lengthIndex = resolveIntSiblingParam("@OffsetSegment.length", annotation.length(), param, params, paramTypes, messager);
         if (lengthIndex < 0) {
             return null;
         }

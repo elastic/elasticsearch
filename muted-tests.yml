@@ -161,6 +161,9 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.PyTorchModelIT
   method: testFailedDeploymentStats
   issue: https://github.com/elastic/elasticsearch/issues/157341
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=snapshot.restore/10_basic/Create a snapshot and then restore single index from it}
+  issue: https://github.com/elastic/elasticsearch/issues/157984
 
 # Examples:
 #

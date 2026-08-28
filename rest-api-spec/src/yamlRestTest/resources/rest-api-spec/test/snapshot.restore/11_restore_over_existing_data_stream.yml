@@ -1,0 +1,97 @@
+---
+setup:
+
+  - do:
+      snapshot.create_repository:
+        repository: test_repo_ds
+        body:
+          type: fs
+          settings:
+            location: "test_repo_ds_loc"
+
+  - do:
+      indices.put_index_template:
+        name: test-ds-template
+        body:
+          index_patterns: [ "test-ds" ]
+          data_stream: {}
+          template:
+            settings:
+              number_of_replicas: 0
+
+  - do:
+      indices.create_data_stream:
+        name: test-ds
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+---
+"Restore over an existing data stream with restore_over_existing":
+
+  - do:
+      index:
+        index: test-ds
+        op_type: create
+        refresh: true
+        body:
+          "@timestamp": "2020-01-01T00:00:00Z"
+          field: value
+
+  - do:
+      snapshot.create:
+        repository: test_repo_ds
+        snapshot: test_snapshot_ds
+        wait_for_completion: true
+        body:
+          indices: "test-ds"
+          feature_states: ["none"]
+
+  - match: { snapshot.snapshot: test_snapshot_ds }
+  - match: { snapshot.state : SUCCESS }
+
+  # change the live data stream after the snapshot, so a successful restore-over must roll it back to the snapshotted single document
+  - do:
+      index:
+        index: test-ds
+        op_type: create
+        refresh: true
+        body:
+          "@timestamp": "2020-01-02T00:00:00Z"
+          field: value2
+
+  - do:
+      search:
+        index: test-ds
+        body:
+          query:
+            match_all: {}
+  - match: { hits.total.value: 2 }
+
+  # restore over the existing data stream: its backing indices are deleted and recreated from the snapshot in one cluster-state update
+  - do:
+      snapshot.restore:
+        repository: test_repo_ds
+        snapshot: test_snapshot_ds
+        wait_for_completion: true
+        body:
+          indices: "test-ds"
+          restore_over_existing: true
+
+  # wait for the restored backing index to be allocated and available before searching: in a stateless deployment the search shard is a
+  # separate copy that may not be available the instant the restore completes, so an immediate search can race it
+  - do:
+      cluster.health:
+        index: test-ds
+        wait_for_status: green
+        wait_for_no_initializing_shards: true
+
+  # the data stream is back to its snapshotted contents (the second document is gone) and still accepts reads
+  - do:
+      search:
+        index: test-ds
+        body:
+          query:
+            match_all: {}
+  - match: { hits.total.value: 1 }

@@ -46,6 +46,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.elasticsearch.xpack.stateless.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
+import static org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsServiceTestUtils.estimateHeapUsageIncludingPostings;
 import static org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsServiceTestUtils.getLastMaxTotalPostingsInMemoryBytes;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -123,10 +124,16 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
 
         // Verify that the memory service correctly returns all the per shard memory metrics.
         var shardHeapUsages = service.getShardHeapUsages();
-        assertThat(shardHeapUsages.get(shardId1).shardHeapUsageBytes(), equalTo(service.computeShardHeapUsage(shardMemoryMetrics1)));
-        assertThat(shardHeapUsages.get(shardId1).indexHeapUsageBytes(), equalTo(service.computeIndexHeapUsage(shardMemoryMetrics1)));
-        assertThat(shardHeapUsages.get(shardId2).shardHeapUsageBytes(), equalTo(service.computeShardHeapUsage(shardMemoryMetrics2)));
-        assertThat(shardHeapUsages.get(shardId2).indexHeapUsageBytes(), equalTo(service.computeIndexHeapUsage(shardMemoryMetrics2)));
+        {
+            final var estimate = estimateHeapUsageIncludingPostings(service, shardMemoryMetrics1);
+            assertThat(shardHeapUsages.get(shardId1).shardHeapUsageBytes(), equalTo(estimate.shardHeapEstimate()));
+            assertThat(shardHeapUsages.get(shardId1).indexHeapUsageBytes(), equalTo(estimate.indexHeapEstimate()));
+        }
+        {
+            final var estimate = estimateHeapUsageIncludingPostings(service, shardMemoryMetrics2);
+            assertThat(shardHeapUsages.get(shardId2).shardHeapUsageBytes(), equalTo(estimate.shardHeapEstimate()));
+            assertThat(shardHeapUsages.get(shardId2).indexHeapUsageBytes(), equalTo(estimate.indexHeapEstimate()));
+        }
     }
 
     public void testShardHeapUsageIncludesPointsMemory() {
@@ -166,8 +173,8 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
     }
 
     /**
-     * Verifies that {@link StatelessMemoryMetricsService#computeIndexHeapUsage} and
-     * {@link StatelessMemoryMetricsService#computeShardHeapUsage} do not diverge from what is used internally in the
+     * Verifies that {@link ShardHeapEstimator#computeIndexHeapUsage} and
+     * {@link ShardHeapEstimator#computeShardHeapUsage} do not diverge from what is used internally in the
      * {@link StatelessMemoryMetricsService}'s node-level heap usage calculations (routing placement, same rules as
      * {@link StatelessMemoryMetricsService#getPerNodeMemoryMetrics(ClusterState)}).
      */
@@ -198,25 +205,22 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
                 if (shardMemoryMetrics == null) {
                     shardMemoryMetrics = service.newUninitialisedShardMemoryMetrics(nowNanos);
                 }
-                final long shardHeap = service.computeShardHeapUsage(shardMemoryMetrics);
+                final var estimate = estimateHeapUsageIncludingPostings(service, shardMemoryMetrics);
                 final var seenIndices = perNodeSeenIndices.computeIfAbsent(nodeId, key -> new HashSet<>());
 
                 long indexHeap = 0L;
                 if (seenIndices.add(shardId.getIndexName())) {
-                    indexHeap = service.computeIndexHeapUsage(shardMemoryMetrics);
+                    indexHeap = estimate.indexHeapEstimate();
                 }
 
                 var perShardUsages = service.getShardHeapUsages();
                 if (perShardUsages.containsKey(shardId)) {
-                    assertThat(perShardUsages.get(shardId).shardHeapUsageBytes(), equalTo(shardHeap));
-                    assertThat(
-                        perShardUsages.get(shardId).indexHeapUsageBytes(),
-                        equalTo(service.computeIndexHeapUsage(shardMemoryMetrics))
-                    );
+                    assertThat(perShardUsages.get(shardId).shardHeapUsageBytes(), equalTo(estimate.shardHeapEstimate()));
+                    assertThat(perShardUsages.get(shardId).indexHeapUsageBytes(), equalTo(estimate.indexHeapEstimate()));
                 }
 
-                perNodeOnlyIndexAndShardMemoryUsage.merge(nodeId, shardHeap + indexHeap, Long::sum);
-                perNodeHostedShardsHeapUsage.merge(nodeId, shardHeap, Long::sum);
+                perNodeOnlyIndexAndShardMemoryUsage.merge(nodeId, estimate.shardHeapEstimate() + indexHeap, Long::sum);
+                perNodeHostedShardsHeapUsage.merge(nodeId, estimate.shardHeapEstimate(), Long::sum);
             }
         }
 
@@ -296,9 +300,9 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         service.getShardMemoryMetrics().put(onlyShard.shardId(), metricsWithWrongReporter);
 
         final Map<String, NodeHeapEstimates> perNode = service.getPerNodeMemoryMetrics(clusterState);
-        final long deltaForShard = service.computeShardHeapUsage(metricsWithWrongReporter) + service.computeIndexHeapUsage(
-            metricsWithWrongReporter
-        ) - metricsWithWrongReporter.getPostingsInMemoryBytes();
+        final var estimates = estimateHeapUsageIncludingPostings(service, metricsWithWrongReporter);
+        final long deltaForShard = estimates.shardHeapEstimate() + estimates.indexHeapEstimate() - metricsWithWrongReporter
+            .getPostingsInMemoryBytes();
         assertThat(
             perNode.get(onlyShard.currentNodeId()).totalHeapUsage() - perNode.get(nodeWithoutShard.getId()).totalHeapUsage(),
             equalTo(deltaForShard)
@@ -306,7 +310,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         // The difference for the hosted-shards estimate should be just the size of the shard (no index metadata)
         assertThat(
             perNode.get(onlyShard.currentNodeId()).hostedShardsHeapUsage() - perNode.get(nodeWithoutShard.getId()).hostedShardsHeapUsage(),
-            equalTo(service.computeShardHeapUsage(metricsWithWrongReporter))
+            equalTo(estimates.shardHeapEstimate())
         );
     }
 

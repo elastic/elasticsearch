@@ -1,0 +1,307 @@
+version: 9.4.6
+released: false
+generated: 2026-08-28T14:38:08.481002855Z
+changelogs:
+  - pr: 2841
+    summary: Better messaging regarding OOM process termination
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2846
+    summary: Report the actual memory usage of the autodetect process
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2848
+    summary: Improve adherence to memory limits for the bucket gatherer
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2851
+    summary: Restrict file system access for pytorch models
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2863
+    summary: Update the PyTorch library to version 2.7.1
+    area: Machine Learning
+    type: upgrade
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2889
+    summary: Downgrade log severity for a batch of recoverable errors
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2894
+    summary: Better error handling regarding quantiles state documents
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2895
+    summary: Better handling of invalid JSON state documents
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3008
+    summary: Harden pytorch_inference with TorchScript model graph validation
+    area: Machine Learning
+    type: enhancement
+    issues:
+      - 2890
+    source_repo: elastic/ml-cpp
+  - pr: 3015
+    summary: Add EuroBERT and Jina v5 ops to graph validation allowlist
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3017
+    summary: Fix flaky CIoManagerTest/testFileIoGood test
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3078
+    summary: Reject TorchScript custom state hooks before load and forbid inductor::_reinterpret_tensor
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3080
+    summary: Reject non-native ABIs in ML seccomp filter (socketcall/getuid collision)
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3081
+    summary: Mark ML controller non-dumpable before accepting commands
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3090
+    summary: Fix flaky concurrent LFU cache count invariant under lock timeouts
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3143
+    summary: Fail gracefully when restoring a categorizer with an out-of-range token ID
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3149
+    summary: Fail closed on incomplete `TorchScript` pre-load state-hook scan
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 132434
+    summary: Fix NullPointerException in LongComparator caused by null search_after values
+    area: Search
+    type: bug
+    issues:
+      - 132370
+  - pr: 148554
+    summary: Stash ML_ORIGIN for `hasIlm` `GetIndex` during daily maintenance
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 155580
+    summary: Fix nested integer sort returning LONG sentinel and descending or "mode"-based sorts on multi-valued fields returned the wrong value  on pre-8.19/9.0.x indices
+    area: Search
+    type: bug
+    issues:
+      - 155243
+  - pr: 155586
+    summary: ES|QL:Fix/tdigest percentiles circuit breaker
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 155600
+    summary: Integrate circuit breaker into `BestBucketsDeferringCollector`
+    area: ES|QL
+    type: bug
+    issues:
+      - 148516
+  - pr: 155623
+    summary: Fix TS bucket named after timestamp field
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 155697
+    summary: Keep scroll contexts on transient search queue rejection
+    area: Search
+    type: bug
+    issues:
+      - 90912
+  - pr: 155706
+    summary: Exclude non-metadata `_type` from default search hit fields
+    area: Search
+    type: bug
+    issues:
+      - 110438
+  - pr: 155743
+    summary: Add a limit on aggregation nesting depth
+    area: Search
+    type: bug
+    issues: []
+  - pr: 155745
+    summary: Fail request instead of node on deep aggregations
+    area: Search
+    type: bug
+    issues: []
+  - pr: 155908
+    summary: Add top-level catch to ensure batched queries always respond
+    area: Search
+    type: bug
+    issues: []
+  - pr: 155923
+    summary: Fix partial-prefix compound TopN pushdown
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 155934
+    summary: Fix SLM stats races that mis-record concurrent snapshot outcomes
+    area: SLM
+    type: bug
+    issues:
+      - 155621
+  - pr: 156029
+    summary: "[PingDirectory] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system`"
+    area: Authorization
+    type: enhancement
+  - pr: 156162
+    summary: Solves CIDRMatch optimizer bug and unresolved ref after implicit casting bug in analyzer
+    area: ES|QL
+    type: bug
+    issues:
+      - 155979
+  - pr: 156191
+    summary: Preserve headers through Builder copy
+    area: Transform
+    type: bug
+    issues: []
+  - pr: 156203
+    summary: Bump JDK to 26.0.2
+    area: Infra/Core
+    type: upgrade
+    issues: []
+  - pr: 156213
+    summary: Upgrade ASM to 9.10.1
+    area: Infra/Core
+    type: upgrade
+    issues: []
+  - pr: 156268
+    summary: Fix exponential histogram min/max not being fully respected in rank estimation
+    area: Aggregations
+    type: bug
+    issues:
+      - 156057
+  - pr: 156296
+    summary: Upgrade bc-fips version
+    area: FIPS
+    type: upgrade
+    issues: []
+  - pr: 156332
+    summary: Score nested kNN `inner_hits` like the query phase
+    area: Vector Search
+    type: bug
+    issues:
+      - 138496
+  - pr: 156466
+    summary: Fix search failures on indices without vector fields when many field patterns are requested
+    area: Vector Search
+    type: bug
+    issues: []
+  - pr: 156603
+    summary: Fix `BroadcastMessageAction` request serialization
+    area: Inference
+    type: bug
+    issues: []
+  - pr: 156644
+    summary: Fix Google VertexAI chat completion tool call arguments serialization for non-string values
+    area: Inference
+    type: bug
+    issues:
+      - 156644
+  - pr: 156765
+    summary: Ensure `Error` propagates out of `S3BlobContainer`
+    area: Snapshot/Restore
+    type: bug
+    issues: []
+  - pr: 156902
+    summary: Remove redundant `synchronized` from `ShardCoreKeyMap#getShardId`
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 156903
+    summary: Fix synthetic id `seekCeil` skipper overshoot
+    area: Distributed
+    type: bug
+    issues:
+      - 151326
+  - pr: 157050
+    summary: Fix/indices query cache null shard stats
+    area: Search
+    type: bug
+    issues: []
+  - pr: 157161
+    summary: Null-safe async instrument
+    area: Infra/Metrics
+    type: bug
+    issues: []
+  - pr: 157250
+    summary: Prune unused dimensions from TS queries
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 157254
+    summary: Fix percentiles reduce using a closed preallocated breaker
+    area: Aggregations
+    type: bug
+    issues:
+      - 157206
+  - pr: 157255
+    summary: Fix NPE in `ReplicationSplitHelper` when target primary shard is unassigned
+    area: CRUD
+    type: bug
+    issues:
+      - 156982
+  - pr: 157553
+    summary: Prevent COUNT_DISTINCT precision thresholds outside the integer range from wrapping
+    area: ES|QL
+    type: bug
+    issues:
+      - 157549
+  - pr: 157554
+    summary: Reject SQL ROUND results that overflow byte or short
+    area: SQL
+    type: bug
+    issues:
+      - 157550
+  - pr: 157555
+    summary: Reject 2^63 in QL and ES|QL double-to-long conversion
+    area: ES|QL
+    type: bug
+    issues:
+      - 157551
+  - pr: 157564
+    summary: Upgrade httpclient5 to 5.6.4
+    area: Security
+    type: upgrade
+    issues: []
+  - pr: 157565
+    summary: Re-audit datafeed extraction errors periodically
+    area: Machine Learning
+    type: bug
+    issues: []

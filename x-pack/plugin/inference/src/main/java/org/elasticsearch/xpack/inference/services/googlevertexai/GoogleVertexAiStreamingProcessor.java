@@ -44,9 +44,9 @@ public class GoogleVertexAiStreamingProcessor extends DelegatingProcessor<Deque<
                 var chunk = GoogleVertexAiUnifiedStreamingProcessor.GoogleVertexAiChatCompletionChunkParser.parse(p);
                 return chunk.choices()
                     .stream()
-                    .map(choice -> choice.delta())
+                    .map(choice -> choice.message())
                     .filter(Objects::nonNull)
-                    .map(delta -> delta.content())
+                    .map(message -> message.content())
                     .filter(content -> Strings.isNullOrEmpty(content) == false)
                     .map(StreamingChatCompletionResults.Result::new);
             });

@@ -1421,6 +1421,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /// specifically in `ShardGetService`.
     public Engine.GetResult getForUpdate(Engine.Get get) {
         assert get.realtime() && get.isReadFromTranslog();
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.WRITE, ThreadPool.Names.SYSTEM_WRITE);
 
         readAllowed();
         MappingLookup mappingLookup = mapperService.mappingLookup();

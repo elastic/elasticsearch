@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.ConstantNullBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -439,6 +440,17 @@ public final class ColumnMapping implements Writeable {
      * A pair outside {@link DeclaredTypeCoercions#supports} means the mapping was built against
      * types reconciliation can never produce — fail loud (an ill-formed mapping must not limp
      * along), matching this method's historical contract.
+     * <p>
+     * When {@code sourceType} is unknown and the batch is all-null, skip inference. The reachable
+     * case is an all-null {@link LongBlock} under KEYWORD: {@link #resolveSourceType} asserts a
+     * source type to disambiguate DATETIME / DATE_NANOS / LONG even though all-null data makes
+     * the stringifier moot. {@code ConstantNullBlock} implements every typed interface, so the
+     * {@code instanceof} chain binds {@link IntBlock} first; BOOLEAN/IP targets are not produced
+     * by reconciliation ({@link CastType} cannot encode them) and are covered only defensively.
+     * A known {@code sourceType} still runs {@link DeclaredTypeCoercions#supports} and then the
+     * engine's own all-null short-circuit. An incoming {@code ConstantNullBlock} is
+     * {@code incRef}'d and reused; a typed all-null array block is replaced. Does not close
+     * {@code source}: {@link #mapPage} does not take ownership of file-page blocks.
      *
      * @param sourceType file-side ES|QL type, or {@code null} when unknown. Required to
      *                   disambiguate {@link LongBlock} sources for KEYWORD casts (DATETIME vs
@@ -452,6 +464,13 @@ public final class ColumnMapping implements Writeable {
         @Nullable String columnName,
         @Nullable SkipWarnings warnings
     ) {
+        if (sourceType == null && source.areAllValuesNull()) {
+            if (source instanceof ConstantNullBlock) {
+                source.incRef();
+                return source;
+            }
+            return bf.newConstantNullBlock(source.getPositionCount());
+        }
         DataType from = resolveSourceType(source, sourceType, targetType);
         if (DeclaredTypeCoercions.supports(from, targetType) == false) {
             throw new UnsupportedOperationException(
@@ -468,7 +487,8 @@ public final class ColumnMapping implements Writeable {
      * ES|QL types (LONG, DATETIME, DATE_NANOS). Under a DATE_NANOS target the source is DATETIME
      * (the only pair reconciliation widens into DATE_NANOS); under a KEYWORD target the three
      * stringify differently, so the type must come from the read schema — the assertion tripwires
-     * any caller that forgets to thread it.
+     * any caller that forgets to thread it. All-null sources with a null {@code sourceType} never
+     * reach this method: {@link #castBlock} short-circuits them before inference.
      */
     private static DataType resolveSourceType(Block source, @Nullable DataType sourceType, DataType targetType) {
         if (sourceType != null) {

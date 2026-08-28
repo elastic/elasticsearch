@@ -1443,7 +1443,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                             unassignedTimeWithinGracePeriod.millis(),
                             false,
                             UnassignedInfo.AllocationStatus.NO_ATTEMPT,
-                            Collections.emptySet(),
+                            failedAllocations > 0 ? Set.of(randomNodeId()) : Collections.emptySet(),
                             null
                         )
                     )
@@ -1585,7 +1585,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                             unassignedTimeWithinGracePeriod.millis(),
                             false,
                             UnassignedInfo.AllocationStatus.NO_ATTEMPT,
-                            Collections.emptySet(),
+                            Set.of(randomNodeId()),
                             null
                         )
                     )

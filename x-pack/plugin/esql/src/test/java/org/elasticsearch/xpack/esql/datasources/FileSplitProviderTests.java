@@ -1011,6 +1011,55 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
+     * Two files with different row widths produce different probe boundaries. Asserts each file's split offsets by
+     * value so a cross-file misbind in {@code probeDeferredBoundaries} — swapping the outcome lists while the file
+     * lengths stay the same — fails rather than passing silently. Every multi-file fixture that uses fixed-width rows
+     * of the same width has identical boundary sets across files, which leaves that seam untested.
+     */
+    public void testTwoFilesWithDifferentRowWidthsGetTheirOwnBoundaries() throws IOException {
+        long stride = CSV_MIN_SEGMENT_BYTES;
+        // Row widths are not divisors of the stride (stride = 2^20), so probes land mid-record and the boundary
+        // found depends on the width. The two widths differ, so the two files' boundary sets differ:
+        // stride % 6 = 4 → boundary 2 bytes past each stride offset in the narrow file
+        // stride % 25 = 1 → boundary 24 bytes past each stride offset in the wide file
+        byte[] narrowPayload = delimitedPayload("a,b,c\n");                    // 6-byte rows
+        byte[] widePayload = delimitedPayload("aaaa,bbbb,cccc,dddd,eeee\n");   // 25-byte rows
+
+        RecordSplitter splitter = stridedSplitter();
+        Set<Long> narrowStarts = trueRecordStarts(splitter, narrowPayload);
+        Set<Long> wideStarts = trueRecordStarts(splitter, widePayload);
+        assertNotEquals("files with different row widths must have different boundary sets", narrowStarts, wideStarts);
+
+        List<ExternalSplit> splits = discoverPlainCsvSplits(
+            Map.of("narrow.csv", narrowPayload, "wide.csv", widePayload),
+            stride,
+            null,
+            null
+        );
+
+        List<Long> narrowOffsets = new ArrayList<>();
+        List<Long> wideOffsets = new ArrayList<>();
+        for (ExternalSplit s : splits) {
+            FileSplit fs = (FileSplit) s;
+            String path = fs.path().toString();
+            if (path.endsWith("/narrow.csv")) {
+                narrowOffsets.add(fs.offset());
+            } else if (path.endsWith("/wide.csv")) {
+                wideOffsets.add(fs.offset());
+            }
+        }
+
+        assertThat("narrow.csv must macro-split into multiple splits", narrowOffsets.size(), greaterThan(1));
+        assertThat("wide.csv must macro-split into multiple splits", wideOffsets.size(), greaterThan(1));
+        for (long offset : narrowOffsets) {
+            assertTrue("narrow.csv split at " + offset + " must begin on a true record start of narrow.csv", narrowStarts.contains(offset));
+        }
+        for (long offset : wideOffsets) {
+            assertTrue("wide.csv split at " + offset + " must begin on a true record start of wide.csv", wideStarts.contains(offset));
+        }
+    }
+
+    /**
      * The motivating case is one very large file, not many files, so a single file's own boundary probes must run
      * concurrently. This also checks the boundaries themselves against ground truth on a payload with varying line
      * lengths, where an off-byte in the probe arithmetic would land a split mid-record: every emitted split must

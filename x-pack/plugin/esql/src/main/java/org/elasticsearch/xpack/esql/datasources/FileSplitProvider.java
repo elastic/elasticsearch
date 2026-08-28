@@ -959,7 +959,7 @@ public class FileSplitProvider implements SplitProvider {
      * These reads block the thread they run on, which is {@link #executor}'s. That executor must not be the pool
      * the caller of split discovery is itself running on: the caller waits for this fan-out to finish, so drawing
      * both from one bounded pool would let a thread wait on work only that pool can run. Production keeps them
-     * apart, {@code GENERIC} here against the {@code esql_external_io} thread the resolver calls in on.
+     * apart, {@code GENERIC} here against the {@code SEARCH} thread {@code ComputeService.executePlan} calls in on.
      */
     int splitDiscoveryConcurrency() {
         int permits = ExternalSourceSettings.blobStoreConcurrency(settings);

@@ -24,11 +24,19 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Verifies that {@link CsvFormatReader#statusSnapshot()} reports populated counters after a real
  * read drains a CSV file. Complements {@link CsvReaderCountersTests} (which exercises the counter
  * struct in isolation) by exercising the full FormatReader → batch-iterator wiring.
+ * <p>
+ * The last two pin the COUNTER LIFETIME in both directions, mirroring the NDJSON suite. CSV has the correct
+ * shape today — only {@link CsvFormatReader#withReadConfig} shares its parent's counters — and these exist to
+ * keep it: the chain's root is the node-lifetime reader the format registry hands out, so a wither that shares
+ * above the per-query seam mixes concurrent queries' telemetry, while a fork at the per-file seam leaves the
+ * reader that reads reporting into a copy nobody snapshots. Neither is observable from a single drained reader,
+ * which is why both assert on a SECOND live copy.
  */
 public class CsvFormatReaderStatusSnapshotTests extends ESTestCase {
 
@@ -68,6 +76,47 @@ public class CsvFormatReaderStatusSnapshotTests extends ESTestCase {
         assertEquals("no malformed rows in this fixture", 0L, after.parseErrors());
         assertEquals("header row detected", true, after.headerDetected());
         assertTrue("read_nanos should be > 0 after at least one batch", after.readNanos() > 0);
+    }
+
+    public void testSiblingQueryReadersDoNotShareCounters() throws IOException {
+        CsvFormatReader base = new CsvFormatReader(blockFactory);
+        CsvFormatReader first = (CsvFormatReader) base.withConfigTrackingConsumedKeys(Map.of("delimiter", ",")).value();
+        CsvFormatReader second = (CsvFormatReader) base.withConfigTrackingConsumedKeys(Map.of("delimiter", ",")).value();
+
+        drain(first);
+
+        assertTrue("the reader that read must report its own work", first.statusSnapshot().rowsEmitted() > 0);
+        assertEquals("a sibling query's reader must not see it", 0L, second.statusSnapshot().rowsEmitted());
+        assertEquals("nor may it reach the registry's shared reader", 0L, base.statusSnapshot().rowsEmitted());
+    }
+
+    public void testPerFileReadConfigCopyReportsThroughItsParent() throws IOException {
+        CsvFormatReader query = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfigTrackingConsumedKeys(Map.of("delimiter", ","))
+            .value();
+        CsvFormatReader perFile = query.withReadConfig("0123456789abcdef0123456789abcdef");
+
+        drain(perFile);
+
+        assertTrue(
+            "withReadConfig runs per file, below the reader the status envelope snapshots, so its work must land"
+                + " in the parent — a fork here is the zero-read-time defect this pins against",
+            query.statusSnapshot().rowsEmitted() > 0
+        );
+    }
+
+    private void drain(CsvFormatReader reader) throws IOException {
+        String csv = """
+            id:long,name:keyword
+            1,Alice
+            2,Bob
+            3,Carol
+            """;
+        try (CloseableIterator<Page> iterator = reader.read(inMemoryCsv(csv), List.of("id", "name"), 10)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                Releasables.close(page::releaseBlocks);
+            }
+        }
     }
 
     private static StorageObject inMemoryCsv(String content) {

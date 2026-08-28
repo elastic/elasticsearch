@@ -31,6 +31,7 @@ import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -274,6 +275,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         settings.add(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
         settings.add(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD);
         settings.add(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
+        if (ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()) {
+            settings.add(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING);
+        }
         settings.add(IndexSettings.INDEX_DISABLED_BY_DEFAULT);
         settings.add(IndexSettings.USE_COLUMNAR_ID_BY_DEFAULT);
         settings.add(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING);

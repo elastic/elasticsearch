@@ -284,20 +284,132 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertEquals("hive", result.get("partition_detection"));
     }
 
-    public void testValidateDatasetPartitionDetectionInvalid() {
-        expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "banana"))
+    public void testValidateDatasetExclusionSettingsValid() {
+        Map<String, Object> result = validator.validateDataset(
+            Map.of(),
+            "s3://bucket/path/*.parquet",
+            Map.of("file_exclusions", List.of("**/_*", "**/.*", "**/_temporary/**"))
+        );
+        assertEquals(
+            "stored verbatim, since patterns are case-sensitive user data",
+            List.of("**/_*", "**/.*", "**/_temporary/**"),
+            result.get("file_exclusions")
         );
     }
 
+    /** The empty list is a legitimate value: exclude nothing. */
+    public void testValidateDatasetExclusionSettingsAcceptEmptyList() {
+        Map<String, Object> result = validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_exclusions", List.of()));
+        assertEquals(List.of(), result.get("file_exclusions"));
+    }
+
+    /** Entries are ordinary resource patterns, so a directory pattern is legal rather than refused. */
+    public void testValidateDatasetExclusionAcceptsADirectoryPattern() {
+        Map<String, Object> result = validator.validateDataset(
+            Map.of(),
+            "s3://b/p",
+            Map.of("file_exclusions", List.of("**/_temporary/**"))
+        );
+        assertEquals(List.of("**/_temporary/**"), result.get("file_exclusions"));
+    }
+
+    public void testValidateDatasetExclusionRejectsAnUnparseablePattern() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_exclusions", List.of("a[b")))
+        );
+        assertThat(e.validationErrors(), hasSize(1));
+        assertThat(e.getMessage(), containsString("must contain only valid patterns"));
+        assertThat(e.getMessage(), containsString("unterminated character class"));
+    }
+
+    /** A shape problem is reported once, by the list validator, not twice by the owning parser as well. */
+    public void testValidateDatasetExclusionRejectsNonListWithOneMessage() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_exclusions", "**/_*"))
+        );
+        assertThat(e.validationErrors(), hasSize(1));
+        assertThat(e.getMessage(), containsString("must be a JSON array of strings"));
+    }
+
+    public void testValidateDatasetExclusionRejectsNonStringElementWithOneMessage() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_exclusions", List.of(42)))
+        );
+        assertThat(e.validationErrors(), hasSize(1));
+        assertThat(e.getMessage(), containsString("must be a JSON array of non-empty strings"));
+    }
+
+    public void testValidateDatasetPartitionDetectionInvalid() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "banana"))
+        );
+        // One actionable message, not that message plus Enum.valueOf's raw "No enum constant ...".
+        assertThat(e.validationErrors(), hasSize(1));
+        assertThat(e.getMessage(), not(containsString("No enum constant")));
+    }
+
     public void testValidateDatasetPartitionDetectionAllValues() {
-        for (String strategy : new String[] { "auto", "hive", "template", "none", "AUTO", "HIVE", "TEMPLATE", "NONE" }) {
+        for (String strategy : new String[] { "auto", "hive", "none", "AUTO", "HIVE", "NONE" }) {
             assertEquals(
                 strategy,
                 validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", strategy)).get("partition_detection")
             );
         }
+        // template carries its path template with it; on its own it would be a strategy that detects nothing.
+        for (String strategy : new String[] { "template", "TEMPLATE" }) {
+            assertEquals(
+                strategy,
+                validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", strategy, "partition_path", "{year}"))
+                    .get("partition_detection")
+            );
+        }
+    }
+
+    /**
+     * The three combinations in which one of the partition settings would be silently ignored. Rejected at
+     * registration only — {@code PartitionConfig.fromConfig} still resolves them leniently so datasets stored
+     * before this validation existed keep reading.
+     */
+    public void testValidateDatasetRejectsSilentlyIgnoredPartitionSettings() {
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "template"))
+        );
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "hive_partitioning", "false"))
+        );
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "none", "partition_path", "{year}"))
+        );
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", "false", "partition_path", "{year}"))
+        );
+        // hive never reads a path template, so storing one would store a setting that does nothing.
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "partition_path", "{year}"))
+        );
+    }
+
+    /** hive_partitioning:true asserts nothing — it is the default — so it never contradicts a strategy. */
+    public void testValidateDatasetAcceptsHivePartitioningTrueWithAnyStrategy() {
+        assertEquals(
+            "hive",
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "hive_partitioning", "true"))
+                .get("partition_detection")
+        );
+        assertEquals(
+            "none",
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "none", "hive_partitioning", "true"))
+                .get("partition_detection")
+        );
     }
 
     public void testValidateDatasetSchemeCaseInsensitive() {

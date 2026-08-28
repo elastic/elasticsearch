@@ -20,11 +20,11 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.otelfilter.TestOtelFilterPlugin;
-import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.TestRule;
 
 import java.util.HexFormat;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -98,11 +98,6 @@ public class OtelLoggingIT extends AbstractTelemetryIT {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    @Before
-    void checkFIPS() {
-        assumeFalse("Disabled for FIPS mode: https://github.com/elastic/elasticsearch/issues/154330", inFipsJvm());
-    }
-
     public void testAuditEventArrivesAsOtlpLogRecord() throws Exception {
         ReceivedTelemetry.ReceivedLog log = recordingApmServer.await(
             ReceivedTelemetry.ReceivedLog.class,
@@ -130,6 +125,7 @@ public class OtelLoggingIT extends AbstractTelemetryIT {
         assertNull("cluster.uuid must not be on OTel records", log.attributes().get("log4j.map_message.cluster.uuid"));
         assertNull("node.name must not be on OTel records", log.attributes().get("log4j.map_message.node.name"));
         assertNull("node.id must not be on OTel records", log.attributes().get("log4j.map_message.node.id"));
+        assertLogDeliveryResource();
     }
 
     public void testOtelLoggingOnSearch() throws Exception {
@@ -155,6 +151,13 @@ public class OtelLoggingIT extends AbstractTelemetryIT {
         assertThat(log.traceId().get(), equalTo(randomId));
         var indices = (ArrayValue) log.attributes().get(QueryLogging.QUERY_FIELD_INDICES);
         assertThat(indices.getValuesList().getFirst().getStringValue(), equalTo("test_index"));
+        assertLogDeliveryResource();
+    }
+
+    private void assertLogDeliveryResource() {
+        ReceivedTelemetry.ReceivedResource resource = apmServer().logResource();
+        assertNotNull("log export should carry a resource", resource);
+        assertThat(resource.attributes(), equalTo(Map.of("service.name", "elasticsearch", "service.type", "elasticsearch")));
     }
 
     /**

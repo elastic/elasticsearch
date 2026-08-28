@@ -8,8 +8,11 @@
  */
 
 import org.elasticsearch.gradle.transform.UnzipTransform
+import org.elasticsearch.gradle.internal.nativelibs.VerifyNativeLibraryLinuxAbiTask
 
-apply plugin: 'base'
+plugins {
+  id 'elasticsearch.native-libraries-linux-abi'
+}
 
 configurations {
   // Internal configuration: declares + resolves the per-platform binary distributions pulled from
@@ -104,4 +107,9 @@ def extractLibs = tasks.register('extractLibs', Copy) {
 
 artifacts {
   nativeLibs extractLibs
+}
+
+tasks.named('verifyNativeLibrariesLinuxAbi', VerifyNativeLibraryLinuxAbiTask).configure {
+  dependsOn extractLibs
+  nativeLibraries.from(layout.buildDirectory.dir('platform'))
 }

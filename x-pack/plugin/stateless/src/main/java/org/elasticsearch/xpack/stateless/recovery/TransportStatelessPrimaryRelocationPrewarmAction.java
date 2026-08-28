@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -87,7 +88,7 @@ public class TransportStatelessPrimaryRelocationPrewarmAction extends TransportA
             transportRequest,
             // Prewarm failures are non-fatal, the relocation continues without the benefit of prewarming.
             new ActionListenerResponseHandler<>(ActionListener.noop().delegateResponse((l, e) -> {
-                logger.debug(() -> String.format("%s ignoring prewarm action failure", transportRequest.shardId()), e);
+                logger.debug(() -> Strings.format("%s ignoring prewarm action failure", transportRequest.shardId()), e);
                 l.onFailure(e);
             }), in -> ActionResponse.Empty.INSTANCE, recoveryExecutor)
         );

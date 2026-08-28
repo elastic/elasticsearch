@@ -815,3 +815,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecTdigestIT
   method: test {csv-spec:tdigest.count with bucket, time, and instance in FROM}
   issue: https://github.com/elastic/elasticsearch/issues/158011
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecTdigestIT
+  method: test {csv-spec:tdigest.count with bucket, time, and instance in FROM}
+  issue: https://github.com/elastic/elasticsearch/issues/158050

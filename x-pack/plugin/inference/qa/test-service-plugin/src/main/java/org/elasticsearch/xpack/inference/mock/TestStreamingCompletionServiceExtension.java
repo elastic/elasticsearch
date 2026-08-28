@@ -169,9 +169,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
                 return;
             }
             switch (model.getConfigurations().getTaskType()) {
-                case CHAT_COMPLETION -> listener.onResponse(
-                    stream ? makeUnifiedResults(request) : makeNonStreamingUnifiedResults(request)
-                );
+                case CHAT_COMPLETION -> listener.onResponse(stream ? makeUnifiedResults(request) : makeNonStreamingUnifiedResults(request));
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),

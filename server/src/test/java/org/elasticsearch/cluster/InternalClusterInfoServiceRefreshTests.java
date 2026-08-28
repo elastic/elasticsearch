@@ -10,19 +10,29 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.mockito.Mockito;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -34,6 +44,96 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
+
+    public void testEstimatedHeapUsageCollectorSuccessAndFailure() {
+        final Settings settings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
+                WriteLoadConstraintSettings.WriteLoadDeciderStatus.DISABLED
+            )
+            .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true)
+            .build();
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
+        final ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
+
+        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings)) {
+            final Map<String, NodeHeapEstimates> nodeHeapEstimates = Map.of("node-id", new NodeHeapEstimates(100L, 20L));
+            final ShardId shardId = new ShardId("index", "uuid", 0);
+            final ShardHeapUsageEstimates shardHeapUsageEstimates = new ShardHeapUsageEstimates(
+                Map.of(shardId, new ShardAndIndexHeapUsage(10L, 5L)),
+                new ShardAndIndexHeapUsage(1L, 2L)
+            );
+            final EstimatedHeapUsageStats estimatedHeapUsageStats = new EstimatedHeapUsageStats(nodeHeapEstimates, shardHeapUsageEstimates);
+            final AtomicBoolean failEstimatedHeapUsage = new AtomicBoolean();
+            final EstimatedHeapUsageCollector estimatedHeapUsageCollector = mock(EstimatedHeapUsageCollector.class);
+            doAnswer(invocation -> {
+                final ActionListener<EstimatedHeapUsageStats> listener = invocation.getArgument(0);
+                if (failEstimatedHeapUsage.get()) {
+                    listener.onFailure(new IllegalStateException("simulated estimated heap usage failure"));
+                } else {
+                    listener.onResponse(estimatedHeapUsageStats);
+                }
+                return null;
+            }).when(estimatedHeapUsageCollector).collectEstimatedHeapUsage(any());
+
+            final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(
+                settings,
+                new WriteLoadConstraintSettings(clusterService.getClusterSettings()),
+                clusterService,
+                threadPool,
+                new NoOpClient(threadPool) {
+                    @Override
+                    @SuppressWarnings("unchecked")
+                    protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                        ActionType<Response> action,
+                        Request request,
+                        ActionListener<Response> listener
+                    ) {
+                        if (request instanceof NodesStatsRequest) {
+                            NodeStats nodeStats = mock(NodeStats.class);
+                            JvmStats jvmStats = mock(JvmStats.class);
+                            JvmStats.Mem mem = mock(JvmStats.Mem.class);
+                            Mockito.when(nodeStats.getNode()).thenReturn(DiscoveryNodeUtils.create("node-id"));
+                            Mockito.when(nodeStats.getJvm()).thenReturn(jvmStats);
+                            Mockito.when(jvmStats.getMem()).thenReturn(mem);
+                            Mockito.when(mem.getHeapMax()).thenReturn(ByteSizeValue.ofBytes(1_000L));
+                            listener.onResponse(
+                                (Response) new NodesStatsResponse(new ClusterName("cluster"), List.of(nodeStats), List.of())
+                            );
+                        } else {
+                            fail("unexpected action: " + action.name());
+                        }
+                    }
+                },
+                estimatedHeapUsageCollector,
+                CacheSizesAndCommitmentCollector.EMPTY,
+                PartitionSizeCollector.EMPTY,
+                NodeUsageStatsForThreadPoolsCollector.EMPTY,
+                SearchLaneRequirementsCollector.EMPTY
+            );
+            // AsyncRefresh asserts that each refresh notifies at least one registered cluster info listener.
+            clusterInfoService.addListener(ignored -> {});
+
+            ClusterInfo clusterInfo = refresh(clusterInfoService);
+            verify(estimatedHeapUsageCollector).collectEstimatedHeapUsage(any());
+            assertThat(clusterInfo.getNodeHeapMetrics().get("node-id").nodeHeapEstimates(), equalTo(nodeHeapEstimates.get("node-id")));
+            assertThat(clusterInfo.getEstimatedShardHeapUsages(), equalTo(shardHeapUsageEstimates.perShard()));
+            assertThat(
+                clusterInfo.getDefaultShardHeapUsageForShardsWithoutMetrics(),
+                equalTo(shardHeapUsageEstimates.defaultForShardsWithoutMetrics())
+            );
+
+            Mockito.clearInvocations(estimatedHeapUsageCollector);
+            failEstimatedHeapUsage.set(true);
+            clusterInfo = refresh(clusterInfoService);
+            verify(estimatedHeapUsageCollector).collectEstimatedHeapUsage(any());
+            assertThat(clusterInfo.getNodeHeapMetrics(), equalTo(Map.of()));
+            assertThat(clusterInfo.getEstimatedShardHeapUsages(), equalTo(Map.of()));
+            assertThat(clusterInfo.getDefaultShardHeapUsageForShardsWithoutMetrics(), equalTo(ShardAndIndexHeapUsage.ZERO));
+        }
+    }
 
     public void testPartitionSizeCollectorSuccessAndFailure() {
         final Settings settings = Settings.builder()

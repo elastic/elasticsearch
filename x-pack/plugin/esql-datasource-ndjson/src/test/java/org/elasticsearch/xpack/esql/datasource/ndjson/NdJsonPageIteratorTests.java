@@ -1839,6 +1839,24 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         var reader = new NdJsonFormatReader(null, blockFactory);
         List<Attribute> schema = reader.metadata(object).schema();
         assertEquals(List.of("user", "user.id", "user.tier"), userFamily(schema));
+        try (var iterator = reader.read(object, FormatReadContext.builder().batchSize(100).build())) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+            BytesRefBlock user = page.getBlock(indexOf(schema, "user"));
+            BytesRefBlock userId = page.getBlock(indexOf(schema, "user.id"));
+            BytesRefBlock userTier = page.getBlock(indexOf(schema, "user.tier"));
+            BytesRef scratch = new BytesRef();
+            assertEquals("alice", user.getBytesRef(user.getFirstValueIndex(0), scratch).utf8ToString());
+            assertTrue(userId.isNull(0));
+            assertTrue(userTier.isNull(0));
+            assertTrue(user.isNull(1));
+            assertEquals("bob", userId.getBytesRef(userId.getFirstValueIndex(1), scratch).utf8ToString());
+            assertEquals("gold", userTier.getBytesRef(userTier.getFirstValueIndex(1), scratch).utf8ToString());
+            assertEquals("carol", user.getBytesRef(user.getFirstValueIndex(2), scratch).utf8ToString());
+            assertTrue(userId.isNull(2));
+            assertTrue(userTier.isNull(2));
+        }
     }
 
     /** Mirror of {@link #testScalarAndObjectCoexistInSchemaWhenSubobjectsDisabled}: object-then-scalar order. */
@@ -1852,6 +1870,24 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         var reader = new NdJsonFormatReader(null, blockFactory);
         List<Attribute> schema = reader.metadata(object).schema();
         assertEquals(List.of("user", "user.id", "user.tier"), userFamily(schema));
+        try (var iterator = reader.read(object, FormatReadContext.builder().batchSize(100).build())) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+            BytesRefBlock user = page.getBlock(indexOf(schema, "user"));
+            BytesRefBlock userId = page.getBlock(indexOf(schema, "user.id"));
+            BytesRefBlock userTier = page.getBlock(indexOf(schema, "user.tier"));
+            BytesRef scratch = new BytesRef();
+            assertTrue(user.isNull(0));
+            assertEquals("bob", userId.getBytesRef(userId.getFirstValueIndex(0), scratch).utf8ToString());
+            assertEquals("gold", userTier.getBytesRef(userTier.getFirstValueIndex(0), scratch).utf8ToString());
+            assertEquals("alice", user.getBytesRef(user.getFirstValueIndex(1), scratch).utf8ToString());
+            assertTrue(userId.isNull(1));
+            assertTrue(userTier.isNull(1));
+            assertTrue(user.isNull(2));
+            assertEquals("carol", userId.getBytesRef(userId.getFirstValueIndex(2), scratch).utf8ToString());
+            assertEquals("silver", userTier.getBytesRef(userTier.getFirstValueIndex(2), scratch).utf8ToString());
+        }
     }
 
     /**

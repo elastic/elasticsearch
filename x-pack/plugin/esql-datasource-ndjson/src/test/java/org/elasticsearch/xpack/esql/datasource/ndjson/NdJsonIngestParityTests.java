@@ -154,6 +154,38 @@ public class NdJsonIngestParityTests extends MapperServiceTestCase {
     }
 
     /**
+     * An array of empty objects contributes no leaf values, so a later flat spelling of that leaf still lands.
+     * Claiming the empty child entry as null would pin the cell against that value.
+     */
+    public void testEmptyObjectArrayThenFlatKey() throws IOException {
+        assertParity("""
+            {"a":[{}],"a.b":1,"id":10}""");
+        assertParity("""
+            {"a.b":1,"a":[{}],"id":20}""");
+    }
+
+    /** A JSON null inside an object-array element contributes nothing, so a later spelling of that leaf still lands. */
+    public void testNullInsideObjectArrayThenFlatKey() throws IOException {
+        assertParity("""
+            {"a":[{"b":null}],"a.b":2,"id":10}""");
+    }
+
+    /** An object-array element that fills a sibling leaf does not pin an omitted leaf against a later spelling. */
+    public void testObjectArraySiblingThenFlatKey() throws IOException {
+        assertParity("""
+            {"a":[{"c":1}],"a.b":2,"id":10}""");
+    }
+
+    /**
+     * Mirror of {@link #testObjectArraySiblingThenFlatKey}: a flat spelling already filled one leaf, then an
+     * object-array element fills a sibling. Both leaves are present; the array does not touch the claimed leaf.
+     */
+    public void testFlatKeyThenObjectArraySibling() throws IOException {
+        assertParity("""
+            {"a.b":1,"a":[{"c":2}],"id":10}""");
+    }
+
+    /**
      * An array of objects whose elements disagree on the shape at one name: {@code x.a} is a scalar in the first
      * element and an object in the second, so the array fills the leaf-and-prefix node {@code x.a} and its child
      * {@code x.a.b} from different elements.

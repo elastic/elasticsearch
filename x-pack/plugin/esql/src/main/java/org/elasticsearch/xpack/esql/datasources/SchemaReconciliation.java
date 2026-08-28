@@ -413,25 +413,14 @@ public final class SchemaReconciliation {
     }
 
     /**
-     * Detects and resolves a field that some files infer as a scalar leaf and others infer as a
-     * nested object (a dotted-prefix parent, e.g. {@code user} vs {@code user.id}/{@code user.tier}).
-     * {@code UNION_BY_NAME} merges purely by exact name, so the two shapes never collide there and
-     * both get fabricated into the unified schema. This pass collapses each such family to a
-     * single shape: the first file (in {@code fileMetadata} iteration order) to contribute the
-     * family at all wins, mirroring {@code FIRST_FILE_WINS} anchor semantics.
-     * <p>
-     * Mutates {@code unified} in place, removing the losing shape's entries so they never reach
-     * the unified schema. Returns a per-file override of {@link SourceMetadata#schema()} for the
-     * losing files: their own inferred sub-schema for the family is replaced by the winning
-     * attribute(s) taken straight from the (possibly widened) {@code unified} entries. That
-     * override becomes, via the caller, the losing file's {@link FileSchemaInfo#fileSchema()},
-     * which is what {@code FileSplitProvider} pins the reader's {@code readSchema} to.
+     * {@code UNION_BY_NAME} merges by exact name, so a scalar {@code user} in one file and dotted
+     * {@code user.id}/{@code user.tier} in another never collide: both names survive in the unified
+     * schema and are NULL-filled in whichever file lacks them. A dot is an ordinary character in a
+     * column name for every format, including NDJSON.
      * <p>
      * Only files whose {@link SourceMetadata#sourceType()} is {@link #supportsShapeConflictResolution
-     * shape-conflict-capable} enter this family vote. No format currently does, including NDJSON:
-     * a dot is an ordinary character in a column name, so {@code user} and {@code user.id} are
-     * independent columns and both survive in the unified schema, NULL-filled in whichever file
-     * lacks them.
+     * shape-conflict-capable} enter a family vote that would collapse those names. No format does,
+     * so this pass returns no overrides and does not mutate {@code unified}.
      */
     private static Map<StoragePath, List<Attribute>> resolveShapeConflicts(
         LinkedHashMap<String, MergeEntry> unified,
@@ -487,7 +476,7 @@ public final class SchemaReconciliation {
      * once this pass overrides a losing file's {@code readSchema} — see {@link #resolveShapeConflicts}'s
      * javadoc for how that override is used downstream.
      * <p>
-     * No format currently satisfies both. NDJSON flattens nested objects into dotted names, but a
+     * No format satisfies both. NDJSON flattens nested objects into dotted names, but a
      * dot is an ordinary character in a column name: {@code user} and {@code user.id} are
      * independent columns, and the reader skip-nulls a scalar/object mismatch instead of applying
      * {@code ErrorPolicy}. Pinning a losing file would silently drop values. Every other format

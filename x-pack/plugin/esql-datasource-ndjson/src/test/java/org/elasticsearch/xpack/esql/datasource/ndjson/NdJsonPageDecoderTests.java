@@ -262,11 +262,11 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * Unlike an actual scalar value where an object was expected, that is skipped and null-filled under every
      * {@link ErrorPolicy}, including STRICT.
      * <p>
-     * This drives the decoder with an explicit dotted schema, i.e. the planner-resolved (bound) read-schema path
+     * This drives the decoder with an explicit dotted schema, i.e., the planner-resolved (bound) read-schema path
      * where {@code address} exists only as a nested-object prefix. It deliberately does not go through per-file
-     * schema inference: when a mixed object/scalar field is <em>sampled</em>, inference now resolves a single shape
-     * (see {@link NdJsonSchemaInferrerTests}); that inference interaction is exercised end-to-end in the iterator
-     * tests.
+     * schema inference. A sampled file that mixes a scalar and an object at the same name infers both the
+     * scalar column and the dotted children (see {@link NdJsonSchemaInferrerTests#testScalarAndObjectCoexist});
+     * that interaction is exercised end-to-end in the iterator tests.
      */
     public void testNullWhereNestedObjectExpected() throws IOException {
         String ndjson = "{\"address\": {\"city\": \"NYC\", \"zip\": \"10001\"}}\n"
@@ -388,7 +388,8 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     /**
      * An array of objects at an ancestor of a leaf-and-prefix node ({@code x.a} beside {@code x.a.b}) opens a
      * multivalue entry on both columns. An element that fills only one of them leaves the other entry empty; that
-     * empty entry is committed as null so the row stays one position per column. A sibling {@code id} pins alignment.
+     * empty entry is cancelled without claiming, and the end-of-record fill supplies the null so the row stays
+     * one position per column. A sibling {@code id} pins alignment.
      */
     public void testSparseObjectArrayOnLeafAndPrefixNullFillsTheUnfilledColumn() throws IOException {
         String ndjson = "{\"x\":[{\"a\":1}],\"id\":10}\n" + "{\"x\":[{\"a\":{\"b\":2}}],\"id\":20}\n";
@@ -468,6 +469,43 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
+     * A later array of objects at a leaf-and-prefix node whose scalar is already claimed still populates
+     * dotted children, the same as a later object does. {@code {"a":1,"a":[{"b":2}]}} fills both {@code a}
+     * and {@code a.b}; {@code {"a.b":1,"a.b":[{"c":2}]}} fills {@code a.b} and {@code a.b.c}. A sibling
+     * {@code id} pins alignment.
+     */
+    public void testLaterObjectArrayAtClaimedDualNodeStillDecodesDescendants() throws IOException {
+        String ndjson = "{\"a\":1,\"a\":[{\"b\":2}],\"id\":10}\n" + "{\"a.b\":1,\"a.b\":[{\"c\":2}],\"id\":20}\n";
+
+        try (
+            Page page = decodePage(
+                ndjson,
+                List.of(
+                    attribute("a", DataType.LONG),
+                    attribute("a.b", DataType.LONG),
+                    attribute("a.b.c", DataType.LONG),
+                    attribute("id", DataType.LONG)
+                )
+            )
+        ) {
+            assertNotNull(page);
+            assertEquals(2, page.getPositionCount());
+            LongBlock a = page.getBlock(0);
+            LongBlock ab = page.getBlock(1);
+            LongBlock abc = page.getBlock(2);
+            LongBlock id = page.getBlock(3);
+            assertEquals(1L, a.getLong(a.getFirstValueIndex(0)));
+            assertEquals(2L, ab.getLong(ab.getFirstValueIndex(0)));
+            assertTrue(abc.isNull(0));
+            assertTrue(a.isNull(1));
+            assertEquals(1L, ab.getLong(ab.getFirstValueIndex(1)));
+            assertEquals(2L, abc.getLong(abc.getFirstValueIndex(1)));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+            assertEquals(20L, id.getLong(id.getFirstValueIndex(1)));
+        }
+    }
+
+    /**
      * A later array of objects on a prefix merges into a descendant a flat spelling already filled:
      * {@code {"a.b":1,"a":[{"b":2}]}} yields {@code [1, 2]} on {@code a.b}, one position, aligned with {@code id}.
      */
@@ -528,6 +566,45 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
+     * An array of empty objects contributes no leaf values and does not claim the cell, so a later spelling
+     * in the same record still fills it. Claiming the empty child entry as null would pin the cell: a null
+     * cannot be reopened, so the later value would be dropped. A JSON null inside an object-array element
+     * and a sibling field that fills a different child are the same empty-entry shape. A sibling {@code id}
+     * column pins the alignment.
+     */
+    public void testEmptyObjectArrayDoesNotClaimTheCellAgainstALaterValue() throws IOException {
+        String ndjson = "{\"a\":[{}],\"a.b\":1,\"id\":10}\n"
+            + "{\"a.b\":2,\"a\":[{}],\"id\":20}\n"
+            + "{\"a\":[{\"b\":null}],\"a.b\":3,\"id\":30}\n"
+            + "{\"a\":[{\"c\":1}],\"a.b\":4,\"id\":40}\n";
+
+        try (
+            Page page = decodePage(
+                ndjson,
+                List.of(attribute("a.b", DataType.LONG), attribute("a.c", DataType.LONG), attribute("id", DataType.LONG))
+            )
+        ) {
+            assertNotNull(page);
+            assertEquals(4, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            LongBlock ac = page.getBlock(1);
+            LongBlock id = page.getBlock(2);
+            assertEquals(1L, ab.getLong(ab.getFirstValueIndex(0)));
+            assertTrue(ac.isNull(0));
+            assertEquals(2L, ab.getLong(ab.getFirstValueIndex(1)));
+            assertTrue(ac.isNull(1));
+            assertEquals(3L, ab.getLong(ab.getFirstValueIndex(2)));
+            assertTrue(ac.isNull(2));
+            assertEquals(4L, ab.getLong(ab.getFirstValueIndex(3)));
+            assertEquals(1L, ac.getLong(ac.getFirstValueIndex(3)));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+            assertEquals(20L, id.getLong(id.getFirstValueIndex(1)));
+            assertEquals(30L, id.getLong(id.getFirstValueIndex(2)));
+            assertEquals(40L, id.getLong(id.getFirstValueIndex(3)));
+        }
+    }
+
+    /**
      * A cell nulled by an error policy cannot be widened, so an array of objects on an ancestor finds no open
      * entry on that leaf. Its values must be dropped rather than appended: appending with no entry open starts a
      * SECOND position for the column, and {@code Page} only asserts equal position counts, so the record would
@@ -583,6 +660,59 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             assertEquals(1, page.getPositionCount());
             assertTrue(((LongBlock) page.getBlock(0)).isNull(0));
             assertTrue("the poisoned array nulls the whole position for this column", ((LongBlock) page.getBlock(1)).isNull(0));
+            assertEquals(10L, ((LongBlock) page.getBlock(2)).getLong(0));
+        }
+    }
+
+    /**
+     * A coercion failure inside an object array nulls only the leaves that array opened or wrote. A sibling a
+     * flat spelling already committed, and that this array never mentioned, keeps its value: the array is not a
+     * spelling of that sibling, so rolling it back would throw away a value ingest would keep.
+     * {@code {"a.b":1,"a":[{"c":"notanumber"}]}} therefore leaves {@code a.b=1} and nulls {@code a.c}. A sibling
+     * {@code id} column pins the alignment.
+     */
+    public void testObjectArrayPoisonDoesNotNullAnUntouchedClaimedSibling() throws IOException {
+        String ndjson = "{\"a.b\":1,\"a\":[{\"c\":\"notanumber\"}],\"id\":10}\n";
+
+        try (
+            Page page = decodePage(
+                ndjson,
+                List.of(attribute("a.b", DataType.LONG), attribute("a.c", DataType.LONG), attribute("id", DataType.LONG)),
+                new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false)
+            )
+        ) {
+            assertNotNull(page);
+            assertEquals(1, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            LongBlock ac = page.getBlock(1);
+            LongBlock id = page.getBlock(2);
+            assertEquals("the array never wrote a.b; the committed flat value must survive the sibling poison", 1L, ab.getLong(0));
+            assertTrue("null_field nulls the leaf the array actually wrote", ac.isNull(0));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+        }
+    }
+
+    /**
+     * When the same object array that poisons one leaf also wrote the claimed sibling, that sibling is part of
+     * the poisoned merge and both cells are null: {@code {"a.b":1,"a":[{"b":2,"c":"notanumber"}]}} nulls
+     * {@code a.b} and {@code a.c}. Distinct from
+     * {@link #testObjectArrayPoisonDoesNotNullAnUntouchedClaimedSibling}, where the array never mentioned
+     * {@code a.b}.
+     */
+    public void testObjectArrayPoisonNullsASiblingThisArrayWrote() throws IOException {
+        String ndjson = "{\"a.b\":1,\"a\":[{\"b\":2,\"c\":\"notanumber\"}],\"id\":10}\n";
+
+        try (
+            Page page = decodePage(
+                ndjson,
+                List.of(attribute("a.b", DataType.LONG), attribute("a.c", DataType.LONG), attribute("id", DataType.LONG)),
+                new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false)
+            )
+        ) {
+            assertNotNull(page);
+            assertEquals(1, page.getPositionCount());
+            assertTrue("a.b took a value from the poisoned array, so the merged cell is null", ((LongBlock) page.getBlock(0)).isNull(0));
+            assertTrue(((LongBlock) page.getBlock(1)).isNull(0));
             assertEquals(10L, ((LongBlock) page.getBlock(2)).getLong(0));
         }
     }
@@ -933,11 +1063,9 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     /**
      * Mirror of {@link #testArrayOfObjectsWithScalarElements}: an array of scalars on a leaf column whose
      * elements are occasionally objects (e.g. {@code ["a", {"x":1}, "b"]}). A stray object among array
-     * scalars is a distinct, supported shape — not the record-level scalar/object conflict
-     * the record-level shape-conflict path targets — so it must be silently omitted from the multi-value entry under
-     * every {@link ErrorPolicy}, including {@code STRICT}; only a genuine top-level (non-array) conflict
-     * a genuine top-level non-array schema conflict fails the query. Covers leading-object,
-     * mid-object, and all-object arrays against a scalar {@code id} column that pins the expected row count.
+     * scalars is omitted from the multi-value entry under every {@link ErrorPolicy}, including {@code STRICT}.
+     * Covers leading-object, mid-object, and all-object arrays against a scalar {@code id} column that pins
+     * the expected row count.
      */
     public void testArrayOfScalarsWithObjectElements() throws IOException {
         String ndjson = "{\"tags\": [\"a\", {\"x\": 1}, \"b\"], \"id\": 1}\n"

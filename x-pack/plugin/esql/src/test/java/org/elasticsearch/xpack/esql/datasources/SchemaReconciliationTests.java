@@ -427,10 +427,9 @@ public class SchemaReconciliationTests extends ESTestCase {
     }
 
     /**
-     * Pins that {@code STRICT} still rejects files whose column sets differ (here, scalar
-     * {@code user} vs dotted {@code user.id}/{@code user.tier}) rather than attempting
-     * UNION_BY_NAME-style resolution. This is a column-count mismatch, not a decode-time
-     * shape conflict.
+     * {@code STRICT} rejects files whose column sets differ (scalar {@code user} vs dotted
+     * {@code user.id}/{@code user.tier}) rather than attempting UNION_BY_NAME-style resolution.
+     * This is a column-count mismatch, not a decode-time shape conflict.
      */
     public void testStrictRejectsScalarVsObjectShapeConflict() {
         List<Attribute> scalarFile = List.of(attr("event", DataType.INTEGER), attr("user", DataType.KEYWORD));

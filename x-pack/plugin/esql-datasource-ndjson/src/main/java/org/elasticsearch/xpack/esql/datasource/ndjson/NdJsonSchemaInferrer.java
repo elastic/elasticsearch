@@ -143,11 +143,7 @@ public class NdJsonSchemaInferrer {
             }
             var child = childFor(object, parser.getCurrentName());
             parser.nextToken();
-            if (child == null) {
-                parser.skipChildren();
-            } else {
-                inferValueSchema(parser, child);
-            }
+            inferValueSchema(parser, child);
         }
     }
 

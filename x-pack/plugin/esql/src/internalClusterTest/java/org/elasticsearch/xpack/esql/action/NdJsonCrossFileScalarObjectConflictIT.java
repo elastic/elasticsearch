@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -164,21 +163,23 @@ public class NdJsonCrossFileScalarObjectConflictIT extends AbstractEsqlIntegTest
     }
 
     /**
-     * Default settings ({@code UNION_BY_NAME} schema resolution, strict error policy): before this
-     * fix, {@code a.ndjson}'s scalar {@code user} and {@code b.ndjson}'s {@code user.id}/
-     * {@code user.tier} would coexist in the fabricated unified schema and the query would
-     * silently return {@code with_user=1} rather than failing — the correctness bug this fix
-     * closes. With the fix, the family collapses to {@code a.ndjson}'s scalar shape, so
-     * {@code b.ndjson}'s now-pinned scalar {@code user} attribute hits its real object value and
-     * fails per the decode-time shape-conflict handling — mirroring
-     * {@link NdJsonScalarObjectConflictIT#testStrictPolicyFailsOnScalarObjectConflict}.
+     * Default settings ({@code UNION_BY_NAME}, strict error policy) keep both files: a scalar
+     * {@code user} and dotted {@code user.id}/{@code user.tier} are independent columns, not a
+     * value error. The object file null-fills {@code user}.
      */
-    public void testDefaultSettingsFailsOnCrossFileScalarObjectConflict() {
-        String query = "FROM strict_ds | STATS total = COUNT(*), with_user = COUNT(user)";
-        Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest(query), TIMEOUT).close());
-        String trace = ExceptionsHelper.stackTrace(e);
-        assertTrue("must fail on the cross-file shape conflict, got: " + trace, trace.contains("user"));
-        assertTrue("error must explain the conflict, got: " + trace, trace.contains("resolved to scalar type"));
+    public void testDefaultSettingsKeepsBothFiles() {
+        try (var response = run(syncEsqlQueryRequest("FROM strict_ds | KEEP event, user, `user.id`, `user.tier` | SORT event"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(2));
+            assertThat(((Number) rows.get(0).get(0)).intValue(), equalTo(1));
+            assertThat(rows.get(0).get(1), equalTo("alice"));
+            assertNull(rows.get(0).get(2));
+            assertNull(rows.get(0).get(3));
+            assertThat(((Number) rows.get(1).get(0)).intValue(), equalTo(2));
+            assertNull(rows.get(1).get(1));
+            assertThat(rows.get(1).get(2), equalTo("bob"));
+            assertThat(rows.get(1).get(3), equalTo("gold"));
+        }
     }
 
     /**

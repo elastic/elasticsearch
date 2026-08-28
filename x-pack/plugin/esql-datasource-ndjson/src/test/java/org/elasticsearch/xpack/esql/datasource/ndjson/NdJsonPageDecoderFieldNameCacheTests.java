@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.ndjson;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -299,6 +300,63 @@ public class NdJsonPageDecoderFieldNameCacheTests extends ESTestCase {
                 1 + uniquePerRecordExtras * rows,
                 Matchers.greaterThan(bound)
             );
+        }
+    }
+
+    /**
+     * A projected flat dotted key that first appears after the identity cache is already full
+     * must still decode: {@link NdJsonPageDecoder} aliases the remaining dotted suffix onto the
+     * ancestor at prepare time, so {@code children}/{@code pathAliases} hit the leaf without a
+     * per-record path walk.
+     */
+    public void testFlatDottedKeyDecodesAfterIdentityCacheIsFull() throws IOException {
+        int extras = NdJsonPageDecoder.IDENTITY_CACHE_MIN_CAP + 16;
+        List<Attribute> schema = List.of(
+            NdJsonSchemaInferrer.attribute("id", DataType.INTEGER, false),
+            NdJsonSchemaInferrer.attribute("a.b", DataType.INTEGER, false)
+        );
+        var sw = new StringWriter();
+        try (PrintWriter w = new PrintWriter(sw)) {
+            var first = new StringBuilder().append("{\"id\":0");
+            for (int e = 0; e < extras; e++) {
+                first.append(",\"dyn_").append(e).append("\":").append(e);
+            }
+            first.append('}');
+            w.println(first);
+            for (int r = 1; r <= 3; r++) {
+                w.format(Locale.ROOT, "{\"id\":%d,\"a.b\":%d}%n", r, r * 10);
+            }
+        }
+        byte[] ndjson = sw.toString().getBytes(StandardCharsets.UTF_8);
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson),
+                null,
+                schema,
+                List.of("id", "a.b"),
+                8,
+                blockFactory,
+                ErrorPolicy.STRICT,
+                "test",
+                new NdJsonReaderCounters()
+            )
+        ) {
+            Page page = decoder.decodePage();
+            assertNotNull(page);
+            try {
+                assertEquals(4, page.getPositionCount());
+                IntBlock id = page.getBlock(0);
+                IntBlock ab = page.getBlock(1);
+                assertTrue(ab.isNull(0));
+                for (int r = 1; r <= 3; r++) {
+                    assertEquals(r, id.getInt(id.getFirstValueIndex(r)));
+                    assertEquals(r * 10, ab.getInt(ab.getFirstValueIndex(r)));
+                }
+            } finally {
+                page.releaseBlocks();
+            }
+            int bound = Math.max(NdJsonPageDecoder.IDENTITY_CACHE_MIN_CAP, 2 * NdJsonPageDecoder.IDENTITY_CACHE_FANOUT_MULT);
+            assertThat(decoder.rootIdentityCacheSize(), Matchers.lessThanOrEqualTo(bound));
         }
     }
 

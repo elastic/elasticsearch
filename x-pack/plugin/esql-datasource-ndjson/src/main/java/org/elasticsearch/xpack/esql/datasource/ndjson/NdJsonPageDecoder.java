@@ -1374,22 +1374,57 @@ public class NdJsonPageDecoder implements Closeable {
             // setAttribute keeps this physical attribute at channel idx; the block is relabeled to the logical name by
             // position downstream (ColumnMapping / queryDataSchema).
             String name = attribute.name();
-            BlockDecoder decoder = root;
-            if (NdJsonUtils.isFieldPath(name)) {
-                int start = 0;
-                int dot;
-                while ((dot = name.indexOf('.', start)) >= 0) {
-                    decoder = decoder.child(name.substring(start, dot));
-                    start = dot + 1;
-                }
-                decoder = decoder.child(name.substring(start));
-            } else {
-                decoder = decoder.child(name);
-            }
+            BlockDecoder decoder = installPath(root, name);
             decoder.setAttribute(attribute, idx);
             idx++;
         }
         return root;
+    }
+
+    /**
+     * Place {@code name} in the decode tree. A dotted name is walked as nested segments
+     * ({@code a.b.c} is {@code root → a → b → c}) and every multi-segment remainder is also
+     * aliased on the ancestor so a flat key hits the same node: {@code root} maps {@code "a.b"}
+     * to {@code b} and {@code "a.b.c"} to {@code c}, and {@code a} maps {@code "b.c"} to {@code c}.
+     * Aliases live off the structural {@code children} map so recursive walks still visit each
+     * node once. A name that is not a path is a single literal child.
+     */
+    private static BlockDecoder installPath(BlockDecoder root, String name) {
+        if (NdJsonUtils.isFieldPath(name) == false) {
+            return root.child(name);
+        }
+        int segments = 1;
+        for (int i = 0; i < name.length(); i++) {
+            if (name.charAt(i) == '.') {
+                segments++;
+            }
+        }
+        BlockDecoder[] nodes = new BlockDecoder[segments + 1];
+        int[] starts = new int[segments];
+        nodes[0] = root;
+        starts[0] = 0;
+        BlockDecoder decoder = root;
+        int seg = 0;
+        int start = 0;
+        while (true) {
+            int dot = name.indexOf('.', start);
+            String segment = dot < 0 ? name.substring(start) : name.substring(start, dot);
+            decoder = decoder.child(segment);
+            seg++;
+            nodes[seg] = decoder;
+            if (dot < 0) {
+                break;
+            }
+            start = dot + 1;
+            starts[seg] = start;
+        }
+        for (int i = 0; i < segments - 1; i++) {
+            for (int k = i + 1; k < segments; k++) {
+                int end = (k + 1 < segments) ? starts[k + 1] - 1 : name.length();
+                nodes[i].alias(name.substring(starts[i], end), nodes[k + 1]);
+            }
+        }
+        return decoder;
     }
 
     /**
@@ -1506,6 +1541,14 @@ public class NdJsonPageDecoder implements Closeable {
         DateFormatter declaredFormatter;
         Map<String, BlockDecoder> children;
         /**
+         * Multi-segment remainders of a projected dotted name, pointing at the same node the
+         * nested walk already built. {@link #lookupChild} consults this after {@code children}
+         * so a flat key is one HashMap get even when the identity cache is full. Not walked by
+         * {@link #setupBuilders} / {@link #beginPositionEntry} / {@link #endPositionEntry}:
+         * those recurse the structural tree, and each aliased node already lives there.
+         */
+        Map<String, BlockDecoder> pathAliases;
+        /**
          * Identity-keyed cache of field-name {@link String} instances previously seen by this
          * object's decoder, mapped to either a child {@link BlockDecoder} (projected) or
          * {@link #unprojected} (unprojected). Lazily allocated on the first field probe so
@@ -1528,6 +1571,15 @@ public class NdJsonPageDecoder implements Closeable {
                 children = new HashMap<>();
             }
             return children.computeIfAbsent(segment, k -> new BlockDecoder());
+        }
+
+        /** Point a multi-segment remainder at an existing node already in the structural tree. */
+        void alias(String dottedName, BlockDecoder target) {
+            if (pathAliases == null) {
+                pathAliases = new HashMap<>();
+            }
+            BlockDecoder existing = pathAliases.putIfAbsent(dottedName, target);
+            assert existing == null || existing == target : "dotted alias [" + dottedName + "] maps to two nodes";
         }
 
         void setAttribute(Attribute attribute, int blockIdx) {
@@ -1627,9 +1679,12 @@ public class NdJsonPageDecoder implements Closeable {
          * canonicalised {@code String} instance.
          * <p>
          * On cache miss (first time this object's decoder sees this identity) the call falls
-         * back to a single {@code children.get(fieldName)} probe and primes the cache with
-         * either the child decoder or {@link #unprojected}. The fallback count is exposed via
-         * {@link #hashMapFallbacks()} so tests can pin that the cache is doing its job.
+         * back to {@code children.get(fieldName)}, then {@code pathAliases} for a multi-segment
+         * remainder installed by {@link #installPath}, then {@link #resolveDottedPath} for an
+         * unprojected dotted leftover, and primes the cache with either the resolved decoder or
+         * {@link #unprojected}. A projected flat key is therefore one HashMap get even when the
+         * identity cache is full. The fallback count is exposed via {@link #hashMapFallbacks()}
+         * so tests can pin that the cache is doing its job.
          * <p>
          * When {@code children} is {@code null} the decoder cannot match any projection, so the
          * loop short-circuits to {@link #unprojected} without allocating an identity cache or
@@ -1658,12 +1713,12 @@ public class NdJsonPageDecoder implements Closeable {
             }
             hashMapFallbacks++;
             BlockDecoder resolved = children.get(fieldName);
+            if (resolved == null && pathAliases != null) {
+                resolved = pathAliases.get(fieldName);
+            }
             if (resolved == null && NdJsonUtils.isFieldPath(fieldName)) {
-                // A flat dotted key (e.g. "a.b") with no direct child: ES ingest reinterprets a dotted field
-                // name as the equivalent nested object, so a record spelling a column flat must reach the same
-                // leaf as the nested {"a":{"b":...}} spelling. Resolve it as a path through this decoder's
-                // subtree. The walk runs only on this first-seen identity (the result is then cached like any
-                // direct child), so the common non-dotted / cache-hit path is unaffected.
+                // Unprojected dotted leftover: no alias was installed for this name. Walk the
+                // structural tree and treat a miss as unprojected, same as an unknown field.
                 resolved = resolveDottedPath(fieldName);
             }
             BlockDecoder toCache = resolved == null ? unprojected : resolved;
@@ -1728,18 +1783,13 @@ public class NdJsonPageDecoder implements Closeable {
         private void beginPositionEntry(boolean includeSelf, boolean includeChildren) {
             // We may have DataType.NULL for unknown columns. And NullBlock.Builder throws on beginPositionEntry()
             if (includeSelf && blockBuilder != null && dataType != DataType.NULL) {
-                if (blockTracker.get(blockIdx)) {
-                    // A flat spelling already committed this leaf; a later array on an ancestor merges into that
-                    // cell. reopenLastPositionEntry returns false when the cell is already null: a null is a
-                    // property of the whole position, not a member of its value list, so it cannot widen. This
-                    // node then has NO open entry for the rest of the array, which every path that assumes one
-                    // must check for (see decodeValue's append guard, endPositionEntry and
-                    // cancelAndNullPositionEntry): appending anyway would start a second position for this
-                    // column and misalign it from its siblings.
-                    ((AbstractBlockBuilder) blockBuilder).reopenLastPositionEntry();
-                } else {
+                if (blockTracker.get(blockIdx) == false) {
                     blockBuilder.beginPositionEntry();
                 }
+                // A claimed cell is left closed. The first append into this array reopens it (see decodeValue);
+                // if this array never writes the leaf, the committed value survives a poison of a sibling.
+                // Reopening eagerly would put every claimed child on the cancelAndNullPositionEntry path,
+                // so a bad value in {"a":[{"c":"notanumber"}]} would also null a sibling {"a.b":1}.
             }
             if (includeChildren && children != null) {
                 for (var child : children.values()) {
@@ -1756,11 +1806,11 @@ public class NdJsonPageDecoder implements Closeable {
                     if (abb.currentPositionEntryIsEmpty()) {
                         // An array of objects opened this entry, then no element wrote a value here (a
                         // leaf-and-prefix sibling was filled instead, or every element omitted this field).
-                        // Commit a null so the position stays aligned with its siblings; endPositionEntry
-                        // asserts on an empty entry.
+                        // Cancel without claiming: a later spelling in the same record can still fill the
+                        // cell, and the end-of-record fill supplies the null when nothing else does.
+                        // Claiming a null here would pin the cell, because reopenLastPositionEntry
+                        // refuses to widen a null, so a later value would be dropped.
                         abb.cancelPositionEntry();
-                        blockTracker.set(blockIdx);
-                        blockBuilder.appendNull();
                     } else {
                         blockBuilder.endPositionEntry();
                     }
@@ -1779,9 +1829,9 @@ public class NdJsonPageDecoder implements Closeable {
          * when a coercion failure poisoned an array: the whole position is nulled rather
          * than committed as a partial multivalue, matching the columnar reader contract.
          * <p>
-         * A node whose reopen {@link #beginPositionEntry} refused has no entry to cancel, and its cell already
-         * holds the null this method would write, so it is left alone: {@code cancelPositionEntry} asserts when
-         * no entry is open.
+         * A node that has no entry open (a prior spelling already committed the cell and this array never
+         * wrote it, or a reopen refused because the cell is already null) is left alone:
+         * {@code cancelPositionEntry} asserts when no entry is open.
          */
         private void cancelAndNullPositionEntry(boolean includeSelf, boolean includeChildren) {
             if (includeSelf && blockBuilder != null && dataType != DataType.NULL) {
@@ -1842,7 +1892,7 @@ public class NdJsonPageDecoder implements Closeable {
          * ancestor with no open entry to append into.
          * <p>
          * This also keeps {@link Block.Builder#beginPositionEntry()} from being run with no values, which
-         * {@link org.elasticsearch.compute.data.AbstractBlockBuilder#endPositionEntry()} asserts against.
+         * {@link AbstractBlockBuilder#endPositionEntry()} asserts against.
          * <p>
          * The key itself was present, so a leaf counts as seen for the absent-declared-column warning, the same
          * way a JSON null does. Columns nested <em>under</em> an empty array get no such mark: their own keys
@@ -1899,8 +1949,14 @@ public class NdJsonPageDecoder implements Closeable {
                     decodeObject(parser, entry);
                     return;
                 }
-                appendFurtherOccurrence(parser);
-                return;
+                if (token != JsonToken.START_ARRAY || children == null) {
+                    appendFurtherOccurrence(parser);
+                    return;
+                }
+                // START_ARRAY with children: fall through to the array arm so an object array can
+                // populate descendants without merging into this node's claimed scalar, and a scalar
+                // array can reopen this cell and merge. appendFurtherOccurrence would decode with
+                // ArrayEntry.SELF and skip objects as stray scalars, leaving dotted children null.
             }
 
             if (token == JsonToken.START_ARRAY) {
@@ -2066,14 +2122,13 @@ public class NdJsonPageDecoder implements Closeable {
                 return;
             }
             if (entry != ArrayEntry.NONE && ((AbstractBlockBuilder) blockBuilder).isPositionEntryOpen() == false) {
-                // An enclosing array asked beginPositionEntry to reopen this leaf's cell and was refused: the cell
-                // is already null and cannot widen. With no entry open, appending here would not join a multivalue,
-                // it would start a SECOND position for this column, leaving it one position longer than its
-                // siblings for this record (a Page only asserts equal position counts). The array therefore
-                // contributes nothing to this column, exactly as appendFurtherOccurrence drops a further
-                // occurrence into an already-nulled cell.
-                markColumnSeen(blockIdx);
-                return;
+                // No entry is open. Either a prior spelling already committed this leaf and this array is about
+                // to write it (reopen and merge), or the cell is already null / was never opened (drop this
+                // value: appending would start a SECOND position and misalign the column from its siblings).
+                if (blockTracker.get(blockIdx) == false || ((AbstractBlockBuilder) blockBuilder).reopenLastPositionEntry() == false) {
+                    markColumnSeen(blockIdx);
+                    return;
+                }
             }
             blockTracker.set(blockIdx);
 
@@ -2374,17 +2429,17 @@ public class NdJsonPageDecoder implements Closeable {
         }
 
         /**
-         * Handles a scalar value that cannot be coerced into a column's declared type — a string that is not a
+         * Handles a scalar value that cannot be coerced into a column's declared type: a string that is not a
          * number for a numeric column, a non-{@code true}/{@code false} token for a boolean column, a number that
          * overflows the target, a string the declared date {@code format} cannot parse, or a token whose JSON kind
          * has no coercion to the target. Routed through {@link ErrorPolicy} here rather than through the shared
-         * {@link DeclaredTypeCoercions#onCoercionFailure} the columnar readers call -- this decoder owns its own
-         * warning text and budget accounting -- but to the SAME observable outcome, which is the contract that
+         * {@link DeclaredTypeCoercions#onCoercionFailure} the columnar readers call. This decoder owns its own
+         * warning text and budget accounting, but to the SAME observable outcome, which is the contract that
          * matters across formats: {@link ErrorPolicy.Mode#FAIL_FAST} fails the query with an
          * actionable message; {@link ErrorPolicy.Mode#NULL_FIELD} nulls this cell only and warns; and
          * {@link ErrorPolicy.Mode#SKIP_ROW} drops the whole record and warns (both subject to the error budget). Every
-         * unrepresentable cell reaches this one sink — a bad value here, or a cross-kind token
-         * ({@link #crossKindDrift}) — for a DECLARED or an INFERRED column alike, so the observable outcome depends
+         * unrepresentable cell reaches this one sink: a bad value here, or a cross-kind token
+         * ({@link #crossKindDrift}), for a DECLARED or an INFERRED column alike, so the observable outcome depends
          * only on {@code error_mode}, never on where the type came from.
          */
         private void coercionFailure(Block.Builder builder, JsonParser parser, boolean inArray, DataType target) throws IOException {

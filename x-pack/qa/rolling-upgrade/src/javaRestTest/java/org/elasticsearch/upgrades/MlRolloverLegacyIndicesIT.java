@@ -7,6 +7,8 @@
 
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
@@ -14,20 +16,21 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
+import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.upgrades.MlJobSnapshotUpgradeIT.generateData;
 import static org.hamcrest.Matchers.anyOf;
@@ -39,7 +42,9 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MlRolloverLegacyIndicesIT extends AbstractUpgradeTestCase {
+public class MlRolloverLegacyIndicesIT extends AbstractXpackRollingUpgradeTestCase {
+
+    private static final boolean SKIP_ML_TESTS = Booleans.parseBoolean(System.getProperty("tests.ml.skip", "false"));
 
     private static final String JOB_ID = "ml-rollover-legacy-job";
     private static final String CUSTOM_INDEX_JOB_ID = "ml-rollover-legacy-custom-job";
@@ -48,19 +53,35 @@ public class MlRolloverLegacyIndicesIT extends AbstractUpgradeTestCase {
     private static final String UPGRADED_CUSTOM_INDEX_CLUSTER_JOB_ID = "ml-rollover-upgraded-custom-job";
     private static final int NUM_BUCKETS = 10;
 
+    @ClassRule
+    public static ElasticsearchCluster cluster = buildCluster();
+
+    public MlRolloverLegacyIndicesIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
+    }
+
     @BeforeClass
     public static void maybeSkip() {
         assumeFalse("Skip ML tests on unsupported glibc versions", SKIP_ML_TESTS);
     }
 
-    @Override
-    protected Collection<String> templatesToWaitFor() {
-        // We shouldn't wait for ML templates during the upgrade - production won't
-        if (CLUSTER_TYPE != ClusterType.OLD) {
-            return super.templatesToWaitFor();
+    @Before
+    public void waitForMlTemplates() throws Exception {
+        // We shouldn't wait for ML templates during the upgrade - production won't.
+        // On the old cluster, wait for the ML index templates to be installed before running tests.
+        if (isOldCluster()) {
+            for (String templateName : XPackRestTestConstants.ML_POST_V7120_TEMPLATES) {
+                assertBusy(() -> {
+                    Request request = new Request("GET", "/_index_template/" + templateName);
+                    assertOK(client().performRequest(request));
+                });
+            }
         }
-        return Stream.concat(XPackRestTestConstants.ML_POST_V7120_TEMPLATES.stream(), super.templatesToWaitFor().stream())
-            .collect(Collectors.toSet());
     }
 
     /**
@@ -69,27 +90,20 @@ public class MlRolloverLegacyIndicesIT extends AbstractUpgradeTestCase {
      * custom results indices.
      */
     public void testRolloverLegacyIndices() throws Exception {
-
-        switch (CLUSTER_TYPE) {
-            case OLD:
-                createAndRunJob(JOB_ID, false);
-                createAndRunJob(CUSTOM_INDEX_JOB_ID, true);
-                break;
-            case MIXED:
-                break;
-            case UPGRADED:
-                assertLegacyIndicesRollover();
-                assertAnomalyIndicesRollover();
-                assertNotificationsIndexAliasCreated();
-                createAndRunJob(UPGRADED_CLUSTER_JOB_ID, false);
-                closeJob(UPGRADED_CLUSTER_JOB_ID);
-                createAndRunJob(UPGRADED_CUSTOM_INDEX_CLUSTER_JOB_ID, true);
-                closeJob(UPGRADED_CUSTOM_INDEX_CLUSTER_JOB_ID);
-                assertResultsInNewIndex(false);
-                assertResultsInNewIndex(true);
-                break;
-            default:
-                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+        if (isOldCluster()) {
+            createAndRunJob(JOB_ID, false);
+            createAndRunJob(CUSTOM_INDEX_JOB_ID, true);
+        }
+        if (isUpgradedCluster()) {
+            assertLegacyIndicesRollover();
+            assertAnomalyIndicesRollover();
+            assertNotificationsIndexAliasCreated();
+            createAndRunJob(UPGRADED_CLUSTER_JOB_ID, false);
+            closeJob(UPGRADED_CLUSTER_JOB_ID);
+            createAndRunJob(UPGRADED_CUSTOM_INDEX_CLUSTER_JOB_ID, true);
+            closeJob(UPGRADED_CUSTOM_INDEX_CLUSTER_JOB_ID);
+            assertResultsInNewIndex(false);
+            assertResultsInNewIndex(true);
         }
     }
 
@@ -173,7 +187,7 @@ public class MlRolloverLegacyIndicesIT extends AbstractUpgradeTestCase {
 
     @SuppressWarnings("unchecked")
     private void assertLegacyIndicesRollover() throws Exception {
-        if (isOriginalClusterVersionAtLeast(Version.V_8_0_0)) {
+        if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0)) {
             // not a legacy index
             return;
         }
@@ -204,7 +218,7 @@ public class MlRolloverLegacyIndicesIT extends AbstractUpgradeTestCase {
 
     @SuppressWarnings("unchecked")
     private void assertAnomalyIndicesRollover() throws Exception {
-        if (isOriginalClusterVersionAtLeast(Version.V_8_0_0)) {
+        if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0)) {
             // not a legacy index
             return;
         }
@@ -281,7 +295,7 @@ public class MlRolloverLegacyIndicesIT extends AbstractUpgradeTestCase {
 
     @SuppressWarnings("unchecked")
     public void assertResultsInNewIndex(boolean checkCustomIndex) throws Exception {
-        if (isOriginalClusterVersionAtLeast(Version.V_8_0_0)) {
+        if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0)) {
             // not a legacy index
             return;
         }

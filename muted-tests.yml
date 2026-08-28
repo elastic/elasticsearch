@@ -121,9 +121,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
   method: testTranslogMasterFailureOnlyStressRecoveryTest
   issue: https://github.com/elastic/elasticsearch/issues/147835
-- class: org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingIT
-  method: testShardPrewarming
-  issue: https://github.com/elastic/elasticsearch/issues/147838
 - class: org.elasticsearch.xpack.stateless.autoscaling.search.AutoscalingReplicaIT
   method: testSearchSizeAffectsReplicasSPBetween100And250
   issue: https://github.com/elastic/elasticsearch-serverless/issues/5731
@@ -806,3 +803,9 @@ tests:
 - class: org.elasticsearch.action.bulk.ShardBatchIndexerCanUseBatchTests
   method: testDynamicSettingUpdate
   issue: https://github.com/elastic/elasticsearch/issues/157947
+- class: org.elasticsearch.snapshots.BlobStoreIncrementalityIT
+  method: testForceMergeCausesFullSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/157970
+- class: org.elasticsearch.xpack.esql.evaluator.command.TestCompoundOutputEvaluatorTests
+  method: testSimpleCircuitBreaking
+  issue: https://github.com/elastic/elasticsearch/issues/154059

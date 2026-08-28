@@ -407,7 +407,7 @@ public class FixtureDimensionsTests extends ESTestCase {
      */
     public void testDirectiveExpressibleCountsPerFormat() {
         FixtureDimensions d = FixtureDimensions.get();
-        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(33));
+        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(87));
         assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(27));
         assertThat(d.directiveExpressibleVectors("ndjson").size(), equalTo(27));
         assertThat(d.directiveExpressibleVectors("parquet").size(), equalTo(9));
@@ -468,7 +468,7 @@ public class FixtureDimensionsTests extends ESTestCase {
      */
     public void testDisjointRemovalLeavesEveryFormatsSelectionUntouched() {
         FixtureDimensions d = FixtureDimensions.get();
-        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(33));
+        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(87));
         assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(27));
         assertThat(d.directiveExpressibleVectors("ndjson").size(), equalTo(27));
         assertThat(d.directiveExpressibleVectors("parquet").size(), equalTo(9));
@@ -587,10 +587,12 @@ public class FixtureDimensionsTests extends ESTestCase {
         Set<FixtureDimensions.Seam> directiveOnly = Set.of(FixtureDimensions.Seam.DIRECTIVE);
         Set<FixtureDimensions.Seam> both = Set.of(FixtureDimensions.Seam.DIRECTIVE, FixtureDimensions.Seam.FIXTURE);
         for (String format : List.of("csv", "tsv", "ndjson")) {
+            // csv gained dialect trees on top of the three codecs, so its gap is larger. The number is
+            // not the point -- that withdrawing FIXTURE withdraws exactly the cells a generator renders is.
             assertThat(
-                "three codecs became selectable on " + format,
+                "the fixture seam is load-bearing on " + format,
                 d.expressibleVectors(format, both).size() - d.expressibleVectors(format, directiveOnly).size(),
-                equalTo(9)
+                equalTo(format.equals("csv") ? 63 : 9)
             );
         }
         assertThat(

@@ -278,10 +278,15 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         List<Object[]> baseTests = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
         List<Object[]> out = new ArrayList<>();
         int pinned = 0;
+        int unrepresentable = 0;
         for (Object[] baseTest : baseTests) {
             for (Map<String, String> vector : vectors) {
                 if (directivePins(baseTest, dimensions.directiveSettings(vector))) {
                     pinned++;
+                    continue;
+                }
+                if (dialectCannotCarry(dimensions, baseTest, vector)) {
+                    unrepresentable++;
                     continue;
                 }
                 out.add(appendVectorAndBackend(dimensions, baseTest, vector));
@@ -290,9 +295,54 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         // Counted and logged, never silent: a filtered pair is a combination deliberately not run, and
         // the number is the only way to tell that from a combination nobody thought of.
         if (pinned > 0) {
-            logger.info("vector crossing: {} registered, {} filtered as directive-pinned", out.size(), pinned);
+            logger.info(
+                "vector crossing: {} registered, {} filtered as directive-pinned, {} as dialect-unrepresentable",
+                out.size(),
+                pinned,
+                unrepresentable
+            );
         }
         return out;
+    }
+
+    /**
+     * Whether the vector's dialect cannot carry the data this case reads.
+     *
+     * <p>A bracket cell holds commas and brackets need quoting, so a dataset declared unrepresentable in
+     * a dialect has no bytes in that dialect anywhere -- and the layouts derived from it (multifile,
+     * hive, split) do not either. Registering such a pair announces a dialect over bytes never written
+     * in it, which is the misbind this contract exists to prevent; here the crossing would manufacture it.
+     *
+     * <p>Counted rather than silent: a combination that cannot exist has to be distinguishable from one
+     * nobody thought of.
+     */
+    private static boolean dialectCannotCarry(FixtureDimensions dimensions, Object[] baseTest, Map<String, String> vector) {
+        String textMode = vector.get("text_mode");
+        // The vector carries its own format, and the effective default differs per format -- asking about
+        // the wrong one would read a varied slot as a baseline.
+        if (textMode == null || textMode.equals(dimensions.defaultValue("text_mode", vector.get("format")))) {
+            return false;
+        }
+        CsvTestCase testCase = (CsvTestCase) baseTest[4];
+        for (DatasetSource source : testCase.datasetSources) {
+            String template = templateNameIn(source.resource());
+            if (template == null) {
+                continue;
+            }
+            // Only STANDALONE is redirected to the per-vector tree (fixturesBase). Every other layout
+            // resolves through its own directory, so it would read the SHARED bytes while the vector
+            // announces a dialect they were never written in -- the reader then rejects them, correctly.
+            // Generating those layouts per dialect would not help: they derive from bracket datasets that
+            // cannot be written without quoting at all.
+            if (MATRIX.layoutFor(template).isStandalone() == false) {
+                return true;
+            }
+            String dataset = MATRIX.datasetForTemplate(template);
+            if (dataset != null && MATRIX.unrepresentableDialects(dataset).contains(textMode)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -817,7 +867,9 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * this to point at codec-specific directories (e.g. {@code "standalone-snappy"}).
      */
     protected String fixturesBase() {
-        return FIXTURES_BASE;
+        // A vector pinning a dialect reads its own tree; one pinning none resolves exactly where it did
+        // before, which is what lets a suite move onto vectors without changing what it reads.
+        return vectorFixturesBase(FIXTURES_BASE);
     }
 
     /**
@@ -1002,6 +1054,14 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             // nothing -- omission IS the default -- so an unvaried suite produces byte-identical JSON to
             // before, which is what lets vectors be introduced one dimension at a time.
             for (Map.Entry<String, String> setting : vectorSettings().entrySet()) {
+                json = injectSetting(json, setting.getKey(), setting.getValue());
+            }
+            // Bytes are not enough: a file written in a non-default dialect and read without being
+            // announced is parsed under the default and read wrong, silently. The bytes and the
+            // announcement are one change, which is why a fixture-bound dimension carries a read_key.
+            for (Map.Entry<String, String> setting : FixtureDimensions.get()
+                .readSettings(vector(), FixtureMatrix.baseFormat(format))
+                .entrySet()) {
                 json = injectSetting(json, setting.getKey(), setting.getValue());
             }
             return json;

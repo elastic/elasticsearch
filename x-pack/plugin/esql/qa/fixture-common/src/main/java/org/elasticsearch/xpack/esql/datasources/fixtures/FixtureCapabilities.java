@@ -50,7 +50,14 @@ public final class FixtureCapabilities {
         "text_codec=zstd@ndjson",
         "text_codec=bzip2@csv",
         "text_codec=bzip2@tsv",
-        "text_codec=bzip2@ndjson"
+        "text_codec=bzip2@ndjson",
+        // Dialect trees rendered by <Format>FixtureGenerator --vector-variants into vector/<slug>/, and
+        // selected by AbstractExternalSourceSpecTestCase.fixturesBase. csv only for now: tsv's generator
+        // has no vector mode yet, and a row claiming otherwise would mark cells reachable that no suite
+        // can read -- which is the ORC mistake this table exists to avoid making again.
+        "text_mode=escaped@csv",
+        "text_mode=plain@csv",
+        "mv_syntax=brackets@csv"
     );
 
     /** Whether a generator writes this cell's bytes and a suite can select them. */

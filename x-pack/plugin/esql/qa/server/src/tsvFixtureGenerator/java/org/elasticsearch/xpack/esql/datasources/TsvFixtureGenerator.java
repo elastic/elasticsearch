@@ -11,8 +11,11 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.esql.datasources.fixtures.CsvFixtureParser;
 import org.elasticsearch.xpack.esql.datasources.fixtures.CsvFixtureParser.ColumnSpec;
 import org.elasticsearch.xpack.esql.datasources.fixtures.CsvFixtureParser.CsvFixtureResult;
+import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureDimensions;
+import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureMatrix;
 import org.elasticsearch.xpack.esql.datasources.fixtures.HivePartitioner;
 import org.elasticsearch.xpack.esql.datasources.fixtures.SplitPartitioner;
+import org.elasticsearch.xpack.esql.datasources.fixtures.TextRowRenderer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,13 +45,65 @@ public final class TsvFixtureGenerator {
 
     private static final Logger logger = LoggerFactory.getLogger(TsvFixtureGenerator.class);
     private static final String HIVE_BY_FLAG = "--hive-by";
+    private static final String VECTOR_VARIANTS_FLAG = "--vector-variants";
     private static final char TAB = '\t';
 
     private TsvFixtureGenerator() {}
 
     @SuppressForbidden(reason = "main method for Gradle JavaExec task needs System.err and Path.of")
+    /**
+     * Writes one file tree per dialect variant the contract declares for tsv.
+     *
+     * <p>Uses the shared renderer rather than this class's own cell formatting. The base modes keep
+     * theirs untouched: making them share would be a behaviour change to fixtures every suite already
+     * reads, and that belongs in its own increment with byte-equality tests, not smuggled in here.
+     *
+     * <p>Tab-delimited, so the escape set escapes tabs and leaves commas alone -- the delimiter is a
+     * renderer parameter precisely so this does not need a second implementation.
+     */
+    private static void generateVectorVariants(Path dataDir, Path outputRoot, String format) throws IOException {
+        FixtureDimensions dimensions = FixtureDimensions.get();
+        FixtureMatrix matrix = FixtureMatrix.get();
+        Map<String, Map<String, String>> slugs = dimensions.dialectSlugs(format);
+        if (slugs.isEmpty()) {
+            logger.info("No dialect variants declared for format [{}]; nothing to render", format);
+            return;
+        }
+        for (Map.Entry<String, Map<String, String>> slug : slugs.entrySet()) {
+            Map<String, String> pinned = slug.getValue();
+            String textMode = pinned.getOrDefault("text_mode", dimensions.defaultValue("text_mode", format));
+            TextRowRenderer.Dialect dialect = switch (textMode) {
+                case "quoted" -> TextRowRenderer.Dialect.QUOTED;
+                case "escaped" -> TextRowRenderer.Dialect.ESCAPED;
+                case "plain" -> TextRowRenderer.Dialect.PLAIN;
+                default -> throw new IllegalArgumentException("unknown text_mode [" + textMode + "]");
+            };
+            boolean headerRow = "false".equals(pinned.get("header_row")) == false;
+            TextRowRenderer renderer = new TextRowRenderer('\t', dialect, headerRow);
+            Path slugRoot = outputRoot.resolve("vector").resolve(slug.getKey()).resolve("standalone");
+            Files.createDirectories(slugRoot);
+            for (String dataset : matrix.datasetsFor(format)) {
+                if (matrix.unrepresentableDialects(dataset).contains(dialect.name().toLowerCase(Locale.ROOT))) {
+                    logger.info("Skipping [{}] in [{}]: declared unrepresentable in {}", dataset, slug.getKey(), dialect);
+                    continue;
+                }
+                Path source = dataDir.resolve(dataset + ".csv");
+                if (Files.exists(source) == false) {
+                    throw new IOException("dataset [" + dataset + "] is declared for [" + format + "] but [" + source + "] is missing");
+                }
+                Files.writeString(
+                    slugRoot.resolve(dataset + "." + format),
+                    renderer.render(CsvFixtureParser.parseCsvFile(source)),
+                    StandardCharsets.UTF_8
+                );
+            }
+        }
+    }
+
     public static void main(String[] args) throws IOException {
-        if (args.length == 5 && HIVE_BY_FLAG.equals(args[2])) {
+        if (args.length == 4 && VECTOR_VARIANTS_FLAG.equals(args[2])) {
+            generateVectorVariants(Path.of(args[0]), Path.of(args[1]), args[3]);
+        } else if (args.length == 5 && HIVE_BY_FLAG.equals(args[2])) {
             Path sourcePath = Path.of(args[0]);
             Path outputDir = Path.of(args[1]);
             String sourceColumn = args[3];
@@ -103,6 +158,7 @@ public final class TsvFixtureGenerator {
             }
         } else {
             System.err.println("Usage: TsvFixtureGenerator <source-csv-path> <output-tsv-path>");
+            System.err.println("       TsvFixtureGenerator <data-dir> <output-root> --vector-variants <format>");
             System.err.println("       TsvFixtureGenerator <source-csv-path> <output-dir> <num-parts>");
             System.err.println(
                 "       TsvFixtureGenerator <source-csv-path> <output-dir> --hive-by <source-column> <partition-column-name>"

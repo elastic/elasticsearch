@@ -281,18 +281,28 @@ public final class FixtureMatrix {
      * {@code brackets} everywhere would retire the coverage of {@code none}, which is the default real
      * users get.
      */
-    public String writeDialectForTemplate(String templateName) {
+    /**
+     * The dataset a template's bytes come from, or null when the layout is assembled from its own
+     * authored sources rather than derived from a dataset.
+     *
+     * <p>Extracted so the dialect lookup and the representability check resolve it the SAME way. Two
+     * resolutions of one fact is how they come to disagree, and the disagreement then decides silently
+     * which files a test reads.
+     */
+    public String datasetForTemplate(String templateName) {
         Layout layout = layoutFor(templateName);
-        String dataset;
         if (layout.isStandalone()) {
-            dataset = templateName;
-        } else {
-            String derived = declaration.getProperty("layout." + layout.name() + ".derived_from");
-            if (derived == null) {
-                // Assembled from its own authored sources, which are bracket-free by construction.
-                return "none";
-            }
-            dataset = derived.trim();
+            return templateName;
+        }
+        String derived = declaration.getProperty("layout." + layout.name() + ".derived_from");
+        return derived == null ? null : derived.trim();
+    }
+
+    public String writeDialectForTemplate(String templateName) {
+        String dataset = datasetForTemplate(templateName);
+        if (dataset == null) {
+            // Assembled from its own authored sources, which are bracket-free by construction.
+            return "none";
         }
         String declared = declaration.getProperty("dataset." + dataset + ".write_dialect");
         if (declared == null) {

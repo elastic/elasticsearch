@@ -21,6 +21,10 @@ import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
+import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
+import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
@@ -764,9 +768,10 @@ public class AuthorizationService {
         final AuthorizationContext authzContext = new AuthorizationContext(action, authzInfo, indicesAccessControl);
         PreAuthorizationUtils.maybeSkipChildrenActionAuthorization(securityContext, authzContext);
 
-        // if we are creating an index we need to authorize potential aliases created at the same time
-        if (IndexPrivilege.CREATE_INDEX_MATCHER.test(action)) {
-            authorizeCreateIndexAliases(
+        // if we are creating an index (directly or via rollover) we need to authorize the names the request
+        // creates or attaches beyond its main target: an explicit rollover index and any request-body aliases
+        if (IndexPrivilege.CREATE_INDEX_MATCHER.test(action) || action.equals(RolloverAction.NAME)) {
+            authorizeCreateIndexRelatedNames(
                 requestInfo,
                 requestId,
                 authzInfo,
@@ -801,10 +806,11 @@ public class AuthorizationService {
     }
 
     /**
-     * When creating an index, also authorize any aliases defined in the request.
-     * Uses a second authorization pass with {@code indices:admin/aliases} action on the combined set of indices and alias names.
+     * Authorizes the names a create-index or rollover request creates or attaches beyond its main target: an
+     * explicitly named rollover index is authorized for the create-index action, and request-body aliases,
+     * combined with the index they are attached to, are authorized for the manage-aliases action.
      */
-    private void authorizeCreateIndexAliases(
+    private void authorizeCreateIndexRelatedNames(
         final RequestInfo requestInfo,
         final String requestId,
         final AuthorizationInfo authzInfo,
@@ -816,21 +822,115 @@ public class AuthorizationService {
     ) {
         final TransportRequest request = requestInfo.getRequest();
         assert (request instanceof CreateIndexRequest)
+            || (request instanceof RolloverRequest)
             || (request instanceof MigrateToDataStreamAction.Request)
             || (request instanceof CreateDataStreamAction.Request)
             || (request instanceof PastTimeSeriesIndexCreationAction.Request);
-        if (request instanceof CreateDataStreamAction.Request
-            || (request instanceof MigrateToDataStreamAction.Request)
-            || (request instanceof PastTimeSeriesIndexCreationAction.Request)
-            // Casting to CreateIndexRequest is safe only because it's the last possible option; always keep it last!
-            || ((CreateIndexRequest) request).aliases().isEmpty()) {
+        // A rollover creates the new index and attaches it (along with any request-body aliases) to the rollover
+        // target alias. The first authorization pass only covers the rollover target, so authorize the rest here:
+        // creating an index requires indices:admin/create on its name, and adding an index to an alias requires
+        // indices:admin/aliases on that index, which prevents attaching an out-of-namespace alias or creating an
+        // out-of-namespace index.
+        final Set<Alias> aliases;
+        String rolloverNewIndexName = null;
+        if (request instanceof RolloverRequest rolloverRequest) {
+            aliases = rolloverRequest.getCreateIndexRequest().aliases();
+            if (rolloverRequest.getNewIndexName() != null) {
+                // Authorize the same concrete name MetadataRolloverService will create.
+                rolloverNewIndexName = MetadataRolloverService.resolveRolloverIndexName(rolloverRequest.getNewIndexName());
+            }
+        } else if (request instanceof CreateDataStreamAction.Request
+            || request instanceof MigrateToDataStreamAction.Request
+            || request instanceof PastTimeSeriesIndexCreationAction.Request) {
+                aliases = Set.of();
+            } else {
+                // Casting to CreateIndexRequest is safe only because it's the last possible option; always keep it last!
+                aliases = ((CreateIndexRequest) request).aliases();
+            }
+        final List<String> checkedNames = new ArrayList<>();
+        if (rolloverNewIndexName != null) {
+            checkedNames.add(rolloverNewIndexName);
+        }
+        for (Alias alias : aliases) {
+            checkedNames.add(alias.name());
+        }
+        if (checkedNames.isEmpty()) {
             runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener);
             return;
         }
-        Set<Alias> aliases = ((CreateIndexRequest) request).aliases();
+        if (rolloverNewIndexName == null) {
+            authorizeCreateIndexAliases(
+                requestInfo,
+                requestId,
+                authzInfo,
+                authzEngine,
+                authzContext,
+                resolvedIndicesAsyncSupplier,
+                projectMetadata,
+                checkedNames,
+                listener
+            );
+            return;
+        }
+        // The cast is safe: the request types without aliases or additional names take the early return above,
+        // and the remaining ones (RolloverRequest, CreateIndexRequest) both implement IndicesRequest.
+        final RequestInfo createIndexRequestInfo = new RequestInfo(
+            requestInfo.getAuthentication(),
+            new SecondaryAuthorizationRequest((IndicesRequest) request, new String[] { rolloverNewIndexName }),
+            TransportCreateIndexAction.TYPE.name(),
+            authzContext
+        );
+        final ResolvedIndices createIndexResolvedIndices = new ResolvedIndices(List.of(rolloverNewIndexName), List.of());
+        authzEngine.authorizeIndexAction(
+            createIndexRequestInfo,
+            authzInfo,
+            () -> SubscribableListener.newSucceeded(createIndexResolvedIndices),
+            projectMetadata
+        )
+            .addListener(
+                wrapPreservingContext(
+                    new AuthorizationResultListener<>(
+                        authorizationResult -> authorizeCreateIndexAliases(
+                            requestInfo,
+                            requestId,
+                            authzInfo,
+                            authzEngine,
+                            authzContext,
+                            resolvedIndicesAsyncSupplier,
+                            projectMetadata,
+                            checkedNames,
+                            listener
+                        ),
+                        listener::onFailure,
+                        createIndexRequestInfo,
+                        requestId,
+                        authzInfo
+                    ),
+                    threadContext
+                )
+            );
+    }
+
+    /**
+     * Authorizes the given names, combined with the request's resolved indices, for the
+     * {@code indices:admin/aliases} action.
+     */
+    private void authorizeCreateIndexAliases(
+        final RequestInfo requestInfo,
+        final String requestId,
+        final AuthorizationInfo authzInfo,
+        final AuthorizationEngine authzEngine,
+        final AuthorizationContext authzContext,
+        final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier,
+        final ProjectMetadata projectMetadata,
+        final List<String> checkedNames,
+        final ActionListener<Void> listener
+    ) {
+        // Substitute a request whose indices() are the names this pass checks, so audit events and the denial
+        // message name the offending alias or index instead of the original request's rollover target.
         final RequestInfo aliasesRequestInfo = new RequestInfo(
             requestInfo.getAuthentication(),
-            request,
+            new SecondaryAuthorizationRequest((IndicesRequest) requestInfo.getRequest(), checkedNames.toArray(String[]::new)),
             TransportIndicesAliasesAction.NAME,
             authzContext
         );
@@ -838,9 +938,7 @@ public class AuthorizationService {
             SubscribableListener<ResolvedIndices> ril = new SubscribableListener<>();
             resolvedIndicesAsyncSupplier.getAsync().addListener(ril.delegateFailureAndWrap((l, resolvedIndices) -> {
                 List<String> aliasesAndIndices = new ArrayList<>(resolvedIndices.getLocal());
-                for (Alias alias : aliases) {
-                    aliasesAndIndices.add(alias.name());
-                }
+                aliasesAndIndices.addAll(checkedNames);
                 l.onResponse(new ResolvedIndices(aliasesAndIndices, Collections.emptyList()));
             }));
             return ril;
@@ -896,7 +994,7 @@ public class AuthorizationService {
         }).toList();
         final RequestInfo dsRequestInfo = new RequestInfo(
             requestInfo.getAuthentication(),
-            new DataStreamAuthorizationRequest(modifyRequest, dataStreamNames.toArray(String[]::new)),
+            new SecondaryAuthorizationRequest(modifyRequest, dataStreamNames.toArray(String[]::new)),
             requestInfo.getAction(),
             null // passing null for originatingContext so this runs as an independent authorization check
         );
@@ -1418,22 +1516,23 @@ public class AuthorizationService {
     }
 
     /**
-     * Thin wrapper so that authorization denial messages reference data stream names
-     * instead of the indices being added or removed returned by {@link ModifyDataStreamsAction.Request#indices()}.
+     * Thin wrapper that presents a substituted set of index names as the {@link IndicesRequest#indices()} of a
+     * request, so that audit events and denial messages built from it reference the names actually being
+     * authorized rather than the original request's indices.
      */
-    private static class DataStreamAuthorizationRequest extends AbstractTransportRequest implements IndicesRequest {
+    private static class SecondaryAuthorizationRequest extends AbstractTransportRequest implements IndicesRequest {
 
-        private final ModifyDataStreamsAction.Request delegate;
-        private final String[] dataStreamNames;
+        private final IndicesRequest delegate;
+        private final String[] checkedNames;
 
-        DataStreamAuthorizationRequest(ModifyDataStreamsAction.Request delegate, String[] dataStreamNames) {
+        SecondaryAuthorizationRequest(IndicesRequest delegate, String[] checkedNames) {
             this.delegate = delegate;
-            this.dataStreamNames = dataStreamNames;
+            this.checkedNames = checkedNames;
         }
 
         @Override
         public String[] indices() {
-            return dataStreamNames;
+            return checkedNames;
         }
 
         @Override
@@ -1443,7 +1542,7 @@ public class AuthorizationService {
 
         @Override
         public boolean includeDataStreams() {
-            return true;
+            return delegate.includeDataStreams();
         }
     }
 

@@ -6,11 +6,13 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.MockIndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
@@ -33,6 +35,8 @@ import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAct
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
+import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
@@ -1762,7 +1766,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             eq(requestId),
             eq(authentication),
             eq(TransportIndicesAliasesAction.NAME),
-            eq(request),
+            requestWithIndices("a2"),
             authzInfoRoles(new String[] { role.getName() })
         );
         verifyNoMoreInteractions(auditTrail);
@@ -1797,12 +1801,311 @@ public class AuthorizationServiceTests extends ESTestCase {
             eq(requestId),
             eq(authentication),
             eq("indices:admin/aliases"),
-            eq(request),
+            requestWithIndices("a2"),
             authzInfoRoles(new String[] { role.getName() })
         );
         verifyNoMoreInteractions(auditTrail);
         verify(clusterService).state();
         verify(state, times(1)).metadata();
+    }
+
+    public void testRolloverWithAliasWithoutPermissions() {
+        RolloverRequest request = new RolloverRequest("a", null);
+        request.getCreateIndexRequest().alias(new Alias("a2"));
+        mockMetadataWithIndex("a");
+        RoleDescriptor role = new RoleDescriptor(
+            "a_all",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("all").build() },
+            null
+        );
+        final Authentication authentication = createAuthentication(new User("test user", "a_all"));
+        roleMap.put("a_all", role);
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+
+        // The user has manage (which grants rollover) on "a" but no privileges on the "a2" alias, so injecting it
+        // via the rollover request body must be denied by the second indices:admin/aliases authorization pass.
+        assertThrowsAuthorizationException(
+            () -> authorize(authentication, RolloverAction.NAME, request),
+            TransportIndicesAliasesAction.NAME,
+            "test user"
+        );
+        verify(auditTrail).accessGranted(
+            eq(requestId),
+            eq(authentication),
+            eq(RolloverAction.NAME),
+            eq(request),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verify(auditTrail).accessDenied(
+            eq(requestId),
+            eq(authentication),
+            eq(TransportIndicesAliasesAction.NAME),
+            requestWithIndices("a2"),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testRolloverWithAlias() {
+        RolloverRequest request = new RolloverRequest("a", null);
+        request.getCreateIndexRequest().alias(new Alias("a2"));
+        mockMetadataWithIndex("a");
+        RoleDescriptor role = new RoleDescriptor(
+            "a_all",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a", "a2").privileges("all").build() },
+            null
+        );
+        final Authentication authentication = createAuthentication(new User("test user", "a_all"));
+        roleMap.put("a_all", role);
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+
+        authorize(authentication, RolloverAction.NAME, request);
+
+        verify(auditTrail).accessGranted(
+            eq(requestId),
+            eq(authentication),
+            eq(RolloverAction.NAME),
+            eq(request),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verify(auditTrail).accessGranted(
+            eq(requestId),
+            eq(authentication),
+            eq("indices:admin/aliases"),
+            requestWithIndices("a2"),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testRolloverWithoutAliasSkipsAliasAuthorization() {
+        RolloverRequest request = new RolloverRequest("a", null);
+        mockMetadataWithIndex("a");
+        RoleDescriptor role = new RoleDescriptor(
+            "a_all",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("all").build() },
+            null
+        );
+        final Authentication authentication = createAuthentication(new User("test user", "a_all"));
+        roleMap.put("a_all", role);
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+
+        // A rollover with no body aliases (the common case, including ILM-driven rollovers) must not trigger the
+        // second indices:admin/aliases authorization pass.
+        authorize(authentication, RolloverAction.NAME, request);
+
+        verify(auditTrail).accessGranted(
+            eq(requestId),
+            eq(authentication),
+            eq(RolloverAction.NAME),
+            eq(request),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testRolloverWithNewIndexNameWithoutPermissions() {
+        RolloverRequest request = new RolloverRequest("a", "b");
+        mockMetadataWithIndex("a");
+        RoleDescriptor role = new RoleDescriptor(
+            "a_all",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("all").build() },
+            null
+        );
+        final Authentication authentication = createAuthentication(new User("test user", "a_all"));
+        roleMap.put("a_all", role);
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+
+        // Naming an explicit new index outside the caller's namespace must be denied, even with no body aliases.
+        // The new index is being created, so the denial comes from the create pass, not the aliases pass.
+        ElasticsearchSecurityException securityException = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> authorize(authentication, RolloverAction.NAME, request)
+        );
+        assertThat(
+            securityException,
+            throwableWithMessage(containsString("[" + TransportCreateIndexAction.TYPE.name() + "] is unauthorized for user [test user]"))
+        );
+        // the denial message names the offending new index, not the rollover target
+        assertThat(securityException, throwableWithMessage(containsString("on indices [b]")));
+        verify(auditTrail).accessGranted(
+            eq(requestId),
+            eq(authentication),
+            eq(RolloverAction.NAME),
+            eq(request),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verify(auditTrail).accessDenied(
+            eq(requestId),
+            eq(authentication),
+            eq(TransportCreateIndexAction.TYPE.name()),
+            requestWithIndices("b"),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testRolloverWithNewIndexName() {
+        RolloverRequest request = new RolloverRequest("a", "b");
+        mockMetadataWithIndex("a");
+        RoleDescriptor role = new RoleDescriptor(
+            "a_all",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a", "b").privileges("all").build() },
+            null
+        );
+        final Authentication authentication = createAuthentication(new User("test user", "a_all"));
+        roleMap.put("a_all", role);
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+
+        authorize(authentication, RolloverAction.NAME, request);
+
+        verify(auditTrail).accessGranted(
+            eq(requestId),
+            eq(authentication),
+            eq(RolloverAction.NAME),
+            eq(request),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verify(auditTrail).accessGranted(
+            eq(requestId),
+            eq(authentication),
+            eq(TransportCreateIndexAction.TYPE.name()),
+            requestWithIndices("b"),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verify(auditTrail).accessGranted(
+            eq(requestId),
+            eq(authentication),
+            eq("indices:admin/aliases"),
+            requestWithIndices("b"),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testRolloverWithNewIndexNameRequiresCreatePrivilege() {
+        RolloverRequest request = new RolloverRequest("a", "b");
+        mockMetadataWithIndex("a");
+        // aliases management on "b" alone must not allow creating "b": the create pass must deny before the
+        // aliases pass runs
+        RoleDescriptor role = new RoleDescriptor(
+            "a_all_b_aliases",
+            null,
+            new IndicesPrivileges[] {
+                IndicesPrivileges.builder().indices("a").privileges("all").build(),
+                IndicesPrivileges.builder().indices("b").privileges(TransportIndicesAliasesAction.NAME).build() },
+            null
+        );
+        final Authentication authentication = createAuthentication(new User("test user", "a_all_b_aliases"));
+        roleMap.put("a_all_b_aliases", role);
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+
+        ElasticsearchSecurityException securityException = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> authorize(authentication, RolloverAction.NAME, request)
+        );
+        assertThat(
+            securityException,
+            throwableWithMessage(containsString("[" + TransportCreateIndexAction.TYPE.name() + "] is unauthorized for user [test user]"))
+        );
+        assertThat(securityException, throwableWithMessage(containsString("on indices [b]")));
+        verify(auditTrail).accessGranted(
+            eq(requestId),
+            eq(authentication),
+            eq(RolloverAction.NAME),
+            eq(request),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verify(auditTrail).accessDenied(
+            eq(requestId),
+            eq(authentication),
+            eq(TransportCreateIndexAction.TYPE.name()),
+            requestWithIndices("b"),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testRolloverWithDateMathNewIndexName() {
+        RolloverRequest request = new RolloverRequest("a", "<b-{now/d}>");
+        mockMetadataWithIndex("a");
+        RoleDescriptor role = new RoleDescriptor(
+            "a_all",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a", "b-*").privileges("all").build() },
+            null
+        );
+        final Authentication authentication = createAuthentication(new User("test user", "a_all"));
+        roleMap.put("a_all", role);
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+
+        authorize(authentication, RolloverAction.NAME, request);
+
+        verify(auditTrail).accessGranted(
+            eq(requestId),
+            eq(authentication),
+            eq(RolloverAction.NAME),
+            eq(request),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        // the create and aliases passes authorize and audit the resolved concrete index name, i.e. the same
+        // name MetadataRolloverService will create, not the raw date-math expression
+        verify(auditTrail).accessGranted(
+            eq(requestId),
+            eq(authentication),
+            eq(TransportCreateIndexAction.TYPE.name()),
+            argThat(
+                (TransportRequest r) -> r instanceof IndicesRequest indicesRequest
+                    && indicesRequest.indices().length == 1
+                    && indicesRequest.indices()[0].startsWith("b-")
+            ),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verify(auditTrail).accessGranted(
+            eq(requestId),
+            eq(authentication),
+            eq("indices:admin/aliases"),
+            argThat(
+                (TransportRequest r) -> r instanceof IndicesRequest indicesRequest
+                    && indicesRequest.indices().length == 1
+                    && indicesRequest.indices()[0].startsWith("b-")
+            ),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testRolloverWithMalformedDateMathNewIndexName() {
+        RolloverRequest request = new RolloverRequest("a", "<b-{now/x}>");
+        mockMetadataWithIndex("a");
+        RoleDescriptor role = new RoleDescriptor(
+            "a_all",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("all").build() },
+            null
+        );
+        final Authentication authentication = createAuthentication(new User("test user", "a_all"));
+        roleMap.put("a_all", role);
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+
+        // Malformed date math is a client error, not an authorization denial: the raw parse exception surfaces
+        // (matching an unsecured cluster, where the same expression fails in TransportRolloverAction) after the
+        // rollover grant on the target has been audited, and no access_denied event follows.
+        expectThrows(ElasticsearchParseException.class, () -> authorize(authentication, RolloverAction.NAME, request));
+
+        verify(auditTrail).accessGranted(
+            eq(requestId),
+            eq(authentication),
+            eq(RolloverAction.NAME),
+            eq(request),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verifyNoMoreInteractions(auditTrail);
     }
 
     public void testDenialErrorMessagesForSearchAction() {
@@ -4114,6 +4417,13 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     static AuthorizationInfo authzInfoRoles(String[] expectedRoles) {
         return argThat(new RBACAuthorizationInfoRoleMatcher(expectedRoles));
+    }
+
+    /**
+     * Matches a request whose {@link IndicesRequest#indices()} are exactly the given names.
+     */
+    static TransportRequest requestWithIndices(String... indices) {
+        return argThat(request -> request instanceof IndicesRequest indicesRequest && Arrays.equals(indicesRequest.indices(), indices));
     }
 
     private static class TestSearchPhaseResult extends SearchPhaseResult {

@@ -239,15 +239,68 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      */
     protected static List<Object[]> readExternalSpecTestsWithVectorsForSuite(String format, String suiteToken) throws Exception {
         FixtureDimensions dimensions = FixtureDimensions.get();
-        List<String> vectorNames = dimensions.directiveExpressibleVectors(format).stream().map(dimensions::render).toList();
-        if (vectorNames.isEmpty()) {
+        List<Map<String, String>> vectors = dimensions.expressibleVectors(format, MATRIX.seams(suiteToken));
+        if (vectors.isEmpty()) {
             throw new IllegalStateException(
-                "no directive-expressible vectors for format [" + format + "]; this suite would register nothing"
+                "no vectors for format [" + format + "] under the seams suite [" + suiteToken + "] declares; it would register nothing"
             );
         }
         Set<String> excluded = MATRIX.excludedSpecs(suiteToken);
-        List<Object[]> loaded = readExternalSpecTestsWithExtraParam(vectorNames, MATRIX.specPatterns(suiteToken).toArray(String[]::new));
+        List<Object[]> loaded = crossWithVectors(dimensions, vectors, MATRIX.specPatterns(suiteToken).toArray(String[]::new));
         return excluded.isEmpty() ? loaded : loaded.stream().filter(row -> excluded.contains(specNameOf(row)) == false).toList();
+    }
+
+    /**
+     * Crosses the spec corpus with vectors, pinning each vector to the ONE backend its scheme names.
+     *
+     * <p>Deliberately not the {@code BACKENDS} cross-product the other factories use. {@code
+     * storage_scheme} is already a declared dimension with its own pair verdicts, so multiplying every
+     * vector by every backend stacks an undeclared axis on a declared one -- the same combination
+     * counted twice, with the backend axis invisible to the contract. A vector that wants a different
+     * backend says so by carrying a different scheme.
+     */
+    private static List<Object[]> crossWithVectors(FixtureDimensions dimensions, List<Map<String, String>> vectors, String... specPatterns)
+        throws Exception {
+        List<URL> urls = new ArrayList<>();
+        for (String pattern : specPatterns) {
+            List<URL> matched = classpathResources(pattern);
+            if (matched.isEmpty()) {
+                throw new IllegalStateException(
+                    "spec pattern ["
+                        + pattern
+                        + "] matches no file on this suite's classpath; "
+                        + "the routing in fixture-matrix.properties names a spec that does not exist"
+                );
+            }
+            urls.addAll(matched);
+        }
+        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
+        List<Object[]> out = new ArrayList<>();
+        for (Object[] baseTest : baseTests) {
+            for (Map<String, String> vector : vectors) {
+                out.add(appendVectorAndBackend(dimensions, baseTest, vector));
+            }
+        }
+        return out;
+    }
+
+    /** One parameter row: the base case, the vector's rendered name, and the backend its scheme names. */
+    private static Object[] appendVectorAndBackend(FixtureDimensions dimensions, Object[] baseTest, Map<String, String> vector) {
+        String scheme = vector.get("storage_scheme");
+        StorageBackend backend = StorageBackend.valueOf(dimensions.backendFor("storage_scheme", scheme));
+        // Loudly, not by dropping the row: a vector silently not registered is the absence this contract
+        // exists to make impossible. The typed skip for an unavailable backend belongs with the backend
+        // seam, which no vector reaches yet.
+        if (BACKENDS.contains(backend) == false) {
+            throw new IllegalStateException(
+                "vector pins storage_scheme [" + scheme + "] -> backend [" + backend + "], which this environment does not provide"
+            );
+        }
+        Object[] row = new Object[baseTest.length + 2];
+        System.arraycopy(baseTest, 0, row, 0, baseTest.length);
+        row[baseTest.length] = dimensions.render(vector);
+        row[baseTest.length + 1] = backend;
+        return row;
     }
 
     /**

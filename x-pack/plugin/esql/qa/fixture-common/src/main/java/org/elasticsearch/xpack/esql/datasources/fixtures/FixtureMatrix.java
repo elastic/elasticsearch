@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -58,7 +59,7 @@ public final class FixtureMatrix {
         Pattern.compile("layout\\.[a-z_]+\\.sources\\.[a-z0-9-]+\\.reason"),
         Pattern.compile("layout\\.[a-z_]+\\.split\\.parts"),
         Pattern.compile("layout\\.split\\.parts"),
-        Pattern.compile("suite\\.[a-z0-9-]+\\.(specs|format|outside_shared_specs)"),
+        Pattern.compile("suite\\.[a-z0-9-]+\\.(specs|format|outside_shared_specs|seams)"),
         Pattern.compile("suite\\.[a-z0-9-]+\\.specs\\.exclude"),
         Pattern.compile("suite\\.[a-z0-9-]+\\.specs\\.exclude\\.reason"),
         Pattern.compile("codec\\.(text|parquet)"),
@@ -374,6 +375,38 @@ public final class FixtureMatrix {
      * directory that no suite loaded still counted as a consumer -- which reported the csv column covered
      * for hive_shadow while zero shadow cases ran on any CSV suite.
      */
+    /**
+     * The seams a suite can serve, from {@code suite.<token>.seams}.
+     *
+     * <p>Declared rather than assumed. A suite handed a vector whose value it cannot make real would run
+     * it at a default it never asked for and report a pass -- the silent misbind this contract exists to
+     * catch. An unknown seam name fails here rather than quietly narrowing what the suite selects.
+     */
+    public Set<FixtureDimensions.Seam> seams(String suiteToken) {
+        String declared = declaration.getProperty("suite." + suiteToken + ".seams");
+        if (declared == null) {
+            throw new IllegalStateException(
+                "suite [" + suiteToken + "] declares no [suite." + suiteToken + ".seams]; nothing knows what it can make real"
+            );
+        }
+        Set<FixtureDimensions.Seam> parsed = new LinkedHashSet<>();
+        for (String name : declared.split(",")) {
+            String trimmed = name.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            try {
+                parsed.add(FixtureDimensions.Seam.valueOf(trimmed.toUpperCase(Locale.ROOT)));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalStateException("suite [" + suiteToken + "] declares unknown seam [" + trimmed + "]", e);
+            }
+        }
+        if (parsed.isEmpty()) {
+            throw new IllegalStateException("suite [" + suiteToken + "] declares an empty seam set; it could select nothing");
+        }
+        return parsed;
+    }
+
     public List<String> specPatterns(String suiteToken) {
         List<String> patterns = specPatterns.get(suiteToken);
         if (patterns == null) {

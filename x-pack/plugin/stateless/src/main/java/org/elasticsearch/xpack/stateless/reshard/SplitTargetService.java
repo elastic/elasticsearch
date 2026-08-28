@@ -213,7 +213,8 @@ public class SplitTargetService {
         }
     }
 
-    // visible for testing: a finished or cancelled split must clear this, or the closed IndexShard stays pinned.
+    // visible for testing: a split should leave this empty once it completes or is cancelled. A stale entry pins the IndexShard it
+    // is keyed by, so the shard is never collected even after it closes.
     Set<ShardId> getShardsWithOngoingSplits() {
         return onGoingSplits.keySet().stream().map(IndexShard::shardId).collect(Collectors.toSet());
     }

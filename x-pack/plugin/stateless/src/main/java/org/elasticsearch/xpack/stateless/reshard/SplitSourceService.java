@@ -747,7 +747,8 @@ public class SplitSourceService {
         }
     }
 
-    // visible for testing: covers every map cancelSplits clears, since any stale entry leaves the closed IndexShard pinned.
+    // visible for testing: a split should leave this empty once it completes or is cancelled. Covers every map cancelSplits clears,
+    // not just the state machines, since a stale entry in any of them keeps the closed IndexShard from being collected.
     Set<ShardId> getShardsWithActiveSplitState() {
         return Stream.concat(
             Stream.concat(activeSourceShards.keySet().stream(), activeTargetRequests.keySet().stream()).map(IndexShard::shardId),

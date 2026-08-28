@@ -10,10 +10,13 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -25,6 +28,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -958,5 +962,321 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.array("field", "a", "b")));
         assertThat(doc.rootDoc().getFields("field" + OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX).isEmpty(), equalTo(true));
+    }
+
+    // -----------------------------------------------------------------------
+    // updatable
+    // -----------------------------------------------------------------------
+
+    private static Settings columnar() {
+        // updatable fields require sequence numbers, which columnar disables by default
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put("index.disable_sequence_numbers", false)
+            .build();
+    }
+
+    private static void assumeUpdatableEnabled() {
+        assumeTrue("doc_values updatable feature flag must be enabled", FieldMapper.DOC_VALUES_UPDATABLE_FEATURE_FLAG.isEnabled());
+    }
+
+    /**
+     * A high-cardinality keyword marked updatable is written as a plain single-valued {@link DocValuesType#BINARY} column — the only
+     * bytes doc-values type Lucene's {@code updateBinaryDocValue} accepts (it rejects SORTED_SET).
+     */
+    public void testUpdatableKeywordWritesPlainBinaryDocValues() throws Exception {
+        assumeUpdatableEnabled();
+        DocumentMapper mapper = createMapperService(
+            columnar(),
+            fieldMapping(
+                b -> b.field("type", "keyword").field("index", false).startObject("doc_values").field("updatable", true).endObject()
+            )
+        ).documentMapper();
+        assertThat(((KeywordFieldMapper) mapper.mappers().getMapper("field")).docValuesParameters().updatable(), equalTo(true));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "a")));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertThat(fields, hasSize(1));
+        assertThat(fields.get(0).fieldType().docValuesType(), equalTo(DocValuesType.BINARY));
+    }
+
+    /**
+     * An updatable numeric is written as a plain {@link DocValuesType#NUMERIC} column rather than the usual SORTED_NUMERIC, because
+     * Lucene's {@code updateNumericDocValue} only accepts NUMERIC. Read paths transparently wrap it back to a singleton.
+     */
+    public void testUpdatableNumberWritesPlainNumericDocValues() throws Exception {
+        assumeUpdatableEnabled();
+        DocumentMapper mapper = createMapperService(
+            columnar(),
+            fieldMapping(b -> b.field("type", "long").field("index", false).startObject("doc_values").field("updatable", true).endObject())
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", 9)));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertThat(fields, hasSize(1));
+        assertThat(fields.get(0).fieldType().docValuesType(), equalTo(DocValuesType.NUMERIC));
+    }
+
+    /**
+     * {@code updatable} forces {@code multi_value=false}, so the enforcement machinery rejects a document carrying two values just as it
+     * would for an explicitly single-valued field.
+     */
+    public void testUpdatableIsSingleValued() throws Exception {
+        assumeUpdatableEnabled();
+        DocumentMapper mapper = createMapperService(
+            columnar(),
+            fieldMapping(
+                b -> b.field("type", "keyword").field("index", false).startObject("doc_values").field("updatable", true).endObject()
+            )
+        ).documentMapper();
+        assertThat(((KeywordFieldMapper) mapper.mappers().getMapper("field")).docValuesParameters().multiValue(), equalTo(false));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", "a", "b")))
+        );
+        assertThat(e.getCause().getMessage(), containsString("multi_value=false"));
+    }
+
+    public void testUpdatableRoundTripsThroughToXContent() throws Exception {
+        assumeUpdatableEnabled();
+        MapperService mapperService = createMapperService(
+            columnar(),
+            fieldMapping(
+                b -> b.field("type", "keyword").field("index", false).startObject("doc_values").field("updatable", true).endObject()
+            )
+        );
+        String mapping = mapperService.documentMapper().mappingSource().toString();
+        assertThat(mapping, containsString("\"updatable\":true"));
+
+        MapperService roundTripped = createMapperService(columnar(), mapping);
+        assertThat(
+            ((KeywordFieldMapper) roundTripped.documentMapper().mappers().getMapper("field")).docValuesParameters().updatable(),
+            equalTo(true)
+        );
+    }
+
+    public void testUpdatableRejectedInNonColumnarMode() {
+        assumeUpdatableEnabled();
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                fieldMapping(
+                    b -> b.field("type", "keyword").field("index", false).startObject("doc_values").field("updatable", true).endObject()
+                )
+            )
+        );
+        // the object form of doc_values is rejected wholesale outside columnar, before the updatable sub-parameter is even considered
+        assertThat(e.getMessage(), containsString("unsupported doc_values configuration"));
+    }
+
+    public void testUpdatableRejectedForUnsupportedFieldType() {
+        assumeUpdatableEnabled();
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                columnar(),
+                fieldMapping(
+                    b -> b.field("type", "ip").field("index", false).startObject("doc_values").field("updatable", true).endObject()
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("[doc_values.updatable] is not supported for field [field]"));
+    }
+
+    public void testUpdatableRejectedWhenIndexed() {
+        assumeUpdatableEnabled();
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                columnar(),
+                fieldMapping(
+                    b -> b.field("type", "keyword").field("index", true).startObject("doc_values").field("updatable", true).endObject()
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("[doc_values.updatable] requires [index:false]"));
+    }
+
+    public void testUpdatableRejectedWhenMultiValueTrue() {
+        assumeUpdatableEnabled();
+        // explicit multi_value:true is not silently overridden by the updatable=>single-valued implication; the conflict is reported
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                columnar(),
+                fieldMapping(
+                    b -> b.field("type", "keyword")
+                        .field("index", false)
+                        .startObject("doc_values")
+                        .field("updatable", true)
+                        .field("multi_value", true)
+                        .endObject()
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("[doc_values.updatable] requires [doc_values.multi_value:false]"));
+    }
+
+    public void testUpdatableRejectedWhenUsedInIndexSort() {
+        assumeUpdatableEnabled();
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "field")
+            .build();
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                settings,
+                fieldMapping(
+                    b -> b.field("type", "keyword").field("index", false).startObject("doc_values").field("updatable", true).endObject()
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("because it is used in the index sort"));
+    }
+
+    public void testUpdatableRejectedWhenSequenceNumbersDisabled() {
+        assumeUpdatableEnabled();
+        // The update path requires sequence numbers, so updatable must be rejected when they are disabled.
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put("index.disable_sequence_numbers", true)
+            .build();
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                settings,
+                fieldMapping(
+                    b -> b.field("type", "keyword").field("index", false).startObject("doc_values").field("updatable", true).endObject()
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("requires sequence numbers"));
+    }
+
+    public void testUpdatableRejectedOnOldIndexVersion() {
+        assumeUpdatableEnabled();
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                IndexVersions.UPGRADE_TO_LUCENE_10_5_1,
+                settings,
+                fieldMapping(
+                    b -> b.field("type", "keyword").field("index", false).startObject("doc_values").field("updatable", true).endObject()
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("indices created before"));
+    }
+
+    public void testUpdatableCannotBeToggledOnMappingMerge() throws IOException {
+        assumeUpdatableEnabled();
+        MapperService mapperService = createMapperService(
+            columnar(),
+            fieldMapping(
+                b -> b.field("type", "keyword").field("index", false).startObject("doc_values").field("updatable", true).endObject()
+            )
+        );
+        // Flipping updatable would change the field's on-disk doc-values type, so the mapping merge must reject it.
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> merge(
+                mapperService,
+                fieldMapping(
+                    b -> b.field("type", "keyword").field("index", false).startObject("doc_values").field("updatable", false).endObject()
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("Cannot update parameter [doc_values]"));
+    }
+
+    public void testUpdatableAllowedWithColumnarStoredSource() throws IOException {
+        assumeUpdatableEnabled();
+        // columnar_stored source is a whole-document blob that an update does not rewrite, but the source loader overlays the updated
+        // fields' current doc values on read, so the combination is allowed rather than rejected at mapping time.
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put("index.disable_sequence_numbers", false)
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .build();
+        MapperService mapperService = createMapperService(
+            settings,
+            fieldMapping(
+                b -> b.field("type", "keyword").field("index", false).startObject("doc_values").field("updatable", true).endObject()
+            )
+        );
+        assertThat(mapperService.mappingLookup().updatableFields(), containsInAnyOrder("field"));
+        assertTrue(mapperService.documentMapper().sourceMapper().isColumnarStored());
+    }
+
+    public void testUpdatableFieldsRegistry() throws IOException {
+        assumeUpdatableEnabled();
+        MapperService mapperService = createMapperService(columnar(), mapping(b -> {
+            b.startObject("status");
+            b.field("type", "keyword").field("index", false).startObject("doc_values").field("updatable", true).endObject();
+            b.endObject();
+            b.startObject("count");
+            b.field("type", "long").field("index", false).startObject("doc_values").field("updatable", true).endObject();
+            b.endObject();
+            b.startObject("plain").field("type", "keyword").endObject();
+        }));
+        assertThat(mapperService.mappingLookup().updatableFields(), containsInAnyOrder("status", "count"));
+    }
+
+    /**
+     * The encoder must produce exactly the doc-values value that indexing the same source value writes, otherwise an in-place update
+     * would diverge from a reindex.
+     */
+    public void testEncodeDocValuesUpdateMatchesIndexingForKeyword() throws IOException {
+        assumeUpdatableEnabled();
+        DocumentMapper mapper = createMapperService(
+            columnar(),
+            fieldMapping(
+                b -> b.field("type", "keyword").field("index", false).startObject("doc_values").field("updatable", true).endObject()
+            )
+        ).documentMapper();
+        BytesRef indexed = mapper.parse(source(b -> b.field("field", "Active"))).rootDoc().getField("field").binaryValue();
+
+        FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
+        BytesRef[] captured = new BytesRef[1];
+        fieldMapper.encodeDocValuesUpdate("Active", new FieldMapper.DocValuesUpdateSink() {
+            @Override
+            public void numeric(String field, long value) {
+                throw new AssertionError("keyword should encode to binary");
+            }
+
+            @Override
+            public void binary(String field, BytesRef value) {
+                assertThat(field, equalTo("field"));
+                captured[0] = value;
+            }
+        });
+        assertThat(captured[0], equalTo(indexed));
+    }
+
+    public void testEncodeDocValuesUpdateMatchesIndexingForLong() throws IOException {
+        assumeUpdatableEnabled();
+        DocumentMapper mapper = createMapperService(
+            columnar(),
+            fieldMapping(b -> b.field("type", "long").field("index", false).startObject("doc_values").field("updatable", true).endObject())
+        ).documentMapper();
+        long indexed = mapper.parse(source(b -> b.field("field", 42))).rootDoc().getField("field").numericValue().longValue();
+
+        FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
+        long[] captured = new long[1];
+        fieldMapper.encodeDocValuesUpdate(42, new FieldMapper.DocValuesUpdateSink() {
+            @Override
+            public void numeric(String field, long value) {
+                assertThat(field, equalTo("field"));
+                captured[0] = value;
+            }
+
+            @Override
+            public void binary(String field, BytesRef value) {
+                throw new AssertionError("long should encode to numeric");
+            }
+        });
+        assertThat(captured[0], equalTo(indexed));
     }
 }

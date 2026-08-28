@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.util.BytesRef;
@@ -35,11 +36,19 @@ public class DocValuesFieldFactory {
     private final boolean multiValue;
     private final boolean hasSkipper;
     private final IndexVersion indexVersion;
+    private final boolean updatable;
 
     public DocValuesFieldFactory(boolean multiValue, boolean hasSkipper, IndexVersion indexVersion) {
+        this(multiValue, hasSkipper, indexVersion, false);
+    }
+
+    public DocValuesFieldFactory(boolean multiValue, boolean hasSkipper, IndexVersion indexVersion, boolean updatable) {
+        assert updatable == false || multiValue == false : "updatable doc values require multi_value=false";
+        assert updatable == false || hasSkipper == false : "updatable doc values cannot have a skip index";
         this.multiValue = multiValue;
         this.hasSkipper = hasSkipper;
         this.indexVersion = indexVersion;
+        this.updatable = updatable;
     }
 
     /**
@@ -54,8 +63,18 @@ public class DocValuesFieldFactory {
      * Adds a numeric doc values field as {@link SortedNumericDocValuesField}. Always uses the multi-valued Lucene type
      * regardless of the {@code multi_value} setting, so that index-sort ({@code SortedNumericSortField}) works correctly
      * at segment-merge time for {@code multi_value=false} fields.
+     * <p>
+     * The exception is {@code doc_values.updatable} fields, which are written as a plain {@link NumericDocValuesField}: Lucene's
+     * {@code IndexWriter#updateNumericDocValue} only accepts NUMERIC, never SORTED_NUMERIC. This costs nothing here because an
+     * updatable field is single-valued and cannot participate in the index sort (both enforced at mapping time), and every read path
+     * transparently wraps a NUMERIC column back into a singleton SORTED_NUMERIC — see {@code DocValues#getSortedNumeric},
+     * {@code SortedNumericDocValuesSyntheticFieldLoaderLayer#docValuesOrNull} and {@code NumericDvSingletonOrSorted}.
      */
     public void addNumericField(LuceneDocument doc, String name, long value) {
+        if (updatable) {
+            doc.add(new NumericDocValuesField(name, value));
+            return;
+        }
         doc.add(hasSkipper ? SortedNumericDocValuesField.indexedField(name, value) : new SortedNumericDocValuesField(name, value));
     }
 

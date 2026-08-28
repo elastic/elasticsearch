@@ -22,11 +22,14 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.document.column.ObjectTupleCursor;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Term;
@@ -310,7 +313,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 ),
                 m -> toType(m).docValuesParameters(),
                 indexSettings.getMode().isStrictColumnar()
-            );
+            ).withUpdatableSupport();
 
             this.dimension = TimeSeriesParams.dimensionParam(
                 m -> toType(m).fieldType().isDimension(),
@@ -558,6 +561,21 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (offsetsFieldName != null && usesBinaryDocValues() && indexSettings.getMode().isStrictColumnar()) {
                 this.arrayOrderBinaryDocValues = true;
                 this.offsetsFieldName = null;
+            }
+            String fullName = context.buildFullName(leafName());
+            FieldMapper.validateUpdatableDocValues(
+                fullName,
+                docValuesParameters(),
+                indexed.getValue(),
+                fieldtype.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE,
+                indexSettings
+            );
+            if (docValuesParameters().updatable() && usesBinaryDocValues() == false) {
+                // Lucene cannot update SORTED_SET doc values, which is what low-cardinality keywords are written as. High-cardinality
+                // keywords go to a binary column instead, which it can update.
+                throw new IllegalArgumentException(
+                    "[doc_values.updatable] is not supported for low cardinality keyword field [" + fullName + "]"
+                );
             }
             return new KeywordFieldMapper(
                 leafName(),
@@ -1489,6 +1507,25 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     public DocValuesParameter.Values docValuesParameters() {
         return docValuesParameters;
+    }
+
+    @Override
+    public boolean isDocValuesUpdatable() {
+        return docValuesParameters.updatable();
+    }
+
+    @Override
+    public void encodeDocValuesUpdate(Object value, DocValuesUpdateSink sink) {
+        // Mirrors the binary doc-values value written by indexValue for a high-cardinality (binary) keyword: the normalized UTF-8 bytes.
+        String normalized = normalizeValue(fieldType().normalizer(), fullPath(), value.toString());
+        sink.binary(fullPath(), new BytesRef(normalized));
+    }
+
+    @Override
+    public DocValuesUpdateSourceReader docValuesUpdateSourceReader(LeafReader reader) throws IOException {
+        // An updatable keyword is single-valued binary doc values (see DocValuesFieldFactory); the stored bytes are the normalized value.
+        BinaryDocValues docValues = DocValues.getBinary(reader, fullPath());
+        return doc -> docValues.advanceExact(doc) ? docValues.binaryValue().utf8ToString() : null;
     }
 
     @Override

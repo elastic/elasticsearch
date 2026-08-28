@@ -32,7 +32,9 @@ import java.util.function.Supplier;
  * <p>Key features:
  * <ul>
  *   <li>Uses <strong>only</strong> range reads ({@code newStream(position, length)}) — never full-object GET</li>
- *   <li>Sliding window cache (default 4MB) to amortize seeks and avoid {@code InputStream.skip}</li>
+ *   <li>Sliding window sized to {@code min(requested, file length)} (default request 4MB) to amortize
+ *       seeks and avoid {@code InputStream.skip}. A file that fits in that window is filled from offset 0
+ *       so parquet-mr's tail-first seek is one whole-file range GET.</li>
  *   <li>Optimized for remote storage (S3, HTTP) where full GET and skip-download are expensive</li>
  *   <li>No Hadoop dependencies — uses pure Java InputStream</li>
  * </ul>
@@ -81,7 +83,9 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
      * This allows all column chunks within a small row-group split to be fetched in a single I/O
      * instead of incurring multiple range GETs with the default 4 MiB window.
      *
-     * @param rangeBytes byte span of the range being read; clamped to [{@link #DEFAULT_WINDOW_SIZE}, {@link #MAX_WINDOW_SIZE}]
+     * @param rangeBytes byte span of the range being read; floored at {@link #DEFAULT_WINDOW_SIZE} and
+     *                   capped at {@link #MAX_WINDOW_SIZE} as a hint. The constructor then clamps the
+     *                   window to the file length.
      */
     public static ParquetStorageObjectAdapter forRange(StorageObject storageObject, long rangeBytes, CircuitBreaker breaker) {
         int windowSize = (int) Math.min(Math.max(rangeBytes, DEFAULT_WINDOW_SIZE), MAX_WINDOW_SIZE);
@@ -93,13 +97,16 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             throw new QlIllegalArgumentException("storageObject cannot be null");
         }
         this.storageObject = storageObject;
-        this.windowSize = windowSize;
         this.breaker = breaker;
         try {
             this.length = storageObject.length();
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to read storage object length for [" + storageObject.path() + "]", e);
         }
+        // Zero-length objects still need a 1-byte array; fetchWindowAt returns before any read
+        // (pos >= length). For length > 0 this equals min(requested, length), so
+        // length <= windowSize iff the object fits in the window (whole-file fill below).
+        this.windowSize = (int) Math.min(windowSize, Math.max(1L, this.length));
         this.cacheKey = FooterByteCache.Key.keyFor(storageObject, this.length);
     }
 
@@ -250,36 +257,58 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
 
             position = newPos;
 
-            if (position >= windowStart && position < windowStart + windowLength) {
+            if (windowCovers(position)) {
                 return;
             }
 
             fetchWindowAt(position);
         }
 
+        private boolean windowCovers(long pos) {
+            return pos >= windowStart && pos < windowStart + windowLength;
+        }
+
         private void fetchWindowAt(long pos) throws IOException {
-            long remaining = length - pos;
-            long toRead = Math.min(windowSize, remaining);
-            if (toRead <= 0) {
+            if (pos >= length) {
                 windowStart = pos;
                 windowLength = 0;
                 return;
             }
-
-            if (fillFromPreWarmedChunk(pos, (int) toRead)) {
+            // Pre-warm is keyed by the seek offset. Consult it before remapping a whole-file fill
+            // to 0, otherwise a chunk that starts later (typical dictionary pages) is missed.
+            long remaining = length - pos;
+            long posToRead = Math.min((long) windowSize, remaining);
+            if (fillFromPreWarmedChunk(pos, (int) posToRead)) {
+                assert windowCovers(pos);
                 return;
+            }
+
+            final boolean wholeFileFill = length <= windowSize;
+            final long fetchPos;
+            final long toRead;
+            if (wholeFileFill) {
+                fetchPos = 0;
+                toRead = length;
+            } else {
+                fetchPos = pos;
+                toRead = posToRead;
             }
 
             FooterByteCache tailCache = FooterByteCache.getInstance();
-            if (fillFromTailCache(tailCache, pos, (int) toRead)) {
+            if (fillFromTailCache(tailCache, fetchPos, (int) toRead)) {
+                assert windowCovers(pos);
                 return;
             }
 
-            boolean isTailRead = pos + toRead == length;
+            // Whole-file fills must not become FooterByteCache entries: isTailRead would otherwise
+            // be true (fetchPos == 0, toRead == length) and objects up to maxEntryBytes would
+            // evict genuine footers from the 8 MiB JVM-wide budget.
+            boolean isTailRead = wholeFileFill == false && fetchPos + toRead == length;
             if (isTailRead && toRead <= tailCache.maxEntryBytes()) {
                 try {
-                    byte[] tailBytes = tailCache.getOrLoad(cacheKey, k -> readTailBytes(pos, (int) toRead));
-                    if (tailBytes.length > 0 && fillFromCachedTail(tailBytes, pos, (int) toRead)) {
+                    byte[] tailBytes = tailCache.getOrLoad(cacheKey, k -> readTailBytes(fetchPos, (int) toRead));
+                    if (tailBytes.length > 0 && fillFromCachedTail(tailBytes, fetchPos, (int) toRead)) {
+                        assert windowCovers(pos);
                         return;
                     }
                 } catch (ExecutionException e) {
@@ -291,14 +320,19 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             windowLength = 0;
 
             int target = (int) toRead;
-            try (InputStream in = storageObject.newStream(pos, toRead)) {
+            try (InputStream in = storageObject.newStream(fetchPos, toRead)) {
                 int totalRead = 0;
                 while (totalRead < target) {
                     int chunk = Math.min(STREAM_READ_CHUNK_SIZE, target - totalRead);
                     int n = in.read(window, totalRead, chunk);
                     if (n < 0) {
                         throw new IOException(
-                            "Unexpected end of stream while filling window at position " + pos + "; read " + totalRead + " of " + target
+                            "Unexpected end of stream while filling window at position "
+                                + fetchPos
+                                + "; read "
+                                + totalRead
+                                + " of "
+                                + target
                         );
                     }
                     if (n == 0 && chunk > 0) {
@@ -306,11 +340,16 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                     }
                     totalRead += n;
                 }
-                windowStart = pos;
+                windowStart = fetchPos;
                 windowLength = totalRead;
             }
 
-            if (windowLength > 0 && windowStart + windowLength == length) {
+            // put() copies the window. Skip that copy when the entry would be rejected, and never
+            // cache a whole-file fill (see isTailRead above).
+            if (wholeFileFill == false
+                && windowLength > 0
+                && windowStart + windowLength == length
+                && windowLength <= tailCache.maxEntryBytes()) {
                 byte[] tailBytes = UninitializedArrays.newByteArray(windowLength);
                 System.arraycopy(window, 0, tailBytes, 0, windowLength);
                 tailCache.put(cacheKey, tailBytes);
@@ -408,7 +447,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             if (position >= length) {
                 return;
             }
-            if (position >= windowStart && position < windowStart + windowLength) {
+            if (windowCovers(position)) {
                 return;
             }
             fetchWindowAt(position);
@@ -423,7 +462,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 return -1;
             }
             ensureWindow();
-            if (position >= windowStart + windowLength) {
+            if (windowCovers(position) == false) {
                 return -1;
             }
             int offset = (int) (position - windowStart);
@@ -476,7 +515,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             if (closed || position >= length) {
                 return 0;
             }
-            if (position >= windowStart && position < windowStart + windowLength) {
+            if (windowCovers(position)) {
                 return windowLength - (int) (position - windowStart);
             }
             return 0;

@@ -3,7 +3,6 @@
 //   - elastic/esql-planning#435 (this work)
 //   - elastic/esql-planning#320 (correctness gap addressed here too)
 // Out of scope for this PR (no tracking issue yet — file follow-ups if pursued):
-//   - parquet-rs nested STRUCT support
 //   - ORC nested column pruning specifically (subsumed by issue #320 for parquet,
 //     no equivalent ORC issue exists at the time of writing — please file one
 //     before extending pruning to ORC's filter / aggregate pushdown paths)

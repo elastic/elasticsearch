@@ -209,7 +209,7 @@ public class ShutdownPrepareService {
     /// Repeatedly polls the `taskManager` to list tasks whose action name is `taskName`, invoking `sleeper` to sleep for
     /// [#AWAIT_TASKS_POLL_INTERVAL] between each poll, until either no matching tasks are returned or the total time waited reaches
     /// `timeout`. Invokes `taskNotifier` exactly once for each matching task encountered. Returns true if it found no matching tasks, false
-    /// if it timed out or was interrupted. The `waitFor` parameter give a verb describing what we're waiting for the task to do, to use in
+    /// if it timed out or was interrupted. The `waitFor` parameter gives a verb describing what we're waiting for the task to do, to use in
     /// logging, e.g. `finish` or `cancel`.
     // package-private for testing
     static boolean awaitTasksCompleteInternal(

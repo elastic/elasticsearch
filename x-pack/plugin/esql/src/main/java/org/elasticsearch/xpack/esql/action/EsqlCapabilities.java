@@ -98,6 +98,11 @@ public class EsqlCapabilities {
         FN_ROUND_UL_FIXES,
 
         /**
+         * Fix on function {@code ROUND} that reports integer overflow as a warning and a null result.
+         */
+        FN_ROUND_INT_OVERFLOW_WARNS,
+
+        /**
          * Support for function {@code SCALB}.
          */
         FN_SCALB,

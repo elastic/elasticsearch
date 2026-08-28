@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -29,33 +31,39 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCase {
+public class SecurityIndexRolesMetadataMigrationIT extends AbstractXpackRollingUpgradeWithSecurityTestCase {
+
+    public SecurityIndexRolesMetadataMigrationIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
 
     public void testRoleMigration() throws Exception {
         String oldTestRole = "old-test-role";
         String mixed1TestRole = "mixed1-test-role";
         String mixed2TestRole = "mixed2-test-role";
         String upgradedTestRole = "upgraded-test-role";
-        if (CLUSTER_TYPE == ClusterType.OLD) {
+        if (isOldCluster()) {
             createRoleWithMetadata(oldTestRole, Map.of("meta", "test"));
             assertDocInSecurityIndex(oldTestRole);
             if (canRolesBeMigrated() == false) {
                 assertNoMigration(adminClient());
                 assertCannotQueryRolesByMetadata(client());
             }
-        } else if (CLUSTER_TYPE == ClusterType.MIXED) {
-            if (FIRST_MIXED_ROUND) {
-                createRoleWithMetadata(mixed1TestRole, Map.of("meta", "test"));
-                assertDocInSecurityIndex(mixed1TestRole);
-            } else {
-                createRoleWithMetadata(mixed2TestRole, Map.of("meta", "test"));
-                assertDocInSecurityIndex(mixed2TestRole);
-            }
+        } else if (isFirstMixedCluster()) {
+            createRoleWithMetadata(mixed1TestRole, Map.of("meta", "test"));
+            assertDocInSecurityIndex(mixed1TestRole);
             if (canRolesBeMigrated() == false) {
                 assertNoMigration(adminClient());
                 assertCannotQueryRolesByMetadata(client());
             }
-        } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+        } else if (isMixedCluster()) {
+            createRoleWithMetadata(mixed2TestRole, Map.of("meta", "test"));
+            assertDocInSecurityIndex(mixed2TestRole);
+            if (canRolesBeMigrated() == false) {
+                assertNoMigration(adminClient());
+                assertCannotQueryRolesByMetadata(client());
+            }
+        } else if (isUpgradedCluster()) {
             createRoleWithMetadata(upgradedTestRole, Map.of("meta", "test"));
             assertTrue(canRolesBeMigrated());
             waitForSecurityMigrationCompletion(adminClient(), 3);

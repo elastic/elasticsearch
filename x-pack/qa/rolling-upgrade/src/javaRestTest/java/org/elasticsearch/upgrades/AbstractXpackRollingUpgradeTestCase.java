@@ -7,50 +7,37 @@
 
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.test.ParameterizedRollingUpgradeTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.junit.ClassRule;
-import org.junit.rules.RuleChain;
-import org.junit.rules.TemporaryFolder;
-import org.junit.rules.TestRule;
+import org.elasticsearch.test.cluster.util.Version;
 
-import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 public abstract class AbstractXpackRollingUpgradeTestCase extends ParameterizedRollingUpgradeTestCase {
-
-    private static final TemporaryFolder repoDirectory = new TemporaryFolder();
-
-    private static final ElasticsearchCluster cluster = buildCluster();
-
-    @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
-
-    private static ElasticsearchCluster buildCluster() {
-        return ElasticsearchCluster.local()
-            .distribution(DistributionType.DEFAULT)
-            .version(getOldClusterVersion())
-            .nodes(NODE_NUM)
-            .setting("xpack.license.self_generated.type", "trial")
-            .setting("xpack.security.enabled", "false")
-            .setting("path.repo", new Supplier<>() {
-                @Override
-                @SuppressForbidden(reason = "TemporaryFolder only has io.File methods, not nio.File")
-                public String get() {
-                    return repoDirectory.getRoot().getPath();
-                }
-            })
-            .setting("xpack.searchable.snapshot.shared_cache.size", "16MB")
-            .setting("xpack.searchable.snapshot.shared_cache.region_size", "256KB")
-            .build();
-    }
 
     public AbstractXpackRollingUpgradeTestCase(int upgradedNodes) {
         super(upgradedNodes);
     }
 
-    @Override
-    protected ElasticsearchCluster getUpgradeCluster() {
-        return cluster;
+    protected static ElasticsearchCluster buildCluster() {
+        return buildCluster(b -> b);
+    }
+
+    protected static ElasticsearchCluster buildCluster(UnaryOperator<LocalClusterSpecBuilder<ElasticsearchCluster>> customizer) {
+        var builder = ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
+            .version(getOldClusterVersion())
+            .nodes(NODE_NUM)
+            .setting("xpack.license.self_generated.type", "trial")
+            .setting("xpack.security.enabled", "false");
+
+        if (getOldClusterTestVersion().before(Version.fromString("8.18.0"))) {
+            builder.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
+            builder.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
+        }
+
+        return customizer.apply(builder).build();
     }
 }

@@ -7,17 +7,37 @@
 
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.hamcrest.Matchers;
+import org.junit.ClassRule;
 
 import java.nio.charset.StandardCharsets;
 
-public class GeoIpUpgradeIT extends AbstractUpgradeTestCase {
+public class GeoIpUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = buildCluster(
+        b -> b.systemProperty("ingest.geoip.downloader.enabled.default", "true")
+            .systemProperty("ingest.geoip.downloader.endpoint.default", "http://invalid.endpoint")
+            .setting("ingest.geoip.downloader.endpoint", "http://invalid.endpoint")
+    );
+
+    public GeoIpUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
+    }
 
     public void testGeoIpDownloader() throws Exception {
-        if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+        if (isUpgradedCluster()) {
             assertBusy(() -> {
                 Response response = client().performRequest(new Request("GET", "_cat/tasks"));
                 String tasks = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);

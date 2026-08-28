@@ -7,7 +7,8 @@
 
 package org.elasticsearch.upgrades;
 
-import org.apache.http.HttpHost;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
@@ -32,9 +33,7 @@ import org.elasticsearch.xpack.test.SecuritySettingsSourceField;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Base64;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -54,39 +53,42 @@ import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
+public class ApiKeyBackwardsCompatibilityIT extends AbstractXpackRollingUpgradeWithSecurityTestCase {
 
     private static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
 
-    private RestClient oldVersionClient = null;
-    private RestClient newVersionClient = null;
+    public ApiKeyBackwardsCompatibilityIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
 
     public void testQueryRestTypeKeys() throws IOException {
         assumeTrue(
             "only API keys created pre-8.9 are relevant for the rest-type query bwc case",
             UPGRADE_FROM_VERSION.before(Version.V_8_9_0)
         );
-        switch (CLUSTER_TYPE) {
-            case OLD -> createOrGrantApiKey(client(), "query-test-rest-key-from-old-cluster", "{}");
-            case MIXED -> createOrGrantApiKey(client(), "query-test-rest-key-from-mixed-cluster", "{}");
-            case UPGRADED -> {
-                createOrGrantApiKey(client(), "query-test-rest-key-from-upgraded-cluster", "{}");
-                for (String query : List.of("""
-                    {"query": {"term": {"type": "rest" }}}""", """
-                    {"query": {"prefix": {"type": "re" }}}""", """
-                    {"query": {"wildcard": {"type": "r*t" }}}""", """
-                    {"query": {"range": {"type": {"gte": "raaa", "lte": "rzzz"}}}}""")) {
-                    assertQuery(client(), query, apiKeys -> {
-                        assertThat(
-                            apiKeys.stream().map(k -> (String) k.get("name")).toList(),
-                            hasItems(
-                                "query-test-rest-key-from-old-cluster",
-                                "query-test-rest-key-from-mixed-cluster",
-                                "query-test-rest-key-from-upgraded-cluster"
-                            )
-                        );
-                    });
-                }
+        if (isOldCluster()) {
+            createOrGrantApiKey(client(), "query-test-rest-key-from-old-cluster", "{}");
+        }
+        if (isMixedCluster()) {
+            createOrGrantApiKey(client(), "query-test-rest-key-from-mixed-cluster", "{}");
+        }
+        if (isUpgradedCluster()) {
+            createOrGrantApiKey(client(), "query-test-rest-key-from-upgraded-cluster", "{}");
+            for (String query : List.of("""
+                {"query": {"term": {"type": "rest" }}}""", """
+                {"query": {"prefix": {"type": "re" }}}""", """
+                {"query": {"wildcard": {"type": "r*t" }}}""", """
+                {"query": {"range": {"type": {"gte": "raaa", "lte": "rzzz"}}}}""")) {
+                assertQuery(client(), query, apiKeys -> {
+                    assertThat(
+                        apiKeys.stream().map(k -> (String) k.get("name")).toList(),
+                        hasItems(
+                            "query-test-rest-key-from-old-cluster",
+                            "query-test-rest-key-from-mixed-cluster",
+                            "query-test-rest-key-from-upgraded-cluster"
+                        )
+                    );
+                });
             }
         }
     }
@@ -97,8 +99,43 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 + RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY,
             minimumTransportVersion().before(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
         );
-        switch (CLUSTER_TYPE) {
-            case OLD -> {
+        if (isOldCluster()) {
+            // succeed when remote_indices are not provided
+            final boolean includeRoles = randomBoolean();
+            final String initialApiKeyRole = includeRoles ? randomRoleDescriptors(false) : "{}";
+            final Tuple<String, String> apiKey = createOrGrantApiKey(initialApiKeyRole);
+            updateOrBulkUpdateApiKey(apiKey.v1(), randomValueOtherThan(initialApiKeyRole, () -> randomRoleDescriptors(false)));
+            authenticateWithApiKey(apiKey.v1(), apiKey.v2());
+
+            // fail if we include remote_indices
+            var createException = expectThrows(Exception.class, () -> createOrGrantApiKey(randomRoleDescriptors(true)));
+            assertThat(
+                createException.getMessage(),
+                anyOf(
+                    containsString("failed to parse role [my_role]. unexpected field [remote_indices]"),
+                    containsString("remote indices not supported for API keys")
+                )
+            );
+
+            RestClient client = client();
+            if (isUpdateApiSupported(client)) {
+                var updateException = expectThrows(
+                    Exception.class,
+                    () -> updateOrBulkUpdateApiKey(client, apiKey.v1(), randomRoleDescriptors(true))
+                );
+
+                assertThat(
+                    updateException.getMessage(),
+                    anyOf(
+                        containsString("failed to parse role [my_role]. unexpected field [remote_indices]"),
+                        containsString("remote indices not supported for API keys")
+                    )
+                );
+            }
+        }
+        if (isMixedCluster()) {
+            try {
+                createClientsByCapability(this::nodeSupportApiKeyRemoteIndices);
                 // succeed when remote_indices are not provided
                 final boolean includeRoles = randomBoolean();
                 final String initialApiKeyRole = includeRoles ? randomRoleDescriptors(false) : "{}";
@@ -106,108 +143,72 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 updateOrBulkUpdateApiKey(apiKey.v1(), randomValueOtherThan(initialApiKeyRole, () -> randomRoleDescriptors(false)));
                 authenticateWithApiKey(apiKey.v1(), apiKey.v2());
 
-                // fail if we include remote_indices
-                var createException = expectThrows(Exception.class, () -> createOrGrantApiKey(randomRoleDescriptors(true)));
+                // fail when remote_indices are provided:
+                // against old node
+                if (isUpdateApiSupported(oldVersionClient)) {
+                    Exception e = expectThrows(
+                        Exception.class,
+                        () -> updateOrBulkUpdateApiKey(oldVersionClient, apiKey.v1(), randomRoleDescriptors(true))
+                    );
+                    assertThat(
+                        e.getMessage(),
+                        anyOf(
+                            containsString("failed to parse role [my_role]. unexpected field [remote_indices]"),
+                            containsString("remote indices not supported for API keys")
+                        )
+                    );
+                }
+                Exception e = expectThrows(Exception.class, () -> createOrGrantApiKey(oldVersionClient, randomRoleDescriptors(true)));
                 assertThat(
-                    createException.getMessage(),
+                    e.getMessage(),
                     anyOf(
                         containsString("failed to parse role [my_role]. unexpected field [remote_indices]"),
                         containsString("remote indices not supported for API keys")
                     )
                 );
 
-                RestClient client = client();
-                if (isUpdateApiSupported(client)) {
-                    var updateException = expectThrows(
-                        Exception.class,
-                        () -> updateOrBulkUpdateApiKey(client, apiKey.v1(), randomRoleDescriptors(true))
-                    );
-
-                    assertThat(
-                        updateException.getMessage(),
-                        anyOf(
-                            containsString("failed to parse role [my_role]. unexpected field [remote_indices]"),
-                            containsString("remote indices not supported for API keys")
-                        )
-                    );
-                }
-            }
-            case MIXED -> {
-                try {
-                    this.createClientsByVersion();
-                    // succeed when remote_indices are not provided
-                    final boolean includeRoles = randomBoolean();
-                    final String initialApiKeyRole = includeRoles ? randomRoleDescriptors(false) : "{}";
-                    final Tuple<String, String> apiKey = createOrGrantApiKey(initialApiKeyRole);
-                    updateOrBulkUpdateApiKey(apiKey.v1(), randomValueOtherThan(initialApiKeyRole, () -> randomRoleDescriptors(false)));
-                    authenticateWithApiKey(apiKey.v1(), apiKey.v2());
-
-                    // fail when remote_indices are provided:
-                    // against old node
-                    if (isUpdateApiSupported(oldVersionClient)) {
-                        Exception e = expectThrows(
-                            Exception.class,
-                            () -> updateOrBulkUpdateApiKey(oldVersionClient, apiKey.v1(), randomRoleDescriptors(true))
-                        );
-                        assertThat(
-                            e.getMessage(),
-                            anyOf(
-                                containsString("failed to parse role [my_role]. unexpected field [remote_indices]"),
-                                containsString("remote indices not supported for API keys")
-                            )
-                        );
-                    }
-                    Exception e = expectThrows(Exception.class, () -> createOrGrantApiKey(oldVersionClient, randomRoleDescriptors(true)));
-                    assertThat(
-                        e.getMessage(),
-                        anyOf(
-                            containsString("failed to parse role [my_role]. unexpected field [remote_indices]"),
-                            containsString("remote indices not supported for API keys")
-                        )
-                    );
-
-                    // and against new node
-                    e = expectThrows(Exception.class, () -> createOrGrantApiKey(newVersionClient, randomRoleDescriptors(true)));
-                    assertThat(
-                        e.getMessage(),
-                        containsString(
-                            "all nodes must have version ["
-                                + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
-                                + "] or higher to support remote indices privileges for API keys"
-                        )
-                    );
-                    e = expectThrows(
-                        Exception.class,
-                        () -> updateOrBulkUpdateApiKey(newVersionClient, apiKey.v1(), randomRoleDescriptors(true))
-                    );
-                    assertThat(
-                        e.getMessage(),
-                        containsString(
-                            "all nodes must have version ["
-                                + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
-                                + "] or higher to support remote indices privileges for API keys"
-                        )
-                    );
-                } finally {
-                    this.closeClientsByVersion();
-                }
-            }
-            case UPGRADED -> {
-                // succeed either way
-                final boolean includeRoles = randomBoolean();
-                final String initialApiKeyRole = includeRoles ? randomRoleDescriptors(false) : "{}";
-                final Tuple<String, String> apiKey = createOrGrantApiKey(initialApiKeyRole);
-                updateOrBulkUpdateApiKey(apiKey.v1(), randomValueOtherThan(initialApiKeyRole, () -> randomRoleDescriptors(false)));
-                authenticateWithApiKey(apiKey.v1(), apiKey.v2());
-
-                final String initialApiKeyRoleWithRemoteIndices = randomRoleDescriptors(true);
-                final Tuple<String, String> apiKeyWithRemoteIndices = createOrGrantApiKey(initialApiKeyRoleWithRemoteIndices);
-                updateOrBulkUpdateApiKey(
-                    apiKeyWithRemoteIndices.v1(),
-                    randomValueOtherThan(initialApiKeyRoleWithRemoteIndices, () -> randomRoleDescriptors(true))
+                // and against new node
+                e = expectThrows(Exception.class, () -> createOrGrantApiKey(newVersionClient, randomRoleDescriptors(true)));
+                assertThat(
+                    e.getMessage(),
+                    containsString(
+                        "all nodes must have version ["
+                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
+                            + "] or higher to support remote indices privileges for API keys"
+                    )
                 );
-                authenticateWithApiKey(apiKeyWithRemoteIndices.v1(), apiKeyWithRemoteIndices.v2());
+                e = expectThrows(
+                    Exception.class,
+                    () -> updateOrBulkUpdateApiKey(newVersionClient, apiKey.v1(), randomRoleDescriptors(true))
+                );
+                assertThat(
+                    e.getMessage(),
+                    containsString(
+                        "all nodes must have version ["
+                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
+                            + "] or higher to support remote indices privileges for API keys"
+                    )
+                );
+            } finally {
+                this.closeClientsByVersion();
             }
+        }
+        if (isUpgradedCluster()) {
+            // succeed either way
+            final boolean includeRoles = randomBoolean();
+            final String initialApiKeyRole = includeRoles ? randomRoleDescriptors(false) : "{}";
+            final Tuple<String, String> apiKey = createOrGrantApiKey(initialApiKeyRole);
+            updateOrBulkUpdateApiKey(apiKey.v1(), randomValueOtherThan(initialApiKeyRole, () -> randomRoleDescriptors(false)));
+            authenticateWithApiKey(apiKey.v1(), apiKey.v2());
+
+            // Verify the API key was created with certificate identity
+            final Request getApiKeyRequest = new Request("GET", "/_security/api_key");
+            getApiKeyRequest.addParameter("id", apiKey.v1());
+            final Response getResponse = client().performRequest(getApiKeyRequest);
+            assertOK(getResponse);
+
+            final ObjectPath getPath = ObjectPath.createFromResponse(getResponse);
+            assertThat(getPath.evaluate("api_keys.0.certificate_identity"), equalTo("CN=test-.*"));
         }
     }
 
@@ -263,19 +264,23 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     private boolean isUpdateApiSupported(RestClient client) {
-        return switch (CLUSTER_TYPE) {
-            case OLD -> clusterHasFeature(RestTestLegacyFeatures.SECURITY_UPDATE_API_KEY); // Update API was introduced in 8.4.0.
-            case MIXED -> clusterHasFeature(RestTestLegacyFeatures.SECURITY_UPDATE_API_KEY) || client == newVersionClient;
-            case UPGRADED -> true;
-        };
+        if (isOldCluster()) {
+            return clusterHasFeature(RestTestLegacyFeatures.SECURITY_UPDATE_API_KEY); // Update API was introduced in 8.4.0.
+        }
+        if (isMixedCluster()) {
+            return clusterHasFeature(RestTestLegacyFeatures.SECURITY_UPDATE_API_KEY) || client == newVersionClient;
+        }
+        return true;
     }
 
     private boolean isBulkUpdateApiSupported(RestClient client) {
-        return switch (CLUSTER_TYPE) {
-            case OLD -> clusterHasFeature(RestTestLegacyFeatures.SECURITY_BULK_UPDATE_API_KEY); // Bulk update API was introduced in 8.5.0.
-            case MIXED -> clusterHasFeature(RestTestLegacyFeatures.SECURITY_BULK_UPDATE_API_KEY) || client == newVersionClient;
-            case UPGRADED -> true;
-        };
+        if (isOldCluster()) {
+            return clusterHasFeature(RestTestLegacyFeatures.SECURITY_BULK_UPDATE_API_KEY); // Bulk update API was introduced in 8.5.0.
+        }
+        if (isMixedCluster()) {
+            return clusterHasFeature(RestTestLegacyFeatures.SECURITY_BULK_UPDATE_API_KEY) || client == newVersionClient;
+        }
+        return true;
     }
 
     private void updateOrBulkUpdateApiKey(RestClient client, String id, String roles) throws IOException {
@@ -347,71 +352,21 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         }
     }
 
-    boolean nodeSupportApiKeyRemoteIndices(Map<String, Object> nodeDetails) {
-        String nodeVersionString = (String) nodeDetails.get("version");
+    boolean nodeSupportApiKeyRemoteIndices(NodeInfo node) {
         TransportVersion transportVersion = getTransportVersionWithFallback(
-            nodeVersionString,
-            nodeDetails.get("transport_version"),
+            node.version(),
+            node.transportVersion(),
             () -> TransportVersion.zero()
         );
 
         if (transportVersion.equals(TransportVersion.zero())) {
             // In cases where we were not able to find a TransportVersion, a pre-8.8.0 node answered about a newer (upgraded) node.
             // In that case, the node will be current (upgraded), and remote indices are supported for sure.
-            var nodeIsCurrent = nodeVersionString.equals(Build.current().version());
+            var nodeIsCurrent = node.version().equals(Build.current().version());
             assertTrue(nodeIsCurrent);
             return true;
         }
         return transportVersion.onOrAfter(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY);
-    }
-
-    private void createClientsByVersion() throws IOException {
-        var clientsByCapability = getRestClientByCapability();
-        if (clientsByCapability.size() == 2) {
-            for (Map.Entry<Boolean, RestClient> client : clientsByCapability.entrySet()) {
-                if (client.getKey() == false) {
-                    oldVersionClient = client.getValue();
-                } else {
-                    newVersionClient = client.getValue();
-                }
-            }
-            assertThat(oldVersionClient, notNullValue());
-            assertThat(newVersionClient, notNullValue());
-        } else {
-            fail("expected 2 versions during rolling upgrade but got: " + clientsByCapability.size());
-        }
-    }
-
-    private void closeClientsByVersion() throws IOException {
-        if (oldVersionClient != null) {
-            oldVersionClient.close();
-            oldVersionClient = null;
-        }
-        if (newVersionClient != null) {
-            newVersionClient.close();
-            newVersionClient = null;
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<Boolean, RestClient> getRestClientByCapability() throws IOException {
-        Response response = client().performRequest(new Request("GET", "_nodes"));
-        assertOK(response);
-        ObjectPath objectPath = ObjectPath.createFromResponse(response);
-        Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
-        Map<Boolean, List<HttpHost>> hostsByCapability = new HashMap<>();
-        for (Map.Entry<String, Object> entry : nodesAsMap.entrySet()) {
-            Map<String, Object> nodeDetails = (Map<String, Object>) entry.getValue();
-            var capabilitySupported = nodeSupportApiKeyRemoteIndices(nodeDetails);
-            Map<String, Object> httpInfo = (Map<String, Object>) nodeDetails.get("http");
-            hostsByCapability.computeIfAbsent(capabilitySupported, k -> new ArrayList<>())
-                .add(HttpHost.create((String) httpInfo.get("publish_address")));
-        }
-        Map<Boolean, RestClient> clientsByCapability = new HashMap<>();
-        for (var entry : hostsByCapability.entrySet()) {
-            clientsByCapability.put(entry.getKey(), buildClient(restClientSettings(), entry.getValue().toArray(new HttpHost[0])));
-        }
-        return clientsByCapability;
     }
 
     private static RoleDescriptor randomRoleDescriptor(boolean includeRemoteDescriptors) {

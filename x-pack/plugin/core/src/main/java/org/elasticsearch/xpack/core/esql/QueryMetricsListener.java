@@ -34,6 +34,10 @@ public interface QueryMetricsListener {
      */
     String READ_NANOS = "read_nanos";
     /**
+     * CPU time spent by drivers on reading data (no IO wait), from result.completionInfo().readCpuNanos()
+     */
+    String READ_CPU_NANOS = "read_cpu_nanos";
+    /**
      * Time spent on discovering splits, from queryProfile.splitDiscoveryNanos()
      */
     String SPLIT_DISCOVERY_NANOS = "split_discovery_nanos";

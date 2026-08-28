@@ -219,10 +219,6 @@ When generating locally, there is nothing to detect it from, so ask for it:
 Validation enforces this, so a pull request against `patch/serverless-fix` fails
 if its new transport version is not a patch id.
 
-Note a change on the patch branch is never simultaneously a backport; backports
-are created from the branch the patch is merged back into, so `--patch` and
-`--backport-branches` cannot be combined.
-
 ### Reverting changes
 
 Transport versions cannot be removed, they can only be added. If the logic

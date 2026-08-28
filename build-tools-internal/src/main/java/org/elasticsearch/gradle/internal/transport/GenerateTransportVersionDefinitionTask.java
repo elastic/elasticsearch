@@ -66,12 +66,6 @@ public abstract class GenerateTransportVersionDefinitionTask extends AbstractGen
         if (onReleaseBranch) {
             throw new IllegalArgumentException("Transport version generation cannot run on release branches");
         }
-        if (isPatchBranch(resources) && getBackportBranches().isPresent()) {
-            throw new IllegalArgumentException(
-                "Transport version generation cannot backport from the serverless patch branch."
-                    + " Backports are created from the branch the patch is merged back into."
-            );
-        }
 
         Set<String> referencedNames = TransportVersionReference.collectNames(getReferencesFiles());
         Set<String> changedDefinitionNames = resources.getChangedReferableDefinitionNames();

@@ -611,16 +611,23 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertGenerateFailure(result, "Exhausted the patch ids for base 8123000")
     }
 
-    def "patch generation cannot be combined with backports"() {
+    def "a patch branch fix can also be backported"() {
         given:
         setupPatchBranch()
         referencedTransportVersion("new_tv")
 
         when:
-        def result = runGenerateTask("--patch", "--backport-branches=9.1", PATCH_BRANCH_PROPERTY).buildAndFail()
+        // note --backport-branches binds to the task it follows, so generate must come last
+        def result = gradleRunnerWithEnv(Map.of("BUILDKITE_PULL_REQUEST_BASE_BRANCH", PATCH_BRANCH),
+            ":myserver:validateTransportVersionResources", ":myserver:generateTransportVersion",
+            "--backport-branches=9.1", PATCH_BRANCH_PROPERTY).build()
 
         then:
-        assertGenerateFailure(result, "Transport version generation cannot backport from the serverless patch branch")
+        assertGenerateAndValidateSuccess(result)
+        // a patch id for the patch branch, and a patch id for the release branch as usual
+        assertReferableDefinition("new_tv", "8123001,8012002")
+        assertUpperBound("9.2", "new_tv,8123001")
+        assertUpperBound("9.1", "new_tv,8012002")
     }
 
     def "the patch branch is ignored when the repository does not configure one"() {

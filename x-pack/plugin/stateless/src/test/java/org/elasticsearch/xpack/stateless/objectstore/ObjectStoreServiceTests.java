@@ -125,12 +125,14 @@ import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.O
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -164,7 +166,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
         }
         // no throw
         ObjectStoreType objectStoreType = ObjectStoreService.TYPE_SETTING.get(builder.build());
-        Settings settings = objectStoreType.createRepositorySettings(bucket, randomAlphaOfLength(5), basePath);
+        Settings settings = objectStoreType.createRepositorySettings(bucket, randomAlphaOfLength(5), basePath, null);
         assertThat(settings.keySet().size(), equalTo(1));
         assertThat(settings.get("location"), equalTo(basePath != null ? PathUtils.get(bucket, basePath).toString() : bucket));
     }
@@ -189,7 +191,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
         }
         // check no throw
         ObjectStoreType objectStoreType = ObjectStoreService.TYPE_SETTING.get(builder.build());
-        Settings settings = objectStoreType.createRepositorySettings(bucket, client, basePath);
+        Settings settings = objectStoreType.createRepositorySettings(bucket, client, basePath, null);
         assertThat(
             settings.keySet().size(),
             equalTo(2 + (basePath == null ? 0 : 1) + (objectStoreType == S3 ? 1 /* add_purpose_custom_query_parameter */ : 0))
@@ -197,6 +199,79 @@ public class ObjectStoreServiceTests extends ESTestCase {
         assertThat(settings.get(bucketName), equalTo(bucket));
         assertThat(settings.get("client"), equalTo(client));
         assertThat(settings.get("base_path"), equalTo(basePath));
+
+        // when threshold is not set, the per-type key must be absent
+        String thresholdKey = switch (type) {
+            case S3 -> ObjectStoreService.S3_MULTIPART_THRESHOLD_SETTING_KEY;
+            case GCS -> ObjectStoreService.GCS_MULTIPART_THRESHOLD_SETTING_KEY;
+            case AZURE -> ObjectStoreService.AZURE_MULTIPART_THRESHOLD_SETTING_KEY;
+            default -> throw new AssertionError("unexpected type: " + type);
+        };
+        assertNull(settings.get(thresholdKey));
+
+        // when threshold is set, the per-type key must be present with the right value and the key count grows by one
+        ByteSizeValue threshold = randomBoolean() ? ByteSizeValue.ofMb(between(5, 100)) : null;
+        Settings settingsWithThreshold = objectStoreType.createRepositorySettings(bucket, client, basePath, threshold);
+        if (threshold == null) {
+            assertThat(settingsWithThreshold.get(thresholdKey), is(nullValue()));
+        } else {
+            assertThat(settingsWithThreshold.get(thresholdKey), equalTo(threshold.getStringRep()));
+        }
+    }
+
+    public void testMultiPartThresholdValidation() {
+        // below minimum (5 MB) should throw
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ObjectStoreService.OBJECT_STORE_MULTIPART_THRESHOLD.get(
+                Settings.builder().put(ObjectStoreService.OBJECT_STORE_MULTIPART_THRESHOLD.getKey(), "4mb").build()
+            )
+        );
+        assertThat(e.getMessage(), containsString("4mb"));
+
+        // at minimum should succeed
+        ByteSizeValue atMin = ObjectStoreService.OBJECT_STORE_MULTIPART_THRESHOLD.get(
+            Settings.builder().put(ObjectStoreService.OBJECT_STORE_MULTIPART_THRESHOLD.getKey(), "5mb").build()
+        );
+        assertThat(atMin, equalTo(ByteSizeValue.ofMb(5)));
+
+        // at maximum (5 GB) should succeed
+        ByteSizeValue atMax = ObjectStoreService.OBJECT_STORE_MULTIPART_THRESHOLD.get(
+            Settings.builder().put(ObjectStoreService.OBJECT_STORE_MULTIPART_THRESHOLD.getKey(), "5gb").build()
+        );
+        assertThat(atMax, equalTo(ByteSizeValue.ofGb(5)));
+
+        // above maximum should throw
+        IllegalArgumentException eMax = expectThrows(
+            IllegalArgumentException.class,
+            () -> ObjectStoreService.OBJECT_STORE_MULTIPART_THRESHOLD.get(
+                Settings.builder().put(ObjectStoreService.OBJECT_STORE_MULTIPART_THRESHOLD.getKey(), "6gb").build()
+            )
+        );
+        assertThat(eMax.getMessage(), containsString("6gb"));
+    }
+
+    public void testMultiPartThresholdInjectedPerType() {
+        ByteSizeValue threshold = ByteSizeValue.ofMb(between(5, 100));
+        assertThat(
+            S3.createRepositorySettings("b", "c", null, threshold).get(ObjectStoreService.S3_MULTIPART_THRESHOLD_SETTING_KEY),
+            equalTo(threshold.getStringRep())
+        );
+        assertThat(
+            GCS.createRepositorySettings("b", "c", null, threshold).get(ObjectStoreService.GCS_MULTIPART_THRESHOLD_SETTING_KEY),
+            equalTo(threshold.getStringRep())
+        );
+        assertThat(
+            AZURE.createRepositorySettings("b", "c", null, threshold).get(ObjectStoreService.AZURE_MULTIPART_THRESHOLD_SETTING_KEY),
+            equalTo(threshold.getStringRep())
+        );
+    }
+
+    public void testMultiPartThresholdNotInjectedWhenNull() {
+        assertNull(S3.createRepositorySettings("b", "c", null, null).get(ObjectStoreService.S3_MULTIPART_THRESHOLD_SETTING_KEY));
+        assertNull(GCS.createRepositorySettings("b", "c", null, null).get(ObjectStoreService.GCS_MULTIPART_THRESHOLD_SETTING_KEY));
+        assertNull(AZURE.createRepositorySettings("b", "c", null, null).get(ObjectStoreService.AZURE_MULTIPART_THRESHOLD_SETTING_KEY));
+        assertNull(FS.createRepositorySettings("b", "c", null, null).get(ObjectStoreService.S3_MULTIPART_THRESHOLD_SETTING_KEY));
     }
 
     /**

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
@@ -114,7 +115,8 @@ public record FormatReadContext(
     boolean statsFileFinal,
     StripeColumnScope statsColumnScope,
     @Nullable Consumer<String> informationalWarningSink,
-    @Nullable List<String> fileHeaderColumns
+    @Nullable List<String> fileHeaderColumns,
+    @Nullable CircuitBreaker breaker
 ) {
 
     public FormatReadContext {
@@ -160,7 +162,8 @@ public record FormatReadContext(
             statsFileFinal,
             statsColumnScope,
             informationalWarningSink,
-            fileHeaderColumns
+            fileHeaderColumns,
+            breaker
         );
     }
 
@@ -184,7 +187,8 @@ public record FormatReadContext(
             statsFileFinal,
             statsColumnScope,
             informationalWarningSink,
-            fileHeaderColumns
+            fileHeaderColumns,
+            breaker
         );
     }
 
@@ -208,7 +212,8 @@ public record FormatReadContext(
             statsFileFinal,
             statsColumnScope,
             informationalWarningSink,
-            fileHeaderColumns
+            fileHeaderColumns,
+            breaker
         );
     }
 
@@ -239,6 +244,8 @@ public record FormatReadContext(
         private StripeColumnScope statsColumnScope = StripeColumnScope.PROJECTED;
         @Nullable
         private Consumer<String> informationalWarningSink = null;
+        @Nullable
+        private CircuitBreaker breaker = null;
 
         private Builder() {}
 
@@ -343,6 +350,17 @@ public record FormatReadContext(
             return this;
         }
 
+        /**
+         * Circuit breaker for the decompression codec's native footprint accounting. Set when the
+         * read path goes through a {@link DecompressionCodec} that supports per-stream breaker wiring.
+         * {@code null} (the default) means the codec's native footprint is not accounted by a breaker
+         * on this read path.
+         */
+        public Builder breaker(@Nullable CircuitBreaker breaker) {
+            this.breaker = breaker;
+            return this;
+        }
+
         public FormatReadContext build() {
             if (batchSize <= 0) {
                 throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
@@ -363,7 +381,8 @@ public record FormatReadContext(
                 statsFileFinal,
                 statsColumnScope,
                 informationalWarningSink,
-                fileHeaderColumns
+                fileHeaderColumns,
+                breaker
             );
         }
     }

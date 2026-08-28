@@ -82,19 +82,11 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
 
     private void beforeSearchShardRecovery(final IndexShard indexShard, final ActionListener<Void> listener) {
         final Store store = indexShard.store();
+        // Store ref is held by IndicesService for the recovery lifetime.
+        assert store.hasReferences();
         try {
-            store.incRef();
-            boolean success = false;
-            try {
-                final var existingBlobContainer = initializeBlobContainer(indexShard, store);
-                final var releaseAfterListener = ActionListener.releaseAfter(listener, store::decRef);
-                beforeRecoveryOnSearchShard(indexShard, existingBlobContainer, releaseAfterListener);
-                success = true;
-            } finally {
-                if (success == false) {
-                    store.decRef();
-                }
-            }
+            final var existingBlobContainer = initializeBlobContainer(indexShard, store);
+            beforeRecoveryOnSearchShard(indexShard, existingBlobContainer, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }

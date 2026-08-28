@@ -42,6 +42,10 @@ import java.util.stream.Collectors;
 /**
  * A shard-free {@link SearchExecutionContext} for runtime ES|QL columns. It exposes each column as an indexed text
  * field and provides the analyzer callers need when indexing values for the resulting query.
+ *
+ * <p>Exact field names outside the exposed columns cause {@link #getMatchingFieldNames} to throw an
+ * {@link IllegalArgumentException}. This lets callers reject queries that reference unavailable fields. Direct
+ * {@link #getFieldType} lookups return {@code null} for unmapped names, as required by the base contract.
  */
 public final class RuntimeSearchExecutionContext extends SearchExecutionContext {
 
@@ -146,7 +150,11 @@ public final class RuntimeSearchExecutionContext extends SearchExecutionContext 
     @Override
     public Set<String> getMatchingFieldNames(String pattern) {
         if (Regex.isSimpleMatchPattern(pattern) == false) {
-            return fields.containsKey(pattern) ? Set.of(pattern) : Set.of();
+            if (fields.containsKey(pattern)) {
+                return Set.of(pattern);
+            }
+            // Exact fields outside this context must fail instead of silently matching nothing.
+            throw new IllegalArgumentException("field [" + pattern + "] is not one of the searchable fields " + fields.keySet());
         }
         return fields.keySet().stream().filter(f -> Regex.simpleMatch(pattern, f)).collect(Collectors.toSet());
     }

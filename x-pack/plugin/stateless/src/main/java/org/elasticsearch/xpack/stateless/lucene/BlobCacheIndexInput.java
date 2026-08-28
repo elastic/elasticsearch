@@ -21,6 +21,9 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
+import org.elasticsearch.index.store.SelfAccountingIndexInput;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReader;
 
 import java.io.FileNotFoundException;
@@ -31,7 +34,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.NoSuchFileException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput implements DirectAccessInput {
+public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput implements DirectAccessInput, SelfAccountingIndexInput {
 
     /**
      * Same as org.apache.lucene.store.IOContext#DEFAULT, except does not warn on missing files.
@@ -74,6 +77,15 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
         long offset
     ) {
         this(name, context, cacheFileReader, releasable, length, offset, null);
+    }
+
+    /**
+     * Accounts to the reader, which is where this input reads. Its copies carry the holder on, so clones and slices
+     * account to the same place.
+     */
+    @Override
+    public void accountBytesReadTo(PluggableDirectoryMetricsHolder<StoreMetrics> holder) {
+        cacheFileReader.accountBytesReadTo(holder);
     }
 
     @Override

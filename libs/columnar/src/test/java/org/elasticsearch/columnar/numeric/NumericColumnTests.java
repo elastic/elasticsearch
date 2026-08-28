@@ -166,8 +166,12 @@ public class NumericColumnTests extends ESTestCase {
 
         try (Directory dir = newDirectory()) {
             NumericColumnMetadata written;
-            try (IndexOutput out = dir.createOutput("num.cnd", IOContext.DEFAULT)) {
+            try (
+                IndexOutput out = dir.createOutput("num.cnd", IOContext.DEFAULT);
+                IndexOutput skip = dir.createOutput("num.cns", IOContext.DEFAULT)
+            ) {
                 ColumnarCodecUtil.writeHeader(out, "ColumNARData", FormatVersion.CURRENT, segmentId, "");
+                ColumnarCodecUtil.writeHeader(skip, "ColumNARSkipIndex", FormatVersion.CURRENT, segmentId, "");
                 written = NumericColumnWriter.write(
                     maxDoc,
                     numDocsWithField,
@@ -178,9 +182,11 @@ public class NumericColumnTests extends ESTestCase {
                     SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID),
                     dir,
                     IOContext.DEFAULT,
-                    out
+                    out,
+                    skip
                 );
                 ColumnarCodecUtil.writeFooter(out);
+                ColumnarCodecUtil.writeFooter(skip);
             }
 
             try (IndexOutput meta = dir.createOutput("num.cnm", IOContext.DEFAULT)) {
@@ -199,13 +205,13 @@ public class NumericColumnTests extends ESTestCase {
 
                 ColumnIterator iterator = reader.iterator();
                 for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
-                    int rank = iterator.index();
-                    long first = reader.firstOrdinal(rank);
+                    int rank = iterator.rank();
+                    long first = reader.firstValueAddress(rank);
                     long count = reader.valueCount(rank);
                     assertEquals("value count at doc " + doc, docValues[doc].length, count);
                     for (int i = 0; i < count; i++) {
                         // exact written order, never sorted
-                        assertEquals("doc " + doc + " value " + i, docValues[doc][i], reader.valueForOrdinal(first + i));
+                        assertEquals("doc " + doc + " value " + i, docValues[doc][i], reader.valueAt(first + i));
                     }
                 }
             }

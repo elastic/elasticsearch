@@ -578,6 +578,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitMmrQueryVectorExpression(EsqlBaseParser.MmrQueryVectorExpressionContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#denseVectorCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitDenseVectorCommand(EsqlBaseParser.DenseVectorCommandContext ctx);
+  /**
    * Visit a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree
@@ -756,12 +762,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitFunctionName(EsqlBaseParser.FunctionNameContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#functionParam}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitFunctionParam(EsqlBaseParser.FunctionParamContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#lambda}.
    * @param ctx the parse tree

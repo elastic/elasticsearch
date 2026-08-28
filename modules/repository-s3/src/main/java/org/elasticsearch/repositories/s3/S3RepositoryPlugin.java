@@ -34,7 +34,6 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -132,37 +131,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(
-            // named s3 client configuration settings
-            S3ClientSettings.ACCESS_KEY_SETTING,
-            S3ClientSettings.SECRET_KEY_SETTING,
-            S3ClientSettings.SESSION_TOKEN_SETTING,
-            S3ClientSettings.ENDPOINT_SETTING,
-            S3ClientSettings.PROTOCOL_SETTING,
-            S3ClientSettings.PROXY_HOST_SETTING,
-            S3ClientSettings.PROXY_PORT_SETTING,
-            S3ClientSettings.PROXY_SCHEME_SETTING,
-            S3ClientSettings.PROXY_USERNAME_SETTING,
-            S3ClientSettings.PROXY_PASSWORD_SETTING,
-            S3ClientSettings.READ_TIMEOUT_SETTING,
-            S3ClientSettings.MAX_CONNECTIONS_SETTING,
-            S3ClientSettings.MAX_RETRIES_SETTING,
-            S3ClientSettings.API_CALL_TIMEOUT_SETTING,
-            S3ClientSettings.UNUSED_USE_THROTTLE_RETRIES_SETTING,
-            S3ClientSettings.USE_PATH_STYLE_ACCESS,
-            S3ClientSettings.DISABLE_CHUNKED_ENCODING,
-            S3ClientSettings.UNUSED_SIGNER_OVERRIDE,
-            S3ClientSettings.ADD_PURPOSE_CUSTOM_QUERY_PARAMETER,
-            S3ClientSettings.REGION,
-            S3ClientSettings.CONNECTION_MAX_IDLE_TIME_SETTING,
-            S3ClientSettings.MAX_COPY_SIZE_BEFORE_MULTIPART,
-            S3Service.REPOSITORY_S3_CAS_TTL_SETTING,
-            S3Service.REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING,
-            S3Repository.ACCESS_KEY_SETTING,
-            S3Repository.SECRET_KEY_SETTING,
-            S3ClientSettings.S3_TENACIOUS_RETRIES_ENABLED_SETTING,
-            S3ClientSettings.ALWAYS_SIGN_REQUESTS
-        );
+        return S3RepositorySettings.SETTINGS;
     }
 
     @Override

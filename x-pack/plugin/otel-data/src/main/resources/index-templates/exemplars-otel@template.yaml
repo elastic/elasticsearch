@@ -11,7 +11,7 @@ _meta:
 # and the exemplar value field names exactly match the corresponding metrics data stream.
 # This is required to navigate from a metrics query to the corresponding exemplars.
 composed_of:
-  - exemplars@tsdb-settings
+  - exemplars@settings
   - otel@mappings
   - otel@settings
   - metrics-otel@mappings

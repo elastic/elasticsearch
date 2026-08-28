@@ -89,7 +89,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     //////////////////////////////////////////////////////////
     // Exemplars components (for matching exemplars-*-* indices)
     //////////////////////////////////////////////////////////
-    public static final String EXEMPLARS_TSDB_SETTINGS_COMPONENT_TEMPLATE_NAME = "exemplars@tsdb-settings";
+    public static final String EXEMPLARS_SETTINGS_COMPONENT_TEMPLATE_NAME = "exemplars@settings";
     public static final String EXEMPLARS_ILM_POLICY_NAME = "exemplars@lifecycle";
 
     //////////////////////////////////////////////////////////
@@ -186,8 +186,8 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
                 ADDITIONAL_TEMPLATE_VARIABLES
             ),
             new IndexTemplateConfig(
-                EXEMPLARS_TSDB_SETTINGS_COMPONENT_TEMPLATE_NAME,
-                "/exemplars@tsdb-settings.json",
+                EXEMPLARS_SETTINGS_COMPONENT_TEMPLATE_NAME,
+                "/exemplars@settings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
                 ADDITIONAL_TEMPLATE_VARIABLES

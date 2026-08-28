@@ -68,7 +68,7 @@ setup:
 
   - do:
       cluster.get_component_template:
-        name: exemplars@tsdb-settings
+        name: exemplars@settings
 
   - do:
       indices.get_index_template:

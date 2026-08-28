@@ -19,8 +19,20 @@ setup:
         index: exemplars-generic.otel-default
         refresh: true
         body:
-          - create: {"dynamic_templates":{"metrics.request.duration":"exemplar_value_double"}}
-          - '{"@timestamp":"2020-01-01T00:00:01.000Z","data_stream":{"dataset":"generic.otel","namespace":"default","type":"exemplars"},"_metric_names_hash":"abcd1234","filtered_attributes":{"nested":{"value":"foo"}},"metrics":{"request.duration":0.42}}'
+          - create:
+              dynamic_templates:
+                metrics.request.duration: exemplar_value_double
+          - "@timestamp": "2020-01-01T00:00:01.000Z"
+            data_stream:
+              dataset: generic.otel
+              namespace: default
+              type: exemplars
+            _metric_names_hash: abcd1234
+            filtered_attributes:
+              nested:
+                value: foo
+            metrics:
+              request.duration: 0.42
   - is_false: errors
   - do:
       indices.get_data_stream:

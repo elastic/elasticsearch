@@ -310,8 +310,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     ) {
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
         final ConcreteIndices concreteIndices = new ConcreteIndices(project, indexNameExpressionResolver);
-        // Group the requests by ShardId -> Operations mapping
-        Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
+        // When batch routing is active the router owns the grouping; otherwise we build it here.
+        Map<ShardId, List<BulkItemRequest>> requestsByShard = batchRouter != null ? null : new HashMap<>();
 
         while (it.hasNext()) {
             BulkItemRequest bulkItemRequest = it.next();
@@ -345,19 +345,14 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     continue;
                 }
                 IndexRouting indexRouting = concreteIndices.routing(concreteIndex);
-                int shardId;
-                if (batchRouter == null) {
-                    docWriteRequest.preRoutingProcess(indexRouting);
-                    shardId = docWriteRequest.route(indexRouting);
-                    docWriteRequest.postRoutingProcess(indexRouting);
+                if (batchRouter != null) {
+                    batchRouter.route(bulkItemRequest, docWriteRequest, ia, concreteIndex, indexRouting, project);
                 } else {
-                    shardId = batchRouter.route(docWriteRequest, ia, concreteIndex, indexRouting, project);
+                    docWriteRequest.preRoutingProcess(indexRouting);
+                    int shardId = docWriteRequest.route(indexRouting);
+                    docWriteRequest.postRoutingProcess(indexRouting);
+                    requestsByShard.computeIfAbsent(new ShardId(concreteIndex, shardId), shard -> new ArrayList<>()).add(bulkItemRequest);
                 }
-                List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(
-                    new ShardId(concreteIndex, shardId),
-                    shard -> new ArrayList<>()
-                );
-                shardRequests.add(bulkItemRequest);
             } catch (DataStream.TimestampError timestampError) {
                 IndexDocFailureStoreStatus failureStoreStatus = processFailure(bulkItemRequest, project, timestampError);
                 if (IndexDocFailureStoreStatus.USED.equals(failureStoreStatus) == false) {
@@ -372,7 +367,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 addFailureAndDiscardRequest(docWriteRequest, bulkItemRequest.id(), name, e, failureStoreStatus);
             }
         }
-        return requestsByShard;
+        return batchRouter != null ? batchRouter.buildGrouping() : requestsByShard;
     }
 
     /**

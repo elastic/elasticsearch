@@ -11,7 +11,6 @@ package org.elasticsearch.nativeaccess;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 
 class NativeAccessHolder {
 
@@ -20,17 +19,16 @@ class NativeAccessHolder {
     static final NativeAccess INSTANCE;
 
     static {
-        var libProvider = NativeLibraryProvider.instance();
         var os = System.getProperty("os.name");
 
         AbstractNativeAccess inst = null;
         try {
             if (os.startsWith("Linux")) {
-                inst = new LinuxNativeAccess(libProvider);
+                inst = new LinuxNativeAccess();
             } else if (os.startsWith("Mac OS")) {
-                inst = new MacNativeAccess(libProvider);
+                inst = new MacNativeAccess();
             } else if (os.startsWith("Windows")) {
-                inst = new WindowsNativeAccess(libProvider);
+                inst = new WindowsNativeAccess();
             } else {
                 logger.warn("Unsupported OS [" + os + "]. Native methods will be disabled.");
             }
@@ -40,7 +38,7 @@ class NativeAccessHolder {
         if (inst == null) {
             INSTANCE = new NoopNativeAccess();
         } else {
-            logger.info("Using [" + libProvider.getName() + "] native provider and native methods for [" + inst.getName() + "]");
+            logger.info("Using native methods for [{}]", inst.getName());
             INSTANCE = inst;
         }
     }

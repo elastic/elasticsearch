@@ -96,7 +96,11 @@ public class NdJsonSchemaInferrer {
                     // duplicate reports of the same issue. A StreamConstraintsException (an
                     // over-long number or field name, nesting past the depth cap) is the same
                     // scanner-level whole-line failure and defers to the slice read identically;
-                    // failing inference on it would deny the read's error_mode a say.
+                    // failing inference on it would deny the read's error_mode a say. A record that
+                    // names one field twice (NdJsonUtils.JSON_FACTORY enables Jackson's duplicate
+                    // detection) arrives here as a JsonParseException and defers for the same reason:
+                    // it contributes no columns to the sample, and the slice read is where it either
+                    // fails the query or drops with a warning.
                     logger.debug("Malformed NDJSON at line {}: {}", lineCount, e);
                     inputStream = NdJsonUtils.moveToNextLine(parser, inputStream);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);

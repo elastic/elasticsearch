@@ -26,11 +26,30 @@ class NdJsonUtils {
      * from {@code libs/x-content/impl}: that factory lives in a JPMS package which the
      * {@code org.elasticsearch.xcontent.impl} module does not export, so it isn't reachable as a
      * type from this plugin, and its settings target full-document XContent parsing rather than
-     * line-bounded NDJSON streamed in parallel. In particular {@code STRICT_DUPLICATE_DETECTION},
-     * {@code ALLOW_COMMENTS}, source-in-location bookkeeping, and the relaxed
-     * {@code streamReadConstraints} are correct for that path but unnecessary or counter-productive
-     * here.
+     * line-bounded NDJSON streamed in parallel. In particular {@code ALLOW_COMMENTS},
+     * source-in-location bookkeeping, and the relaxed {@code streamReadConstraints} are correct for
+     * that path but unnecessary or counter-productive here.
      * <ul>
+     *   <li>{@link StreamReadFeature#STRICT_DUPLICATE_DETECTION} enabled - a record that names the
+     *       same field twice within one object has no single interpretation, so it is rejected rather
+     *       than silently merged. Indexing that record is an error: {@code JsonXContentImpl} enables
+     *       this same feature, so ingest rejects the document with "Duplicate field", and a read must
+     *       not answer over a record that could never have been indexed. Jackson raises a
+     *       {@code JsonParseException} while tokenising, which
+     *       {@link NdJsonPageDecoder#onNdjsonLineParseError} already handles as a whole-line failure:
+     *       the line drops under both non-strict modes and fails the query under {@code FAIL_FAST}.
+     *       Because the check runs on every name the tokeniser reads, including names inside subtrees
+     *       the projection skips undecoded, the outcome does not depend on what a query projects.
+     *       <p>
+     *       This polices one literal name repeated within one object, which is the whole of what
+     *       makes a record ambiguous. Two <em>different</em> names that address the same column are
+     *       unambiguous and still merge into a multivalue, as {@code {"a":{"b":1},"a.b":2}} does, and
+     *       so do repeats across the elements of an array or across records.
+     *       <p>
+     *       The cost is a per-name insert into a per-object seen-set, paid on every read. That is the
+     *       price of agreeing with ingest; the alternative, tracking only projected names, is cheaper
+     *       but would both miss duplicates confined to unprojected fields and make the drop depend on
+     *       the projection.</li>
      *   <li>{@link StreamReadFeature#AUTO_CLOSE_SOURCE} disabled - schema inference may call
      *       {@link JsonParser#close()} while recovering from malformed JSON; that must not close a
      *       wrapping codec stream (e.g. bzip2) that is still being read.</li>
@@ -61,6 +80,7 @@ class NdJsonUtils {
      */
     static final JsonFactory JSON_FACTORY = new JsonFactoryBuilder().disable(StreamReadFeature.AUTO_CLOSE_SOURCE)
         .enable(StreamReadFeature.USE_FAST_DOUBLE_PARSER)
+        .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
         .disable(StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION)
         .disable(JsonFactory.Feature.INTERN_FIELD_NAMES)
         .build();

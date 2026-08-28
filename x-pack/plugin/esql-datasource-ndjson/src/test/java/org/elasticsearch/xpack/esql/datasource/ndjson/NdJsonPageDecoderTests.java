@@ -418,9 +418,15 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * A later object at a leaf-and-prefix node whose scalar is already claimed still populates dotted children.
      * {@code {"a.b":1,"a":{"b":{"c":2}}}} with columns {@code a.b} and {@code a.b.c} fills both; a sibling
      * {@code id} pins alignment.
+     * <p>
+     * The second record reaches the plain node {@code a} twice, which needs a heterogeneous array rather than the
+     * key {@code a} twice: a node is reachable from one object by exactly one spelling, so two occurrences of a
+     * plain node within a record are either two array elements or a repeated literal key, and the repeated key is
+     * rejected (see {@link #testRepeatedLiteralKeyIsRejected}). A dotted node has both spellings and so takes the
+     * first record's form.
      */
     public void testLaterObjectAtClaimedDualNodeStillDecodesDescendants() throws IOException {
-        String ndjson = "{\"a.b\":1,\"a\":{\"b\":{\"c\":2}},\"id\":10}\n" + "{\"a\":1,\"a\":{\"b\":2},\"id\":20}\n";
+        String ndjson = "{\"a.b\":1,\"a\":{\"b\":{\"c\":2}},\"id\":10}\n" + "{\"a\":[1,{\"b\":2}],\"id\":20}\n";
 
         try (
             Page page = decodePage(
@@ -470,12 +476,11 @@ public class NdJsonPageDecoderTests extends ESTestCase {
 
     /**
      * A later array of objects at a leaf-and-prefix node whose scalar is already claimed still populates
-     * dotted children, the same as a later object does. {@code {"a":1,"a":[{"b":2}]}} fills both {@code a}
-     * and {@code a.b}; {@code {"a.b":1,"a.b":[{"c":2}]}} fills {@code a.b} and {@code a.b.c}. A sibling
-     * {@code id} pins alignment.
+     * dotted children, the same as a later object does: {@code {"a.b":1,"a":{"b":[{"c":2}]}}} fills {@code a.b}
+     * from the flat spelling and {@code a.b.c} from the array element. A sibling {@code id} pins alignment.
      */
     public void testLaterObjectArrayAtClaimedDualNodeStillDecodesDescendants() throws IOException {
-        String ndjson = "{\"a\":1,\"a\":[{\"b\":2}],\"id\":10}\n" + "{\"a.b\":1,\"a.b\":[{\"c\":2}],\"id\":20}\n";
+        String ndjson = "{\"a.b\":1,\"a\":{\"b\":[{\"c\":2}]},\"id\":10}\n";
 
         try (
             Page page = decodePage(
@@ -489,19 +494,15 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             )
         ) {
             assertNotNull(page);
-            assertEquals(2, page.getPositionCount());
+            assertEquals(1, page.getPositionCount());
             LongBlock a = page.getBlock(0);
             LongBlock ab = page.getBlock(1);
             LongBlock abc = page.getBlock(2);
             LongBlock id = page.getBlock(3);
-            assertEquals(1L, a.getLong(a.getFirstValueIndex(0)));
-            assertEquals(2L, ab.getLong(ab.getFirstValueIndex(0)));
-            assertTrue(abc.isNull(0));
-            assertTrue(a.isNull(1));
-            assertEquals(1L, ab.getLong(ab.getFirstValueIndex(1)));
-            assertEquals(2L, abc.getLong(abc.getFirstValueIndex(1)));
+            assertTrue(a.isNull(0));
+            assertEquals(1L, ab.getLong(ab.getFirstValueIndex(0)));
+            assertEquals(2L, abc.getLong(abc.getFirstValueIndex(0)));
             assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
-            assertEquals(20L, id.getLong(id.getFirstValueIndex(1)));
         }
     }
 
@@ -862,24 +863,25 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
-     * A record spelling one dotted column more than once ({@code {"a":{"b":1},"a.b":2}}, either order, a repeated
-     * nested key, or a repeated flat key) contributes every occurrence to one cell as a multivalue, which is the
-     * value list indexing that same document produces. The column still occupies exactly one position, so it stays
-     * aligned with its siblings; a sibling {@code id} column pins that.
+     * A record spelling one dotted column more than once ({@code {"a":{"b":1},"a.b":2}}, either order) contributes
+     * every occurrence to one cell as a multivalue, which is the value list indexing that same document produces.
+     * The column still occupies exactly one position, so it stays aligned with its siblings; a sibling {@code id}
+     * column pins that.
+     * <p>
+     * Two DIFFERENT names addressing one column is the whole of what merges here. Naming one field twice is a
+     * repeat rather than a second spelling, has no single interpretation, and is rejected: see
+     * {@link #testRepeatedLiteralKeyIsRejected}.
      */
     public void testSameRecordDuplicateSpellingsMergeIntoMultivalue() throws IOException {
-        String ndjson = "{\"a\":{\"b\":1},\"a.b\":2,\"id\":10}\n"
-            + "{\"a.b\":3,\"a\":{\"b\":4},\"id\":20}\n"
-            + "{\"a\":{\"b\":5},\"a\":{\"b\":6},\"id\":30}\n"
-            + "{\"a.b\":7,\"a.b\":8,\"id\":40}\n";
+        String ndjson = "{\"a\":{\"b\":1},\"a.b\":2,\"id\":10}\n" + "{\"a.b\":3,\"a\":{\"b\":4},\"id\":20}\n";
 
         try (Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG), attribute("id", DataType.LONG)))) {
             assertNotNull(page);
-            assertEquals(4, page.getPositionCount());
+            assertEquals(2, page.getPositionCount());
             LongBlock ab = page.getBlock(0);
             LongBlock id = page.getBlock(1);
-            long[][] expected = { { 1L, 2L }, { 3L, 4L }, { 5L, 6L }, { 7L, 8L } };
-            for (int p = 0; p < 4; p++) {
+            long[][] expected = { { 1L, 2L }, { 3L, 4L } };
+            for (int p = 0; p < 2; p++) {
                 assertEquals("value count at row " + p, 2, ab.getValueCount(p));
                 int first = ab.getFirstValueIndex(p);
                 assertEquals("first value at row " + p, expected[p][0], ab.getLong(first));
@@ -887,8 +889,6 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             }
             assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
             assertEquals(20L, id.getLong(id.getFirstValueIndex(1)));
-            assertEquals(30L, id.getLong(id.getFirstValueIndex(2)));
-            assertEquals(40L, id.getLong(id.getFirstValueIndex(3)));
         }
     }
 
@@ -1036,24 +1036,96 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         }
     }
 
-    /**
-     * An exact duplicate JSON key on a plain (non-dotted) column ({@code {"b":1,"b":2}}) merges the same way: NDJSON
-     * parsing does not enable strict duplicate detection, so both keys are emitted, and both values land in one
-     * aligned position.
-     */
-    public void testExactDuplicateKeyMergesIntoMultivalueAndAligns() throws IOException {
-        String ndjson = "{\"b\":1,\"b\":2,\"id\":10}\n";
+    // ---------------------------------------------------------------------------------------------
+    // Repeated literal field names. A record that names one field twice within an object has no single
+    // interpretation, so it is rejected rather than merged, which is what indexing it would do. The
+    // detection is Jackson's (see NdJsonUtils.JSON_FACTORY) and lands in the whole-line failure class
+    // routed through onNdjsonLineParseError. Repeats that are NOT this — two different spellings of one
+    // column, or one name across array elements or records — still merge; see
+    // testSameRecordDuplicateSpellingsMergeIntoMultivalue.
+    // ---------------------------------------------------------------------------------------------
 
-        try (Page page = decodePage(ndjson, List.of(attribute("b", DataType.LONG), attribute("id", DataType.LONG)))) {
-            assertNotNull(page);
-            assertEquals(1, page.getPositionCount());
-            LongBlock b = page.getBlock(0);
-            LongBlock id = page.getBlock(1);
-            assertEquals(2, b.getValueCount(0));
-            assertEquals(1L, b.getLong(b.getFirstValueIndex(0)));
-            assertEquals(2L, b.getLong(b.getFirstValueIndex(0) + 1));
-            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+    /**
+     * Under STRICT, every shape of the repeat fails the query: a plain name, a dotted name spelled flat, and a
+     * name repeated inside a nested object. The message names the row and the phase, and carries Jackson's own
+     * "Duplicate field" text. The kind is "Ambiguous" rather than "Malformed" because the JSON parses.
+     */
+    public void testRepeatedLiteralKeyIsRejected() {
+        assertRepeatedKeyRejectedUnderStrict("{\"b\":1,\"b\":2,\"id\":10}\n", "b", List.of(attribute("b", DataType.LONG)));
+        assertRepeatedKeyRejectedUnderStrict("{\"a.b\":1,\"a.b\":2,\"id\":10}\n", "a.b", List.of(attribute("a.b", DataType.LONG)));
+        assertRepeatedKeyRejectedUnderStrict("{\"a\":{\"b\":1,\"b\":2}}\n", "b", List.of(attribute("a.b", DataType.LONG)));
+    }
+
+    private void assertRepeatedKeyRejectedUnderStrict(String ndjson, String repeatedName, List<Attribute> projection) {
+        ParsingException e = expectThrows(ParsingException.class, () -> {
+            try (Page page = decodePage(ndjson, projection)) {
+                assertNull("unreachable: the repeat must fail before a page is returned", page);
+            }
+        });
+        assertThat(e.getMessage(), Matchers.containsString("Ambiguous NDJSON at logical row [1] (decodeObject)"));
+        assertThat(e.getMessage(), Matchers.containsString("Duplicate field '" + repeatedName + "'"));
+        assertThat(e.getMessage(), Matchers.containsString("set error_mode=skip_row (or null_field)"));
+        assertEquals(RestStatus.BAD_REQUEST, e.status());
+    }
+
+    /**
+     * Both non-strict modes drop the line, {@code null_field} included. That mode's contract is per value, and a
+     * repeat has no one cell to null: each value is fine on its own and it is the record's shape that is
+     * ambiguous, which is the same "structural row error" case a wrong-width CSV row is. Dropping also agrees
+     * with indexing the record, which rejects the whole document.
+     */
+    public void testRepeatedLiteralKeyDropsLineUnderNonStrictModes() throws IOException {
+        for (ErrorPolicy policy : List.of(ErrorPolicy.LENIENT, ErrorPolicy.PERMISSIVE)) {
+            String ndjson = "{\"v\":1}\n{\"v\":2,\"v\":3}\n{\"v\":4}\n";
+            List<String> warnings = new ArrayList<>();
+            NdJsonReaderCounters counters = new NdJsonReaderCounters();
+            try (
+                NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                    new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                    null,
+                    List.of(attribute("v", DataType.LONG)),
+                    null,
+                    10,
+                    blockFactory,
+                    policy,
+                    "test://duplicate",
+                    counters,
+                    warnings::add
+                );
+                Page page = decoder.decodePage()
+            ) {
+                assertNotNull(page);
+                LongBlock v = page.getBlock(0);
+                assertEquals(policy + ": the repeat is dropped, not null-filled", 2, v.getPositionCount());
+                assertFalse("a dropped line must not leave a null position behind", v.isNull(0));
+                assertFalse("a dropped line must not leave a null position behind", v.isNull(1));
+                assertEquals(1L, v.getLong(0));
+                assertEquals(4L, v.getLong(1));
+            }
+            // SkipWarnings.add() emits a one-time summary header on the first call, then the detail.
+            assertEquals(policy + ": one summary + one detail warning", 2, warnings.size());
+            assertThat(warnings.get(1), Matchers.containsString("Ambiguous NDJSON at logical row [2] (decodeObject)"));
+            assertThat(warnings.get(1), Matchers.containsString("Duplicate field 'v'"));
+            assertEquals(policy + ": the dropped line is charged exactly once", 1L, counters.snapshot().parseErrors());
         }
+    }
+
+    /**
+     * The repeat is caught on a field no column projects, which is what makes the drop projection-INDEPENDENT:
+     * Jackson checks every name the tokeniser reads, and skipping an unprojected value advances through
+     * {@code nextToken}. A detector that only watched projected columns would answer this query and drop the
+     * record for a query that happened to project {@code x}, and the row count would then depend on the
+     * projection.
+     */
+    public void testRepeatedLiteralKeyIsRejectedOnAnUnprojectedField() throws IOException {
+        String ndjson = "{\"v\":1}\n{\"v\":2,\"x\":3,\"x\":4}\n{\"v\":5}\n";
+        try (Page page = decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.PERMISSIVE)) {
+            LongBlock v = page.getBlock(0);
+            assertEquals("the line drops even though nothing projects [x]", 2, v.getPositionCount());
+            assertEquals(1L, v.getLong(0));
+            assertEquals(5L, v.getLong(1));
+        }
+        drainWarnings();
     }
 
     /**

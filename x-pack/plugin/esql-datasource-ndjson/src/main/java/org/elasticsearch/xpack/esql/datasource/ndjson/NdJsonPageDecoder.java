@@ -796,9 +796,19 @@ public class NdJsonPageDecoder implements Closeable {
      * Whole-line JSON failures always drop the line. {@link ErrorPolicy.Mode#NULL_FIELD} is treated
      * like {@link ErrorPolicy.Mode#SKIP_ROW} here; per-field null-fill would require partial decode support.
      * <p>
-     * Two Jackson failures belong to this class, which is why the parameter is their common supertype rather
-     * than {@link JsonParseException}: malformed JSON, and a {@link StreamConstraintsException} from a token
-     * that trips one of {@code StreamReadConstraints}' limits.
+     * Three Jackson failures belong to this class, which is why the parameter is their common supertype rather
+     * than {@link JsonParseException}: malformed JSON, a {@link StreamConstraintsException} from a token
+     * that trips one of {@code StreamReadConstraints}' limits, and a record that names one field twice within
+     * an object (see {@code NdJsonUtils#JSON_FACTORY}).
+     * <p>
+     * The duplicate-field member is the one that is well-formed and complete, and it is here rather than at the
+     * per-cell sink because there is no single cell to attribute: the two values are each fine, and it is the
+     * record's shape that has no one interpretation. That is the "structural row error" case in
+     * {@link ErrorPolicy.Mode#NULL_FIELD}'s per-value contract, so the row drops under that mode too, which is
+     * also what indexing the record would do (ingest rejects the whole document). Unlike the lazily-validated
+     * string-length limit below, Jackson checks every name the tokeniser reads, including names in subtrees the
+     * projection skips undecoded, so this drop is projection-independent and must NOT set
+     * {@link #projectionDependentDrop}.
      * <p>
      * Three of the four limits enabled by default -- number length, field-name length and nesting depth -- are
      * raised by the token scanner, before the decoder has dispatched on a type, so they cannot reach
@@ -867,7 +877,7 @@ public class NdJsonPageDecoder implements Closeable {
 
     /**
      * Names the whole-line failure for the message, the client warning and the log, so all three agree.
-     * The three arms are the whole membership of the class {@link #onNdjsonLineParseError} accepts; anything
+     * The labels cover the whole membership of the class {@link #onNdjsonLineParseError} accepts; anything
      * else reaching it is a routing bug at one of its call sites, not an input the reader can describe.
      *
      * @see #onNdjsonLineParseError
@@ -880,9 +890,25 @@ public class NdJsonPageDecoder implements Closeable {
             // length or nesting depth -- so "malformed" would misdescribe it. Jackson's own message, appended
             // by the caller, names which limit.
             case StreamConstraintsException ignored -> "Over-limit";
-            case JsonParseException ignored -> "Malformed";
+            // A repeated field name is also well-formed JSON, rejected for being ambiguous rather than for
+            // being unparseable, so it is named apart from a syntax error for the same reason.
+            case JsonParseException parseFailure -> isDuplicateFieldFailure(parseFailure) ? "Ambiguous" : "Malformed";
             default -> throw new AssertionError("unexpected NDJSON whole-line failure [" + e.getClass().getName() + "]");
         };
+    }
+
+    /**
+     * Whether a {@link JsonParseException} is Jackson's duplicate-field rejection (see
+     * {@code NdJsonUtils#JSON_FACTORY}) rather than a syntax error.
+     * <p>
+     * Jackson raises both as a bare {@link JsonParseException} with no type to tell them apart, so this matches
+     * its message. Only the label depends on the match: should a Jackson upgrade reword the message, the line
+     * still drops under exactly the same policy and is merely named "Malformed" instead. {@code NdJsonPageDecoderTests}
+     * asserts the text so that upgrade reddens a test rather than quietly renaming the failure.
+     */
+    private static boolean isDuplicateFieldFailure(JsonParseException e) {
+        String message = e.getOriginalMessage();
+        return message != null && message.startsWith("Duplicate field");
     }
 
     /**

@@ -22,6 +22,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -44,8 +45,8 @@ import static org.hamcrest.Matchers.equalTo;
  * <p>All fixtures use integer values, because ingest maps a dynamic string to {@code text} plus a {@code .keyword}
  * multi-field. That would compare a mapping detail rather than the flattening behavior under test.
  *
- * <p>{@link #testRepeatedFlatKeyMergesWhereIngestRejectsTheDocument} is the one case that asserts a difference
- * rather than agreement, and says why.
+ * <p>{@link #testRepeatedFlatKeyIsRejectedByBoth} is the one case where the agreement is that the document is
+ * rejected, so it compares the two failures instead of two sets of leaves.
  */
 public class NdJsonIngestParityTests extends MapperServiceTestCase {
 
@@ -207,17 +208,22 @@ public class NdJsonIngestParityTests extends MapperServiceTestCase {
     }
 
     /**
-     * A key repeated verbatim is the one shape here where the reader is deliberately the more permissive of the two.
-     * Ingest parses with duplicate detection on and rejects the whole document; the reader has no such check and
-     * treats the second occurrence as another value of the same leaf, the way it treats the two dotted spellings.
-     * Rejecting instead would fail a file the query does not control over a shape JSON parsers accept by default.
+     * A key repeated verbatim is rejected by both, and for the same reason: the record has no single
+     * interpretation, so neither side picks one. The two sides differ only in how the rejection is carried, since
+     * the reader's {@code error_mode} can turn it into a dropped line with a warning whereas indexing one document
+     * has no such dial. Parity of the outcome is asserted rather than parity of the leaves, as there are none.
+     * <p>
+     * Merging the two occurrences instead, the way the two dotted spellings of one leaf merge, would answer over a
+     * record that could never have been indexed. That both messages name the same field is what pins the two
+     * checks to one cause.
      */
-    public void testRepeatedFlatKeyMergesWhereIngestRejectsTheDocument() throws IOException {
+    public void testRepeatedFlatKeyIsRejectedByBoth() {
         String json = """
             {"a.b":1,"a.b":2}""";
-        assertThat(readerLeaves(json), equalTo(Map.of("a.b", List.of(1L, 2L))));
-        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> ingestLeaves(json));
-        assertThat(e.getMessage(), containsString("Duplicate field 'a.b'"));
+        ParsingException readerFailure = expectThrows(ParsingException.class, () -> readerLeaves(json));
+        assertThat(readerFailure.getMessage(), containsString("Duplicate field 'a.b'"));
+        DocumentParsingException ingestFailure = expectThrows(DocumentParsingException.class, () -> ingestLeaves(json));
+        assertThat(ingestFailure.getMessage(), containsString("Duplicate field 'a.b'"));
     }
 
     /**

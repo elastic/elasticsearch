@@ -64,7 +64,54 @@ public class SkipWarningsTests extends ESTestCase {
     public void testNoopDropsEverything() {
         SkipWarnings.NOOP.add("first");
         SkipWarnings.NOOP.add("second");
+        // NOOP overrides addOnce too, so it never populates a dedup set on the shared static. That state is not
+        // observable from here — this only pins that nothing is emitted, which the add() override alone would give.
+        SkipWarnings.NOOP.addOnce("third");
         assertNull(threadContext.getResponseHeaders().get("Warning"));
+    }
+
+    /**
+     * {@link SkipWarnings#addOnce} exists for details that are constant per affected column but rediscovered per
+     * batch (e.g. the Parquet list reader dropping null elements). Repeats must not reach the client, and — the
+     * reason a plain {@code add} will not do — must not be counted against the cap either.
+     */
+    public void testAddOnceEmitsOneLinePerDistinctDetail() {
+        SkipWarnings warnings = new SkipWarnings("the summary");
+        warnings.addOnce("column [a] lost values");
+        warnings.addOnce("column [a] lost values");
+        warnings.addOnce("column [b] lost values");
+        warnings.addOnce("column [a] lost values");
+
+        assertEquals(List.of("the summary", "column [a] lost values", "column [b] lost values"), drain());
+    }
+
+    public void testAddOnceRepeatsDoNotSpendTheDetailCap() {
+        List<String> sunk = new ArrayList<>();
+        SkipWarnings warnings = new SkipWarnings("summary", sunk::add);
+        // Far more repeats than the cap: with plain add() this would emit the overflow notice, telling the client
+        // warnings were dropped when in fact the one distinct detail had already been delivered.
+        for (int i = 0; i < SkipWarnings.MAX_ADDED_WARNINGS * 3; i++) {
+            warnings.addOnce("the only detail");
+        }
+        assertEquals(List.of("summary", "the only detail"), sunk);
+    }
+
+    public void testAddOnceAndAddShareTheSameCap() {
+        List<String> sunk = new ArrayList<>();
+        SkipWarnings warnings = new SkipWarnings("summary", sunk::add);
+        // Interleave the two so the assertion pins one shared counter rather than two: half the distinct details
+        // arrive through add, half through addOnce, and the cap still lands after MAX_ADDED_WARNINGS of them.
+        for (int i = 0; i < SkipWarnings.MAX_ADDED_WARNINGS + 5; i++) {
+            if (i % 2 == 0) {
+                warnings.add("detail " + i);
+            } else {
+                warnings.addOnce("detail " + i);
+            }
+        }
+        // 1 summary + MAX_ADDED_WARNINGS details + 1 overflow notice: distinct details are capped as usual, so
+        // addOnce suppresses repeats without weakening the bound on how many lines one collector can emit.
+        assertEquals(SkipWarnings.MAX_ADDED_WARNINGS + 2, sunk.size());
+        assertEquals(SkipWarnings.overflowMessage(), sunk.get(sunk.size() - 1));
     }
 
     public void testOfStrictPolicyReturnsNoop() {

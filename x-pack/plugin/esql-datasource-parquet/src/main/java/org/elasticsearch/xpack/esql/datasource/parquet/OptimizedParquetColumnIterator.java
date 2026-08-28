@@ -119,6 +119,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private final String fileLocation;
     /** See {@link #coercionWarnings()}. */
     private SkipWarnings coercionWarnings;
+    /** See {@link #nullListElementWarnings()}. */
+    private SkipWarnings nullListElementWarnings;
     /**
      * Relay for this eager read's per-value coercion warnings, or {@code null} to fall back to
      * emitting directly via {@code HeaderWarning}. This iterator
@@ -2600,7 +2602,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 blockFactory,
                 attributes.get(colIndex).name(),
                 coercionWarnings(),
-                listColumnSink
+                listColumnSink,
+                nullListElementWarnings()
             );
         }
         ParquetColumnDecoding.skipValues(cr, rowsToRead);
@@ -2627,6 +2630,23 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             );
         }
         return coercionWarnings;
+    }
+
+    /**
+     * The sink for the notice that a LIST column returned fewer values than the file holds, because its lists carry
+     * null elements an ES|QL multivalue cannot represent. Lazily created and shared by every column and row group of
+     * this iterator, so {@link SkipWarnings#addOnce} deduplicates one column's notice across every batch of the read.
+     * <p>
+     * Deliberately NOT policy-gated like {@link #coercionWarnings()}: that gate is correct there because coercion
+     * warn+null only <em>happens</em> under a lenient policy, whereas this drop is forced by the Block representation
+     * and therefore happens under every {@code error_mode} — including the default {@code fail_fast}. A notice that
+     * appeared only under a lenient policy would leave the default configuration silent, which is the bug.
+     */
+    private SkipWarnings nullListElementWarnings() {
+        if (nullListElementWarnings == null) {
+            nullListElementWarnings = new SkipWarnings(ParquetColumnDecoding.NULL_LIST_ELEMENTS_SUMMARY, warningSink);
+        }
+        return nullListElementWarnings;
     }
 
     @Override

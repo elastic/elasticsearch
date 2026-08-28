@@ -45,6 +45,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -54,6 +56,10 @@ import static org.hamcrest.Matchers.equalTo;
  * parquet-mr's {@code ColumnReader}, but page parsing, decompression, and offsets all flow
  * through our custom code. Verify that decoded values match the baseline path bit-for-bit across
  * codec / writer-version / nullability axes.
+ * <p>
+ * The nullable parameterizations also plant null elements inside lists, which no ES|QL multivalue can hold. Both
+ * paths therefore drop them and announce the loss, so this test pins the notices as well as the values: a reader
+ * that decodes identically but reports the loss differently is still a parity break.
  */
 public class ListColumnParityTests extends ESTestCase {
 
@@ -108,16 +114,41 @@ public class ListColumnParityTests extends ESTestCase {
         ParquetFormatReader baseline = new ParquetFormatReader(blockFactory, false);
         ParquetFormatReader optimized = new ParquetFormatReader(blockFactory, true);
 
+        // Both paths drop null list elements (a multivalue cannot hold null) and announce it. Capture the notices
+        // per read instead of letting them reach this thread's HeaderWarning context, so they can be compared:
+        // warning parity between the two paths belongs in a parity test just as much as value parity does.
+        List<String> baselineWarnings = new ArrayList<>();
         List<Page> baselinePages;
-        try (CloseableIterator<Page> iter = baseline.read(storageObject, FormatReadContext.of(null, 64))) {
+        try (CloseableIterator<Page> iter = baseline.read(storageObject, readContext(baselineWarnings))) {
             baselinePages = collect(iter);
         }
+        List<String> optimizedWarnings = new ArrayList<>();
         List<Page> optimizedPages;
-        try (CloseableIterator<Page> iter = optimized.read(storageObject, FormatReadContext.of(null, 64))) {
+        try (CloseableIterator<Page> iter = optimized.read(storageObject, readContext(optimizedWarnings))) {
             optimizedPages = collect(iter);
         }
 
         assertPagesEqual(baselinePages, optimizedPages, description);
+        assertThat(description + ": warning parity", optimizedWarnings, equalTo(baselineWarnings));
+        if (nullable) {
+            // writeFile plants null elements in `ints` and `strs` only, and `longs` never. Exactly one notice per
+            // affected column across all four batches, so this also pins the per-read deduplication.
+            assertThat(
+                description + ": dropped-element notices",
+                baselineWarnings,
+                containsInAnyOrder(
+                    ParquetColumnDecoding.NULL_LIST_ELEMENTS_SUMMARY,
+                    ParquetColumnDecoding.nullListElementsMessage("ints"),
+                    ParquetColumnDecoding.nullListElementsMessage("strs")
+                )
+            );
+        } else {
+            assertThat(description + ": a null-free file loses nothing and must not warn", baselineWarnings, empty());
+        }
+    }
+
+    private static FormatReadContext readContext(List<String> warningSink) {
+        return FormatReadContext.builder().batchSize(64).informationalWarningSink(warningSink::add).build();
     }
 
     private byte[] writeFile(MessageType schema) throws IOException {

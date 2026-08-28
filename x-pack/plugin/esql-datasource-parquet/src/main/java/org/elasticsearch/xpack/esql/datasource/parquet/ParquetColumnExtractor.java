@@ -403,6 +403,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                             bucket,
                             block,
                             infos[c],
+                            columnNames[c],
                             perColumnSchemas[c],
                             perColumnProjections[c],
                             prefetchedResult.chunks(),
@@ -619,6 +620,29 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         return coercionWarnings;
     }
 
+    /** See {@link #nullListElementWarnings()}. */
+    private SkipWarnings nullListElementWarnings;
+
+    /**
+     * The sink for the notice that a LIST column returned fewer values than the file holds, because its lists carry
+     * null elements an ES|QL multivalue cannot represent. Lazily created and shared by every column and
+     * {@link #extract} call of this extractor, so {@link SkipWarnings#addOnce} deduplicates one column's notice
+     * across every sparse run the deferred pass decodes.
+     * <p>
+     * Like {@link #coercionWarnings()} — and unlike {@link #castBlockWarnings()} — this is always live: the drop is
+     * forced by the Block representation, so it happens under every {@code error_mode} and must be announced under
+     * every {@code error_mode}. This keeps the deferred pass agreeing with the eager scan of the same file, which is
+     * the invariant the whole extractor is built around — with one honest asymmetry: the notice caveats the rows this
+     * pass actually returned, and {@link #skipListRows} walks past the others without inspecting their definition
+     * levels, so a file whose null elements all sit in rows a TopN discarded warns on the eager scan and not here.
+     */
+    private SkipWarnings nullListElementWarnings() {
+        if (nullListElementWarnings == null) {
+            nullListElementWarnings = new SkipWarnings(ParquetColumnDecoding.NULL_LIST_ELEMENTS_SUMMARY, warningSink);
+        }
+        return nullListElementWarnings;
+    }
+
     /**
      * The per-value coercion-failure sink handed to {@code castBlock}, or {@code null} under
      * {@code fail_fast} so the failure propagates — identical to the eager iterators'
@@ -702,6 +726,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         Bucket bucket,
         BlockMetaData block,
         ColumnInfo info,
+        String columnName,
         MessageType projectedSchema,
         Set<String> projection,
         NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> prefetched,
@@ -726,7 +751,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
             if (info.maxRepLevel() == 0) {
                 return decodeFlat(bucket, info, store, rgRowCount, blockFactory);
             }
-            return decodeList(bucket, info, store, projectedSchema, rgRowCount, createdBy, blockFactory);
+            return decodeList(bucket, info, columnName, store, projectedSchema, rgRowCount, createdBy, blockFactory);
         }
     }
 
@@ -768,6 +793,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
     private Block decodeList(
         Bucket bucket,
         ColumnInfo info,
+        String columnName,
         PrefetchedPageReadStore store,
         MessageType projectedSchema,
         int rgRowCount,
@@ -805,7 +831,20 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                     runEnd++;
                 }
                 int runLength = runEnd - runStart;
-                chunks.add(ParquetColumnDecoding.readListColumn(cr, info, runLength, blockFactory));
+                // The extractor always decodes at the file's own type, so no coercion sink is in play here; the
+                // dropped-null-element notice is unconditional and needs one regardless.
+                chunks.add(
+                    ParquetColumnDecoding.readListColumn(
+                        cr,
+                        info,
+                        runLength,
+                        blockFactory,
+                        columnName,
+                        null,
+                        null,
+                        nullListElementWarnings()
+                    )
+                );
                 cursor += runLength;
                 runStart = runEnd;
             }

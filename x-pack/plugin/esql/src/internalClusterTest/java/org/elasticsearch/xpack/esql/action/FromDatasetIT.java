@@ -5852,6 +5852,157 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "test", null, new HashMap<>(settings));
     }
 
+    /**
+     * A marker and a sidecar in an otherwise clean prefix used to fail the whole query. They are excluded by
+     * default now, and a {@code _}-prefixed Hive partition directory in the same tree still resolves — the two
+     * halves of the default that a single glob list could not express together.
+     *
+     * <p>The resource is {@code **}{@code /*} rather than {@code **}{@code /*.csv} deliberately: under the
+     * narrower glob the marker and the sidecar never match in the first place, so the assertion would hold with
+     * exclusion stubbed out entirely and would prove nothing.
+     */
+    public void testDefaultExclusionsSkipMarkersAndKeepPartitionDirectories() throws Exception {
+        Path root = createTempDir();
+        Path partition = Files.createDirectories(root.resolve("_dept=alpha"));
+        Files.writeString(partition.resolve("part1.csv"), "emp_no:integer,name:keyword\n1,Alice\n");
+        Files.writeString(root.resolve("_SUCCESS"), "");
+        Files.writeString(root.resolve(".part1.csv.crc"), "junk");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("logs_default_exclusions", "local_ds", root.toUri() + "**/*", Map.of("format", "csv"))
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM logs_default_exclusions | KEEP name | LIMIT 5"), TIMEOUT)) {
+            assertEquals("the marker and sidecar must not reach the reader", 1, getValuesList(response).size());
+        }
+    }
+
+    /**
+     * Exclusion runs before schema reconciliation, so it must fix the marker problem under BOTH resolution
+     * strategies. They fail differently without it — {@code union_by_name} opens every listed file and aborts the
+     * resolve on the first unclaimable one, while {@code first_file_wins} can pass planning and fail later on a
+     * data node — so a fix that only covered one would look green on half the datasets in the wild.
+     */
+    public void testDefaultExclusionsHoldUnderBothSchemaResolutions() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        for (String resolution : List.of("union_by_name", "first_file_wins")) {
+            Path root = createTempDir();
+            Files.writeString(root.resolve("part1.csv"), "emp_no:integer,name:keyword\n1,Alice\n");
+            Files.writeString(root.resolve("part2.csv"), "emp_no:integer,name:keyword\n2,Bob\n");
+            // Sorts ahead of both data files, so under first_file_wins it would anchor the schema if it survived.
+            Files.writeString(root.resolve("_SUCCESS"), "");
+
+            String dataset = "logs_resolution_" + resolution;
+            assertAcked(
+                client().execute(
+                    PutDatasetAction.INSTANCE,
+                    putDatasetRequest(dataset, "local_ds", root.toUri() + "*", Map.of("format", "csv", "schema_resolution", resolution))
+                )
+            );
+
+            try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | KEEP name | SORT name | LIMIT 5"), TIMEOUT)) {
+                List<String> names = getValuesList(response).stream().map(r -> (String) r.get(0)).toList();
+                assertEquals("both data files must resolve under " + resolution, List.of("Alice", "Bob"), names);
+            }
+        }
+    }
+
+    /**
+     * The defect this whole exclusion design exists to remove. Under {@code partition_detection: template} the
+     * directories are bare values rather than {@code key=value}, so a value beginning with {@code _} had nothing to
+     * distinguish it from a Spark marker: the old default matched every path segment and dropped the whole
+     * partition, silently, along with its rows. The default now matches only the file name, which a partition value
+     * can never be, so the question cannot arise under any detection mode.
+     */
+    public void testTemplatePartitionValueStartingWithUnderscoreSurvives() throws Exception {
+        Path root = createTempDir();
+        Path underscore = Files.createDirectories(root.resolve("_foo"));
+        Files.writeString(underscore.resolve("part1.csv"), "emp_no:integer,name:keyword\n1,Alice\n");
+        Path ordinary = Files.createDirectories(root.resolve("bar"));
+        Files.writeString(ordinary.resolve("part1.csv"), "emp_no:integer,name:keyword\n2,Bob\n");
+        // A marker inside the underscore-named partition, to show the leaf rule still does its job in there.
+        Files.writeString(underscore.resolve("_SUCCESS"), "");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest(
+                    "logs_template_underscore",
+                    "local_ds",
+                    root.toUri() + "*/*",
+                    Map.of("format", "csv", "partition_detection", "template", "partition_path", "{dept}")
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM logs_template_underscore | KEEP name | SORT name | LIMIT 5"), TIMEOUT)) {
+            List<String> names = getValuesList(response).stream().map(r -> (String) r.get(0)).toList();
+            assertEquals("the _foo partition must not disappear", List.of("Alice", "Bob"), names);
+        }
+    }
+
+    /**
+     * The gap this feature closes: an object that no convention covers — a README beside the data — fails the
+     * query on main with no way out short of moving the file. Naming it in {@code file_exclusions} resolves it.
+     */
+    public void testCustomExclusionSkipsAnObjectNoConventionCovers() throws Exception {
+        Path root = createTempDir();
+        Files.writeString(root.resolve("part1.csv"), "emp_no:integer,name:keyword\n1,Alice\n");
+        Files.writeString(root.resolve("README.md"), "not data");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest(
+                    "logs_custom_exclusions",
+                    "local_ds",
+                    root.toUri() + "*",
+                    Map.of("format", "csv", "file_exclusions", List.of("_*", ".*", "README.md"))
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM logs_custom_exclusions | KEEP name | LIMIT 5"), TIMEOUT)) {
+            assertEquals(1, getValuesList(response).size());
+        }
+    }
+
+    /**
+     * An empty {@code file_exclusions} list turns name-based exclusion off, so the marker reaches the reader again
+     * and the query fails the way it did before any of this existed. This is the escape hatch, and it has to
+     * actually change what is listed rather than merely be accepted at registration. It does not restore directory
+     * placeholder keys, which are skipped as listing normalization regardless of any setting.
+     */
+    public void testEmptyExclusionListRestoresTheRawListing() throws Exception {
+        Path root = createTempDir();
+        Files.writeString(root.resolve("part1.csv"), "emp_no:integer,name:keyword\n1,Alice\n");
+        Files.writeString(root.resolve("_SUCCESS"), "");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest(
+                    "logs_no_exclusions",
+                    "local_ds",
+                    root.toUri() + "*",
+                    Map.of("format", "csv", "file_exclusions", List.of())
+                )
+            )
+        );
+
+        Exception e = expectThrows(Exception.class, () -> {
+            try (var ignored = run(syncEsqlQueryRequest("FROM logs_no_exclusions | LIMIT 5"), TIMEOUT)) {}
+        });
+        assertThat("the marker must reach the reader and fail loudly", e.getMessage() + e.getCause(), containsString("_SUCCESS"));
+    }
+
     private static PutDatasetAction.Request putDatasetRequest(
         String name,
         String dataSource,

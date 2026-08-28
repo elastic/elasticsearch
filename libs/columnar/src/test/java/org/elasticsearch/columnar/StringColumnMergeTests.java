@@ -60,6 +60,65 @@ public class StringColumnMergeTests extends ESTestCase {
         });
     }
 
+    /**
+     * A head of repeated terms over a tail seen once each, so every segment carries a dictionary that let
+     * values escape. The union of those dictionaries cannot stand for the merged column — it would not name
+     * the escaped values — so the merge surveys instead of carrying ordinals over.
+     */
+    public void testDictionaryWithEscapesRoundTripsAndMerges() throws IOException {
+        String[] head = { "GET", "POST", "PUT", "DELETE" };
+        assertRoundTripAndMerge(numDocs -> {
+            String[] values = new String[numDocs];
+            for (int d = 0; d < numDocs; d++) {
+                values[d] = rarely() ? "rare-" + d + "-" + randomAlphaOfLength(between(1, 12)) : randomFrom(head);
+            }
+            return values;
+        });
+    }
+
+    /**
+     * Terms that differ between segments, so the merged vocabulary is a union of dictionaries none of which
+     * holds it all, and each segment's ordinals mean something different in the merged column.
+     */
+    public void testDisjointDictionariesMerge() throws IOException {
+        assertRoundTripAndMerge(numDocs -> {
+            String[] values = new String[numDocs];
+            for (int d = 0; d < numDocs; d++) {
+                // Terms drift as documents are added, so segments flushed at different times disagree.
+                int band = d / Math.max(1, numDocs / 4);
+                values[d] = "band" + band + "-" + (d % 3);
+            }
+            return values;
+        });
+    }
+
+    /**
+     * Segments of shapes chosen at random, so the merge meets combinations nobody named: a dictionary
+     * segment beside a plain one, segments whose dictionaries overlap partly or not at all, and segments
+     * that escaped different amounts. Every one of those picks a different path through the merge.
+     */
+    public void testRandomShapesMerge() throws IOException {
+        assertRoundTripAndMerge(numDocs -> {
+            final String[] values = new String[numDocs];
+            // The shape changes part way through, so segments flushed at different times disagree.
+            final int shapes = between(2, 5);
+            final int span = Math.max(1, numDocs / shapes);
+            for (int d = 0; d < numDocs; d++) {
+                values[d] = switch ((d / span) % 4) {
+                    // Nothing repeats: this stretch stays plain.
+                    case 0 -> "u-" + d + "-" + randomAlphaOfLength(between(1, 10));
+                    // A few terms: a dictionary that names everything.
+                    case 1 -> "t" + (d % between(2, 6));
+                    // A head over a tail: a dictionary that lets values escape.
+                    case 2 -> rarely() ? "rare-" + d : "h" + (d % 4);
+                    // Terms shared with the stretch above, so the union overlaps rather than being disjoint.
+                    default -> "h" + (d % 8);
+                };
+            }
+            return values;
+        });
+    }
+
     /** Every value distinct, so nothing repeats within or across segments. */
     public void testDistinctValuesRoundTripAndMerge() throws IOException {
         assertRoundTripAndMerge(numDocs -> {

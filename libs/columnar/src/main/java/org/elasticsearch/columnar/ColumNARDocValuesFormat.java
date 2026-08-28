@@ -16,6 +16,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.numeric.NumericPipelineSelector;
+import org.elasticsearch.columnar.string.DictionaryPolicy;
 
 import java.io.IOException;
 
@@ -58,6 +59,16 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
     private final NumericPipelineSelector pipelineSelector;
     private final ColumnarFieldTypeSelector typeSelector;
     private final int blockSize;
+    private final DictionaryPolicy dictionaryPolicy;
+
+    /**
+     * The bounds a string column's dictionary is chosen under when none is given.
+     *
+     * <p>Half a megabyte holds the whole vocabulary of a column like host names. Beyond it the bound starts
+     * admitting the tails of larger ones, where terms seen once cover almost nothing and widen the ordinal
+     * every value pays for.
+     */
+    public static final DictionaryPolicy DEFAULT_DICTIONARY_POLICY = new DictionaryPolicy(512 * 1024, 0.5, 0.2);
 
     /** SPI constructor. Uses the default pipeline for every field and reads each field's type from its attribute. */
     public ColumNARDocValuesFormat() {
@@ -74,17 +85,36 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
      * {@code blockSize} must be a power of 2 in [{@value #MIN_BLOCK_SIZE}, {@value #MAX_BLOCK_SIZE}].
      */
     public ColumNARDocValuesFormat(final NumericPipelineSelector pipelineSelector, int blockSize) {
-        this(pipelineSelector, ColumnarFieldType::fromField, blockSize);
+        this(pipelineSelector, ColumnarFieldType::fromField, blockSize, DEFAULT_DICTIONARY_POLICY);
+    }
+
+    /** Constructs a format whose string columns choose their dictionary under {@code dictionaryPolicy}. */
+    public ColumNARDocValuesFormat(final NumericPipelineSelector pipelineSelector, int blockSize, final DictionaryPolicy dictionaryPolicy) {
+        this(pipelineSelector, ColumnarFieldType::fromField, blockSize, dictionaryPolicy);
     }
 
     /**
-     * Constructs a format with a custom pipeline selector, type selector, and block size.
-     * {@code blockSize} must be a power of 2 in [{@value #MIN_BLOCK_SIZE}, {@value #MAX_BLOCK_SIZE}].
+     * Constructs a format with a custom pipeline selector, type selector, and block size. String columns
+     * choose their dictionary under the default policy.
      */
     public ColumNARDocValuesFormat(
         final NumericPipelineSelector pipelineSelector,
         final ColumnarFieldTypeSelector typeSelector,
         int blockSize
+    ) {
+        this(pipelineSelector, typeSelector, blockSize, DEFAULT_DICTIONARY_POLICY);
+    }
+
+    /**
+     * Constructs a format with a custom pipeline selector, type selector, block size, and the bounds its
+     * string columns choose a dictionary under.
+     * {@code blockSize} must be a power of 2 in [{@value #MIN_BLOCK_SIZE}, {@value #MAX_BLOCK_SIZE}].
+     */
+    public ColumNARDocValuesFormat(
+        final NumericPipelineSelector pipelineSelector,
+        final ColumnarFieldTypeSelector typeSelector,
+        int blockSize,
+        final DictionaryPolicy dictionaryPolicy
     ) {
         super(ColumnarFormat.NAME);
         if (blockSize < MIN_BLOCK_SIZE || blockSize > MAX_BLOCK_SIZE || (blockSize & (blockSize - 1)) != 0) {
@@ -95,11 +125,12 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
         this.pipelineSelector = pipelineSelector;
         this.typeSelector = typeSelector;
         this.blockSize = blockSize;
+        this.dictionaryPolicy = dictionaryPolicy;
     }
 
     @Override
     public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-        return new ColumNARDocValuesConsumer(state, pipelineSelector, typeSelector, blockSize);
+        return new ColumNARDocValuesConsumer(state, pipelineSelector, typeSelector, blockSize, dictionaryPolicy);
     }
 
     @Override

@@ -47,6 +47,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LinkedProjectConfigService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.transport.RemoteTransportClient;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -234,6 +235,9 @@ public abstract class Plugin implements Closeable {
 
         /** The usage service for tracking cluster and endpoint usage statistics */
         UsageService usageService();
+
+        /** The service for managing circuit breakers to prevent out-of-memory conditions */
+        CircuitBreakerService circuitBreakerService();
     }
 
     /**

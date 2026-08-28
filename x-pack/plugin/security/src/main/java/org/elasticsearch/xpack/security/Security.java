@@ -617,7 +617,6 @@ public class Security extends Plugin
     private final SetOnce<AuthenticationService> authcService = new SetOnce<>();
     private final SetOnce<SecondaryAuthenticator> secondayAuthc = new SetOnce<>();
     private final SetOnce<AuditTrailService> auditTrailService = new SetOnce<>();
-    private final SetOnce<CircuitBreaker> auditCircuitBreaker = new SetOnce<>();
     private final SetOnce<SecurityContext> securityContext = new SetOnce<>();
     private final SetOnce<ThreadContext> threadContext = new SetOnce<>();
     private final SetOnce<TokenService> tokenService = new SetOnce<>();
@@ -775,7 +774,8 @@ public class Security extends Plugin
                 services.crossProjectModeDecider(),
                 services.projectRoutingResolver(),
                 services.systemIndices(),
-                services.usageService()
+                services.usageService(),
+                services.circuitBreakerService().getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS)
             );
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
@@ -801,7 +801,8 @@ public class Security extends Plugin
         CrossProjectModeDecider crossProjectModeDecider,
         ProjectRoutingResolver projectRoutingResolver,
         SystemIndices coreSystemIndices,
-        UsageService usageService
+        UsageService usageService,
+        CircuitBreaker circuitBreaker
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
@@ -1001,7 +1002,7 @@ public class Security extends Plugin
             clusterService,
             threadPool,
             auditLogCustomizer,
-            auditCircuitBreaker::get
+            circuitBreaker
         );
         final AuditTrailService auditTrailService = new AuditTrailService(auditTrail, getLicenseState(), clusterService);
         components.add(auditTrailService);
@@ -2157,9 +2158,6 @@ public class Security extends Plugin
         if (enabled == false) { // don't register anything if we are not enabled
             return Collections.emptyMap();
         }
-
-        // getTransports is the first hook handing us a CircuitBreakerService; PluginServices exposes none
-        auditCircuitBreaker.set(circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS));
 
         IPFilter ipFilter = this.ipFilter.get();
         return Map.of(

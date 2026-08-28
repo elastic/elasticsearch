@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -386,7 +387,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     volatile boolean includeRequestBody;
     /** Maximum bytes for {@code request.body}; {@code 0} means unlimited. Package-private for testing. */
     volatile int maxRequestBodyBytes;
-    final Supplier<CircuitBreaker> circuitBreakerSupplier;
+    final CircuitBreaker circuitBreaker;
     // fields that all entries have in common
     EntryCommonFields entryCommonFields;
 
@@ -396,7 +397,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     public LoggingAuditTrail(Settings settings, ClusterService clusterService, ThreadPool threadPool) {
-        this(settings, clusterService, threadPool, AuditLogCustomizer.NOOP, () -> null);
+        this(settings, clusterService, threadPool, AuditLogCustomizer.NOOP, new NoopCircuitBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS));
     }
 
     public LoggingAuditTrail(
@@ -404,7 +405,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         ClusterService clusterService,
         ThreadPool threadPool,
         AuditLogCustomizer customizer,
-        Supplier<CircuitBreaker> circuitBreakerSupplier
+        CircuitBreaker circuitBreaker
     ) {
         this(
             settings,
@@ -412,12 +413,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             LogManager.getLogger(LoggingAuditTrail.class),
             threadPool.getThreadContext(),
             customizer,
-            circuitBreakerSupplier
+            circuitBreaker
         );
     }
 
     LoggingAuditTrail(Settings settings, ClusterService clusterService, Logger logger, ThreadContext threadContext) {
-        this(settings, clusterService, logger, threadContext, AuditLogCustomizer.NOOP, () -> null);
+        this(settings, clusterService, logger, threadContext, AuditLogCustomizer.NOOP, new NoopCircuitBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS));
     }
 
     LoggingAuditTrail(
@@ -427,7 +428,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         ThreadContext threadContext,
         AuditLogCustomizer customizer
     ) {
-        this(settings, clusterService, logger, threadContext, customizer, () -> null);
+        this(settings, clusterService, logger, threadContext, customizer, new NoopCircuitBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS));
     }
 
     @SuppressWarnings("this-escape")
@@ -437,10 +438,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         Logger logger,
         ThreadContext threadContext,
         AuditLogCustomizer customizer,
-        Supplier<CircuitBreaker> circuitBreakerSupplier
+        CircuitBreaker circuitBreaker
     ) {
         this.customizer = customizer;
-        this.circuitBreakerSupplier = circuitBreakerSupplier;
+        this.circuitBreaker = circuitBreaker;
         this.logger = logger;
         this.events = parse(INCLUDE_EVENT_SETTINGS.get(settings), EXCLUDE_EVENT_SETTINGS.get(settings));
         this.includeRequestBody = INCLUDE_REQUEST_BODY.get(settings);
@@ -1759,7 +1760,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 final String requestContent = restRequestContent(
                     request,
                     maxRequestBodyBytes,
-                    circuitBreakerSupplier.get(),
+                    circuitBreaker,
                     MAX_REQUEST_BODY_SIZE.getKey()
                 );
                 if (Strings.hasLength(requestContent)) {

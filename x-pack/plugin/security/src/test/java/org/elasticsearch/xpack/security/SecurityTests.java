@@ -33,6 +33,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -278,7 +280,8 @@ public class SecurityTests extends ESTestCase {
             CrossProjectModeDecider.NOOP,
             ProjectRoutingResolver.NOOP,
             new SystemIndices(List.of()),
-            new UsageService()
+            new UsageService(),
+            new NoopCircuitBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS)
         );
     }
 

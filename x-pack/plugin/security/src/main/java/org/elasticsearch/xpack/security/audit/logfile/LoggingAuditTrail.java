@@ -27,6 +27,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -288,6 +289,28 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         Property.NodeScope,
         Property.Dynamic
     );
+    /**
+     * Maximum rendered JSON length (in characters) that may be included in audit events when
+     * {@link #INCLUDE_REQUEST_BODY} is {@code true}. The limit is applied to the output of
+     * {@link org.elasticsearch.common.xcontent.XContentHelper#convertToJson} rather than the raw
+     * request bytes, so it accounts for format differences (e.g. SMILE expanding to JSON).
+     * Requests whose rendered body exceeds this limit are rejected with HTTP 413 to keep the
+     * audit log a complete record of every accepted request.
+     * <p>
+     * {@code 0} disables the limit (no rejection); use with caution on endpoints that may receive
+     * large bodies such as OTLP or Prometheus remote-write ingestion endpoints.
+     * <p>
+     * The default is {@link Integer#MAX_VALUE} bytes (the maximum representable value), which
+     * effectively imposes no limit beyond what the JVM can address in a single buffer.
+     */
+    public static final Setting<ByteSizeValue> MAX_REQUEST_BODY_SIZE = Setting.byteSizeSetting(
+        setting("audit.logfile.events.max_request_body_size"),
+        ByteSizeValue.ofBytes(Integer.MAX_VALUE),
+        ByteSizeValue.ZERO,
+        ByteSizeValue.ofBytes(Integer.MAX_VALUE),
+        Property.NodeScope,
+        Property.Dynamic
+    );
     // actions (and their requests) that are audited as "security change" events
     public static final Set<String> SECURITY_CHANGE_ACTIONS = Set.of(
         PutUserAction.NAME,
@@ -355,6 +378,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     // package for testing
     volatile EnumSet<AuditLevel> events;
     volatile boolean includeRequestBody;
+    /** Maximum bytes for {@code request.body}; {@code 0} means unlimited. Package-private for testing. */
+    volatile int maxRequestBodyBytes;
     // fields that all entries have in common
     EntryCommonFields entryCommonFields;
 
@@ -371,6 +396,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         this.logger = logger;
         this.events = parse(INCLUDE_EVENT_SETTINGS.get(settings), EXCLUDE_EVENT_SETTINGS.get(settings));
         this.includeRequestBody = INCLUDE_REQUEST_BODY.get(settings);
+        this.maxRequestBodyBytes = (int) MAX_REQUEST_BODY_SIZE.get(settings).getBytes();
         this.threadContext = threadContext;
         this.securityContext = new SecurityContext(settings, threadContext);
         this.entryCommonFields = new EntryCommonFields(settings, null, clusterService);
@@ -379,9 +405,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         clusterService.getClusterSettings().addSettingsUpdateConsumer(newSettings -> {
             this.entryCommonFields = this.entryCommonFields.withNewSettings(newSettings);
             this.includeRequestBody = INCLUDE_REQUEST_BODY.get(newSettings);
+            this.maxRequestBodyBytes = (int) MAX_REQUEST_BODY_SIZE.get(newSettings).getBytes();
             // `events` is a volatile field! Keep `events` write last so that
-            // `entryCommonFields` and `includeRequestBody` writes happen-before! `events` is
-            // always read before `entryCommonFields` and `includeRequestBody`.
+            // `entryCommonFields`, `includeRequestBody`, and `maxRequestBodyBytes` writes happen-before!
+            // `events` is always read before `entryCommonFields` and `includeRequestBody`.
             this.events = parse(INCLUDE_EVENT_SETTINGS.get(newSettings), EXCLUDE_EVENT_SETTINGS.get(newSettings));
         },
             Arrays.asList(
@@ -393,7 +420,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 EMIT_CLUSTER_UUID_SETTING,
                 INCLUDE_EVENT_SETTINGS,
                 EXCLUDE_EVENT_SETTINGS,
-                INCLUDE_REQUEST_BODY
+                INCLUDE_REQUEST_BODY,
+                MAX_REQUEST_BODY_SIZE
             )
         );
         clusterService.getClusterSettings()
@@ -1083,6 +1111,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         return includeRequestBody;
     }
 
+    public int maxRequestBodyBytes() {
+        return maxRequestBodyBytes;
+    }
+
     private LogEntryBuilder securityChangeLogEntryBuilder(String requestId) {
         return new LogEntryBuilder(false).with(EVENT_TYPE_FIELD_NAME, SECURITY_CHANGE_ORIGIN_FIELD_VALUE).withRequestId(requestId);
     }
@@ -1639,7 +1671,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
         LogEntryBuilder withRequestBody(RestRequest request) {
             if (includeRequestBody) {
-                final String requestContent = restRequestContent(request);
+                final String requestContent = restRequestContent(request, maxRequestBodyBytes, MAX_REQUEST_BODY_SIZE.getKey());
                 if (Strings.hasLength(requestContent)) {
                     logEntry.with(REQUEST_BODY_FIELD_NAME, requestContent);
                 }
@@ -1811,6 +1843,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         settings.add(INCLUDE_EVENT_SETTINGS);
         settings.add(EXCLUDE_EVENT_SETTINGS);
         settings.add(INCLUDE_REQUEST_BODY);
+        settings.add(MAX_REQUEST_BODY_SIZE);
         settings.add(FILTER_POLICY_IGNORE_PRINCIPALS);
         settings.add(FILTER_POLICY_IGNORE_INDICES);
         settings.add(FILTER_POLICY_IGNORE_ROLES);

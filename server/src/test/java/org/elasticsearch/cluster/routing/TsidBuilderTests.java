@@ -265,44 +265,55 @@ public class TsidBuilderTests extends ESTestCase {
         assertTrue(TsidBuilder.useSingleBytePrefixLayout(IndexVersion.current()));
     }
 
-    public void testAddPrehashedDimensionMatchesTypedDimensions() {
-        BufferedMurmur3Hasher hasher = new BufferedMurmur3Hasher(0L);
+    public void testPrefixByteRank() {
+        assertThat(TsidBuilder.prefixByteRank(TsidBuilder.OTEL_METRIC_FIELD), equalTo(0));
+        assertThat(TsidBuilder.prefixByteRank(TsidBuilder.PROMETHEUS_LABEL_FIELD), equalTo(1));
+        // Any ordinary path must get PREFIX_RANK_NONE, which must beat every special rank.
+        assertThat(TsidBuilder.prefixByteRank(randomAlphaOfLengthBetween(1, 20)), equalTo(TsidBuilder.PREFIX_RANK_NONE));
+        assertThat(TsidBuilder.PREFIX_RANK_NONE, greaterThan(1));
+    }
 
-        String path = "dim.host";
-        MurmurHash3.Hash128 pathHash = TsidBuilder.hashPath(hasher, path);
+    public void testSingleBytePrefixSpecialFieldUsesValueSimilarity() {
+        long h1 = randomLong();
+        long h2 = randomLong();
+        MurmurHash3.Hash128 scratch = new MurmurHash3.Hash128();
+        byte expected = TsidBuilder.similarityByte(h1, h2, scratch);
+        assertThat(TsidBuilder.singleBytePrefix(0, h1, h2, null, scratch), equalTo(expected));
+        assertThat(TsidBuilder.singleBytePrefix(1, h1, h2, null, scratch), equalTo(expected));
+    }
 
-        // String dimension: value hash = murmur3(utf8 bytes)
-        String strVal = randomAlphaOfLengthBetween(1, 32);
-        BytesRef strRef = new BytesRef(strVal);
-        hasher.reset();
-        hasher.update(strRef.bytes, strRef.offset, strRef.length);
-        MurmurHash3.Hash128 strValueHash = hasher.digestHash();
-        assertEqualBuilders(
-            TsidBuilder.newBuilder().addStringDimension("other", "anchor").addStringDimension(path, strVal),
-            TsidBuilder.newBuilder()
-                .addStringDimension("other", "anchor")
-                .addPrehashedDimension(path, pathHash.h1, pathHash.h2, strValueHash.h1, strValueHash.h2)
-        );
-
-        // Long dimension: value hash = Hash128(1, v)
-        long longVal = randomLong();
-        assertEqualBuilders(
-            TsidBuilder.newBuilder().addLongDimension(path, longVal),
-            TsidBuilder.newBuilder().addPrehashedDimension(path, pathHash.h1, pathHash.h2, 1L, longVal)
-        );
-
-        // Boolean dimension: value hash = Hash128(3, v ? 1 : 0)
-        boolean boolVal = randomBoolean();
-        assertEqualBuilders(
-            TsidBuilder.newBuilder().addBooleanDimension(path, boolVal),
-            TsidBuilder.newBuilder().addPrehashedDimension(path, pathHash.h1, pathHash.h2, 3L, boolVal ? 1L : 0L)
-        );
-
-        // Double dimension: value hash = Hash128(2, Double.doubleToLongBits(v))
-        double doubleVal = randomDoubleBetween(-1e9, 1e9, true);
-        assertEqualBuilders(
-            TsidBuilder.newBuilder().addDoubleDimension(path, doubleVal),
-            TsidBuilder.newBuilder().addPrehashedDimension(path, pathHash.h1, pathHash.h2, 2L, Double.doubleToLongBits(doubleVal))
+    public void testSingleBytePrefixNameSimilarityPathUsesStreamHash() {
+        MurmurHash3.Hash128 nameSimilarityHash = new MurmurHash3.Hash128(randomLong(), randomLong());
+        MurmurHash3.Hash128 scratch = new MurmurHash3.Hash128();
+        byte expected = TsidBuilder.similarityByte(nameSimilarityHash);
+        assertThat(
+            TsidBuilder.singleBytePrefix(TsidBuilder.PREFIX_RANK_NONE, randomLong(), randomLong(), nameSimilarityHash, scratch),
+            equalTo(expected)
         );
     }
+
+    /**
+     * The prefix byte produced by {@code singleBytePrefix} with an OTel field's value hash must equal
+     * the first byte of the full TSID built by the row path for the same field value, confirming that
+     * the columnar prep method and {@code computeSingleBytePrefix} agree.
+     */
+    public void testSingleBytePrefixMatchesTsidPrefixByteForOtelField() {
+        String value = randomAlphaOfLengthBetween(1, 32);
+        byte[] utf8 = value.getBytes(StandardCharsets.UTF_8);
+        TsidBuilder builder = TsidBuilder.newBuilder()
+            .addStringDimension(TsidBuilder.OTEL_METRIC_FIELD, value)
+            .addLongDimension("other", randomLong());
+        BytesRef tsid = builder.buildTsid(IndexVersions.TSID_SINGLE_PREFIX_BYTE);
+
+        MurmurHash3.Hash128 valueHash = TsidBuilder.hashStringValue(utf8, 0, utf8.length, new MurmurHash3.Hash128());
+        byte prefix = TsidBuilder.singleBytePrefix(
+            TsidBuilder.prefixByteRank(TsidBuilder.OTEL_METRIC_FIELD),
+            valueHash.h1,
+            valueHash.h2,
+            null,
+            new MurmurHash3.Hash128()
+        );
+        assertThat(prefix, equalTo(tsid.bytes[tsid.offset]));
+    }
+
 }

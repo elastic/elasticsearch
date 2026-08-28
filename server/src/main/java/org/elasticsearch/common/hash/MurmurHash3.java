@@ -245,7 +245,7 @@ public enum MurmurHash3 {
     }
 
     /**
-     * Finalises a hash whose input is {@code length - 8} bytes already mixed as complete blocks plus
+     * Finalizes a hash whose input is {@code length - 8} bytes already mixed as complete blocks plus
      * a trailing 8-byte partial block holding {@code tail} in little-endian order.
      *
      * <p>Equivalent to writing {@code tail} little-endian into an 8-byte remainder and calling

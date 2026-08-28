@@ -16,6 +16,7 @@ import org.apache.parquet.column.page.PageReader;
 import org.apache.parquet.compression.CompressionCodecFactory.BytesInputDecompressor;
 import org.apache.parquet.io.ParquetDecodingException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
@@ -36,17 +37,23 @@ import java.util.concurrent.atomic.AtomicLong;
  * original page type ({@link DataPageV1} stays V1, {@link DataPageV2} stays V2 with only the
  * data portion decompressed). Encryption and CRC verification are not supported.
  *
- * <p>Compressed pages decompress onto a heap {@code byte[]} via
- * {@link BytesInputDecompressor#decompress(BytesInput, int)}. That output is charged to
- * {@code breaker} for the life of the current page (and the cached dictionary, if any) and
- * released before the next page or on {@link #close()}. Uncompressed pages alias the
- * prefetched I/O bytes and are not charged — those bytes are already accounted by the
- * prefetch circuit breaker.
+ * <p>Compressed data pages decompress onto a grow-only heap {@code byte[]} via
+ * {@link PlainCompressionCodecFactory.HeapDestDecompressor#decompressInto} when the codec
+ * supports it. The dest's live capacity is charged to {@code breaker} until {@link #close()};
+ * same-size pages do not re-charge. A grow charges the new size before dropping the old
+ * charge so peak heap and breaker match while both arrays are live. Dictionary pages still
+ * allocate via {@link BytesInputDecompressor#decompress(BytesInput, int)} and keep that
+ * charge until close. Uncompressed pages alias the prefetched I/O bytes and are not charged
+ * — those bytes are already accounted by the prefetch circuit breaker. Failed decompress
+ * after a successful grow keeps the charge (the array is still referenced). A trip in
+ * {@code addEstimateBytesAndMaybeBreak} leaves the previous array and charge unchanged.
  *
  * <p>{@link #readPage()} / {@link #readDictionaryPage()} run on the iterator thread.
  * {@link #close()} may race another {@link #close()} (hence {@link #closed}) and may race
  * a read on cancel. Charge counters are {@link java.util.concurrent.atomic.AtomicLong} so
- * that race cannot silently skew the breaker.
+ * that race cannot silently skew the breaker. {@link #reusableDecompBuf} is {@code volatile}
+ * so a close that nulls the dest is visible to a concurrent read; the read path snapshots
+ * the array into a local and does not re-read the field after {@code decompressInto}.
  */
 final class PrefetchedPageReader implements PageReader, Releasable {
 
@@ -62,6 +69,7 @@ final class PrefetchedPageReader implements PageReader, Releasable {
     record CompressedPage(DataPage page, long firstRowIndex) {}
 
     private final BytesInputDecompressor decompressor;
+    private final PlainCompressionCodecFactory.HeapDestDecompressor heapDest;
     private final CircuitBreaker breaker;
     private final long valueCount;
     private final Deque<CompressedPage> compressedPages;
@@ -69,6 +77,13 @@ final class PrefetchedPageReader implements PageReader, Releasable {
 
     private DictionaryPage cachedDictionaryPage;
     private boolean dictionaryDecompressed;
+    /**
+     * Grow-only dest for {@link PlainCompressionCodecFactory.HeapDestDecompressor}. Never shrunk.
+     * Returned data-page {@link BytesInput}s alias this array for the life of the current page.
+     * {@code volatile}: {@link #close()} may null it from another thread while a read is in flight.
+     */
+    private volatile byte[] reusableDecompBuf;
+    /** Live capacity of {@link #reusableDecompBuf}, or the current allocating-decompress page. */
     private final AtomicLong dataPageCharge = new AtomicLong();
     private final AtomicLong dictCharge = new AtomicLong();
     // AtomicBoolean (rather than a plain volatile flag) so concurrent close() callers race
@@ -83,6 +98,7 @@ final class PrefetchedPageReader implements PageReader, Releasable {
         long valueCount
     ) {
         this.decompressor = decompressor;
+        this.heapDest = decompressor instanceof PlainCompressionCodecFactory.HeapDestDecompressor h ? h : null;
         this.breaker = breaker;
         this.compressedPages = new ArrayDeque<>(compressedPages);
         this.compressedDictionaryPage = compressedDictionaryPage;
@@ -105,17 +121,19 @@ final class PrefetchedPageReader implements PageReader, Releasable {
             // page to decode.
             return null;
         }
-        // Previous page is dead. Both consumers of this reader ask for pages strictly sequentially
-        // and are done with the current page's bytes before they ask for the next one:
-        // - PageColumnReader#loadNextPage (flat columns) runs its remainder-skip off the current
-        // value/def-level buffers BEFORE calling readPage(), and reassigns those buffers to the
-        // new page immediately after;
+        // Previous page dest is overwritten on the reuse path. Consumers must be done with the
+        // current page's bytes before they ask for the next one:
+        // - PageColumnReader primitives/skip finish the current page before readPage(); BINARY
+        // consumers copy into the ESQL block (appendBytesRef / constant deepCopy) before the
+        // next ensurePage()/readPage(). The BytesInput returned here aliases reusableDecompBuf.
         // - parquet-mr's ColumnReaderBase (list columns, via ColumnReadStoreImpl) calls readPage()
         // only from checkRead() once the current page is fully consumed, re-initializes all of
         // its level/value readers from the new page before any further read, and its consumers
         // (ParquetColumnDecoding#readListRow) copy each value to the heap before the consume()
         // that can cross a page boundary.
-        releaseCharge(dataPageCharge);
+        if (heapDest == null) {
+            releaseCharge(dataPageCharge);
+        }
         DataPage page = entry.page();
         if (page instanceof DataPageV1 v1) {
             return decompressV1(v1);
@@ -276,6 +294,16 @@ final class PrefetchedPageReader implements PageReader, Releasable {
             }
             return compressed;
         }
+        if (heapDest != null) {
+            byte[] dest = ensureDecompCapacity(decompressedSize);
+            heapDest.decompressInto(compressed, dest, decompressedSize);
+            BytesInput decompressed = BytesInput.from(dest, 0, decompressedSize);
+            if (closed.get()) {
+                dropReusableDest();
+                throw new ParquetDecodingException("PrefetchedPageReader closed");
+            }
+            return decompressed;
+        }
         breaker.addEstimateBytesAndMaybeBreak(decompressedSize, DECOMP_BREAKER_LABEL);
         boolean success = false;
         try {
@@ -293,6 +321,38 @@ final class PrefetchedPageReader implements PageReader, Releasable {
                 breaker.addWithoutBreaking(-decompressedSize);
             }
         }
+    }
+
+    private byte[] ensureDecompCapacity(int needed) {
+        byte[] buf = reusableDecompBuf;
+        if (buf != null && buf.length >= needed) {
+            return buf;
+        }
+        // Charge the new size on top of any live old charge so breaker tracks peak heap while
+        // both arrays exist; drop the old charge after the new array is published.
+        breaker.addEstimateBytesAndMaybeBreak(needed, DECOMP_BREAKER_LABEL);
+        byte[] next;
+        try {
+            next = UninitializedArrays.newByteArray(needed);
+        } catch (Error | RuntimeException e) {
+            breaker.addWithoutBreaking(-needed);
+            throw e;
+        }
+        reusableDecompBuf = next;
+        long previous = dataPageCharge.getAndSet(needed);
+        if (previous != 0) {
+            breaker.addWithoutBreaking(-previous);
+        }
+        if (closed.get()) {
+            dropReusableDest();
+            throw new ParquetDecodingException("PrefetchedPageReader closed");
+        }
+        return next;
+    }
+
+    private void dropReusableDest() {
+        reusableDecompBuf = null;
+        releaseCharge(dataPageCharge);
     }
 
     private boolean isNoopDecompressor() {
@@ -314,7 +374,7 @@ final class PrefetchedPageReader implements PageReader, Releasable {
         // Drop the cached dictionary page reference. It is heap-backed (see readDictionaryPage),
         // so this is reference hygiene plus breaker release, not a native-buffer lifetime.
         cachedDictionaryPage = null;
-        releaseCharge(dataPageCharge);
+        dropReusableDest();
         releaseCharge(dictCharge);
     }
 }

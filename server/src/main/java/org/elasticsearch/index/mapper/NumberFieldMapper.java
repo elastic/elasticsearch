@@ -41,6 +41,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -2213,12 +2214,16 @@ public class NumberFieldMapper extends FieldMapper {
             String fieldName,
             String fieldSimpleName,
             boolean ignoreMalformed,
-            IndexVersion indexVersion
+            IndexVersion indexVersion,
+            boolean writesOnFailureColumn
         ) {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
             layers.add(new SortedNumericDocValuesSyntheticFieldLoaderLayer(fieldName, NumberType.this::writeValue));
             if (ignoreMalformed) {
                 layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fieldName, indexVersion));
+            }
+            if (writesOnFailureColumn) {
+                layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fieldName, indexVersion));
             }
             return new CompositeSyntheticFieldLoader(fieldSimpleName, fieldName, layers);
         }
@@ -2812,8 +2817,9 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean isSingleValueEnforced() {
-        return allowMultipleValues == false || docValuesParameters.multiValue() == false;
+    protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
+        return (allowMultipleValues == false || docValuesParameters.multiValue() == false)
+            && (token != XContentParser.Token.VALUE_NULL || nullValue != null);
     }
 
     @Override
@@ -2865,6 +2871,11 @@ public class NumberFieldMapper extends FieldMapper {
     // half_float uses a separate HalfFloatPoint (2-byte BKD points) alongside its doc-values column;
     // LuceneHalfFloatPointColumn emits this type for the points column.
     private static final IndexableFieldType HALF_FLOAT_POINT_FIELD_TYPE = new HalfFloatPoint("_sentinel", 0f).fieldType();
+    // Stored-only variants: match the separate StoredField(name, value) emitted by the row path.
+    private static final IndexableFieldType INT_STORED_ONLY_FIELD_TYPE = new StoredField("_sentinel", 0).fieldType();
+    private static final IndexableFieldType LONG_STORED_ONLY_FIELD_TYPE = new StoredField("_sentinel", 0L).fieldType();
+    private static final IndexableFieldType FLOAT_STORED_ONLY_FIELD_TYPE = new StoredField("_sentinel", 0f).fieldType();
+    private static final IndexableFieldType DOUBLE_STORED_ONLY_FIELD_TYPE = new StoredField("_sentinel", 0.0).fieldType();
 
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
@@ -2873,7 +2884,6 @@ public class NumberFieldMapper extends FieldMapper {
         // already refuses, and refusing late falls back to row path.
         return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
             && docValuesParameters.enabled()
-            && stored == false
             && indexTerms == false
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
@@ -2891,11 +2901,11 @@ public class NumberFieldMapper extends FieldMapper {
             case EscfColumnKind.LONG, EscfColumnKind.DOUBLE, EscfColumnKind.STRING, EscfColumnKind.ARRAY -> {
             } // handled below
             default -> throw new UnsupportedOperationException(
-                "mapColumnBatch: ESCF column kind ["
-                    + EscfColumnKind.name(source.kind())
-                    + "] is not yet supported for field ["
-                    + fullPath()
-                    + "]"
+                Strings.format(
+                    "mapColumnBatch: ESCF column kind [%s] is not yet supported for field [%s]",
+                    EscfColumnKind.name(source.kind()),
+                    fullPath()
+                )
             );
         }
         Long nullSortableLong = nullValue != null ? type.toSortableLong(nullValue) : null;
@@ -2909,23 +2919,39 @@ public class NumberFieldMapper extends FieldMapper {
         );
         assert source.kind() != EscfColumnKind.ARRAY || outData.kind() == EscfColumnKind.ARRAY || outData.kind() == EscfColumnKind.LONG
             : "ARRAY source produced " + EscfColumnKind.name(outData.kind());
-        if (outData.kind() == EscfColumnKind.ARRAY && isSingleValueEnforced()) {
+        if (outData.kind() == EscfColumnKind.ARRAY && shouldEnforceSingleValue(null)) {
             rejectWideRows(outData);
         }
         if (fieldType().indexType().hasDocValuesSkipper()) {
             ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE, numericKind(type)));
-        } else if (indexed && type == NumberType.HALF_FLOAT) {
-            // half_float uses separate HalfFloatPoint (2-byte BKD) and SortedNumericDocValuesField,
-            // unlike other numeric types which use a combined field. Send one column for each.
-            ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, LongColumn.NumericKind.FLOAT));
-            EscfColumnData halfFloatPointData = NumberColumnTransform.toHalfFloatPointBinaryColumn(
-                EscfColumn.from(outData),
-                ctx.recycler()
-            );
-            ctx.addColumn(LuceneBinaryColumn.of(halfFloatPointData, fieldType().name(), HALF_FLOAT_POINT_FIELD_TYPE));
+        } else if (indexed) {
+            if (type == NumberType.HALF_FLOAT) {
+                // half_float's BKD index uses a separate 2-byte HalfFloatPoint; other numeric types combine DV and BKD into one field.
+                ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, LongColumn.NumericKind.FLOAT));
+                EscfColumnData halfFloatPointData = NumberColumnTransform.toHalfFloatPointBinaryColumn(
+                    EscfColumn.from(outData),
+                    ctx.recycler()
+                );
+                ctx.addColumn(LuceneBinaryColumn.of(halfFloatPointData, fieldType().name(), HALF_FLOAT_POINT_FIELD_TYPE));
+            } else {
+                ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), indexableFieldType(type), numericKind(type)));
+            }
         } else {
-            IndexableFieldType columnFieldType = indexed ? indexableFieldType(type) : SORTED_NUMERIC_DV_FIELD_TYPE;
-            ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), columnFieldType, numericKind(type)));
+            ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, numericKind(type)));
+        }
+        if (stored) {
+            if (type == NumberType.HALF_FLOAT) {
+                // half_float DV encodes as sortable shorts, but stored fields need sortable float ints for FLOAT-kind decoding.
+                EscfColumnData halfFloatStoredData = NumberColumnTransform.toHalfFloatStoredLongColumn(
+                    EscfColumn.from(outData),
+                    ctx.recycler()
+                );
+                ctx.addColumn(
+                    LuceneLongColumn.of(halfFloatStoredData, fieldType().name(), FLOAT_STORED_ONLY_FIELD_TYPE, LongColumn.NumericKind.FLOAT)
+                );
+            } else {
+                ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), storedOnlyFieldType(type), numericKind(type)));
+            }
         }
         if (offsetsFieldName != null && outData.kind() == EscfColumnKind.ARRAY) {
             LuceneBinaryColumn offsets = ColumnarOffsetsBuilder.build(EscfColumn.from(outData), offsetsFieldName, ctx.recycler());
@@ -2944,6 +2970,16 @@ public class NumberFieldMapper extends FieldMapper {
                 );
             }
         }
+    }
+
+    private static IndexableFieldType storedOnlyFieldType(NumberType type) {
+        return switch (type) {
+            case BYTE, SHORT, INTEGER -> INT_STORED_ONLY_FIELD_TYPE;
+            case FLOAT -> FLOAT_STORED_ONLY_FIELD_TYPE;
+            case LONG -> LONG_STORED_ONLY_FIELD_TYPE;
+            case DOUBLE -> DOUBLE_STORED_ONLY_FIELD_TYPE;
+            case HALF_FLOAT -> throw new AssertionError("unreachable: indexed half_float is handled separately");
+        };
     }
 
     private static IndexableFieldType indexableFieldType(NumberType type) {
@@ -3157,9 +3193,18 @@ public class NumberFieldMapper extends FieldMapper {
             if (ignoreMalformed.value()) {
                 layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
             }
+            if (onFailureColumnEnabled()) {
+                layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
+            }
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         } else {
-            return type.syntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value(), indexSettings.getIndexVersionCreated());
+            return type.syntheticFieldLoader(
+                fullPath(),
+                leafName(),
+                ignoreMalformed.value(),
+                indexSettings.getIndexVersionCreated(),
+                onFailureColumnEnabled()
+            );
         }
     }
 

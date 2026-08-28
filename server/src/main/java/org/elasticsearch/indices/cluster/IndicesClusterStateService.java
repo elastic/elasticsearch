@@ -1286,7 +1286,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
 
         @Override
-        public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+        public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
             RecoveryClusterStateDelay.ensureClusterStateVersion(
                 creationClusterStateVersion,
                 clusterService,
@@ -1294,7 +1294,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 threadPool.getThreadContext(),
                 ActionListener.noop(),
                 listener -> {
-                    handleRecoveryFailure(shardRouting, sendShardFailure, primaryTerm, e);
+                    handleRecoveryFailure(shardRouting, failureStrategy, primaryTerm, e);
                     listener.onResponse(null);
                 }
             );
@@ -1309,13 +1309,18 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     // package-private for testing
-    synchronized void handleRecoveryFailure(ShardRouting shardRouting, boolean sendShardFailure, long primaryTerm, Exception failure) {
+    synchronized void handleRecoveryFailure(
+        ShardRouting shardRouting,
+        RecoveryListener.FailureStrategy failureStrategy,
+        long primaryTerm,
+        Exception failure
+    ) {
         try {
             CloseUtils.executeDirectly(
                 l -> failAndRemoveShard(
                     shardRouting,
                     primaryTerm,
-                    sendShardFailure,
+                    failureStrategy.notifyMaster(),
                     "failed recovery",
                     failure,
                     clusterService.state(),

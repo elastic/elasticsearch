@@ -386,6 +386,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
                     Set.of(),
                     Set.of(),
                     Set.of(),
+                    Integer.MAX_VALUE,
                     breaker
                 )
             ) {
@@ -405,8 +406,15 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
      */
     public void testOptimizedFullScanReadFetchesNoPageIndexBytes() throws IOException {
         MessageType schema = threeColumnInt64Schema();
-        int rows = 65_536;
-        byte[] parquetData = writeThreeColumnInt64Parquet(schema, rows);
+        // Unique uncompressed values so the object exceeds DEFAULT_WINDOW_SIZE. Dictionary-encoded
+        // low-cardinality files fit in the window; one GET of [0, length) then overlaps page indexes
+        // and looks like a dedicated index fetch.
+        int rows = 200_000;
+        byte[] parquetData = writeUniqueUncompressedThreeColumnInt64Parquet(schema, rows);
+        assertTrue(
+            "fixture must exceed the sliding window so the scan uses suffix GETs, not a whole-file fill",
+            parquetData.length > ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE
+        );
 
         ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
         long[][] indexRanges;
@@ -463,6 +471,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
                     Set.of("a"),
                     Set.of("a"),
                     Set.of("a"),
+                    Integer.MAX_VALUE,
                     breaker
                 )
             ) {
@@ -493,6 +502,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
                     predicates,
                     predicates,
                     predicates,
+                    Integer.MAX_VALUE,
                     breaker
                 )
             ) {
@@ -524,6 +534,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
                     Set.of("a"),
                     Set.of("a"),
                     Set.of("a", "b", "c"),
+                    Integer.MAX_VALUE,
                     breaker
                 )
             ) {
@@ -688,6 +699,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
                         s.predicate(),
                         s.columnIndex(),
                         s.offsetIndex(),
+                        Integer.MAX_VALUE,
                         breaker
                     )
                 ) {
@@ -788,6 +800,37 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
                 g.add("a", (long) (i % 16));
                 g.add("b", (long) (i % 32));
                 g.add("c", (long) (i % 64));
+                writer.write(g);
+            }
+        }
+        return out.toByteArray();
+    }
+
+    /**
+     * Same three-column INT64 layout as {@link #writeThreeColumnInt64Parquet}, but with unique
+     * values and dictionary encoding off so the file is larger than the sliding window.
+     */
+    private static byte[] writeUniqueUncompressedThreeColumnInt64Parquet(MessageType schema, int rows) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        OutputFile outputFile = createOutputFile(out);
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withDictionaryEncoding(false)
+                .withPageSize(4 * 1024)
+                .withRowGroupSize(256 * 1024L)
+                .build()
+        ) {
+            for (int i = 0; i < rows; i++) {
+                Group g = groupFactory.newGroup();
+                g.add("a", (long) i);
+                g.add("b", (long) i);
+                g.add("c", (long) i);
                 writer.write(g);
             }
         }

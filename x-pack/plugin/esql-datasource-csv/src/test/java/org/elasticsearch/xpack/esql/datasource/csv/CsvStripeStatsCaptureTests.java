@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -45,6 +46,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
+
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Exact-stat validation for the CSV reader's orthogonal per-stripe stats path, mirroring
@@ -306,6 +310,59 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         return byOrdinal;
     }
 
+    /**
+     * The read-configuration stamp is what keeps one read's statistics from being served to a read configured differently, and it
+     * is carried by a wither the reader could silently drop while still compiling. Pin both directions: a configured
+     * shape reaches every harvested contribution, and an unconfigured one stamps no key at all — absence is how a
+     * consumer tells "shape unknown" from a real read configuration.
+     */
+    public void testReadConfigIsStampedOnHarvestedContributions() throws Exception {
+        byte[] bytes = "n\n1\n2\n3\n".getBytes(StandardCharsets.UTF_8);
+
+        List<Map<String, Object>> stamped = captureWithReadConfig(bytes, 64L, "config-A");
+        assertThat("the read must harvest something to stamp", stamped, not(empty()));
+        for (Map<String, Object> contribution : stamped) {
+            assertEquals("config-A", contribution.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY));
+        }
+
+        List<Map<String, Object>> unstamped = captureWithReadConfig(bytes, 64L, null);
+        assertThat(unstamped, not(empty()));
+        for (Map<String, Object> contribution : unstamped) {
+            assertFalse(
+                "an unknown read configuration must leave the key absent, not empty",
+                contribution.containsKey(ExternalStats.READ_CONFIG_FINGERPRINT_KEY)
+            );
+        }
+    }
+
+    private List<Map<String, Object>> captureWithReadConfig(byte[] bytes, long stripeSize, String readConfig) throws Exception {
+        StorageObject o = memoryObject(bytes);
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(List.of("n"))
+            .batchSize(1000)
+            .recordAligned(true)
+            .firstSplit(true)
+            .lastSplit(true)
+            .splitStartByte(0)
+            .stats(0, stripeSize, true)
+            .statsColumnScope(StripeColumnScope.PROJECTED)
+            .build();
+        FormatReader reader = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
+            Map.of(CsvFormatReader.CONFIG_HEADER_ROW, true)
+        );
+        if (readConfig != null) {
+            reader = reader.withReadConfig(readConfig);
+        }
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (var handle = ExternalStatsCapture.bind(sink); CloseableIterator<Page> it = reader.read(o, ctx)) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        List<Map<String, Object>> raw = sink.get(o.path().toString());
+        return raw == null ? List.of() : raw;
+    }
+
     /** Bulk Jackson path: plain single column, no _rowPosition, direct-to-block DISABLED so the read routes onto convertRowsToPage. */
     private List<Map<String, Object>> captureBulkJacksonPath(byte[] bytes, long stripeSize) throws Exception {
         StorageObject o = memoryObject(bytes);
@@ -390,7 +447,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         return raw == null ? List.of() : raw;
     }
 
-    // ---- Harvest-scope tests (esql.source.cache.stripe.columns) -------------------------------------
+    // ---- Harvest-scope tests (esql.external.cache.stripe.columns) -------------------------------------
 
     /**
      * COUNT(*) — zero projected columns — must still harvest each stripe's row count under count/projected/all
@@ -557,9 +614,9 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         long mtime = ((Number) fragments.get(0).get(ExternalStats.MTIME_MILLIS_KEY)).longValue();
         String path = "memory://stripe-fold-" + UUID.randomUUID() + ".csv";
         Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
             SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of());
@@ -733,8 +790,10 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         int badRow = total / 2;
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < total; i++) {
-            // brackets column `tags`; the mid-file row has a non-integer id -> dropped under skip_row.
-            sb.append(i == badRow ? "notanint" : Integer.toString(i)).append(",[a,b]\n");
+            // brackets column `tags`; the mid-file row carries an extra column -> wrong-width structural drop
+            // under skip_row. Structural rather than a coercion failure on purpose: a coercion drop is
+            // projection-dependent and suppresses the publish outright, which would leave nothing to align.
+            sb.append(Integer.toString(i)).append(",[a,b]").append(i == badRow ? ",zzz" : "").append("\n");
         }
         byte[] data = sb.toString().getBytes(StandardCharsets.UTF_8);
         long stripe = 8; // small grid -> many stripes across the file
@@ -758,9 +817,9 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
     }
 
     /**
-     * A record over {@code max_record_size} is recovered by the error policy as a per-row DROP on the
+     * A record over {@code external_max_record_size} is recovered by the error policy as a per-row DROP on the
      * record-reader path -- unlike a normal SKIP_ROW drop, that survivor loss is a function of the
-     * max_record_size query PRAGMA, which is NOT in the cache fingerprint (only max_field_size is). So a
+     * external_max_record_size query PRAGMA, which is NOT in the cache fingerprint (only max_field_size is). So a
      * warm query under a larger cap would keep the row and count N, but would be served this scan's N-1.
      * The reader must safe-miss the whole publish (no stripe fragment, no whole-file stats) so the file
      * re-scans warm rather than caching a pragma-dependent count. (The bulk/Jackson path is immune: there
@@ -785,7 +844,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
 
         List<Map<String, Object>> frags = captureFusedBracket(data, 0, true, true, 3, stripe, schema, skipRow, 24);
         assertTrue(
-            "an over-max_record_size drop must safe-miss the whole publish (pragma not fingerprinted), got: " + frags,
+            "an over-external_max_record_size drop must safe-miss the whole publish (pragma not fingerprinted), got: " + frags,
             frags.isEmpty()
         );
     }
@@ -887,7 +946,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
 
     public void testMaxRecordSizeDropOnRecordReaderPathSafeMissesStripeCapture() throws Exception {
         // reader-B1 (elastic/elasticsearch#150920): the NON-bracket record-reader path (rowPositionSlot >= 0, no
-        // multi_value_syntax) drops an over-max_record_size record via CsvLogicalRecordReader, but the typed
+        // multi_value_syntax) drops an over-external_max_record_size record via CsvLogicalRecordReader, but the typed
         // CsvRecordTooLargeException is laundered by ExternalFailures.surface into an unchecked wrapper, so the
         // batch loop's catch treated it as an ordinary skip and never set recordCapDropped -> N-1 published under a
         // fingerprint that ignores the cap. Must safe-miss. A provided schema means no sampling, so the drop lands
@@ -907,15 +966,15 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         ErrorPolicy skipRow = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 100, 1.0, false);
         List<Map<String, Object>> frags = captureRecordReaderPath(data, 0, true, true, 3, 8, schema, skipRow, 24);
         assertTrue(
-            "an over-max_record_size drop on the record-reader path must safe-miss the whole publish, got: " + frags,
+            "an over-external_max_record_size drop on the record-reader path must safe-miss the whole publish, got: " + frags,
             frags.isEmpty()
         );
     }
 
     public void testMaxRecordSizeDropOnDirectBlockPathSafeMissesStripeCapture() throws Exception {
         // The DEFAULT plain non-bracket read (no _rowPosition projected) takes the direct-to-block path
-        // (advanceDirectRecord). An over-max_record_size drop there must set recordCapDropped and safe-miss the
-        // whole publish, exactly like the bracket, Jackson-bulk, and sampling catch sites. max_record_size is a
+        // (advanceDirectRecord). An over-external_max_record_size drop there must set recordCapDropped and safe-miss the
+        // whole publish, exactly like the bracket, Jackson-bulk, and sampling catch sites. external_max_record_size is a
         // query PRAGMA not in the cache fingerprint, so publishing N-1 as complete would serve a stale under-count
         // to a later query under a larger cap. Regression guard: the direct-block catch omitted the flag (would
         // publish 19 rows as complete without the fix).
@@ -934,7 +993,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         ErrorPolicy skipRow = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 100, 1.0, false);
         List<Map<String, Object>> frags = captureDirectBlockPath(data, 0, true, true, 3, 8, schema, skipRow, 24);
         assertTrue(
-            "an over-max_record_size drop on the direct-block path must safe-miss the whole publish, got: " + frags,
+            "an over-external_max_record_size drop on the direct-block path must safe-miss the whole publish, got: " + frags,
             frags.isEmpty()
         );
     }
@@ -1356,9 +1415,9 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         long mtime = ((Number) fragments.get(0).get(ExternalStats.MTIME_MILLIS_KEY)).longValue();
         String path = "memory://stripe-fold-" + UUID.randomUUID() + ".csv";
         Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
             SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of());

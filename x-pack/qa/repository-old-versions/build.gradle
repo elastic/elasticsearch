@@ -12,7 +12,7 @@ apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 dependencies {
-  yamlRestTestImplementation project(':test:fixtures:old-elasticsearch-container')
+  yamlRestTestImplementation project(':test:fixtures:old-elasticsearch')
 }
 
 restResources {

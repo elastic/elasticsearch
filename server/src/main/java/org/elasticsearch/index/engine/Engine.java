@@ -744,11 +744,7 @@ public abstract class Engine implements Closeable {
     public abstract IndexResult index(Index index) throws IOException;
 
     public List<IndexResult> indexBatch(EngineBatch batch) throws IOException {
-        ArrayList<IndexResult> results = new ArrayList<>(batch.operations().size());
-        for (Index index : batch.operations()) {
-            results.add(index(index));
-        }
-        return results;
+        throw new UnsupportedOperationException("batch indexing is not supported by this engine");
     }
 
     /**
@@ -1007,7 +1003,8 @@ public abstract class Engine implements Closeable {
         if (docIdAndVersion != null) {
             // don't release the searcher on this path, it is the
             // responsibility of the caller to call GetResult.release
-            return new GetResult(searcher, docIdAndVersion);
+            // an uncached lookup is requested exactly when the searcher reads an ephemeral translog reader
+            return new GetResult(searcher, docIdAndVersion, uncachedLookup);
         } else {
             Releasables.close(searcher);
             return GetResult.NOT_EXISTS;
@@ -2255,18 +2252,30 @@ public abstract class Engine implements Closeable {
         private final long version;
         private final DocIdAndVersion docIdAndVersion;
         private final Engine.Searcher searcher;
+        private final boolean fromTranslog;
 
-        public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null, null);
+        public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null, null, false);
 
-        private GetResult(boolean exists, long version, DocIdAndVersion docIdAndVersion, Engine.Searcher searcher) {
+        private GetResult(boolean exists, long version, DocIdAndVersion docIdAndVersion, Engine.Searcher searcher, boolean fromTranslog) {
             this.exists = exists;
             this.version = version;
             this.docIdAndVersion = docIdAndVersion;
             this.searcher = searcher;
+            this.fromTranslog = fromTranslog;
         }
 
-        public GetResult(Engine.Searcher searcher, DocIdAndVersion docIdAndVersion) {
-            this(true, docIdAndVersion.version, docIdAndVersion, searcher);
+        public GetResult(Engine.Searcher searcher, DocIdAndVersion docIdAndVersion, boolean fromTranslog) {
+            this(true, docIdAndVersion.version, docIdAndVersion, searcher, fromTranslog);
+        }
+
+        /**
+         * Whether the document was served from an ephemeral, single-use in-memory translog reader rather than an
+         * index reader, in which case holding onto this result pins that reader and the document source it wraps.
+         * Note that a get consulting the translog may still be served from the index (reporting {@code false}) when
+         * the operation's translog location is unknown.
+         */
+        public boolean isFromTranslog() {
+            return fromTranslog;
         }
 
         public boolean exists() {

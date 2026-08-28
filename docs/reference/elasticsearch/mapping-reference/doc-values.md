@@ -14,7 +14,7 @@ Sorting, aggregations, and access to field values in scripts requires a differen
 
 The `doc_values` field is an on-disk data structure that is built at document index time and enables efficient data access. It stores the same values as `_source`, but in a columnar format that is more efficient for sorting and aggregation.
 
-Doc values are supported on most field types, excluding `text` and `annotated_text` fields. See also [Disabling doc values](#_disabling_doc_values).
+Doc values are supported on most field types, excluding `annotated_text` fields. `text` and `match_only_text` fields support doc values but do not enable them by default. See also [Disabling doc values](#_disabling_doc_values).
 
 ## Doc-value-only fields [doc-value-only-fields]
 
@@ -49,7 +49,7 @@ PUT my-index-000001
 For all fields that support them, `doc_values` are turned on by default. If you're certain you don't need to sort or aggregate on a field, or access its value from a script, you can turn off `doc_values` in order to save disk space.
 
 ::::{note}
-You cannot turn off doc values for [`wildcard`](/reference/elasticsearch/mapping-reference/keyword.md#wildcard-field-type) fields, or for fields in a [`columnar`](/reference/columnar/index.md) index.
+You cannot turn off doc values for [`wildcard`](/reference/elasticsearch/mapping-reference/keyword.md#wildcard-field-type) fields, or for fields in a [`columnar`](/reference/elasticsearch/columnar/index.md) index.
 
 In some field types, such as [`search_as_you_type`](/reference/elasticsearch/mapping-reference/search-as-you-type.md), doc values appear in API responses but can't be configured. Turning `doc_values` on or off for these fields might result in an error or have no effect.
 ::::
@@ -84,10 +84,10 @@ serverless: preview
 ```
 
 ::::{note}
-This setting requires a [`columnar`](/reference/columnar/index.md) mode index.
+This setting requires a [`columnar`](/reference/elasticsearch/columnar/index.md) mode index.
 ::::
 
-By default, all fields allow multiple values per document. In columnar indices, you can restrict a field to at most one value per document by setting `multi_value: false` in the `doc_values` object. If a document is indexed with more than one value for that field, the indexing request is rejected.
+By default, all fields allow multiple values per document. In columnar indices, you can restrict a field to at most one value per document by setting `multi_value: false` in the `doc_values` object. If a document is indexed with more than one value for that field, the indexing request is rejected by default. You can change this behavior with the [`on_failure`](#doc-values-on-failure) parameter.
 
 ```console
 PUT my-index-000001
@@ -115,11 +115,11 @@ serverless: preview
 ```
 
 ::::{note}
-This setting requires a [`columnar`](/reference/columnar/index.md) mode index.
+This setting requires a [`columnar`](/reference/elasticsearch/columnar/index.md) mode index.
 ::::
 
 
-By default, all fields allow missing or null values. In columnar indices, you can require a field to always carry a value by setting `nullability: false` in the `doc_values` object. If a document is indexed without a value for the field, or with an explicit `null`, the indexing request is rejected.
+By default, all fields allow missing or null values. In columnar indices, you can require a field to always carry a value by setting `nullability: false` in the `doc_values` object. If a document is indexed without a value for the field, or with an explicit `null`, the indexing request is rejected by default. You can change this behavior with the [`on_failure`](#doc-values-on-failure) parameter.
 
 ```console
 PUT my-index-000001
@@ -141,6 +141,92 @@ If `null_value` is also defined on the field, it serves as a sentinel value for 
 
 The index-level setting `index.mapping.doc_values.nullability` will control the default for all fields in the index. It will default to `true` (null values allowed).
 
+## Handling constraint violations [doc-values-on-failure]
+
+```{applies_to}
+stack: preview 9.6
+serverless: preview
+```
+
+::::{note}
+This setting requires a [`columnar`](/reference/elasticsearch/columnar/index.md) mode index.
+::::
+
+The `on_failure` sub-parameter of `doc_values` controls what happens when a document violates a `multi_value: false` or `nullability: false` constraint. Valid values are `fail` (default) and `ignore`.
+
+```console
+PUT my-index-000001
+{
+  "settings": { "mode": "columnar" },
+  "mappings": {
+    "properties": {
+      "status_code": { <1>
+        "type": "keyword",
+        "doc_values": {
+          "multi_value": false,
+          "on_failure": "fail"
+        }
+      },
+      "tags": { <2>
+        "type": "keyword",
+        "doc_values": {
+          "multi_value": false,
+          "on_failure": "ignore"
+        }
+      }
+    }
+  }
+}
+```
+
+1. The `status_code` field rejects any document that contains more than one value.
+2. The `tags` field accepts documents that contain multiple values. Only the first value is searchable; the remaining values are kept so that `_source` can still return the original array.
+
+### `on_failure: fail` (default) [doc-values-on-failure-fail]
+
+The whole indexing request for that document is rejected with an error:
+
+- For a `multi_value: false` violation: `Field [x] is configured with [multi_value=false] but encountered multiple values in the same document`
+- For a `nullability: false` violation: `Field(s) [x] are configured with [nullability=false] but no value was provided`
+
+### `on_failure: ignore` [doc-values-on-failure-ignore]
+
+The document is accepted. The behavior depends on which constraint was violated:
+
+- **`multi_value: false`**: The first value is stored in the field's doc values. Each additional value is moved to a hidden per-field `<field>._on_failure` column. The field name is recorded in [`_ignored`](/reference/elasticsearch/mapping-reference/mapping-ignored-field.md).
+- **`nullability: false`**: The missing field is recorded in `_ignored`. There is no value to redirect.
+
+::::{warning}
+Redirected values are visible in [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) only. The failure column is **not** searchable, not returned by the `fields` API, and not visible to aggregations or ES|QL — the field continues to present itself as single-valued to all of those paths. Only the first value per document participates in search, aggregation, and ES|QL queries.
+::::
+
+The following example demonstrates the round-trip. Indexing `["val1","val2","val3"]` into a field mapped with `multi_value: false, on_failure: ignore` keeps `val1` as the queryable doc value and redirects `val2` and `val3` to the sidecar. The `_source` reconstruction returns all three values in their original order; `_ignored` records the field name; and a `term` query on the redirected values finds no documents:
+
+```console
+PUT my-on-failure-index
+{
+  "settings": { "mode": "columnar" },
+  "mappings": {
+    "properties": {
+      "kw": {
+        "type": "keyword",
+        "doc_values": { "multi_value": false, "on_failure": "ignore" }
+      }
+    }
+  }
+}
+
+PUT my-on-failure-index/_doc/1
+{ "kw": ["val1", "val2", "val3"] }
+
+GET my-on-failure-index/_doc/1?stored_fields=_ignored
+```
+% TEST[skip:requires the doc_values_on_failure feature flag]
+
+The response returns `_source.kw: ["val1","val2","val3"]` and `_ignored: ["kw"]`. A `term` query on `val2` or `val3` returns zero hits.
+
+The index-level setting `index.mapping.doc_values.on_failure` controls the default for all fields in the index. It defaults to `fail`. A field-level value overrides the index setting. Neither can be changed after index creation.
+
 ## Multi-valued doc values ordering
 
 {{es}} supports storing multi-valued fields at index time. Multi-valued fields can be provided as a JSON array. However in the doc values format, the values aren't stored in the order as was provided at index time. Additionally, duplicates and null values might be lost.
@@ -157,7 +243,7 @@ stack: ga 9.3
 Doc values skippers are an additional data structure on doc values fields that store summary information for multi-level blocks of documents (currently minimum value, maximum value and doc count).
 They can assist fast querying and aggregation over a field without the need for a terms or points index structure, significantly reducing its disk footprint. This is particularly true when the field in question is correlated with the index sort.  For example, timestamp filtered queries in time series indexes can use skippers to filter out large blocks of documents without having to inspect individual field values.
 
-Skippers can be enabled for all fields in an index that are marked as `doc_values: true` and `index: false` by using the index-level setting `index.mapping.use_doc_values_skippers`.  They are enabled by default for [`time_series`](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-mode) and [`columnar`](/reference/columnar/index.md) index modes.
+Skippers can be enabled for all fields in an index that are marked as `doc_values: true` and `index: false` by using the index-level setting `index.mapping.use_doc_values_skippers`.  They are enabled by default for [`time_series`](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-mode) and [`columnar`](/reference/elasticsearch/columnar/index.md) index modes.
 
 
 

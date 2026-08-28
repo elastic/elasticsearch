@@ -42,13 +42,13 @@
 ///     a timestamp is extracted from each CC and the most recent timestamp per BCC is used to backfill all the regions stamped
 ///     {@code BACKFILL_IN_PROGRESS_TIMESTAMP}. CCs with no timestamp range resolve to minimal real timestamp.
 ///
-///   - Offline prewarming, driven by [org.elasticsearch.xpack.stateless.StatelessIndexEventListener] through
+///   - Offline prewarming, driven by [org.elasticsearch.xpack.stateless.StatelessSearchNodeRecoveryListener] through
 ///     [org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService#warmBlobOffsets], uses a single timestamp per blob,
 ///     applied uniformly to every warmed region of that blob (the whole range from the start of the blob to the computed end). The
 ///     per-blob value is the most recent known timestamp among the CCs referenced in that blob, so it can over-approximate the age of
 ///     older regions in the blob.
 ///
-///   - Recovery header warming, also driven by [org.elasticsearch.xpack.stateless.StatelessIndexEventListener] through
+///   - Recovery header warming, also driven by [org.elasticsearch.xpack.stateless.StatelessSearchNodeRecoveryListener] through
 ///     [org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService], resolves a single per-CC timestamp for each
 ///     Lucene file being fetched and applies to all regions covering that file. When several files share a region, the first file to
 ///     populate the region sets its timestamp.

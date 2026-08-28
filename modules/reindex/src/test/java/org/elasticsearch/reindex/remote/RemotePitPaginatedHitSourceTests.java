@@ -27,7 +27,6 @@ import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.client.HeapBufferedAsyncResponseConsumer;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.ParsingException;
@@ -38,8 +37,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
@@ -152,9 +149,7 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
     }
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initThreadPool() throws Exception {
         threadPool = new TestThreadPool(getTestName()) {
             @Override
             public ExecutorService executor(String name) {
@@ -179,9 +174,7 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void cleanup() throws Exception {
         terminate(threadPool);
     }
 
@@ -558,9 +551,7 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
                 any(FutureCallback.class)
             )
         ).then((Answer<Future<HttpResponse>>) invocationOnMock -> {
-            HeapBufferedAsyncResponseConsumer consumer = (HeapBufferedAsyncResponseConsumer) invocationOnMock.getArguments()[1];
             FutureCallback callback = (FutureCallback) invocationOnMock.getArguments()[3];
-            assertEquals(ByteSizeValue.of(100, ByteSizeUnit.MB).bytesAsInt(), consumer.getBufferLimit());
             callback.failed(tooLong);
             return null;
         });

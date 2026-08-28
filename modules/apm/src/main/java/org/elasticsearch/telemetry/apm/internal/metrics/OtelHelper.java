@@ -63,6 +63,23 @@ class OtelHelper {
         String metricName,
         Supplier<Collection<DoubleWithAttributes>> observer
     ) {
+        return doubleCallback(metricName, observer, false);
+    }
+
+    // Async counters skip 0-valued observations: an unobserved series is dropped by the SDK, matching the APM agent (which did
+    // not emit idle counters). Gauges keep 0, since for a gauge 0 is a real value.
+    static Consumer<ObservableDoubleMeasurement> doubleCounterMeasurementCallback(
+        String metricName,
+        Supplier<Collection<DoubleWithAttributes>> observer
+    ) {
+        return doubleCallback(metricName, observer, true);
+    }
+
+    private static Consumer<ObservableDoubleMeasurement> doubleCallback(
+        String metricName,
+        Supplier<Collection<DoubleWithAttributes>> observer,
+        boolean suppressZeroValues
+    ) {
         return measurement -> {
             Collection<DoubleWithAttributes> observations;
             try {
@@ -77,6 +94,9 @@ class OtelHelper {
             }
             for (DoubleWithAttributes observation : observations) {
                 if (observation != null) {
+                    if (suppressZeroValues && observation.value() == 0.0) {
+                        continue;
+                    }
                     measurement.record(observation.value(), OtelHelper.fromMap(metricName, observation.attributes()));
                 }
             }
@@ -86,6 +106,21 @@ class OtelHelper {
     static Consumer<ObservableLongMeasurement> longMeasurementCallback(
         String metricName,
         Supplier<Collection<LongWithAttributes>> observer
+    ) {
+        return longCallback(metricName, observer, false);
+    }
+
+    static Consumer<ObservableLongMeasurement> longCounterMeasurementCallback(
+        String metricName,
+        Supplier<Collection<LongWithAttributes>> observer
+    ) {
+        return longCallback(metricName, observer, true);
+    }
+
+    private static Consumer<ObservableLongMeasurement> longCallback(
+        String metricName,
+        Supplier<Collection<LongWithAttributes>> observer,
+        boolean suppressZeroValues
     ) {
         return measurement -> {
             Collection<LongWithAttributes> observations;
@@ -101,6 +136,9 @@ class OtelHelper {
             }
             for (LongWithAttributes observation : observations) {
                 if (observation != null) {
+                    if (suppressZeroValues && observation.value() == 0L) {
+                        continue;
+                    }
                     measurement.record(observation.value(), OtelHelper.fromMap(metricName, observation.attributes()));
                 }
             }

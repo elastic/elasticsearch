@@ -11,7 +11,7 @@
 
 hivePartitionStatsByLang
 required_capability: dataset_in_from_command
-dataset: employees_hive_brackets: "{{employees_hive}}" WITH {"multi_value_syntax": "brackets"}
+dataset: employees_hive_brackets: "{{employees_hive}}" WITH {"partition_detection": "auto", "multi_value_syntax": "brackets"}
 
 FROM employees_hive_brackets
 | STATS count = COUNT(*) BY lang
@@ -28,7 +28,7 @@ count:long | lang:integer
 
 hivePartitionWhereIsNull
 required_capability: dataset_in_from_command
-dataset: employees_hive_brackets: "{{employees_hive}}" WITH {"multi_value_syntax": "brackets"}
+dataset: employees_hive_brackets: "{{employees_hive}}" WITH {"partition_detection": "auto", "multi_value_syntax": "brackets"}
 
 FROM employees_hive_brackets
 | WHERE lang IS NULL
@@ -40,7 +40,7 @@ count:long
 
 hivePartitionWhereEquals
 required_capability: dataset_in_from_command
-dataset: employees_hive_brackets: "{{employees_hive}}" WITH {"multi_value_syntax": "brackets"}
+dataset: employees_hive_brackets: "{{employees_hive}}" WITH {"partition_detection": "auto", "multi_value_syntax": "brackets"}
 
 FROM employees_hive_brackets
 | WHERE lang == 3
@@ -52,7 +52,7 @@ count:long
 
 hivePartitionWhereIsNotNull
 required_capability: dataset_in_from_command
-dataset: employees_hive_brackets: "{{employees_hive}}" WITH {"multi_value_syntax": "brackets"}
+dataset: employees_hive_brackets: "{{employees_hive}}" WITH {"partition_detection": "auto", "multi_value_syntax": "brackets"}
 
 FROM employees_hive_brackets
 | WHERE lang IS NOT NULL
@@ -67,7 +67,7 @@ count:long
 // M rows per partition: 9+11+11+8+7=46 (lang=1,2,4,5,null), plus 17 lang=3.
 hivePartitionOrNonPartitionFilter
 required_capability: dataset_in_from_command
-dataset: employees_hive_brackets: "{{employees_hive}}" WITH {"multi_value_syntax": "brackets"}
+dataset: employees_hive_brackets: "{{employees_hive}}" WITH {"partition_detection": "auto", "multi_value_syntax": "brackets"}
 
 FROM employees_hive_brackets
 | WHERE lang == 3 OR gender == "M"
@@ -86,7 +86,7 @@ count:long
 hivePartitionNotOrFilter
 required_capability: dataset_in_from_command
 required_capability: external_csv_empty_string_not_null
-dataset: employees_hive_brackets: "{{employees_hive}}" WITH {"multi_value_syntax": "brackets"}
+dataset: employees_hive_brackets: "{{employees_hive}}" WITH {"partition_detection": "auto", "multi_value_syntax": "brackets"}
 
 FROM employees_hive_brackets
 | WHERE NOT (lang == 3 OR gender == "M")
@@ -101,7 +101,7 @@ count:long
 // survives (NULL AND FALSE = FALSE → NOT FALSE = TRUE; 3 rows).
 hivePartitionNotAndFilter
 required_capability: dataset_in_from_command
-dataset: employees_hive_brackets: "{{employees_hive}}" WITH {"multi_value_syntax": "brackets"}
+dataset: employees_hive_brackets: "{{employees_hive}}" WITH {"partition_detection": "auto", "multi_value_syntax": "brackets"}
 
 FROM employees_hive_brackets
 | WHERE NOT (lang == 3 AND gender == "M")
@@ -117,7 +117,7 @@ count:long
 hivePartitionStatsByLangAndGender
 required_capability: dataset_in_from_command
 required_capability: external_csv_empty_string_not_null
-dataset: employees_hive_brackets: "{{employees_hive}}" WITH {"multi_value_syntax": "brackets"}
+dataset: employees_hive_brackets: "{{employees_hive}}" WITH {"partition_detection": "auto", "multi_value_syntax": "brackets"}
 
 FROM employees_hive_brackets
 | STATS count = COUNT(*) BY lang, gender
@@ -144,7 +144,7 @@ count:long | lang:integer | gender:keyword
 
 hivePartitionConsistentWithPayload
 required_capability: dataset_in_from_command
-dataset: employees_hive_brackets: "{{employees_hive}}" WITH {"multi_value_syntax": "brackets"}
+dataset: employees_hive_brackets: "{{employees_hive}}" WITH {"partition_detection": "auto", "multi_value_syntax": "brackets"}
 
 FROM employees_hive_brackets
 | WHERE lang IS NULL AND languages IS NULL

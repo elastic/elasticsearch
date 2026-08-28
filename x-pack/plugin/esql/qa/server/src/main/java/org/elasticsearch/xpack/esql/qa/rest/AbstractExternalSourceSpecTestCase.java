@@ -276,12 +276,45 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         }
         List<Object[]> baseTests = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
         List<Object[]> out = new ArrayList<>();
+        int pinned = 0;
         for (Object[] baseTest : baseTests) {
             for (Map<String, String> vector : vectors) {
+                if (directivePins(baseTest, dimensions.directiveSettings(vector))) {
+                    pinned++;
+                    continue;
+                }
                 out.add(appendVectorAndBackend(dimensions, baseTest, vector));
             }
         }
+        // Counted and logged, never silent: a filtered pair is a combination deliberately not run, and
+        // the number is the only way to tell that from a combination nobody thought of.
+        if (pinned > 0) {
+            logger.info("vector crossing: {} registered, {} filtered as directive-pinned", out.size(), pinned);
+        }
         return out;
+    }
+
+    /**
+     * Whether the case already pins any key the vector would inject.
+     *
+     * <p>Such a pair must not register. {@code injectSetting} deliberately leaves a directive that
+     * already declares a key alone, so the vector's value would never land -- and the case would pass
+     * under a name claiming a configuration it never ran. That is the silent misbind this contract
+     * exists to catch, and here it would be manufactured by the crossing itself.
+     */
+    private static boolean directivePins(Object[] baseTest, Map<String, String> vectorSettings) {
+        if (vectorSettings.isEmpty()) {
+            return false;
+        }
+        CsvTestCase testCase = (CsvTestCase) baseTest[4];
+        for (DatasetSource source : testCase.datasetSources) {
+            for (String key : vectorSettings.keySet()) {
+                if (DatasetRegistry.declaresSetting(source.withJson(), key)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**

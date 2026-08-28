@@ -53,7 +53,8 @@ public final class FixtureMatrix {
     private static final List<Pattern> KNOWN_KEYS = List.of(
         Pattern.compile("formats"),
         Pattern.compile("dataset\\.[a-z0-9_]+"),
-        Pattern.compile("dataset\\.[a-z0-9_]+\\.(reason|write_dialect)"),
+        Pattern.compile("dataset\\.[a-z0-9_]+\\.(reason|write_dialect|unrepresentable_dialects)"),
+        Pattern.compile("dataset\\.[a-z0-9_]+\\.unrepresentable_dialects\\.reason"),
         Pattern.compile("layout\\.[a-z_]+\\.(dir|glob|sources|derived_from|bucket_by|partition_column)"),
         Pattern.compile("layout\\.[a-z_]+\\.sources\\.[a-z0-9-]+"),
         Pattern.compile("layout\\.[a-z_]+\\.sources\\.[a-z0-9-]+\\.reason"),
@@ -375,6 +376,34 @@ public final class FixtureMatrix {
      * directory that no suite loaded still counted as a consumer -- which reported the csv column covered
      * for hive_shadow while zero shadow cases ran on any CSV suite.
      */
+    /**
+     * The dialects that cannot carry a dataset at all, from {@code dataset.<n>.unrepresentable_dialects}.
+     *
+     * <p>A property of the DATA, not of a format: a bracket cell holds commas, so no layout derived from
+     * that source can be written in a dialect without quoting. The generator skips these cells under this
+     * licence; an undeclared unrepresentable value makes the renderer throw instead, so the difference
+     * between "we decided" and "we did not notice" stays visible.
+     */
+    public Set<String> unrepresentableDialects(String dataset) {
+        String declared = declaration.getProperty("dataset." + dataset + ".unrepresentable_dialects");
+        if (declared == null) {
+            return Set.of();
+        }
+        if (declaration.getProperty("dataset." + dataset + ".unrepresentable_dialects.reason") == null) {
+            throw new IllegalStateException(
+                "dataset [" + dataset + "] declares unrepresentable dialects with no reason; an unexplained skip is an oversight"
+            );
+        }
+        Set<String> dialects = new LinkedHashSet<>();
+        for (String name : declared.split(",")) {
+            String trimmed = name.trim();
+            if (trimmed.isEmpty() == false) {
+                dialects.add(trimmed);
+            }
+        }
+        return dialects;
+    }
+
     /**
      * The seams a suite can serve, from {@code suite.<token>.seams}.
      *

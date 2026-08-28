@@ -21,7 +21,7 @@ dataset: employees_multifile_ubn_ffw_skip: "{{employees_multifile_ubn}}" WITH {"
 
 FROM employees_multifile_ubn_ffw_skip
 | SORT name ASC;
-warningRegex:CSV read from \[.*multifile_ubn_b\.csv\] encountered parse errors handled per policy.*
+warningRegex:CSV read from \[.*multifile_ubn_b\.csv[^]]*\] encountered parse errors handled per policy.*
 warningRegex:Row \[\d+\] error: (CSV row has \[3\] columns but schema defines \[2\] columns|Failed to parse CSV value \[.*\] as \[INTEGER\]).*
 
 name:keyword | age:integer
@@ -37,7 +37,7 @@ dataset: employees_multifile_ubn_ffw_skip: "{{employees_multifile_ubn}}" WITH {"
 
 FROM employees_multifile_ubn_ffw_skip
 | STATS count = COUNT(*);
-warningRegex:CSV read from \[.*multifile_ubn_b\.csv\] encountered parse errors handled per policy.*
+warningRegex:CSV read from \[.*multifile_ubn_b\.csv[^]]*\] encountered parse errors handled per policy.*
 warningRegex:Row \[\d+\] error: (CSV row has \[3\] columns but schema defines \[2\] columns|Failed to parse CSV value \[.*\] as \[INTEGER\]).*
 
 count:long
@@ -53,7 +53,7 @@ dataset: employees_multifile_ubn_ffw_skip: "{{employees_multifile_ubn}}" WITH {"
 FROM employees_multifile_ubn_ffw_skip
 | WHERE age IS NOT NULL
 | SORT name ASC;
-warningRegex:CSV read from \[.*multifile_ubn_b\.csv\] encountered parse errors handled per policy.*
+warningRegex:CSV read from \[.*multifile_ubn_b\.csv[^]]*\] encountered parse errors handled per policy.*
 warningRegex:Row \[\d+\] error: (CSV row has \[3\] columns but schema defines \[2\] columns|Failed to parse CSV value \[.*\] as \[INTEGER\]).*
 
 name:keyword | age:integer
@@ -79,7 +79,7 @@ dataset: employees_type_drift_ffw_null: "{{employees_multifile_type_drift}}" WIT
 
 FROM employees_type_drift_ffw_null
 | SORT id ASC;
-warningRegex:CSV read from \[.*multifile_type_drift_b\.csv\] encountered parse errors handled per policy.*
+warningRegex:CSV read from \[.*multifile_type_drift_b\.csv[^]]*\] encountered parse errors handled per policy.*
 warningRegex:Row \[\d+\] field \[col\] value \[.*\]: Failed to parse CSV value \[.*\] as \[INTEGER\].*
 
 id:integer | col:integer | note:keyword
@@ -100,7 +100,7 @@ dataset: employees_type_drift_ffw_null: "{{employees_multifile_type_drift}}" WIT
 FROM employees_type_drift_ffw_null
 | WHERE col IS NOT NULL
 | SORT id ASC;
-warningRegex:CSV read from \[.*multifile_type_drift_b\.csv\] encountered parse errors handled per policy.*
+warningRegex:CSV read from \[.*multifile_type_drift_b\.csv[^]]*\] encountered parse errors handled per policy.*
 warningRegex:Row \[\d+\] field \[col\] value \[.*\]: Failed to parse CSV value \[.*\] as \[INTEGER\].*
 
 id:integer | col:integer | note:keyword
@@ -117,7 +117,7 @@ dataset: employees_type_drift_ffw_null: "{{employees_multifile_type_drift}}" WIT
 
 FROM employees_type_drift_ffw_null
 | STATS count = COUNT(*), non_null_col = COUNT(col);
-warningRegex:CSV read from \[.*multifile_type_drift_b\.csv\] encountered parse errors handled per policy.*
+warningRegex:CSV read from \[.*multifile_type_drift_b\.csv[^]]*\] encountered parse errors handled per policy.*
 warningRegex:Row \[\d+\] field \[col\] value \[.*\]: Failed to parse CSV value \[.*\] as \[INTEGER\].*
 
 count:long | non_null_col:long

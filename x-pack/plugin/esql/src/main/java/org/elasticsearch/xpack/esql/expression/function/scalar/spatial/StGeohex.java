@@ -314,15 +314,44 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
     }
 
     public static BytesRef toBounds(long gridId) {
-        return fromCellBoundary(H3.h3ToGeoBoundary(gridId));
+        LatLng center = H3.h3ToLatLng(gridId);
+        return fromCellBoundary(H3.h3ToGeoBoundary(gridId), center.getLonDeg());
     }
 
-    private static BytesRef fromCellBoundary(CellBoundary cell) {
+    /**
+     * Converts an H3 {@link CellBoundary} to a WKB-encoded {@link Polygon}.
+     *
+     * <p>H3 cells near the antimeridian (dateline) can have vertices whose longitudes span both
+     * sides of ±180°. Such polygons render incorrectly in map clients (e.g. Kibana) because the
+     * straight line drawn between, say, +175° and −175° crosses the entire map rather than the
+     * short arc across the dateline.
+     *
+     * <p>To fix this, each vertex longitude is adjusted so that it lies within ±180° of the cell
+     * centre longitude. Concretely: if {@code lon - centerLon > 180} the vertex is shifted west by
+     * 360°; if {@code lon - centerLon < -180} it is shifted east by 360°. This keeps all vertices
+     * in a contiguous range centred on {@code centerLon} and may produce longitudes outside
+     * [−180, 180] (e.g. 190° or −190°) for cells that straddle the antimeridian. That is
+     * intentional — the ESQL response path converts WKB to WKT without coordinate validation, so
+     * the extended values reach the map client as-is.
+     *
+     * @param cell      the H3 cell boundary
+     * @param centerLon the longitude of the H3 cell centre, used as the reference for normalisation
+     */
+    private static BytesRef fromCellBoundary(CellBoundary cell, double centerLon) {
         double[] x = new double[cell.numPoints() + 1];
         double[] y = new double[cell.numPoints() + 1];
         for (int i = 0; i < cell.numPoints(); i++) {
             LatLng vertex = cell.getLatLon(i);
-            x[i] = vertex.getLonDeg();
+            double lon = vertex.getLonDeg();
+            // Bring the vertex within ±180° of the cell centre. This correctly handles cells
+            // near the antimeridian (dateline) regardless of which side the centre is on, and
+            // does not disturb cells near the prime meridian.
+            if (lon - centerLon > 180.0) {
+                lon -= 360.0;
+            } else if (lon - centerLon < -180.0) {
+                lon += 360.0;
+            }
+            x[i] = lon;
             y[i] = vertex.getLatDeg();
         }
         x[cell.numPoints()] = x[0];

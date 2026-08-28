@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 155009
+summary: Parallelize newline split discovery for large external text files
+type: bug

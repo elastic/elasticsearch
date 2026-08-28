@@ -18,6 +18,7 @@ import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -178,6 +179,34 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         try {
             assertThat(names(expanded), equalTo(List.of(INT_ATTR)));
             assertThat(nonNullRows(expanded), contains(matchesMap().entry(INT_ATTR, 1), matchesMap().entry(INT_ATTR, 2)));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testExpansionStaysBeforeApproximationColumns() {
+        BlockFactory bf = blockFactory();
+        String ci = ApproximationPlan.CONFIDENCE_INTERVAL_COLUMN_PREFIX + "extra)";
+        String certified = ApproximationPlan.CERTIFIED_COLUMN_PREFIX + "extra)";
+        Result result = result(
+            List.of(intAttr(), unmappedAttr(), keywordAttr("extra"), keywordAttr(ci), keywordAttr(certified)),
+            List.of(page(bf, List.of(row(1, jsonObject("{'pet':'Rex','city':'Berlin'}"), "after", "ci", "yes"))))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "extra", "city", "pet", ci, certified)));
+            assertThat(
+                nonNullRows(expanded),
+                contains(
+                    matchesMap().entry(INT_ATTR, 1)
+                        .entry("extra", "after")
+                        .entry("city", "Berlin")
+                        .entry("pet", "Rex")
+                        .entry(ci, "ci")
+                        .entry(certified, "yes")
+                )
+            );
         } finally {
             Releasables.close(expanded.pages());
         }

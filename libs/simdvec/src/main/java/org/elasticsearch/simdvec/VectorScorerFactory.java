@@ -69,6 +69,11 @@ public interface VectorScorerFactory {
     OptimizedScalarQuantization newOptimizedScalarQuantization();
 
     /**
+     * Create an instance for performing ASH spherical quantization
+     */
+    AshSphericalScalarQuantizer newAshSphericalScalarQuantizer(int bitsPerDim);
+
+    /**
      * Returns an optional containing a float vector score supplier
      * for the given parameters, or an empty optional if a scorer is not supported.
      *

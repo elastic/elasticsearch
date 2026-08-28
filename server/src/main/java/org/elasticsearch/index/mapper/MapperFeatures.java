@@ -85,6 +85,7 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature BBQ_DISK_SUPPORT = new NodeFeature("mapper.bbq_disk_support");
     public static final NodeFeature BBQ_DISK_BYTE_SUPPORT = new NodeFeature("mapper.bbq_disk_byte_support");
     public static final NodeFeature ASH_QUANTIZATION_TYPE_SUPPORT = new NodeFeature("mapper.ash_quantization_type_support");
+    public static final NodeFeature DISK_BBQ_STABLE_FORMAT_SELECTION = new NodeFeature("mapper.disk_bbq_stable_format_selection");
     public static final NodeFeature SEARCH_LOAD_PER_SHARD = new NodeFeature("mapper.search_load_per_shard");
     public static final NodeFeature PATTERN_TEXT = new NodeFeature("mapper.patterned_text");
     public static final NodeFeature IGNORED_SOURCE_FIELDS_PER_ENTRY = new NodeFeature("mapper.ignored_source_fields_per_entry");
@@ -128,6 +129,7 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.doc_values.extended_form_only_in_columnar"
     );
     public static final NodeFeature DOC_VALUES_NULLABILITY = new NodeFeature("mapper.doc_values.nullability");
+    public static final NodeFeature DOC_VALUES_ON_FAILURE = new NodeFeature("mapper.doc_values.on_failure");
     public static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX = new NodeFeature(
         "mapper.dense_vector.dynamic_template_nested_object_fix"
     );
@@ -264,7 +266,9 @@ public class MapperFeatures implements FeatureSpecification {
             DOC_VALUES_NULLABILITY,
             DUPLICATE_DYNAMIC_TEMPLATE_NAMES_WARNING,
             BBQ_DISK_BYTE_SUPPORT,
-            ASH_QUANTIZATION_TYPE_SUPPORT
+            ASH_QUANTIZATION_TYPE_SUPPORT,
+            DOC_VALUES_ON_FAILURE,
+            DISK_BBQ_STABLE_FORMAT_SELECTION
         );
     }
 }

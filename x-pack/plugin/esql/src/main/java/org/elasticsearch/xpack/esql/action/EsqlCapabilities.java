@@ -1634,6 +1634,12 @@ public class EsqlCapabilities {
         USAGE_CONTAINS_TOOK,
 
         /**
+         * Does the usage information for ESQL contain datasource telemetry (storage, query, discovery,
+         * parse counters and histograms, plus cluster-state inventory counts)?
+         */
+        USAGE_CONTAINS_DATASOURCES,
+
+        /**
          * Support loading of ip fields if they are not indexed.
          */
         LOADING_NON_INDEXED_IP_FIELDS,
@@ -2885,8 +2891,7 @@ public class EsqlCapabilities {
         /**
          * Support for projecting nested STRUCT subfields (e.g. {@code event.action}) from
          * Parquet (Java) and ORC external sources. Gated so format readers that do not yet
-         * implement nested support (parquet-rs, csv, ndjson, etc.) skip the csv-spec tests
-         * until they catch up.
+         * implement nested support (csv, ndjson, etc.) skip the csv-spec tests until they catch up.
          *
          * <p>Tracks: elastic/esql-planning#435 (this PR) and elastic/esql-planning#320
          * (correctness gap for Parquet-Java MAP/STRUCT/nested LIST).
@@ -3386,6 +3391,12 @@ public class EsqlCapabilities {
          * count. Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL} is available.
          */
         OPTIONAL_FIELDS_LOAD_ALL_NET_ZERO_PROJECTION(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
+
+        /**
+         * Support for {@code INLINE STATS} under {@code unmapped_fields="LOAD_ALL"}. Only meaningful when
+         * {@link #OPTIONAL_FIELDS_LOAD_ALL} is available.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_INLINE_STATS(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
 
         /**
          * Support for {@code STATS} under {@code unmapped_fields="LOAD_ALL"}.

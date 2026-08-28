@@ -436,15 +436,10 @@ public class ArchiveTests extends PackagingTestCase {
     /**
      * Checks that a <code>JAVA_HOME</code> whose value contains parentheses -- for example
      * <code>C:\Program Files (x86)\jdk</code> -- does not break the Windows scripts.
+     * <code>JAVA_HOME</code> is ignored (only a warning is emitted), so it must never abort a tool.
      * <p>
-     * <code>cmd.exe</code> expands <code>%VAR%</code> before it matches parentheses, so an unquoted expansion
-     * inside an <code>if defined ... ( ... )</code> block lets the <code>)</code> in the value terminate the
-     * block, and the script aborts with exit code 255. <code>JAVA_HOME</code> is only ever reported in a
-     * warning and is otherwise ignored, so it must never be able to stop a tool from running.
-     * <p>
-     * {@link #test64JavaHomeWithSpecialCharacters} covers the same path for <code>ES_JAVA_HOME</code>, whose
-     * expansion is quoted; this test covers <code>JAVA_HOME</code>, whose expansion is not. Windows only: on
-     * Linux the value is quoted and parentheses are not special to the shell there.
+     * {@link #test64JavaHomeWithSpecialCharacters} covers <code>ES_JAVA_HOME</code>; this covers
+     * <code>JAVA_HOME</code>. Windows only.
      */
     public void test67JavaHomeWithParenthesesIgnored() throws Exception {
         assumeTrue(distribution().hasJdk);
@@ -474,7 +469,8 @@ public class ArchiveTests extends PackagingTestCase {
                 Result result = sh.run(pluginListCommand);
                 assertThat(result.exitCode(), equalTo(0));
 
-                // if the node started with the bundled JDK then we know that JAVA_HOME was ignored, not honoured
+                // JAVA_HOME points at the symlinked JDK above, a different JDK than the bundled one; the
+                // bundled JDK path in the startup log therefore confirms JAVA_HOME was ignored, not honoured
                 String bundledJdk = installation.bundledJdk.toString();
                 assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"), containsString(bundledJdk));
             } finally {

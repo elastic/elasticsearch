@@ -98,7 +98,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -167,11 +166,6 @@ public class MetadataCreateIndexService {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MetadataCreateIndexService.class);
 
     public static final int MAX_INDEX_NAME_BYTES = 255;
-
-    /**
-     * Name of the setting used to allow blocking refreshes on newly created indices.
-     */
-    public static final String USE_INDEX_REFRESH_BLOCK_SETTING_NAME = "stateless.indices.use_refresh_block_upon_index_creation";
 
     @FunctionalInterface
     interface ClusterBlocksTransformer {
@@ -997,6 +991,7 @@ public class MetadataCreateIndexService {
             xContentRegistry,
             request.index()
         );
+        request.setMatchingTemplate(template);
         final Settings aggregatedIndexSettings = aggregateIndexSettings(
             metadata,
             projectMetadata,
@@ -1368,11 +1363,11 @@ public class MetadataCreateIndexService {
 
         final Settings.Builder indexSettingsBuilder = Settings.builder();
         if (sourceMetadata == null) {
-            final IndexMode templateIndexMode = Optional.of(request)
-                .filter(r -> r.isFailureIndex() == false)
-                .map(CreateIndexClusterStateUpdateRequest::matchingTemplate)
-                .map(projectMetadata::retrieveIndexModeFromTemplate)
-                .orElse(null);
+            final ComposableIndexTemplate matchingTemplate = request.matchingTemplate();
+            final IndexMode templateIndexMode = request.isFailureIndex() || matchingTemplate == null
+                ? null
+                : projectMetadata.retrieveIndexModeFromTemplate(matchingTemplate);
+            final boolean registryInstalledTemplate = matchingTemplate != null && matchingTemplate.isRegistryInstalled();
 
             // Loop through all the explicit index setting providers, adding them to the
             // additionalIndexSettings map
@@ -1385,6 +1380,7 @@ public class MetadataCreateIndexService {
                     request.index(),
                     request.dataStreamName(),
                     templateIndexMode,
+                    registryInstalledTemplate,
                     projectMetadata,
                     resolvedAt,
                     templateAndRequestSettings,
@@ -2218,12 +2214,8 @@ public class MetadataCreateIndexService {
         }
     }
 
-    public static boolean useRefreshBlock(Settings settings) {
-        return DiscoveryNode.isStateless(settings) && settings.getAsBoolean(USE_INDEX_REFRESH_BLOCK_SETTING_NAME, true);
-    }
-
     static ClusterBlocksTransformer createClusterBlocksTransformerForIndexCreation(Settings settings) {
-        if (useRefreshBlock(settings) == false) {
+        if (DiscoveryNode.isStateless(settings) == false) {
             return (clusterBlocks, projectId, indexMetadata) -> {};
         }
         logger.debug("applying refresh block on index creation");
@@ -2247,7 +2239,7 @@ public class MetadataCreateIndexService {
     private boolean assertHasRefreshBlock(IndexMetadata indexMetadata, ProjectState state) {
         var hasRefreshBlock = state.blocks()
             .hasIndexBlock(state.projectId(), indexMetadata.getIndex().getName(), IndexMetadata.INDEX_REFRESH_BLOCK);
-        if (useRefreshBlock(settings) == false || applyRefreshBlock(indexMetadata) == false) {
+        if (DiscoveryNode.isStateless(settings) == false || applyRefreshBlock(indexMetadata) == false) {
             assert hasRefreshBlock == false : indexMetadata.getIndex();
         } else {
             assert hasRefreshBlock : indexMetadata.getIndex();

@@ -70,7 +70,7 @@ public abstract class AbstractFromDatasetSubqueryRestTestCase extends ESRestTest
     /**
      * {@code PUT /_query/dataset/<name>} bound to the supplied {@code data_source} + {@code resource}
      * URI. {@code settings} may carry {@code format} or any format-specific keys the validator
-     * accepts (e.g. {@code optimized_reader} for parquet, {@code delimiter} for csv). Delegates to
+     * accepts (e.g. {@code delimiter} for csv). Delegates to
      * {@link DatasetRegistry}.
      */
     protected static void putDataset(String name, String dataSource, String resource, Map<String, Object> settings) throws IOException {

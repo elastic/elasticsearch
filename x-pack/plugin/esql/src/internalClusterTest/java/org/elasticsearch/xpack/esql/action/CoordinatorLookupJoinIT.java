@@ -65,5 +65,15 @@ public class CoordinatorLookupJoinIT extends AbstractEsqlIntegTestCase {
             | KEEP key, country, info
             | SORT key
             """).close());
+
+        // NOT(full-text function) must also be rejected when it references lookup-side fields so
+        // the filter cannot be pushed to data nodes.
+        expectThrows(VerificationException.class, containsString(expectedError), () -> run("""
+            FROM data
+            | LOOKUP JOIN _coordinator:lookup ON key
+            | WHERE NOT match(country, "United States") OR info IS NOT NULL
+            | KEEP key, country, info
+            | SORT key
+            """).close());
     }
 }

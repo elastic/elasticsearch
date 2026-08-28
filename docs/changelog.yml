@@ -93,6 +93,7 @@ pivot:
     "CAT APIs": ":Data Management/CAT APIs"
     CCR: ":Distributed Indexing/CCR"
     CCS: ":Search Foundations/CCS"
+    Columnar: ":StorageEngine/Columnar"
     CRUD: ":Distributed Indexing/CRUD"
     Client: ":Security/Client"
     "Cluster coordination": ":Distributed Coordination/Cluster Coordination"
@@ -341,7 +342,6 @@ bundle:
     serverless-release:
       output: "cloud-serverless/elasticsearch-{version}.yaml"
       output_products: "cloud-serverless {version}"
-    #   # Feature IDs to hide when bundling with this profile (accepts string or list)
-    #   hide_features:
-    #     - feature-flag-1
-    #     - feature-flag-2
+      # Feature IDs to hide when bundling with this profile (accepts string or list)
+      hide_features:
+        - data-federation

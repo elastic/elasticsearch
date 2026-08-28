@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.action;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -58,7 +59,13 @@ public class GoogleVertexAiUnifiedChatCompletionActionTests extends ESTestCase {
     public void init() throws Exception {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityExecutors());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
+        clientManager = HttpClientManager.create(
+            Settings.EMPTY,
+            threadPool,
+            mockClusterServiceEmpty(),
+            mock(ThrottlerManager.class),
+            new TestCircuitBreaker()
+        );
     }
 
     @After
@@ -163,7 +170,7 @@ public class GoogleVertexAiUnifiedChatCompletionActionTests extends ESTestCase {
         var sender = mock(Sender.class);
         doThrow(exception).when(sender).send(any(), any(), any(), any());
 
-        var action = createAction(sender, provider, provider.getChatCompletionResponseHandler());
+        var action = createAction(sender, provider, provider.getChatCompletionResponseHandler(false));
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(createUnifiedChatInput(List.of("test query")), null, listener);
@@ -181,7 +188,7 @@ public class GoogleVertexAiUnifiedChatCompletionActionTests extends ESTestCase {
             return Void.TYPE;
         }).when(sender).send(any(), any(), any(), any());
 
-        var action = createAction(sender, provider, provider.getChatCompletionResponseHandler());
+        var action = createAction(sender, provider, provider.getChatCompletionResponseHandler(false));
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(createUnifiedChatInput(List.of("test query")), null, listener);

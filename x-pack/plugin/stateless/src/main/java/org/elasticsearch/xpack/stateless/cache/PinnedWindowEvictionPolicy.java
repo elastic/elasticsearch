@@ -12,11 +12,11 @@ import org.elasticsearch.blobcache.shared.EvictionPolicy;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 import java.util.Objects;
@@ -44,15 +44,15 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
     );
 
     private final Predicate<ShardId> hasShardPredicate;
-    private final ThreadPool threadPool;
+    private final TimeProvider timeProvider;
 
     private volatile TimeValue pinnedWindowDuration;
 
     private final Releasable releasePinnedWindowDurationUpdater;
 
-    public PinnedWindowEvictionPolicy(ClusterSettings clusterSettings, ThreadPool threadPool, Predicate<ShardId> hasShardPredicate) {
+    public PinnedWindowEvictionPolicy(ClusterSettings clusterSettings, TimeProvider timeProvider, Predicate<ShardId> hasShardPredicate) {
         this.hasShardPredicate = Objects.requireNonNull(hasShardPredicate);
-        this.threadPool = Objects.requireNonNull(threadPool);
+        this.timeProvider = Objects.requireNonNull(timeProvider);
         this.pinnedWindowDuration = Objects.requireNonNull(clusterSettings).get(PINNED_WINDOW_DURATION_SETTING);
         this.releasePinnedWindowDurationUpdater = Releasables.releaseOnce(
             clusterSettings.addRemovableSettingsUpdateConsumer(PINNED_WINDOW_DURATION_SETTING, value -> this.pinnedWindowDuration = value)
@@ -70,8 +70,8 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
         return hasShardPredicate.test(shardId);
     }
 
-    protected long currentTimeMillis() {
-        return threadPool.absoluteTimeInMillis();
+    private long currentTimeMillis() {
+        return timeProvider.absoluteTimeInMillis();
     }
 
     /**

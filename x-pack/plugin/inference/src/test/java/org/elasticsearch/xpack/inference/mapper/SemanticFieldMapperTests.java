@@ -23,9 +23,9 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.DataType;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceString;
-import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.License;
@@ -81,7 +81,7 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase<Sem
         globalModelRegistry.putDefaultIdIfAbsent(
             new InferenceService.DefaultConfigId(
                 TEST_MODEL.getInferenceEntityId(),
-                new MinimalServiceSettings(TEST_MODEL),
+                new EndpointClusterState(TEST_MODEL),
                 mock(InferenceService.class)
             )
         );
@@ -304,7 +304,7 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase<Sem
                 newVersion
             );
             assertNotNull(mapperService);
-            assertSemanticField(mapperService, "my_field", false, new MinimalServiceSettings(TEST_MODEL), null, null);
+            assertSemanticField(mapperService, "my_field", false, new EndpointClusterState(TEST_MODEL), null, null);
         }
     }
 
@@ -327,7 +327,7 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase<Sem
         // Should not throw; model_settings provided to avoid consulting the model registry
         merge(mapperService, semanticMapping("my_field", TEST_MODEL.getInferenceEntityId()));
 
-        assertSemanticField(mapperService, "my_field", false, new MinimalServiceSettings(TEST_MODEL), null, null);
+        assertSemanticField(mapperService, "my_field", false, new EndpointClusterState(TEST_MODEL), null, null);
     }
 
     @Override

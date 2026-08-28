@@ -50,7 +50,7 @@ public class ElasticsearchOtelAppenderTests extends ESTestCase {
         exporter = InMemoryLogRecordExporter.create();
         provider = SdkLoggerProvider.builder().addLogRecordProcessor(SimpleLogRecordProcessor.create(exporter)).build();
         OpenTelemetrySdk sdk = OpenTelemetrySdk.builder().setLoggerProvider(provider).build();
-        appender = new ElasticsearchOtelAppender("test", sdk);
+        appender = new ElasticsearchOtelAppender("test", sdk, null);
         appender.start();
     }
 
@@ -289,6 +289,8 @@ public class ElasticsearchOtelAppenderTests extends ESTestCase {
         SpanContext spanCtx = record.getSpanContext();
         assertThat(spanCtx.isValid(), equalTo(true));
         assertThat(spanCtx.getTraceId(), equalTo(traceId));
+        // "trace.id" key must not appear as an attribute
+        assertThat(record.getAttributes().get(AttributeKey.stringKey("trace.id")), nullValue());
     }
 
     public void testMissingTraceIdLeavesInvalidSpanContext() {

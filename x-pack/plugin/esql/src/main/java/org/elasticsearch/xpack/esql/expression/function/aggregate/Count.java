@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
 import org.elasticsearch.compute.aggregation.DenseVectorCountAggregatorFunction;
@@ -29,12 +31,16 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramFraction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
@@ -44,15 +50,22 @@ import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 
-public class Count extends AggregateFunction implements ToAggregator, SurrogateExpression, AggregateMetricDoubleNativeSupport {
+public class Count extends AggregateFunction
+    implements
+        ToAggregator,
+        SurrogateExpression,
+        AggregateMetricDoubleNativeSupport,
+        OptionalArgument {
+    public static final TransportVersion ESQL_COUNT_HISTOGRAM_BUCKET = TransportVersion.fromName("esql_count_histogram_bucket");
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Count", Count::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Count.class)
-        .unary(Count::new)
-        .capabilities("flattened")
+        .binary(Count::new)
+        .capabilities("flattened", "histogram_bucket")
         .name("count");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .acrossSeries(Count::new)
@@ -107,7 +120,6 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
     public Count(
         Source source,
         @Param(
-            optional = true,
             name = "field",
             type = {
                 "aggregate_metric_double",
@@ -120,6 +132,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                 "date_range",
                 "dense_vector",
                 "double",
+                "double_range",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -135,17 +148,39 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                 "unsigned_long",
                 "version" },
             description = "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
-        ) Expression field
+        ) Expression field,
+        @Param(
+            optional = true,
+            name = "bucket",
+            type = { "double_range" },
+            description = "Range of histogram values to count."
+        ) Expression bucket
     ) {
-        this(source, field, Literal.TRUE, NO_WINDOW);
+        this(source, field, Literal.TRUE, NO_WINDOW, bucket);
+    }
+
+    public Count(Source source, Expression field) {
+        this(source, field, null);
     }
 
     public Count(Source source, Expression field, Expression filter, Expression window) {
-        super(source, field, filter, window, emptyList());
+        this(source, field, filter, window, null);
+    }
+
+    public Count(Source source, Expression field, Expression filter, Expression window, Expression bucket) {
+        super(source, field, filter, window, bucket == null ? emptyList() : List.of(bucket));
     }
 
     private Count(StreamInput in) throws IOException {
         super(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        if (bucket() != null && out.getTransportVersion().supports(ESQL_COUNT_HISTOGRAM_BUCKET) == false) {
+            throw new UnsupportedOperationException("version does not support count(histogram, bucket)");
+        }
+        super.writeTo(out);
     }
 
     @Override
@@ -155,17 +190,27 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
 
     @Override
     protected NodeInfo<Count> info() {
-        return NodeInfo.create(this, Count::new, field(), filter(), window());
+        return NodeInfo.create(this, Count::new, field(), filter(), window(), bucket());
     }
 
     @Override
     public AggregateFunction withFilter(Expression filter) {
-        return new Count(source(), field(), filter, window());
+        return new Count(source(), field(), filter, window(), bucket());
     }
 
     @Override
     public Count replaceChildren(List<Expression> newChildren) {
-        return new Count(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new Count(
+            source(),
+            newChildren.get(0),
+            newChildren.get(1),
+            newChildren.get(2),
+            newChildren.size() == 3 ? null : newChildren.get(3)
+        );
+    }
+
+    Expression bucket() {
+        return parameters().isEmpty() ? null : parameters().getFirst();
     }
 
     @Override
@@ -188,6 +233,16 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
 
     @Override
     protected TypeResolution resolveType() {
+        if (bucket() != null) {
+            return isType(
+                field(),
+                dt -> dt == EXPONENTIAL_HISTOGRAM || dt == DataType.TDIGEST,
+                sourceText(),
+                DEFAULT,
+                "exponential_histogram",
+                "tdigest"
+            ).and(isType(bucket(), dt -> dt == DataType.DOUBLE_RANGE, sourceText(), SECOND, "double_range"));
+        }
         return isType(
             field(),
             dt -> dt.isCounter() == false && dt != DataType.HISTOGRAM,
@@ -217,6 +272,23 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
     public Expression surrogate() {
         var s = source();
         var field = field();
+        if (bucket() != null) {
+            Expression count = new Coalesce(
+                s,
+                new ToLong(
+                    s,
+                    new HistogramFraction(
+                        s,
+                        new HistogramMerge(s, field, filter(), window()),
+                        bucket(),
+                        // Round cumulative counts before subtracting so errors cancel between adjacent buckets.
+                        Literal.integer(s, 0)
+                    )
+                ),
+                List.of(new Literal(s, 0L, DataType.LONG))
+            );
+            return new Case(s, new IsNotNull(s, bucket()), List.of(count));
+        }
         if (field.dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
             return new Coalesce(s, AggregateMetricDoubleSurrogate(this), List.of(new Literal(s, 0L, DataType.LONG)));
         }

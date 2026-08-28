@@ -20,6 +20,7 @@ import org.elasticsearch.common.FrequencyCappedAction;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.RatioValue;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -35,13 +36,14 @@ import static org.elasticsearch.cluster.BoostedAndUnboostedCacheRequirements.NO_
  * {@link Decision#NOT_PREFERRED} from {@link #canAllocate}, and deprioritizes leaving a search shard on a node whose shared cache is
  * already over-subscribed by returning {@link Decision#NOT_PREFERRED} from {@link #canRemain}. The decider reasons about the
  * boosted/unboosted cache commitment data recorded in {@link org.elasticsearch.cluster.ClusterInfo#getShardCacheRequirements()} and
- * {@link org.elasticsearch.cluster.ClusterInfo#getNodeCacheSizeAndCommitments()}. The decider as a whole is disabled by default via
- * {@link #ENABLED_SETTING}.
+ * {@link org.elasticsearch.cluster.ClusterInfo#getNodeCacheSizeAndCommitments()}. The decider as a whole is controlled by
+ * {@link #ENABLED_SETTING}, and is enabled in snapshot builds, such as CI, by the {@code shared_cache_capacity_decider} feature flag.
  */
 public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
 
     private static final Logger logger = LogManager.getLogger(SharedCacheCapacityAllocationDecider.class);
     public static final String NAME = "shared_cache_capacity";
+    private static final FeatureFlag SHARED_CACHE_CAPACITY_DECIDER_FEATURE_FLAG = new FeatureFlag("shared_cache_capacity_decider");
 
     /**
      * Whether the decider considers only boosted cache commitment, or the combined boosted and unboosted commitment, when comparing
@@ -78,7 +80,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
 
     public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting(
         "cluster.routing.allocation.shared_cache_capacity.enabled",
-        false,
+        SHARED_CACHE_CAPACITY_DECIDER_FEATURE_FLAG.isEnabled(),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -93,10 +95,11 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
 
     /**
      * The {@code canAllocate} threshold. Above this, the decider returns {@link Decision#NOT_PREFERRED} for new allocations.
+     * The default will be adjusted once there is more confidence after enabling this feature in snapshot builds, such as CI.
      */
     public static final Setting<RatioValue> LOW_WATERMARK_SETTING = new Setting<>(
         "cluster.routing.allocation.shared_cache_capacity.watermark.low",
-        "75%",
+        "99%",
         RatioValue::parseRatioValue,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -104,11 +107,11 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
 
     /**
      * The {@code canRemain} threshold. Above this, the decider returns {@link Decision#NOT_PREFERRED} for shards already allocated to
-     * the node.
+     * the node. The default will be adjusted once there is more confidence after enabling this feature in snapshot builds, such as CI.
      */
     public static final Setting<RatioValue> HIGH_WATERMARK_SETTING = new Setting<>(
         "cluster.routing.allocation.shared_cache_capacity.watermark.high",
-        "95%",
+        "100%",
         RatioValue::parseRatioValue,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -131,6 +134,18 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
     public static final Setting<TimeValue> MINIMUM_LOGGING_INTERVAL = Setting.timeSetting(
         "cluster.routing.allocation.shared_cache_capacity.log_interval",
         TimeValue.timeValueMinutes(1),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Rate-limits how often {@link SharedCacheCapacityMonitor} retries a reroute for nodes still over the high watermark. A newly
+     * observed watermark transition always reroutes immediately and is never subject to this interval.
+     */
+    public static final Setting<TimeValue> REROUTE_INTERVAL_SETTING = Setting.timeSetting(
+        "cluster.routing.allocation.shared_cache_capacity.reroute_interval",
+        TimeValue.timeValueSeconds(15),
+        TimeValue.ZERO,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

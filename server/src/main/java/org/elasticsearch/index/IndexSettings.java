@@ -29,6 +29,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -201,6 +202,20 @@ public final class IndexSettings {
     public static final Setting<Integer> MAX_ANALYZED_OFFSET_SETTING = Setting.intSetting(
         "index.highlight.max_analyzed_offset",
         1000000,
+        1,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    /**
+     * A setting describing the maximum number of fragments a highlight request may ask for. Highlighters size their
+     * internal structures according to the requested number of fragments, so an unbounded value lets a single request
+     * allocate enough memory to destabilize the node. The default of 10000 fragments is well above what is useful for
+     * presenting results to a user, while remaining cheap to allocate.
+     */
+    public static final Setting<Integer> MAX_NUMBER_OF_FRAGMENTS_SETTING = Setting.intSetting(
+        "index.highlight.max_number_of_fragments",
+        10000,
         1,
         Property.Dynamic,
         Property.IndexScope
@@ -1093,6 +1108,19 @@ public final class IndexSettings {
     }
 
     /**
+     * Controls whether the ColumNAR doc values codec is used for a given index, as an explicit opt-in.
+     * Defaults to {@code false}. This setting is only registered while the {@code columnar_codec} feature
+     * flag is enabled, so a release build without the flag does not expose it; the full gating is enforced
+     * in {@code ColumnarDocValuesFormatSelector}.
+     */
+    public static final Setting<Boolean> COLUMNAR_CODEC_ENABLED_SETTING = Setting.boolSetting(
+        "index.columnar_codec.enabled",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
      * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
      * TODO: Remove in 9.0
      */
@@ -1302,7 +1330,7 @@ public final class IndexSettings {
     private final Logger logger;
     private final String nodeName;
     private final Settings nodeSettings;
-    private final int numberOfShards;
+
     /**
      * The {@link IndexMode "mode"} of the index.
      */
@@ -1371,6 +1399,7 @@ public final class IndexSettings {
     private volatile float postFilterSelectivityThreshold;
     private volatile TimeValue searchIdleAfter;
     private volatile int maxAnalyzedOffset;
+    private volatile int maxNumberOfFragments;
     private volatile boolean weightMatchesEnabled;
     private volatile int maxTermsCount;
     private volatile String defaultPipeline;
@@ -1400,6 +1429,7 @@ public final class IndexSettings {
     private final boolean useTimeSeriesDocValuesFormatLargeNumericBlockSize;
     private final boolean useTimeSeriesDocValuesFormatLargeBinaryBlockSize;
     private final boolean timeSeriesEs95CodecEnabled;
+    private final boolean columnarCodecEnabled;
     private final boolean useEs812PostingsFormat;
     private final boolean disableSequenceNumbers;
     private final boolean indexDisabledByDefault;
@@ -1525,7 +1555,6 @@ public final class IndexSettings {
         logger = Loggers.getLogger(getClass(), index);
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetadata = indexMetadata;
-        numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         mode = scopedSettings.get(MODE);
         if (scopedSettings.get(DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING)
             && DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.exists(indexMetadata.getSettings())) {
@@ -1580,6 +1609,7 @@ public final class IndexSettings {
         maxRefreshListeners = scopedSettings.get(MAX_REFRESH_LISTENERS_PER_SHARD);
         maxSlicesPerScroll = scopedSettings.get(MAX_SLICES_PER_SCROLL);
         maxAnalyzedOffset = scopedSettings.get(MAX_ANALYZED_OFFSET_SETTING);
+        maxNumberOfFragments = scopedSettings.get(MAX_NUMBER_OF_FRAGMENTS_SETTING);
         weightMatchesEnabled = scopedSettings.get(WEIGHT_MATCHES_MODE_ENABLED_SETTING);
         maxTermsCount = scopedSettings.get(MAX_TERMS_COUNT_SETTING);
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
@@ -1626,6 +1656,8 @@ public final class IndexSettings {
         useTimeSeriesDocValuesFormatLargeNumericBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
         useTimeSeriesDocValuesFormatLargeBinaryBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
         timeSeriesEs95CodecEnabled = scopedSettings.get(TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
+        columnarCodecEnabled = ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()
+            && scopedSettings.get(COLUMNAR_CODEC_ENABLED_SETTING);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
         useTimeSeriesSyntheticId = scopedSettings.get(SYNTHETIC_ID);
@@ -1727,6 +1759,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
         scopedSettings.addSettingsUpdateConsumer(MAX_REFRESH_LISTENERS_PER_SHARD, this::setMaxRefreshListeners);
         scopedSettings.addSettingsUpdateConsumer(MAX_ANALYZED_OFFSET_SETTING, this::setHighlightMaxAnalyzedOffset);
+        scopedSettings.addSettingsUpdateConsumer(MAX_NUMBER_OF_FRAGMENTS_SETTING, this::setHighlightMaxNumberOfFragments);
         scopedSettings.addSettingsUpdateConsumer(WEIGHT_MATCHES_MODE_ENABLED_SETTING, this::setWeightMatchesEnabled);
         scopedSettings.addSettingsUpdateConsumer(MAX_TERMS_COUNT_SETTING, this::setMaxTermsCount);
         scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_SCROLL, this::setMaxSlicesPerScroll);
@@ -1855,7 +1888,7 @@ public final class IndexSettings {
      * Returns the number of shards this index has.
      */
     public int getNumberOfShards() {
-        return numberOfShards;
+        return indexMetadata.getNumberOfShards();
     }
 
     /**
@@ -2138,6 +2171,17 @@ public final class IndexSettings {
 
     private void setHighlightMaxAnalyzedOffset(int maxAnalyzedOffset) {
         this.maxAnalyzedOffset = maxAnalyzedOffset;
+    }
+
+    /**
+     *  Returns the maximum number of fragments a highlight request may ask for
+     */
+    public int getHighlightMaxNumberOfFragments() {
+        return this.maxNumberOfFragments;
+    }
+
+    private void setHighlightMaxNumberOfFragments(int maxNumberOfFragments) {
+        this.maxNumberOfFragments = maxNumberOfFragments;
     }
 
     public boolean isWeightMatchesEnabled() {
@@ -2456,6 +2500,16 @@ public final class IndexSettings {
      */
     public boolean isTimeSeriesEs95CodecEnabled() {
         return timeSeriesEs95CodecEnabled;
+    }
+
+    /**
+     * Checks if this index opts into the ColumNAR doc values codec, as resolved from
+     * {@link #COLUMNAR_CODEC_ENABLED_SETTING}.
+     *
+     * @return {@code true} if the index opts into ColumNAR; {@code false} otherwise.
+     */
+    public boolean isColumnarCodecEnabled() {
+        return columnarCodecEnabled;
     }
 
     /**

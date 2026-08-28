@@ -40,7 +40,7 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationU
  * <p>The {@code format} dataset setting selects a file format explicitly (any
  * registered format name, or {@link FormatNameResolver#FORMAT_AUTO} / absent to infer
  * from the resource extension). Format-specific dataset fields (e.g. CSV's
- * {@code delimiter}, Parquet's {@code optimized_reader}) are validated against the
+ * {@code delimiter}) are validated against the
  * <em>resolved</em> format: explicit {@code format} → resource extension → unknown.
  * Both require a {@link FormatConfigKeyResolver} set via
  * {@link #withFormatConfigKeyResolver}. Without a resolver the validator cannot know

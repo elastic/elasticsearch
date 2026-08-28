@@ -10,10 +10,13 @@
 package org.elasticsearch.index.mapper;
 
 /**
- * How a field lays out its binary doc values, and so which decoder reads them back. One per
- * {@link MultiValuedBinaryDocValuesField} subclass that writes them.
+ * How a field lays out its binary doc values, and so which decoder reads them back. One per framing that a
+ * {@link MultiValuedBinaryDocValuesField} writes, which is not quite one per subclass: {@code KeyedArrayOrderInlineNull}
+ * shares {@link #ARRAY_ORDER_INLINE_NULL} with {@code ArrayOrderInlineNull}, and the legacy {@code IntegratedCount}
+ * carries its count in the blob and so has no constant here — it is read by {@code BytesRefsFromCustomBinaryBlockLoader}
+ * on its own path.
  *
- * <p>The three are not interchangeable, and decoding one as another silently returns wrong values rather than
+ * <p>They are not interchangeable, and decoding one as another silently returns wrong values rather than
  * failing — a length prefix reads as a character, a payload's slot count reads as the head of a term. So every
  * reader is told which to expect: the doc-values queries, fielddata, index sorting and the block loaders all
  * take this from the mapping that decided how the values were written.

@@ -17,6 +17,7 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
@@ -58,13 +59,24 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
 
     private final String fieldName;
     private final ByteSizeValue size;
+    @Nullable
     private final BinaryDocValuesFormat binaryFormat;
 
     public Utf8CodePointsFromOrdsBlockLoader(Warnings warnings, String fieldName, ByteSizeValue size) {
         this(warnings, fieldName, size, BinaryDocValuesFormat.SEPARATE_COUNT);
     }
 
-    public Utf8CodePointsFromOrdsBlockLoader(Warnings warnings, String fieldName, ByteSizeValue size, BinaryDocValuesFormat binaryFormat) {
+    /**
+     * @param binaryFormat how the field's binary doc values are framed, or {@code null} if it has none. This loader
+     *                     resolves sorted-set doc values first and only consults the framing if it finds a binary
+     *                     column instead, so a field that reaches it by the sorted-set path has nothing to declare.
+     */
+    public Utf8CodePointsFromOrdsBlockLoader(
+        Warnings warnings,
+        String fieldName,
+        ByteSizeValue size,
+        @Nullable BinaryDocValuesFormat binaryFormat
+    ) {
         this.warnings = warnings;
         this.fieldName = fieldName;
         this.size = size;

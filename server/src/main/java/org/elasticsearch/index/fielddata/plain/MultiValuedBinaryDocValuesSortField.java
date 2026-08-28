@@ -10,6 +10,7 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FilterBinaryDocValues;
@@ -235,9 +236,15 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
             };
             boolean maxMode = in.readInt() == 1;
             // Ordinals, and the two this replaced a boolean with hold its former 0/1: segments written before the
-            // format became three-valued read back as SEPARATE_COUNT and ARRAY_ORDER_INLINE_NULL unchanged.
-            BinaryDocValuesFormat binaryFormat = BinaryDocValuesFormat.values()[in.readInt()];
-            return new MultiValuedBinaryDocValuesSortField(field, reverse, missingValue, maxMode, binaryFormat);
+            // format became three-valued read back as SEPARATE_COUNT and ARRAY_ORDER_INLINE_NULL unchanged. A value we
+            // do not know is a corrupt segment, or one from a newer node that appended a format; either way we cannot
+            // decode the field.
+            int formatOrdinal = in.readInt();
+            BinaryDocValuesFormat[] formats = BinaryDocValuesFormat.values();
+            if (formatOrdinal < 0 || formatOrdinal >= formats.length) {
+                throw new CorruptIndexException("unknown binary doc values format ordinal [" + formatOrdinal + "]", in);
+            }
+            return new MultiValuedBinaryDocValuesSortField(field, reverse, missingValue, maxMode, formats[formatOrdinal]);
         }
 
         @Override

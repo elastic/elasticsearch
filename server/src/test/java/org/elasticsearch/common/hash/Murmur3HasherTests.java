@@ -7,11 +7,9 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.common.hashing;
+package org.elasticsearch.common.hash;
 
 import org.elasticsearch.common.Numbers;
-import org.elasticsearch.common.hash.Murmur3Hasher;
-import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.charset.StandardCharsets;

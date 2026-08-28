@@ -47,12 +47,12 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
     final String fieldName;
     final BytesRef containsTerm;
     // Selects the decoder for the multi-valued fallback path; see BinaryDocValuesFormat.
-    final BinaryDocValuesFormat format;
+    final BinaryDocValuesFormat binaryFormat;
 
-    BinaryDocValuesContainsTermQuery(String fieldName, BytesRef containsTerm, BinaryDocValuesFormat format) {
+    BinaryDocValuesContainsTermQuery(String fieldName, BytesRef containsTerm, BinaryDocValuesFormat binaryFormat) {
         this.fieldName = Objects.requireNonNull(fieldName);
         this.containsTerm = Objects.requireNonNull(containsTerm);
-        this.format = Objects.requireNonNull(format);
+        this.binaryFormat = Objects.requireNonNull(binaryFormat);
     }
 
     @Override
@@ -89,7 +89,7 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
                         // on tryContainsIterator). ConstantScoreScorerSupplier unwraps the TwoPhase so Lucene's
                         // BulkScorer drives approximation.advance(min) + matches() within [min, max), giving
                         // linear scaling under sub-segment slicing (DataPartitioning.DOC).
-                        if (format == BinaryDocValuesFormat.COLUMNAR_PAYLOAD) {
+                        if (binaryFormat == BinaryDocValuesFormat.COLUMNAR_PAYLOAD) {
                             assert ColumnarBinaryDocValuesField.isColumnarStringPayload(context.reader(), fieldName)
                                 : "field [" + fieldName + "] is mapped as a columnar payload but this segment does not carry one";
                             // The payload carries its own count, and its framing means the blob can never be scanned whole.
@@ -114,7 +114,7 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
                         }
                         Predicate<BytesRef> predicate = bytes -> contains(bytes, containsTerm);
                         final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
-                        return format == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL
+                        return binaryFormat == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL
                             ? AbstractBinaryDocValuesQuery.arrayOrderInlineNullIterator(values, counts, predicate, matchCost())
                             : AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, predicate, matchCost());
                     }
@@ -152,12 +152,14 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
             return false;
         }
         BinaryDocValuesContainsTermQuery that = (BinaryDocValuesContainsTermQuery) o;
-        return Objects.equals(fieldName, that.fieldName) && Objects.equals(containsTerm, that.containsTerm);
+        return Objects.equals(fieldName, that.fieldName)
+            && Objects.equals(containsTerm, that.containsTerm)
+            && binaryFormat == that.binaryFormat;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), fieldName, containsTerm);
+        return Objects.hash(classHash(), fieldName, containsTerm, binaryFormat);
     }
 
     public static boolean contains(BytesRef value, BytesRef term) {

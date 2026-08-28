@@ -403,6 +403,11 @@ public class IpFieldMapper extends FieldMapper {
             return useArrayOrderBinaryDocValues;
         }
 
+        /** Which framing a reader of this field's binary doc values has to decode. */
+        private BinaryDocValuesFormat binaryFormat() {
+            return useArrayOrderBinaryDocValues ? BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL : BinaryDocValuesFormat.SEPARATE_COUNT;
+        }
+
         private static InetAddress parse(Object value) {
             if (value instanceof InetAddress) {
                 return (InetAddress) value;
@@ -604,19 +609,12 @@ public class IpFieldMapper extends FieldMapper {
                             // Single-valued binary doc values are written as plain (no separate counts column), so read them as plain.
                             return new BytesRefsFromBinaryBlockLoader(name());
                         }
-                        return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(
-                            name(),
-                            useArrayOrderBinaryDocValues
-                                ? BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL
-                                : BinaryDocValuesFormat.SEPARATE_COUNT
-                        );
+                        return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name(), binaryFormat());
                     } else {
                         return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize(), readInArrayOrder);
                     }
                 }
-                BinaryDocValuesFormat binaryFormat = useArrayOrderBinaryDocValues
-                    ? BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL
-                    : BinaryDocValuesFormat.SEPARATE_COUNT;
+                BinaryDocValuesFormat binaryFormat = binaryFormat();
                 return switch (cfg.function()) {
                     case MV_MAX -> usesBinaryDocValues
                         ? new MvMaxBytesRefsFromBinaryBlockLoader(name(), binaryFormat)
@@ -691,7 +689,7 @@ public class IpFieldMapper extends FieldMapper {
                     CoreValuesSourceType.IP,
                     IpDocValuesField::new,
                     indexVersion,
-                    useArrayOrderBinaryDocValues ? BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL : BinaryDocValuesFormat.SEPARATE_COUNT
+                    binaryFormat()
                 );
             }
             return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.IP, IpDocValuesField::new);

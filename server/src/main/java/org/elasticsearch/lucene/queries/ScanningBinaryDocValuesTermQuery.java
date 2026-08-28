@@ -40,15 +40,15 @@ public class ScanningBinaryDocValuesTermQuery extends AbstractBinaryDocValuesQue
 
     private final BytesRef term;
 
-    public ScanningBinaryDocValuesTermQuery(String fieldName, BytesRef term, BinaryDocValuesFormat format) {
-        super(fieldName, term::equals, format);
+    public ScanningBinaryDocValuesTermQuery(String fieldName, BytesRef term, BinaryDocValuesFormat binaryFormat) {
+        super(fieldName, term::equals, binaryFormat);
         this.term = Objects.requireNonNull(term);
     }
 
     @Override
     public Query rewrite(IndexSearcher searcher) throws IOException {
         if (term.length == 0) {
-            return new BinaryDocValuesLengthQuery(fieldName, 0, format);
+            return new BinaryDocValuesLengthQuery(fieldName, 0, binaryFormat);
         }
         return this;
     }
@@ -59,10 +59,10 @@ public class ScanningBinaryDocValuesTermQuery extends AbstractBinaryDocValuesQue
         if (values == null) {
             return null;
         }
-        // A payload blob is never a bare term, so the direct comparison below can never apply to one.
-        final boolean columnarPayload = format == BinaryDocValuesFormat.COLUMNAR_PAYLOAD;
         String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
         DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
+        // A payload blob is never a bare term, so the direct comparison below can never apply to one.
+        final boolean columnarPayload = binaryFormat == BinaryDocValuesFormat.COLUMNAR_PAYLOAD;
         // tryTermEqualIterator is only valid for single-valued fields (see its javadoc on
         // BlockLoader.OptionalColumnAtATimeReader). It returns a TwoPhaseIterator-backed iterator,
         // so sub-segment slicing (DataPartitioning.DOC) scales with cores.
@@ -97,11 +97,11 @@ public class ScanningBinaryDocValuesTermQuery extends AbstractBinaryDocValuesQue
             return false;
         }
         ScanningBinaryDocValuesTermQuery that = (ScanningBinaryDocValuesTermQuery) o;
-        return Objects.equals(fieldName, that.fieldName) && Objects.equals(term, that.term);
+        return Objects.equals(fieldName, that.fieldName) && Objects.equals(term, that.term) && binaryFormat == that.binaryFormat;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), fieldName, term);
+        return Objects.hash(classHash(), fieldName, term, binaryFormat);
     }
 }

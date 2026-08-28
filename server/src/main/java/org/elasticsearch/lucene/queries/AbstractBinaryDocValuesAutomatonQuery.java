@@ -22,8 +22,8 @@ abstract class AbstractBinaryDocValuesAutomatonQuery extends AbstractBinaryDocVa
 
     final ByteRunAutomaton automaton;
 
-    AbstractBinaryDocValuesAutomatonQuery(String fieldName, ByteRunAutomaton automaton, BinaryDocValuesFormat format) {
-        super(fieldName, value -> automaton.run(value.bytes, value.offset, value.length), format);
+    AbstractBinaryDocValuesAutomatonQuery(String fieldName, ByteRunAutomaton automaton, BinaryDocValuesFormat binaryFormat) {
+        super(fieldName, value -> automaton.run(value.bytes, value.offset, value.length), binaryFormat);
         this.automaton = automaton;
     }
 

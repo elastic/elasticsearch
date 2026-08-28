@@ -445,6 +445,10 @@ public final class KeywordFieldMapper extends FieldMapper {
          * Whether array order survives the write. In strict-columnar mode a high-cardinality field keeps it inline in
          * its own binary doc values and a low-cardinality one keeps it in the {@code .offsets} sidecar; see
          * {@link KeywordFieldType#preservesArrayOrder()} for why offsets recorded outside that mode do not count.
+         *
+         * <p>Reads {@link #arrayOrderBinaryDocValues} and {@link #offsetsFieldName}, both of which {@link #build}
+         * settles, and which it settles against each other: a binary field in strict-columnar mode takes the first
+         * and gives up the second, so the two arms are mutually exclusive rather than merely alternative.
          */
         private boolean preservesArrayOrder() {
             return arrayOrderBinaryDocValues
@@ -823,20 +827,31 @@ public final class KeywordFieldMapper extends FieldMapper {
          */
         public enum DocValuesDiskFormat {
             /** No doc values are written for this field. */
-            NONE(false),
+            NONE(null),
             /** Lucene's sorted-set doc values: sorted and deduplicated, with array order (if kept) in {@code .offsets}. */
-            SORTED_SET(false),
-            /** {@code [len][value]...}, count in a {@code .counts} companion; a lone value stored raw. */
-            BINARY_SEPARATE_COUNT(true),
-            /** {@code [len+1][value]...} with inline nulls, slot count in {@code .counts}; a lone value stored raw. */
-            BINARY_ARRAY_ORDER_INLINE_NULL(true),
-            /** {@code [slotCount][len+1][value]...} — the ColumNAR codec's payload, with no companion field at all. */
-            BINARY_COLUMNAR_PAYLOAD(true);
+            SORTED_SET(null),
+            /** A {@link MultiValuedBinaryDocValuesField} framed as {@link BinaryDocValuesFormat#SEPARATE_COUNT}. */
+            BINARY_SEPARATE_COUNT(BinaryDocValuesFormat.SEPARATE_COUNT),
+            /** A {@link MultiValuedBinaryDocValuesField} framed as {@link BinaryDocValuesFormat#ARRAY_ORDER_INLINE_NULL}. */
+            BINARY_ARRAY_ORDER_INLINE_NULL(BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL),
+            /** A {@link ColumnarBinaryDocValuesField} framed as {@link BinaryDocValuesFormat#COLUMNAR_PAYLOAD}. */
+            BINARY_COLUMNAR_PAYLOAD(BinaryDocValuesFormat.COLUMNAR_PAYLOAD);
 
-            private final boolean binary;
+            @Nullable
+            private final BinaryDocValuesFormat binaryFormat;
 
-            DocValuesDiskFormat(boolean binary) {
-                this.binary = binary;
+            DocValuesDiskFormat(@Nullable BinaryDocValuesFormat binaryFormat) {
+                this.binaryFormat = binaryFormat;
+            }
+
+            /**
+             * How the bytes are framed, or {@code null} for the layouts that write no binary blob. Naming the
+             * framing here rather than restating it keeps the byte layout documented in one place, so a new
+             * framing is described once in {@link BinaryDocValuesFormat} and only referred to from here.
+             */
+            @Nullable
+            public BinaryDocValuesFormat binaryFormat() {
+                return binaryFormat;
             }
 
             /**
@@ -845,7 +860,7 @@ public final class KeywordFieldMapper extends FieldMapper {
              * doc-values queries, fielddata and block loaders all have to take a different path for them.
              */
             public boolean isBinary() {
-                return binary;
+                return binaryFormat != null;
             }
         }
 
@@ -858,15 +873,13 @@ public final class KeywordFieldMapper extends FieldMapper {
          * How this field's binary doc values are framed, and so which decoder reads them back. Every reader of them
          * takes this — the doc-values queries, fielddata, index sorting and the block loaders alike.
          *
-         * <p>A field with no binary doc values at all answers {@link BinaryDocValuesFormat#SEPARATE_COUNT}, which is
-         * harmless because nothing consults this without {@link #usesBinaryDocValues()} already holding.
+         * <p>{@code null} when {@link #usesBinaryDocValues()} is false: a field that writes no binary blob has no
+         * framing, and naming one anyway would be a guess a caller could act on. Callers reach this behind that
+         * check, or pass it to a reader that only consults it once it finds a binary column.
          */
+        @Nullable
         public BinaryDocValuesFormat binaryFormat() {
-            return switch (diskFormat) {
-                case BINARY_COLUMNAR_PAYLOAD -> BinaryDocValuesFormat.COLUMNAR_PAYLOAD;
-                case BINARY_ARRAY_ORDER_INLINE_NULL -> BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL;
-                case NONE, SORTED_SET, BINARY_SEPARATE_COUNT -> BinaryDocValuesFormat.SEPARATE_COUNT;
-            };
+            return diskFormat.binaryFormat();
         }
 
         /**
@@ -878,6 +891,10 @@ public final class KeywordFieldMapper extends FieldMapper {
          * <p>Only strict-columnar indices promise this. A {@code synthetic_source_keep: arrays} field elsewhere
          * records offsets too, but only synthetic source reads them back — fielddata, aggregations and block
          * loading still see sorted values there — so this stays false for those.
+         *
+         * <p>This says the order is kept, not that there is an order worth keeping: a {@code multi_value: false}
+         * field on the inline layout answers true, having taken that layout for a reason other than arrays. The
+         * sidecar arm cannot, since a single-valued field records no offsets.
          */
         public boolean preservesArrayOrder() {
             return preservesArrayOrder;
@@ -1123,9 +1140,16 @@ public final class KeywordFieldMapper extends FieldMapper {
                         return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize(), preservesArrayOrder);
                     }
                 }
+                // Null for a sorted-set field, which only LENGTH can be here for; it resolves the sorted-set column first and never
+                // reaches the branch that reads this. The rest are either binary-only or take it inside a usesBinaryDocValues() arm.
                 BinaryDocValuesFormat binaryFormat = binaryFormat();
                 return switch (cfg.function()) {
-                    case BYTE_LENGTH -> new ByteLengthFromBytesRefDocValuesBlockLoader(blContext.warnings(), name(), binaryFormat);
+                    // Only pushed down for binary doc values, so the framing is always known here - see supportsBlockLoaderFunction.
+                    case BYTE_LENGTH -> new ByteLengthFromBytesRefDocValuesBlockLoader(
+                        blContext.warnings(),
+                        name(),
+                        Objects.requireNonNull(binaryFormat)
+                    );
                     case LENGTH -> new Utf8CodePointsFromOrdsBlockLoader(
                         blContext.warnings(),
                         name(),

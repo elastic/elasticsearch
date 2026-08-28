@@ -44,12 +44,12 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
 
     protected final String fieldName;
     protected final Predicate<BytesRef> matcher;
-    protected final BinaryDocValuesFormat format;
+    protected final BinaryDocValuesFormat binaryFormat;
 
-    AbstractBinaryDocValuesQuery(String fieldName, Predicate<BytesRef> matcher, BinaryDocValuesFormat format) {
+    AbstractBinaryDocValuesQuery(String fieldName, Predicate<BytesRef> matcher, BinaryDocValuesFormat binaryFormat) {
         this.fieldName = Objects.requireNonNull(fieldName);
         this.matcher = Objects.requireNonNull(matcher);
-        this.format = Objects.requireNonNull(format);
+        this.binaryFormat = Objects.requireNonNull(binaryFormat);
     }
 
     @Override
@@ -98,10 +98,11 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
         if (values == null) {
             return null;
         }
-        return switch (format) {
+        return switch (binaryFormat) {
             case COLUMNAR_PAYLOAD -> {
                 assert assertColumnarPayload(context, fieldName);
-                // The payload carries its own count, so the binary column drives iteration on its own.
+                // The payload carries its own count and writes no .counts companion, so the binary column drives iteration on its own
+                // and there is nothing to look up.
                 yield columnarPayloadIterator(values, matcher, matchCost);
             }
             case ARRAY_ORDER_INLINE_NULL -> {

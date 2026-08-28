@@ -330,6 +330,11 @@ public class WildcardFieldMapper extends FieldMapper {
             return arrayOrderBinaryDocValues;
         }
 
+        /** Which framing a reader of this field's binary doc values has to decode. */
+        private BinaryDocValuesFormat binaryFormat() {
+            return arrayOrderBinaryDocValues ? BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL : BinaryDocValuesFormat.SEPARATE_COUNT;
+        }
+
         @Override
         public boolean mayExistInIndex(SearchExecutionContext context) {
             return context.fieldExistsInIndex(name());
@@ -1040,10 +1045,7 @@ public class WildcardFieldMapper extends FieldMapper {
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues()) {
                 if (indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)) {
-                    return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(
-                        name(),
-                        arrayOrderBinaryDocValues ? BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL : BinaryDocValuesFormat.SEPARATE_COUNT
-                    );
+                    return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name(), binaryFormat());
                 }
                 return new BytesRefsFromCustomBinaryBlockLoader(name());
             }
@@ -1058,7 +1060,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 CoreValuesSourceType.KEYWORD,
                 WildcardDocValuesField::new,
                 indexVersion,
-                arrayOrderBinaryDocValues ? BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL : BinaryDocValuesFormat.SEPARATE_COUNT
+                binaryFormat()
             );
         }
 

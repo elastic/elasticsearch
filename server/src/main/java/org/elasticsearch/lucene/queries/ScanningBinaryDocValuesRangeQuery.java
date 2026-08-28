@@ -36,8 +36,8 @@ public final class ScanningBinaryDocValuesRangeQuery extends AbstractBinaryDocVa
     private final boolean includeLower;
     private final boolean includeUpper;
 
-    public ScanningBinaryDocValuesRangeQuery(String fieldName, BytesRef lower, BytesRef upper, BinaryDocValuesFormat format) {
-        this(fieldName, lower, upper, true, true, format);
+    public ScanningBinaryDocValuesRangeQuery(String fieldName, BytesRef lower, BytesRef upper, BinaryDocValuesFormat binaryFormat) {
+        this(fieldName, lower, upper, true, true, binaryFormat);
     }
 
     public ScanningBinaryDocValuesRangeQuery(
@@ -46,9 +46,9 @@ public final class ScanningBinaryDocValuesRangeQuery extends AbstractBinaryDocVa
         BytesRef upper,
         boolean includeLower,
         boolean includeUpper,
-        BinaryDocValuesFormat format
+        BinaryDocValuesFormat binaryFormat
     ) {
-        super(fieldName, rangeMatcher(lower, upper, includeLower, includeUpper), format);
+        super(fieldName, rangeMatcher(lower, upper, includeLower, includeUpper), binaryFormat);
         this.lower = lower;
         this.upper = upper;
         this.includeLower = includeLower;
@@ -78,7 +78,7 @@ public final class ScanningBinaryDocValuesRangeQuery extends AbstractBinaryDocVa
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
         if (lower != null && upper != null && includeLower && includeUpper && lower.bytesEquals(upper)) {
-            return new ScanningBinaryDocValuesTermQuery(fieldName, lower, format);
+            return new ScanningBinaryDocValuesTermQuery(fieldName, lower, binaryFormat);
         }
         return super.rewrite(indexSearcher);
     }
@@ -107,11 +107,11 @@ public final class ScanningBinaryDocValuesRangeQuery extends AbstractBinaryDocVa
             && Objects.equals(upper, that.upper)
             && includeLower == that.includeLower
             && includeUpper == that.includeUpper
-            && format == that.format;
+            && binaryFormat == that.binaryFormat;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), fieldName, lower, upper, includeLower, includeUpper, format);
+        return Objects.hash(classHash(), fieldName, lower, upper, includeLower, includeUpper, binaryFormat);
     }
 }

@@ -43,12 +43,12 @@ final class BinaryDocValuesLengthQuery extends Query {
     final String fieldName;
     final int length;
     // Selects the decoder for the multi-valued fallback path; see BinaryDocValuesFormat.
-    final BinaryDocValuesFormat format;
+    final BinaryDocValuesFormat binaryFormat;
 
-    BinaryDocValuesLengthQuery(String fieldName, int length, BinaryDocValuesFormat format) {
+    BinaryDocValuesLengthQuery(String fieldName, int length, BinaryDocValuesFormat binaryFormat) {
         this.fieldName = Objects.requireNonNull(fieldName);
         this.length = length;
-        this.format = Objects.requireNonNull(format);
+        this.binaryFormat = Objects.requireNonNull(binaryFormat);
     }
 
     @Override
@@ -82,7 +82,7 @@ final class BinaryDocValuesLengthQuery extends Query {
                         }
 
                         Predicate<BytesRef> lengthPredicate = bytes -> bytes.length == length;
-                        if (format == BinaryDocValuesFormat.COLUMNAR_PAYLOAD) {
+                        if (binaryFormat == BinaryDocValuesFormat.COLUMNAR_PAYLOAD) {
                             assert ColumnarBinaryDocValuesField.isColumnarStringPayload(context.reader(), fieldName)
                                 : "field [" + fieldName + "] is mapped as a columnar payload but this segment does not carry one";
                             // The payload carries its own count; its blob is never a bare value, so no fast path applies.
@@ -97,7 +97,7 @@ final class BinaryDocValuesLengthQuery extends Query {
                             // BlockLoader.OptionalLengthReader), so sub-segment slicing scales with cores.
                             return direct.tryLengthIterator(length);
                         }
-                        if (format == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL) {
+                        if (binaryFormat == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL) {
                             return AbstractBinaryDocValuesQuery.arrayOrderInlineNullIterator(values, counts, lengthPredicate, matchCost);
                         } else if (countsSkipper != null) {
                             return AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, lengthPredicate, matchCost);
@@ -139,12 +139,12 @@ final class BinaryDocValuesLengthQuery extends Query {
             return false;
         }
         BinaryDocValuesLengthQuery that = (BinaryDocValuesLengthQuery) o;
-        return Objects.equals(fieldName, that.fieldName) && length == that.length;
+        return Objects.equals(fieldName, that.fieldName) && length == that.length && binaryFormat == that.binaryFormat;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), fieldName, length);
+        return Objects.hash(classHash(), fieldName, length, binaryFormat);
     }
 
 }

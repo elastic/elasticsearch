@@ -30,15 +30,15 @@ import java.io.IOException;
 public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
 
     private final String fieldName;
-    private final BinaryDocValuesFormat format;
+    private final BinaryDocValuesFormat binaryFormat;
 
     public BytesRefsFromBinaryMultiSeparateCountBlockLoader(String fieldName) {
         this(fieldName, BinaryDocValuesFormat.SEPARATE_COUNT);
     }
 
-    public BytesRefsFromBinaryMultiSeparateCountBlockLoader(String fieldName, BinaryDocValuesFormat format) {
+    public BytesRefsFromBinaryMultiSeparateCountBlockLoader(String fieldName, BinaryDocValuesFormat binaryFormat) {
         this.fieldName = fieldName;
-        this.format = format;
+        this.binaryFormat = binaryFormat;
     }
 
     @Override
@@ -74,7 +74,7 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
 
     @Override
     public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        if (format == BinaryDocValuesFormat.COLUMNAR_PAYLOAD) {
+        if (binaryFormat == BinaryDocValuesFormat.COLUMNAR_PAYLOAD) {
             // The count travels in the blob, so there is no companion column to load or advance on.
             TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);
             return binary == null ? ConstantNull.COLUMN_READER : new ColumnarPayload(binary);
@@ -88,7 +88,7 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
             // present blob is a single raw value and an absent blob is a lone null / empty array, which the plain reader emits as null.
             return new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(bc.binary());
         }
-        if (format == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL) {
+        if (binaryFormat == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL) {
             // Multi-slot documents exist (maxValue >= 2): decode the in-order inline-null format, advancing on the counts column since an
             // all-null or empty array writes a count but no binary blob.
             return new ArrayOrderInlineNull(bc.binary(), bc.counts());

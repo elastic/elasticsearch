@@ -35,8 +35,13 @@ public final class ScanningBinaryDocValuesWildcardQuery extends AbstractBinaryDo
     private final String pattern;
     private final boolean caseInsensitive;
 
-    public ScanningBinaryDocValuesWildcardQuery(String fieldName, String pattern, boolean caseInsensitive, BinaryDocValuesFormat format) {
-        super(fieldName, buildByteRunAutomaton(fieldName, pattern, caseInsensitive), format);
+    public ScanningBinaryDocValuesWildcardQuery(
+        String fieldName,
+        String pattern,
+        boolean caseInsensitive,
+        BinaryDocValuesFormat binaryFormat
+    ) {
+        super(fieldName, buildByteRunAutomaton(fieldName, pattern, caseInsensitive), binaryFormat);
         this.pattern = Objects.requireNonNull(pattern);
         this.caseInsensitive = caseInsensitive;
     }
@@ -57,7 +62,7 @@ public final class ScanningBinaryDocValuesWildcardQuery extends AbstractBinaryDo
         if (caseInsensitive == false) {
             var innerPattern = getContainsPattern(pattern);
             if (innerPattern != null) {
-                return new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef(innerPattern), format);
+                return new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef(innerPattern), binaryFormat);
             }
         }
         return super.rewrite(indexSearcher);
@@ -105,11 +110,12 @@ public final class ScanningBinaryDocValuesWildcardQuery extends AbstractBinaryDo
         ScanningBinaryDocValuesWildcardQuery that = (ScanningBinaryDocValuesWildcardQuery) o;
         return Objects.equals(fieldName, that.fieldName)
             && Objects.equals(pattern, that.pattern)
-            && caseInsensitive == that.caseInsensitive;
+            && caseInsensitive == that.caseInsensitive
+            && binaryFormat == that.binaryFormat;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), fieldName, pattern, caseInsensitive);
+        return Objects.hash(classHash(), fieldName, pattern, caseInsensitive, binaryFormat);
     }
 }

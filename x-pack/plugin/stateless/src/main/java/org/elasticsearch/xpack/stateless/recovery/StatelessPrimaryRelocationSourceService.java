@@ -173,7 +173,8 @@ public class StatelessPrimaryRelocationSourceService {
                             hasRecentIdLookup
                         )
                     ),
-                    ActionListener.noop()
+                    // Prewarm failures are non-fatal, the relocation continues without the benefit of prewarming.
+                    ActionListener.wrap(ignored -> {}, e -> logger.debug(format("%s ignoring prewarm action failure", shardId), e))
                 );
             }
         } catch (Exception e) {

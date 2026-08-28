@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.stateless.recovery;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
@@ -19,7 +17,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -40,8 +37,6 @@ import java.util.concurrent.Executor;
 public class TransportStatelessPrimaryRelocationPrewarmAction extends TransportAction<
     TransportStatelessPrimaryRelocationPrewarmAction.PrewarmRequest,
     ActionResponse.Empty> {
-
-    private static final Logger logger = LogManager.getLogger(TransportStatelessPrimaryRelocationPrewarmAction.class);
 
     public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>(
         "internal:index/shard/recovery/stateless_primary_relocation/prewarm_action"
@@ -86,11 +81,7 @@ public class TransportStatelessPrimaryRelocationPrewarmAction extends TransportA
             request.targetNode(),
             PREWARM_RELOCATION_ACTION_NAME,
             transportRequest,
-            // Prewarm failures are non-fatal, the relocation continues without the benefit of prewarming.
-            new ActionListenerResponseHandler<>(ActionListener.noop().delegateResponse((l, e) -> {
-                logger.debug(() -> Strings.format("%s ignoring prewarm action failure", transportRequest.shardId()), e);
-                l.onFailure(e);
-            }), in -> ActionResponse.Empty.INSTANCE, recoveryExecutor)
+            new ActionListenerResponseHandler<>(listener, in -> ActionResponse.Empty.INSTANCE, recoveryExecutor)
         );
     }
 

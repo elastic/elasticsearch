@@ -155,6 +155,9 @@ tests:
 - class: org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoaderTests
   method: testCanReuseAcrossBinaryBlocks
   issue: https://github.com/elastic/elasticsearch/issues/157945
+- class: org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoaderTests
+  method: testCanReuseTracksLastReadDoc
+  issue: https://github.com/elastic/elasticsearch/issues/157946
 
 # Examples:
 #

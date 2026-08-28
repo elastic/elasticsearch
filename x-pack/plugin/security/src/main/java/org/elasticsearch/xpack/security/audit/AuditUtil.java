@@ -36,9 +36,7 @@ public class AuditUtil {
      * Renders the body of {@code request} as a JSON string for inclusion in audit log events.
      * <p>
      * If the request has no XContent type (e.g. a protobuf endpoint), a short diagnostic string is
-     * returned rather than throwing. If {@code maxBytes > 0} and the rendered JSON length exceeds
-     * that limit, an {@link ElasticsearchStatusException} with status 413 is thrown so the caller
-     * can reject the request before it is written to the audit log.
+     * returned rather than throwing.
      *
      * @param maxBytes   maximum allowed length of the rendered JSON string, in characters; {@code 0} = unlimited
      * @param settingKey the cluster setting key to include in the error message; may be {@code null}

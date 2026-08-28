@@ -18,6 +18,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
@@ -27,6 +28,9 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -138,6 +142,47 @@ public class RepositoryS3DeprecationsRestIT extends ESRestTestCase {
         } finally {
             assertOK(client().performRequest(new Request("DELETE", "/_snapshot/" + repoName)));
         }
+    }
+
+    private static final String PLACEHOLDER_CLIENT = "placeholder";
+    private static final Map<String, String> DEPRECATED_CLIENT_SETTING_TEST_VALUES = Map.of(
+        "protocol",
+        "https",
+        "use_throttle_retries",
+        "true",
+        "signer_override",
+        "test_signer"
+    );
+
+    public void testUpgradeAssistantReportsDeprecatedClientSettings() throws IOException {
+        for (var deprecatedClientSetting : DEPRECATED_CLIENT_SETTING_TEST_VALUES.entrySet()) {
+            final var settingKey = deprecatedClientSetting.getKey();
+            final var repoName = registerRepository(b -> b.put(settingKey, deprecatedClientSetting.getValue()), Strings.format("""
+                [s3.client.%s.%s] setting was deprecated in Elasticsearch and will be removed in a future release. \
+                See the breaking changes documentation for the next major version.""", PLACEHOLDER_CLIENT, settingKey));
+            try {
+                assertDeprecationIssue(
+                    repoName,
+                    "S3 repository explicitly configures a deprecated client setting",
+                    ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                    S3Repository.deprecatedClientSettingDeprecationWarning(settingKey)
+                );
+            } finally {
+                assertOK(client().performRequest(new Request("DELETE", "/_snapshot/" + repoName)));
+            }
+        }
+    }
+
+    public void testAllDeprecatedClientSettingsAreCoveredByUpgradeAssistantTest() {
+        final Set<String> deprecatedClientSettings = new HashSet<>();
+        for (final var setting : S3RepositorySettings.DEPRECATED_CLIENT_SETTINGS) {
+            deprecatedClientSettings.add(
+                setting.getConcreteSettingForNamespace(PLACEHOLDER_CLIENT)
+                    .getKey()
+                    .substring(S3ClientSettings.REPOSITORY_CLIENT_SETTINGS_PREFIX.length())
+            );
+        }
+        assertThat(DEPRECATED_CLIENT_SETTING_TEST_VALUES.keySet(), equalTo(deprecatedClientSettings));
     }
 
     private static void assertDeprecationIssue(String repositoryName, String message, ReferenceDocs referenceDocs, String details)

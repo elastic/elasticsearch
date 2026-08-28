@@ -17,16 +17,13 @@ import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.InvertableType;
-import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Term;
@@ -149,12 +146,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     public static class Defaults {
         public static final FieldType FIELD_TYPE;
         public static final FieldType FIELD_TYPE_WITH_SKIP_DOC_VALUES;
-
-        /**
-         * The field type produced by {@link NumericDocValuesField#indexedField} — used for the
-         * {@code <name>.counts} columnar output column.
-         */
-        static final IndexableFieldType COUNTS_FIELD_TYPE = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_TYPE;
 
         static {
             FieldType ft = new FieldType();
@@ -1697,26 +1688,12 @@ public final class KeywordFieldMapper extends FieldMapper {
             ctx.addColumn(LuceneBinaryColumn.of(binaryDvs.finish(docCount), fieldType().name(), CustomDocValuesField.TYPE));
         }
         if (dvCounts != null && dvCounts.isEmpty() == false) {
-            ctx.addColumn(
-                LuceneLongColumn.of(
-                    dvCounts.finish(docCount),
-                    fieldType().name() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX,
-                    Defaults.COUNTS_FIELD_TYPE,
-                    LongColumn.NumericKind.LONG
-                )
-            );
+            ctx.addColumn(LuceneLongColumn.counts(dvCounts.finish(docCount), fieldType().name()));
         }
         if (emitFallback && fallback != null && fallback.isEmpty() == false) {
             final String fallbackFieldName = fieldType().syntheticSourceFallbackFieldName();
             ctx.addColumn(LuceneBinaryColumn.of(fallback.finish(docCount), fallbackFieldName, CustomDocValuesField.TYPE));
-            ctx.addColumn(
-                LuceneLongColumn.of(
-                    fallbackCounts.finish(docCount),
-                    fallbackFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX,
-                    Defaults.COUNTS_FIELD_TYPE,
-                    LongColumn.NumericKind.LONG
-                )
-            );
+            ctx.addColumn(LuceneLongColumn.counts(fallbackCounts.finish(docCount), fallbackFieldName));
         }
     }
 

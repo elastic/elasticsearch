@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
-import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.ImpactsEnum;
@@ -2006,14 +2005,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
         final String keyedFieldName = fieldType().name() + KEYED_FIELD_SUFFIX;
         ctx.addColumn(LuceneBinaryColumn.of(keyed.finish(docCount), keyedFieldName, CustomDocValuesField.TYPE));
-        ctx.addColumn(
-            LuceneLongColumn.of(
-                counts.finish(docCount),
-                keyedFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX,
-                MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_TYPE,
-                LongColumn.NumericKind.LONG
-            )
-        );
+        ctx.addColumn(LuceneLongColumn.counts(counts.finish(docCount), keyedFieldName));
     }
 
     // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.

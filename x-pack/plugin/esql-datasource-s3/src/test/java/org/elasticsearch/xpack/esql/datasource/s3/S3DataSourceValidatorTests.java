@@ -284,6 +284,64 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertEquals("hive", result.get("partition_detection"));
     }
 
+    public void testValidateDatasetExclusionSettingsValid() {
+        Map<String, Object> result = validator.validateDataset(
+            Map.of(),
+            "s3://bucket/path/*.parquet",
+            Map.of("file_exclusions", List.of("**/_*", "**/.*", "**/_temporary/**"))
+        );
+        assertEquals(
+            "stored verbatim, since patterns are case-sensitive user data",
+            List.of("**/_*", "**/.*", "**/_temporary/**"),
+            result.get("file_exclusions")
+        );
+    }
+
+    /** The empty list is a legitimate value: exclude nothing. */
+    public void testValidateDatasetExclusionSettingsAcceptEmptyList() {
+        Map<String, Object> result = validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_exclusions", List.of()));
+        assertEquals(List.of(), result.get("file_exclusions"));
+    }
+
+    /** Entries are ordinary resource patterns, so a directory pattern is legal rather than refused. */
+    public void testValidateDatasetExclusionAcceptsADirectoryPattern() {
+        Map<String, Object> result = validator.validateDataset(
+            Map.of(),
+            "s3://b/p",
+            Map.of("file_exclusions", List.of("**/_temporary/**"))
+        );
+        assertEquals(List.of("**/_temporary/**"), result.get("file_exclusions"));
+    }
+
+    public void testValidateDatasetExclusionRejectsAnUnparseablePattern() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_exclusions", List.of("a[b")))
+        );
+        assertThat(e.validationErrors(), hasSize(1));
+        assertThat(e.getMessage(), containsString("must contain only valid patterns"));
+        assertThat(e.getMessage(), containsString("unterminated character class"));
+    }
+
+    /** A shape problem is reported once, by the list validator, not twice by the owning parser as well. */
+    public void testValidateDatasetExclusionRejectsNonListWithOneMessage() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_exclusions", "**/_*"))
+        );
+        assertThat(e.validationErrors(), hasSize(1));
+        assertThat(e.getMessage(), containsString("must be a JSON array of strings"));
+    }
+
+    public void testValidateDatasetExclusionRejectsNonStringElementWithOneMessage() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_exclusions", List.of(42)))
+        );
+        assertThat(e.validationErrors(), hasSize(1));
+        assertThat(e.getMessage(), containsString("must be a JSON array of non-empty strings"));
+    }
+
     public void testValidateDatasetPartitionDetectionInvalid() {
         ValidationException e = expectThrows(
             ValidationException.class,

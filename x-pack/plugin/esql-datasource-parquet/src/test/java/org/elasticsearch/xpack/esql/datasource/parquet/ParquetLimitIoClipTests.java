@@ -106,12 +106,15 @@ public class ParquetLimitIoClipTests extends ESTestCase {
     }
 
     public void testUnfilteredLimitHelperMatchesIteratorAndReader() {
-        assertTrue(ParquetFormatReader.unfilteredLimit(1, false, false, false, false));
-        assertFalse(ParquetFormatReader.unfilteredLimit(FormatReader.NO_LIMIT, false, false, false, false));
-        assertFalse(ParquetFormatReader.unfilteredLimit(1, true, false, false, false));
-        assertFalse(ParquetFormatReader.unfilteredLimit(1, false, true, false, false));
-        assertFalse(ParquetFormatReader.unfilteredLimit(1, false, false, true, false));
-        assertFalse(ParquetFormatReader.unfilteredLimit(1, false, false, false, true));
+        assertTrue(ParquetFormatReader.unfilteredLimit(1, false, false, false, false, false));
+        assertFalse(ParquetFormatReader.unfilteredLimit(FormatReader.NO_LIMIT, false, false, false, false, false));
+        assertFalse(ParquetFormatReader.unfilteredLimit(1, true, false, false, false, false));
+        assertFalse(ParquetFormatReader.unfilteredLimit(1, false, true, false, false, false));
+        assertFalse(ParquetFormatReader.unfilteredLimit(1, false, false, true, false, false));
+        assertFalse(ParquetFormatReader.unfilteredLimit(1, false, false, false, true, false));
+        // Row dropping (error_mode: skip_row) disqualifies it for the same reason the filtered arms do: the clip
+        // sizes its window in source rows, and a dropped row makes a batch emit fewer than it decoded.
+        assertFalse(ParquetFormatReader.unfilteredLimit(1, false, false, false, false, true));
     }
 
     public void testReadRangeHonorsRowLimit() throws Exception {
@@ -200,7 +203,11 @@ public class ParquetLimitIoClipTests extends ESTestCase {
     }
 
     public void testOffsetIndexLimitClipsFirstWindowAndUnlimitedFetchesNoPageIndex() throws Exception {
-        byte[] parquetData = createTallFile(800, 4096, true);
+        // Payload must exceed DEFAULT_WINDOW_SIZE. Files that fit in the window are filled with one
+        // GET of [0, length), which overlaps OffsetIndex and would make both unlimited and LIMIT 1
+        // look like they fetched page-index bytes.
+        byte[] parquetData = createTallFile(800, 8192, true);
+        assertThat(parquetData.length, greaterThan(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE));
         IndexLayout layout = indexLayout(parquetData);
         assertThat("parquet-mr default writer must emit OffsetIndex for this clip to apply", layout.offsetIndex.length, greaterThan(0));
         long firstGroupSpan = firstRowGroupSpan(parquetData);

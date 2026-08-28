@@ -48,7 +48,21 @@ public class DriverCompletionInfoBwcWarningsTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
         // Serialize a DriverCompletionInfo at the old version (won't write warnings field)
-        DriverCompletionInfo original = new DriverCompletionInfo(42, 100, 0, 0, 0, 0, List.of(), List.of(), null, false, Set.of());
+        DriverCompletionInfo original = new DriverCompletionInfo(
+            42,
+            100,
+            0,
+            0,
+            0,
+            0,
+            0,
+            List.of(),
+            List.of(),
+            null,
+            false,
+            false,
+            Set.of()
+        );
         BytesReference bytes = serialize(original, oldVersion);
 
         // Simulate transport depositing warnings into thread context (as the old node would)
@@ -84,7 +98,7 @@ public class DriverCompletionInfoBwcWarningsTests extends ESTestCase {
         TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(DriverCompletionInfo.ESQL_DRIVER_WARNINGS);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
-        DriverCompletionInfo original = new DriverCompletionInfo(1, 2, 0, 0, 0, 0, List.of(), List.of(), null, false, Set.of());
+        DriverCompletionInfo original = new DriverCompletionInfo(1, 2, 0, 0, 0, 0, 0, List.of(), List.of(), null, false, false, Set.of());
         BytesReference bytes = serialize(original, oldVersion);
 
         DriverCompletionInfo deserialized = deserialize(bytes, oldVersion, threadContext);
@@ -110,9 +124,11 @@ public class DriverCompletionInfoBwcWarningsTests extends ESTestCase {
             0,
             0,
             0,
+            0,
             List.of(),
             List.of(),
             null,
+            false,
             false,
             Set.of("wire warning 1", "wire warning 2")
         );

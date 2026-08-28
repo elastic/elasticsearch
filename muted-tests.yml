@@ -495,3 +495,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecFuseIT
   method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueScoreColumn}
   issue: https://github.com/elastic/elasticsearch/issues/157905
+- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
+  method: testUnpromotableRegisterCommitForRecoveryTracksAllBlobsPessimisticallyAndWaitsUntilShardStarts
+  issue: https://github.com/elastic/elasticsearch/issues/158013

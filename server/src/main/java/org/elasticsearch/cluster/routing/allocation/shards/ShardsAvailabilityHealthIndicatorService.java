@@ -454,8 +454,6 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         if (routing.active()) {
             return false;
         }
-        UnassignedInfo unassignedInfo = routing.unassignedInfo();
-        assert unassignedInfo != null : "inactive shard should be unassigned or initializing from unassigned";
         // If the primary is inactive for unexceptional events in the cluster lifecycle, both the primary and the replica are considered
         // provisionally inactive:
         if (routing.primary()) {
@@ -470,7 +468,9 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         }
         // If this shard is inactive for unexceptional events (with a slightly different definition to that used by getInactivePrimaryHealth
         // above) and within the allowed grace period (aka buffer time) then it is considered provisionally inactive:
-        return unassignedInfo.failedAllocations() == 0
+        UnassignedInfo unassignedInfo = routing.unassignedInfo();
+        return unassignedInfo != null
+            && unassignedInfo.failedAllocations() == 0
             && unassignedInfo.lastAllocationStatus() != UnassignedInfo.AllocationStatus.DECIDERS_NO
             && unassignedInfo.reason().isExpectedTransient()
             && (inactiveBufferTime.millis() > 0)

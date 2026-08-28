@@ -259,6 +259,13 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
 
             perDeploymentMemoryBytes.set(trainedModelConfig.getPerDeploymentMemoryBytes());
             perAllocationMemoryBytes.set(trainedModelConfig.getPerAllocationMemoryBytes());
+            // ELSER v1/v2 model metadata does not include per-allocation memory. Inject the known constant so
+            // that the assignment planner can bound the number of allocations by real memory constraints and
+            // prevent unbounded scale-up that caused OOM kills with adaptive allocations.
+            if (StartTrainedModelDeploymentAction.isElserV1Or2Model(trainedModelConfig.getModelId())
+                && perAllocationMemoryBytes.get() == 0) {
+                perAllocationMemoryBytes.set(StartTrainedModelDeploymentAction.ELSER_1_OR_2_PER_ALLOCATION_MEMORY.getBytes());
+            }
 
             if (trainedModelConfig.getLocation() == null) {
                 listener.onFailure(ExceptionsHelper.serverError("model [{}] does not have location", trainedModelConfig.getModelId()));

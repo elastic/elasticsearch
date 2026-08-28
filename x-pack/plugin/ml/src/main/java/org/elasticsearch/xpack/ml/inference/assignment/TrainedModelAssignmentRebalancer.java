@@ -167,6 +167,14 @@ class TrainedModelAssignmentRebalancer {
                     .filter(e -> e.getValue().getCurrentAllocations() > 0 && e.getValue().getTargetAllocations() > 0)
                     .filter(e -> e.getValue().getState().isAnyOf(RoutingState.STARTING, RoutingState.STARTED, RoutingState.FAILED))
                     .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getTargetAllocations()));
+                // Prefer the per-allocation memory observed at runtime over the a priori estimate from the task params.
+                // This makes the plan's memory guards bound by real usage (which is what prevents ELSER over-allocation).
+                // In mixed-version clusters the observed value is absent (null) and we fall back to the task params to keep
+                // plans stable.
+                long perAllocationMemoryBytes = assignment.getObservedPerAllocationMemoryBytes() != null
+                    && assignment.getObservedPerAllocationMemoryBytes() > 0
+                        ? assignment.getObservedPerAllocationMemoryBytes()
+                        : assignment.getTaskParams().getPerAllocationMemoryBytes();
                 return new AssignmentPlan.Deployment(
                     assignment.getDeploymentId(),
                     assignment.getModelId(),
@@ -177,7 +185,7 @@ class TrainedModelAssignmentRebalancer {
                     assignment.getMaxAssignedAllocations(),
                     assignment.getAdaptiveAllocationsSettings(),
                     assignment.getTaskParams().getPerDeploymentMemoryBytes(),
-                    assignment.getTaskParams().getPerAllocationMemoryBytes()
+                    perAllocationMemoryBytes
                 );
             })
             .forEach(planDeployments::add);

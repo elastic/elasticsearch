@@ -1,0 +1,6 @@
+area: Machine Learning
+issues:
+ - 156335
+pr: 156335
+summary: Fix ELSER memory estimate to scale with number of allocations, preventing OOM kills when adaptive allocations scales up
+type: bug

@@ -64,6 +64,24 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
      * The ELSER model turned out to use more memory than what we usually estimate.
      * We overwrite the estimate with this static value for ELSER v1 and v2 for now.
      * Soon to be replaced with a better estimate provided by the model.
+     *
+     * This constant is the per-allocation memory for ELSER v1/v2. It is injected into
+     * {@link org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.TaskParams} at deployment
+     * start time when the model metadata contains no per-allocation memory information, so that the assignment
+     * planner can bound the number of allocations by real memory constraints.
+     *
+     * At 1 allocation the total estimate is approximately
+     * {@code ELSER_1_OR_2_PER_ALLOCATION_MEMORY + modelBytes} ≈ 2004 MB, matching the previously observed
+     * single-allocation footprint. At N allocations the estimate grows linearly, preventing the unbounded
+     * scale-up that caused OOM kills when adaptive allocations reached its maximum.
+     */
+    public static final ByteSizeValue ELSER_1_OR_2_PER_ALLOCATION_MEMORY = ByteSizeValue.ofMb(1536);
+
+    /**
+     * Single-allocation fallback for ELSER v1/v2 deployments started by nodes that predate the per-allocation
+     * memory injection (i.e. those nodes set {@code perAllocationMemoryBytes = 0} in their TaskParams). For new
+     * deployments {@link #ELSER_1_OR_2_PER_ALLOCATION_MEMORY} is injected at start time and this constant is
+     * no longer reached.
      */
     private static final ByteSizeValue ELSER_1_OR_2_MEMORY_USAGE = ByteSizeValue.ofMb(2004);
     public static final AllocationStatus.State DEFAULT_WAITFOR_STATE = AllocationStatus.State.STARTED;
@@ -743,13 +761,17 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         }
         // While loading the model in the process we need twice the model size.
 
-        // 1. If ELSER v1 or v2 then 2004MB
+        // 1. If ELSER v1 or v2 with no per-allocation metadata (old persisted task params): flat 2004 MB fallback
         // 2. If static memory and dynamic memory are not set then 240MB + 2 * model size
         // 3. Else static memory + dynamic memory * allocations + model size
 
         // The model size is still added in option 3 to account for the temporary requirement to hold the zip file in memory
         // in `pytorch_inference`.
-        if (isElserV1Or2Model(modelId)) {
+        //
+        // For new ELSER deployments, TransportStartTrainedModelDeploymentAction injects ELSER_1_OR_2_PER_ALLOCATION_MEMORY
+        // into TaskParams so we fall straight to branch 3 and the estimate scales linearly with the number of allocations.
+        // Branch 1 is only reached for ELSER deployments started by older nodes that did not perform this injection.
+        if (isElserV1Or2Model(modelId) && perDeploymentMemoryBytes == 0 && perAllocationMemoryBytes == 0) {
             return ELSER_1_OR_2_MEMORY_USAGE.getBytes();
         } else {
             long baseSize = MEMORY_OVERHEAD.getBytes() + 2 * totalDefinitionLength;
@@ -764,7 +786,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         }
     }
 
-    private static boolean isElserV1Or2Model(String modelId) {
+    public static boolean isElserV1Or2Model(String modelId) {
         return modelId.startsWith(".elser_model_1") || modelId.startsWith(".elser_model_2");
     }
 }

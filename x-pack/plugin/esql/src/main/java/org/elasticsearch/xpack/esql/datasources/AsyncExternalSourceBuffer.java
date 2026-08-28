@@ -116,9 +116,9 @@ public final class AsyncExternalSourceBuffer {
      */
     private static final int MAX_INFORMATIONAL_WARNINGS = SkipWarnings.MAX_ADDED_WARNINGS + 2;
 
-    // Guarded by recordInformationalWarning so reserving a slot and enqueueing it remain one ordered operation.
-    // This keeps the single overflow line after every accepted informational warning.
-    private int informationalWarningsAdded;
+    // Each caller gets a unique count, so exactly one caller ever sees count == MAX_INFORMATIONAL_WARNINGS
+    // and adds the overflow line — no separate overflow flag needed.
+    private final AtomicInteger informationalWarningsAdded = new AtomicInteger();
 
     /**
      * Set when the background reader path drops data under a lenient policy — currently a streaming
@@ -200,8 +200,8 @@ public final class AsyncExternalSourceBuffer {
      * additionally gates every informational sink through one shared {@code InformationalWarningBudget}
      * before it reaches this method; the per-source and per-buffer bounds compose.
      */
-    public synchronized void recordInformationalWarning(String warning) {
-        int count = ++informationalWarningsAdded;
+    public void recordInformationalWarning(String warning) {
+        int count = informationalWarningsAdded.incrementAndGet();
         if (count < MAX_INFORMATIONAL_WARNINGS) {
             pendingWarnings.add(warning);
         } else if (count == MAX_INFORMATIONAL_WARNINGS) {

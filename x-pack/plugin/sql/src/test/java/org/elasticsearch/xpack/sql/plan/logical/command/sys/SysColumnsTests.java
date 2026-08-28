@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.index.IndexCompatibility;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
+import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
@@ -305,7 +306,8 @@ public class SysColumnsTests extends ESTestCase {
             null,
             false,
             false,
-            null
+            null,
+            SqlPlugin.DEFAULT_MAX_QUERY_LENGTH
         );
         Tuple<Command, SqlSession> tuple = sql(sql, emptyList(), config, MAPPING1);
 
@@ -354,7 +356,8 @@ public class SysColumnsTests extends ESTestCase {
             null,
             false,
             false,
-            null
+            null,
+            SqlPlugin.DEFAULT_MAX_QUERY_LENGTH
         );
         Tuple<Command, SqlSession> tuple = sql(sql, params, config, mapping);
 

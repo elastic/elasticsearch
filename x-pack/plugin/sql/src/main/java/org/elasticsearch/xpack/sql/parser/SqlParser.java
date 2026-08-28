@@ -29,6 +29,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.parser.CaseChangingCharStream;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.time.ZoneId;
@@ -49,16 +50,7 @@ public class SqlParser {
 
     private static final Logger log = LogManager.getLogger(SqlParser.class);
 
-    /**
-     * Maximum number of characters in an SQL query. Antlr may parse the entire
-     * query into tokens to make the choices, buffering the world. There's a lot we
-     * can do in the grammar to prevent that, but let's be paranoid and assume we'll
-     * fail at preventing antlr from slurping in the world. Instead, let's make sure
-     * that the world just isn't that big.
-     */
-    public static final int MAX_LENGTH = 1_000_000;
-
-    private final boolean DEBUG = false;
+    private static final boolean DEBUG = false;
 
     /**
      * Maximum depth for nested expressions.
@@ -72,27 +64,35 @@ public class SqlParser {
      * Used only in tests
      */
     public LogicalPlan createStatement(String sql) {
-        return createStatement(sql, Collections.emptyList(), UTC);
+        return createStatement(sql, Collections.emptyList(), UTC, SqlPlugin.DEFAULT_MAX_QUERY_LENGTH);
     }
 
     /**
      * Used only in tests
      */
     public LogicalPlan createStatement(String sql, ZoneId zoneId) {
-        return createStatement(sql, Collections.emptyList(), zoneId);
+        return createStatement(sql, Collections.emptyList(), zoneId, SqlPlugin.DEFAULT_MAX_QUERY_LENGTH);
+    }
+
+    /**
+     * Used only in tests
+     */
+    public LogicalPlan createStatement(String sql, List<SqlTypedParamValue> params, ZoneId zoneId) {
+        return createStatement(sql, params, zoneId, SqlPlugin.DEFAULT_MAX_QUERY_LENGTH);
     }
 
     /**
      * Parses an SQL statement into execution plan
      * @param sql - the SQL statement
      * @param params - a list of parameters for the statement if the statement is parametrized
+     * @param maxLength - maximum allowed query length in characters
      * @return logical plan
      */
-    public LogicalPlan createStatement(String sql, List<SqlTypedParamValue> params, ZoneId zoneId) {
+    public LogicalPlan createStatement(String sql, List<SqlTypedParamValue> params, ZoneId zoneId, int maxLength) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", sql);
         }
-        return invokeParser(sql, params, zoneId, SqlBaseParser::singleStatement, AstBuilder::plan);
+        return invokeParser(sql, params, zoneId, SqlBaseParser::singleStatement, AstBuilder::plan, maxLength);
     }
 
     /**
@@ -110,7 +110,14 @@ public class SqlParser {
             log.debug("Parsing as expression: {}", expression);
         }
 
-        return invokeParser(expression, params, UTC, SqlBaseParser::singleExpression, AstBuilder::expression);
+        return invokeParser(
+            expression,
+            params,
+            UTC,
+            SqlBaseParser::singleExpression,
+            AstBuilder::expression,
+            SqlPlugin.DEFAULT_MAX_QUERY_LENGTH
+        );
     }
 
     private record ParserPipeline(CommonTokenStream tokenStream, SqlBaseParser parser, Map<Token, SqlTypedParamValue> paramTokens) {}
@@ -135,10 +142,11 @@ public class SqlParser {
         List<SqlTypedParamValue> params,
         ZoneId zoneId,
         Function<SqlBaseParser, ParserRuleContext> parseFunction,
-        BiFunction<AstBuilder, ParserRuleContext, T> visitor
+        BiFunction<AstBuilder, ParserRuleContext, T> visitor,
+        int maxLength
     ) {
-        if (sql.length() > MAX_LENGTH) {
-            throw new ParsingException("SQL statement is too large [{} characters > {}]", sql.length(), MAX_LENGTH);
+        if (sql.length() > maxLength) {
+            throw new ParsingException("SQL statement is too large [{} characters > {}]", sql.length(), maxLength);
         }
         try {
             ParserPipeline pipeline = createParserPipeline(sql, params);

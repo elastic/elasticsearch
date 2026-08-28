@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.FileSplitProvider;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
+import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 
 import java.util.HashMap;
@@ -28,6 +29,7 @@ import java.util.function.BooleanSupplier;
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationUtils.rejectUnknownFields;
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationUtils.validateEnum;
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationUtils.validateInt;
+import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationUtils.validateStringList;
 
 /**
  * {@link DataSourceValidator} for file-based external sources (S3, GCS, Azure).
@@ -88,6 +90,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         fields.add(FormatNameResolver.CONFIG_FORMAT);
         fields.addAll(ErrorPolicy.CONFIG_KEYS);
         fields.addAll(PartitionConfig.CONFIG_KEYS);
+        fields.addAll(ExclusionConfig.CONFIG_KEYS);
         fields.addAll(FileSplitProvider.CONFIG_KEYS);
         COORDINATOR_DATASET_KEYS = Set.copyOf(fields);
     }
@@ -284,6 +287,12 @@ public class FileDataSourceValidator implements DataSourceValidator {
             errors
         );
         validate(() -> PartitionConfig.validate(settings), errors);
+        // file_exclusions: array-of-strings shape here, pattern compilation via the owning parser. Stricter than the query path for the
+        // same reason as the partition
+        // settings above: ExclusionConfig.fromConfig degrades a malformed stored value to its default so an
+        // upgrade cannot break a working dataset, which leaves registration as the only place to catch it.
+        validateStringList(settings, result, ExclusionConfig.CONFIG_FILE_EXCLUSIONS, errors);
+        validate(() -> ExclusionConfig.validate(settings), errors);
         Object schemaResolution = settings.get(ExternalSourceResolver.CONFIG_SCHEMA_RESOLUTION);
         if (schemaResolution != null) {
             validate(() -> FormatReader.SchemaResolution.parse(schemaResolution.toString()), errors);
@@ -294,6 +303,27 @@ public class FileDataSourceValidator implements DataSourceValidator {
             if (trimmedSplitSize.isEmpty() == false) {
                 validate(() -> FileSplitProvider.validateTargetSplitSize(trimmedSplitSize), errors);
             }
+        }
+        int errorsBeforeProbeKeys = errors.validationErrors().size();
+        Object splitProbeWindow = settings.get(FileSplitProvider.CONFIG_SPLIT_PROBE_WINDOW);
+        if (splitProbeWindow != null) {
+            String trimmedProbeWindow = splitProbeWindow.toString().trim();
+            if (trimmedProbeWindow.isEmpty() == false) {
+                validate(() -> FileSplitProvider.validateSplitProbeWindow(trimmedProbeWindow), errors);
+            }
+        }
+        Object maxSplitProbes = settings.get(FileSplitProvider.CONFIG_MAX_SPLIT_PROBES);
+        if (maxSplitProbes != null) {
+            String trimmedMaxProbes = maxSplitProbes.toString().trim();
+            if (trimmedMaxProbes.isEmpty() == false) {
+                validate(() -> FileSplitProvider.validateMaxSplitProbes(trimmedMaxProbes), errors);
+            }
+        }
+        // The two probe keys form one read budget, so the pair is checked against its own effective values
+        // (defaulting whichever is absent) rather than by either key's parser. Only once both parse: a malformed
+        // value is already reported above, and re-parsing it here would report it twice.
+        if (errors.validationErrors().size() == errorsBeforeProbeKeys) {
+            validate(() -> FileSplitProvider.validateProbeBudget(settings), errors);
         }
 
         // Normalize the format selector before raw storage so the representation in cluster state

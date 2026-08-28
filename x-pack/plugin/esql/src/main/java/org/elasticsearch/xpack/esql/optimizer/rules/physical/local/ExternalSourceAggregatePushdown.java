@@ -130,9 +130,12 @@ public final class ExternalSourceAggregatePushdown {
             // Double / BytesRef). Serve only the representation buildBlock's matching arm can materialize without a crash
             // (BOOLEAN: parseBoolean(BytesRef.toString()=hex); BYTES_REF: toBytesRef((Number).toString()); DOUBLE:
             // (Number) cast) or a silent wrong answer; anything else safe-misses so the aggregate re-scans and is correct.
-            // This gate cannot catch a foreign value of the SAME Java type (a sibling column's Long min on a LONG column,
-            // or a keyword min that is exactly this IP column's 16 bytes): that wrong-VALUE channel closes only when the
-            // declared schema enters the cross-node stats fingerprint (tracked in the declared-schema-fingerprint follow-up).
+            // This gate cannot catch a foreign value of the SAME Java type on its own (a sibling column's Long min on
+            // a LONG column, or a keyword min that is exactly this IP column's 16 bytes). That wrong-VALUE channel is
+            // closed upstream now that the resolved read configuration is part of the stats identity: a harvest may
+            // only enrich, and an entry may only serve, a read whose configuration matches, so a differently-declared
+            // dataset's extremum no longer reaches this arm. This gate remains as the crash-safety net for the rails
+            // that legitimately carry no read configuration -- the columnar readers, which harvest without stamping.
             case DOUBLE -> value instanceof Number ? value : null;
             case BOOLEAN -> value instanceof Boolean ? value : null;
             case BYTES_REF -> servableBytesRef(value, type);

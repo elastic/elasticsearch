@@ -530,6 +530,27 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
         }
     }
 
+    public void testValueFetcherWithFieldMissingFromAllDocuments() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("field_with_value").field("type", "pattern_text").endObject();
+            b.startObject("field_without_value").field("type", "pattern_text").endObject();
+        }));
+
+        try (Directory dir = newDirectory()) {
+            indexDocPerSegment(
+                dir,
+                mapperService.documentMapper().parse(source(b -> b.field("field_with_value", "this is a value 123"))).rootDoc()
+            );
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                ValueFetcher fetcher = mapperService.fieldType("field_without_value")
+                    .valueFetcher(createSearchExecutionContext(mapperService, newSearcher(reader)), null);
+                fetcher.setNextReader(reader.leaves().get(0));
+
+                assertEquals(List.of(), fetcher.fetchValues(null, 0, new ArrayList<>()));
+            }
+        }
+    }
+
     public void testFieldDataWithMissingFieldSegment() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "pattern_text")));
         MappedFieldType ft = mapperService.fieldType("field");

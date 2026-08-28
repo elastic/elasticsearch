@@ -23,6 +23,7 @@ import org.junit.Before;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomPersistedCloudCredential;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class CloudCredentialManagerTests extends ESTestCase {
@@ -39,30 +40,14 @@ public class CloudCredentialManagerTests extends ESTestCase {
         assertFalse(manager.hasCloudManagedCredential(threadContext));
     }
 
-    public void testNoopExtractThrows() {
+    public void testNoopExtractReturnsNull() {
         var threadContext = new ThreadContext(Settings.EMPTY);
-        expectThrows(UnsupportedOperationException.class, () -> manager.extractCloudManagedCredential(threadContext));
+        assertThat(manager.extractCloudManagedCredential(threadContext), nullValue());
     }
 
-    public void testNoopInjectThrows() {
-        var threadContext = new ThreadContext(Settings.EMPTY);
-        var credential = new CloudCredential(new SecureString("v".toCharArray()));
-        expectThrows(UnsupportedOperationException.class, () -> manager.injectCloudManagedCredential(threadContext, credential));
-    }
-
-    public void testNoopResolverOfPersistedThrows() {
+    public void testNoopToCloudCredentialThrows() {
         var persisted = randomPersistedCloudCredential();
-        expectThrows(UnsupportedOperationException.class, () -> manager.resolverOf(persisted));
-    }
-
-    public void testResolverOfCredentialResolvesToWrappedInstance() {
-        var credential = new CloudCredential(new SecureString("v".toCharArray()));
-        var resolver = manager.resolverOf(credential);
-        assertThat(resolver.resolve(), sameInstance(credential));
-    }
-
-    public void testResolverOfCredentialRejectsNull() {
-        expectThrows(NullPointerException.class, () -> manager.resolverOf((CloudCredential) null));
+        expectThrows(UnsupportedOperationException.class, () -> manager.toCloudCredential(persisted));
     }
 
     public void testNoopWrapClientReturnsDelegateForAllOverloads() {
@@ -78,9 +63,7 @@ public class CloudCredentialManagerTests extends ESTestCase {
             // previously-active config.
             var credential = new CloudCredential(new SecureString("v".toCharArray()));
             var persisted = randomPersistedCloudCredential();
-            CloudCredentialResolver throwingResolver = () -> { throw new AssertionError("resolver must not be invoked on Noop"); };
 
-            assertThat(manager.wrapClient(delegate, throwingResolver), sameInstance(delegate));
             assertThat(manager.wrapClient(delegate, credential), sameInstance(delegate));
             assertThat(manager.wrapClient(delegate, persisted), sameInstance(delegate));
         }

@@ -92,12 +92,11 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     private final ThreadPool threadPool = new TestThreadPool("pipelining test");
 
     @After
-    public void tearDown() throws Exception {
+    public void cleanup() throws Exception {
         waitingRequests.keySet().forEach(this::finishRequest);
         terminateExecutorService(handlerService);
         terminateExecutorService(eventLoopService);
         threadPool.shutdownNow();
-        super.tearDown();
     }
 
     private void terminateExecutorService(ExecutorService executorService) throws InterruptedException {

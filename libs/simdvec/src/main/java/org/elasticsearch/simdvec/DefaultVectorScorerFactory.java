@@ -64,6 +64,16 @@ final class DefaultVectorScorerFactory implements VectorScorerFactory {
     }
 
     @Override
+    public OptimizedScalarQuantization newOptimizedScalarQuantization() {
+        return new OptimizedScalarQuantization();
+    }
+
+    @Override
+    public AshSphericalScalarQuantizer newAshSphericalScalarQuantizer(int bitsPerDim) {
+        return new AshSphericalScalarQuantizer(bitsPerDim);
+    }
+
+    @Override
     public Optional<RandomVectorScorerSupplier> getFloat32VectorScorerSupplier(
         VectorSimilarityType similarityType,
         IndexInput input,

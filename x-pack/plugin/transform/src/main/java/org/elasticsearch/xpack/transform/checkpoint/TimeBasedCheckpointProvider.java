@@ -14,10 +14,10 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
@@ -33,6 +33,7 @@ import java.time.Clock;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -45,6 +46,10 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
     private final TimeSyncConfig timeSyncConfig;
     // function aligning the given timestamp with date histogram interval or identity function is aligning is not possible
     private final Function<Long, Long> alignTimestamp;
+    // one-time reduced delay supplied at _start, or null to always use the steady-state delay
+    private final TimeValue initialDelay;
+    // true once the transform has processed at least one source document, i.e. it is past its initial catch-up phase
+    private final BooleanSupplier hasProcessedData;
 
     TimeBasedCheckpointProvider(
         final Clock clock,
@@ -53,25 +58,32 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
         final TransformConfigManager transformConfigManager,
         final TransformAuditor transformAuditor,
         final TransformConfig transformConfig,
-        final CrossProjectModeDecider crossProjectModeDecider
+        final TimeValue initialDelay,
+        final BooleanSupplier hasProcessedData
     ) {
-        super(
-            clock,
-            threadContextSupplier,
-            clientSupplier,
-            transformConfigManager,
-            transformAuditor,
-            transformConfig,
-            crossProjectModeDecider
-        );
+        super(clock, threadContextSupplier, clientSupplier, transformConfigManager, transformAuditor, transformConfig);
         timeSyncConfig = (TimeSyncConfig) transformConfig.getSyncConfig();
         alignTimestamp = createAlignTimestampFunction(transformConfig);
+        this.initialDelay = initialDelay;
+        this.hasProcessedData = hasProcessedData;
+    }
+
+    // Apply the reduced initial_delay while the transform is still catching up (no document processed yet), otherwise the
+    // steady-state delay. Keying off "has processed data" rather than "checkpoint #1" lets a chained transform pick up source
+    // data that lands just after its first (empty) checkpoint.
+    private long syncDelayMillis() {
+        if (initialDelay != null && hasProcessedData.getAsBoolean() == false) {
+            return initialDelay.millis();
+        }
+        return timeSyncConfig.getDelay().millis();
     }
 
     @Override
     public void sourceHasChanged(TransformCheckpoint lastCheckpoint, ActionListener<Boolean> listener) {
         final long timestamp = clock.millis();
-        final long timeUpperBound = alignTimestamp.apply(timestamp - timeSyncConfig.getDelay().millis());
+        // Mirror createNextCheckpoint's delay so this change-detection gate also widens its window while catching up;
+        // otherwise just-landed backfill would never pass the gate.
+        final long timeUpperBound = alignTimestamp.apply(timestamp - syncDelayMillis());
 
         BoolQueryBuilder queryBuilder = new BoolQueryBuilder().filter(transformConfig.getSource().getQueryConfig().getQuery())
             .filter(
@@ -85,9 +97,10 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
             .runtimeMappings(transformConfig.getSource().getRuntimeMappings())
             .query(queryBuilder);
         SearchRequest searchRequest = new SearchRequest(transformConfig.getSource().getIndex()).allowPartialSearchResults(false)
-            .indicesOptions(checkpointIndicesOptions())
+            .indicesOptions(transformConfig.getScopedIndicesOptions())
             .source(sourceBuilder);
-        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
+            && transformConfig.getScopedIndicesOptions().resolveCrossProjectIndexExpression()) {
             searchRequest.setProjectRouting(transformConfig.getSource().getProjectRouting());
         }
 
@@ -108,8 +121,7 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
         final long timestamp = clock.millis();
         final long checkpoint = TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? 1 : lastCheckpoint.getCheckpoint() + 1;
 
-        // for time based synchronization
-        final long timeUpperBound = alignTimestamp.apply(timestamp - timeSyncConfig.getDelay().millis());
+        final long timeUpperBound = alignTimestamp.apply(timestamp - syncDelayMillis());
 
         getIndexCheckpoints(INTERNAL_GET_INDEX_CHECKPOINTS_TIMEOUT, ActionListener.wrap(checkpointsByIndex -> {
             listener.onResponse(

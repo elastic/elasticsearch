@@ -41,10 +41,12 @@ import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
+import org.elasticsearch.index.mapper.FieldArrayContext;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
+import org.elasticsearch.index.mapper.OnFailureStoredValues;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.transport.Transports;
@@ -60,6 +62,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * A {@link FilterLeafReader} that exposes only a subset
@@ -166,14 +169,26 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         ArrayList<FieldInfo> filteredInfos = new ArrayList<>();
         for (FieldInfo fi : in.getFieldInfos()) {
             String name = fi.name;
-            if (fi.getName().endsWith(TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX) && isMapped.apply(fi.getName()) == false) {
-                name = fi.getName().substring(0, fi.getName().length() - TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX.length());
+
+            // Stored-value fallback companions (._original / ._ignore_malformed / ._on_failure) store a parent field's value(s) verbatim so
+            // synthetic source can be rebuilt, and must be filtered under the parent's name (when the parent is unmapped, the companion is
+            // all that represents it). A field that is itself mapped is filtered under its own name, even if it happens to end with one of
+            // these suffixes, so only re-map when the field is not mapped.
+            if (isMapped.apply(fi.getName()) == false) {
+                name = storedValueFallbackCompanionParent(fi.getName());
             }
-            if (fi.getName().endsWith(IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX)
-                && isMapped.apply(fi.getName()) == false) {
-                name = fi.getName()
-                    .substring(0, fi.getName().length() - IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX.length());
+
+            // The .offsets sidecar records array order for its parent field's doc values, so its visibility must follow the parent.
+            // Filtering it independently would leave orphaned offsets behind a hidden field, and synthetic source reconstruction would
+            // then read offsets pointing at absent values. Only treat it as a companion when the parent exists as a field in the
+            // underlying index, so a user field that merely ends with the suffix but has no such parent is unaffected.
+            if (name.endsWith(FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX) && isMapped.apply(fi.getName()) == false) {
+                String parent = name.substring(0, name.length() - FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX.length());
+                if (in.getFieldInfos().fieldInfo(parent) != null) {
+                    name = parent;
+                }
             }
+
             if (filter.run(name)) {
                 filteredInfos.add(fi);
             }
@@ -181,6 +196,52 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         fieldInfos = new FieldInfos(filteredInfos.toArray(new FieldInfo[filteredInfos.size()]));
         this.filter = filter;
         this.ignoredSourceFormat = ignoredSourceFormat;
+    }
+
+    /**
+     * Resolves the name a field should be filtered under, accounting for companion fields (.counts, ._original, etc.). Each such companion
+     * fields appears in two field shapes that must both resolve to the same parent, so field-level security keeps or drops the parent and
+     * its companion together: the companion field itself (e.g. {@code "user._ignore_malformed"}) and its {@code .counts} sibling written by
+     * the SeparateCount doc-values framing (e.g. {@code "user._ignore_malformed.counts"}). Returns the parent field name when
+     * {@code fieldName} is such a companion, or {@code fieldName} unchanged otherwise.
+     */
+    private static String storedValueFallbackCompanionParent(String fieldName) {
+        String counts = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+
+        // A text-family field stores its original value in a <field>._original companion (ignore_above / normalized / over-length values).
+        String original = TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX;
+        if (fieldName.endsWith(original + counts)) {
+            return stripSuffix(fieldName, original + counts);
+        }
+        if (fieldName.endsWith(original)) {
+            return stripSuffix(fieldName, original);
+        }
+
+        // A value that failed to parse is kept verbatim in a <field>._ignore_malformed companion.
+        String ignoreMalformed = IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX;
+        if (fieldName.endsWith(ignoreMalformed + counts)) {
+            return stripSuffix(fieldName, ignoreMalformed + counts);
+        }
+        if (fieldName.endsWith(ignoreMalformed)) {
+            return stripSuffix(fieldName, ignoreMalformed);
+        }
+
+        // A value redirected by "doc_values.on_failure=ignore" is stored verbatim in a <field>._on_failure companion; synthetic source
+        // reads it back (CompositeSyntheticFieldLoader#onFailureValuesLayer) to reconstruct the parent's full array. Both columns must
+        // follow the same FLS decision as the parent so neither a denial nor a grant produces a truncated or leaked array.
+        String onFailure = OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX;
+        if (fieldName.endsWith(onFailure + counts)) {
+            return stripSuffix(fieldName, onFailure + counts);
+        }
+        if (fieldName.endsWith(onFailure)) {
+            return stripSuffix(fieldName, onFailure);
+        }
+
+        return fieldName;
+    }
+
+    private static String stripSuffix(String value, String suffix) {
+        return value.substring(0, value.length() - suffix.length());
     }
 
     /** returns true if this field is allowed. */
@@ -214,6 +275,11 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     public StoredFields storedFields() throws IOException {
         StoredFields storedFields = super.storedFields();
         return new StoredFields() {
+            @Override
+            public void prefetch(int docID) throws IOException {
+                storedFields.prefetch(docID);
+            }
+
             @Override
             public void document(int docID, StoredFieldVisitor visitor) throws IOException {
                 storedFields.document(docID, new FieldSubsetStoredFieldVisitor(visitor, ignoredSourceFormat));
@@ -305,7 +371,10 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
 
     @Override
     public NumericDocValues getNumericDocValues(String field) throws IOException {
-        return hasField(field) ? super.getNumericDocValues(field) : null;
+        if (hasField(field) == false || isIgnoredSourceCountsField(field)) {
+            return null;
+        }
+        return super.getNumericDocValues(field);
     }
 
     @Override
@@ -330,6 +399,20 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             && ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE;
     }
 
+    /**
+     * Returns whether this is the companion {@code .counts} field of the {@code _ignored_source} binary doc values.
+     * <p>
+     * These counts must be hidden from callers: {@link FilteredIgnoredSourceDocValues} re-encodes the surviving values in the
+     * {@link MultiValuedBinaryDocValuesField.IntegratedCount} format, but
+     * {@link MultiValuedSortedBinaryDocValues#fromMultiValued(LeafReader, String, BinaryDocValues)} picks the decoding format based on
+     * whether a {@code .counts} field is present. Leaving it visible makes the filtered payload be read as
+     * {@link MultiValuedBinaryDocValuesField.SeparateCount} against unfiltered counts, which mis-decodes the values.
+     */
+    private boolean isIgnoredSourceCountsField(String field) {
+        return (IgnoredSourceFieldMapper.NAME + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX).equals(field)
+            && ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE;
+    }
+
     @Override
     public SortedDocValues getSortedDocValues(String field) throws IOException {
         return hasField(field) ? super.getSortedDocValues(field) : null;
@@ -348,21 +431,23 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     /**
      * Wraps {@link BinaryDocValues} for the {@code _ignored_source} field to apply field-level security filtering.
      * <p>
-     * Per-document values are decoded via {@link MultiValuedSortedBinaryDocValues} (which handles both
-     * {@link MultiValuedBinaryDocValuesField.SeparateCount} and {@link MultiValuedBinaryDocValuesField.IntegratedCount}
-     * formats), filtered through the FLS field automaton, and re-encoded in the
-     * {@link MultiValuedBinaryDocValuesField.IntegratedCount} format so that callers only observe field values
-     * the current user is authorised to see. Returning the integrated-count format allows the caller to treat
-     * the counts numeric field as absent, avoiding stale count mismatches after filtering.
+     * Per-document values are decoded via {@link MultiValuedSortedBinaryDocValues}, filtered through the FLS field automaton, and the
+     * surviving values are stored as a list. Extending {@link MultiValuedSortedBinaryDocValues.DecodedBinaryDocValues} lets
+     * {@link MultiValuedSortedBinaryDocValues#fromMultiValued} read those values directly, avoiding the otherwise-necessary step of
+     * re-encoding them into a blob that the caller would immediately parse apart again. {@link #binaryValue()} encodes on demand as a
+     * fallback for anything that reads this instance as a plain {@link BinaryDocValues}.
      */
-    private static final class FilteredIgnoredSourceDocValues extends BinaryDocValues {
+    private static final class FilteredIgnoredSourceDocValues extends MultiValuedSortedBinaryDocValues.DecodedBinaryDocValues {
 
         private final BinaryDocValues delegate;
         private final MultiValuedSortedBinaryDocValues multiValues;
         private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
-        private final CharacterRunAutomaton filter;
-
-        private BytesRef filteredValue;
+        /** Held rather than built per entry: both capture {@link #filter}, so constructing them in the loop allocates on every value. */
+        private final Function<Map<String, Object>, Map<String, Object>> mapFilter;
+        private final Predicate<String> nameFilter;
+        private final List<BytesRef> filteredValues = new ArrayList<>();
+        private int nextValueIndex;
+        private BytesRef encodedValue;
 
         FilteredIgnoredSourceDocValues(
             LeafReader reader,
@@ -372,42 +457,57 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         ) throws IOException {
             this.delegate = dv;
             this.ignoredSourceFormat = ignoredSourceFormat;
-            this.filter = filter;
+            this.mapFilter = v -> filter(v, filter, 0);
+            this.nameFilter = filter::run;
             // convert incoming binary doc values to reuse the code provided by MultiValuedSortedBinaryDocValues
             this.multiValues = MultiValuedSortedBinaryDocValues.fromMultiValued(reader, IgnoredSourceFieldMapper.NAME, dv);
         }
 
         @Override
         public boolean advanceExact(int target) throws IOException {
-            filteredValue = null;
+            clear();
+
             if (multiValues.advanceExact(target) == false) {
                 return false;
             }
 
             // iterate over all ignored-source entries for this document and apply FLS filtering
-            List<BytesRef> filteredValues = new ArrayList<>();
             int count = multiValues.docValueCount();
             for (int i = 0; i < count; i++) {
                 BytesRef value = multiValues.nextValue();
-                BytesRef filtered = ignoredSourceFormat.filterValue(value, v -> filter(v, filter, 0));
+                BytesRef filtered = ignoredSourceFormat.filterValue(value, mapFilter, nameFilter);
                 if (filtered != null) {
                     // deep copy because nextValue() reuses an internal scratch buffer
                     filteredValues.add(BytesRef.deepCopyOf(filtered));
                 }
             }
 
-            if (filteredValues.isEmpty()) {
-                return false;
-            }
+            return filteredValues.isEmpty() == false;
+        }
 
-            // re-encode surviving values into IntegratedCount format
-            filteredValue = MultiValuedBinaryDocValuesField.IntegratedCount.encode(filteredValues);
-            return true;
+        private void clear() {
+            filteredValues.clear();
+            nextValueIndex = 0;
+            encodedValue = null;
+        }
+
+        @Override
+        public int docValueCount() {
+            return filteredValues.size();
+        }
+
+        @Override
+        public BytesRef nextValue() {
+            return filteredValues.get(nextValueIndex++);
         }
 
         @Override
         public BytesRef binaryValue() {
-            return filteredValue;
+            if (encodedValue == null && filteredValues.isEmpty() == false) {
+                // Only for callers that read this as a plain BinaryDocValues; readers of _ignored_source take the decoded path.
+                encodedValue = MultiValuedBinaryDocValuesField.IntegratedCount.encode(filteredValues);
+            }
+            return encodedValue;
         }
 
         @Override
@@ -534,7 +634,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             } else if (IgnoredSourceFieldMapper.NAME.equals(fieldInfo.name)) {
                 assert ignoredSourceFormat != IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
                 BytesRef valueRef = new BytesRef(value);
-                BytesRef filtered = ignoredSourceFormat.filterValue(valueRef, v -> filter(v, filter, 0));
+                BytesRef filtered = ignoredSourceFormat.filterValue(valueRef, v -> filter(v, filter, 0), filter::run);
                 if (filtered != null) {
                     byte[] filteredBytes = ArrayUtil.copyOfSubArray(filtered.bytes, filtered.offset, filtered.offset + filtered.length);
                     visitor.binaryField(fieldInfo, filteredBytes);

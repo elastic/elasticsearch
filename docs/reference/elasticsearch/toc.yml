@@ -17,6 +17,7 @@ toc:
       - file: configuration-reference/index-recovery-settings.md
       - file: configuration-reference/indexing-buffer-settings.md
       - file: configuration-reference/indexing-pressure-settings.md
+      - file: configuration-reference/ingest-settings.md
       - file: configuration-reference/license-settings.md
       - file: configuration-reference/local-gateway.md
       - file: configuration-reference/machine-learning-settings.md
@@ -45,6 +46,7 @@ toc:
   - file: jvm-settings.md
   - file: roles.md
   - file: security-privileges.md
+  - file: columnar/index.md
   - file: index-settings/index.md
     children:
         - file: index-settings/serverless.md
@@ -161,7 +163,6 @@ toc:
           - file: mapping-reference/date.md
           - file: mapping-reference/date_nanos.md
           - file: mapping-reference/dense-vector.md
-          - file: mapping-reference/gpu-vector-indexing.md
           - file: mapping-reference/flattened.md
           - file: mapping-reference/geo-point.md
           - file: mapping-reference/geo-shape.md
@@ -184,7 +185,6 @@ toc:
           - file: mapping-reference/search-as-you-type.md
           - file: mapping-reference/semantic-field.md
             children:
-              - file: mapping-reference/semantic-field-quickstart.md
               - file: mapping-reference/semantic-field-reference.md
           - file: mapping-reference/semantic-text.md
             children:

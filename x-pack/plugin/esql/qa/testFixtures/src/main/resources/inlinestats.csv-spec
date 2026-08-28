@@ -432,7 +432,6 @@ abbrev:keyword |  type:keyword   | scalerank:integer | min_scalerank:integer
 ;
 
 byMultivaluedMvExpand
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: inline_stats
 
 FROM airports
@@ -449,7 +448,6 @@ GWL            |9                  |4                      |military
 ;
 
 byMvExpand
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: inline_stats
 required_capability: st_x_y_quantized
 // ST_X and ST_Y return slightly different precision in older versions
@@ -1448,7 +1446,6 @@ salary:integer |x:keyword|gender:keyword |min_sl:integer |emp_no:integer
 ;
 
 overridingGroupings
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: inline_stats
 
 FROM employees
@@ -1468,7 +1465,6 @@ salary:integer |x:integer      |gender:keyword |min_sl:integer |emp_no:integer
 ;
 
 overridingExpressionGroupings
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: inline_stats
 
 FROM employees
@@ -2581,7 +2577,6 @@ FROM employees
 ;
 
 groupingFilterIsAlwaysTrue
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: inline_stats
 FROM employees
 | MV_EXPAND job_positions
@@ -2600,7 +2595,6 @@ FROM employees
 
 
 groupingFilterIsAlwaysFalse
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: inline_stats
 FROM employees
 | MV_EXPAND job_positions
@@ -2619,7 +2613,6 @@ null           |48942          |Patricio          |A                      |10012
 
 
 groupingFilterSometimesMatches
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: inline_stats
 FROM employees
 | MV_EXPAND job_positions

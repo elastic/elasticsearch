@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.page.DictionaryPage;
@@ -27,6 +26,7 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -61,7 +61,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Verifies that {@link PreloadedRowGroupMetadata#preload(ParquetFileReader, StorageObject, Set, BufferAllocator)}
+ * Verifies that {@link PreloadedRowGroupMetadata#preload(ParquetFileReader, StorageObject, Set, CircuitBreaker)}
  * pre-fetches dictionary page bytes for predicate columns into a coalesced batch fetch and that
  * the resulting {@code preWarmedChunks} map can be installed on the adapter so subsequent reads
  * are served from memory.
@@ -72,12 +72,12 @@ import java.util.concurrent.atomic.AtomicLong;
 public class PreloadedRowGroupMetadataTests extends ESTestCase {
 
     private BlockFactory blockFactory;
-    private BufferAllocator allocator;
+    private CircuitBreaker breaker;
 
     @Before
     public void initBlockFactoryAndAllocator() throws Exception {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
-        allocator = blockFactory.arrowAllocator();
+        breaker = blockFactory.breaker();
         ParquetStorageObjectAdapter.clearFooterCacheForTests();
     }
 
@@ -100,11 +100,11 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         StorageObject storage = createRangeReadStorageObject(parquetData);
 
         ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
-        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, allocator), options)) {
+        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, breaker), options)) {
             int rgCount = reader.getRowGroups().size();
             assertTrue("Test setup must produce at least one row group", rgCount >= 1);
 
-            PreloadedRowGroupMetadata withPrewarm = PreloadedRowGroupMetadata.preload(reader, storage, Set.of("v"), allocator);
+            PreloadedRowGroupMetadata withPrewarm = PreloadedRowGroupMetadata.preload(reader, storage, Set.of("v"), breaker);
             NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = withPrewarm.preWarmedChunks();
 
             // Count how many of the row groups actually have a dictionary page; only those
@@ -156,8 +156,8 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         StorageObject storage = createRangeReadStorageObject(parquetData);
 
         ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
-        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, allocator), options)) {
-            PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(reader, storage, Set.of("v"), allocator);
+        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, breaker), options)) {
+            PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(reader, storage, Set.of("v"), breaker);
             assertFalse("Pre-warm map must be populated to exercise the ArrowBuf-backed releasable", metadata.preWarmedChunks().isEmpty());
             metadata.close();
             // Without the idempotency guard this second close throws on ArrowBuf double-decrement.
@@ -175,16 +175,16 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         StorageObject storage = createRangeReadStorageObject(parquetData);
 
         ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
-        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, allocator), options)) {
-            try (PreloadedRowGroupMetadata withoutPrewarm = PreloadedRowGroupMetadata.preload(reader, storage, allocator)) {
+        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, breaker), options)) {
+            try (PreloadedRowGroupMetadata withoutPrewarm = PreloadedRowGroupMetadata.preload(reader, storage, breaker)) {
                 assertTrue("Default preload must not pre-warm dictionary pages", withoutPrewarm.preWarmedChunks().isEmpty());
             }
 
-            try (PreloadedRowGroupMetadata withEmptyPredicates = PreloadedRowGroupMetadata.preload(reader, storage, Set.of(), allocator)) {
+            try (PreloadedRowGroupMetadata withEmptyPredicates = PreloadedRowGroupMetadata.preload(reader, storage, Set.of(), breaker)) {
                 assertTrue("Empty predicate set must disable pre-warm", withEmptyPredicates.preWarmedChunks().isEmpty());
             }
 
-            try (PreloadedRowGroupMetadata withNullPredicates = PreloadedRowGroupMetadata.preload(reader, storage, null, allocator)) {
+            try (PreloadedRowGroupMetadata withNullPredicates = PreloadedRowGroupMetadata.preload(reader, storage, null, breaker)) {
                 assertTrue("Null predicate set must disable pre-warm", withNullPredicates.preWarmedChunks().isEmpty());
             }
         }
@@ -209,7 +209,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
         try (
             ParquetFileReader reader = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(createRangeReadStorageObject(parquetData), allocator),
+                new ParquetStorageObjectAdapter(createRangeReadStorageObject(parquetData), breaker),
                 options
             )
         ) {
@@ -241,10 +241,10 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
             }
         });
 
-        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(countingStorage, allocator);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(countingStorage, breaker);
         try (ParquetFileReader reader = ParquetFileReader.open(adapter, options)) {
             // Pre-fetch + install: exactly the production wiring.
-            try (PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(reader, countingStorage, Set.of("v"), allocator)) {
+            try (PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(reader, countingStorage, Set.of("v"), breaker)) {
                 assertFalse("Pre-warm map must be populated", metadata.preWarmedChunks().isEmpty());
                 int dictReadsAfterPreload = dictionaryRangeReads.get();
 
@@ -305,9 +305,9 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
             StorageObject asyncStorage = createAsyncRangeReadStorageObject(parquetData, ioPool, asyncReadCount);
 
             ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
-            ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(asyncStorage, allocator);
+            ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(asyncStorage, breaker);
             try (ParquetFileReader reader = ParquetFileReader.open(adapter, options)) {
-                try (PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(reader, asyncStorage, Set.of("v"), allocator)) {
+                try (PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(reader, asyncStorage, Set.of("v"), breaker)) {
                     NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = metadata.preWarmedChunks();
                     assertFalse("Pre-warm map must contain dictionary chunks even when reads complete async", chunks.isEmpty());
                     assertTrue("Async reads must have been dispatched", asyncReadCount.get() > 0);
@@ -357,7 +357,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         long[][] indexRanges;
         try (
             ParquetFileReader probe = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(createRangeReadStorageObject(parquetData), allocator),
+                new ParquetStorageObjectAdapter(createRangeReadStorageObject(parquetData), breaker),
                 options
             )
         ) {
@@ -375,7 +375,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
             }
         });
 
-        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(countingStorage, allocator), options)) {
+        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(countingStorage, breaker), options)) {
             // Footer reads happen during open and never overlap the index ranges; capture the count
             // afterwards so the assertion isolates the preload's contribution.
             int readsBeforePreload = indexRangeReads.get();
@@ -386,7 +386,8 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
                     Set.of(),
                     Set.of(),
                     Set.of(),
-                    allocator
+                    Integer.MAX_VALUE,
+                    breaker
                 )
             ) {
                 assertFalse("Full scan must not preload any column index", metadata.hasColumnIndexes());
@@ -405,14 +406,21 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
      */
     public void testOptimizedFullScanReadFetchesNoPageIndexBytes() throws IOException {
         MessageType schema = threeColumnInt64Schema();
-        int rows = 65_536;
-        byte[] parquetData = writeThreeColumnInt64Parquet(schema, rows);
+        // Unique uncompressed values so the object exceeds DEFAULT_WINDOW_SIZE. Dictionary-encoded
+        // low-cardinality files fit in the window; one GET of [0, length) then overlaps page indexes
+        // and looks like a dedicated index fetch.
+        int rows = 200_000;
+        byte[] parquetData = writeUniqueUncompressedThreeColumnInt64Parquet(schema, rows);
+        assertTrue(
+            "fixture must exceed the sliding window so the scan uses suffix GETs, not a whole-file fill",
+            parquetData.length > ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE
+        );
 
         ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
         long[][] indexRanges;
         try (
             ParquetFileReader probe = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(createRangeReadStorageObject(parquetData), allocator),
+                new ParquetStorageObjectAdapter(createRangeReadStorageObject(parquetData), breaker),
                 options
             )
         ) {
@@ -454,7 +462,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         StorageObject storage = createRangeReadStorageObject(parquetData);
 
         ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
-        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, allocator), options)) {
+        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, breaker), options)) {
             assertHasPageIndexReferences(reader, "a", "b", "c");
             try (
                 PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(
@@ -463,7 +471,8 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
                     Set.of("a"),
                     Set.of("a"),
                     Set.of("a"),
-                    allocator
+                    Integer.MAX_VALUE,
+                    breaker
                 )
             ) {
                 assertColumnPreloaded(metadata, reader.getRowGroups().size(), "a", true);
@@ -483,7 +492,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         StorageObject storage = createRangeReadStorageObject(parquetData);
 
         ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
-        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, allocator), options)) {
+        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, breaker), options)) {
             assertHasPageIndexReferences(reader, "a", "b", "c");
             Set<String> predicates = Set.of("a", "c");
             try (
@@ -493,7 +502,8 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
                     predicates,
                     predicates,
                     predicates,
-                    allocator
+                    Integer.MAX_VALUE,
+                    breaker
                 )
             ) {
                 assertColumnPreloaded(metadata, reader.getRowGroups().size(), "a", true);
@@ -515,7 +525,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         StorageObject storage = createRangeReadStorageObject(parquetData);
 
         ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
-        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, allocator), options)) {
+        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, breaker), options)) {
             assertHasPageIndexReferences(reader, "a", "b", "c");
             try (
                 PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(
@@ -524,7 +534,8 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
                     Set.of("a"),
                     Set.of("a"),
                     Set.of("a", "b", "c"),
-                    allocator
+                    Integer.MAX_VALUE,
+                    breaker
                 )
             ) {
                 int rgCount = reader.getRowGroups().size();
@@ -620,7 +631,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         PageIndexRanges ranges;
         try (
             ParquetFileReader probe = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(createRangeReadStorageObject(parquetData), allocator),
+                new ParquetStorageObjectAdapter(createRangeReadStorageObject(parquetData), breaker),
                 options
             )
         ) {
@@ -675,7 +686,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
                     idxReads.incrementAndGet();
                 }
             });
-            try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(counting, allocator), options)) {
+            try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(counting, breaker), options)) {
                 // Footer reads during open never overlap the index ranges; snapshot afterwards so the
                 // measurement isolates the preload's contribution.
                 long ciAfterOpen = ciBytes.get();
@@ -688,7 +699,8 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
                         s.predicate(),
                         s.columnIndex(),
                         s.offsetIndex(),
-                        allocator
+                        Integer.MAX_VALUE,
+                        breaker
                     )
                 ) {
                     assertNotNull(metadata);
@@ -788,6 +800,37 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
                 g.add("a", (long) (i % 16));
                 g.add("b", (long) (i % 32));
                 g.add("c", (long) (i % 64));
+                writer.write(g);
+            }
+        }
+        return out.toByteArray();
+    }
+
+    /**
+     * Same three-column INT64 layout as {@link #writeThreeColumnInt64Parquet}, but with unique
+     * values and dictionary encoding off so the file is larger than the sliding window.
+     */
+    private static byte[] writeUniqueUncompressedThreeColumnInt64Parquet(MessageType schema, int rows) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        OutputFile outputFile = createOutputFile(out);
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withDictionaryEncoding(false)
+                .withPageSize(4 * 1024)
+                .withRowGroupSize(256 * 1024L)
+                .build()
+        ) {
+            for (int i = 0; i < rows; i++) {
+                Group g = groupFactory.newGroup();
+                g.add("a", (long) i);
+                g.add("b", (long) i);
+                g.add("c", (long) i);
                 writer.write(g);
             }
         }

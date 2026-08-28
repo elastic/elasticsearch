@@ -148,6 +148,7 @@ count:long | bucket:double_range | time:datetime            | instance:keyword |
 
 count with bucket, time, and instance in FROM
 required_capability: fn_bucket_histogram_types
+required_capability: histogram_bucket_optimization
 
 FROM tdigest_standard_index
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td"

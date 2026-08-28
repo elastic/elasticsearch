@@ -3775,6 +3775,11 @@ public class EsqlCapabilities {
          */
         APPROXIMATION_APPLIED_RESPONSE,
 
+        /**
+         * Move histogram bucket generation after histogram merging to avoid merging each input histogram once per populated bucket.
+         */
+        HISTOGRAM_BUCKET_OPTIMIZATION,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

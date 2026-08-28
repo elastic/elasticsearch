@@ -549,7 +549,6 @@ Magy               | Stamatiou         | 30404          | 3
 
 sortLimitByNullsFirst
 required_capability: esql_topn_by
-skip_columnar: Sort result ordering differs in columnar mode when MV fields are part of sort criteria
 
 FROM employees
 | SORT is_rehired ASC NULLS FIRST, emp_no
@@ -574,7 +573,6 @@ Shahaf             | Famili            | null              | [false, true]
 
 sortLimitByNullsLast
 required_capability: esql_topn_by
-skip_columnar: Sort result ordering differs in columnar mode when MV fields are part of sort criteria
 
 FROM employees
 | SORT is_rehired ASC NULLS LAST, emp_no

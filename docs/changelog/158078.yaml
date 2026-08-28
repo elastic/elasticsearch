@@ -1,0 +1,6 @@
+area: Stateless
+issues:
+  - 157917
+pr: 158078
+summary: Don't block reshard target recovery upon max retries
+type: bug

@@ -245,7 +245,7 @@ The following settings are supported:
 `unsafely_incompatible_with_s3_conditional_writes` {applies_to}`stack: ga =9.2.3!, deprecated 9.2.4!+`
 :   (boolean) {{es}} uses AWS S3's [support for conditional writes](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html) to protect against repository corruption. If your repository is based on a storage system which claims to be S3-compatible but does not accept conditional writes, set this setting to `true` to make {{es}} perform unconditional writes, bypassing the repository corruption protection, while you work with your storage supplier to address this incompatibility with AWS S3. Defaults to `false`.
 
-::::{admonition} Overriding client settings in repository settings.
+::::{admonition} Overriding client settings in repository settings
 
 You can also specify all non-secure client settings directly in the repository settings. When you do, the client settings found in the repository settings are merged with those of the named client, with repository settings taking precedence.
 

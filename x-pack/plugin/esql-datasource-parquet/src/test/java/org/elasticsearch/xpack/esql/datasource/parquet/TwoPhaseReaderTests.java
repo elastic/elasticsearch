@@ -150,6 +150,9 @@ public class TwoPhaseReaderTests extends ESTestCase {
             g.add("label", repeat('z', 512) + "_" + i);
             return g;
         });
+        // Whole-file window fill would charge both paths a GET of [0, length) and make two-phase's
+        // extra page GETs look like more I/O, not less.
+        assertThat(parquetData.length, greaterThan(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE));
 
         ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
         Expression filter = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 100L, DataType.LONG), null);
@@ -169,6 +172,86 @@ public class TwoPhaseReaderTests extends ESTestCase {
         long single = singlePhaseObj.totalBytesRead.get();
         long two = twoPhaseObj.totalBytesRead.get();
         assertThat("two-phase should read fewer bytes than single-phase: " + two + " vs " + single, two, lessThan(single));
+    }
+
+    /**
+     * The two-phase route over a keyword predicate column whose batches decode entirely null.
+     *
+     * <p>Two-phase and single-phase share {@code evaluateFilter}, so both reach the same
+     * all-null hazard, but every other test of that hazard drives the single-phase route -
+     * {@code shouldUseTwoPhase} requires {@link StorageObject#supportsNativeAsync()}, which
+     * defaults to false. This is the two-phase half, and it fails on the parent commit with the
+     * same {@code ClassCastException} (elastic/elasticsearch#157313).
+     *
+     * <p>Scope note: this pins correctness only. An earlier revision also asserted that two-phase
+     * reads fewer bytes than single-phase for this shape; with the layout pinned it does not, so
+     * the claim was removed rather than tuned into passing. The projection-decode skip on a
+     * survivor-free batch is real (see {@code OptimizedParquetColumnIterator}'s
+     * {@code survivorCount == 0} branch), but total bytes read is not a faithful proxy for it and
+     * this module has no counter that is.
+     */
+    public void testTwoPhaseKeywordFilterOverAllNullPredicateBatches() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("code")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("label")
+            .named("two_phase_all_null_schema");
+
+        final int rowCount = 8192;
+        final int nullRun = 1024;
+        // code is null for the overwhelming majority of the file and valued only in a short run at
+        // the end, so most batches decode all-null and produce no survivors. label is the bulky
+        // projection-only column whose fetch those survivor-free batches should avoid entirely.
+        // Layout pinned deliberately, and the null runs sized against it. Row groups are large
+        // enough to hold several read batches, so every row group carries both null and valued
+        // `code` values — otherwise the Parquet row-group filter prunes the all-null groups on
+        // statistics and the evaluator never sees a null block, which silently turns this from a
+        // regression test into a pin. The null runs are aligned to the read batch size so whole
+        // decoded batches are null within a surviving row group.
+        byte[] parquetData = buildParquetWithLayout(schema, rowCount, 8L * 1024 * 1024, 1024, i -> {
+            SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+            Group g = factory.newGroup();
+            g.add("id", (long) i);
+            if ((i / nullRun) % 2 == 1) {
+                g.add("code", i % 2 == 0 ? "US" : "CA");
+            }
+            g.add("label", repeat('z', 512) + "_" + i);
+            return g;
+        });
+
+        ReferenceAttribute codeAttr = new ReferenceAttribute(Source.EMPTY, "code", DataType.KEYWORD);
+        Expression filter = new Equals(Source.EMPTY, codeAttr, new Literal(Source.EMPTY, new BytesRef("US"), DataType.KEYWORD), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
+
+        CountingStorageObject twoPhaseObj = new CountingStorageObject(parquetData, true);
+        List<Page> pages = readAllPages(new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed), twoPhaseObj);
+
+        List<Long> survivingIds = new ArrayList<>();
+        try {
+            for (Page page : pages) {
+                LongBlock idBlock = page.getBlock(0);
+                for (int pos = 0; pos < page.getPositionCount(); pos++) {
+                    survivingIds.add(idBlock.getLong(pos));
+                }
+            }
+        } finally {
+            pages.forEach(Page::releaseBlocks);
+        }
+
+        List<Long> expected = new ArrayList<>();
+        for (int i = 0; i < rowCount; i++) {
+            if ((i / nullRun) % 2 == 1 && i % 2 == 0) {
+                expected.add((long) i);
+            }
+        }
+        assertThat("survivors must come only from the valued runs", survivingIds, equalTo(expected));
+        assertFalse("the fixture must actually produce survivors", expected.isEmpty());
+
     }
 
     public void testFilterEvaluatedWhenNoProjectionOnlyColumn() throws Exception {
@@ -368,7 +451,9 @@ public class TwoPhaseReaderTests extends ESTestCase {
      * projection-only {@code label} column is null on the first surviving row (null-leading) and
      * interleaves null / value across the cluster — the exact shape that threw "can't append
      * non-null values to a null block" before the concat fix. {@code label} is deliberately wide so
-     * the predicate-byte ratio gate lets two-phase engage.
+     * the predicate-byte ratio gate lets two-phase engage and so the file exceeds
+     * {@link ParquetStorageObjectAdapter#DEFAULT_WINDOW_SIZE} (a whole-file window GET would hide
+     * page-skipping in the byte totals).
      */
     public void testTwoPhaseSparseNullLeadingProjectionColumn() throws Exception {
         MessageType schema = Types.buildMessage()
@@ -381,6 +466,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
             .named("test_schema");
 
         int rowCount = 3_000;
+        int labelWidth = 2048;
         // Survivors: a tight non-contiguous cluster {1000, 1002, 1004, 1006}. Everything before row
         // 1000 is skipped (page-filtering), and the gap-1 spacing inside the cluster yields four
         // separate readBatchSparse runs. label is null on the first (1000) and a later (1004)
@@ -392,10 +478,11 @@ public class TwoPhaseReaderTests extends ESTestCase {
             Group g = factory.newGroup();
             g.add("pred", survivorRows.contains(i) ? "" : "x_" + i);
             if (labelNullRows.contains(i) == false) {
-                g.add("label", repeat('l', 256) + "_" + i);
+                g.add("label", repeat('l', labelWidth) + "_" + i);
             }
             return g;
         });
+        assertThat(parquetData.length, greaterThan(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE));
 
         ReferenceAttribute predAttr = new ReferenceAttribute(Source.EMPTY, "pred", DataType.KEYWORD);
         Expression filter = new Equals(Source.EMPTY, predAttr, new Literal(Source.EMPTY, new BytesRef(""), DataType.KEYWORD), null);
@@ -405,7 +492,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
         int expectedLabelNulls = labelNullRows.size();
         // Non-null survivors carry their exact wide label value; asserting the values (not just the
         // null count) catches any concat mis-ordering or value scrambling.
-        Set<String> expectedLabels = Set.of(repeat('l', 256) + "_1002", repeat('l', 256) + "_1006");
+        Set<String> expectedLabels = Set.of(repeat('l', labelWidth) + "_1002", repeat('l', labelWidth) + "_1006");
 
         // Two-phase path (native async) must not throw and must produce every survivor, with the
         // null-leading projection column faithfully preserving its nulls and values.
@@ -1339,6 +1426,32 @@ public class TwoPhaseReaderTests extends ESTestCase {
             ParquetWriter<Group> writer = ExampleParquetWriter.builder(out)
                 .withType(schema)
                 .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withPageSize(pageSize)
+                .withConf(new PlainParquetConfiguration())
+                .build()
+        ) {
+            for (int i = 0; i < rowCount; i++) {
+                writer.write(rowFactory.apply(i));
+            }
+        }
+        return baos.toByteArray();
+    }
+
+    /** Pins BOTH row-group and page size, so a test's layout claims are what actually gets written. */
+    private byte[] buildParquetWithLayout(
+        MessageType schema,
+        int rowCount,
+        long rowGroupSize,
+        int pageSize,
+        java.util.function.IntFunction<Group> rowFactory
+    ) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        OutputFile out = buildOutputFile(baos);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(out)
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withRowGroupSize(rowGroupSize)
                 .withPageSize(pageSize)
                 .withConf(new PlainParquetConfiguration())
                 .build()

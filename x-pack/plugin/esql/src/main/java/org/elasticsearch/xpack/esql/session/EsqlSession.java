@@ -513,7 +513,8 @@ public class EsqlSession {
 
                     // Apply the out-of-band request filter to external-source (dataset) leaves, translated
                     // against each source's schema. Index leaves keep their existing filter path. Version-gated:
-                    // the translated predicate can contain mv_in_range, which older nodes cannot deserialize.
+                    // the translated predicate can contain mv_in_range / mv_greater / mv_less, which older
+                    // nodes cannot deserialize.
                     // Fail-closed by default: an unsupported construct throws VerificationException (a 400).
                     // With allow_partial_dsl_filter=true: applies only the translatable subset, emits a warning.
                     // This callback runs outside the SubscribableListener chain below, so a synchronous throw here
@@ -547,6 +548,7 @@ public class EsqlSession {
                     var logicalPlanOptimizer = new LogicalPlanOptimizer(
                         new LogicalOptimizerContext(finalConfiguration, foldContext, minimumVersion)
                     );
+                    var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, minimumVersion));
 
                     var columnMetadata = new Holder<Map<NameId, Map<String, Object>>>();
                     SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(plan, logicalPlanPreOptimizer, planTimeProfile, l))
@@ -572,14 +574,23 @@ public class EsqlSession {
                                 finalConfiguration,
                                 foldContext,
                                 new Holder<ApproximationDriver>(),
-                                minimumVersion,
+                                physicalPlanOptimizer,
                                 planTimeProfile,
                                 l
                             );
                         })
-                        .<Versioned<Result>>andThen(
-                            (l, r) -> l.onResponse(attachMetadataAndVersion(r, columnMetadata.get(), minimumVersion))
-                        )
+                        .<Versioned<Result>>andThen((l, r) -> {
+                            Boolean approximationApplied;
+                            if (QuerySettings.APPROXIMATION.get(finalConfiguration.resolvedSettings()) == null) {
+                                approximationApplied = null;
+                            } else {
+                                boolean approximationAppliedCoordinator = physicalPlanOptimizer.approximationApplied();
+                                boolean approximationAppliedDataNode = r.completionInfo() != null
+                                    && r.completionInfo().approximationApplied();
+                                approximationApplied = approximationAppliedCoordinator || approximationAppliedDataNode;
+                            }
+                            l.onResponse(attachAdditionalData(r, columnMetadata.get(), approximationApplied, minimumVersion));
+                        })
                         .addListener(listener);
                 }
             }
@@ -598,7 +609,7 @@ public class EsqlSession {
         Configuration configuration,
         FoldContext foldContext,
         Holder<ApproximationDriver> approximation,
-        TransportVersion minimumVersion,
+        PhysicalPlanOptimizer physicalPlanOptimizer,
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
     ) {
@@ -610,7 +621,6 @@ public class EsqlSession {
             // external source resolution.
             EsqlPlugin.externalBlobStorePool()
         );
-        var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, minimumVersion));
 
         EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
 
@@ -680,9 +690,10 @@ public class EsqlSession {
         );
     }
 
-    private static Versioned<Result> attachMetadataAndVersion(
+    private static Versioned<Result> attachAdditionalData(
         Result result,
         Map<NameId, Map<String, Object>> columnMetadata,
+        Boolean approximationApplied,
         TransportVersion minimumVersion
     ) {
         return new Versioned<>(
@@ -692,7 +703,8 @@ public class EsqlSession {
                 columnMetadata,
                 result.configuration(),
                 result.completionInfo(),
-                result.executionInfo()
+                result.executionInfo(),
+                approximationApplied
             ),
             minimumVersion
         );
@@ -1019,7 +1031,8 @@ public class EsqlSession {
         LogicalPlan subPlan,
         java.util.function.Function<Result, LogicalPlan> newMainPlan,
         Runnable cleanup,
-        boolean isSubqueryJoinSubPlan
+        boolean isSubqueryJoinSubPlan,
+        boolean isApproximationCalibration
     ) {};
 
     private SubPlanAndCallback firstSubPlan(
@@ -1054,7 +1067,7 @@ public class EsqlSession {
                         blockFactory,
                         localRelationPage
                     );
-                }, () -> releaseLocalRelationBlocks(localRelationPage), true);
+                }, () -> releaseLocalRelationBlocks(localRelationPage), true, false);
             }
         } else if (firstJoin instanceof InnerJoin) {
             InnerJoin.LogicalPlanTuple subPlans = InnerJoin.firstSubPlan(mainPlan, subPlansResults);
@@ -1065,7 +1078,7 @@ public class EsqlSession {
                     localRelationPage.set(resultWrapper.supplier().get());
                     subPlansResults.add(resultWrapper);
                     return InnerJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
-                }, () -> releaseLocalRelationBlocks(localRelationPage), true);
+                }, () -> releaseLocalRelationBlocks(localRelationPage), true, false);
             }
         } else if (firstJoin instanceof InlineJoin) {
             InlineJoin.LogicalPlanTuple subPlans = InlineJoin.firstSubPlan(mainPlan, subPlansResults);
@@ -1076,7 +1089,7 @@ public class EsqlSession {
                     localRelationPage.set(resultWrapper.supplier().get());
                     subPlansResults.add(resultWrapper);
                     return InlineJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
-                }, () -> releaseLocalRelationBlocks(localRelationPage), false);
+                }, () -> releaseLocalRelationBlocks(localRelationPage), false, false);
             }
         }
 
@@ -1091,7 +1104,8 @@ public class EsqlSession {
                     subPlan,
                     result -> approximation.get().newMainPlan(mainPlan, result),
                     () -> {},
-                    false
+                    false,
+                    true
                 );
             }
         }
@@ -1170,7 +1184,12 @@ public class EsqlSession {
         executionInfo.startSubPlans(subPlan.isSubqueryJoinSubPlan());
 
         runner.run(physicalSubPlan, configuration, foldContext, planTimeProfile, listener.delegateFailureAndWrap((next, result) -> {
-            completionInfoAccumulator.accumulate(result.completionInfo());
+            // Approximation subplans (to get the sample probability) may approximate internally to estimate
+            // the result count. This does not affect whether the final result is approximate or not.
+            DriverCompletionInfo subPlanCompletionInfo = subPlan.isApproximationCalibration()
+                ? result.completionInfo().withoutApproximationApplied()
+                : result.completionInfo();
+            completionInfoAccumulator.accumulate(subPlanCompletionInfo);
             try {
                 var releasingNext = ActionListener.runAfter(next, subPlan.cleanup);
                 LogicalPlan newMainPlan = subPlan.newMainPlan.apply(result);
@@ -1201,7 +1220,7 @@ public class EsqlSession {
                             reconcileCapturedSourceStats(merged, pinnedReads);
                             EsqlCCSUtils.finalizeSubPlanOnlyRemoteClusters(executionInfo);
                             finalListener.onResponse(
-                                new Result(finalResult.schema(), finalResult.pages(), null, configuration, merged, executionInfo)
+                                new Result(finalResult.schema(), finalResult.pages(), null, configuration, merged, executionInfo, null)
                             );
                         })
                     );

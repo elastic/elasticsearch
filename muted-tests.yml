@@ -433,9 +433,6 @@ tests:
 - class: org.elasticsearch.upgrades.MlJobSnapshotUpgradeIT
   method: testSnapshotUpgrader
   issue: https://github.com/elastic/elasticsearch/issues/154988
-- class: org.elasticsearch.foreign.DefaultMethodHandleResolverTests
-  method: testDefaultResolverBuildsWorkingMethodHandle
-  issue: https://github.com/elastic/elasticsearch/issues/155012
 - class: org.elasticsearch.xpack.transform.integration.TransformDestIndexIT
   method: testUnattendedTransformDestIndexCreatedDuringUpdate_EmptySourceIndex_NoDeferValidation
   issue: https://github.com/elastic/elasticsearch/issues/152599

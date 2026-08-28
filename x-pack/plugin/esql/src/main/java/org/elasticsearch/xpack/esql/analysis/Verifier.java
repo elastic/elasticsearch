@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -144,6 +145,7 @@ public class Verifier {
 
         checkTStepIncompatibleWithTRange(plan, failures);
         checkTimeSeriesCollapseSupported(plan, failures, context.minimumVersion());
+        checkHighlightSupported(plan, failures, context.minimumVersion());
 
         // collect plan checkers
         var planCheckers = planCheckers(plan, context.analysisRegistry());
@@ -195,6 +197,23 @@ public class Verifier {
                 fail(
                     tsc,
                     "TS_COLLAPSE is not supported on every participating node; "
+                        + "rolling upgrade in progress, or a remote cluster is on an older version"
+                )
+            )
+        );
+    }
+
+    /** Fails fast with a 4xx so older recipients never see the node and 5xx on deserialization. */
+    private static void checkHighlightSupported(LogicalPlan plan, Failures failures, TransportVersion minimumVersion) {
+        if (minimumVersion.supports(Highlight.ESQL_HIGHLIGHT)) {
+            return;
+        }
+        plan.forEachDown(
+            Highlight.class,
+            highlight -> failures.add(
+                fail(
+                    highlight,
+                    "HIGHLIGHT is not supported on every participating node; "
                         + "rolling upgrade in progress, or a remote cluster is on an older version"
                 )
             )
@@ -536,8 +555,8 @@ public class Verifier {
                 failures.add(
                     fail(
                         p,
-                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT "
-                            + "and STATS commands; [{}] is not supported yet",
+                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
+                            + "STATS and INLINE STATS commands; [{}] is not supported yet",
                         p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
                             : p instanceof TelemetryAware ta ? ta.telemetryLabel()
                             : p.nodeName()
@@ -549,6 +568,8 @@ public class Verifier {
 
     private static boolean supportedInLoadAllMode(LogicalPlan plan) {
         // Keep/Drop/Rename may still be present, or already resolved to Project, by the time verification runs.
+        // InlineStats is visited by forEachDown, so it must be allowed explicitly. Its child Aggregate is
+        // already covered by allowing Aggregate (STATS).
         return (plan instanceof EsRelation esr && esr.indexMode().isTsdb() == false)
             || plan instanceof Project
             || plan instanceof Keep
@@ -558,7 +579,8 @@ public class Verifier {
             || plan instanceof Filter
             || plan instanceof OrderBy
             || plan instanceof Limit
-            || plan instanceof Aggregate;
+            || plan instanceof Aggregate
+            || plan instanceof InlineStats;
     }
 
     /**

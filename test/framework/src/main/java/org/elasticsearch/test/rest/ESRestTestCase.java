@@ -2951,7 +2951,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         boolean includePartial,
         boolean includeDocumentsFound,
         boolean includeTimestamps,
-        boolean includeRollupMetrics
+        boolean includeRollupMetrics,
+        boolean includeReadCpuNanos
     ) {
         MapMatcher mapMatcher = matchesMap();
         if (includeDocumentsFound) {
@@ -2966,6 +2967,9 @@ public abstract class ESRestTestCase extends ESTestCase {
             mapMatcher = mapMatcher.entry("rows_emitted", IntOrLongMatcher.isIntOrLong());
             mapMatcher = mapMatcher.entry("bytes_read", IntOrLongMatcher.isIntOrLong());
             mapMatcher = mapMatcher.entry("read_nanos", IntOrLongMatcher.isIntOrLong());
+            if (includeReadCpuNanos) {
+                mapMatcher = mapMatcher.entry("read_cpu_nanos", IntOrLongMatcher.isIntOrLong());
+            }
             mapMatcher = mapMatcher.entry("cpu_nanos", IntOrLongMatcher.isIntOrLong());
         }
         if (includeTimestamps) {
@@ -2983,6 +2987,15 @@ public abstract class ESRestTestCase extends ESTestCase {
         return mapMatcher;
     }
 
+    protected static MapMatcher getResultMatcher(
+        boolean includePartial,
+        boolean includeDocumentsFound,
+        boolean includeTimestamps,
+        boolean includeRollupMetrics
+    ) {
+        return getResultMatcher(includePartial, includeDocumentsFound, includeTimestamps, includeRollupMetrics, false);
+    }
+
     /** Deprecated three-arg form kept for callers that haven't been updated for the rollup metrics. */
     @Deprecated
     protected static MapMatcher getResultMatcher(boolean includePartial, boolean includeDocumentsFound, boolean includeTimestamps) {
@@ -2997,7 +3010,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             result.containsKey("is_partial"),
             result.containsKey("documents_found"),
             result.containsKey("start_time_in_millis"),
-            result.containsKey("rows_emitted")
+            result.containsKey("rows_emitted"),
+            result.containsKey("read_cpu_nanos")
         );
     }
 

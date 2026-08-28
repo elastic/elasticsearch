@@ -4415,7 +4415,7 @@ public class InternalEngine extends Engine {
         return preCommitSegmentGeneration.get();
     }
 
-    <T> T performActionWithDirectoryReader(SearcherScope scope, CheckedFunction<DirectoryReader, T, IOException> action)
+    protected <T> T performActionWithDirectoryReader(SearcherScope scope, CheckedFunction<DirectoryReader, T, IOException> action)
         throws EngineException {
         assert scope == SearcherScope.INTERNAL : "performActionWithDirectoryReader(...) isn't prepared for external usage";
         if (store.tryIncRef() == false) {

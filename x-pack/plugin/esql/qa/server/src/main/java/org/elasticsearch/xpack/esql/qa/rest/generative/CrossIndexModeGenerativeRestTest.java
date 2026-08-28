@@ -552,13 +552,6 @@ public abstract class CrossIndexModeGenerativeRestTest extends GenerativeRestTes
         if (cmdText.contains("NOW(") || cmdText.contains("RANDOM(") || cmdText.contains("SAMPLE(")) {
             return false;
         }
-        // BYTE_LENGTH on keyword fields returns 0 in columnar mode due to a known columnar
-        // doc-values read bug. Affects both WHERE predicates (wrong row count) and aggregations
-        // like TOP/STATS (wrong computed values). Close the gate whenever BYTE_LENGTH appears.
-        // TODO: remove once the columnar BYTE_LENGTH doc-values bug is fixed.
-        if (cmdText.contains("BYTE_LENGTH(")) {
-            return false;
-        }
         // Full-text search functions and the `:` operator rely on the inverted index. Columnar
         // mode stores keyword fields exclusively via doc values (index_disabled_by_default=true
         // disables the inverted index for fields that lack an explicit "index: true" mapping), so
@@ -583,17 +576,6 @@ public abstract class CrossIndexModeGenerativeRestTest extends GenerativeRestTes
             || cmdText.contains("MV_LAST(")
             || cmdText.contains("MV_CONCAT(")
             || cmdText.contains("MV_DIFFERENCE(")) {
-            return false;
-        }
-        // MV_MAX / MV_MIN / MV_MEDIAN / MV_PERCENTILE on numeric fields: columnar mode stores
-        // doc-values in ascending order, and the current columnar execution path returns the first
-        // doc-value element rather than scanning for the true extremum or median. This means mv_max
-        // returns the minimum, mv_median returns the first element, etc. — a known columnar bug.
-        // TODO: remove once the columnar MV scalar-aggregate block-execution bug is fixed.
-        if (cmdText.contains("MV_MAX(")
-            || cmdText.contains("MV_MIN(")
-            || cmdText.contains("MV_MEDIAN(")
-            || cmdText.contains("MV_PERCENTILE(")) {
             return false;
         }
         // LEAST / GREATEST applied to multi-value fields are element-wise: they pair up values by

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.security.authc.saml;
 
-import net.shibboleth.utilities.java.support.collection.LockableClassToInstanceMultiMap;
+import net.shibboleth.shared.collection.LockableClassToInstanceMultiMap;
 
 import org.elasticsearch.core.Nullable;
 import org.opensaml.core.xml.Namespace;
@@ -363,6 +363,11 @@ class UnresolvedEntity implements EntityDescriptor {
     @Override
     public void setDOM(Element dom) {
         throw new UnsupportedOperationException("Cannot set DOM of " + this);
+    }
+
+    @Override
+    public Element ensureDOM() {
+        throw new UnsupportedOperationException("Cannot ensure DOM of " + this);
     }
 
     @Override

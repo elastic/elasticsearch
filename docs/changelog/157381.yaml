@@ -2,6 +2,5 @@ area: Highlighting
 issues:
  - 156122
 pr: 157381
-summary: "Fix(highlighting): Allow `max_analyzed_offset` to be set to `-1` to default\
-  \ to `index.highlight.max_analyzed_offset`"
+summary: Allow `max_analyzed_offset` to be set to `-1` to default to `index.highlight.max_analyzed_offset`
 type: bug

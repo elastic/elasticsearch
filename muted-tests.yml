@@ -809,3 +809,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDeciderIT
   method: testEstimatedHeapAllocationDecider
   issue: https://github.com/elastic/elasticsearch/issues/157939
+- class: org.elasticsearch.action.bulk.ShardBatchIndexerCanUseBatchTests
+  method: testDynamicSettingUpdate
+  issue: https://github.com/elastic/elasticsearch/issues/157947

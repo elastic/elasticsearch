@@ -188,10 +188,12 @@ public class DLMFrozenTransitionHealthInfoPublisher extends AbstractDLMPeriodicM
                 }
                 TimeValue frozenAfter = lifecycle.frozenAfter();
 
-                List<Index> eligibleIndices = dataStream.getIndicesOlderThan(projectMetadata::index, nowSupplier, frozenAfter, BACKING_INDICES)
-                    .stream()
-                    .sorted(Comparator.comparing(Index::getName))
-                    .toList();
+                List<Index> eligibleIndices = dataStream.getIndicesOlderThan(
+                    projectMetadata::index,
+                    nowSupplier,
+                    frozenAfter,
+                    BACKING_INDICES
+                ).stream().sorted(Comparator.comparing(Index::getName)).toList();
 
                 for (Index index : eligibleIndices) {
                     IndexMetadata indexMetadata = projectMetadata.index(index);

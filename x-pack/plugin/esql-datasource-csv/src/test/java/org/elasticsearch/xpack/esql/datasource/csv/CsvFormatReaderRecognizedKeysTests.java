@@ -222,6 +222,18 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
                 fromValidator.getMessage()
             );
         }
+
+        // Multi-character char options — the validator rejects them at PUT, but the reader must stay
+        // lenient (truncate to the first character, the pre-gate behavior): datasets stored before the
+        // gate existed carry such values and an upgrade must not turn their queries into errors.
+        for (Map.Entry<String, Object> bad : putOnlyRejectedCharValues()) {
+            Map<String, Object> config = Map.of(bad.getKey(), bad.getValue());
+            expectThrows(IllegalArgumentException.class, () -> validator.validate(config));
+            assertTrue(
+                "reader must stay lenient (and consume) stored " + bad.getKey() + "=[" + bad.getValue() + "]",
+                reader.withConfigTrackingConsumedKeys(config).consumedKeys().contains(bad.getKey())
+            );
+        }
     }
 
     public void testValidatorAndReaderAgreeTsvFormat() {
@@ -244,6 +256,15 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
                 fromValidator.getMessage()
             );
         }
+
+        for (Map.Entry<String, Object> bad : putOnlyRejectedCharValues()) {
+            Map<String, Object> config = Map.of(bad.getKey(), bad.getValue());
+            expectThrows(IllegalArgumentException.class, () -> validator.validate(config));
+            assertTrue(
+                "tsv reader must stay lenient (and consume) stored " + bad.getKey() + "=[" + bad.getValue() + "]",
+                reader.withConfigTrackingConsumedKeys(config).consumedKeys().contains(bad.getKey())
+            );
+        }
     }
 
     /** Good CSV config values that both validator and reader must accept (tested one at a time). */
@@ -263,12 +284,21 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
     /** Bad CSV config values that both validator and reader must reject with the same message. */
     private static List<Map.Entry<String, Object>> badCsvValues() {
         List<Map.Entry<String, Object>> list = new ArrayList<>();
-        list.add(Map.entry("delimiter", "||"));     // multi-char: rejected by fixed parseChar
-        list.add(Map.entry("delimiter", "none"));   // multi-char: rejected by fixed parseChar
         list.add(Map.entry("mode", "lenient"));     // unknown mode
         list.add(Map.entry("encoding", "UTF-99")); // unknown charset
-        list.add(Map.entry("quote", "abc"));        // multi-char
-        list.add(Map.entry("escape", "xx"));        // multi-char
+        return list;
+    }
+
+    /**
+     * Multi-character char values: rejected at PUT by the validator, but truncated (not rejected) by the
+     * reader so datasets stored before the PUT gate existed keep reading exactly as they did.
+     */
+    private static List<Map.Entry<String, Object>> putOnlyRejectedCharValues() {
+        List<Map.Entry<String, Object>> list = new ArrayList<>();
+        list.add(Map.entry("delimiter", "||"));
+        list.add(Map.entry("delimiter", "none"));
+        list.add(Map.entry("quote", "abc"));
+        list.add(Map.entry("escape", "xx"));
         return list;
     }
 

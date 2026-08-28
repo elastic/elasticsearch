@@ -363,7 +363,10 @@ public class FileDataSourceValidator implements DataSourceValidator {
                     if (formatKeys != null) {
                         Map<String, Object> fmtSettings = new HashMap<>();
                         for (String key : formatKeys) {
-                            if (settings.containsKey(key)) {
+                            // A reader may recognise a base field too (e.g. schema_sample_size), but base
+                            // fields are owned by the dedicated checks above — forwarding one here would
+                            // report the same bad value twice, with two different messages.
+                            if (DATASET_FIELDS.contains(key) == false && settings.containsKey(key)) {
                                 fmtSettings.put(key, settings.get(key));
                             }
                         }

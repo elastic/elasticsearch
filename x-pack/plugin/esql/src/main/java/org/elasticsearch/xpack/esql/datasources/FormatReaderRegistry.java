@@ -62,17 +62,19 @@ public class FormatReaderRegistry {
                 if (instance == null) {
                     synchronized (this) {
                         if (instance == null) {
-                            instance = factory.create(settings, blockFactory);
-                            // Register extension mappings now that the reader is created
-                            for (String ext : instance.fileExtensions()) {
+                            FormatReader created = factory.create(settings, blockFactory);
+                            // Claim extension mappings before publishing the instance, under the same
+                            // conflict rule as registerExtension: a reader-declared extension already
+                            // owned by another format fails loudly instead of silently stealing the
+                            // mapping. Claims are idempotent for this supplier (an extension the
+                            // FormatSpec registered eagerly maps to this same supplier), so a retry
+                            // after a conflict re-claims its own extensions harmlessly.
+                            for (String ext : created.fileExtensions()) {
                                 if (Strings.isNullOrEmpty(ext) == false) {
-                                    String normalizedExt = ext.toLowerCase(Locale.ROOT);
-                                    if (normalizedExt.startsWith(".") == false) {
-                                        normalizedExt = "." + normalizedExt;
-                                    }
-                                    byExtension.put(normalizedExt, this);
+                                    claimExtension(ext, this, formatName);
                                 }
                             }
+                            instance = created;
                         }
                     }
                 }
@@ -126,12 +128,24 @@ public class FormatReaderRegistry {
     }
 
     public void registerExtension(String extension, String formatName) {
+        Supplier<FormatReader> supplier = byName.get(formatName.toLowerCase(Locale.ROOT));
+        Check.notNull(supplier, "Cannot register extension [{}] -- format [{}] not registered", extension, formatName);
+        claimExtension(extension, supplier, formatName);
+    }
+
+    /**
+     * Claims {@code extension} for {@code supplier}, throwing if a different supplier already owns it.
+     * The single write path to {@link #byExtension}: both the eager spec-declared registration
+     * ({@link #registerExtension}) and the lazy reader-declared one (inside {@link #registerLazy}'s
+     * supplier) go through it, so neither can silently overwrite the other's claim — an extension
+     * claimed by two formats would otherwise validate against one format at PUT and read as the other
+     * at query time. Re-claiming with the same supplier is a no-op.
+     */
+    private void claimExtension(String extension, Supplier<FormatReader> supplier, String formatName) {
         String normalizedExt = extension.toLowerCase(Locale.ROOT);
         if (normalizedExt.startsWith(".") == false) {
             normalizedExt = "." + normalizedExt;
         }
-        Supplier<FormatReader> supplier = byName.get(formatName.toLowerCase(Locale.ROOT));
-        Check.notNull(supplier, "Cannot register extension [{}] -- format [{}] not registered", extension, formatName);
         Supplier<FormatReader> existing = byExtension.putIfAbsent(normalizedExt, supplier);
         if (existing != null && existing != supplier) {
             // Find the name of the format that already owns this extension for a clear error message.

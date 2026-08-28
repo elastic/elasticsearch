@@ -925,4 +925,42 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
         assertThat(e.validationErrors(), hasSize(2));
     }
+
+    /** A resolver whose format validator trips if it is ever handed a base dataset field. */
+    private static final FileDataSourceValidator.FormatConfigKeyResolver BASE_FIELD_TRIPWIRE_RESOLVER =
+        FileDataSourceValidator.FormatConfigKeyResolver.of(Map.of("csv", CSV_CONFIG_KEYS), Map.of(".csv", "csv"), Map.of("csv", config -> {
+            if (config.containsKey("schema_sample_size")) {
+                throw new IllegalArgumentException("format validator must never receive base field [schema_sample_size]");
+            }
+        }));
+
+    private final DataSourceValidator baseFieldTripwireValidator = new FileDataSourceValidator(
+        "s3",
+        S3Configuration::fromMap,
+        Set.of("s3", "s3a", "s3n")
+    ).withFormatConfigKeyResolver(BASE_FIELD_TRIPWIRE_RESOLVER, Set.of(".gz"));
+
+    /**
+     * {@code schema_sample_size} is in the CSV reader's recognised keys (the reader consumes it), but at
+     * PUT it is owned by the base bounded-int check — the format validator must not see it, or one bad
+     * value reports twice with two different messages.
+     */
+    public void testBaseFieldsAreNotForwardedToTheFormatValidator() {
+        var result = baseFieldTripwireValidator.validateDataset(
+            Map.of(),
+            "s3://bucket/data.csv",
+            Map.of("schema_sample_size", 50, "delimiter", "|")
+        );
+        assertEquals(50, result.get("schema_sample_size"));
+        assertEquals("|", result.get("delimiter"));
+    }
+
+    public void testBadBaseFieldReportsExactlyOnce() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> baseFieldTripwireValidator.validateDataset(Map.of(), "s3://bucket/data.csv", Map.of("schema_sample_size", 0))
+        );
+        assertThat(e.validationErrors(), hasSize(1));
+        assertThat(e.validationErrors().get(0), containsString("[schema_sample_size] must be between"));
+    }
 }

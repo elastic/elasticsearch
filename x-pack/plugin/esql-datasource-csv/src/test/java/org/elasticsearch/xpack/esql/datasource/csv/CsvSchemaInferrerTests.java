@@ -12,11 +12,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 public class CsvSchemaInferrerTests extends ESTestCase {
 
@@ -467,33 +469,76 @@ public class CsvSchemaInferrerTests extends ESTestCase {
     );
 
     /**
-     * Ordered type pairs where this rail does not agree with the shared lattice. Empty, and meant to
-     * stay that way: it held the six numeric-then-timestamp pairs that made a column of numbers infer
-     * as timestamps (elastic/esql-planning#1807) until the commitment step started asking the lattice.
-     */
-    private static final Set<String> KNOWN_DIVERGENT_CELLS = Set.of();
-
-    /**
      * Inference over a two-value column must land where {@link TypeWidening} says those two types
      * combine, whichever order the rows arrive in. This is the guard that makes the four scattered
      * answers stay one answer: a type added to the ladder but not the lattice, or a promotion added to
      * one and not the other, fails here.
      */
     public void testEveryOrderedTypePairAgreesWithTheLattice() {
-        List<String> unexpected = new ArrayList<>();
         for (DataType first : INFERABLE) {
             for (DataType second : INFERABLE) {
-                DataType inferred = inferOne(canonicalValueFor(first), canonicalValueFor(second));
-                DataType expected = TypeWidening.join(first, second, TypeWidening.Policy.INFERENCE);
-                boolean known = KNOWN_DIVERGENT_CELLS.contains(first + "," + second);
-                if (inferred == expected && known) {
-                    unexpected.add(first + "," + second + " now agrees (" + inferred + ") — remove it from the known set");
-                } else if (inferred != expected && known == false) {
-                    unexpected.add(first + "," + second + " inferred " + inferred + ", lattice says " + expected);
-                }
+                assertEquals(
+                    first + " then " + second,
+                    TypeWidening.join(first, second, TypeWidening.Policy.INFERENCE),
+                    inferOne(canonicalValueFor(first), canonicalValueFor(second))
+                );
             }
         }
-        assertTrue(String.join("\n", unexpected), unexpected.isEmpty());
+    }
+
+    /**
+     * The whitespace screen in {@code classifyTemporal} encodes a fact about two parsers that live
+     * elsewhere: which dialects the CSV datetime parser accepts that the {@code date_nanos} decode rail
+     * rejects. Today that set is exactly {whitespace-separated, seconds-less}, and only the first can
+     * ever be a forcing value, so only the first needs screening.
+     * <p>
+     * If {@code DateUtils.asDateTime} gains a dialect, or the nanos rail drops one, that reasoning goes
+     * stale silently and a column starts flipping onto a rail that cannot decode it. This fails instead.
+     */
+    public void testTheDialectGapBetweenTheTwoParsersIsStillTheOneWeScreenFor() {
+        record Dialect(String label, String value, boolean expectedToNeedScreening) {}
+        List<Dialect> dialects = List.of(
+            new Dialect("T-form with nanos", "2023-10-23T12:15:03.360103847Z", false),
+            new Dialect("T-form millis", "2023-10-23T12:15:03.360Z", false),
+            new Dialect("T-form no fraction", "2023-10-23T12:15:03Z", false),
+            new Dialect("date only", "2023-10-23", false),
+            new Dialect("whitespace-separated", "2023-10-23 12:15:03.360103847", true),
+            new Dialect("seconds-less", "2023-10-23T12:15Z", true)
+        );
+        List<String> drift = new ArrayList<>();
+        for (Dialect d : dialects) {
+            boolean csvAccepts;
+            try {
+                DateUtils.asDateTime(d.value());
+                csvAccepts = true;
+            } catch (DateTimeParseException e) {
+                csvAccepts = false;
+            }
+            boolean nanosRailAccepts;
+            try {
+                EsqlDataTypeConverter.dateNanosToLong(d.value());
+                nanosRailAccepts = true;
+            } catch (Exception e) {
+                nanosRailAccepts = false;
+            }
+            boolean needsScreening = csvAccepts && nanosRailAccepts == false;
+            if (needsScreening != d.expectedToNeedScreening()) {
+                drift.add(
+                    d.label()
+                        + " ["
+                        + d.value()
+                        + "]: csvAccepts="
+                        + csvAccepts
+                        + " nanosRailAccepts="
+                        + nanosRailAccepts
+                        + " -> needsScreening="
+                        + needsScreening
+                        + ", expected "
+                        + d.expectedToNeedScreening()
+                );
+            }
+        }
+        assertTrue("the dialect gap the whitespace screen assumes has moved:\n" + String.join("\n", drift), drift.isEmpty());
     }
 
     public void testSynthesizeColumnNames() {

@@ -353,7 +353,12 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
         assertEquals(DataType.UNSUPPORTED, NdJsonSchemaInferrer.resolveObservedTypes(EnumSet.noneOf(DataType.class)));
     }
 
-    /** Verbatim copy of the resolution rules this change replaced. */
+    /**
+     * Verbatim copy of {@code FieldInfo.resolveType} as it stood immediately before the lattice
+     * migration &mdash; that is, main's rules plus this branch's earlier DATETIME/DATE_NANOS clause,
+     * not main's alone. The point of this test is to compare two implementations rather than an
+     * implementation against a description of itself, so which state it copies matters.
+     */
     private static DataType replacedRules(EnumSet<DataType> types) {
         if (types.isEmpty()) {
             return DataType.UNSUPPORTED;

@@ -64,15 +64,18 @@ public class CsvSchemaInferrer {
         DataType.DATE_NANOS,
         DataType.KEYWORD };
 
-    /** A value is not a timestamp at all. */
-    private static final int NOT_TEMPORAL = 0;
-    /** A timestamp the column reads as {@code datetime}. */
-    private static final int TEMPORAL_DATETIME = 1;
-    /**
-     * A timestamp that {@code datetime} cannot read without dropping digits, and that {@code date_nanos}
-     * can both represent and decode &mdash; so it moves the column.
-     */
-    private static final int TEMPORAL_NANOS_FORCED = 2;
+    /** How a value reads on the temporal rungs. {@code null} anywhere below means "not classified yet". */
+    private enum Temporal {
+        /** Not a timestamp at all. */
+        NOT_TEMPORAL,
+        /** A timestamp the column reads as {@code datetime}. */
+        DATETIME,
+        /**
+         * A timestamp that {@code datetime} cannot read without dropping digits, and that
+         * {@code date_nanos} can both represent and decode &mdash; so it moves the column.
+         */
+        NANOS_FORCED
+    }
 
     private CsvSchemaInferrer() {}
 
@@ -265,11 +268,11 @@ public class CsvSchemaInferrer {
      * temporal rungs share one parse.
      */
     private static int recognise(int fromIdx, String value, @Nullable DateFormatter datetimeFormatter) {
-        int temporal = -1; // computed on demand, and only if a temporal rung is reached
+        Temporal temporal = null; // computed on demand, and only if a temporal rung is reached
         for (int idx = fromIdx; idx < TYPE_CANDIDATES.length - 1; idx++) {
             DataType candidate = TYPE_CANDIDATES[idx];
             if (candidate == DataType.DATETIME || candidate == DataType.DATE_NANOS) {
-                if (temporal < 0) {
+                if (temporal == null) {
                     temporal = classifyTemporal(value, datetimeFormatter);
                 }
                 // DATETIME accepts the timestamps it reads without dropping digits; DATE_NANOS accepts
@@ -279,7 +282,7 @@ public class CsvSchemaInferrer {
                 // string: the value is recognised at the DATE_NANOS rung, so the column stays put.
                 // Such a cell then fails per-cell at decode, which is what a declared date_nanos
                 // schema does with the same file.
-                boolean fits = candidate == DataType.DATETIME ? temporal == TEMPORAL_DATETIME : temporal != NOT_TEMPORAL;
+                boolean fits = candidate == DataType.DATETIME ? temporal == Temporal.DATETIME : temporal != Temporal.NOT_TEMPORAL;
                 if (fits) {
                     return idx;
                 }
@@ -345,9 +348,9 @@ public class CsvSchemaInferrer {
      * timestamps are written, declaring the schema is the way to ask for nanoseconds, and we would
      * otherwise be routing the column onto a decode rail their pattern may not parse.
      */
-    private static int classifyTemporal(String value, @Nullable DateFormatter datetimeFormatter) {
+    private static Temporal classifyTemporal(String value, @Nullable DateFormatter datetimeFormatter) {
         if (datetimeFormatter != null) {
-            return datetimeFormatter.tryParse(value) != null ? TEMPORAL_DATETIME : NOT_TEMPORAL;
+            return datetimeFormatter.tryParse(value) != null ? Temporal.DATETIME : Temporal.NOT_TEMPORAL;
         }
         try {
             ZonedDateTime parsed = DateUtils.asDateTime(value);
@@ -356,11 +359,11 @@ public class CsvSchemaInferrer {
             // readable cell into a per-cell error. Checked only for values already carrying
             // sub-millisecond digits, so ordinary timestamps never pay for it.
             if (TemporalInference.forcesDateNanos(parsed) && value.indexOf(' ') < 0) {
-                return TEMPORAL_NANOS_FORCED;
+                return Temporal.NANOS_FORCED;
             }
-            return TEMPORAL_DATETIME;
+            return Temporal.DATETIME;
         } catch (DateTimeParseException e) {
-            return NOT_TEMPORAL;
+            return Temporal.NOT_TEMPORAL;
         }
     }
 }

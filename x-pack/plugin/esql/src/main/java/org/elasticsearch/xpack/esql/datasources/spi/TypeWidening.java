@@ -13,58 +13,30 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 /**
  * The one answer to "which single type represents both of these types?" for external datasets.
  *
- * <h2>The question this does and does not answer</h2>
- * Two questions look alike and are not the same:
- * <ol>
- *   <li><b>Recognition</b> &mdash; "which type can parse this string?" Only the text readers ask it,
- *       because only they are handed raw tokens; {@code "42"} might be an integer, a long, a double
- *       or a string. That knowledge is a reader's own, and stays there.</li>
- *   <li><b>Combination</b> &mdash; "which single type represents these two types?" Everyone asks it:
- *       an inferrer folding the types it observed in one column, a reader committing a column to a
- *       wider type, reconciliation merging two files. That is this class, and only this class.</li>
- * </ol>
- * Answering (2) by walking a recognition ladder is how a numeric column that later meets a timestamp
- * ends up typed {@code datetime} rather than {@code keyword}, with its bare numbers read as epochs.
- * Ask the right question and the answer follows without a special case.
+ * <p>It answers <b>combination</b> only. The other question a text reader asks &mdash; "which type can
+ * parse this string?" &mdash; is recognition, needs the raw token, and stays in the reader. Answering
+ * combination by walking a recognition ladder is how a numeric column that later meets a timestamp
+ * ends up typed {@code datetime}, with its bare numbers read as epochs.
  *
- * <h2>Two policies, and why they exist</h2>
- * The two are identical but for a single edge, {@code LONG + DOUBLE}: {@link Policy#INFERENCE}
- * promotes to {@code DOUBLE}, {@link Policy#RECONCILIATION} refuses and lands on {@code KEYWORD}.
+ * <p>Promotions: {@code INTEGER -> LONG}, {@code INTEGER -> DOUBLE}, {@code DATETIME -> DATE_NANOS},
+ * and under {@link Policy#INFERENCE} also {@code LONG -> DOUBLE}. {@code KEYWORD} is the top, so
+ * {@link #join} is total and no caller needs a fallback of its own &mdash; a fallback per call site is
+ * how this subsystem came to hold four different answers. There is no bottom: {@code join(NULL, X)} is
+ * {@code KEYWORD}, so a fold must seed with its own first element (see {@link #join}).
  *
- * <p><b>That difference is a known inconsistency, not a design.</b> It is preserved here so that
- * moving four scattered encodings behind one authority does not also change behaviour users depend
- * on; it is not evidence that answering the same question two ways is correct. What the code shows
- * is two authors at two different times: the text inferrers implement a plain
- * {@code INTEGER -> LONG -> DOUBLE} numeric chain with no precision consideration, while
- * {@code SchemaReconciliation} was written with one, and documents excluding {@code LONG + DOUBLE}
- * for precision loss above 2^53.
+ * <p>Both policies are join-semilattices, which is what lets NDJSON fold an unordered set and CSV fold
+ * in row order and still agree.
  *
- * <p>The consequence is that a dataset's physical layout decides its column type: the same long and
- * double in one file give {@code DOUBLE}, and split across two files give {@code KEYWORD}. Nothing
- * justifies that; it is tracked as esql-planning#1809, kept out of this class's change because
- * resolving it either drops a deliberate precision guard or changes inference results, which is a
- * product decision rather than a refactor.
+ * <p><b>The two policies differ on {@code LONG + DOUBLE} only, and that difference is a known
+ * inconsistency rather than a design</b> &mdash; the text inferrers implement a plain numeric chain
+ * with no precision consideration, while {@code SchemaReconciliation} documents excluding that pair
+ * above 2^53. The consequence is that a dataset's physical layout decides its column type. It is
+ * preserved here so that unifying four encodings does not also change shipped behaviour, and tracked
+ * as esql-planning#1809 &mdash; do not collapse the policies to "fix" it, that is #1809's call. A test
+ * fails if a second difference appears.
  *
- * <p>Two things follow for anyone editing this class. Do not "fix" the inconsistency by quietly
- * collapsing the policies; that is esql-planning#1809's decision to make, not a tidy-up. And do not add a second
- * difference &mdash; {@code TypeWideningTests#testPoliciesDifferOnExactlyOneEdge} fails if you do,
- * which is the point of it.
- *
- * <h2>The lattice</h2>
- * {@code KEYWORD} is the top: every pair with no closer common supertype joins there, which is what
- * makes {@link #join} total. Lossless promotions are {@code INTEGER -> LONG}, {@code INTEGER -> DOUBLE},
- * {@code DATETIME -> DATE_NANOS}, and under {@link Policy#INFERENCE} also {@code LONG -> DOUBLE}.
- * Everything else &mdash; a boolean against a number, a number against a timestamp, anything against
- * {@code IP}, {@code VERSION}, {@code UNSIGNED_LONG} or {@code NULL} &mdash; is {@code KEYWORD}.
- *
- * <p>Both policies are join-semilattices: commutative, associative and idempotent, asserted
- * exhaustively rather than assumed. That is what lets a caller fold a set of observed types in any
- * order and get the same answer, which is the property the text inferrers depend on.
- *
- * <h2>Cost</h2>
- * Static reference comparisons, no allocation and no dispatch. Callers consult it when a column's
- * type may move, and are expected to short-circuit the identity case themselves so that a settled
- * column does not reach it on every value.
+ * <p>Static reference comparisons, no allocation, no dispatch. Callers short-circuit the identity case
+ * themselves so a settled column does not reach it per value.
  */
 public final class TypeWidening {
 

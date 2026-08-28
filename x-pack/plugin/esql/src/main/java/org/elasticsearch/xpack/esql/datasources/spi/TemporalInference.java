@@ -58,7 +58,7 @@ import java.time.temporal.TemporalQueries;
  * dialects the CSV rail's datetime parser accepts are rejected by {@code strict_date_optional_time_nanos}:
  * the whitespace-separated form ({@code 2023-10-23 12:15:03}) and times without seconds. The second can
  * never be a forcing value &mdash; a fraction requires seconds in both parsers &mdash; but the first can,
- * so the CSV inferrer screens for it before consulting this class.
+ * so the CSV inferrer screens for it before acting on this class's answer.
  */
 public final class TemporalInference {
 
@@ -100,7 +100,12 @@ public final class TemporalInference {
 
         // In range? The fraction is offset-independent (offsets are whole seconds), so only the
         // instant needs the window check, and only near the window's edges is it not decidable
-        // from the year alone.
+        // from the year alone. YEAR is guarded like INSTANT_SECONDS below: neither production parser
+        // can produce an accessor with a fraction but no year, but this method is public and takes
+        // any accessor, and an UnsupportedTemporalTypeException here would escape into planning.
+        if (parsed.isSupported(ChronoField.YEAR) == false) {
+            return false;
+        }
         int year = (int) parsed.getLong(ChronoField.YEAR);
         if (year >= FIRST_UNAMBIGUOUSLY_IN_YEAR && year <= LAST_UNAMBIGUOUSLY_IN_YEAR) {
             return true;

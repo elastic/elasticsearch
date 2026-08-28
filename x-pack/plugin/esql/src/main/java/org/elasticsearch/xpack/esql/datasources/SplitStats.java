@@ -410,8 +410,7 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
      * still agree with it: a pair folds to a value exactly when the corresponding types have a
      * lossless common supertype, which is why Long+Double and Long+Float are intentionally
      * incompatible (lossy above 2^53), matching the lattice's own exclusion of that pair.
-     * {@code MergedSplitStatsTests#testStatFoldingAgreesWithTheWideningLattice} holds the two together
-     * so neither can gain a promotion the other lacks.
+     * A test holds the two together so neither can gain a promotion the other lacks.
      * <p>
      * DATETIME (epoch-millis) and DATE_NANOS (epoch-nanos) stats are both {@code Long} at the Java level, so
      * this same-class fast path merges them numerically. That is correct because per-file/per-split stats are

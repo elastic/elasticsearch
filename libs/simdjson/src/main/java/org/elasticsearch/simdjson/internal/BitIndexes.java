@@ -1,25 +1,22 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
- *
  * @notice
- * Copyright 2021-2024 The simdjson-java contributors
+ *
+ * Based on a modification of https://github.com/simdjson/simdjson-java,
+ * licensed under the Apache License, Version 2.0.
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * The write() method is derived from https://github.com/simdjson/simdjson-java.
- * All other code in this file is original to Elasticsearch. TODO: update comment
+ * Modifications copyright (C) 2026 Elasticsearch B.V.
  */
 
 package org.elasticsearch.simdjson.internal;

@@ -66,9 +66,12 @@ import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
@@ -1108,6 +1111,73 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                 )
             ) {
                 assertEquals("{\"keep\":[\"aa\",\"bb\"]}", syntheticSource(mapper, indexReader, doc.docs().size() - 1));
+            }
+        }
+    }
+
+    /**
+     * When a field has {@code doc_values.multi_value: false, on_failure: ignore} and a document carries more than one value, the first
+     * value goes to the primary doc-values column while extras are redirected to the {@code ._on_failure} sidecar. Field-level security
+     * must keep or drop both columns together:
+     * <ul>
+     *   <li>An FLS grant of the parent field should expose the primary DV <em>and</em> the {@code ._on_failure} sidecar so that synthetic
+     *       source reconstruction returns the full original array.</li>
+     *   <li>An FLS denial of the parent field should hide both, so neither the primary value nor the redirected extras leak through.</li>
+     * </ul>
+     */
+    public void testFilteredOnFailureSidecarFollowsParentInSyntheticSource() throws Exception {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
+        IndexVersion indexVersion = IndexVersion.current();
+        Settings mapperSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        var indexSettings = createIndexSettings(indexVersion, mapperSettings);
+        var format = IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings);
+
+        DocumentMapper mapper = createMapperService(indexVersion, mapperSettings, mapping(b -> {
+            b.startObject("keep")
+                .field("type", "keyword")
+                .startObject("doc_values")
+                .field("multi_value", false)
+                .field("on_failure", "ignore")
+                .endObject()
+                .endObject();
+        })).documentMapper();
+
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
+            // Index a document with two values: "a" goes to the primary DV column, "b" is redirected to ._on_failure.
+            ParsedDocument doc = mapper.parse(source(b -> b.array("keep", "a", "b")));
+            doc.updateSeqID(0, 0);
+            doc.version().setLongValue(0);
+            iw.addDocuments(doc.docs());
+            iw.close();
+
+            // FLS grants "keep": both the primary DV and the ._on_failure sidecar must survive the filter so
+            // synthetic source can reconstruct the full ["a", "b"] array.
+            var grantFilter = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "keep" }, null));
+            try (
+                DirectoryReader indexReader = FieldSubsetReader.wrap(
+                    wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                    grantFilter,
+                    format,
+                    (fieldName) -> mapper.mappers().getFieldType(fieldName) != null
+                )
+            ) {
+                assertEquals("{\"keep\":[\"a\",\"b\"]}", syntheticSource(mapper, indexReader, doc.docs().size() - 1));
+            }
+
+            // FLS denies "keep": both the primary DV and the ._on_failure sidecar must be hidden so neither value leaks.
+            var denyFilter = new CharacterRunAutomaton(
+                FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "*" }, new String[] { "keep" })
+            );
+            try (
+                DirectoryReader indexReader = FieldSubsetReader.wrap(
+                    wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                    denyFilter,
+                    format,
+                    (fieldName) -> mapper.mappers().getFieldType(fieldName) != null
+                )
+            ) {
+                assertEquals("{}", syntheticSource(mapper, indexReader, doc.docs().size() - 1));
             }
         }
     }

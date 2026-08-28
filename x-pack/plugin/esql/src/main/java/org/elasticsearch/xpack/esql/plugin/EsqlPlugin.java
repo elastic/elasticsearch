@@ -180,6 +180,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
 
     /**
+     * EWMA alpha for the {@code esql_worker} pool's per-task execution-time tracking.
+     */
+    static final double ESQL_WORKER_EXECUTION_TIME_EWMA_ALPHA = 0.1;
+
+    /**
      * Name of the dedicated thread pool backing all external blob-store access: metadata discovery (glob expansion,
      * footer reads, and schema reconciliation performed by
      * {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver}) as well as the blocking data reads and
@@ -794,7 +799,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 poolSize,
                 queueSize,
                 ESQL_WORKER_THREAD_POOL_NAME,
-                EsExecutors.TaskTrackingConfig.DEFAULT
+                EsExecutors.TaskTrackingConfig.builder()
+                    .trackOngoingTasks()
+                    .trackExecutionTime(ESQL_WORKER_EXECUTION_TIME_EWMA_ALPHA)
+                    .build()
             ),
             // Dedicated scaling pool for blocking external blob-store I/O and the streaming parse pipeline, kept
             // separate from esql_worker so the segmentator/parser tasks cannot starve the compute drivers that

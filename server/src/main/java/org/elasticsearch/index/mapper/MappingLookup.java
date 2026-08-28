@@ -19,6 +19,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.lookup.SourceFilter;
 
 import java.util.ArrayList;
@@ -657,7 +658,11 @@ public final class MappingLookup {
     /**
      * Build something to load source {@code _source}.
      */
-    public SourceLoader newSourceLoader(@Nullable SourceFilter filter, SourceFieldMetrics metrics) {
+    public SourceLoader newSourceLoader(
+        @Nullable SourceFilter filter,
+        SourceFieldMetrics metrics,
+        @Nullable NestedDocuments nestedDocuments
+    ) {
         if (isSourceSynthetic() || isSourceColumnarStored()) {
             return new SourceLoader.Synthetic(
                 filter,
@@ -669,6 +674,9 @@ public final class MappingLookup {
         var syntheticVectorsLoader = mapping.syntheticVectorsLoader(filter);
         if (syntheticVectorsLoader != null) {
             return new SourceLoader.SyntheticVectors(removeExcludedSyntheticVectorFields(filter), syntheticVectorsLoader);
+        }
+        if (nestedDocuments != null && nestedLookup != NestedLookup.EMPTY) {
+            return new NestedStoredSourceLoader(filter, nestedDocuments);
         }
         return filter == null ? SourceLoader.FROM_STORED_SOURCE : new SourceLoader.Stored(filter);
     }

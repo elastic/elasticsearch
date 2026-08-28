@@ -1,0 +1,192 @@
+version: 9.5.2
+released: true
+generated: 2026-08-20T17:05:57.911278389Z
+changelogs:
+  - pr: 3143
+    summary: Fail gracefully when restoring a categorizer with an out-of-range token ID
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3149
+    summary: Fail closed on an incomplete TorchScript pre-load state hook scan
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 132434
+    summary: Fix `NullPointerException` in `LongComparator` caused by null `search_after` values
+    area: Search
+    type: bug
+    issues:
+      - 132370
+  - pr: 154607
+    summary: Translate unified tool-calling message blocks to the Anthropic format
+    area: Inference
+    type: bug
+    issues: []
+  - pr: 155312
+    summary: Fix `TS` `STATS` aggregate aliases that collide with grouping keys
+    area: ES|QL
+    type: bug
+    issues:
+      - 153507
+  - pr: 155314
+    summary: Fix Anthropic translation to the unified schema
+    area: Inference
+    type: bug
+    issues: []
+  - pr: 155580
+    summary: Fix nested and `mode`-based sorts on `integer` fields returning incorrect values on indices created before 8.19 or in 9.0.x
+    area: Search
+    type: bug
+    issues:
+      - 155243
+  - pr: 155586
+    summary: Account for t-digest percentiles memory in the request circuit breaker
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 155600
+    summary: Integrate circuit breaker into `BestBucketsDeferringCollector`
+    area: ES|QL
+    type: bug
+    issues:
+      - 148516
+  - pr: 155623
+    summary: Fix `TS` queries that name a time bucket after the timestamp field
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 155648
+    summary: Replace an IN subquery evaluated as a false filter with an empty local relation
+    area: ES|QL
+    type: bug
+    issues:
+      - 155563
+  - pr: 155697
+    summary: Keep scroll contexts on transient search queue rejection
+    area: Search
+    type: bug
+    issues:
+      - 90912
+  - pr: 155706
+    summary: Exclude non-metadata `_type` from default search hit fields
+    area: Search
+    type: bug
+    issues:
+      - 110438
+  - pr: 155743
+    summary: Add a limit on aggregation nesting depth
+    area: Search
+    type: bug
+    issues: []
+  - pr: 155745
+    summary: Fail the request instead of the node on deeply nested aggregations
+    area: Search
+    type: bug
+    issues: []
+  - pr: 155908
+    summary: Ensure batched queries always return a response
+    area: Search
+    type: bug
+    issues: []
+  - pr: 156015
+    summary: Fix `DOT_PRODUCT` and `COSINE` score clamping in the BBQ vector scorer
+    area: Vector Search
+    type: bug
+    issues:
+      - 156010
+      - 156011
+      - 156009
+      - 156012
+  - pr: 156191
+    summary: Preserve headers when copying a transform configuration
+    area: Transform
+    type: bug
+    issues: []
+  - pr: 156203
+    summary: Upgrade the bundled JDK to 26.0.2
+    area: Infra/Core
+    type: upgrade
+    issues: []
+  - pr: 156213
+    summary: Upgrade ASM to 9.10.1
+    area: Infra/Core
+    type: upgrade
+    issues: []
+  - pr: 156268
+    summary: Fix exponential histogram min/max not being fully respected in rank estimation
+    area: Aggregations
+    type: bug
+    issues:
+      - 156057
+  - pr: 156287
+    summary: Fix duplicate field in the cumulative histogram reset document
+    area: Downsampling
+    type: bug
+    issues:
+      - 156276
+  - pr: 156296
+    summary: Upgrade Bouncy Castle FIPS to 1.0.2.7 and 2.0.2
+    area: FIPS
+    type: upgrade
+    issues: []
+  - pr: 156332
+    summary: Score nested kNN `inner_hits` like the query phase
+    area: Vector Search
+    type: bug
+    issues:
+      - 138496
+  - pr: 156368
+    summary: Upgrade Jackson to 2.21.5 for ES|QL and Arrow
+    area: Security
+    type: upgrade
+    issues: []
+  - pr: 156382
+    summary: Fix `IllegalStateException` when a truncated string cuts off in the middle of a JSON object
+    area: Infra/Core
+    type: bug
+    issues:
+      - 156289
+  - pr: 156466
+    summary: Fix search failures on indices without vector fields when many field patterns are requested
+    area: Vector Search
+    type: bug
+    issues: []
+  - pr: 156603
+    summary: Fix `BroadcastMessageAction` request serialization
+    area: Inference
+    type: bug
+    issues: []
+  - pr: 156604
+    summary: Fix incorrect results from Parquet predicate pushdown on multi-valued fields
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 156623
+    summary: Fix the `auto_calibrate` index option being rejected by a leftover experimental flag
+    area: Vector Search
+    type: bug
+    issues: []
+  - pr: 156643
+    summary: Upgrade to Lucene 10.5.1
+    area: Mapping
+    type: upgrade
+    issues: []
+  - pr: 156665
+    summary: Fix Google Vertex AI chat completion tool call argument serialization for non-string values
+    area: Inference
+    type: bug
+    issues:
+      - 156644
+  - pr: 156683
+    summary: Count failed `_msearch` sub-search responses against the circuit breaker
+    area: Search
+    type: bug
+    issues: []
+  - pr: 156765
+    summary: Ensure `Error` propagates out of `S3BlobContainer`
+    area: Snapshot/Restore
+    type: bug
+    issues: []

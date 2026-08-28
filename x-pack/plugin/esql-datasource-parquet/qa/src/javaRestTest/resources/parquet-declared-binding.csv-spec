@@ -1,0 +1,26 @@
+// Parquet-only spec: declared binding against a columnar footer's column names.
+//
+// See csv-declared-schema.csv-spec for how a declaration is modelled in a `dataset:` directive and why
+// `required_capability: dataset_declared_schema` must never appear in a csv-spec.
+
+// A declared path naming a DOTTED physical column. The fixture carries columns literally named
+// "languages.long" and "salary_change.keyword", and in a parquet footer that dot is part of the column's name,
+// not a path separator -- so the declaration binds to it directly, the same way it does on a text header.
+//
+// This case is deliberately NOT in external-declared-schema.csv-spec even though it holds on csv, tsv and
+// parquet alike: ndjson also loads the shared spec, and there a dotted path is turned into nested traversal
+// because the dotted-prefix conflict check consults only the declaration and never the file. Promote this into
+// the shared spec once that is fixed.
+strictDeclaredSchemaBindsDottedColumnNameOnParquet
+required_capability: dataset_in_from_command
+dataset: employees_declared_dotted_pq: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "langs": {"type": "long", "path": "languages.long"}, "change": {"type": "keyword", "path": "salary_change.keyword"}}}}
+
+FROM employees_declared_dotted_pq
+| SORT id
+| LIMIT 3;
+
+id:long | langs:long | change:keyword
+10001   | 2          | "1.19"
+10002   | 5          | "-7.23"
+10003   | 4          | "14.68"
+;

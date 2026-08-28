@@ -1,0 +1,214 @@
+// Functional tests for the DENSE_VECTOR command.
+//
+// The "test_dense_inference" TEXT_EMBEDDING mock returns a deterministic float vector derived from the
+// input string's hashCode, so the embeddings asserted below are stable (they match the values used in
+// text-embedding.csv-spec). The DENSE_VECTOR command appends a generated "<field>_dense_vector" column
+// (dense_vector type) after the existing columns, one per embedded text/keyword field.
+
+dense_vector command on a single field using a ROW source operator
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+ROW input = "Who is Victor Hugo?"
+| DENSE_VECTOR input WITH { "inference_id" : "test_dense_inference" }
+;
+
+input:keyword       | input_dense_vector:dense_vector
+Who is Victor Hugo? | [56.0, 50.0, 48.0]
+;
+
+// The core use case: embed a NON-constant, per-row indexed text field. Each row's publisher value is
+// embedded at runtime into its own vector (distinct values -> distinct vectors), which is exactly what
+// DENSE_VECTOR adds over the TEXT_EMBEDDING function (which only embeds a constant/expression once).
+dense_vector command embeds a non-constant indexed field per row
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+FROM books
+| WHERE book_no IN ("2924", "7381", "7670")
+| DENSE_VECTOR publisher WITH { "inference_id" : "test_dense_inference" }
+| SORT book_no
+| KEEP book_no, publisher, publisher_dense_vector
+;
+
+book_no:keyword | publisher:text      | publisher_dense_vector:dense_vector
+2924            | Oxford Paperbacks   | [45.0, 56.0, 48.0]
+7381            | Red Wheel/Weiser    | [45.0, 53.0, 56.0]
+7670            | Courier Corporation | [45.0, 49.0, 55.0]
+;
+
+dense_vector command on multiple fields
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+ROW a = "be excellent to each other", b = "live long and prosper"
+| DENSE_VECTOR a, b WITH { "inference_id" : "test_dense_inference" }
+;
+
+a:keyword                  | b:keyword             | a_dense_vector:dense_vector | b_dense_vector:dense_vector
+be excellent to each other | live long and prosper | [45.0, 55.0, 54.0]          | [50.0, 57.0, 56.0]
+;
+
+dense_vector command on a single explicitly-named field
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+ROW title = "Who is Victor Hugo?"
+| DENSE_VECTOR title WITH { "inference_id" : "test_dense_inference" }
+;
+
+title:keyword       | title_dense_vector:dense_vector
+Who is Victor Hugo? | [56.0, 50.0, 48.0]
+;
+
+dense_vector command with timeout option
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+required_capability: inference_accept_timeout
+
+ROW input = "Who is Victor Hugo?"
+| DENSE_VECTOR input WITH { "inference_id" : "test_dense_inference", "timeout" : "30s" }
+;
+
+input:keyword       | input_dense_vector:dense_vector
+Who is Victor Hugo? | [56.0, 50.0, 48.0]
+;
+
+dense_vector command on multiple non-constant fields from an index
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+FROM books
+| WHERE book_no IN ("7480", "8605")
+| DENSE_VECTOR title, publisher WITH { "inference_id" : "test_dense_inference" }
+| SORT book_no
+| KEEP book_no, title, publisher, title_dense_vector, publisher_dense_vector
+;
+
+book_no:keyword | title:text | publisher:text | title_dense_vector:dense_vector | publisher_dense_vector:dense_vector
+7480            | The Hobbit | Mariner Books  | [50.0, 49.0, 48.0]              | [45.0, 49.0, 53.0]
+8605            | Dead Souls | Vintage        | [45.0, 49.0, 53.0]              | [50.0, 49.0, 50.0]
+;
+
+
+// Each chained DENSE_VECTOR clause is an independent command with its own WITH options (per-field endpoints).
+dense_vector command chained clauses
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+FROM books
+| WHERE book_no IN ("7480", "8605")
+| DENSE_VECTOR title WITH { "inference_id" : "test_dense_inference" }
+| DENSE_VECTOR publisher WITH { "inference_id" : "test_dense_inference" }
+| SORT book_no
+| KEEP book_no, title, publisher, title_dense_vector, publisher_dense_vector
+;
+
+book_no:keyword | title:text | publisher:text | title_dense_vector:dense_vector | publisher_dense_vector:dense_vector
+7480            | The Hobbit | Mariner Books  | [50.0, 49.0, 48.0]              | [45.0, 49.0, 53.0]
+8605            | Dead Souls | Vintage        | [45.0, 49.0, 53.0]              | [50.0, 49.0, 50.0]
+;
+
+
+dense_vector command on a single explicitly-named field over an index
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+FROM books
+| WHERE book_no IN ("7480", "8605")
+| DENSE_VECTOR title WITH { "inference_id" : "test_dense_inference" }
+| SORT book_no
+| KEEP book_no, title, title_dense_vector
+;
+
+book_no:keyword | title:text | title_dense_vector:dense_vector
+7480            | The Hobbit | [50.0, 49.0, 48.0]
+8605            | Dead Souls | [45.0, 49.0, 53.0]
+;
+
+dense_vector command with timeout option over an index
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+required_capability: inference_accept_timeout
+
+FROM books
+| WHERE book_no IN ("2924", "7381", "7670")
+| DENSE_VECTOR publisher WITH { "inference_id" : "test_dense_inference", "timeout" : "30s" }
+| SORT book_no
+| KEEP book_no, publisher, publisher_dense_vector
+;
+
+book_no:keyword | publisher:text      | publisher_dense_vector:dense_vector
+2924            | Oxford Paperbacks   | [45.0, 56.0, 48.0]
+7381            | Red Wheel/Weiser    | [45.0, 53.0, 56.0]
+7670            | Courier Corporation | [45.0, 49.0, 55.0]
+;
+
+
+dense_vector command on a null value produces a null vector
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+FROM books
+| WHERE book_no IN ("7480", "8605")
+| EVAL maybe_title = CASE(book_no == "7480", title)
+| DENSE_VECTOR maybe_title WITH { "inference_id" : "test_dense_inference" }
+| SORT book_no
+| KEEP book_no, maybe_title, maybe_title_dense_vector
+;
+
+book_no:keyword | maybe_title:keyword | maybe_title_dense_vector:dense_vector
+7480            | The Hobbit          | [50.0, 49.0, 48.0]
+8605            | null                | null
+;
+
+
+// For multi-valued fields only the FIRST value is embedded 
+dense_vector command on a multi-valued field embeds the first value
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+FROM books
+| WHERE book_no == "2924"
+| EVAL sorted_author = MV_SORT(author)
+| DENSE_VECTOR sorted_author WITH { "inference_id" : "test_dense_inference" }
+| KEEP book_no, sorted_author, sorted_author_dense_vector
+;
+
+book_no:keyword | sorted_author:keyword                                | sorted_author_dense_vector:dense_vector
+2924            | [Alan Myers, Fyodor Dostoevsky, W. J. Leatherbarrow] | [45.0, 52.0, 51.0]
+;
+
+// Assert the generated column is a usable dense_vector.
+dense_vector command output consumed by v_cosine
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
+
+FROM books
+| WHERE book_no == "2924"
+| DENSE_VECTOR publisher WITH { "inference_id" : "test_dense_inference" }
+| EVAL sim = v_cosine(publisher_dense_vector, publisher_dense_vector)
+| KEEP book_no, sim
+;
+
+book_no:keyword | sim:double
+2924            | 1.0
+;
+
+// Assert a generated column shadows an existing same-named column (last wins).
+// Case (a) - two inputs producing the same name - can't happen; see AnalyzerTests dotted-name tests.
+dense_vector command generated column shadows an existing same-named column
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+FROM books
+| WHERE book_no == "2924"
+| EVAL publisher_dense_vector = "placeholder"
+| DENSE_VECTOR publisher WITH { "inference_id" : "test_dense_inference" }
+| KEEP book_no, publisher_dense_vector
+;
+
+book_no:keyword | publisher_dense_vector:dense_vector
+2924            | [45.0, 56.0, 48.0]
+;

@@ -135,16 +135,6 @@ public record EndpointMetadata(
         return this.equals(EMPTY_INSTANCE);
     }
 
-    public boolean fingerprintMatches(EndpointMetadata other) {
-        return Objects.equals(internal.fingerprint(), other.internal.fingerprint());
-    }
-
-    public boolean hasNewerVersionThan(EndpointMetadata other) {
-        long thisVersion = Optional.ofNullable(internal.version()).orElse(0L);
-        long otherVersion = Optional.ofNullable(other.internal.version()).orElse(0L);
-        return thisVersion > otherVersion;
-    }
-
     public Params getXContentParamsExcludeInternalFields() {
         return new ToXContent.MapParams(Map.of(INCLUDE_INTERNAL_FIELDS_PARAM_NAME, Boolean.FALSE.toString()));
     }
@@ -479,6 +469,16 @@ public record EndpointMetadata(
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(fingerprint);
             out.writeOptionalVLong(version);
+        }
+
+        public boolean fingerprintMatches(Internal other) {
+            return Objects.equals(fingerprint, other.fingerprint);
+        }
+
+        public boolean isNewerThan(Internal other) {
+            long thisVersion = Optional.ofNullable(version).orElse(0L);
+            long otherVersion = Optional.ofNullable(other.version).orElse(0L);
+            return thisVersion > otherVersion;
         }
 
         public boolean isEmpty() {

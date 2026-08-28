@@ -674,10 +674,12 @@ public final class GlobExpander {
 
     /**
      * The non-empty, trimmed segments of a comma-separated path list. The one decomposition shared by the expansion
-     * ({@link #doExpandCommaSeparated}) and the identity that names its result ({@link #effectiveWholePathPattern}),
-     * so the two cannot disagree on which segments a path has.
+     * ({@link #doExpandCommaSeparated}), the identity that names its result ({@link #effectiveWholePathPattern}), and
+     * the local-disk allowlist gate ({@code LocalFileAccess#check}), so none of them can disagree on which segments a
+     * path has. A single-file (or brace-only) path yields exactly one segment, so callers can treat {@code size() > 1}
+     * as "this is a multi-file listing".
      */
-    private static List<String> commaSegments(String pathList) {
+    public static List<String> commaSegments(String pathList) {
         List<String> segments = new ArrayList<>();
         int depth = 0;
         int start = 0;

@@ -139,7 +139,8 @@ public class StatelessPrimaryRelocationTargetService {
                 recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
                 indexShard.openEngineAndSkipTranslogRecovery();
 
-                if (request.hasRecentIdLookup()) {
+                // Synthetic id's do not use inverted indices and prewarming them is not necessary
+                if (request.hasRecentIdLookup() && indexShard.indexSettings().useTimeSeriesSyntheticId() == false) {
                     try {
                         indexShard.withEngine(engine -> {
                             if (engine instanceof IndexEngine indexEngine) {

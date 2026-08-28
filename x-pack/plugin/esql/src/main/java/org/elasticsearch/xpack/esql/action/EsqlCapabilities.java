@@ -674,6 +674,17 @@ public class EsqlCapabilities {
         ST_CENTROID_AGG_SHAPES_DOC_VALUES,
 
         /**
+         * Fix for a bug where {@code TO_STRING} (and other non-spatial functions) applied to a spatial
+         * field like {@code geo_point} would throw a {@code ClassCastException} when the field was also
+         * consumed by a spatial aggregation or spatial function that triggered the doc-values extraction
+         * optimization in {@code SpatialDocValuesExtraction}. The optimization changed the field's block
+         * type from {@code BytesRefBlock} (WKB from source) to {@code LongBlock} (doc-values encoding),
+         * but did not inform non-spatial evaluators like {@code ToStringFromGeoPointEvaluator}.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/141300">#141300</a>.
+         */
+        FIX_SPATIAL_DOC_VALUES_NON_SPATIAL_EVAL,
+
+        /**
          * Support ST_ENVELOPE function (and related ST_XMIN, etc.).
          */
         ST_ENVELOPE,
@@ -3383,6 +3394,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_NET_ZERO_PROJECTION(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
 
         /**
+         * Support for {@code INLINE STATS} under {@code unmapped_fields="LOAD_ALL"}. Only meaningful when
+         * {@link #OPTIONAL_FIELDS_LOAD_ALL} is available.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_INLINE_STATS(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
+
+        /**
          * Support for {@code STATS} under {@code unmapped_fields="LOAD_ALL"}.
          * Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL} is available.
          */
@@ -3557,7 +3574,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code HIGHLIGHT} command.
          */
-        HIGHLIGHT_V6(Build.current().isSnapshot()),
+        HIGHLIGHT_V6,
 
         /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.
@@ -3731,7 +3748,7 @@ public class EsqlCapabilities {
          */
         FIX_TS_STATS_ALIAS_GROUPING_SHADOW,
 
-        /*
+        /**
          * CHANGE_POINT now uses EventDetector (multiple events, log-space p-values), which can report
          * a change point at a slightly different bucket and with different p-values than the previous
          * implementation.
@@ -3748,6 +3765,7 @@ public class EsqlCapabilities {
          * See <a href="https://github.com/elastic/elasticsearch/pull/155923">#155923</a>.
          */
         FIX_PARTIAL_PREFIX_COMPOUND_TOPN_PUSHDOWN,
+
         /**
          * Time-series windows are dispatched per aggregate: the time bucket is pure emission cadence and each
          * aggregate independently decomposes its window as {@code W = k * B + r}, aggregating {@code k} full buckets
@@ -3758,15 +3776,15 @@ public class EsqlCapabilities {
         PER_AGGREGATE_WINDOWS,
 
         /**
-         * Fix for a bug where {@code TO_STRING} (and other non-spatial functions) applied to a spatial
-         * field like {@code geo_point} would throw a {@code ClassCastException} when the field was also
-         * consumed by a spatial aggregation or spatial function that triggered the doc-values extraction
-         * optimization in {@code SpatialDocValuesExtraction}. The optimization changed the field's block
-         * type from {@code BytesRefBlock} (WKB from source) to {@code LongBlock} (doc-values encoding),
-         * but did not inform non-spatial evaluators like {@code ToStringFromGeoPointEvaluator}.
-         * See <a href="https://github.com/elastic/elasticsearch/issues/141300">#141300</a>.
+         * Don't approximate queries of the form {@code STATS COUNT() BY BUCKET(date, ...)},
+         * because they are efficiently pushed down to Lucene.
          */
-        FIX_SPATIAL_DOC_VALUES_NON_SPATIAL_EVAL,
+        APPROXIMATION_FIX_COUNT_HISTOGRAM,
+
+        /**
+         * Report in the response whether query approximation was applied.
+         */
+        APPROXIMATION_APPLIED_RESPONSE,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

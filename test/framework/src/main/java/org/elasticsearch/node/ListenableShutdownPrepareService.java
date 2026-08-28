@@ -70,7 +70,15 @@ public class ListenableShutdownPrepareService extends ShutdownPrepareService {
 
     @Override
     protected boolean awaitTasksCancellation(TimeValue timeout, Sleeper sleeper, String taskName, TaskManager taskManager) {
-        return awaitTasksCompleteInternal(timeout, sleeper, taskName, "cancel", taskManager, null, tasks -> notifyTaskTimeout(taskName, tasks));
+        return awaitTasksCompleteInternal(
+            timeout,
+            sleeper,
+            taskName,
+            "cancel",
+            taskManager,
+            null,
+            tasks -> notifyTaskTimeout(taskName, tasks)
+        );
     }
 
     private void notifyTaskTimeout(String taskName, List<Task> tasks) {

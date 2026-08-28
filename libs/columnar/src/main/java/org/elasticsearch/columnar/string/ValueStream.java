@@ -134,6 +134,10 @@ public final class ValueStream {
         private byte[] pendingBytes = new byte[1024];
         // Holds a block's length header, or one value's length as a vint, so neither is allocated per block.
         private byte[] scratch = new byte[0];
+        // What stageRuns found, read by the sizing and the write that follow it.
+        private int[] runStarts = new int[0];
+        private int[] runLens = new int[0];
+        private int[] runReps = new int[0];
         private int pendingCount = 0;
         private int pendingLength = 0;
 
@@ -205,7 +209,9 @@ public final class ValueStream {
             // A run of equal values is stored once with a repeat, which is what a column sorted on this
             // field is made of. Worth it only where the runs are long enough to pay for the repeats, so the
             // two forms are sized against each other rather than guessed at.
-            final int runCount = countRuns();
+            // Finding the runs is the part that compares bytes, so it is done once and what it found is what
+            // the sizing and the write both read.
+            final int runCount = stageRuns();
             if (runsAreSmaller(runCount)) {
                 writeRuns(runCount);
                 pendingCount = 0;
@@ -239,12 +245,29 @@ public final class ValueStream {
         }
 
         /** How many runs of equal values the staged block holds, counted over the values already in hand. */
-        private int countRuns() {
-            int runs = 1;
-            int at = pending[0];
-            for (int i = 1; i < pendingCount; i++) {
-                final int previous = at - pending[i - 1];
-                if (pending[i] != pending[i - 1] || Arrays.equals(pendingBytes, previous, at, pendingBytes, at, at + pending[i]) == false) {
+        /**
+         * Finds the runs the staged values hold, recording where each one's bytes start, how long they are
+         * and how many values carry them. This is the only walk that compares bytes; sizing the two forms
+         * against each other and writing the runs both read what it left.
+         */
+        private int stageRuns() {
+            if (runStarts.length < pendingCount) {
+                runStarts = new int[pendingCount];
+                runLens = new int[pendingCount];
+                runReps = new int[pendingCount];
+            }
+            int runs = 0;
+            int at = 0;
+            for (int i = 0; i < pendingCount; i++) {
+                final boolean sameAsPrevious = i > 0
+                    && pending[i] == pending[i - 1]
+                    && Arrays.equals(pendingBytes, at - pending[i - 1], at, pendingBytes, at, at + pending[i]);
+                if (sameAsPrevious) {
+                    runReps[runs - 1]++;
+                } else {
+                    runStarts[runs] = at;
+                    runLens[runs] = pending[i];
+                    runReps[runs] = 1;
                     runs++;
                 }
                 at += pending[i];
@@ -252,28 +275,13 @@ public final class ValueStream {
             return runs;
         }
 
-        /**
-         * Whether the run form is smaller than the inline one. A run costs its bytes, its length and its
-         * repeat; a value costs its bytes and its length. So runs win once enough values repeat to save
-         * more bytes than the repeats add.
-         */
         private boolean runsAreSmaller(int runCount) {
             if (runCount == pendingCount) {
                 return false;
             }
             long runBytes = 0;
-            int at = 0;
-            for (int i = 0; i < pendingCount; i++) {
-                if (i == 0) {
-                    runBytes += pending[i];
-                } else {
-                    final int previous = at - pending[i - 1];
-                    if (pending[i] != pending[i - 1]
-                        || Arrays.equals(pendingBytes, previous, at, pendingBytes, at, at + pending[i]) == false) {
-                        runBytes += pending[i];
-                    }
-                }
-                at += pending[i];
+            for (int r = 0; r < runCount; r++) {
+                runBytes += runLens[r];
             }
             // Two vints a run against one a value, plus the bytes each form actually stores.
             return runBytes + 2L * runCount < pendingLength + pendingCount;
@@ -285,41 +293,14 @@ public final class ValueStream {
             scratch[0] = RUNS;
             int header = 1;
             header += ByteArrayInts.writeVInt(runCount, scratch, header);
-            // The header is sized before the bytes are known, so the values are laid down after it in a
-            // second walk rather than interleaved.
-            int at = 0;
-            int repeat = 0;
-            int runStart = 0;
-            final int[] starts = new int[runCount];
-            final int[] lengths = new int[runCount];
-            int run = -1;
-            for (int i = 0; i < pendingCount; i++) {
-                final boolean newRun;
-                if (i == 0) {
-                    newRun = true;
-                } else {
-                    final int previous = at - pending[i - 1];
-                    newRun = pending[i] != pending[i - 1]
-                        || Arrays.equals(pendingBytes, previous, at, pendingBytes, at, at + pending[i]) == false;
-                }
-                if (newRun) {
-                    if (run >= 0) {
-                        header += ByteArrayInts.writeVInt(repeat, scratch, header);
-                    }
-                    run++;
-                    starts[run] = at;
-                    lengths[run] = pending[i];
-                    header += ByteArrayInts.writeVInt(pending[i], scratch, header);
-                    repeat = 1;
-                } else {
-                    repeat++;
-                }
-                at += pending[i];
-            }
-            header += ByteArrayInts.writeVInt(repeat, scratch, header);
             for (int r = 0; r < runCount; r++) {
-                System.arraycopy(pendingBytes, starts[r], scratch, header, lengths[r]);
-                header += lengths[r];
+                header += ByteArrayInts.writeVInt(runLens[r], scratch, header);
+                header += ByteArrayInts.writeVInt(runReps[r], scratch, header);
+            }
+            // The header is sized before the bytes are known, so the values are laid down after it.
+            for (int r = 0; r < runCount; r++) {
+                System.arraycopy(pendingBytes, runStarts[r], scratch, header, runLens[r]);
+                header += runLens[r];
             }
             chunks.append(scratch, 0, header);
         }

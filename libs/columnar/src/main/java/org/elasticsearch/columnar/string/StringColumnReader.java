@@ -48,6 +48,10 @@ public final class StringColumnReader {
     private final ValueStream.Reader escapes;
     private final LongValues escapeRanks;
 
+    /** Carried across page reads, which arrive in document order; see {@link #ranksOfAll}. */
+    private ColumnIterator pageIterator;
+    private int pageIteratorThrough = -1;
+
     /** How many terms the dictionary holds, and how many values it did not name; zero on a plain column. */
     private final int dictionarySize;
     private final long escapeCount;
@@ -427,15 +431,15 @@ public final class StringColumnReader {
      * found by bisection over the values, which needs only the order and no ordinals: a term costs a couple
      * of dozen block reads instead of a comparison per document.
      */
-    private DocIdSetIterator sortedRange(BytesRef prefix, BytesRef exact) throws IOException {
+    private RankRange sortedRange(BytesRef prefix, BytesRef exact) throws IOException {
         final int count = meta.numDocsWithField();
         final BytesRef target = exact != null ? exact : prefix;
         final int first = firstAtLeast(target, count);
         if (first == count) {
-            return DocIdSetIterator.empty();
+            return RankRange.EMPTY;
         }
         if (matches(valueAt(first), prefix, exact) == false) {
-            return DocIdSetIterator.empty();
+            return RankRange.EMPTY;
         }
         // The run ends where the values stop carrying it, which is again a boundary in value order.
         int low = first;
@@ -448,7 +452,19 @@ public final class StringColumnReader {
                 high = mid;
             }
         }
-        return DocIdSetIterator.range(first, low);
+        return new RankRange(first, low);
+    }
+
+    /**
+     * The ranks a match covers, as {@code [from, to)}. Bisecting values in order leaves a range and nothing
+     * else, so that is what it hands back; turning it into documents is {@link #documents}' business.
+     */
+    private record RankRange(int from, int to) {
+        static final RankRange EMPTY = new RankRange(0, 0);
+
+        boolean isEmpty() {
+            return from >= to;
+        }
     }
 
     /** The first rank whose value sorts at or after {@code target}, by bisection over ordered values. */
@@ -679,16 +695,16 @@ public final class StringColumnReader {
      * keeps the work a search does proportional to the documents it is asked about rather than to the
      * column. A range of ranks is what bisecting the values leaves, and it is all this needs.
      */
-    private DocIdSetIterator documents(DocIdSetIterator ranks) throws IOException {
-        if (meta.iterator().isDense()) {
-            return ranks;
-        }
-        final long cost = ranks.cost();
-        if (cost == 0) {
+    private DocIdSetIterator documents(RankRange ranks) throws IOException {
+        if (ranks.isEmpty()) {
             return DocIdSetIterator.empty();
         }
-        final int firstRank = Math.toIntExact(ranks.nextDoc());
-        final int endRank = Math.toIntExact(firstRank + cost);
+        if (meta.iterator().isDense()) {
+            // Ranked by document id, so the range is already the documents.
+            return DocIdSetIterator.range(ranks.from(), ranks.to());
+        }
+        final int firstRank = ranks.from();
+        final int endRank = ranks.to();
         final ColumnIterator presence = iterator();
         return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(presence) {
             @Override
@@ -711,7 +727,19 @@ public final class StringColumnReader {
      * documents a sparse column skips is told to read them itself rather than handed a neighbour's value.
      */
     private boolean ranksOfAll(int[] docs, int offset, int count) throws IOException {
-        iterator().ranks(docs, offset, count, pageRanks);
+        if (count == 0) {
+            return true;
+        }
+        // Pages arrive in document order, so one iterator serves all of them and carries its position from
+        // one to the next. A fresh one costs a sparse column an iterator over its documents and a walk back
+        // to where the last page ended. Resolving ranks leaves the iterator somewhere in the page it was
+        // given, so a page that does not start beyond the last one asks for a new iterator rather than
+        // relying on where the last one stopped.
+        if (pageIterator == null || docs[offset] <= pageIteratorThrough) {
+            pageIterator = iterator();
+        }
+        pageIteratorThrough = docs[offset + count - 1];
+        pageIterator.ranks(docs, offset, count, pageRanks);
         for (int i = 0; i < count; i++) {
             if (pageRanks[i] == ColumnIterator.NO_RANK) {
                 return false;

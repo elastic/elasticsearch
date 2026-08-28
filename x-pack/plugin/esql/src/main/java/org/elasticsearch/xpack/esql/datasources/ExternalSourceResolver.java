@@ -1185,6 +1185,15 @@ public class ExternalSourceResolver {
         List<Attribute> schema,
         Map<String, Object> queryConfig
     ) {
+        return buildMetadataFromCache(entry, schema, queryConfig, null);
+    }
+
+    private static ExternalSourceMetadata buildMetadataFromCache(
+        SchemaCacheEntry entry,
+        List<Attribute> schema,
+        Map<String, Object> queryConfig,
+        @Nullable SourceStatistics harvestedStatistics
+    ) {
         // Merge cached connector config (e.g. Flight endpoint/target) with query-level params.
         // Query-level params take precedence, matching the merge in wrapAsExternalSourceMetadata.
         Map<String, Object> cachedConnectorConfig = entry.connectorConfig();
@@ -1232,6 +1241,14 @@ public class ExternalSourceResolver {
             @Override
             public Map<String, Object> config() {
                 return mergedConfig;
+            }
+
+            @Override
+            public Optional<SourceStatistics> statistics() {
+                // Non-null only on the cold resolve rail, where THIS query just parsed the footer.
+                // Warm cache serves pass null so downstream split planning (the small-file discovery
+                // bypass keys off non-null statistics) stays cold-resolve-only by construction.
+                return Optional.ofNullable(harvestedStatistics);
             }
         };
     }
@@ -1693,7 +1710,10 @@ public class ExternalSourceResolver {
         resolveSingleSourceAsync(filePath.toString(), hint, config, listener.map(meta -> {
             SchemaCacheEntry entry = stampInferredReadConfig(SchemaCacheEntry.from(meta));
             cacheService.putSchema(schemaKey, entry);
-            return buildMetadataFromCache(entry, entry.toAttributes(), config);
+            // Carry the just-harvested footer statistics on the returned metadata: this is the cold
+            // rail (the footer was parsed by this query), which is exactly when the small-file
+            // range-discovery bypass in FileSplitProvider may reuse them instead of a second parse.
+            return buildMetadataFromCache(entry, entry.toAttributes(), config, meta.statistics().orElse(null));
         }));
     }
 

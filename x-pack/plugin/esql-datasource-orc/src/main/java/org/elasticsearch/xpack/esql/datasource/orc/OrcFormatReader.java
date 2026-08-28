@@ -36,6 +36,7 @@ import org.apache.orc.StripeStatistics;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.impl.OrcTail;
 import org.apache.orc.impl.ReaderImpl;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -57,6 +58,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
@@ -85,6 +87,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
 import java.time.DateTimeException;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -127,16 +130,41 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     private static final long MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
 
     /**
-     * JVM-wide cache of parsed ORC tails ({@link OrcTail}). Singleton — every
-     * {@link OrcFormatReader} instance reads from and writes to the same cache so that producer
-     * threads spawned from different reader instances (e.g. across concurrent queries) still
-     * coalesce footer parses.
+     * Cache of parsed ORC tails ({@link OrcTail}), shared by this reader and every derived copy
+     * ({@link #withPushedFilter}, {@link #withDynamicThreshold}, ...) so that producer threads
+     * spawned from different derived instances still coalesce tail parses. The root instance is
+     * created once per node by the format-reader registry, making this effectively a node-wide
+     * cache without static state.
      */
-    private static final ParsedFooterCache<OrcTail> PARSED_FOOTERS = new ParsedFooterCache<>();
+    private final ParsedFooterCache<OrcTail> parsedFooters;
 
-    /** Clears the parsed-footer cache. Intended for test isolation only. */
-    static void clearParsedFooterCacheForTests() {
-        PARSED_FOOTERS.invalidateAll();
+    /**
+     * Cache of raw footer tail bytes, threaded into every {@link OrcStorageObjectAdapter} this
+     * reader creates so suffix reads across phases hit memory instead of storage. Shares its
+     * lifecycle with {@link #parsedFooters}.
+     */
+    private final FooterByteCache footerBytes;
+
+    /** Clears both footer caches. Intended for test isolation only. */
+    void clearFooterCachesForTests() {
+        parsedFooters.invalidateAll();
+        footerBytes.invalidateAll();
+    }
+
+    /**
+     * Estimates the retained heap weight of a parsed ORC tail for the byte-weighted
+     * {@link ParsedFooterCache}: the serialized tail buffer the {@link OrcTail} holds onto, plus a
+     * fixed per-file overhead and per-stripe and per-type costs for the parsed protobuf structures
+     * (mirroring the Parquet footer weigher's row-group/column model).
+     */
+    static long estimateTailWeightBytes(OrcTail tail) {
+        long stripes = tail.getFooter().getStripesCount();
+        long types = tail.getFooter().getTypesCount();
+        // OrcTail retains the serialized tail buffer alongside the parsed structures, so a file with
+        // large metadata/stripe-statistics sections costs far more than the parsed counts suggest.
+        ByteBuffer serializedTail = tail.getSerializedTail();
+        long serializedBytes = serializedTail == null ? 0 : serializedTail.remaining();
+        return 4096 + serializedBytes + stripes * 1024 + types * 512;
     }
 
     private final BlockFactory blockFactory;
@@ -149,8 +177,40 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     /** Physical names of declared-type columns (licensed to narrow toward their target); see {@link #withDeclaredTypeColumns}. */
     private final Set<String> declaredTypeColumns;
 
+    /**
+     * Creates a root reader with footer caches sized from node {@link Settings}. This is the
+     * production entry point used by the format-reader registry, which creates one root reader
+     * per format per node; all derived copies share the root's caches.
+     */
+    public OrcFormatReader(Settings settings, BlockFactory blockFactory) {
+        this(
+            blockFactory,
+            null,
+            null,
+            null,
+            Map.of(),
+            Set.of(),
+            ParsedFooterCache.fromSettings(settings, OrcFormatReader::estimateTailWeightBytes),
+            FooterByteCache.fromSettings(settings)
+        );
+    }
+
+    /**
+     * Creates a reader with default-sized footer caches. Intended for tests; production code
+     * goes through {@link #OrcFormatReader(Settings, BlockFactory)} so operators can size the
+     * caches. Each reader built this way gets fresh caches, giving tests automatic isolation.
+     */
     public OrcFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, null, null, null, Map.of(), Set.of());
+        this(
+            blockFactory,
+            null,
+            null,
+            null,
+            Map.of(),
+            Set.of(),
+            ParsedFooterCache.fromSettings(Settings.EMPTY, OrcFormatReader::estimateTailWeightBytes),
+            FooterByteCache.fromSettings(Settings.EMPTY)
+        );
     }
 
     private OrcFormatReader(
@@ -159,7 +219,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         OrcPushedExpressions pushedExpressions,
         DynamicThreshold dynamicThreshold,
         Map<String, String> declaredDateFormats,
-        Set<String> declaredTypeColumns
+        Set<String> declaredTypeColumns,
+        ParsedFooterCache<OrcTail> parsedFooters,
+        FooterByteCache footerBytes
     ) {
         this.blockFactory = blockFactory;
         this.pushedFilter = pushedFilter;
@@ -167,22 +229,51 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         this.dynamicThreshold = dynamicThreshold;
         this.declaredDateFormats = declaredDateFormats;
         this.declaredTypeColumns = declaredTypeColumns;
+        this.parsedFooters = parsedFooters;
+        this.footerBytes = footerBytes;
     }
 
     @Override
     public FormatReader withPushedFilter(Object pushedFilter) {
         if (pushedFilter instanceof SearchArgument sarg) {
-            return new OrcFormatReader(this.blockFactory, sarg, null, dynamicThreshold, declaredDateFormats, declaredTypeColumns);
+            return new OrcFormatReader(
+                this.blockFactory,
+                sarg,
+                null,
+                dynamicThreshold,
+                declaredDateFormats,
+                declaredTypeColumns,
+                parsedFooters,
+                footerBytes
+            );
         }
         if (pushedFilter instanceof OrcPushedExpressions exprs) {
-            return new OrcFormatReader(this.blockFactory, null, exprs, dynamicThreshold, declaredDateFormats, declaredTypeColumns);
+            return new OrcFormatReader(
+                this.blockFactory,
+                null,
+                exprs,
+                dynamicThreshold,
+                declaredDateFormats,
+                declaredTypeColumns,
+                parsedFooters,
+                footerBytes
+            );
         }
         return this;
     }
 
     @Override
     public FormatReader withDynamicThreshold(DynamicThreshold threshold) {
-        return new OrcFormatReader(blockFactory, pushedFilter, pushedExpressions, threshold, declaredDateFormats, declaredTypeColumns);
+        return new OrcFormatReader(
+            blockFactory,
+            pushedFilter,
+            pushedExpressions,
+            threshold,
+            declaredDateFormats,
+            declaredTypeColumns,
+            parsedFooters,
+            footerBytes
+        );
     }
 
     /**
@@ -202,7 +293,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             pushedExpressions,
             dynamicThreshold,
             Map.copyOf(physicalNameToPattern),
-            declaredTypeColumns
+            declaredTypeColumns,
+            parsedFooters,
+            footerBytes
         );
     }
 
@@ -224,13 +317,15 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             pushedExpressions,
             dynamicThreshold,
             declaredDateFormats,
-            Set.copyOf(physicalDeclaredColumns)
+            Set.copyOf(physicalDeclaredColumns),
+            parsedFooters,
+            footerBytes
         );
     }
 
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
-        OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object);
+        OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object, footerBytes);
         Path path = new Path(object.path().toString());
         try (Reader reader = openReaderCached(fs, path)) {
             TypeDescription schema = reader.getSchema();
@@ -260,7 +355,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     }
 
     /**
-     * Opens an ORC {@link Reader} using the JVM-wide {@link #PARSED_FOOTERS} cache so that the
+     * Opens an ORC {@link Reader} using the shared {@link #parsedFooters} cache so that the
      * tail (postscript + footer + types + stripe directory) is deserialized at most once per
      * {@code (path, length)} key. On a cache miss the loader parses the tail by opening a reader
      * once and extracting the {@link OrcTail} from its serialized footer buffer; the parsed result
@@ -274,7 +369,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     }
 
     /**
-     * Loads the parsed ORC tail for {@code fs} via the JVM-wide {@link #PARSED_FOOTERS} cache,
+     * Loads the parsed ORC tail for {@code fs} via the shared {@link #parsedFooters} cache,
      * parsing on a cache miss. The first call for a given key opens an ORC reader (which parses
      * the tail) and immediately closes it after extracting the {@link OrcTail}; subsequent calls
      * reuse the cached tail.
@@ -283,7 +378,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         // The loader runs only on a cache miss, so the flag distinguishes hit from miss.
         boolean[] missed = { false };
         try {
-            OrcTail tail = PARSED_FOOTERS.getOrLoad(fs.cacheKey(), key -> {
+            OrcTail tail = parsedFooters.getOrLoad(fs.cacheKey(), key -> {
                 missed[0] = true;
                 // Open a reader once, extract the parsed tail, then close the reader. The
                 // OrcTail itself retains the serialized buffer + parsed protobuf footer and is
@@ -440,7 +535,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         int batchSize = context.batchSize();
         int rowLimit = context.rowLimit();
 
-        OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object);
+        OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object, footerBytes);
         Path path = new Path(object.path().toString());
         long footerStartNanos = System.nanoTime();
         Reader reader = openReaderCached(fs, path);
@@ -491,7 +586,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
 
     @Override
     public List<SplitRange> discoverSplitRanges(StorageObject object) throws IOException {
-        OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object);
+        OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object, footerBytes);
         Path path = new Path(object.path().toString());
         try (Reader reader = openReaderCached(fs, path)) {
             List<StripeInformation> stripes = reader.getStripes();
@@ -569,13 +664,13 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         if (rangeEnd <= rangeStart) {
             throw new IllegalArgumentException("rangeEnd [" + rangeEnd + "] must be greater than rangeStart [" + rangeStart + "]");
         }
-        OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object);
+        OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object, footerBytes);
         Path path = new Path(object.path().toString());
         // Tail resolution order, mirroring the parquet reader:
         // 1. context.fileContext() — per-producer fast path, single-writer/single-reader, no map
         // lookup; carries the parsed tail across successive splits of the same file on one
         // thread.
-        // 2. PARSED_FOOTERS — JVM-wide cache keyed by (path, length); shared across producer
+        // 2. parsedFooters — reader-shared cache keyed by (path, length); shared across producer
         // threads and across queries within the access TTL.
         long footerStartNanos = System.nanoTime();
         OrcTail tail;

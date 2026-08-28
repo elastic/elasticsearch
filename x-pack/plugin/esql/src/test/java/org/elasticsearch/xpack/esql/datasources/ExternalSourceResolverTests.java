@@ -2891,6 +2891,58 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * Cold cacheable multi-file resolves must expose the just-harvested footer statistics on the
+     * returned metadata — {@code cachedResolveSingleSourceAsync} wraps the resolved metadata in a
+     * cache-shaped view, and an earlier version of that view silently dropped {@code statistics()},
+     * leaving {@code FileSchemaInfo.statistics()} null and disabling the small-file discovery
+     * bypass on the exact path it was built for. Warm serves must stay null: the bypass is
+     * cold-resolve-only by construction (the footer was parsed by THIS query).
+     */
+    public void testCacheableColdResolveCarriesHarvestedStatistics() throws Exception {
+        List<Attribute> schema = List.of(attr("id", DataType.LONG));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/a.parquet", schema);
+        schemasByPath.put("s3://bucket/data/b.parquet", schema);
+        Map<String, Long> rowCountsByPath = Map.of("s3://bucket/data/a.parquet", 11L, "s3://bucket/data/b.parquet", 22L);
+
+        List<StorageEntry> listing = List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/b.parquet", 200));
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemasByPath);
+
+        Settings settings = Settings.builder()
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
+            .build();
+        String glob = "s3://bucket/data/*.parquet";
+        Map<String, Map<String, Object>> pathConfigs = Map.of(glob, new HashMap<>(configFor(FormatReader.SchemaResolution.STRICT)));
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
+            ExternalSourceResolver resolver = createResolverWithReader(
+                provider,
+                new StubFormatReaderWithStats(schemasByPath, rowCountsByPath),
+                cacheService
+            );
+
+            PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
+            resolver.resolve(List.of(glob), pathConfigs, f1);
+            ExternalSourceResolution.ResolvedSource cold = f1.actionGet().resolvedSource(glob);
+            assertEquals(2, cold.schemaMap().size());
+            for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : cold.schemaMap().entrySet()) {
+                SourceStatistics stats = e.getValue().statistics();
+                assertNotNull("cold resolve must carry harvested statistics for " + e.getKey(), stats);
+                assertEquals(rowCountsByPath.get(e.getKey().toString()).longValue(), stats.rowCount().getAsLong());
+            }
+
+            PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
+            resolver.resolve(List.of(glob), pathConfigs, f2);
+            ExternalSourceResolution.ResolvedSource warm = f2.actionGet().resolvedSource(glob);
+            assertEquals(2, warm.schemaMap().size());
+            for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : warm.schemaMap().entrySet()) {
+                assertNull("warm serve must not expose typed statistics for " + e.getKey(), e.getValue().statistics());
+            }
+        }
+    }
+
+    /**
      * A filtered query must not poison the listing cache for a later unfiltered one. The filter's hints narrow the
      * listing to a subset of the files; keyed only on the path, that subset would be served back to a query that
      * carries no filter, which then silently sees fewer files than the dataset holds. Here the {@code _file.name}
@@ -4106,8 +4158,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, List<Attribute>> schemasByPath,
         ExternalSourceCacheService cacheService
     ) {
-        StubFormatReader formatReader = new StubFormatReader(schemasByPath);
+        return createResolverWithReader(storageProvider, new StubFormatReader(schemasByPath), cacheService);
+    }
 
+    private ExternalSourceResolver createResolverWithReader(
+        StorageProvider storageProvider,
+        FormatReader formatReader,
+        ExternalSourceCacheService cacheService
+    ) {
         DataSourcePlugin plugin = new DataSourcePlugin() {
             @Override
             public Set<String> supportedSchemes() {

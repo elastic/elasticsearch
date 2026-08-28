@@ -41,6 +41,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LimitedBreaker;
@@ -66,7 +67,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
-import org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -132,6 +132,13 @@ import static org.hamcrest.Matchers.not;
 
 public class ParquetFormatReaderTests extends ESTestCase {
 
+    /**
+     * Footer byte cache handed to every adapter this test constructs. In production the owning
+     * format reader supplies its instance; a fresh per-test-class cache gives the same sharing
+     * within a test and automatic isolation between tests.
+     */
+    private final FooterByteCache footerByteCache = FooterByteCache.fromSettings(Settings.EMPTY);
+
     @BeforeClass
     public static void assertUninitializedArraysFastPath() {
         // The parquet read path relies on UninitializedArrays' Unsafe-backed allocation;
@@ -143,7 +150,6 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() throws Exception {
-        ParquetStorageObjectAdapter.clearFooterCacheForTests();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 
@@ -691,12 +697,14 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
 
-        // Synchronous baseline against its own (freshly cleared) object.
+        // Synchronous baseline against its own object.
         SourceMetadata syncMeta = reader.metadata(createStorageObject(parquetData));
         List<Attribute> syncSchema = syncMeta.schema();
 
-        // Async path over an object whose reads complete on a separate pool.
-        ParquetStorageObjectAdapter.clearFooterCacheForTests();
+        // Async path over an object whose reads complete on a separate pool. Clear the reader's
+        // caches so the async object's footer is genuinely fetched rather than served from the
+        // sync baseline's seed (both objects share the same (path, length) key).
+        reader.clearFooterCachesForTests();
         ExecutorService probePool = Executors.newFixedThreadPool(2);
         AtomicInteger asyncReadCount = new AtomicInteger();
         try {
@@ -718,12 +726,12 @@ public class ParquetFormatReaderTests extends ESTestCase {
             assertStatisticsEqual(syncMeta, asyncMeta);
 
             FooterByteCache.Key key = FooterByteCache.Key.keyFor(asyncObject, asyncObject.length());
-            ParquetMetadata seeded = ParquetFormatReader.parsedFooterForTests(key);
-            assertNotNull("async tail parse must seed PARSED_FOOTERS", seeded);
-            // Fresh reader so footer_cache_misses starts at 0; PARSED_FOOTERS is JVM-wide.
-            ParquetFormatReader phase2 = new ParquetFormatReader(blockFactory);
+            ParquetMetadata seeded = reader.parsedFooterForTests(key);
+            assertNotNull("async tail parse must seed the parsed-footer cache", seeded);
+            // Cache-sharing copy so footer_cache_misses starts at 0 while the caches carry over.
+            ParquetFormatReader phase2 = reader.copySharingCachesForTests();
             phase2.discoverSplitRanges(asyncObject);
-            assertSame("Phase-2 loadFooter must reuse the Phase-1 instance", seeded, ParquetFormatReader.parsedFooterForTests(key));
+            assertSame("Phase-2 loadFooter must reuse the Phase-1 instance", seeded, phase2.parsedFooterForTests(key));
             assertEquals(0, phase2.statusSnapshot().footerCacheMisses());
             assertEquals("discoverSplitRanges must go through loadFooter", 1, phase2.statusSnapshot().footerCacheHits());
             try (
@@ -748,21 +756,46 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Globally staged Phase-1 {@code metadataAsync} then Phase-2 {@code discoverSplitRanges} must
-     * reuse the seeded parsed footer for every file that still fits in the 32-entry LRU. Not a
-     * COUNT(*) skip-path test — skip-eligible aggregates never call {@code discoverSplitRanges}.
+     * The {@code with*} copy constructors must thread the SAME cache instances into every derived
+     * reader — the registry hands out one root reader per format per node, and pushdown/overlay
+     * paths derive copies from it, so a copy that dropped the shared caches would silently
+     * reintroduce the per-consumer footer re-parse these caches exist to prevent.
      */
-    public void testAsyncFooterParseSeedsParsedCacheWithinLruWindow() throws Exception {
+    public void testDerivedReadersShareFooterCaches() throws Exception {
         byte[] parquetData = createVpcFlowShapedParquet();
-        for (int n : new int[] { 8, ParsedFooterCache.DEFAULT_MAX_ENTRIES }) {
-            ParquetStorageObjectAdapter.clearFooterCacheForTests();
+        StorageObject file = vpcGlob(parquetData, 1).get(0);
+        ParquetFormatReader root = new ParquetFormatReader(blockFactory);
+        root.discoverSplitRanges(file);
+        assertEquals(1, root.statusSnapshot().footerCacheMisses());
+
+        ParquetFormatReader derived = (ParquetFormatReader) root.withDeclaredTypeColumns(Set.of("i32_0"));
+        assertSame(
+            "derived copy must share the root's footer byte cache",
+            root.footerByteCacheForTests(),
+            derived.footerByteCacheForTests()
+        );
+        derived.discoverSplitRanges(file);
+        assertEquals("derived copy must hit the root's parsed-footer cache", 0, derived.statusSnapshot().footerCacheMisses());
+        assertEquals(1, derived.statusSnapshot().footerCacheHits());
+    }
+
+    /**
+     * Globally staged Phase-1 {@code metadataAsync} then Phase-2 {@code discoverSplitRanges} must
+     * reuse the seeded parsed footer for every file that fits the cache's byte budget (the default
+     * budget holds far more than these). Phase 2 runs on a cache-sharing copy, mirroring production
+     * where the registry's root reader and its derived copies share one cache. Not a COUNT(*)
+     * skip-path test — skip-eligible aggregates never call {@code discoverSplitRanges}.
+     */
+    public void testAsyncFooterParseSeedsParsedCacheAcrossPhases() throws Exception {
+        byte[] parquetData = createVpcFlowShapedParquet();
+        for (int n : new int[] { 8, 32 }) {
             List<StorageObject> files = vpcGlob(parquetData, n);
             ParquetFormatReader phase1 = new ParquetFormatReader(blockFactory);
             for (StorageObject file : files) {
                 metadataAsyncDirect(phase1, file);
             }
             assertEquals("Phase-1 seed must not count as a loadFooter miss", 0, phase1.statusSnapshot().footerCacheMisses());
-            ParquetFormatReader phase2 = new ParquetFormatReader(blockFactory);
+            ParquetFormatReader phase2 = phase1.copySharingCachesForTests();
             for (StorageObject file : files) {
                 phase2.discoverSplitRanges(file);
             }
@@ -772,41 +805,49 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Encodes the 32-entry ceiling: after Phase-1 over {@code 6 * DEFAULT_MAX_ENTRIES} unique
-     * keys the LRU holds the newest 32. Same-order Phase-2 would evict those seeds on the first
-     * misses, so this discovers the last 32 (hits) vs the first 32 (misses) instead of asserting
-     * {@code ~N-32}.
+     * Encodes the byte-budget ceiling of the parsed-footer cache: with a budget sized (via the
+     * {@code esql.external.cache.footer.parsed.size} setting and the reader's own weigher) for
+     * exactly {@code window} of these footers, Phase-1 seeding of {@code 6 * window} unique keys
+     * leaves the newest {@code window} cached. Same-order Phase-2 would evict those seeds on the
+     * first misses, so this discovers the last {@code window} (hits) vs the first {@code window}
+     * (misses) instead of asserting {@code ~N-window}.
      */
-    public void testAsyncFooterParseLruCeilingEvictsOlderFiles() throws Exception {
+    public void testAsyncFooterParseWeightCeilingEvictsOlderFiles() throws Exception {
         byte[] parquetData = createVpcFlowShapedParquet();
-        int window = ParsedFooterCache.DEFAULT_MAX_ENTRIES;
-        int n = window * 6;
-        assertTrue("ceiling test needs more files than the LRU", n > window);
+        List<StorageObject> probeFiles = vpcGlob(parquetData, 1);
 
-        ParquetStorageObjectAdapter.clearFooterCacheForTests();
+        // Measure the real weight of one of these parsed footers, then budget for exactly `window`.
+        ParquetFormatReader probe = new ParquetFormatReader(blockFactory);
+        probe.discoverSplitRanges(probeFiles.get(0));
+        FooterByteCache.Key probeKey = FooterByteCache.Key.keyFor(probeFiles.get(0), probeFiles.get(0).length());
+        long weight = ParquetFormatReader.estimateFooterWeightBytes(probe.parsedFooterForTests(probeKey));
+
+        int window = 4;
+        int n = window * 6;
+        Settings settings = Settings.builder().put("esql.external.cache.footer.parsed.size", (window * weight) + "b").build();
         List<StorageObject> files = vpcGlob(parquetData, n);
-        ParquetFormatReader phase1Last = new ParquetFormatReader(blockFactory);
+
+        ParquetFormatReader phase1Last = new ParquetFormatReader(settings, blockFactory);
         for (StorageObject file : files) {
             metadataAsyncDirect(phase1Last, file);
         }
-        ParquetFormatReader last32 = new ParquetFormatReader(blockFactory);
+        ParquetFormatReader lastWindow = phase1Last.copySharingCachesForTests();
         for (int i = n - window; i < n; i++) {
-            last32.discoverSplitRanges(files.get(i));
+            lastWindow.discoverSplitRanges(files.get(i));
         }
-        assertEquals("newest seeds must still be cached", 0, last32.statusSnapshot().footerCacheMisses());
-        assertEquals(window, last32.statusSnapshot().footerCacheHits());
+        assertEquals("newest seeds must still be cached", 0, lastWindow.statusSnapshot().footerCacheMisses());
+        assertEquals(window, lastWindow.statusSnapshot().footerCacheHits());
 
-        ParquetStorageObjectAdapter.clearFooterCacheForTests();
-        ParquetFormatReader phase1First = new ParquetFormatReader(blockFactory);
+        ParquetFormatReader phase1First = new ParquetFormatReader(settings, blockFactory);
         for (StorageObject file : files) {
             metadataAsyncDirect(phase1First, file);
         }
-        ParquetFormatReader first32 = new ParquetFormatReader(blockFactory);
+        ParquetFormatReader firstWindow = phase1First.copySharingCachesForTests();
         for (int i = 0; i < window; i++) {
-            first32.discoverSplitRanges(files.get(i));
+            firstWindow.discoverSplitRanges(files.get(i));
         }
-        assertEquals("oldest Phase-1 seeds must have been evicted", window, first32.statusSnapshot().footerCacheMisses());
-        assertEquals(0, first32.statusSnapshot().footerCacheHits());
+        assertEquals("oldest Phase-1 seeds must have been evicted", window, firstWindow.statusSnapshot().footerCacheMisses());
+        assertEquals(0, firstWindow.statusSnapshot().footerCacheHits());
     }
 
     /**
@@ -947,7 +988,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
         List<Attribute> syncSchema = reader.metadata(createStorageObject(parquetData)).schema();
 
-        ParquetStorageObjectAdapter.clearFooterCacheForTests();
+        // Clear the reader's own caches so the async path re-fetches rather than hitting the
+        // sync baseline's seed (both objects share the same (path, length) key).
+        reader.clearFooterCachesForTests();
         ExecutorService probePool = Executors.newFixedThreadPool(2);
         AtomicInteger asyncReadCount = new AtomicInteger();
         List<long[]> reads = new CopyOnWriteArrayList<>();
@@ -990,7 +1033,6 @@ public class ParquetFormatReaderTests extends ESTestCase {
         });
 
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        ParquetStorageObjectAdapter.clearFooterCacheForTests();
         ExecutorService probePool = Executors.newFixedThreadPool(2);
         AtomicInteger openBuffers = new AtomicInteger();
         AtomicInteger allocated = new AtomicInteger();
@@ -1024,7 +1066,6 @@ public class ParquetFormatReaderTests extends ESTestCase {
         });
 
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        ParquetStorageObjectAdapter.clearFooterCacheForTests();
         ExecutorService probePool = Executors.newFixedThreadPool(2);
         AtomicInteger openBuffers = new AtomicInteger();
         AtomicInteger allocated = new AtomicInteger();
@@ -1084,7 +1125,6 @@ public class ParquetFormatReaderTests extends ESTestCase {
         shortBuffer[base + 6] = 'R';
         shortBuffer[base + 7] = '1';
 
-        ParquetStorageObjectAdapter.clearFooterCacheForTests();
         ExecutorService probePool = Executors.newFixedThreadPool(2);
         AtomicInteger asyncReadCount = new AtomicInteger();
         try {
@@ -3291,7 +3331,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             .build();
         try (
             org.apache.parquet.hadoop.ParquetFileReader reader = org.apache.parquet.hadoop.ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(storageObject, blockFactory.breaker()),
+                new ParquetStorageObjectAdapter(storageObject, footerByteCache, blockFactory.breaker()),
                 options
             )
         ) {

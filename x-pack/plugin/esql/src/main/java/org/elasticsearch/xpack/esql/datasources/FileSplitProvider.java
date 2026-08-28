@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
@@ -434,10 +435,12 @@ public class FileSplitProvider implements SplitProvider {
                 ColumnMapping columnMapping = null;
                 List<Attribute> readSchema = null;
                 Map<String, DataType> inferredFileTypes = null;
+                SourceStatistics fileStatistics = null;
                 if (schemaInfo != null) {
                     SchemaReconciliation.FileSchemaInfo info = schemaInfo.get(filePath);
                     if (info != null) {
                         inferredFileTypes = info.inferredTypes();
+                        fileStatistics = info.statistics();
                         ColumnMapping mapping = info.mapping();
                         if (mapping != null && unifiedSchema != null && fileBackedQuerySchema.isEmpty() == false) {
                             // Fused narrowing: output dimension goes from Unified to Query, read
@@ -476,7 +479,8 @@ public class FileSplitProvider implements SplitProvider {
                         unifiedSchema != null ? attributesToTypeMap(unifiedSchema.attributes()) : null,
                         context.maxRecordBytes(),
                         context.declaredReadSpec(),
-                        inferredFileTypes
+                        inferredFileTypes,
+                        fileStatistics
                     )
                 );
             }
@@ -997,7 +1001,11 @@ public class FileSplitProvider implements SplitProvider {
         DeclaredReadSpec declaredReadSpec,
         // PRE-overlay inferred file types (physical-keyed), or null when no declared overlay ran. The stats-type
         // authority for normalizing footer range stats — NOT the overlaid readSchema types.
-        @Nullable Map<String, DataType> inferredFileTypes
+        @Nullable Map<String, DataType> inferredFileTypes,
+        // File-level statistics harvested when THIS query's schema resolution parsed the file's footer, or null
+        // when resolution served the schema from cache or never saw the file (single-file and first-file-wins
+        // non-anchor paths). Non-null lets tryRangeAwareSplits skip re-fetching the footer for small files.
+        @Nullable SourceStatistics statistics
     ) {}
 
     /**
@@ -1152,6 +1160,7 @@ public class FileSplitProvider implements SplitProvider {
             task.reconciledTypes(),
             task.declaredReadSpec(),
             task.inferredFileTypes(),
+            task.statistics(),
             fileSplits,
             hoistedProvider
         )) {
@@ -1430,6 +1439,7 @@ public class FileSplitProvider implements SplitProvider {
         @Nullable Map<String, DataType> reconciledTypes,
         DeclaredReadSpec declaredReadSpec,
         @Nullable Map<String, DataType> inferredFileTypes,
+        @Nullable SourceStatistics fileStatistics,
         List<ExternalSplit> splits,
         @Nullable StorageProvider hoistedProvider
     ) {
@@ -1449,6 +1459,36 @@ public class FileSplitProvider implements SplitProvider {
         }
         RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) reader;
 
+        // Small-file bypass: schema resolution already parsed this file's footer in this query and harvested its
+        // file-level statistics. For a file at or below the reader's opt-in threshold, discovery would fetch and
+        // parse that same footer again only to (almost always) return a single whole-file range, so skip the I/O
+        // and emit the stamped whole-file split directly, carrying the harvested stats through the same
+        // normalization the per-range path applies.
+        if (fileLength > 0 && fileLength <= rangeReader.rangeDiscoveryBypassMaxBytes() && fileStatistics != null) {
+            Map<String, Object> stats = normalizeSplitStats(
+                SourceStatisticsSerializer.embedStatistics(Map.of(), fileStatistics),
+                readSchema,
+                reconciledTypes,
+                declaredReadSpec,
+                inferredFileTypes
+            );
+            splits.add(
+                FileSplit.withStatisticsAndReadSchema(
+                    "file",
+                    filePath,
+                    0,
+                    fileLength,
+                    format,
+                    wholeFileSplitConfig(config),
+                    partitionValues,
+                    columnMapping,
+                    stats,
+                    readSchema
+                )
+            );
+            return true;
+        }
+
         try {
             StorageProvider provider = resolveProvider(filePath, config, hoistedProvider);
             StorageObject object = provider.newObject(filePath, fileLength);
@@ -1463,51 +1503,13 @@ public class FileSplitProvider implements SplitProvider {
             splitConfig.put(FILE_LENGTH_KEY, Long.toString(fileLength));
 
             for (SplitRange range : ranges) {
-                Map<String, Object> rangeStats = range.statistics().isEmpty() ? null : range.statistics();
-                if (rangeStats != null && readSchema != null && reconciledTypes != null) {
-                    // The type authority for normalizing footer range stats. Without a declaration the footer values ARE
-                    // in the readSchema (inferred) types — today's behavior. With a declaration, readSchema is the OVERLAID
-                    // (declared) schema, so it lies about the raw footer values; use the file's PRE-overlay inferred types.
-                    Map<String, DataType> statsFileTypes;
-                    if (declaredReadSpec.isEmpty()) {
-                        statsFileTypes = attributesToTypeMap(readSchema);
-                    } else {
-                        // S1 boundary, split edition. Rekey the `path` renames (a pure move changes no value, so rekeyed
-                        // stats stay exact) and poison declared-retyped / date-format columns (the scan's per-value
-                        // coercion makes pre-coercion stats untrustworthy), BEFORE unit-normalizing.
-                        Map<String, String> physicalToLogical = PhysicalNames.inverse(declaredReadSpec.renames());
-                        Set<String> poison = new HashSet<>(declaredReadSpec.dateFormats().keySet());
-                        if (inferredFileTypes != null) {
-                            Map<String, DataType> overlaidTypes = attributesToTypeMap(readSchema); // logical, declared types
-                            for (String logical : declaredReadSpec.declaredTypeColumns()) {
-                                String physical = declaredReadSpec.renames().getOrDefault(logical, logical);
-                                DataType inferredType = inferredFileTypes.get(physical);
-                                // Absent from THIS file (lenient union-by-name overlay skipped it): no footer stat exists
-                                // for it here either, so nothing to poison.
-                                if (inferredType != null && inferredType != overlaidTypes.get(logical)) {
-                                    poison.add(logical);
-                                }
-                            }
-                            rangeStats = SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(rangeStats, physicalToLogical, poison);
-                            // Inferred file types, rekeyed to logical so they align with the rekeyed stats + reconciledTypes.
-                            statsFileTypes = new HashMap<>(inferredFileTypes.size());
-                            for (Map.Entry<String, DataType> e : inferredFileTypes.entrySet()) {
-                                statsFileTypes.put(physicalToLogical.getOrDefault(e.getKey(), e.getKey()), e.getValue());
-                            }
-                        } else {
-                            // Declared read but no captured inference (strict paths skip inference): the declared-vs-inferred
-                            // comparison is impossible, so conservatively poison EVERY declared column. row_count survives.
-                            poison.addAll(declaredReadSpec.declaredTypeColumns());
-                            rangeStats = SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(rangeStats, physicalToLogical, poison);
-                            statsFileTypes = attributesToTypeMap(readSchema);
-                        }
-                    }
-                    // Footer stats are in each file's LOCAL unit/representation; normalize to the reconciled query type so
-                    // the split-filter classifier (which compares a reconciled-unit literal) and the filtered merge
-                    // compare/serve in ONE unit across mixed DATETIME(millis)/DATE_NANOS(nanos) files, not unit-blind. A
-                    // non-normalizable representation safe-misses via the marker.
-                    rangeStats = SourceStatisticsSerializer.normalizeStatsToReconciled(rangeStats, statsFileTypes, reconciledTypes);
-                }
+                Map<String, Object> rangeStats = normalizeSplitStats(
+                    range.statistics(),
+                    readSchema,
+                    reconciledTypes,
+                    declaredReadSpec,
+                    inferredFileTypes
+                );
                 splits.add(
                     FileSplit.withStatisticsAndReadSchema(
                         "file",
@@ -1528,6 +1530,69 @@ public class FileSplitProvider implements SplitProvider {
             LOGGER.warn("Failed to discover split ranges for [{}], falling back to single split", filePath, e);
             return false;
         }
+    }
+
+    /**
+     * Normalizes raw footer statistics (the {@code _stats.*} map) for stamping onto a split: applies the
+     * declared-overlay rekey/poison when a declaration ran, then unit-normalizes values to the reconciled query
+     * types. Returns {@code null} for absent/empty stats and the stats untouched when the read schema or
+     * reconciled types are unknown (nothing to normalize against). Shared by the per-range stats path and the
+     * small-file discovery bypass in {@link #tryRangeAwareSplits} so both stamp identical stats for one footer.
+     */
+    @Nullable
+    private static Map<String, Object> normalizeSplitStats(
+        @Nullable Map<String, Object> rawStats,
+        @Nullable List<Attribute> readSchema,
+        @Nullable Map<String, DataType> reconciledTypes,
+        DeclaredReadSpec declaredReadSpec,
+        @Nullable Map<String, DataType> inferredFileTypes
+    ) {
+        Map<String, Object> stats = rawStats == null || rawStats.isEmpty() ? null : rawStats;
+        if (stats == null || readSchema == null || reconciledTypes == null) {
+            return stats;
+        }
+        // The type authority for normalizing footer range stats. Without a declaration the footer values ARE
+        // in the readSchema (inferred) types — today's behavior. With a declaration, readSchema is the OVERLAID
+        // (declared) schema, so it lies about the raw footer values; use the file's PRE-overlay inferred types.
+        Map<String, DataType> statsFileTypes;
+        if (declaredReadSpec.isEmpty()) {
+            statsFileTypes = attributesToTypeMap(readSchema);
+        } else {
+            // S1 boundary, split edition. Rekey the `path` renames (a pure move changes no value, so rekeyed
+            // stats stay exact) and poison declared-retyped / date-format columns (the scan's per-value
+            // coercion makes pre-coercion stats untrustworthy), BEFORE unit-normalizing.
+            Map<String, String> physicalToLogical = PhysicalNames.inverse(declaredReadSpec.renames());
+            Set<String> poison = new HashSet<>(declaredReadSpec.dateFormats().keySet());
+            if (inferredFileTypes != null) {
+                Map<String, DataType> overlaidTypes = attributesToTypeMap(readSchema); // logical, declared types
+                for (String logical : declaredReadSpec.declaredTypeColumns()) {
+                    String physical = declaredReadSpec.renames().getOrDefault(logical, logical);
+                    DataType inferredType = inferredFileTypes.get(physical);
+                    // Absent from THIS file (lenient union-by-name overlay skipped it): no footer stat exists
+                    // for it here either, so nothing to poison.
+                    if (inferredType != null && inferredType != overlaidTypes.get(logical)) {
+                        poison.add(logical);
+                    }
+                }
+                stats = SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(stats, physicalToLogical, poison);
+                // Inferred file types, rekeyed to logical so they align with the rekeyed stats + reconciledTypes.
+                statsFileTypes = new HashMap<>(inferredFileTypes.size());
+                for (Map.Entry<String, DataType> e : inferredFileTypes.entrySet()) {
+                    statsFileTypes.put(physicalToLogical.getOrDefault(e.getKey(), e.getKey()), e.getValue());
+                }
+            } else {
+                // Declared read but no captured inference (strict paths skip inference): the declared-vs-inferred
+                // comparison is impossible, so conservatively poison EVERY declared column. row_count survives.
+                poison.addAll(declaredReadSpec.declaredTypeColumns());
+                stats = SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(stats, physicalToLogical, poison);
+                statsFileTypes = attributesToTypeMap(readSchema);
+            }
+        }
+        // Footer stats are in each file's LOCAL unit/representation; normalize to the reconciled query type so
+        // the split-filter classifier (which compares a reconciled-unit literal) and the filtered merge
+        // compare/serve in ONE unit across mixed DATETIME(millis)/DATE_NANOS(nanos) files, not unit-blind. A
+        // non-normalizable representation safe-misses via the marker.
+        return SourceStatisticsSerializer.normalizeStatsToReconciled(stats, statsFileTypes, reconciledTypes);
     }
 
     /**

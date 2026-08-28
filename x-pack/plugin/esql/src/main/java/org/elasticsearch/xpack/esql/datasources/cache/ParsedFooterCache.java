@@ -13,13 +13,15 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.CacheLoader;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
+import java.util.function.ToLongFunction;
 
 /**
- * JVM-wide cache for parsed file metadata (e.g. Parquet {@code ParquetMetadata}, ORC
+ * Node-wide cache for parsed file metadata (e.g. Parquet {@code ParquetMetadata}, ORC
  * {@code OrcTail}). Sits at the same architectural layer as {@link FooterByteCache} but stores
  * the result of the format-specific footer parse rather than its raw bytes, so the (typically
  * Thrift/protobuf) deserialization runs at most once per {@code (path, fileLength)} key across:
@@ -39,30 +41,26 @@ import java.util.concurrent.ExecutionException;
  * <h2>Sharing keys with {@link FooterByteCache}</h2>
  * The cache is keyed by {@link FooterByteCache.Key} ({@code (path, fileLength)}) so that the same
  * key construction logic used to hit the byte cache also hits this cache; both caches stay aligned
- * without an extra key type. Per-format singletons (one for Parquet, one for ORC, etc.) keep the
+ * without an extra key type. Per-format instances (one for Parquet, one for ORC, etc.) keep the
  * value type concrete and the cache's ownership unambiguous.
  *
  * <h2>Lifecycle</h2>
  * <ul>
- *   <li>Created as a singleton per format reader; no SPI plumbing is required to share entries
- *       across producers since every code path that needs a parsed footer already constructs a
- *       {@link FooterByteCache.Key} via the storage-object adapter.</li>
- *   <li>Access-based TTL — sourced from {@link FooterByteCache#EXPIRE_AFTER_ACCESS_SECONDS} so
- *       the two caches age out together; covers a single query's fan-out (where concurrent splits
- *       keep the entry alive) while ensuring that file modifications between queries trigger a
- *       fresh parse.</li>
- *   <li>Count-based LRU eviction — parsed metadata structures (e.g. Parquet {@code ParquetMetadata}
- *       or ORC {@code OrcTail}) do not expose a cheap byte size, so the cache caps the number of
- *       entries rather than total bytes. <b>Worst-case heap budget</b>: a single parsed footer
- *       for an extreme file (e.g. 100 columns × 200 row groups → ~20k column-chunk entries) can
- *       occupy ~10–20 MiB of heap. With {@link #DEFAULT_MAX_ENTRIES} = {@value #DEFAULT_MAX_ENTRIES}
- *       the absolute worst case is in the hundreds of MiB if every cached entry is for such an
- *       extreme file <i>and</i> all live concurrently inside the TTL window. Typical workloads
- *       (≤10 columns, ≤50 row groups, ≈200 KiB per entry) sit at a few MiB total. Adding a real
- *       weigher would require an estimator pass over the parsed structure on every {@code put} —
- *       not implemented here, but tracked for follow-up if heap pressure shows up in production.
- *       Note that the byte and parsed caches evict independently — TTL alignment keeps them
- *       timing-consistent but does not synchronize eviction events.</li>
+ *   <li>Created once per <em>root</em> format reader — the node-wide lazy singleton
+ *       {@code FormatReaderRegistry} builds from node {@code Settings} — and shared by every
+ *       derived reader via the reader copy constructors, exactly like the paired
+ *       {@link FooterByteCache} (see its class Javadoc for why not per-query).</li>
+ *   <li>Access-based TTL — constructed with the same value as the paired {@link FooterByteCache}
+ *       so the two caches age out together; covers a single query's fan-out (where concurrent
+ *       splits keep the entry alive) and bounds cross-query staleness: the key carries no
+ *       modification time, so a same-length overwrite may be served until the TTL lapses.</li>
+ *   <li>Byte-weighted LRU eviction — parsed metadata structures do not expose an exact byte
+ *       size, so each format supplies a structural estimator (row groups × columns for Parquet,
+ *       the analogous stripe shape for ORC) against a heap-relative budget
+ *       ({@link ExternalSourceCacheSettings#FOOTER_PARSED_CACHE_SIZE}). Estimator precision only
+ *       affects budget utilization, never correctness. Note that the byte and parsed caches evict
+ *       independently — TTL alignment keeps them timing-consistent but does not synchronize
+ *       eviction events.</li>
  * </ul>
  *
  * <p>Cached values must be treated as immutable by all callers — callers that need to derive a
@@ -77,35 +75,50 @@ import java.util.concurrent.ExecutionException;
 public final class ParsedFooterCache<T> {
 
     /**
-     * Default maximum number of cached parsed footers across the JVM. Sized small enough that the
-     * worst-case heap (see class Javadoc) stays bounded even when extremely wide files dominate
-     * the working set, while still being large enough to absorb the typical fan-out of one query
-     * over many distinct files.
+     * Pairs a parsed footer with its weight, computed once at insertion. The backing {@link Cache}
+     * re-invokes its weigher on every LRU link/unlink — including the relink performed on each
+     * cache <em>hit</em> — under the global LRU lock, so a weigher that walks the footer structure
+     * would run on every hot-path access. Storing the precomputed weight makes those calls O(1).
      */
-    public static final int DEFAULT_MAX_ENTRIES = 32;
+    private record Weighted<T>(T value, long weight) {}
 
-    private final Cache<FooterByteCache.Key, T> cache;
+    private final Cache<FooterByteCache.Key, Weighted<T>> cache;
+    private final ToLongFunction<T> weigher;
 
-    /** Creates a cache with the default maximum entry count. */
-    public ParsedFooterCache() {
-        this(DEFAULT_MAX_ENTRIES);
+    /**
+     * Creates a cache sized from node settings
+     * ({@link ExternalSourceCacheSettings#FOOTER_PARSED_CACHE_SIZE},
+     * {@link ExternalSourceCacheSettings#FOOTER_CACHE_TTL}). This is the production entry point,
+     * invoked by the format modules from their reader root constructors.
+     *
+     * @param weigher estimates a parsed footer's heap footprint in bytes; invoked once per entry
+     *                at insertion (the computed weight is stored alongside the entry, so LRU
+     *                maintenance never re-walks the structure). Must be cheap (walk counts, not
+     *                object graphs) and must never return a negative value.
+     */
+    public static <T> ParsedFooterCache<T> fromSettings(Settings settings, ToLongFunction<T> weigher) {
+        return new ParsedFooterCache<>(
+            ExternalSourceCacheSettings.FOOTER_PARSED_CACHE_SIZE.get(settings).getBytes(),
+            ExternalSourceCacheSettings.FOOTER_CACHE_TTL.get(settings),
+            weigher
+        );
     }
 
     /**
-     * Creates a cache with the given maximum entry count. Exposed for tests; production callers
-     * should rely on {@link #DEFAULT_MAX_ENTRIES}.
+     * Creates a cache with an explicit byte budget and TTL. Exposed for tests; production callers
+     * should go through {@link #fromSettings}.
      *
-     * @throws IllegalArgumentException if {@code maxEntries <= 0}
+     * @throws IllegalArgumentException if {@code maxWeightBytes <= 0}
      */
-    public ParsedFooterCache(int maxEntries) {
-        if (maxEntries <= 0) {
-            throw new IllegalArgumentException("maxEntries must be positive, got [" + maxEntries + "]");
+    public ParsedFooterCache(long maxWeightBytes, TimeValue expireAfterAccess, ToLongFunction<T> weigher) {
+        if (maxWeightBytes <= 0) {
+            throw new IllegalArgumentException("maxWeightBytes must be positive, got [" + maxWeightBytes + "]");
         }
-        // Single-source the TTL from FooterByteCache so the byte and parsed caches always age out
-        // together — if the bytes are stale, the parse derived from them is stale too.
-        this.cache = CacheBuilder.<FooterByteCache.Key, T>builder()
-            .setMaximumWeight(maxEntries)
-            .setExpireAfterAccess(TimeValue.timeValueSeconds(FooterByteCache.EXPIRE_AFTER_ACCESS_SECONDS))
+        this.weigher = weigher;
+        this.cache = CacheBuilder.<FooterByteCache.Key, Weighted<T>>builder()
+            .setMaximumWeight(maxWeightBytes)
+            .setExpireAfterAccess(expireAfterAccess)
+            .weigher((key, value) -> value.weight())
             .build();
     }
 
@@ -119,7 +132,11 @@ public final class ParsedFooterCache<T> {
      * @throws ExecutionException if the loader throws an exception or returns null
      */
     public T getOrLoad(FooterByteCache.Key key, CacheLoader<FooterByteCache.Key, T> loader) throws ExecutionException {
-        return cache.computeIfAbsent(key, loader);
+        // A null from the loader must stay null so the backing cache keeps throwing ExecutionException.
+        return cache.computeIfAbsent(key, k -> {
+            T loaded = loader.load(k);
+            return loaded == null ? null : wrap(loaded);
+        }).value();
     }
 
     /**
@@ -128,14 +145,15 @@ public final class ParsedFooterCache<T> {
      * {@link FooterByteCache#get}).
      */
     public T get(FooterByteCache.Key key) {
-        return cache.get(key);
+        Weighted<T> cached = cache.get(key);
+        return cached == null ? null : cached.value();
     }
 
     /**
      * Stores an already-parsed footer for {@code key}, e.g. after an opportunistic tail parse.
      * Prefer this over {@code getOrLoad(key, k -> value)} when the caller already holds the
      * object: it avoids a checked {@link ExecutionException} and reads as an intentional seed.
-     * Unlike {@link FooterByteCache#put}, insertion is not skipped by size; the count-based LRU
+     * Unlike {@link FooterByteCache#put}, insertion is not skipped by size; the byte-weighted LRU
      * may evict later.
      *
      * @throws IllegalArgumentException if {@code key} or {@code value} is null
@@ -147,7 +165,11 @@ public final class ParsedFooterCache<T> {
         if (value == null) {
             throw new IllegalArgumentException("parsed footer value must not be null");
         }
-        cache.put(key, value);
+        cache.put(key, wrap(value));
+    }
+
+    private Weighted<T> wrap(T value) {
+        return new Weighted<>(value, weigher.applyAsLong(value));
     }
 
     /** Removes all entries. Intended for test isolation. */

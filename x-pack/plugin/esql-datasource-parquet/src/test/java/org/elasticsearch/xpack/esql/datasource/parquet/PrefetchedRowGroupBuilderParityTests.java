@@ -25,6 +25,7 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -34,6 +35,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -55,6 +57,13 @@ import java.util.concurrent.CompletableFuture;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
+
+    /**
+     * Footer byte cache handed to every adapter this test constructs. In production the owning
+     * format reader supplies its instance; a fresh per-test-class cache gives the same sharing
+     * within a test and automatic isolation between tests.
+     */
+    private final FooterByteCache footerByteCache = FooterByteCache.fromSettings(Settings.EMPTY);
 
     private static final int TOTAL_ROWS = 4096;
 
@@ -520,7 +529,7 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
 
     private ParquetFileReader openReader(byte[] file) throws IOException {
         return ParquetFileReader.open(
-            new ParquetStorageObjectAdapter(new InMemoryStorageObject(file), blockFactory.breaker()),
+            new ParquetStorageObjectAdapter(new InMemoryStorageObject(file), footerByteCache, blockFactory.breaker()),
             PlainParquetReadOptions.builder(codecFactory).build()
         );
     }

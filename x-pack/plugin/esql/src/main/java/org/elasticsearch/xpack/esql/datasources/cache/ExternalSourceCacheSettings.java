@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.cache;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
@@ -101,6 +102,19 @@ public final class ExternalSourceCacheSettings {
     );
 
     /**
+     * Deprecated former key for {@link #STRIPE_SIZE} — see {@link #CACHE_SIZE_OLD} for why it stays
+     * registered.
+     */
+    public static final Setting<ByteSizeValue> STRIPE_SIZE_OLD = Setting.byteSizeSetting(
+        "esql.source.cache.stripe.size",
+        ByteSizeValue.ofMb(8),
+        ByteSizeValue.ofKb(64),
+        ByteSizeValue.ofGb(1),
+        Setting.Property.DeprecatedWarning,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * Canonical stripe size for row-format external-source statistics, in file/decompressed-stream
      * bytes. A stripe is a pure ADDRESSING grid over file content: the reader attributes each record to
      * stripe {@code floor(recordStartOffset / B)} as it parses, and stats are captured, deduplicated,
@@ -117,11 +131,23 @@ public final class ExternalSourceCacheSettings {
      * larger grids (≥32 MB) coarsen a representative shard to &lt;60 stripes, blunting per-stripe min/max
      * pruning. 8 MB is the knee.
      */
-    public static final Setting<ByteSizeValue> STRIPE_SIZE = Setting.byteSizeSetting(
+    public static final Setting<ByteSizeValue> STRIPE_SIZE = new Setting<>(
         "esql.external.cache.stripe.size",
-        ByteSizeValue.ofMb(8),
-        ByteSizeValue.ofKb(64),
-        ByteSizeValue.ofGb(1),
+        STRIPE_SIZE_OLD,
+        s -> Setting.parseByteSize(s, ByteSizeValue.ofKb(64), ByteSizeValue.ofGb(1), "esql.external.cache.stripe.size"),
+        v -> {},
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Deprecated former key for {@link #STRIPE_COLUMNS} — see {@link #CACHE_SIZE_OLD} for why it stays
+     * registered.
+     */
+    public static final Setting<StripeColumnScope> STRIPE_COLUMNS_OLD = Setting.enumSetting(
+        StripeColumnScope.class,
+        "esql.source.cache.stripe.columns",
+        StripeColumnScope.PROJECTED,
+        Setting.Property.DeprecatedWarning,
         Setting.Property.NodeScope
     );
 
@@ -150,7 +176,66 @@ public final class ExternalSourceCacheSettings {
     public static final Setting<StripeColumnScope> STRIPE_COLUMNS = Setting.enumSetting(
         StripeColumnScope.class,
         "esql.external.cache.stripe.columns",
-        StripeColumnScope.PROJECTED,
+        STRIPE_COLUMNS_OLD,
+        v -> {},
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Rejects a non-positive footer cache budget at settings-parse time. Both footer caches are
+     * built lazily, when a format reader is first constructed, so without this the node would
+     * accept {@code 0b}/{@code 0%} at startup and only fail on the first Parquet or ORC query.
+     */
+    private static final Setting.Validator<ByteSizeValue> FOOTER_CACHE_BUDGET_VALIDATOR = value -> {
+        if (value.getBytes() <= 0) {
+            throw new IllegalArgumentException("footer cache budget must be greater than 0, got [" + value + "]");
+        }
+    };
+
+    /**
+     * Byte budget for a columnar format reader's footer-byte cache ({@link FooterByteCache}) — raw
+     * footer/tail bytes reused across the resolution, split-discovery, and execution phases of a
+     * query, and across back-to-back queries within {@link #FOOTER_CACHE_TTL}. The budget is per
+     * reader instance (the Parquet and ORC readers each own one cache), so the node-wide worst
+     * case is twice this value. The default fits the footer working set of thousands of tiny
+     * files on mid-size heaps (e.g. ~6,400 tiny-file footers ≈ 26 MiB ≈ 0.5% of an 8 GB heap);
+     * absolute values are accepted.
+     */
+    public static final Setting<ByteSizeValue> FOOTER_CACHE_SIZE = new Setting<>(
+        "esql.external.cache.footer.size",
+        "0.5%",
+        s -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, "esql.external.cache.footer.size"),
+        FOOTER_CACHE_BUDGET_VALIDATOR,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Byte budget for a columnar format reader's parsed-footer cache ({@link ParsedFooterCache})
+     * — deserialized footer structures (Parquet {@code ParquetMetadata}, ORC {@code OrcTail}),
+     * weighed by a per-format structural estimate. Like {@link #FOOTER_CACHE_SIZE} the budget is
+     * per reader instance, so the node-wide worst case is twice this value.
+     */
+    public static final Setting<ByteSizeValue> FOOTER_PARSED_CACHE_SIZE = new Setting<>(
+        "esql.external.cache.footer.parsed.size",
+        "1%",
+        s -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, "esql.external.cache.footer.parsed.size"),
+        FOOTER_CACHE_BUDGET_VALIDATOR,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Expire-after-access TTL shared by both footer caches — if the bytes are stale, the parse
+     * derived from them is stale too. Must bridge the gaps between resolution, split discovery,
+     * and execution of one query over a large file set, plus dashboard refresh intervals. The
+     * trade-off: footer cache keys are {@code (path, fileLength)} without mtime (adding it would
+     * cost a HEAD request per range split — see {@link FooterByteCache}), so a file overwritten
+     * in place with identical length can be served stale for up to this long. Object-store
+     * analytics layouts treat data files as immutable, and this setting is the operator escape
+     * hatch where they do not.
+     */
+    public static final Setting<TimeValue> FOOTER_CACHE_TTL = Setting.positiveTimeSetting(
+        "esql.external.cache.footer.ttl",
+        TimeValue.timeValueMinutes(5),
         Setting.Property.NodeScope
     );
 
@@ -164,7 +249,12 @@ public final class ExternalSourceCacheSettings {
             LISTING_TTL,
             LISTING_TTL_OLD,
             STRIPE_SIZE,
-            STRIPE_COLUMNS
+            STRIPE_SIZE_OLD,
+            STRIPE_COLUMNS,
+            STRIPE_COLUMNS_OLD,
+            FOOTER_CACHE_SIZE,
+            FOOTER_PARSED_CACHE_SIZE,
+            FOOTER_CACHE_TTL
         );
     }
 }

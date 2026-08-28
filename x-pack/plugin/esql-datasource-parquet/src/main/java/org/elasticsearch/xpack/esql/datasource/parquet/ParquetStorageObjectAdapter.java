@@ -45,6 +45,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
     private final StorageObject storageObject;
     private final long length;
     private final FooterByteCache.Key cacheKey;
+    private final FooterByteCache footerBytes;
     private final int windowSize;
     private final CircuitBreaker breaker;
 
@@ -73,9 +74,13 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
 
     /**
      * Creates an adapter with the default 4MB sliding window charged to the given circuit breaker.
+     *
+     * @param footerBytes the footer byte cache to consult and seed on tail reads — the owning
+     *                    format reader passes its own instance so all adapters it creates (across
+     *                    splits, streams, and derived readers) share one cache
      */
-    public ParquetStorageObjectAdapter(StorageObject storageObject, CircuitBreaker breaker) {
-        this(storageObject, DEFAULT_WINDOW_SIZE, breaker);
+    public ParquetStorageObjectAdapter(StorageObject storageObject, FooterByteCache footerBytes, CircuitBreaker breaker) {
+        this(storageObject, footerBytes, DEFAULT_WINDOW_SIZE, breaker);
     }
 
     /**
@@ -86,17 +91,25 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
      * @param rangeBytes byte span of the range being read; floored at {@link #DEFAULT_WINDOW_SIZE} and
      *                   capped at {@link #MAX_WINDOW_SIZE} as a hint. The constructor then clamps the
      *                   window to the file length.
+     * @param footerBytes the footer byte cache shared with the owning format reader (see the
+     *                    default-window constructor)
      */
-    public static ParquetStorageObjectAdapter forRange(StorageObject storageObject, long rangeBytes, CircuitBreaker breaker) {
+    public static ParquetStorageObjectAdapter forRange(
+        StorageObject storageObject,
+        long rangeBytes,
+        FooterByteCache footerBytes,
+        CircuitBreaker breaker
+    ) {
         int windowSize = (int) Math.min(Math.max(rangeBytes, DEFAULT_WINDOW_SIZE), MAX_WINDOW_SIZE);
-        return new ParquetStorageObjectAdapter(storageObject, windowSize, breaker);
+        return new ParquetStorageObjectAdapter(storageObject, footerBytes, windowSize, breaker);
     }
 
-    private ParquetStorageObjectAdapter(StorageObject storageObject, int windowSize, CircuitBreaker breaker) {
+    private ParquetStorageObjectAdapter(StorageObject storageObject, FooterByteCache footerBytes, int windowSize, CircuitBreaker breaker) {
         if (storageObject == null) {
             throw new QlIllegalArgumentException("storageObject cannot be null");
         }
         this.storageObject = storageObject;
+        this.footerBytes = footerBytes;
         this.breaker = breaker;
         try {
             this.length = storageObject.length();
@@ -108,11 +121,6 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         // length <= windowSize iff the object fits in the window (whole-file fill below).
         this.windowSize = (int) Math.min(windowSize, Math.max(1L, this.length));
         this.cacheKey = FooterByteCache.Key.keyFor(storageObject, this.length);
-    }
-
-    static void clearFooterCacheForTests() {
-        FooterByteCache.getInstance().invalidateAll();
-        ParquetFormatReader.clearParsedFooterCacheForTests();
     }
 
     /**
@@ -146,7 +154,15 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         // opened before {@link #installPreWarmedChunks} (notably the one parquet-mr opens at
         // {@code ParquetFileReader.open}) must still observe a later install, otherwise the
         // pre-warm optimization would be silently bypassed.
-        return new WindowedSeekableInputStream(storageObject, cacheKey, length, windowSize, breaker, this::currentPreWarmedChunks);
+        return new WindowedSeekableInputStream(
+            storageObject,
+            cacheKey,
+            footerBytes,
+            length,
+            windowSize,
+            breaker,
+            this::currentPreWarmedChunks
+        );
     }
 
     private NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> currentPreWarmedChunks() {
@@ -190,6 +206,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
 
         private final StorageObject storageObject;
         private final FooterByteCache.Key cacheKey;
+        private final FooterByteCache tailCache;
         private final long length;
         private final int windowSize;
         private final CircuitBreaker breaker;
@@ -212,6 +229,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         WindowedSeekableInputStream(
             StorageObject storageObject,
             FooterByteCache.Key cacheKey,
+            FooterByteCache tailCache,
             long length,
             int windowSize,
             CircuitBreaker breaker,
@@ -219,6 +237,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         ) {
             this.storageObject = storageObject;
             this.cacheKey = cacheKey;
+            this.tailCache = tailCache;
             this.length = length;
             this.windowSize = windowSize;
             this.breaker = LocalCircuitBreaker.forAsyncIo(breaker);
@@ -294,7 +313,6 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 toRead = posToRead;
             }
 
-            FooterByteCache tailCache = FooterByteCache.getInstance();
             if (fillFromTailCache(tailCache, fetchPos, (int) toRead)) {
                 assert windowCovers(pos);
                 return;
@@ -302,7 +320,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
 
             // Whole-file fills must not become FooterByteCache entries: isTailRead would otherwise
             // be true (fetchPos == 0, toRead == length) and objects up to maxEntryBytes would
-            // evict genuine footers from the 8 MiB JVM-wide budget.
+            // evict genuine footers from the configured per-reader footer cache budget.
             boolean isTailRead = wholeFileFill == false && fetchPos + toRead == length;
             if (isTailRead && toRead <= tailCache.maxEntryBytes()) {
                 try {

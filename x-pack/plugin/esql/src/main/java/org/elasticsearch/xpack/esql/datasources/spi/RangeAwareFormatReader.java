@@ -65,6 +65,18 @@ public interface RangeAwareFormatReader extends FormatReader {
     List<SplitRange> discoverSplitRanges(StorageObject object) throws IOException;
 
     /**
+     * Maximum file size, in bytes, below which split-range discovery may be skipped entirely
+     * when the planner already holds file-level statistics from schema resolution. Fetching and
+     * parsing the footer of a tiny file just to split it is wasted I/O: such files almost always
+     * hold a single row group / stripe, so the discovery result is a single whole-file range
+     * anyway. Formats opt in by returning a positive threshold; the default of {@code 0}
+     * disables the bypass so existing implementations keep their current behavior.
+     */
+    default long rangeDiscoveryBypassMaxBytes() {
+        return 0;
+    }
+
+    /**
      * Reads only the row groups / stripes that fall within the given byte range.
      * The storage object must represent the full file (not a range-limited view),
      * because columnar formats need access to file-level metadata (e.g. footer).

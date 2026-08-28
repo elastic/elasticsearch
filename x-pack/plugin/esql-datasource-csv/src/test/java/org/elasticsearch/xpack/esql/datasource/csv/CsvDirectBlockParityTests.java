@@ -964,6 +964,18 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row(1L), row(2L)), rows);
     }
 
+    public void testTsvSeparatorOnlyRowNotDropped() throws IOException {
+        // A row that is all TAB delimiters (\t\t = 3 fields) must reach the output, not be silently
+        // dropped as blank. TAB (0x09) ≤ space (0x20), so the old delimiter-blind check wrongly skipped
+        // it; the delimiter-aware check must keep it.
+        List<List<Object>> rows = read(true, Map.of(), "a:keyword\tb:keyword\tc:keyword\nx\ty\tz\n\t\t\np\tq\tr\n");
+        assertEquals("separator-only TSV row must not be dropped", 3, rows.size());
+        // The separator row produces three empty/null fields on a keyword schema.
+        assertEquals(br(""), rows.get(1).get(0));
+        assertEquals(br(""), rows.get(1).get(1));
+        assertEquals(br(""), rows.get(1).get(2));
+    }
+
     public void testTsvPlainCommentLinesSkipped() throws IOException {
         List<List<Object>> rows = read(true, Map.of("comment", "//"), "a:long\n1\n// a comment\n2\n");
         assertEquals(List.of(row(1L), row(2L)), rows);

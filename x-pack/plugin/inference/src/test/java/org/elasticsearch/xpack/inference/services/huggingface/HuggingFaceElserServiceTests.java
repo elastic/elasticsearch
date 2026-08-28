@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.huggingface;
 import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -19,6 +20,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -36,13 +39,18 @@ import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModelTests;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserService;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -60,8 +68,12 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class HuggingFaceElserServiceTests extends ESTestCase {
 
@@ -78,7 +90,13 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
     public void init() throws Exception {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityExecutors());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
+        clientManager = HttpClientManager.create(
+            Settings.EMPTY,
+            threadPool,
+            mockClusterServiceEmpty(),
+            mock(ThrottlerManager.class),
+            new TestCircuitBreaker()
+        );
     }
 
     @After
@@ -139,6 +157,33 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), Matchers.is(1));
             assertThat(requestMap.get("inputs"), Matchers.is(List.of("abc")));
+        }
+    }
+
+    public void testChunkedInfer_EstimatesInputSizeUsingInferenceStringGroups() throws IOException {
+        var sender = mock(Sender.class);
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        try (var service = new HuggingFaceElserService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            var model = HuggingFaceElserModelTests.createModel(URL_VALUE, API_KEY_VALUE);
+            var inputs = List.of(new ChunkInferenceInput("abc"), new ChunkInferenceInput("another input"));
+
+            service.chunkedInfer(model, inputs, new HashMap<>(), InputType.INTERNAL_SEARCH, null, new PlainActionFuture<>());
+
+            var capturedInputs = ArgumentCaptor.forClass(InferenceInputs.class);
+            verify(sender).send(any(), capturedInputs.capture(), any(), any());
+
+            var inputGroups = inputs.stream().map(ChunkInferenceInput::input).toList();
+            var referenceInput = new EmbeddingsInput(inputGroups, InputType.INTERNAL_SEARCH);
+            assertThat(capturedInputs.getValue().ramBytesUsed(), equalTo(referenceInput.ramBytesUsed()));
+
+            var groupBytes = inputGroups.stream().mapToLong(InferenceStringGroup::ramBytesUsed).sum();
+            var flattenedStringBytesOnly = inputs.stream()
+                .flatMap(c -> c.input().inferenceStrings().stream())
+                .mapToLong(InferenceString::ramBytesUsed)
+                .sum();
+            assertThat("the estimate must include the per-group overhead", groupBytes, greaterThan(flattenedStringBytesOnly));
         }
     }
 

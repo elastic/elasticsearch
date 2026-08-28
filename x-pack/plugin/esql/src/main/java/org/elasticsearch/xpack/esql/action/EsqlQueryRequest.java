@@ -66,6 +66,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private boolean onSnapshotBuild = Build.current().isSnapshot();
     private boolean acceptedPragmaRisks = false;
     private Boolean allowPartialResults = null;
+    private Boolean allowPartialDslFilter = null;
 
     private final Map<QuerySettingDef<?>, Object> requestSettings = new HashMap<>();
     /**
@@ -116,6 +117,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.onSnapshotBuild = source.onSnapshotBuild;
         this.acceptedPragmaRisks = source.acceptedPragmaRisks;
         this.allowPartialResults = source.allowPartialResults;
+        this.allowPartialDslFilter = source.allowPartialDslFilter;
         this.requestSettings.putAll(source.requestSettings);
         this.canonicalRequestSettings.putAll(source.canonicalRequestSettings);
         this.tables.putAll(source.tables);
@@ -329,6 +331,17 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     public EsqlQueryRequest allowPartialResults(boolean allowPartialResults) {
         this.allowPartialResults = allowPartialResults;
+        return this;
+    }
+
+    /** Whether unsupported request-filter DSL clauses are dropped with a warning; {@code null} when not set (treated as false). */
+    @Nullable
+    public Boolean allowPartialDslFilter() {
+        return allowPartialDslFilter;
+    }
+
+    public EsqlQueryRequest allowPartialDslFilter(boolean allowPartialDslFilter) {
+        this.allowPartialDslFilter = allowPartialDslFilter;
         return this;
     }
 

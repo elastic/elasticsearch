@@ -33,39 +33,44 @@ import java.nio.ByteOrder;
  */
 public final class AshProjectionMatrix {
 
-    private final float[][] w;
+    private final float[] w;
     private final int originalDim;
     private final int nDims;
-    private float[][] wT; // lazily computed transposed W (nDims x originalDim) for SIMD dot products
+    private float[] wT; // lazily computed transposed W, length nDims*originalDim, row-major (nDims x originalDim)
 
     /**
      * Creates a projection matrix.
      *
-     * @param w the projection matrix, shape (originalDim, nDims)
+     * @param w           the projection matrix in row-major order, length originalDim*nDims
+     * @param originalDim number of rows (original vector dimensionality)
+     * @param nDims       number of columns (projected dimensionality)
      */
-    public AshProjectionMatrix(float[][] w) {
+    public AshProjectionMatrix(float[] w, int originalDim, int nDims) {
+        if (w.length != originalDim * nDims) {
+            throw new IllegalArgumentException("w.length " + w.length + " != originalDim * nDims " + (originalDim * nDims));
+        }
         this.w = w;
-        this.originalDim = w.length;
-        this.nDims = w.length > 0 ? w[0].length : 0;
+        this.originalDim = originalDim;
+        this.nDims = nDims;
     }
 
     /**
-     * Returns the projection matrix W, shape (originalDim, nDims).
+     * Returns the projection matrix W in row-major order, shape (originalDim, nDims).
      */
-    public float[][] w() {
+    public float[] w() {
         return w;
     }
 
     /**
-     * Returns the transposed projection matrix W^T (nDims x originalDim).
-     * Each row of wT is a contiguous float array suitable for SIMD dot products.
+     * Returns the transposed projection matrix W^T in row-major order, shape (nDims, originalDim).
+     * Row j of wT starts at offset {@code j * originalDim} and is suitable for SIMD dot products.
      * Computed lazily on first access.
      *
      * @return the transposed projection matrix
      */
-    public float[][] wT() {
+    public float[] wT() {
         if (wT == null) {
-            wT = ESVectorUtil.transposeMatrix(w);
+            wT = ESVectorUtil.transposeMatrix(w, originalDim, nDims);
         }
         return wT;
     }
@@ -93,11 +98,9 @@ public final class AshProjectionMatrix {
     public void write(IndexOutput out) throws IOException {
         out.writeInt(originalDim);
         out.writeInt(nDims);
-        ByteBuffer buffer = ByteBuffer.allocate(nDims * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
-        for (int i = 0; i < originalDim; i++) {
-            buffer.asFloatBuffer().put(w[i]);
-            out.writeBytes(buffer.array(), nDims * Float.BYTES);
-        }
+        ByteBuffer buffer = ByteBuffer.allocate(w.length * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        buffer.asFloatBuffer().put(w);
+        out.writeBytes(buffer.array(), buffer.capacity());
     }
 
     /**
@@ -110,14 +113,11 @@ public final class AshProjectionMatrix {
     public static AshProjectionMatrix read(IndexInput in) throws IOException {
         int originalDim = in.readInt();
         int nDims = in.readInt();
-        float[][] w = new float[originalDim][nDims];
-        byte[] rowBytes = new byte[nDims * Float.BYTES];
-        ByteBuffer buffer = ByteBuffer.wrap(rowBytes).order(ByteOrder.LITTLE_ENDIAN);
-        for (int i = 0; i < originalDim; i++) {
-            in.readBytes(rowBytes, 0, nDims * Float.BYTES);
-            buffer.asFloatBuffer().get(w[i]);
-        }
-        return new AshProjectionMatrix(w);
+        float[] w = new float[originalDim * nDims];
+        ByteBuffer buffer = ByteBuffer.allocate(w.length * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        in.readBytes(buffer.array(), 0, buffer.capacity());
+        buffer.asFloatBuffer().get(w);
+        return new AshProjectionMatrix(w, originalDim, nDims);
     }
 
     /**

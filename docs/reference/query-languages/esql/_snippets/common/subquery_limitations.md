@@ -1,8 +1,9 @@
-#### Nested subqueries are not supported
+#### Nested FROM subqueries are not supported
 
-A subquery cannot contain another subquery in the
-[`FROM`](/reference/query-languages/esql/commands/from.md) command. Only one
-level of nesting is allowed.
+A `FROM` subquery cannot contain another `FROM` subquery. Only one
+level of `FROM` nesting is allowed. However, a `FROM` subquery can contain
+[`IN` subqueries](/reference/query-languages/esql/esql-in-subquery.md) in its
+`WHERE` commands.
 
 For example, this query is **not supported** because the inner `FROM` itself
 contains subqueries:
@@ -31,10 +32,10 @@ FROM
 | KEEP emp_no, languages, client_ip
 ```
 
-#### FORK is not supported with subqueries
+#### FORK is not supported with FROM subqueries
 
 The [`FORK`](/reference/query-languages/esql/commands/fork.md) command cannot
-be used inside a subquery or after a `FROM` that contains subqueries.
+be used inside a `FROM` subquery or after a `FROM` that contains subqueries.
 
 For example, using `FORK` **inside** a subquery is not supported:
 

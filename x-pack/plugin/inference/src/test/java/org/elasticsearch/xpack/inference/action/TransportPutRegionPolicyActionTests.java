@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
@@ -44,6 +43,7 @@ import org.elasticsearch.xpack.core.inference.action.PutRegionPolicyAction;
 import org.elasticsearch.xpack.core.inference.action.RefreshAuthorizedEndpointsAction;
 import org.elasticsearch.xpack.core.inference.action.RegionPolicyResponse;
 import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicy;
+import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModel;
@@ -207,10 +207,10 @@ public class TransportPutRegionPolicyActionTests extends ESTestCase {
             mock(ActionFilters.class),
             client,
             clusterService,
-            mock(FeatureService.class),
             cache,
             authorizationHandler,
-            mock(Sender.class)
+            mock(Sender.class),
+            Utils.noopInferenceIndexMappingManager()
         );
 
         var listener = new TestPlainActionFuture<RegionPolicyResponse>();
@@ -239,10 +239,10 @@ public class TransportPutRegionPolicyActionTests extends ESTestCase {
             mock(ActionFilters.class),
             client,
             clusterService,
-            mock(FeatureService.class),
             cache,
             authorizationHandler,
-            mock(Sender.class)
+            mock(Sender.class),
+            Utils.noopInferenceIndexMappingManager()
         );
 
         var listener = new TestPlainActionFuture<RegionPolicyResponse>();
@@ -268,10 +268,10 @@ public class TransportPutRegionPolicyActionTests extends ESTestCase {
             mock(ActionFilters.class),
             client,
             clusterService,
-            mock(FeatureService.class),
             cache,
             authorizationHandler,
-            mock(Sender.class)
+            mock(Sender.class),
+            Utils.noopInferenceIndexMappingManager()
         );
 
         var listener = new TestPlainActionFuture<RegionPolicyResponse>();
@@ -297,10 +297,10 @@ public class TransportPutRegionPolicyActionTests extends ESTestCase {
             mock(ActionFilters.class),
             client,
             clusterService,
-            mock(FeatureService.class),
             cache,
             authorizationHandler,
-            mock(Sender.class)
+            mock(Sender.class),
+            Utils.noopInferenceIndexMappingManager()
         );
 
         var listener = new TestPlainActionFuture<RegionPolicyResponse>();
@@ -422,10 +422,11 @@ public class TransportPutRegionPolicyActionTests extends ESTestCase {
             mock(ActionFilters.class),
             client,
             clusterService,
-            mock(FeatureService.class),
             cache,
             mockAuthorizationHandlerReturning(ElasticInferenceServiceAuthorizationModel.unauthorized()),
-            mock(Sender.class)
+            mock(Sender.class),
+            Utils.noopInferenceIndexMappingManager()
         );
     }
+
 }

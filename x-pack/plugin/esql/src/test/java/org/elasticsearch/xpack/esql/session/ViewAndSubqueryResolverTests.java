@@ -15,11 +15,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -31,6 +33,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
+import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
@@ -593,6 +596,62 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
                 + "(FROM (FROM dept_view_a | KEEP dept_id), (FROM dept_view_b | KEEP dept_id) | KEEP dept_id)"
         );
         assertEquals("IN_SUBQUERY must be counted once per query", 1L, inSubqueryCount);
+    }
+
+    /*
+     * Eval[[?mark AS in_view]]
+     * \_MarkJoin[[?dept_id],[],?mark]
+     *   |_UnresolvedRelation[employees]
+     *   \_Keep[[?dept_id]]
+     *     \_NamedSubquery[dept_view]
+     *       \_Keep[[?dept_id]]
+     *         \_UnresolvedRelation[departments]
+     */
+    public void testInSubqueryInEvalReferencingViewIsExpanded() {
+        addView("dept_view", "FROM departments | KEEP dept_id");
+        ViewResolver.ViewResolutionResult result = resolve("FROM employees | EVAL in_view = dept_id IN (FROM dept_view | KEEP dept_id)");
+
+        assertTrue(result.hasInSubquery());
+        assertEquals(Set.of("dept_view"), result.viewQueries().keySet());
+
+        Eval eval = as(result.plan(), Eval.class);
+        assertEquals("in_view", eval.fields().get(0).name());
+        Attribute mark = as(eval.fields().get(0).child(), Attribute.class);
+        MarkJoin markJoin = as(eval.child(), MarkJoin.class);
+        assertEquals(mark.id(), markJoin.markAttribute().id());
+        assertInSubqueryJoinKey(markJoin, "dept_id");
+        assertUnresolvedRelation(markJoin.left(), "employees");
+
+        Keep keep = as(markJoin.right(), Keep.class);
+        NamedSubquery namedSubquery = as(keep.child(), NamedSubquery.class);
+        assertEquals("dept_view", namedSubquery.name());
+        assertUnresolvedRelation(as(namedSubquery.child(), Keep.class).child(), "departments");
+    }
+
+    /*
+     * NamedSubquery[v_with_eval_in]
+     * \_Eval[[?mark AS in_departments]]
+     *   \_MarkJoin[[?dept_id],[],?mark]
+     *     |_UnresolvedRelation[employees]
+     *     \_Keep[[?dept_id]]
+     *       \_UnresolvedRelation[departments]
+     */
+    public void testInSubqueryInEvalInsideViewBodyIsResolved() {
+        addView("v_with_eval_in", "FROM employees | EVAL in_departments = dept_id IN (FROM departments | KEEP dept_id)");
+        ViewResolver.ViewResolutionResult result = resolve("FROM v_with_eval_in");
+
+        assertTrue(result.hasInSubquery());
+        assertEquals(Set.of("v_with_eval_in"), result.viewQueries().keySet());
+
+        NamedSubquery namedSubquery = as(result.plan(), NamedSubquery.class);
+        Eval eval = as(namedSubquery.child(), Eval.class);
+        assertEquals("in_departments", eval.fields().get(0).name());
+        Attribute mark = as(eval.fields().get(0).child(), Attribute.class);
+        MarkJoin markJoin = as(eval.child(), MarkJoin.class);
+        assertEquals(mark.id(), markJoin.markAttribute().id());
+        assertInSubqueryJoinKey(markJoin, "dept_id");
+        assertUnresolvedRelation(markJoin.left(), "employees");
+        assertUnresolvedRelation(as(markJoin.right(), Keep.class).child(), "departments");
     }
 
     // ---- helpers ----

@@ -226,6 +226,24 @@
       "params" : [
         {
           "name" : "lhs",
+          "type" : "double_range",
+          "optional" : false,
+          "description" : "An expression."
+        },
+        {
+          "name" : "rhs",
+          "type" : "double_range",
+          "optional" : false,
+          "description" : "An expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "lhs",
           "type" : "exponential_histogram",
           "optional" : false,
           "description" : "An expression."

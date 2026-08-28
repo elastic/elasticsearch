@@ -62,8 +62,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     private ClusterSettings clusterSettings;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initTaskQueueAndClusterService() throws Exception {
         taskQueue = new DeterministicTaskQueue();
         taskQueue.runTasksUpToTimeInOrder(System.currentTimeMillis());
         clusterSettings = createClusterSettings(Settings.EMPTY);
@@ -71,9 +70,8 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeClusterService() throws Exception {
         clusterService.close();
-        super.tearDown();
     }
 
     public void testDurationBelowMinimumRejected() {
@@ -350,11 +348,13 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     ) {
         var key = new FileCacheKey(shardId, 1L, fileName);
         long fileLength = randomLongBetween(1, regionSizeInBytes - 1L);
-        if (timestampMillis == null) {
-            SharedBlobCacheServiceTestUtils.cacheRegion(cacheService, key, fileLength, 0);
-        } else {
-            SharedBlobCacheServiceTestUtils.cacheRegion(cacheService, key, fileLength, 0, timestampMillis);
-        }
+        SharedBlobCacheServiceTestUtils.cacheRegion(
+            cacheService,
+            key,
+            fileLength,
+            0,
+            timestampMillis == null ? SharedBlobCacheService.UNKNOWN_TIMESTAMP : timestampMillis
+        );
     }
 
     private static long countCachedRegionsWithFilePrefix(

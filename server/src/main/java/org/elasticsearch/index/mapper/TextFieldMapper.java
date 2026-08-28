@@ -90,9 +90,8 @@ import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesWildcardQuery;
-import org.elasticsearch.lucene.queries.SortedSetDocValuesRangeQuery;
+import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
-import org.elasticsearch.lucene.search.XDocValuesRewriteMethod;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.SortedSetDocValuesStringFieldScript;
 import org.elasticsearch.script.field.DelegateDocValuesField;
@@ -974,7 +973,7 @@ public final class TextFieldMapper extends FieldMapper {
             if (usesBinaryDocValues) {
                 return new ScanningBinaryDocValuesTermQuery(name(), indexedValueForSearch(value), useArrayOrderBinaryDocValues);
             } else {
-                return SortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
+                return XSortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
             }
         }
 
@@ -1019,7 +1018,7 @@ public final class TextFieldMapper extends FieldMapper {
                 return new ScanningBinaryDocValuesPrefixQuery(name(), value, caseInsensitive, useArrayOrderBinaryDocValues);
             }
             if (caseInsensitive == false) {
-                return new PrefixQuery(new Term(name(), value), XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                return new PrefixQuery(new Term(name(), value), MultiTermQuery.DOC_VALUES_REWRITE);
             }
             return new StringScriptFieldPrefixQuery(
                 new Script(""),
@@ -1048,9 +1047,9 @@ public final class TextFieldMapper extends FieldMapper {
                 Term term = new Term(name(), value);
                 if (context.getCircuitBreaker() != null) {
                     Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
-                    return new AutomatonQuery(term, dfa, false, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                    return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
-                return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
             }
             return new StringScriptFieldWildcardQuery(
                 new Script(""),
@@ -1095,7 +1094,7 @@ public final class TextFieldMapper extends FieldMapper {
                     maxDeterminizedStates,
                     context.getCircuitBreaker()
                 );
-                return new AutomatonQuery(term, dfa, false, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
             }
             return new RegexpQuery(
                 new Term(name(), value),
@@ -1103,7 +1102,7 @@ public final class TextFieldMapper extends FieldMapper {
                 matchFlags,
                 RegexpQuery.DEFAULT_PROVIDER,
                 maxDeterminizedStates,
-                XDocValuesRewriteMethod.DOC_VALUES_REWRITE
+                MultiTermQuery.DOC_VALUES_REWRITE
             );
         }
 
@@ -1837,8 +1836,8 @@ public final class TextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean isSingleValueEnforced() {
-        return docValuesParameters.multiValue() == false;
+    protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
+        return docValuesParameters.multiValue() == false && token != XContentParser.Token.VALUE_NULL;
     }
 
     @Override
@@ -1850,20 +1849,6 @@ public final class TextFieldMapper extends FieldMapper {
     public boolean isNullable() {
         // Text fields have no null_value parameter, so nullability is governed solely by the doc_values nullability setting.
         return docValuesParameters.nullability();
-    }
-
-    @Override
-    public boolean supportsBatchIndexing() {
-        // Plain text mappers can be driven through parseCreateField by the bulk batch path.
-        // index_prefixes and index_phrases add sub-field documents that the batch path does
-        // not write, and synthetic-source fallback storage requires extra coordination across
-        // doc fields that we do not handle yet. fielddata is search-time only and is allowed.
-        return hasScript() == false
-            && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false
-            && prefixFieldInfo == null
-            && phraseFieldInfo == null
-            && fieldType().needsFallbackStorageForSyntheticSource(indexSettings.getIndexVersionCreated()) == false;
     }
 
     @Override
@@ -2139,6 +2124,24 @@ public final class TextFieldMapper extends FieldMapper {
     protected SyntheticSourceSupport syntheticSourceSupport() {
         // if we stored this field in Lucene, then use that for synthetic source
         if (store) {
+            if (onFailureBehavior() == DocValuesParameter.Values.OnFailure.IGNORE) {
+                // on_failure=ignore: wrap in a composite so ._on_failure values are appended for full array reconstruction.
+                // writesOnFailureColumn() is inside the lambda — copy_to forces FALLBACK and calling it eagerly would recurse
+                // into syntheticSourceSupport() before the syntheticSourceMode cache is set.
+                return new SyntheticSourceSupport.Native(() -> {
+                    var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+                    layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(fullPath()) {
+                        @Override
+                        protected void writeValue(Object value, XContentBuilder b) throws IOException {
+                            b.value((String) value);
+                        }
+                    });
+                    if (onFailureColumnEnabled()) {
+                        layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
+                    }
+                    return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
+                });
+            }
             return new SyntheticSourceSupport.Native(() -> new StringStoredFieldFieldLoader(fullPath(), leafName()) {
                 @Override
                 protected void write(XContentBuilder b, Object value) throws IOException {
@@ -2183,8 +2186,14 @@ public final class TextFieldMapper extends FieldMapper {
         var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
         if (kwd != null) {
             layers.addAll(kwd.syntheticFieldLoaderLayers());
+            if (kwd.onFailureColumnEnabled()) {
+                layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(kwd.fullPath(), indexSettings.getIndexVersionCreated()));
+            }
         }
 
+        if (onFailureColumnEnabled()) {
+            layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
+        }
         return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, layers);
     }
 
@@ -2230,6 +2239,9 @@ public final class TextFieldMapper extends FieldMapper {
                 )
             );
         }
+        if (onFailureColumnEnabled()) {
+            layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
+        }
         return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
     }
 
@@ -2264,11 +2276,20 @@ public final class TextFieldMapper extends FieldMapper {
 
         /**
          * Returns whether the given keyword field supports synthetic source.
+         * <p>
+         * Note: {@link FieldMapper.MultiFields.Builder#hasSyntheticSourceCompatibleKeywordField()} uses its own copy of this predicate
+         * (without the {@code multiValue()} check) intentionally: the {@code store} default for the parent must not change just because
+         * the keyword sub-field has {@code multi_value: false}; the parent still uses its own fallback field in that case, and that is
+         * exactly what this method gates against.
          */
         private static boolean keywordFieldSupportsSyntheticSource(final KeywordFieldMapper keyword) {
             // the field must be stored in some way, whether that be via store or doc values
             return (keyword.hasNormalizer() == false || keyword.isNormalizerSkipStoreOriginalValue())
-                && (keyword.fieldType().hasDocValues() || keyword.fieldType().isStored());
+                && (keyword.fieldType().hasDocValues() || keyword.fieldType().isStored())
+                // A single-valued (multi_value=false) delegate cannot hold the parent's entire array: values it rejects are stored
+                // by the parent's own fallback field, so both copies would be emitted during synthetic-source reconstruction, producing
+                // duplicates on the first pass and exponential growth on each round-trip.
+                && keyword.docValuesParameters().multiValue();
         }
     }
 

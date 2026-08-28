@@ -23,16 +23,23 @@ For a simplified syntax, you can use the [match operator](/reference/query-langu
 computed columns produced by `EVAL`, `STATS`, or other commands.
 When the target is not an indexed field, the search evaluates by scanning
 values row by row, which may be slower on large datasets.
-Additionally, `MATCH` on an expression does not contribute to the relevance score
-when using `METADATA _score`.
 
 {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 When searching `text` expressions, [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)
-(match query options) are supported. The `analyzer` option must name a registered analyzer
-(prebuilt or plugin-contributed). Per-index custom analyzers cannot be used because the
-expression is not backed by an index. Unlike on an indexed field, the analyzer is applied to
-both the query and the expression values. When no analyzer is specified, the `standard`
-analyzer is used. On other expression types options are not supported.
+(match query options) are supported. As on an indexed field, the `analyzer` option applies to
+the query string only: how the expression's values are analyzed is declared where the column is
+created, through `TO_TEXT`'s `analyzer` option, and the query analyzer defaults to that values
+analyzer (`standard` when none is declared). Analyzer names must name a registered analyzer
+(prebuilt or plugin-contributed); per-index custom analyzers cannot be used because the
+expression is not backed by an index. On other expression types options are not supported.
+
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+When using `METADATA _score`, `MATCH` on an expression contributes to the relevance score:
+a row scores the `boost` option (1.0 by default) for each query term occurrence it matches
+(duplicate query terms each contribute separately).
+Unlike indexed fields, expressions are not scored with BM25, as there are no index statistics
+for an expression. In earlier versions, `MATCH` on an expression does not contribute to the
+score.
 
 :::{tip}
 Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).

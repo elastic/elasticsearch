@@ -62,7 +62,7 @@ public class TransformCrossProjectMetricsIT extends TransformSingleNodeTestCase 
 
         // both gauges are registered at node startup (CPS enabled + transform role)
         assertThat(
-            telemetry.getRegisteredMetrics(InstrumentType.LONG_GAUGE),
+            telemetry.getRegisteredMetrics(InstrumentType.LONG_ASYNC_GAUGE),
             hasItems(
                 TransformCrossProjectMetrics.TRANSFORM_CPS_UIAM_AUTH_CURRENT,
                 TransformCrossProjectMetrics.TRANSFORM_CPS_ACTIVE_CURRENT

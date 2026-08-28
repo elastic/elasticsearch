@@ -54,6 +54,11 @@
         "type": "boolean",
         "description": "If `true`, partial results will be returned if there are shard failures, but\nthe query can continue to execute on other clusters and shards.\nIf `false`, the entire query will fail if there are\nany failures.",
         "default": true
+      },
+      "allow_partial_dsl_filter": {
+        "type": "boolean",
+        "description": "If `true`, unsupported clauses in the request `filter` are silently dropped and the translatable subset is applied;\na `Warning` header lists the dropped constructs.\nIf `false` (default), any unsupported construct fails the query with a 400.",
+        "default": false
       }
     },
     "body": {

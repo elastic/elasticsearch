@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.document.DocumentField;
@@ -60,6 +61,12 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     public static final String NAME = "indices:data/read/msearch";
     public static final ActionType<MultiSearchResponse> TYPE = new ActionType<>(NAME);
     private static final Logger logger = LogManager.getLogger(TransportMultiSearchAction.class);
+
+    /** Breaker label for a buffered sub-search response; maps to {@link ChildMemoryCircuitBreaker#CATEGORY_MSEARCH}. */
+    static final String MSEARCH_RESPONSE_BREAKER_LABEL = ChildMemoryCircuitBreaker.CATEGORY_MSEARCH + "[response]";
+
+    /** Breaker label for bytes reserved for a buffered failure item; maps to {@link ChildMemoryCircuitBreaker#CATEGORY_MSEARCH}. */
+    static final String MSEARCH_FAILURE_BREAKER_LABEL = ChildMemoryCircuitBreaker.CATEGORY_MSEARCH + "[failure]";
 
     /**
      * Fixed per-response overhead charged against the circuit breaker for every sub-search
@@ -160,6 +167,9 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
      */
     static final long SERIALISED_BYTES_FAILURE_FALLBACK = 1024L;
 
+    /** Fixed overhead for a failure {@code MultiSearchResponse.Item} shell plus its array slot. */
+    static final long BASE_FAILURE_ITEM_OVERHEAD = 64L;
+
     private final int allocatedProcessors;
     private final ClusterService clusterService;
     private final LongSupplier relativeTimeProvider;
@@ -232,8 +242,8 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         final AtomicArray<MultiSearchResponse.Item> responses = new AtomicArray<>(numRequests);
         final AtomicInteger responseCounter = new AtomicInteger(numRequests);
         // Each completed sub-search stays in {@code responses} until the last one finishes. Incremental bytes (hits,
-        // suggest, etc.) are reserved here; query-phase aggregation bytes are handed off from {@link QueryPhaseResultConsumer}
-        // and released together when the combined {@link MultiSearchResponse} is delivered.
+        // suggest, etc.) and failure-item bytes are reserved here; query-phase aggregation bytes are handed off from
+        // {@link QueryPhaseResultConsumer} and released together when the combined {@link MultiSearchResponse} is delivered.
         final MultiSearchBreakerAccounting breakerAccounting = new MultiSearchBreakerAccounting();
         final ActionListener<MultiSearchResponse> breakerReleasingListener = ActionListener.runAfter(
             listener,
@@ -326,17 +336,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
             }
         }
 
-        ShardSearchFailure[] failures = response.getShardFailures();
-        for (ShardSearchFailure failure : failures) {
-            bytes += PER_SHARD_FAILURE_OVERHEAD + estimateExceptionBytes(failure.getCause());
-            // reason() is ExceptionsHelper.stackTrace(e) — the full stack trace as a formatted String.
-            // It duplicates information in the cause but is a distinct heap object and can be large
-            // for deep stacks, so it must be counted explicitly.
-            String reason = failure.reason();
-            if (reason != null) {
-                bytes += RamUsageEstimator.sizeOf(reason);
-            }
-        }
+        bytes += estimateShardFailureBytes(response.getShardFailures());
 
         Suggest suggest = response.getSuggest();
         if (suggest != null) {
@@ -428,6 +428,36 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         bytes += estimateExceptionBytes(t.getCause(), depthRemaining - 1);
         for (Throwable suppressed : t.getSuppressed()) {
             bytes += estimateExceptionBytes(suppressed, depthRemaining - 1);
+        }
+        return bytes;
+    }
+
+    /**
+     * Estimates coordinator heap for a {@link ShardSearchFailure} array, including
+     * {@link ShardSearchFailure#reason()} — a distinct heap object duplicating the cause chain.
+     */
+    private static long estimateShardFailureBytes(ShardSearchFailure[] failures) {
+        long bytes = 0;
+        for (ShardSearchFailure failure : failures) {
+            bytes += PER_SHARD_FAILURE_OVERHEAD + estimateExceptionBytes(failure.getCause());
+            String reason = failure.reason();
+            if (reason != null) {
+                bytes += RamUsageEstimator.sizeOf(reason);
+            }
+        }
+        return bytes;
+    }
+
+    /**
+     * Estimates coordinator heap for a failure {@link MultiSearchResponse.Item}: {@link #estimateExceptionBytes}
+     * plus, for {@link SearchPhaseExecutionException}, its {@code shardFailures} — held in a distinct field
+     * not reachable through the cause chain, so it must be walked explicitly via {@link #estimateShardFailureBytes}.
+     */
+    public static long estimateFailureBytes(Exception e) {
+        long bytes = BASE_FAILURE_ITEM_OVERHEAD;
+        bytes += estimateExceptionBytes(e);
+        if (e instanceof SearchPhaseExecutionException spee) {
+            bytes += estimateShardFailureBytes(spee.shardFailures());
         }
         return bytes;
     }
@@ -588,7 +618,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
             try {
                 bytes = estimateActualBytes(searchResponse);
                 try {
-                    circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, "<msearch_response>");
+                    circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, MSEARCH_RESPONSE_BREAKER_LABEL);
                 } catch (CircuitBreakingException e) {
                     if (queryPhaseAggHandoff > 0) {
                         circuitBreaker.addWithoutBreaking(-queryPhaseAggHandoff);
@@ -623,7 +653,10 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
                 handleResponse(request.responseSlot, new MultiSearchResponse.Item(null, e));
             }
 
-            private void handleResponse(final int responseSlot, final MultiSearchResponse.Item item) {
+            private void handleResponse(final int responseSlot, MultiSearchResponse.Item item) {
+                if (item.isFailure()) {
+                    item = accountOrSubstituteFailureItem(breakerAccounting, item);
+                }
                 responses.set(responseSlot, item);
                 if (responseCounter.decrementAndGet() == 0) {
                     assert requests.isEmpty();
@@ -659,6 +692,53 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         return false;
     }
 
+    /**
+     * Reserves breaker bytes for a failure item. A failure item can't simply be discarded like an
+     * over-sized response can, but its size (e.g. a {@link SearchPhaseExecutionException} with many
+     * {@link ShardSearchFailure} entries) is unbounded, so a genuine trip is handled by substituting the
+     * small, bounded {@link CircuitBreakingException} itself via {@link #accountBoundedFailureSubstitute}
+     * instead of force-adding the original. Any other exception is treated as a breaker bug rather than a
+     * legitimate trip: it's logged, and the original bytes are force-added so a defect here can't hang
+     * the msearch.
+     */
+    private MultiSearchResponse.Item accountOrSubstituteFailureItem(
+        MultiSearchBreakerAccounting breakerAccounting,
+        MultiSearchResponse.Item item
+    ) {
+        long bytes = estimateFailureBytes(item.getFailure());
+        try {
+            circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, MSEARCH_FAILURE_BREAKER_LABEL);
+        } catch (CircuitBreakingException tripped) {
+            return accountBoundedFailureSubstitute(breakerAccounting, tripped);
+        } catch (Exception unexpected) {
+            logger.warn("msearch circuit breaker: failed to reserve bytes for failure item", unexpected);
+            circuitBreaker.addWithoutBreaking(bytes, MSEARCH_FAILURE_BREAKER_LABEL);
+            breakerAccounting.add(bytes, 0);
+            return item;
+        }
+        breakerAccounting.add(bytes, 0);
+        return item;
+    }
+
+    /**
+     * Accounts for a small, bounded {@link CircuitBreakingException} substituted for a failure item that
+     * didn't fit. If even this substitute doesn't fit, it's force-added rather than dropped: not risk-free,
+     * but its size is capped, unlike the original's, so forcing it through risks far less overshoot.
+     */
+    private MultiSearchResponse.Item accountBoundedFailureSubstitute(
+        MultiSearchBreakerAccounting breakerAccounting,
+        CircuitBreakingException substitute
+    ) {
+        long substituteBytes = estimateFailureBytes(substitute);
+        try {
+            circuitBreaker.addEstimateBytesAndMaybeBreak(substituteBytes, MSEARCH_FAILURE_BREAKER_LABEL);
+        } catch (CircuitBreakingException stillTripped) {
+            circuitBreaker.addWithoutBreaking(substituteBytes, MSEARCH_FAILURE_BREAKER_LABEL);
+        }
+        breakerAccounting.add(substituteBytes, 0);
+        return new MultiSearchResponse.Item(null, substitute);
+    }
+
     record SearchRequestSlot(SearchRequest request, int responseSlot) {
 
     }
@@ -666,6 +746,8 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     /**
      * Tracks REQUEST breaker bytes reserved while sub-search responses are buffered: incremental estimates from
      * {@link #estimateActualBytes} plus query-phase aggregation bytes handed off from {@link QueryPhaseResultConsumer}.
+     * Also tracks bytes reserved for failure items via {@link #accountOrSubstituteFailureItem}, whether from a genuine
+     * sub-search failure or from a {@link CircuitBreakingException} substituted for an over-sized item.
      */
     final class MultiSearchBreakerAccounting {
         private final AtomicLong incrementalBytes = new AtomicLong();
@@ -677,9 +759,16 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         }
 
         void releaseAll() {
-            long release = incrementalBytes.get() + queryPhaseAggregationHandoffBytes.get();
-            if (release > 0) {
-                circuitBreaker.addWithoutBreaking(-release);
+            // Release incremental estimates under a msearch label so they cancel the response/failure admits on the
+            // per-category gauge (both msearch[response] and msearch[failure] map to the same msearch category). Handoff
+            // bytes were admitted elsewhere (query-phase reduce) so they stay unlabeled.
+            long incremental = incrementalBytes.get();
+            if (incremental > 0) {
+                circuitBreaker.addWithoutBreaking(-incremental, MSEARCH_RESPONSE_BREAKER_LABEL);
+            }
+            long handoff = queryPhaseAggregationHandoffBytes.get();
+            if (handoff > 0) {
+                circuitBreaker.addWithoutBreaking(-handoff);
             }
         }
     }

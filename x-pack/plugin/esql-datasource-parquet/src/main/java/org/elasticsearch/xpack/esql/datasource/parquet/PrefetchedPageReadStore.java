@@ -19,11 +19,10 @@ import java.util.Map;
  * In-memory {@link PageReadStore} backed by per-column {@link PrefetchedPageReader}s. Replaces
  * parquet-mr's {@code ColumnChunkPageReadStore} on the optimized iterator's read path.
  *
- * <p>Each {@link PrefetchedPageReader} owns native decompression buffers ({@link
- * org.apache.arrow.memory.ArrowBuf}s) allocated from the supplied {@code BufferAllocator}.
- * {@link #close()} releases all per-column readers and is idempotent; callers must ensure no
- * {@link DictionaryPage} or {@link org.apache.parquet.column.page.DataPage} returned from a
- * reader is used after close.
+ * <p>Each {@link PrefetchedPageReader} charges heap decompression output to the request
+ * breaker for the current page and cached dictionary. {@link #close()} releases those charges
+ * and is idempotent. Uncompressed pages may alias prefetched I/O bytes; those must not be used
+ * after the backing chunks are released.
  */
 final class PrefetchedPageReadStore implements PageReadStore, DictionaryPageReadStore {
 

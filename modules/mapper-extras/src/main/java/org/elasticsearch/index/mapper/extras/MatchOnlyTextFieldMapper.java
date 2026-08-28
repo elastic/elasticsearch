@@ -96,9 +96,8 @@ import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesWildcardQuery;
-import org.elasticsearch.lucene.queries.SortedSetDocValuesRangeQuery;
+import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
-import org.elasticsearch.lucene.search.XDocValuesRewriteMethod;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.SortedSetDocValuesStringFieldScript;
 import org.elasticsearch.script.field.TextDocValuesField;
@@ -107,6 +106,7 @@ import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
@@ -694,7 +694,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             if (usesBinaryDocValues) {
                 return new ScanningBinaryDocValuesTermQuery(name(), indexedValueForSearch(value), useArrayOrderBinaryDocValues);
             } else {
-                return SortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
+                return XSortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
             }
         }
 
@@ -729,7 +729,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 return new ScanningBinaryDocValuesPrefixQuery(name(), value, caseInsensitive, useArrayOrderBinaryDocValues);
             }
             if (caseInsensitive == false) {
-                return new PrefixQuery(new Term(name(), value), XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                return new PrefixQuery(new Term(name(), value), MultiTermQuery.DOC_VALUES_REWRITE);
             }
             return new StringScriptFieldPrefixQuery(
                 new Script(""),
@@ -758,9 +758,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 Term term = new Term(name(), value);
                 if (context.getCircuitBreaker() != null) {
                     Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
-                    return new AutomatonQuery(term, dfa, false, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                    return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
-                return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
             }
             return new StringScriptFieldWildcardQuery(
                 new Script(""),
@@ -805,7 +805,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     maxDeterminizedStates,
                     context.getCircuitBreaker()
                 );
-                return new AutomatonQuery(term, dfa, false, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
             }
             return new RegexpQuery(
                 new Term(name(), value),
@@ -813,7 +813,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 matchFlags,
                 RegexpQuery.DEFAULT_PROVIDER,
                 maxDeterminizedStates,
-                XDocValuesRewriteMethod.DOC_VALUES_REWRITE
+                MultiTermQuery.DOC_VALUES_REWRITE
             );
         }
 
@@ -1170,8 +1170,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean isSingleValueEnforced() {
-        return docValuesParameters.multiValue() == false;
+    protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
+        return docValuesParameters.multiValue() == false && token != XContentParser.Token.VALUE_NULL;
     }
 
     @Override
@@ -1333,6 +1333,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             // also load from fallback field for values that exceeded MAX_TERM_LENGTH
             layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fieldType().syntheticSourceFallbackFieldName(), indexCreatedVersion));
         }
+        if (onFailureColumnEnabled()) {
+            layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexCreatedVersion));
+        }
         return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
     }
 
@@ -1365,6 +1368,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             layers.addAll(kwd.syntheticFieldLoaderLayers());
         }
 
+        if (onFailureColumnEnabled()) {
+            layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexCreatedVersion));
+        }
         return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, layers);
     }
 }

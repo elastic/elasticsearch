@@ -22,6 +22,7 @@ import static org.elasticsearch.inference.metadata.EndpointMetadata.Display.MODE
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Display.NAME_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.EndpointRegion.CSP_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.EndpointRegion.GEO_FIELD;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.EndpointRegion.REGION_DISPLAY_NAME_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.EndpointRegion.REGION_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.HEURISTICS_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Heuristics.END_OF_LIFE_DATE_FIELD_NAME;
@@ -128,7 +129,7 @@ public class EndpointMetadataParserTests extends ESTestCase {
 
         assertThat(result.display(), equalTo(new EndpointMetadata.Display(MY_ENDPOINT, MY_ENDPOINT_CREATOR)));
 
-        assertThat(result.regions(), equalTo(List.of(new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us"))));
+        assertThat(result.regions(), equalTo(List.of(new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us", null))));
         assertTrue(result.deniedByRegionPolicy());
     }
 
@@ -306,13 +307,14 @@ public class EndpointMetadataParserTests extends ESTestCase {
         regionMap.put(CSP_FIELD.getPreferredName(), "aws");
         regionMap.put(REGION_FIELD.getPreferredName(), "us-east-1");
         regionMap.put(GEO_FIELD.getPreferredName(), "us");
+        regionMap.put(REGION_DISPLAY_NAME_FIELD.getPreferredName(), "US East (N. Virginia)");
 
         var map = new HashMap<String, Object>();
         map.put(REGIONS_FIELD_NAME, List.of(regionMap));
 
         var result = EndpointMetadataParser.regionsFromMap(map, ROOT);
 
-        assertThat(result, equalTo(List.of(new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us"))));
+        assertThat(result, equalTo(List.of(new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us", "US East (N. Virginia)"))));
     }
 
     public void testRegionsFromMap_ParsesMultipleRegions() {
@@ -335,8 +337,8 @@ public class EndpointMetadataParserTests extends ESTestCase {
             result,
             equalTo(
                 List.of(
-                    new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us"),
-                    new EndpointMetadata.EndpointRegion("gcp", "europe-west1", "eu")
+                    new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us", null),
+                    new EndpointMetadata.EndpointRegion("gcp", "europe-west1", "eu", null)
                 )
             )
         );
@@ -348,7 +350,7 @@ public class EndpointMetadataParserTests extends ESTestCase {
 
         var result = EndpointMetadataParser.regionsFromMap(map, ROOT);
 
-        assertThat(result, equalTo(List.of(new EndpointMetadata.EndpointRegion(null, null, null))));
+        assertThat(result, equalTo(List.of(new EndpointMetadata.EndpointRegion(null, null, null, null))));
     }
 
     public void testRegionsFromMap_Throws_WhenItemIsNotAMap() {

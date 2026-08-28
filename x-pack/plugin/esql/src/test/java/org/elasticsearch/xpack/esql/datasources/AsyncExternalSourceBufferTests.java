@@ -287,12 +287,12 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
         assertNull(buffer.formatReaderStatus());
 
-        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(3L, 0L, 0L));
-        assertEquals(new NdJsonReaderStatus(3L, 0L, 0L), buffer.formatReaderStatus());
+        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(3L, 0L, 0L, 0L));
+        assertEquals(new NdJsonReaderStatus(3L, 0L, 0L, 0L), buffer.formatReaderStatus());
 
         // Latest snapshot replaces (does not merge) the prior one.
-        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(5L, 17L, 0L));
-        assertEquals(new NdJsonReaderStatus(5L, 17L, 0L), buffer.formatReaderStatus());
+        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(5L, 17L, 0L, 0L));
+        assertEquals(new NdJsonReaderStatus(5L, 17L, 0L, 0L), buffer.formatReaderStatus());
 
         // Null clears the recorded snapshot.
         buffer.recordFormatReaderStatus(null);
@@ -343,10 +343,10 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
 
     public void testRecordInformationalWarningSharesQueueWithPartialResultsWarnings() {
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
-        buffer.recordWarning("truncated at max_record_size");
+        buffer.recordWarning("truncated at external_max_record_size");
         buffer.recordInformationalWarning("null-filled row 3");
         assertTrue(buffer.isPartial());
-        assertEquals("truncated at max_record_size", buffer.pollWarning());
+        assertEquals("truncated at external_max_record_size", buffer.pollWarning());
         assertEquals("null-filled row 3", buffer.pollWarning());
         assertNull(buffer.pollWarning());
     }

@@ -376,7 +376,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Whether the old cluster version is not of the released versions, but a detached build.
      * In that case the Git ref has to be specified via {@code tests.bwc.refspec.main} system property.
      */
-    protected static boolean isOldClusterDetachedVersion() {
+    public static boolean isOldClusterDetachedVersion() {
         return System.getProperty("tests.bwc.refspec.main") != null;
     }
 
@@ -386,18 +386,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         activeProject = "active00" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         extraProjects = randomSet(1, 3, () -> randomAlphaOfLength(12).toLowerCase(Locale.ROOT));
         multiProjectEnabled = Booleans.parseBoolean(System.getProperty("tests.multi_project.enabled", "false"));
-    }
-
-    @Override
-    public final void setUp() throws Exception {
-        // do not override setUp, use an @Before
-        super.setUp();
-    }
-
-    @Override
-    public final void tearDown() throws Exception {
-        // do not override tearDown, use an @After
-        super.tearDown();
     }
 
     @Before
@@ -2963,7 +2951,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         boolean includePartial,
         boolean includeDocumentsFound,
         boolean includeTimestamps,
-        boolean includeRollupMetrics
+        boolean includeRollupMetrics,
+        boolean includeReadCpuNanos
     ) {
         MapMatcher mapMatcher = matchesMap();
         if (includeDocumentsFound) {
@@ -2978,6 +2967,9 @@ public abstract class ESRestTestCase extends ESTestCase {
             mapMatcher = mapMatcher.entry("rows_emitted", IntOrLongMatcher.isIntOrLong());
             mapMatcher = mapMatcher.entry("bytes_read", IntOrLongMatcher.isIntOrLong());
             mapMatcher = mapMatcher.entry("read_nanos", IntOrLongMatcher.isIntOrLong());
+            if (includeReadCpuNanos) {
+                mapMatcher = mapMatcher.entry("read_cpu_nanos", IntOrLongMatcher.isIntOrLong());
+            }
             mapMatcher = mapMatcher.entry("cpu_nanos", IntOrLongMatcher.isIntOrLong());
         }
         if (includeTimestamps) {
@@ -2995,6 +2987,15 @@ public abstract class ESRestTestCase extends ESTestCase {
         return mapMatcher;
     }
 
+    protected static MapMatcher getResultMatcher(
+        boolean includePartial,
+        boolean includeDocumentsFound,
+        boolean includeTimestamps,
+        boolean includeRollupMetrics
+    ) {
+        return getResultMatcher(includePartial, includeDocumentsFound, includeTimestamps, includeRollupMetrics, false);
+    }
+
     /** Deprecated three-arg form kept for callers that haven't been updated for the rollup metrics. */
     @Deprecated
     protected static MapMatcher getResultMatcher(boolean includePartial, boolean includeDocumentsFound, boolean includeTimestamps) {
@@ -3009,7 +3010,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             result.containsKey("is_partial"),
             result.containsKey("documents_found"),
             result.containsKey("start_time_in_millis"),
-            result.containsKey("rows_emitted")
+            result.containsKey("rows_emitted"),
+            result.containsKey("read_cpu_nanos")
         );
     }
 

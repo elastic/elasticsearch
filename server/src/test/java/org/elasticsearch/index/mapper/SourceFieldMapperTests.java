@@ -34,6 +34,7 @@ import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -701,10 +702,10 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         }
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(modified), reader -> {
-            SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+            SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
             for (LeafReaderContext leaf : reader.leaves()) {
                 int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
-                SourceLoader.Leaf sourceLeaf = loader.leaf(leaf.reader(), docIds);
+                SourceLoader.Leaf sourceLeaf = loader.leaf(leaf, docIds);
                 LeafStoredFieldLoader sfLoader = StoredFieldLoader.create(false, loader.requiredStoredFields()).getLoader(leaf, docIds);
                 sfLoader.advanceTo(0);
                 Source source = sourceLeaf.source(sfLoader, 0);
@@ -749,11 +750,11 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         withLuceneIndex(mapperService, iw -> iw.addDocuments(parsed.docs()), unwrapped -> {
             // The nested source loader builds a parent bitset, which needs a shard-wrapped reader (as in production).
             DirectoryReader reader = wrapInMockESDirectoryReader(unwrapped);
-            SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+            SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
             LeafReaderContext leaf = reader.leaves().get(0);
             int rootDocId = parsed.docs().size() - 1;
             int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
-            SourceLoader.Leaf sourceLeaf = loader.leaf(leaf.reader(), docIds);
+            SourceLoader.Leaf sourceLeaf = loader.leaf(leaf, docIds);
             LeafStoredFieldLoader sfLoader = StoredFieldLoader.create(false, loader.requiredStoredFields()).getLoader(leaf, docIds);
             sfLoader.advanceTo(rootDocId);
             Source source = sourceLeaf.source(sfLoader, rootDocId);
@@ -794,11 +795,11 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
 
         withLuceneIndex(mapperService, iw -> iw.addDocuments(parsed.docs()), unwrapped -> {
             DirectoryReader reader = wrapInMockESDirectoryReader(unwrapped);
-            SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+            SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
             LeafReaderContext leaf = reader.leaves().get(0);
             int rootDocId = parsed.docs().size() - 1;
             int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
-            SourceLoader.Leaf sourceLeaf = loader.leaf(leaf.reader(), docIds);
+            SourceLoader.Leaf sourceLeaf = loader.leaf(leaf, docIds);
             LeafStoredFieldLoader sfLoader = StoredFieldLoader.create(false, loader.requiredStoredFields()).getLoader(leaf, docIds);
             sfLoader.advanceTo(rootDocId);
             Source source = sourceLeaf.source(sfLoader, rootDocId);
@@ -1271,7 +1272,12 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             new IndexRequest("index").id("1").source(new BytesArray(doc1Source), XContentType.JSON),
             new IndexRequest("index").id("2").source(new BytesArray(doc2Source), XContentType.JSON) };
         IndexOperationBatch batch = EngineTestCase.initFromRequests(requests);
-        BatchMappingContext context = new BatchMappingContext(batch, mapperService.mappingLookup(), mapperService.getIndexSettings());
+        BatchMappingContext context = new BatchMappingContext(
+            batch,
+            mapperService.mappingLookup(),
+            mapperService.getIndexSettings(),
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
+        );
 
         mapper.preColumnarParse(context);
 

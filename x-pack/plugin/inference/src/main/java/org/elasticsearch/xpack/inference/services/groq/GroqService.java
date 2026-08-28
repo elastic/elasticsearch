@@ -171,6 +171,11 @@ public class GroqService extends SenderService<GroqModel> {
     }
 
     @Override
+    public boolean usesParserForServiceSettings() {
+        return true;
+    }
+
+    @Override
     public InferenceServiceConfiguration getConfiguration() {
         return Configuration.get();
     }

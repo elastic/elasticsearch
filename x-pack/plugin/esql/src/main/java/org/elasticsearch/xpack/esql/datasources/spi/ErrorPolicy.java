@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.core.Nullable;
+
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
@@ -25,7 +27,8 @@ import java.util.stream.Collectors;
  *   <tr><td>{@link Mode#SKIP_ROW SKIP_ROW}</td><td>DROPMALFORMED</td><td>ignore_errors</td>
  *       <td>errors_num&gt;0</td><td>Drop the entire bad row</td></tr>
  *   <tr><td>{@link Mode#NULL_FIELD NULL_FIELD}</td><td>PERMISSIVE</td><td>—</td>
- *       <td>—</td><td>Null-fill unparseable fields, keep the row</td></tr>
+ *       <td>—</td><td>Null-fill unparseable fields, keep the row (per-value failures only; a row whose
+ *       structure cannot be parsed is dropped)</td></tr>
  * </table>
  *
  * <h2>Error budget</h2>
@@ -70,9 +73,22 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
     public enum Mode {
         /** Abort immediately — equivalent to Spark {@code FAILFAST}. */
         FAIL_FAST,
-        /** Drop the entire row — equivalent to Spark {@code DROPMALFORMED}, DuckDB {@code ignore_errors}. */
+        /**
+         * Drop the entire row — equivalent to Spark {@code DROPMALFORMED}, DuckDB {@code ignore_errors}.
+         * <p>
+         * Honoured by the row-oriented (text) readers and, via {@code ColumnarRowDropHelper}, by the columnar ones.
+         * One coercion site is exempt and null-fills instead: the cross-file schema-unification cast in
+         * {@code ColumnMapping#mapPage}, which runs above the reader and outside its error budget — see the
+         * "Known gap" note there.
+         */
         SKIP_ROW,
-        /** Null-fill unparseable fields, keep the row — equivalent to Spark {@code PERMISSIVE}. */
+        /**
+         * Null-fill unparseable fields, keep the row — equivalent to Spark {@code PERMISSIVE}. The contract is
+         * per value: a failure the reader cannot attribute to one value (a whole-line JSON failure, a structural
+         * CSV row error) has no cell to null, so row-oriented readers drop the row as in {@link #SKIP_ROW}. That
+         * is the one degradation direction that remains; see {@link ErrorPolicy#PERMISSIVE}. {@link #SKIP_ROW}
+         * no longer degrades to this mode on columnar readers — they drop the row for real.
+         */
         NULL_FIELD;
 
         /**
@@ -100,12 +116,14 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
     public static final ErrorPolicy LENIENT = new ErrorPolicy(Mode.SKIP_ROW, Long.MAX_VALUE, 1.0, true);
 
     /**
-     * Null-fill unparseable fields without limit, keeping every row — the opt-in leniency for a
-     * declared-type coercion failure (a bad per-value token nulls the cell and emits a response
+     * Null-fill unparseable fields without limit, keeping the row for every per-value failure — the opt-in
+     * leniency for a declared-type coercion failure (a bad per-value token nulls the cell and emits a response
      * {@code Warning} header) via {@code error_mode: null_field}. No format defaults to this: every
-     * reader inherits the base {@link FormatReader#defaultErrorPolicy()} == {@link #STRICT}. A
-     * columnar batch cannot drop a single row, so {@link Mode#SKIP_ROW} degrades to this same
-     * null-field behavior there.
+     * reader inherits the base {@link FormatReader#defaultErrorPolicy()} == {@link #STRICT}.
+     * <p>
+     * {@link Mode#NULL_FIELD} degrades to a row drop where a row-oriented reader cannot null-fill a failure
+     * it cannot attribute to one value (a whole-line JSON failure, a structural CSV row error). Columnar
+     * readers null-fill individual cells and keep the row.
      */
     public static final ErrorPolicy PERMISSIVE = new ErrorPolicy(Mode.NULL_FIELD, Long.MAX_VALUE, 1.0, false);
 
@@ -182,6 +200,20 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
     }
 
     /**
+     * {@link #fromConfig} against the policy {@code reader} defaults to, or {@link #STRICT} when the reader is
+     * unknown (unregistered format, no registry in the optimizer context).
+     * <p>
+     * Every caller that resolves a policy for a read served by a specific reader must go through here rather than
+     * hard-coding {@link #STRICT} as the fallback. Plan-time rules and the operator factory both decide whether a
+     * read drops rows, and they must reach the same verdict for the same read: a rule that assumed {@link #STRICT}
+     * while the factory honoured a lenient {@link FormatReader#defaultErrorPolicy()} override would plan for one
+     * mode and execute the other.
+     */
+    public static ErrorPolicy forReader(Map<String, Object> config, @Nullable FormatReader reader) {
+        return fromConfig(config, reader != null ? reader.defaultErrorPolicy() : STRICT);
+    }
+
+    /**
      * Resolves an {@link ErrorPolicy} from the user's {@code WITH} options. Returns
      * {@code defaultPolicy} when none of {@link #CONFIG_ERROR_MODE},
      * {@link #CONFIG_MAX_ERRORS}, or {@link #CONFIG_MAX_ERROR_RATIO} are set.
@@ -189,6 +221,9 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
      * <p>Validation matches what {@code FileSourceFactory} applied historically: invalid
      * mode strings, non-numeric budgets, and {@code FAIL_FAST} combined with budget keys
      * are all rejected with {@link IllegalArgumentException}.
+     *
+     * <p>Prefer {@link #forReader} when the read is served by a known reader, so the fallback is the reader's
+     * own default rather than a hard-coded one.
      */
     public static ErrorPolicy fromConfig(Map<String, Object> config, ErrorPolicy defaultPolicy) {
         if (config == null) {

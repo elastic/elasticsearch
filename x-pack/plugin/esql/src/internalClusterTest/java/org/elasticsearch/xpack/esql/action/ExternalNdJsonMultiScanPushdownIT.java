@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.greaterThan;
  * and macro-split partitions are unaffected — partition sums, duplicate covers dedup.)
  * <p>
  * Why the existing {@link ExternalNdJsonAggregatePushdownIT} missed it: that suite reads
- * <em>uncompressed</em> files with {@code parsing_parallelism = 1} (so no parallel partial path is
+ * <em>uncompressed</em> files with {@code external_parsing_parallelism = 1} (so no parallel partial path is
  * taken) and only ever runs a <em>single-scan</em> cold-then-warm sequence (one finalized set). This
  * test closes both gaps: a gzip file forces the {@code StreamingParallelParsingCoordinator}, a
  * parallelism &gt; 1 pragma forces per-chunk partials, and a {@code FORK} forces two scans of one
@@ -62,11 +62,11 @@ public class ExternalNdJsonMultiScanPushdownIT extends AbstractExternalDataSourc
 
     @Override
     protected QueryPragmas getPragmas() {
-        // parsing_parallelism > 1 is required to engage the parallel parser: openWithParallelism()
+        // external_parsing_parallelism > 1 is required to engage the parallel parser: openWithParallelism()
         // bails out at <= 1, in which case the file is read whole (one WholeFile contribution, which
         // the reconciler already dedups) and the double-count cannot reproduce. With > 1, each scan
         // publishes per-chunk PARTIAL contributions plus a finalize marker — the path the bug lives on.
-        return new QueryPragmas(Settings.builder().put("parsing_parallelism", 4).build());
+        return new QueryPragmas(Settings.builder().put("external_parsing_parallelism", 4).build());
     }
 
     /**

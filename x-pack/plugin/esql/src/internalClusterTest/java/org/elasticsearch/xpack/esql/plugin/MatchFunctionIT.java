@@ -273,7 +273,59 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "_score"));
             assertColumnTypes(resp.columns(), List.of("integer", "double"));
-            assertValues(resp.values(), List.of(List.of(1, 0.0), List.of(6, 0.0)));
+            // Runtime match scores one point per matched query term.
+            assertValues(resp.values(), List.of(List.of(1, 1.0), List.of(6, 1.0)));
+        }
+    }
+
+    public void testWhereRuntimeMatchWithOptionsAndScore() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE match(to_text(concat(content, " extra")), "fox dog", { "operator": "AND", "boost": 1.5 })
+            | KEEP id, _score
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            // Two matched terms, each weighted by the boost.
+            assertValues(resp.values(), List.of(List.of(6, 3.0)));
+        }
+    }
+
+    public void testWhereRuntimeMatchTermWithScore() {
+        var query = """
+            FROM test METADATA _score
+            | EVAL new_id = id + 1
+            | WHERE new_id:"3" OR new_id:"2"
+            | KEEP id, new_id, _score
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "new_id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "integer", "double"));
+            // Exact (non-text) runtime matches score 1.0; each row matches exactly one side of the OR.
+            assertValues(resp.values(), List.of(List.of(1, 2, 1.0), List.of(2, 3, 1.0)));
+        }
+    }
+
+    public void testWhereRuntimeMatchAndPushedDownMatchWithScore() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE match(content, "fox") AND match(to_text(concat(content, " extra")), "dog")
+            | KEEP id, _score
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            List<List<Object>> valuesList = getValuesList(resp.values());
+            assertEquals(1, valuesList.size());
+            assertEquals(6, valuesList.get(0).get(0));
+            // The pushed-down side contributes its BM25 score, the runtime side adds 1.0 for the matched term.
+            assertThat((double) valuesList.get(0).get(1), Matchers.greaterThan(1.0));
         }
     }
 
@@ -579,11 +631,12 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchRuntimeWithAnalyzerOption() {
-        // The whitespace analyzer does not lowercase, so "Fox" only matches the value that kept the capital F.
+        // The whitespace values analyzer, declared through to_text, does not lowercase, and the query analyzer
+        // defaults to it: "Fox" only matches the value that kept the capital F.
         var query = """
-            ROW content = to_text(["the Fox jumped", "the fox jumped"])
+            ROW content = to_text(["the Fox jumped", "the fox jumped"], {"analyzer": "whitespace"})
             | MV_EXPAND content
-            | WHERE match(content, "Fox", {"analyzer": "whitespace"})
+            | WHERE match(content, "Fox")
             """;
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("content"));
@@ -591,9 +644,24 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testMatchRuntimeAnalyzerOptionAppliesToQueryStringOnly() {
+        // match's analyzer option keeps the query's "Fox" uppercase while the values stay standard-analyzed
+        // (lowercased): the case-mismatched query matches nothing.
+        var query = """
+            ROW content = to_text(["the Fox jumped", "the fox jumped"])
+            | MV_EXPAND content
+            | WHERE match(content, "Fox", {"analyzer": "whitespace"})
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("content"));
+            assertValues(resp.values(), List.of());
+        }
+    }
+
     public void testUnmappedWithAnalyzerOption() {
-        // The whitespace analyzer does not lowercase: only the value with a lowercase "this" token (id 4) matches,
-        // on both the mapped and the unmapped (loaded from _source) index.
+        // The whitespace analyzer applies to the query string only, so the lowercase "this" query token matches
+        // the standard-analyzed (lowercased) values of ids 1-4 on both the mapped and the unmapped (loaded from
+        // _source) index.
         var query = """
             SET unmapped_fields = "LOAD";
             FROM test, test_unmapped METADATA _index
@@ -605,8 +673,104 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "_index"));
             assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
-            assertValues(resp.values(), List.of(List.of(4, "test"), List.of(4, "test_unmapped")));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of(1, "test"),
+                    List.of(1, "test_unmapped"),
+                    List.of(2, "test"),
+                    List.of(2, "test_unmapped"),
+                    List.of(3, "test"),
+                    List.of(3, "test_unmapped"),
+                    List.of(4, "test"),
+                    List.of(4, "test_unmapped")
+                )
+            );
         }
+    }
+
+    public void testPotentiallyUnmappedKeywordFieldWithToTextAnalyzer() {
+        // content is keyword in test_keyword and unmapped in test_unmapped. Neither leg's values were analyzed at
+        // index time, and the field cannot be pushed down (it is potentially unmapped), so the runtime column is a
+        // legitimate declaration site: the whitespace values analyzer keeps case, and the query analyzer defaults
+        // to it, so "This" only matches values that kept the capital T.
+        var query = """
+            SET unmapped_fields = "LOAD";
+            FROM test_keyword, test_unmapped METADATA _index
+            | EVAL t = to_text(content, {"analyzer": "whitespace"})
+            | WHERE match(t, "This")
+            | KEEP id, _index
+            | SORT id, _index
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_index"));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of(1, "test_keyword"),
+                    List.of(1, "test_unmapped"),
+                    List.of(2, "test_keyword"),
+                    List.of(2, "test_unmapped"),
+                    List.of(3, "test_keyword"),
+                    List.of(3, "test_unmapped")
+                )
+            );
+        }
+    }
+
+    public void testPotentiallyUnmappedTextFieldWithToTextAnalyzerThrowsError() {
+        // same for a text field mapped in one index and unmapped in another
+        var query = """
+            SET unmapped_fields = "LOAD";
+            FROM test, test_unmapped
+            | EVAL t = to_text(content, {"analyzer": "whitespace"})
+            | WHERE match(t, "fox")
+            """;
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[analyzer] option is not supported for [TO_TEXT] on index-mapped field [content]"));
+    }
+
+    public void testFullyUnmappedFieldWithToTextAnalyzer() {
+        // content has no mapping anywhere in test_unmapped, so the runtime column is a legitimate declaration
+        // site: the whitespace values analyzer keeps case, and the query analyzer defaults to it, so "This" only
+        // matches values that kept the capital T. (id is unmapped too and loads as keyword.)
+        var query = """
+            SET unmapped_fields = "LOAD";
+            FROM test_unmapped
+            | EVAL t = to_text(content, {"analyzer": "whitespace"})
+            | WHERE match(t, "This")
+            | KEEP id
+            | SORT id
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("keyword"));
+            assertValues(resp.values(), List.of(List.of("1"), List.of("2"), List.of("3")));
+        }
+    }
+
+    public void testMatchRuntimeWithIndexSettingsAnalyzerThrowsError() {
+        // A custom analyzer defined in an index's settings only exists in that index; runtime analyzer resolution
+        // never consults index settings, so its name is rejected like any unregistered analyzer.
+        var indexName = "test_custom_analyzer";
+        var settings = Settings.builder()
+            .put("index.analysis.analyzer.my_custom_analyzer.type", "custom")
+            .put("index.analysis.analyzer.my_custom_analyzer.tokenizer", "standard")
+            .build();
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(settings)
+                .setMapping("id", "type=integer", "content", "type=text")
+        );
+        var query = """
+            FROM test
+            | EVAL new_content = to_text(concat(content, " extra"), {"analyzer": "my_custom_analyzer"})
+            | WHERE match(new_content, "fox")
+            """;
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[my_custom_analyzer] is not a registered analyzer"));
     }
 
     public void testPotentiallyUnmappedFieldWithAnalyzerOption() {

@@ -23,15 +23,15 @@ required_capability: disable_replace_null_rule_for_time_series
 required_capability: ts_command_v0
 TS k8s, empty-k8s
 | STATS r = sum(rate(network.total_bytes_in)) BY cluster, pod, extra.cluster, extra.pod
-| SORT cluster
+| SORT cluster, pod
 | LIMIT 5
 ;
 r:double           | cluster:keyword | pod:keyword | extra.cluster:keyword | extra.pod:keyword
+8.716707021791768  | prod            | one         | null                  | null
 8.434290687554395  | prod            | three       | null                  | null
 7.340495867768595  | prod            | two         | null                  | null
-8.716707021791768  | prod            | one         | null                  | null
-9.485643970467596  | qa              | three       | null                  | null
 10.649149922720246 | qa              | one         | null                  | null
+9.485643970467596  | qa              | three       | null                  | null
 ;
 
 four_rates_by_four_dims
@@ -43,15 +43,15 @@ TS k8s, empty-k8s
         r3 = sum(rate(extra.total_bytes_in)),
         r4 = sum(rate(extra.total_bytes_out))
   BY cluster, pod, extra.cluster, extra.pod
-| SORT cluster
+| SORT cluster, pod
 | LIMIT 5
 ;
 r1:double          | r2:double | r3:double | r4:double | cluster:keyword | pod:keyword | extra.cluster:keyword | extra.pod:keyword
+8.716707021791768  | null      | null      | null      | prod            | one         | null                  | null
 8.434290687554395  | null      | null      | null      | prod            | three       | null                  | null
 7.340495867768595  | null      | null      | null      | prod            | two         | null                  | null
-8.716707021791768  | null      | null      | null      | prod            | one         | null                  | null
-9.485643970467596  | null      | null      | null      | qa              | three       | null                  | null
 10.649149922720246 | null      | null      | null      | qa              | one         | null                  | null
+9.485643970467596  | null      | null      | null      | qa              | three       | null                  | null
 ;
 
 

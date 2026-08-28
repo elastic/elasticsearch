@@ -1,0 +1,1643 @@
+// CSV spec for multi-column IN and NOT IN subqueries
+
+basicMultiColumnInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+FROM employees
+| WHERE (emp_no, salary) IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no, salary)
+| SORT emp_no
+| KEEP emp_no, first_name, salary
+;
+
+emp_no:integer | first_name:keyword | salary:integer
+10001          | Georgi             | 57305
+10002          | Bezalel            | 56371
+10003          | Parto              | 61805
+;
+
+basicMultiColumnNotInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+FROM employees
+| WHERE (emp_no, salary) NOT IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no, salary)
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword
+10004          | Chirstian
+10005          | Kyoichi
+10006          | Anneke
+;
+
+multiColumnInSubqueryEmptyResults
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+FROM employees
+| WHERE (emp_no, salary) IN (FROM employees | WHERE salary > 100000 | KEEP emp_no, salary)
+| SORT emp_no
+| KEEP emp_no, salary
+;
+
+emp_no:integer | salary:integer
+;
+
+multiColumnNotInSubqueryEmptyRightSide
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+FROM employees
+| WHERE (emp_no, salary) NOT IN (FROM employees | WHERE salary > 100000 | KEEP emp_no, salary)
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+multiColumnConjunctiveInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+FROM employees
+| WHERE (emp_no, salary) IN (FROM employees | SORT emp_no ASC | LIMIT 5 | KEEP emp_no, salary)
+  AND salary > 57000
+| SORT emp_no
+| KEEP emp_no, first_name, salary
+;
+
+emp_no:integer | first_name:keyword | salary:integer
+10001          | Georgi             | 57305
+10003          | Parto              | 61805
+10005          | Kyoichi            | 63528
+;
+
+multiColumnInSubqueryWithStatsInsideSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+FROM employees
+| WHERE (salary, languages) IN (FROM employees | STATS m = max(salary) BY languages | KEEP m, languages)
+| KEEP emp_no, salary, languages
+| SORT emp_no
+;
+
+emp_no:integer | salary:integer | languages:integer
+10007          | 74572          | 4
+10019          | 73717          | 1
+10045          | 74970          | 3
+10094          | 66817          | 5
+10099          | 73578          | 2
+;
+
+multiColumnInSubqueryStringColumns
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+FROM employees
+| WHERE (first_name, last_name) IN (FROM employees | SORT emp_no ASC | LIMIT 2 | KEEP first_name, last_name)
+| SORT emp_no
+| KEEP emp_no, first_name, last_name
+;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10001          | Georgi             | Facello
+10002          | Bezalel            | Simmel
+;
+
+multiColumnNotInSubqueryStringColumns
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+FROM employees
+| WHERE (first_name, last_name) NOT IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP first_name, last_name)
+| SORT emp_no
+| KEEP emp_no, first_name, last_name
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10004          | Chirstian          | Koblick
+10005          | Kyoichi            | Maliniak
+10006          | Anneke             | Preusig
+;
+
+multiColumnDisjunctiveInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+FROM employees
+| WHERE (emp_no, salary) IN (FROM employees | SORT emp_no ASC | LIMIT 2 | KEEP emp_no, salary)
+   OR languages == 1
+| SORT emp_no
+| KEEP emp_no, first_name, salary, languages
+| LIMIT 5
+;
+
+emp_no:integer | first_name:keyword | salary:integer | languages:integer
+10001          | Georgi             | 57305          | 2
+10002          | Bezalel            | 56371          | 5
+10005          | Kyoichi            | 63528          | 1
+10009          | Sumant             | 66174          | 1
+10013          | Eberhardt          | 48735          | 1
+;
+
+threeColumnInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+FROM employees
+| WHERE (emp_no, salary, languages) IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no, salary, languages)
+| SORT emp_no
+| KEEP emp_no, first_name, salary, languages
+;
+
+emp_no:integer | first_name:keyword | salary:integer | languages:integer
+10001          | Georgi             | 57305          | 2
+10002          | Bezalel            | 56371          | 5
+10003          | Parto              | 61805          | 4
+;
+
+multiColumnInSubqueryWithStatsInMainQuery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+FROM employees
+| WHERE (emp_no, salary) IN (FROM employees | KEEP emp_no, salary)
+| STATS cnt = COUNT(*)
+;
+
+cnt:long
+100
+;
+
+multiColumnNotInSubqueryWithStatsInMainQuery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+FROM employees
+| WHERE (emp_no, salary) NOT IN (FROM employees | SORT emp_no ASC | LIMIT 10 | KEEP emp_no, salary)
+| STATS cnt = COUNT(*)
+;
+
+cnt:long
+90
+;
+
+// ======== constant / ROW subqueries ========
+
+multiColumnInSubqueryWithRow
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_row
+
+FROM employees
+| WHERE (emp_no, salary) IN (ROW emp_no = 10001, salary = 57305)
+| KEEP emp_no, first_name, salary
+;
+
+emp_no:integer | first_name:keyword | salary:integer
+10001          | Georgi             | 57305
+;
+
+multiColumnInSubqueryWithRowNoMatch
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_row
+
+FROM employees
+| WHERE (emp_no, salary) IN (ROW emp_no = 10001, salary = 57306)
+| KEEP emp_no, salary
+;
+
+emp_no:integer | salary:integer
+;
+
+multiColumnNotInSubqueryWithRow
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_row
+
+FROM employees
+| WHERE (emp_no, salary) NOT IN (ROW emp_no = 10001, salary = 57305)
+| STATS cnt = COUNT(*)
+;
+
+cnt:long
+99
+;
+
+mainRowSubqueryFrom
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+ROW emp_no = 10001, salary = 57305
+| WHERE (emp_no, salary) IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no, salary)
+| KEEP emp_no, salary
+;
+
+emp_no:integer | salary:integer
+10001          | 57305
+;
+
+multiColumnInSubqueryRepeatedConstants
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+ROW x = 1, y = 1
+| WHERE (x, y) IN (FROM employees | EVAL one = 1 | KEEP languages, one)
+;
+
+x:integer | y:integer
+1         | 1
+;
+
+// ======== FORK patterns ========
+
+forkBeforeMultiColumnInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: fork_v9
+
+FROM employees
+| FORK
+    (WHERE salary > 70000 | KEEP emp_no, first_name, salary, languages)
+    (WHERE salary < 30000 | KEEP emp_no, first_name, salary, languages)
+| WHERE _fork == "fork1"
+| DROP _fork
+| WHERE (emp_no, salary) IN (
+    FROM employees
+    | WHERE languages == 4
+    | KEEP emp_no, salary
+  )
+| SORT emp_no
+| KEEP emp_no, first_name, salary
+;
+
+emp_no:integer | first_name:keyword | salary:integer
+10007          | Tzvetan            | 74572
+;
+
+forkBeforeMultiColumnWithDisjunctiveInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: fork_v9
+
+FROM employees
+| FORK
+    (WHERE salary > 70000 | KEEP emp_no, first_name, salary, languages)
+    (WHERE salary < 30000 | KEEP emp_no, first_name, salary, languages)
+| WHERE _fork == "fork1"
+| DROP _fork
+| WHERE (emp_no, salary) IN (
+    FROM employees
+    | WHERE languages == 4
+    | KEEP emp_no, salary
+  ) OR salary > 74000
+| SORT emp_no
+| KEEP emp_no, first_name, salary
+;
+
+emp_no:integer | first_name:keyword | salary:integer
+10007          | Tzvetan            | 74572
+10029          | Otmar              | 74999
+10045          | Moss               | 74970
+;
+
+multiColumnInSubqueryBeforeFork
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: fork_v9
+
+FROM employees
+| WHERE (emp_no, salary) IN (FROM employees | SORT emp_no ASC | LIMIT 10 | KEEP emp_no, salary)
+| FORK
+    (WHERE salary > 60000 | SORT emp_no | KEEP emp_no, first_name, salary)
+    (WHERE salary <= 60000 | SORT emp_no | KEEP emp_no, first_name, salary)
+| SORT _fork, emp_no
+;
+
+emp_no:integer | first_name:keyword | salary:integer | _fork:keyword
+10003          | Parto              | 61805          | fork1
+10005          | Kyoichi            | 63528          | fork1
+10006          | Anneke             | 60335          | fork1
+10007          | Tzvetan            | 74572          | fork1
+10009          | Sumant             | 66174          | fork1
+10001          | Georgi             | 57305          | fork2
+10002          | Bezalel            | 56371          | fork2
+10004          | Chirstian          | 36174          | fork2
+10008          | Saniya             | 43906          | fork2
+10010          | Duangkaew          | 45797          | fork2
+;
+
+forkInsideMultiColumnInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: fork_v9
+
+FROM employees
+| WHERE (emp_no, salary) IN (
+    FROM employees
+    | FORK
+        (WHERE last_name LIKE "Z*")
+        (WHERE last_name LIKE "A*")
+    | WHERE _fork == "fork1"
+    | KEEP emp_no, salary
+  )
+| SORT emp_no
+| KEEP emp_no, first_name, salary
+;
+
+// fork1 (last_name LIKE "Z*") matches Zielinski, Zockler, Zschoche
+emp_no:integer | first_name:keyword | salary:integer
+10007          | Tzvetan            | 74572
+10053          | Sanjiv             | 54462
+10083          | Vishv              | 39110
+;
+
+// ======== FROM subquery patterns ========
+
+fromSubqueryBeforeMultiColumnInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+FROM
+  (FROM employees | WHERE salary > 70000 | KEEP emp_no, salary, first_name),
+  (FROM employees | WHERE salary < 30000 | KEEP emp_no, salary, first_name)
+| WHERE (emp_no, salary) IN (
+    FROM employees
+    | WHERE languages == 4
+    | SORT emp_no ASC
+    | LIMIT 5
+    | KEEP emp_no, salary
+  )
+| SORT emp_no
+| KEEP emp_no, first_name, salary
+;
+
+emp_no:integer | first_name:keyword | salary:integer
+10007          | Tzvetan            | 74572
+;
+
+multiColumnInSubqueryInsideFromSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+FROM
+  (FROM employees
+   | WHERE (emp_no, salary) IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no, salary)
+   | KEEP emp_no, first_name, salary),
+  (FROM employees
+   | WHERE (emp_no, salary) IN (FROM employees | SORT emp_no DESC | LIMIT 3 | KEEP emp_no, salary)
+   | KEEP emp_no, first_name, salary)
+| SORT emp_no
+| KEEP emp_no, first_name, salary
+;
+
+emp_no:integer | first_name:keyword | salary:integer
+10001          | Georgi             | 57305
+10002          | Bezalel            | 56371
+10003          | Parto              | 61805
+10098          | Sreekrishna        | 44817
+10099          | Valter             | 73578
+10100          | Hironobu           | 68431
+;
+
+// ======== LOOKUP JOIN patterns ========
+
+lookupJoinBeforeMultiColumnInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: join_lookup_v12
+
+FROM employees
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE (emp_no, language_name) IN (
+    FROM employees
+    | EVAL language_code = languages
+    | LOOKUP JOIN languages_lookup ON language_code
+    | SORT emp_no ASC
+    | LIMIT 3
+    | KEEP emp_no, language_name
+  )
+| SORT emp_no
+| KEEP emp_no, first_name, language_name
+;
+
+emp_no:integer | first_name:keyword | language_name:keyword
+10001          | Georgi             | French
+10003          | Parto              | German
+;
+
+multiColumnInSubqueryWithLookupJoinInsideSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE (emp_no, languages) IN (
+    FROM employees
+    | EVAL language_code = languages
+    | LOOKUP JOIN languages_lookup ON language_code
+    | WHERE language_name == "German"
+    | KEEP emp_no, languages
+  )
+| SORT emp_no
+| KEEP emp_no, first_name, languages
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword | languages:integer
+10003          | Parto              | 4
+10007          | Tzvetan            | 4
+10010          | Duangkaew          | 4
+;
+
+lookupJoinAfterMultiColumnInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE (emp_no, salary) IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no, salary)
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT emp_no
+| KEEP emp_no, first_name, salary, language_name
+;
+
+emp_no:integer | first_name:keyword | salary:integer | language_name:keyword
+10001          | Georgi             | 57305          | French
+10002          | Bezalel            | 56371          | null
+10003          | Parto              | 61805          | German
+;
+
+multiColumnInSubqueryWithLookupJoinInsideAndAfter
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE (emp_no, languages) IN (
+    FROM employees
+    | EVAL language_code = languages
+    | LOOKUP JOIN languages_lookup ON language_code
+    | WHERE language_name == "German"
+    | KEEP emp_no, languages
+  )
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| STATS cnt = COUNT(*) BY language_name
+;
+
+cnt:long | language_name:keyword
+18       | German
+;
+
+// ======== TS source combinations (FROM main + TS subquery) ========
+
+mainFromMultiColumnInSubqueryTs
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+
+FROM employees
+| EVAL cluster = "qa", pod = "two"
+| WHERE (cluster, pod) IN (
+    TS k8s
+    | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster, pod
+    | KEEP cluster, pod
+  )
+| STATS cnt = COUNT(*)
+;
+
+cnt:long
+100
+;
+
+mainFromMultiColumnNotInSubqueryTs
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+
+FROM employees
+| EVAL cluster = "missing_cluster", pod = "missing_pod"
+| WHERE (cluster, pod) NOT IN (
+    TS k8s
+    | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster, pod
+    | KEEP cluster, pod
+  )
+| STATS cnt = COUNT(*)
+;
+
+cnt:long
+100
+;
+
+mainFromMultiColumnInSubqueryTsConjunctive
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+
+FROM employees
+| EVAL cluster = "qa", pod = "two"
+| WHERE (cluster, pod) IN (
+    TS k8s
+    | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster, pod
+    | WHERE max_bytes > 8000
+    | KEEP cluster, pod
+  )
+  AND salary > 70000
+| STATS cnt = COUNT(*)
+;
+
+cnt:long
+8
+;
+
+mainFromMultiColumnInSubqueryTsWithMaxOverTime
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+
+FROM employees
+| EVAL cluster = "prod", pod = "one"
+| WHERE (cluster, pod) IN (
+    TS k8s
+    | STATS m = max(max_over_time(network.bytes_in)) BY cluster, pod
+    | WHERE m > 0
+    | KEEP cluster, pod
+  )
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+// ======== TS source combinations (TS main + FROM/TS subquery) ========
+
+mainTsMultiColumnInSubqueryFrom
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+
+TS k8s
+| WHERE (cluster, pod) IN (
+    FROM employees
+    | EVAL c = "prod", p = "two"
+    | KEEP c, p
+  )
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster, pod
+| SORT cluster, pod
+;
+
+max_bytes:long | cluster:keyword | pod:keyword
+10277          | prod            | two
+;
+
+mainTsMultiColumnInSubqueryTs
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+
+TS k8s
+| WHERE (cluster, pod) IN (
+    TS k8s
+    | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster, pod
+    | WHERE max_bytes > 10500
+    | KEEP cluster, pod
+  )
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster, pod
+| SORT cluster, pod
+;
+
+max_bytes:long | cluster:keyword | pod:keyword
+10797          | qa              | three
+;
+
+mainTsMultiColumnNotInSubqueryTs
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+
+TS k8s
+| WHERE (cluster, pod) NOT IN (
+    TS k8s
+    | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster, pod
+    | WHERE max_bytes > 10500
+    | KEEP cluster, pod
+  )
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+| SORT cluster
+;
+
+max_bytes:long | cluster:keyword
+10277          | prod
+8568           | qa
+7403           | staging
+;
+
+mainTsMultiColumnInSubqueryTsWithRate
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+
+TS k8s
+| WHERE (cluster, pod) IN (
+    TS k8s
+    | STATS r = max(rate(network.total_bytes_in)) BY cluster, pod
+    | WHERE r > 0
+    | KEEP cluster, pod
+  )
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+| SORT cluster
+;
+
+max_bytes:long | cluster:keyword
+10277          | prod
+10797          | qa
+7403           | staging
+;
+
+// ======== multi-valued field patterns ========
+
+multiColumnInSubqueryWithOneMultiValuedFieldWithMvExpandOnBothSides
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// neither left nor right join key have multi-valued field after mv_expand, expect no warning for multi-value
+FROM employees
+| MV_EXPAND job_positions
+| WHERE (emp_no, job_positions) IN (FROM employees
+                                    | MV_EXPAND job_positions
+                                    | KEEP emp_no, job_positions)
+| KEEP emp_no, job_positions
+| SORT emp_no, job_positions
+| LIMIT 5
+;
+
+emp_no:integer | job_positions:keyword
+10001          | Accountant
+10001          | Senior Python Developer
+10002          | Senior Team Lead
+10004          | Head Human Resources
+10004          | Reporting Analyst
+;
+
+multiColumnInSubqueryWithOneMultiValuedFieldWithMvExpandOnLeftSide
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// left join key has no multi-valued field after mv_expand, right join key does have multi-valued field, expect warning for multi-value
+FROM employees
+| MV_EXPAND job_positions
+| WHERE (emp_no, job_positions) IN (FROM employees | KEEP emp_no, job_positions)
+| KEEP emp_no, job_positions
+| SORT emp_no, job_positions
+| LIMIT 5
+;
+
+warningRegex:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword
+10002          | Senior Team Lead
+10013          | Reporting Analyst
+10018          | Junior Developer
+10019          | Purchase Manager
+10020          | Tech Lead
+;
+
+multiColumnInSubqueryWithOneMultiValuedFieldWithMvExpandOnRightSide
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// left join key has multi-valued field, right join key has no multi-valued field after mv_expand, expect warning for multi-value
+FROM employees
+| WHERE (emp_no, job_positions) IN (FROM employees
+                                    | MV_EXPAND job_positions
+                                    | KEEP emp_no, job_positions)
+| KEEP emp_no, job_positions
+| SORT emp_no
+| LIMIT 5
+;
+
+warningRegex:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword
+10002          | Senior Team Lead
+10013          | Reporting Analyst
+10018          | Junior Developer
+10019          | Purchase Manager
+10020          | Tech Lead
+;
+
+multiColumnInSubqueryWithOneMultiValuedFieldWithoutMvExpand
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// both left and right sides join keys have multi-valued fields, expect warning for multi-value
+FROM employees
+| WHERE (emp_no, job_positions) IN (FROM employees | KEEP emp_no, job_positions)
+| KEEP emp_no, job_positions
+| SORT emp_no
+| LIMIT 5
+;
+
+warningRegex:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword
+10002          | Senior Team Lead
+10013          | Reporting Analyst
+10018          | Junior Developer
+10019          | Purchase Manager
+10020          | Tech Lead        
+;
+
+multiColumnInSubqueryWithOneMultiValuedFieldWithoutMvExpandWithStats
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// both left and right sides join keys have multi-valued fields, expect warning for multi-value
+FROM employees
+| WHERE (emp_no, job_positions) IN (FROM employees | KEEP emp_no, job_positions)
+| STATS cnt = COUNT(*)
+;
+
+warningRegex:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+cnt:long
+27     
+;
+
+multiColumnInSubqueryWithTwoMultiValuedFieldsWithMvExpandOnBothSides
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// neither left nor right join key have multi-valued field after mv_expand, expect no warning for multi-value
+FROM employees
+| MV_EXPAND job_positions
+| MV_EXPAND is_rehired
+| WHERE (emp_no, job_positions, is_rehired) IN (FROM employees
+                                                | MV_EXPAND job_positions
+                                                | MV_EXPAND is_rehired
+                                                | KEEP emp_no, job_positions, is_rehired)
+| KEEP emp_no, job_positions, is_rehired
+| SORT emp_no, job_positions, is_rehired
+| LIMIT 5
+;
+
+emp_no:integer | job_positions:keyword   | is_rehired:boolean
+10001          | Accountant              | false
+10001          | Accountant              | true
+10001          | Senior Python Developer | false
+10001          | Senior Python Developer | true
+10002          | Senior Team Lead        | false
+;
+
+multiColumnInSubqueryWithTwoMultiValuedFieldsWithMvExpandOnLeftSide
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+// left join key has no multi-valued field after mv_expand, right join key does have multi-valued field, expect warning for multi-value
+FROM employees
+| MV_EXPAND job_positions
+| MV_EXPAND is_rehired
+| WHERE (emp_no, job_positions, is_rehired) IN (FROM employees | KEEP emp_no, job_positions, is_rehired)
+| KEEP emp_no, job_positions, is_rehired
+| SORT emp_no, job_positions, is_rehired
+| LIMIT 5
+;
+
+warningRegex:.*evaluation of \[\(emp_no, job_positions, is_rehired\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions, is_rehired.*\)\] failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword      | is_rehired:boolean
+10021          | Support Engineer           | true
+10027          | Senior Python Developer    | false
+10068          | Architect                  | true
+10075          | Purchase Manager           | true
+10082          | Principal Support Engineer | false
+;
+
+multiColumnInSubqueryWithTwoMultiValuedFieldsWithMvExpandOnRightSide
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// left join key has multi-valued field, right join key has no multi-valued field after mv_expand, expect warning for multi-value
+FROM employees
+| WHERE (emp_no, job_positions, is_rehired) IN (FROM employees
+                                                | MV_EXPAND job_positions
+                                                | MV_EXPAND is_rehired
+                                                | KEEP emp_no, job_positions, is_rehired)
+| KEEP emp_no, job_positions, is_rehired
+| SORT emp_no, job_positions, is_rehired
+| LIMIT 5
+;
+
+warningRegex:.*evaluation of \[\(emp_no, job_positions, is_rehired\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions, is_rehired.*\)\] failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword      | is_rehired:boolean
+10021          | Support Engineer           | true
+10027          | Senior Python Developer    | false
+10068          | Architect                  | true
+10075          | Purchase Manager           | true
+10082          | Principal Support Engineer | false
+;
+
+multiColumnInSubqueryWithTwoMultiValuedFieldsWithoutMvExpand
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+// both left and right sides join keys have multi-valued fields, expect warning for multi-value
+FROM employees
+| WHERE (emp_no, job_positions, is_rehired) IN (FROM employees | KEEP emp_no, job_positions, is_rehired)
+| KEEP emp_no, job_positions, is_rehired
+| SORT emp_no
+| LIMIT 5
+;
+
+warningRegex:.*evaluation of \[\(emp_no, job_positions, is_rehired\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions, is_rehired.*\)\] failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword      | is_rehired:boolean
+10021          | Support Engineer           | true
+10027          | Senior Python Developer    | false
+10068          | Architect                  | true
+10075          | Purchase Manager           | true
+10082          | Principal Support Engineer | false
+;
+
+multiColumnNotInSubqueryWithMultiValuedFieldWithMvExpandOnBothSides
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// neither left nor right join key have multi-valued field after mv_expand, expect no warning for multi-value
+FROM employees
+| MV_EXPAND job_positions
+| WHERE (emp_no, job_positions) NOT IN (FROM employees
+                                        | WHERE salary > 27000
+                                        | MV_EXPAND job_positions
+                                        | KEEP emp_no, job_positions)
+| KEEP emp_no, job_positions, salary
+| SORT emp_no, job_positions
+;
+
+emp_no:integer | job_positions:keyword      | salary:integer
+10015          | Head Human Resources       | 25324
+10015          | Junior Developer           | 25324
+10015          | Principal Support Engineer | 25324
+10015          | Support Engineer           | 25324
+10035          | Data Scientist             | 25945
+10035          | Senior Python Developer    | 25945
+10048          | Internship                 | 26436
+10092          | Accountant                 | 25976
+10092          | Junior Developer           | 25976
+;
+
+multiColumnNotInSubqueryWithMultiValuedFieldWithMvExpandOnLeftSide
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// left join key has no multi-valued field after mv_expand, right join key does have multi-valued field, expect warning for multi-value
+FROM employees
+| MV_EXPAND job_positions
+| WHERE (emp_no, job_positions) NOT IN (FROM employees
+                                        | WHERE salary > 27000
+                                        | KEEP emp_no, job_positions)
+| KEEP emp_no, job_positions, salary
+| SORT emp_no, job_positions
+| LIMIT 10
+;
+
+warningRegex:.*evaluation of \[\(emp_no, job_positions\) NOT IN \(FROM .*employees.*\|.*WHERE salary > 27000.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword      | salary:integer
+10015          | Head Human Resources       | 25324
+10015          | Junior Developer           | 25324
+10015          | Principal Support Engineer | 25324
+10015          | Support Engineer           | 25324
+10035          | Data Scientist             | 25945
+10035          | Senior Python Developer    | 25945
+10048          | Internship                 | 26436
+10092          | Accountant                 | 25976
+10092          | Junior Developer           | 25976
+;
+
+multiColumnNotInSubqueryWithMultiValuedFieldWithMvExpandOnRightSide
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// left join key has multi-valued field, right join key has no multi-valued field after mv_expand, expect warning for multi-value
+FROM employees
+| WHERE (emp_no, job_positions) NOT IN (FROM employees
+                                        | WHERE salary > 27000
+                                        | MV_EXPAND job_positions
+                                        | KEEP emp_no, job_positions)
+| KEEP emp_no, job_positions, salary
+| SORT emp_no, job_positions
+;
+
+warningRegex:.*evaluation of \[\(emp_no, job_positions\) NOT IN \(FROM .*employees.*\|.*WHERE salary > 27000.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword                                                                  | salary:integer
+10015          | [Head Human Resources, Junior Developer, Principal Support Engineer, Support Engineer] | 25324
+10035          | [Data Scientist, Senior Python Developer]                                              | 25945
+10048          | Internship                                                                             | 26436
+10092          | [Accountant, Junior Developer]                                                         | 25976
+;
+
+multiColumnNotInSubqueryWithMultiValuedFieldWithoutMvExpand
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// both left and right sides join keys have multi-valued fields, expect warning for multi-value
+FROM employees
+| WHERE (emp_no, job_positions) NOT IN (FROM employees
+                                        | WHERE salary > 27000
+                                        | KEEP emp_no, job_positions)
+| STATS cnt = COUNT(*)
+;
+
+warningRegex:.*evaluation of \[\(emp_no, job_positions\) NOT IN \(FROM .*employees.*\|.*WHERE salary > 27000.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+cnt:long
+4
+;
+
+multiColumnInSubqueryMarkJoinWithMultiValuedOrEquals
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// OR forces MarkJoin. The NULL-containing (10001, NULL) tuple must not turn definite mismatches into NULL marks. Expect warning for multi-value.
+FROM employees
+| WHERE (emp_no, job_positions) IN (FROM employees
+                                    | WHERE salary > 27000
+                                    | SORT emp_no
+                                    | LIMIT 2
+                                    | KEEP emp_no, job_positions)
+    OR emp_no == 10001
+| KEEP emp_no, job_positions
+| SORT emp_no
+| LIMIT 2
+;
+
+warningRegex:.*evaluation of .*failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword
+10001          | [Accountant, Senior Python Developer]
+10002          | Senior Team Lead
+;
+
+multiColumnNotInSubqueryMarkJoinWithMultiValuedOrEquals
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// OR forces MarkJoin for NOT IN as well. The exact non-NULL tuple (10002, Senior Team Lead) is excluded. Expect warning for multi-value.
+FROM employees
+| WHERE (emp_no, job_positions) NOT IN (FROM employees
+                                        | WHERE salary > 27000
+                                        | SORT emp_no
+                                        | LIMIT 2
+                                        | KEEP emp_no, job_positions)
+    OR emp_no == 10001
+| KEEP emp_no, job_positions
+| SORT emp_no
+| LIMIT 3
+;
+
+warningRegex:.*evaluation of .*failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword
+10001          | [Accountant, Senior Python Developer]
+10003          | null
+10004          | [Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]
+;
+
+
+multiColumnNotInSubqueryWithOnlyPartialNullRightTuples
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// emp_no 10001 has a multi-valued job_positions field. After the right-side join-key conversion,
+// the subquery contributes (10001, NULL). This makes a row comparison UNKNOWN only when all
+// non-NULL components match; every other left tuple is a definite mismatch and must survive NOT IN.
+FROM employees
+| WHERE (emp_no, job_positions) NOT IN (FROM employees
+                                        | WHERE emp_no == 10001
+                                        | KEEP emp_no, job_positions)
+| SORT emp_no
+| KEEP emp_no, job_positions
+| LIMIT 3
+;
+
+warningRegex:.*evaluation of .*failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword
+10002          | Senior Team Lead
+10003          | null
+10004          | [Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]
+;
+
+multiColumnNotInSubqueryMarkJoinWithOnlyPartialNullRightTuples
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// The OR forces a MarkJoin. The subquery contributes (10001, NULL) because job_positions is
+// multi-valued for emp_no 10001. NOT IN is TRUE for definite row mismatches, so rows not selected
+// by the explicit OR branch must still be retained.
+FROM employees
+| WHERE (emp_no, job_positions) NOT IN (FROM employees
+                                        | WHERE emp_no == 10001
+                                        | KEEP emp_no, job_positions)
+    OR emp_no == 10003
+| SORT emp_no
+| KEEP emp_no, job_positions
+| LIMIT 3
+;
+
+warningRegex:.*evaluation of .*failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword
+10002          | Senior Team Lead
+10003          | null
+10004          | [Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]
+;
+
+multiColumnInSubqueryWithEntirelyNullLeftAndRightTuples
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// Both sides produce (NULL, NULL). MarkJoin must produce a NULL mark, which COALESCE turns into
+// TRUE; this verifies the combined all-NULL case without relying on IS NULL.
+FROM employees
+| EVAL emp_no = null::integer, job_positions = null::keyword
+| WHERE COALESCE(
+    (emp_no, job_positions) IN (FROM employees
+                                | EVAL emp_no = null::integer, job_positions = null::keyword
+                                | KEEP emp_no, job_positions),
+    true)
+| STATS cnt = COUNT(*)
+;
+
+cnt:long
+100
+;
+
+multiColumnInSubqueryWithEntirelyNullRightTuple
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// Every right-side tuple is (NULL, NULL). A multi-column IN comparison is never TRUE, so the
+// all-null right-side short circuit should return no rows.
+FROM employees
+| WHERE (emp_no, job_positions) IN (FROM employees
+                                    | EVAL emp_no = null::integer, job_positions = null::keyword
+                                    | KEEP emp_no, job_positions)
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+;
+
+multiColumnNotInSubqueryWithEntirelyNullLeftTuple
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// Every left-side tuple is (NULL, NULL), while the right side contains a known tuple. NOT IN is
+// UNKNOWN for every row, so the NULL left keys must not pass the filter.
+FROM employees
+| EVAL emp_no = null::integer, job_positions = null::keyword
+| WHERE (emp_no, job_positions) NOT IN (FROM employees
+                                        | WHERE emp_no == 10002
+                                        | KEEP emp_no, job_positions)
+| KEEP first_name
+;
+
+first_name:keyword
+;
+
+// ======== multi-column IN subquery with CASE, COALESCE, IS NULL patterns ========
+
+multiColumnInSubqueryInCase
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+FROM employees
+| WHERE CASE((emp_no, salary) IN (FROM employees | WHERE emp_no == 10001 | KEEP emp_no, salary), true, false)
+| SORT emp_no
+| KEEP emp_no, salary
+;
+
+emp_no:integer | salary:integer
+10001          | 57305
+;
+
+multiColumnInSubqueryInCoalesce
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+FROM employees
+| WHERE COALESCE((emp_no, salary) IN (FROM employees | WHERE emp_no == 10001 | KEEP emp_no, salary), false)
+| SORT emp_no
+| KEEP emp_no, salary
+;
+
+emp_no:integer | salary:integer
+10001          | 57305
+;
+
+multiColumnInSubqueryWithIsNull
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+FROM employees
+| WHERE ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) IS NULL
+| KEEP emp_no, languages
+| SORT emp_no
+;
+
+emp_no:integer | languages:integer
+10020          | null
+10021          | null
+10022          | null
+10023          | null
+10024          | null
+10025          | null
+10026          | null
+10027          | null
+10028          | null
+10029          | null
+;
+
+multiColumnInSubqueryWithIsNotNull
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+FROM employees
+| WHERE ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) IS NOT NULL
+| KEEP emp_no, languages
+| SORT emp_no
+| LIMIT 5
+;
+
+emp_no:integer | languages:integer
+10001          | 2
+10002          | 5
+10003          | 4
+10004          | 5
+10005          | 1
+;
+
+// ======== deeply nested multi-column IN subquery tests ========
+
+multiColumnInSubqueryDeeplyNestedInExpressionsBoolean
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+required_capability: where_in_subquery_with_case_coalesce_is_null_deeply_nested
+
+FROM employees
+| WHERE CASE((emp_no, languages) IN (FROM employees | SORT emp_no ASC | LIMIT 10 | KEEP emp_no, languages), true, false) == true
+    AND COALESCE((emp_no, languages) IN (FROM employees | SORT emp_no ASC | LIMIT 8 | KEEP emp_no, languages), false) != false
+    AND (((emp_no, languages) IN (FROM employees | SORT emp_no ASC | LIMIT 6 | KEEP emp_no, languages)) IS NULL) == false
+    AND (((emp_no, languages) IN (FROM employees | SORT emp_no ASC | LIMIT 4 | KEEP emp_no, languages)) IS NOT NULL) != false
+| STATS c = COUNT(*)
+;
+
+c:long
+8
+;
+
+multiColumnInSubqueryNestedInCaseReturningLongAndArithmeticAddEquals
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+required_capability: where_in_subquery_with_case_coalesce_is_null_deeply_nested
+
+FROM employees
+| WHERE (CASE((emp_no, languages) IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no, languages), 1, 0) + 1) == 2
+| STATS c = COUNT(*)
+;
+
+c:long
+3
+;
+
+multiColumnInSubqueryNestedInCoalesceCaseLike
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+required_capability: where_in_subquery_with_case_coalesce_is_null_deeply_nested
+
+FROM employees
+| WHERE COALESCE(CASE((emp_no, languages) IN (FROM employees | SORT emp_no ASC | LIMIT 2 | KEEP emp_no, languages), "MATCH", null), "NO MATCH") LIKE "M*"
+| STATS c = COUNT(*)
+;
+
+c:long
+2
+;
+
+multiColumnInSubqueryNestedInCaseSubEquals
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+required_capability: where_in_subquery_with_case_coalesce_is_null_deeply_nested
+
+FROM employees
+| WHERE (10 - CASE((emp_no, languages) IN (FROM employees | SORT emp_no ASC | LIMIT 1 | KEEP emp_no, languages), 1, 0)) == 9
+| STATS c = COUNT(*)
+;
+
+c:long
+1
+;
+
+multiColumnInSubqueryDeeplyNestedArithmetic
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+required_capability: where_in_subquery_with_case_coalesce_is_null_deeply_nested
+
+FROM employees
+| WHERE (ABS(10 - (CASE((emp_no, languages) IN (FROM employees | SORT emp_no ASC | LIMIT 1 | KEEP emp_no, languages), 1, 0) * 5 + 3)) + 1) == 3
+| STATS c = COUNT(*)
+;
+
+c:long
+1
+;
+
+multiColumnInSubqueryDeeplyNestedString
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+required_capability: where_in_subquery_with_case_coalesce_is_null_deeply_nested
+
+FROM employees
+| WHERE LEFT(TO_UPPER(COALESCE(CASE((emp_no, languages) IN (FROM employees | SORT emp_no ASC | LIMIT 2 | KEEP emp_no, languages), "yes", null), "no")), 1) == "Y"
+| STATS c = COUNT(*)
+;
+
+c:long
+2
+;
+
+// ======== multi-valued field in CASE/COALESCE/IS NULL ========
+
+multiColumnInSubqueryWithMultiValuedFieldInCase
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+FROM employees
+| MV_EXPAND job_positions
+| WHERE CASE((emp_no, job_positions) IN (FROM employees
+                                         | MV_EXPAND job_positions
+                                         | KEEP emp_no, job_positions), true, false)
+| KEEP emp_no, job_positions
+| SORT emp_no, job_positions
+| LIMIT 3
+;
+
+emp_no:integer | job_positions:keyword
+10001          | Accountant
+10001          | Senior Python Developer
+10002          | Senior Team Lead
+;
+
+multiColumnInSubqueryWithMultiValuedFieldInCoalesce
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+FROM employees
+| MV_EXPAND job_positions
+| WHERE COALESCE((emp_no, job_positions) IN (FROM employees
+                                             | MV_EXPAND job_positions
+                                             | KEEP emp_no, job_positions), false)
+| KEEP emp_no, job_positions
+| SORT emp_no, job_positions
+| LIMIT 3
+;
+
+emp_no:integer | job_positions:keyword
+10001          | Accountant
+10001          | Senior Python Developer
+10002          | Senior Team Lead
+;
+
+multiColumnInSubqueryWithMultiValuedFieldInIsNotNull
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+FROM employees
+| MV_EXPAND job_positions
+| WHERE ((emp_no, job_positions) IN (FROM employees
+                                     | MV_EXPAND job_positions
+                                     | KEEP emp_no, job_positions)) IS NOT NULL
+| KEEP emp_no, job_positions
+| SORT emp_no, job_positions
+| LIMIT 3
+;
+
+emp_no:integer | job_positions:keyword
+10001          | Accountant
+10001          | Senior Python Developer
+10002          | Senior Team Lead
+;
+
+multiColumnInSubqueryWithMultiValuedFieldWithoutMvExpandInCase
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+FROM employees
+| WHERE CASE((emp_no, job_positions) IN (FROM employees | KEEP emp_no, job_positions), true, false)
+| KEEP emp_no, job_positions
+| SORT emp_no
+| LIMIT 3
+;
+
+warningRegex:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword
+10002          | Senior Team Lead
+10013          | Reporting Analyst
+10018          | Junior Developer
+;
+
+multiColumnInSubqueryWithMultiValuedFieldWithoutMvExpandInIsNull
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+FROM employees
+| WHERE ((emp_no, job_positions) IN (FROM employees | KEEP emp_no, job_positions)) IS NULL
+| KEEP emp_no, job_positions
+| SORT emp_no
+| LIMIT 3
+;
+
+warningRegex:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword
+10001          | [Accountant, Senior Python Developer]
+10003          | null
+10004          | [Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]
+;
+
+// CASE is true for emp_nos 10001-10005; COALESCE is true for (emp_no,languages) pairs 10001-10003.
+// Employees 10004 and 10005 have CASE=true but COALESCE=false, so they are excluded.
+// All other employees have CASE=false and COALESCE=false, so they pass.
+// Result: 3 (both true) + 95 (both false) = 98.
+caseWithSingleColumnInSubqueryEqualsCoalesceWithMultiColumnInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+required_capability: where_in_subquery_with_case_coalesce_is_null_deeply_nested
+
+FROM employees
+| WHERE CASE(emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 5 | KEEP emp_no), true, false)
+     == COALESCE((emp_no, languages) IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no, languages), false)
+| STATS c = COUNT(*)
+;
+
+c:long
+98
+;
+
+// Without SORT/LIMIT, the single-column subquery covers all emp_nos (CASE=true for every row).
+// The multi-column subquery covers all (emp_no, languages) pairs, but for the 10 employees
+// where languages IS NULL, (emp_no, null) IN (...) yields null, so COALESCE(null, false)=false.
+// Those 10 employees have CASE=true but COALESCE=false and are excluded.
+// The remaining 90 employees have CASE=true and COALESCE=true, so they pass.
+caseWithSingleColumnInSubqueryEqualsCoalesceWithMultiColumnInSubqueryWithNulls
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+required_capability: where_in_subquery_with_case_coalesce_is_null_deeply_nested
+
+FROM employees
+| WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)
+     == COALESCE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), false)
+| STATS c = COUNT(*)
+;
+
+c:long
+90
+;
+
+rowMainMultiColumnInSubqueryFromInEval
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: eval_in_subquery
+
+ROW emp_no = 10001, salary = 57305
+| EVAL m = (emp_no, salary) IN (FROM employees | KEEP emp_no, salary)
+| KEEP emp_no, salary, m
+;
+
+emp_no:integer | salary:integer | m:boolean
+10001          | 57305          | true
+;
+
+rowMainMultiColumnInSubqueryRowInEval
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_row
+required_capability: eval_in_subquery
+
+ROW a = 1, b = 2
+| EVAL m = (a, b) IN (ROW x = 1, y = 2)
+| KEEP a, b, m
+;
+
+a:integer | b:integer | m:boolean
+1         | 2         | true
+;
+
+multiColumnInSubqueryInEval
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: eval_in_subquery
+
+FROM employees
+| EVAL m = (emp_no, salary) IN (FROM employees
+                                | SORT emp_no ASC
+                                | LIMIT 3
+                                | KEEP emp_no, salary)
+| WHERE m
+| SORT emp_no
+| KEEP emp_no
+;
+
+emp_no:integer
+10001
+10002
+10003
+;
+
+multiColumnInSubqueryNestedInCaseInEval
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: eval_in_subquery
+
+FROM employees
+| EVAL m = CASE((emp_no, salary) IN (FROM employees | SORT emp_no ASC | LIMIT 1 | KEEP emp_no, salary), "yes", "no")
+| WHERE emp_no <= 10003
+| SORT emp_no
+| KEEP emp_no, m
+;
+
+emp_no:integer | m:keyword
+10001          | yes
+10002          | no
+10003          | no
+;
+
+multiColumnInSubqueryNestedInCoalesceInEval
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: eval_in_subquery
+
+FROM employees
+| EVAL m = COALESCE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), false)
+| WHERE emp_no == 10001
+| KEEP m
+;
+
+m:boolean
+true
+;
+
+multiColumnInSubqueryNestedInIsNullInEval
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: eval_in_subquery
+
+FROM employees
+| EVAL m = ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) IS NULL
+| STATS c = COUNT(*) BY m
+| SORT m
+;
+
+c:long | m:boolean
+90     | false
+10     | true
+;
+
+multiColumnInTsSubqueryInEval
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: eval_in_subquery
+
+FROM employees
+| EVAL cluster = "qa", pod = "three"
+| EVAL is_match = (cluster, pod) IN (TS k8s
+                                     | STATS m = max(rate(network.total_bytes_in)) BY cluster, pod
+                                     | WHERE m > 10
+                                     | KEEP cluster, pod)
+| STATS c = COUNT(*) BY is_match
+| SORT is_match
+;
+
+c:long | is_match:boolean
+100    | false
+;
+
+mainTsMultiColumnInTsSubqueryInEval
+skip_flattened_rewrite: complicated_in_subquery_in_eval
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: eval_in_subquery
+
+TS k8s
+| EVAL is_match = (cluster, pod) IN (TS k8s
+                                     | STATS m = max(rate(network.total_bytes_in)) BY cluster, pod
+                                     | WHERE m > 10
+                                     | KEEP cluster, pod)
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster, pod, is_match
+| SORT cluster, pod
+;
+
+max_bytes:long | cluster:keyword | pod:keyword | is_match:boolean
+947            | prod            | one         | false
+9969           | prod            | three       | false
+10277          | prod            | two         | false
+7286           | qa              | one         | true
+10797          | qa              | three       | false
+8568           | qa              | two         | true
+6637           | staging         | one         | false
+7403           | staging         | three       | false
+5187           | staging         | two         | false
+;
+
+mainTsMultiColumnInRowSubqueryInEval
+skip_flattened_rewrite: complicated_in_subquery_in_eval
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_row
+required_capability: ts_command_v0
+required_capability: eval_in_subquery
+
+TS k8s
+| EVAL is_match = (cluster, pod) IN (ROW cluster = "qa", pod = "three")
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster, pod, is_match
+| SORT cluster, pod
+;
+
+max_bytes:long | cluster:keyword | pod:keyword | is_match:boolean
+947            | prod            | one         | false
+9969           | prod            | three       | false
+10277          | prod            | two         | false
+7286           | qa              | one         | false
+10797          | qa              | three       | true
+8568           | qa              | two         | false
+6637           | staging         | one         | false
+7403           | staging         | three       | false
+5187           | staging         | two         | false
+;

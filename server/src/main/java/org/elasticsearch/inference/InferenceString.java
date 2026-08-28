@@ -9,6 +9,8 @@
 
 package org.elasticsearch.inference;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
@@ -33,7 +35,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * This class represents a String which may be raw text, or the String representation of some other data such as an image in base64
  */
-public record InferenceString(DataType dataType, DataFormat dataFormat, String value) implements Writeable, ToXContentObject {
+public record InferenceString(DataType dataType, DataFormat dataFormat, String value) implements Accountable, Writeable, ToXContentObject {
     public static final TransportVersion EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED = TransportVersion.fromName(
         "inference_api_audio_video_pdf_support"
     );
@@ -46,6 +48,13 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     private static final Pattern DATA_URI_PATTERN = Pattern.compile("^data:[^/]+/[^,]+;base64,");
     private static final String DATA_URI_PREFIX = "data:";
     private static final String BASE64_MARKER = ";base64";
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(InferenceString.class);
+    private static final long STRING_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(String.class);
+    // Conservative overhead for the DataType and DataFormat enum instances
+    private static final long ENUM_OVERHEAD = RamUsageEstimator.shallowSizeOf(DataType.TEXT) + RamUsageEstimator.shallowSizeOf(
+        DataFormat.TEXT
+    );
 
     public static final String TYPE_FIELD = "type";
     public static final String FORMAT_FIELD = "format";
@@ -213,6 +222,17 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     public static String textValue(InferenceString inferenceString) {
         assert inferenceString.isText() : "Non-text input returned from InferenceString.textValue";
         return inferenceString.value();
+    }
+
+    public static long estimateRamBytesUsed(int valueLength) {
+        return SHALLOW_SIZE + ENUM_OVERHEAD + RamUsageEstimator.alignObjectSize(
+            STRING_SHALLOW_SIZE + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Character.BYTES * valueLength
+        );
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return estimateRamBytesUsed(value().length());
     }
 
     @Override

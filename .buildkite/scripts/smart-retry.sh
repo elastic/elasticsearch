@@ -12,9 +12,15 @@
 if [[ "${SKIP_NODE_SETUP:-false}" == "true" ]]; then
   reason="Node.js unavailable: glibc too old for Node.js 24"
   echo "Skipping smart retry: $reason"
-  buildkite-agent annotate --style info --context smart-retry-skip \
+  # Buildkite keys annotations by context per build, so a constant context would
+  # let each skipping job overwrite the previous one. Scope it to the job, as
+  # smart-retry/main.ts does.
+  buildkite-agent annotate --style info --context "smart-retry-${BUILDKITE_JOB_ID:-unknown}" \
     "Smart retry unavailable: $reason. Tests will run with a fresh seed." 2>/dev/null || true
-  buildkite-agent meta-data set smart-retry-disabled-reason "$reason" 2>/dev/null || true
+  # Same metadata shape smart-retry.ts emits, so both paths are searchable alike.
+  buildkite-agent meta-data set smart-retry-status "disabled" 2>/dev/null || true
+  buildkite-agent meta-data set smart-retry-disabled-reason "node-unavailable" 2>/dev/null || true
+  buildkite-agent meta-data set smart-retry-details "$reason" 2>/dev/null || true
   return 0 2>/dev/null || exit 0
 fi
 

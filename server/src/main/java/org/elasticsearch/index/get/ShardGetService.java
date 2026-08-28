@@ -14,7 +14,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -33,6 +32,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
@@ -178,6 +178,22 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         );
     }
 
+    private Engine.Get newEngineGet(
+        String id,
+        String routing,
+        boolean realtime,
+        long version,
+        VersionType versionType,
+        long ifSeqNo,
+        long ifPrimaryTerm
+    ) {
+        final Uid uid = Uid.create(indexSettings.isSliceEnabled(), id, routing);
+        return new Engine.Get(realtime, realtime, uid).version(version)
+            .versionType(versionType)
+            .setIfSeqNo(ifSeqNo)
+            .setIfPrimaryTerm(ifPrimaryTerm);
+    }
+
     private GetResult doGet(
         String id,
         String routing,
@@ -196,11 +212,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         currentMetric.inc();
         final long now = System.nanoTime();
         try {
-            final Uid uid = Uid.create(indexSettings.isSliceEnabled(), id, routing);
-            var engineGet = new Engine.Get(realtime, realtime, uid).version(version)
-                .versionType(versionType)
-                .setIfSeqNo(ifSeqNo)
-                .setIfPrimaryTerm(ifPrimaryTerm);
+            var engineGet = newEngineGet(id, routing, realtime, version, versionType, ifSeqNo, ifPrimaryTerm);
 
             final GetResult getResult;
             try (Engine.GetResult get = engineGetOperator.apply(engineGet, splitShardCountSummary)) {
@@ -309,7 +321,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         @Nullable String routing,
         long ifSeqNo,
         long ifPrimaryTerm,
-        FetchSourceContext fetchSourceContext
+        FetchSourceContext fetchSourceContext,
+        SplitShardCountSummary splitShardCountSummary
     ) throws IOException {
         return doGet(
             id,
@@ -322,10 +335,104 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             ifPrimaryTerm,
             fetchSourceContext,
             false,
-            SplitShardCountSummary.UNSET,
+            splitShardCountSummary,
             false,
             indexShard::get
         );
+    }
+
+    /**
+     * A document pre-resolved by {@link #preResolveForUpdate}, paired with the id and routing it was resolved for.
+     */
+    public interface PreResolved {
+        String id();
+
+        @Nullable
+        String routing();
+
+        /** Returns the pre-resolved engine get result, transferring ownership to the caller. */
+        Engine.GetResult takeGetResult();
+    }
+
+    /**
+     * Variant of {@link #getForUpdate(String, String, long, long, FetchSourceContext, SplitShardCountSummary)} that consumes a pre-resolved
+     * document instead of resolving it at call time, validating the sequence-number conditions against it. The
+     * pre-resolved result is released before returning.
+     */
+    public GetResult getForUpdate(
+        PreResolved preResolved,
+        long ifSeqNo,
+        long ifPrimaryTerm,
+        FetchSourceContext fetchSourceContext,
+        SplitShardCountSummary splitShardCountSummary
+    ) throws IOException {
+        return doGet(
+            preResolved.id(),
+            preResolved.routing(),
+            new String[] { RoutingFieldMapper.NAME },
+            true,
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            ifSeqNo,
+            ifPrimaryTerm,
+            fetchSourceContext,
+            false,
+            splitShardCountSummary,
+            false,
+            // ownership transfers inside doGet's try-with-resources: a throw before this point leaves the get result
+            // with the PreResolved, whose owner releases it
+            (engineGet, summary) -> validatePreResolved(engineGet, preResolved.takeGetResult())
+        );
+    }
+
+    private Engine.GetResult validatePreResolved(Engine.Get get, Engine.GetResult preResolvedGet) {
+        final DocIdAndVersion docIdAndVersion = preResolvedGet.docIdAndVersion();
+        if (get.getIfSeqNo() != UNASSIGNED_SEQ_NO
+            && (get.getIfSeqNo() != docIdAndVersion.seqNo || get.getIfPrimaryTerm() != docIdAndVersion.primaryTerm)) {
+            preResolvedGet.close();
+            throw new VersionConflictEngineException(
+                shardId,
+                get.id(),
+                get.getIfSeqNo(),
+                get.getIfPrimaryTerm(),
+                docIdAndVersion.seqNo,
+                docIdAndVersion.primaryTerm
+            );
+        }
+        return preResolvedGet;
+    }
+
+    /**
+     * Resolves the document targeted by an update ahead of its execution. OCC validation happens on consumption via
+     * {@link #getForUpdate(PreResolved, long, long, FetchSourceContext, SplitShardCountSummary)}. The caller must release the result.
+     */
+    public Engine.GetResult preResolveForUpdate(String id, @Nullable String routing, SplitShardCountSummary splitShardCountSummary) {
+        currentMetric.inc();
+        final long now = System.nanoTime();
+        try {
+            // must not carry seq_no OCC: a conflict thrown here would abort pre-resolution for the whole bulk;
+            // the conditions are validated per item when the pre-resolved get is consumed
+            var engineGet = newEngineGet(
+                id,
+                routing,
+                true,
+                Versions.MATCH_ANY,
+                VersionType.INTERNAL,
+                UNASSIGNED_SEQ_NO,
+                UNASSIGNED_PRIMARY_TERM
+            );
+            final Engine.GetResult getResult = indexShard.get(engineGet, splitShardCountSummary);
+
+            // counted in addition to the consuming get: the id resolution and the fetch are accounted separately
+            if (getResult.exists()) {
+                existsMetric.inc(System.nanoTime() - now);
+            } else {
+                missingMetric.inc(System.nanoTime() - now);
+            }
+            return getResult;
+        } finally {
+            currentMetric.dec();
+        }
     }
 
     /**
@@ -420,7 +527,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 mapperMetrics.sourceFieldMetrics(),
                 mappingLookup.getMapping().ignoredSourceFormat()
             )
-            : mappingLookup.newSourceLoader(sourceFilter, mapperMetrics.sourceFieldMetrics());
+            : mappingLookup.newSourceLoader(sourceFilter, mapperMetrics.sourceFieldMetrics(), null);
         StoredFieldLoader storedFieldLoader = buildStoredFieldLoader(storedFieldSet, fetchSourceContext, loader);
         LeafStoredFieldLoader leafStoredFieldLoader = storedFieldLoader.getLoader(docIdAndVersion.reader.getContext(), null);
         try {
@@ -494,7 +601,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
         BytesReference sourceBytes = null;
         if (mapperService.mappingLookup().isSourceEnabled() && fetchSourceContext.fetchSource()) {
-            Source source = loader.leaf(docIdAndVersion.reader, new int[] { docIdAndVersion.docId })
+            Source source = loader.leaf(docIdAndVersion.reader.getContext(), new int[] { docIdAndVersion.docId })
                 .source(leafStoredFieldLoader, docIdAndVersion.docId);
 
             SourceFilter filter = fetchSourceContext.filter();
@@ -582,33 +689,40 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         if (shouldExcludeVectorsFromSource(indexSettings, fetchSourceContext) == false) {
             return Tuple.tuple(fetchSourceContext, null);
         }
-        var fetchFieldsAut = fetchFieldsContext != null && fetchFieldsContext.fields().size() > 0
-            ? new CharacterRunAutomaton(
-                Regex.simpleMatchToAutomaton(fetchFieldsContext.fields().stream().map(f -> f.field).toArray(String[]::new))
-            )
-            : null;
-        var inferenceFieldsAut = mappingLookup.inferenceFields().size() > 0
-            ? new CharacterRunAutomaton(
-                Regex.simpleMatchToAutomaton(mappingLookup.inferenceFields().keySet().stream().map(f -> f + "*").toArray(String[]::new))
-            )
+        // Quick check first whether the mapping contains a vector field at all, since there is otherwise nothing to exclude.
+        final Set<String> vectorFields = mappingLookup.vectorEmbeddingFields();
+        if (vectorFields.isEmpty()) {
+            return Tuple.tuple(fetchSourceContext, null);
+        }
+        // The requested patterns are matched one at a time rather than compiled into a single automaton. Compiling only pays off when
+        // many strings are tested against it, and the strings tested here are just the vector fields, of which there are few. The
+        // request, on the other hand, can carry thousands of patterns, which is expensive to compile and can exceed the
+        // determinization limit outright.
+        final String[] fetchFieldsPatterns = fetchFieldsContext == null
+            ? null
+            : fetchFieldsContext.fields().stream().map(f -> f.field).toArray(String[]::new);
+        // The inference field patterns are derived from the mapping rather than the request, so their number is bounded by the number
+        // of semantic text fields. Regex#simpleMatcher picks the cheapest strategy for them.
+        var inferenceFieldsMatcher = mappingLookup.inferenceFields().size() > 0
+            ? Regex.simpleMatcher(mappingLookup.inferenceFields().keySet().stream().map(f -> f + "*").toArray(String[]::new))
             : null;
 
         SourceFilter filter = fetchSourceContext != null ? fetchSourceContext.filter() : null;
 
         List<String> lateExcludes = new ArrayList<>();
-        var excludes = mappingLookup.getFullNameToFieldType().values().stream().filter(MappedFieldType::isVectorEmbedding).filter(f -> {
+        var excludes = vectorFields.stream().filter(f -> {
             // Keep the vector fields that are explicitly included and not explicitly excluded
-            if (filter != null && filter.isExplicitlyIncluded(f.name())) {
-                return filter.isPathFiltered(f.name(), false);
+            if (filter != null && filter.isExplicitlyIncluded(f)) {
+                return filter.isPathFiltered(f, false);
             }
             // Exclude the field specified by the `fields` option
-            if (fetchFieldsAut != null && fetchFieldsAut.run(f.name())) {
-                lateExcludes.add(f.name());
+            if (Regex.simpleMatch(fetchFieldsPatterns, f)) {
+                lateExcludes.add(f);
                 return false;
             }
             // Exclude vectors from semantic text fields, as they are processed separately
-            return inferenceFieldsAut == null || inferenceFieldsAut.run(f.name()) == false;
-        }).map(MappedFieldType::name).toList();
+            return inferenceFieldsMatcher == null || inferenceFieldsMatcher.test(f) == false;
+        }).toList();
 
         var sourceFilter = excludes.isEmpty() ? null : new SourceFilter(new String[] {}, excludes.toArray(String[]::new));
         if (lateExcludes.size() > 0) {

@@ -42,7 +42,6 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -121,18 +120,6 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
 
         public GenerationalFilesTrackingStatelessPlugin(Settings settings) {
             super(settings);
-        }
-
-        @Override
-        public Collection<Object> createComponents(PluginServices services) {
-            final Collection<Object> components = super.createComponents(services);
-            components.add(
-                new PluginComponentBinding<>(
-                    StatelessCommitService.class,
-                    components.stream().filter(c -> c instanceof GenerationalFilesTrackingStatelessCommitService).findFirst().orElseThrow()
-                )
-            );
-            return components;
         }
 
         @Override
@@ -321,7 +308,17 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
                         });
                     }
                 },
-                (int bytesRead, long timeToReadNanos) -> totalBytesReadFromObjectStore.add(bytesRead)
+                new MeteringCacheBlobReader.ReadCompleteCallback() {
+                    @Override
+                    public void onBytesRead(int bytesRead) {
+                        totalBytesReadFromObjectStore.add(bytesRead);
+                    }
+
+                    @Override
+                    public void onReadCompleted(final int totalBytesRead, final long timeToReadNanos) {
+                        // ignore
+                    }
+                }
             );
         }
 
@@ -1154,7 +1151,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
         // files will be associated at the generation of the last commit.
         // * In the non-hollow relocation, the source shard does not flush a new commit if there are no new changes. By consequence,
         // the target node will recover commit 8 (and open generational files on it), and will then flush a new commit
-        // (see the flush in StatelessIndexEventListener#afterIndexShardRecovery()) 9. Therefore, even if we have segments_9,
+        // (see the flush in StatelessIndexNodeRecoveryListener#afterIndexShardRecovery()) 9. Therefore, even if we have segments_9,
         // the generational files will be on generation 8.
         // * In the hollow relocation, the source shard forces a flush (see IndexEngine#prepareForEngineReset()). Creating commit 9
         // on the source node (along with copies of the generational files). Therefore, the target node will recover commit 9,

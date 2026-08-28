@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Scalar;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
@@ -79,7 +78,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesReduction;
-import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
+import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarConversionFunction;
@@ -382,7 +381,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             return switch (node) {
                 case AcrossSeriesAggregate agg -> doTranslateAcrossSeriesAgg(agg);
                 case AcrossSeriesReduction reduction -> doTranslateAcrossSeriesReduction(reduction);
-                case HistogramQuantile histogramQuantile -> doTranslateHq(histogramQuantile);
+                case HistogramFunctionCall histogramFunction -> doTranslateHistogramFunction(histogramFunction);
                 case ScalarConversionFunction scalar -> doTranslateScalarConvertion(scalar);
                 case PromqlFunctionCall functionCall -> doTranslateFunc(functionCall);
                 case ScalarFunction scalarFunction -> doTranslateScalarFunc(scalarFunction);
@@ -477,9 +476,14 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                     groupings.add(resolved);
                 }
             }
-            var order = List.of((Order) reduction.buildEsqlFunction(collectValueAttribute(resultPlan), promqlContext));
-            Expression k = new ToInteger(reduction.source(), reduction.parameters().getFirst());
-            return new TopNBy(reduction.source(), resultPlan, order, k, groupings);
+            var order = (Order) reduction.buildEsqlFunction(collectValueAttribute(resultPlan), promqlContext);
+            return new TopNBy(
+                reduction.source(),
+                resultPlan,
+                order != null ? List.of(order) : List.<Order>of(),
+                new ToInteger(reduction.source(), reduction.parameters().getFirst()),
+                groupings
+            );
         }
 
         /** The doTranslateAgg combinator: regroups a grouped table, or emits the innermost `_timeseries` doTranslateAgg over a raw one. */
@@ -499,26 +503,27 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             );
         }
 
-        private IntermediateResult doTranslateHq(HistogramQuantile hq) {
-            IntermediateResult firstPhaseResult = doTranslateNode(hq.child());
+        private IntermediateResult doTranslateHistogramFunction(HistogramFunctionCall function) {
+            IntermediateResult firstPhaseResult = doTranslateNode(function.child());
             if (firstPhaseResult.kind.constant) {
                 return firstPhaseResult;
             }
-            var definition = PromqlHistogramQuantile.PROMQL_DEFINITION;
 
             // native histograms - distinguishable only at this point in planning are regular value transformations.
             if (firstPhaseResult.value().resolved() && firstPhaseResult.value().dataType().isHistogram()) {
-                return doTranslateFunc(new ValueTransformationFunction(hq.source(), hq.child(), definition, hq.parameters()));
+                return doTranslateFunc(
+                    new ValueTransformationFunction(function.source(), function.child(), function.definition(), function.parameters())
+                );
             }
 
-            // classic counter backed histograms need the special treatment below;
+            // Classic counter-backed histograms need the special treatment below.
             LogicalPlan childPlan = firstPhaseResult.plan();
-            var le = firstPhaseResult.header().column(HistogramQuantile.LE_LABEL);
+            var le = firstPhaseResult.header().column(HistogramFunctionCall.LE_LABEL);
             if (le == null) {
                 // like prometheus, return warning and drop series w/o `le`
-                HeaderWarning.addWarning("histogram_quantile: input vector has no le label; no buckets to evaluate");
-                var skipAllFilter = new Filter(hq.source(), childPlan, Literal.FALSE);
-                var nullGrouping = new Values(hq.source(), new Literal(hq.source(), null, DataType.DOUBLE));
+                HeaderWarning.addWarning(function.functionName() + ": input vector has no le label; no buckets to evaluate");
+                var skipAllFilter = new Filter(function.source(), childPlan, Literal.FALSE);
+                var nullGrouping = new Values(function.source(), new Literal(function.source(), null, DataType.DOUBLE));
                 return doTranslateAgg(firstPhaseResult, skipAllFilter, firstPhaseResult.header(), false, nullGrouping);
             }
 
@@ -530,11 +535,11 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             if (maybeChildHeader.success(firstPhaseResult.header()) == false) {
                 // in addition to `le` preserve our parent push-down labels
                 Translation childTranslation = withPushDownHeader(maybeChildHeader);
-                var secondPhaseResult = childTranslation.doTranslateNode(hq.child());
+                var secondPhaseResult = childTranslation.doTranslateNode(function.child());
                 childPlan = secondPhaseResult.plan();
-                le = secondPhaseResult.header().column(HistogramQuantile.LE_LABEL);
+                le = secondPhaseResult.header().column(HistogramFunctionCall.LE_LABEL);
 
-                assert le != null : "invariant: [ " + HistogramQuantile.LE_LABEL + " ] required";
+                assert le != null : "invariant: [ " + HistogramFunctionCall.LE_LABEL + " ] required";
 
                 // ?
                 grouping = secondPhaseResult.header().groupedWithout(List.of(le));
@@ -542,7 +547,8 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
 
                 firstPhaseResult = secondPhaseResult;
 
-                assert maybeChildHeader.success(secondPhaseResult.header()) : "invariant: [ " + HistogramQuantile.LE_LABEL + " ] required";
+                assert maybeChildHeader.success(secondPhaseResult.header())
+                    : "invariant: [ " + HistogramFunctionCall.LE_LABEL + " ] required";
             }
 
             if (firstPhaseResult.kind.afterInitialAggregation == false) {
@@ -554,17 +560,16 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                     firstPhaseResult.header(),
                     Kind.AFTER_INITIAL_AGGREGATE
                 );
-                le = firstPhaseResult.header().column(HistogramQuantile.LE_LABEL);
-                assert le != null : "invariant: [ " + HistogramQuantile.LE_LABEL + " ] required";
+                le = firstPhaseResult.header().column(HistogramFunctionCall.LE_LABEL);
+                assert le != null : "invariant: [ " + HistogramFunctionCall.LE_LABEL + " ] required";
             }
 
-            // histogram_quantile groups by every label except the `le` bucket label, so `le` is the single excluded
+            // Classic histogram functions group by every label except the `le` bucket label, so `le` is the single excluded
             // dimension - the returned header drops it and the innermost `_timeseries` excludes it. Bucket counts are
             // consumed as doubles; counter buckets are frequently integer/long typed, so cast explicitly.
             Header header = firstPhaseResult.header().regrouped(grouping, headerToPushDown);
-            Expression count = new ToDouble(hq.source(), firstPhaseResult.value());
-            Expression quantile = new PromqlHistogramQuantile(hq.source(), count, le, hq.quantile());
-            return doTranslateAgg(firstPhaseResult, childPlan, header, true, quantile);
+            Expression count = new ToDouble(function.source(), firstPhaseResult.value());
+            return doTranslateAgg(firstPhaseResult, childPlan, header, true, function.buildAggregateFunction(count, le));
         }
 
         /** scalar(): collapse to one value per step, e.g. scalar(sum by (cluster) (metric)). */

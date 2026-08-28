@@ -35,8 +35,8 @@ import static org.elasticsearch.benchmark.vector.scorer.Int4BenchmarkUtils.gener
 import static org.elasticsearch.benchmark.vector.scorer.Int4BenchmarkUtils.generateCorrectiveTerms;
 import static org.elasticsearch.benchmark.vector.scorer.Int4BenchmarkUtils.quantizeQuery;
 import static org.elasticsearch.benchmark.vector.scorer.Int4BenchmarkUtils.writeI4VectorData;
-import static org.elasticsearch.nativeaccess.Int4TestUtils.packNibbles;
 import static org.elasticsearch.simdvec.ESVectorUtil.dotProduct;
+import static org.elasticsearch.simdvec.Int4TestUtils.packNibbles;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.createDenseInt4VectorValues;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.randomInt4Bytes;
 
@@ -64,8 +64,8 @@ public class VectorScorerInt4BulkBenchmark extends VectorScorerBulkBenchmark {
         final float centroidDp;
         final float[] queryVector;
 
-        VectorData(int dims, int numVectors, int numVectorsToScore, Random random) {
-            super(numVectors, numVectorsToScore, random);
+        VectorData(int dims, int numVectors, int numVectorsToScore, Random random, DataAccessPattern accessMode) {
+            super(numVectors, numVectorsToScore, random, accessMode);
 
             packedVectors = new byte[numVectors][];
             for (int v = 0; v < numVectors; v++) {
@@ -93,7 +93,7 @@ public class VectorScorerInt4BulkBenchmark extends VectorScorerBulkBenchmark {
 
     @Setup
     public void setup() throws IOException {
-        setup(new VectorData(dims, numVectors, Math.min(numVectors, 20_000), ThreadLocalRandom.current()));
+        setup(new VectorData(dims, numVectors, Math.min(numVectors, 20_000), ThreadLocalRandom.current(), accessMode));
     }
 
     void setup(VectorData vectorData) throws IOException {

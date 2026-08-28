@@ -15,6 +15,8 @@ This section details how {{esql}} handles different data types and special field
 
 * [Metadata fields](esql-metadata-fields.md): Learn about the metadata fields supported by {{esql}}, including `_index` and `_score`.
 
+* [NULL values](esql-null-values.md): Learn how {{esql}} handles missing, unknown, or unavailable values, and how to avoid common `NULL` gotchas.
+
 * [Multivalued fields](esql-multivalued-fields.md): Learn how to work with fields that contain multiple values in {{esql}}.
 
 * [Unmapped fields](esql-unmapped-fields.md): Learn how {{esql}} handles fields that aren't in the index mapping, and how to query them with `SET unmapped_fields`.

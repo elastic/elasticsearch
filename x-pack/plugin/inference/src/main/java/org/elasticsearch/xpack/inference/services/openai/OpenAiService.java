@@ -257,6 +257,11 @@ public class OpenAiService extends SenderService<OpenAiModel> {
     }
 
     @Override
+    protected boolean supportsChatCompletionReasoning() {
+        return true;
+    }
+
+    @Override
     protected void doChunkedInfer(
         Model model,
         List<ChunkInferenceInput> inputs,
@@ -281,7 +286,11 @@ public class OpenAiService extends SenderService<OpenAiModel> {
 
         for (var request : batchedRequests) {
             var action = openAiModel.accept(actionCreator, taskSettings);
-            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+            action.execute(
+                new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                timeout,
+                request.listener()
+            );
         }
     }
 
@@ -301,7 +310,7 @@ public class OpenAiService extends SenderService<OpenAiModel> {
         var actionCreator = new OpenAiActionCreator(getSender(), getServiceComponents());
 
         var action = openAiModel.accept(actionCreator, request.taskSettings());
-        action.execute(new EmbeddingsInput(request::inputs, request.inputType()), timeout, listener);
+        action.execute(new EmbeddingsInput(request.inputs(), request.inputType()), timeout, listener);
     }
 
     @Override

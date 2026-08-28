@@ -113,7 +113,6 @@ List projects = [
   'test:fixtures:krb5kdc-fixture',
   'test:fixtures:minio-fixture',
   'test:fixtures:old-elasticsearch',
-  'test:fixtures:old-elasticsearch-container',
   'test:fixtures:s3-fixture',
   'test:fixtures:testcontainer-utils',
   'test:fixtures:tls-utils',

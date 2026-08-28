@@ -298,6 +298,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
                 SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT,
                 StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
                 StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING,
+                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING,
                 StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING
             )
         );
@@ -348,7 +349,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
             final SearchCommitPrefetcher prefetcher = new SearchCommitPrefetcher(
                 shardId,
                 cacheService,
-                blobFile -> cacheBlobReader,
+                (blobFile, isUploaded) -> cacheBlobReader,
                 // Internal files take the notification commit's timestamp, so the resolver values are irrelevant here.
                 fileName -> UNKNOWN_TIMESTAMP,
                 x -> x,

@@ -17,8 +17,10 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -29,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.score.ScoreMapper;
 import org.junit.After;
 
 import java.util.ArrayList;
@@ -112,6 +115,28 @@ public abstract class AbstractRuntimeSearchEvaluatorTests extends ESTestCase {
                 Boolean[] out = new Boolean[result.getPositionCount()];
                 for (int p = 0; p < out.length; p++) {
                     out[p] = result.isNull(p) ? null : result.getBoolean(result.getFirstValueIndex(p));
+                }
+                return out;
+            } finally {
+                page.releaseBlocks();
+            }
+        }
+    }
+
+    /**
+     * Builds the runtime scorer for the given full-text function through {@link ScoreMapper} and runs it over a
+     * single field block, returning the per-position scores. A row that doesn't match gets a score of 0.0.
+     */
+    protected Double[] score(FullTextFunction function, Function<BlockFactory, Block> fieldBuilder) {
+        DriverContext context = driverContext();
+        Block fieldBlock = fieldBuilder.apply(context.blockFactory());
+        ExpressionEvaluator.Factory factory = ScoreMapper.toScorer(function, EmptyIndexedByShardId.instance(), toEvaluator());
+        try (ExpressionEvaluator scorer = factory.get(context)) {
+            Page page = new Page(fieldBlock);
+            try (DoubleBlock result = (DoubleBlock) scorer.eval(page)) {
+                Double[] out = new Double[result.getPositionCount()];
+                for (int p = 0; p < out.length; p++) {
+                    out[p] = result.isNull(p) ? null : result.getDouble(result.getFirstValueIndex(p));
                 }
                 return out;
             } finally {

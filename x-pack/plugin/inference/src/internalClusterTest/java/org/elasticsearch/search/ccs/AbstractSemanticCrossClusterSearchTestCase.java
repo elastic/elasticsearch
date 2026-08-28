@@ -29,7 +29,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseSettings;
@@ -114,18 +114,18 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
 
         for (var entry : indexInfo.inferenceEndpoints().entrySet()) {
             String inferenceId = entry.getKey();
-            MinimalServiceSettings minimalServiceSettings = entry.getValue();
+            EndpointClusterState endpointClusterState = entry.getValue();
 
             Map<String, Object> serviceSettings = new HashMap<>();
             serviceSettings.put("model", randomAlphaOfLength(5));
             serviceSettings.put("api_key", randomAlphaOfLength(5));
-            if (minimalServiceSettings.taskType() == TaskType.TEXT_EMBEDDING || minimalServiceSettings.taskType() == TaskType.EMBEDDING) {
-                serviceSettings.put("dimensions", minimalServiceSettings.dimensions());
-                serviceSettings.put("similarity", minimalServiceSettings.similarity());
-                serviceSettings.put("element_type", minimalServiceSettings.elementType());
+            if (endpointClusterState.taskType() == TaskType.TEXT_EMBEDDING || endpointClusterState.taskType() == TaskType.EMBEDDING) {
+                serviceSettings.put("dimensions", endpointClusterState.dimensions());
+                serviceSettings.put("similarity", endpointClusterState.similarity());
+                serviceSettings.put("element_type", endpointClusterState.elementType());
             }
 
-            createInferenceEndpoint(client, minimalServiceSettings.taskType(), inferenceId, serviceSettings);
+            createInferenceEndpoint(client, endpointClusterState.taskType(), inferenceId, serviceSettings);
         }
 
         Settings indexSettings = indexSettings(randomIntBetween(1, dataNodeCount), 0).build();
@@ -251,24 +251,24 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
         assertThat(cause.getMessage(), containsString(expectedMessage));
     }
 
-    protected static MinimalServiceSettings sparseEmbeddingServiceSettings() {
-        return new MinimalServiceSettings(null, TaskType.SPARSE_EMBEDDING, null, null, null);
+    protected static EndpointClusterState sparseEmbeddingServiceSettings() {
+        return new EndpointClusterState(null, TaskType.SPARSE_EMBEDDING, null, null, null);
     }
 
-    protected static MinimalServiceSettings textEmbeddingServiceSettings(
+    protected static EndpointClusterState textEmbeddingServiceSettings(
         int dimensions,
         SimilarityMeasure similarity,
         DenseVectorFieldMapper.ElementType elementType
     ) {
-        return new MinimalServiceSettings(null, TaskType.TEXT_EMBEDDING, dimensions, similarity, elementType);
+        return new EndpointClusterState(null, TaskType.TEXT_EMBEDDING, dimensions, similarity, elementType);
     }
 
-    protected static MinimalServiceSettings embeddingServiceSettings(
+    protected static EndpointClusterState embeddingServiceSettings(
         int dimensions,
         SimilarityMeasure similarity,
         DenseVectorFieldMapper.ElementType elementType
     ) {
-        return new MinimalServiceSettings(null, TaskType.EMBEDDING, dimensions, similarity, elementType);
+        return new EndpointClusterState(null, TaskType.EMBEDDING, dimensions, similarity, elementType);
     }
 
     protected static Map<String, Object> semanticTextMapping(String inferenceId) {
@@ -329,7 +329,7 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
 
     protected record TestIndexInfo(
         String name,
-        Map<String, MinimalServiceSettings> inferenceEndpoints,
+        Map<String, EndpointClusterState> inferenceEndpoints,
         Map<String, Object> mappings,
         Map<String, Map<String, Object>> docs
     ) {

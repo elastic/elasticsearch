@@ -12,7 +12,6 @@ package org.elasticsearch.xpack.ml.inference.deployment;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
@@ -27,7 +26,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -519,9 +517,7 @@ public class DeploymentManager {
 
             if (isStopped) {
                 logger.debug("[{}] model stopped before it is started", task.getDeploymentId());
-                loadedListener.onFailure(
-                    new ElasticsearchStatusException("model stopped before it is started", RestStatus.SERVICE_UNAVAILABLE)
-                );
+                loadedListener.onFailure(new IllegalArgumentException("model stopped before it is started"));
                 return;
             }
 
@@ -733,9 +729,7 @@ public class DeploymentManager {
 
         void loadModel(TrainedModelLocation modelLocation, ActionListener<Boolean> listener) {
             if (isStopped) {
-                listener.onFailure(
-                    new ElasticsearchStatusException("Process has stopped, model loading canceled", RestStatus.SERVICE_UNAVAILABLE)
-                );
+                listener.onFailure(new IllegalArgumentException("Process has stopped, model loading canceled"));
                 return;
             }
             if (modelLocation instanceof IndexLocation indexLocation) {

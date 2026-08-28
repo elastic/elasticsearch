@@ -40,7 +40,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -583,89 +582,6 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                     hotspotUtilizationThresholdString
                 )
             )
-        );
-    }
-
-    public void testMaxSingleShardWriteLoadSingleShard() {
-        ShardId testShardId = new ShardId(randomIndexName(), randomUUID(), 0);
-
-        // only shard means 1.0
-        assertThat(
-            WriteLoadConstraintDecider.maxShardWriteLoadProportion(
-                List.of(testShardId),
-                Map.of(testShardId, randomDoubleBetween(0.001, 20.0, false))
-            ),
-            equalTo(1.0)
-        );
-
-        // inexplicably not in map means 0.0
-        assertThat(WriteLoadConstraintDecider.maxShardWriteLoadProportion(List.of(testShardId), Map.of()), equalTo(0.0));
-
-        // shard is in map with zero load
-        assertThat(WriteLoadConstraintDecider.maxShardWriteLoadProportion(List.of(testShardId), Map.of(testShardId, 0.0)), equalTo(0.0));
-
-        // shard with 0 load
-        assertThat(
-            WriteLoadConstraintDecider.maxShardWriteLoadProportion(
-                List.of(testShardId),
-                Map.of(testShardId, 0.0, new ShardId(randomIndexName(), randomUUID(), 0), randomDoubleBetween(0.0001, 20.0, true))
-            ),
-            equalTo(0.0)
-        );
-    }
-
-    public void testmaxSingleShardWriteLoadMultipleShards() {
-        ShardId testShardId1 = new ShardId(randomIndexName(), randomUUID(), 0);
-        ShardId testShardId2 = new ShardId(randomIndexName(), randomUUID(), 0);
-
-        double shard1Load = randomDoubleBetween(0.0001, 10.0, true);
-        double shard2Load = randomDoubleBetween(shard1Load, 20.0, false);
-
-        // picks the biggest one
-        assertThat(
-            WriteLoadConstraintDecider.maxShardWriteLoadProportion(
-                List.of(testShardId1, testShardId2),
-                Map.of(testShardId1, shard1Load, testShardId2, shard2Load)
-            ),
-            equalTo(shard2Load / (shard1Load + shard2Load))
-        );
-
-        // both zero
-        assertThat(
-            WriteLoadConstraintDecider.maxShardWriteLoadProportion(
-                List.of(testShardId1, testShardId2),
-                Map.of(testShardId1, 0.0, testShardId2, 0.0)
-            ),
-            equalTo(0.0)
-        );
-
-        // not in map
-        assertThat(WriteLoadConstraintDecider.maxShardWriteLoadProportion(List.of(testShardId1, testShardId2), Map.of()), equalTo(0.0));
-
-        // one in map
-        assertThat(
-            WriteLoadConstraintDecider.maxShardWriteLoadProportion(List.of(testShardId1, testShardId2), Map.of(testShardId1, 0.0)),
-            equalTo(0.0)
-        );
-
-        // one shard has 100% of the load
-        assertThat(
-            WriteLoadConstraintDecider.maxShardWriteLoadProportion(
-                List.of(testShardId1, testShardId2),
-                randomBoolean()
-                    ? Map.of(testShardId1, randomDoubleBetween(0.0001, 10.0, true), testShardId2, 0.0)
-                    : Map.of(testShardId1, randomDoubleBetween(0.0001, 10.0, true))
-            ),
-            equalTo(1.0)
-        );
-
-        // totally random map entry
-        assertThat(
-            WriteLoadConstraintDecider.maxShardWriteLoadProportion(
-                List.of(testShardId1, testShardId2),
-                Map.of(new ShardId(randomIndexName(), randomUUID(), 0), randomDoubleBetween(0.0001, 20.0, true))
-            ),
-            equalTo(0.0)
         );
     }
 

@@ -60,7 +60,7 @@ public class ListenableShutdownPrepareService extends ShutdownPrepareService {
         @Nullable Consumer<Task> taskNotifier,
         @Nullable Consumer<List<Task>> onTimeout
     ) {
-        return awaitTasksCompleteInternal(timeout, sleeper, taskName, false, taskManager, taskNotifier, tasks -> {
+        return awaitTasksCompleteInternal(timeout, sleeper, taskName, "finish", taskManager, taskNotifier, tasks -> {
             notifyTaskTimeout(taskName, tasks);
             if (onTimeout != null) {
                 onTimeout.accept(tasks);
@@ -70,7 +70,7 @@ public class ListenableShutdownPrepareService extends ShutdownPrepareService {
 
     @Override
     protected boolean awaitTasksCancellation(TimeValue timeout, Sleeper sleeper, String taskName, TaskManager taskManager) {
-        return awaitTasksCompleteInternal(timeout, sleeper, taskName, true, taskManager, null, tasks -> notifyTaskTimeout(taskName, tasks));
+        return awaitTasksCompleteInternal(timeout, sleeper, taskName, "cancel", taskManager, null, tasks -> notifyTaskTimeout(taskName, tasks));
     }
 
     private void notifyTaskTimeout(String taskName, List<Task> tasks) {

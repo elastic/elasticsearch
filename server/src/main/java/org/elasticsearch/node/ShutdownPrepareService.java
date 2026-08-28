@@ -199,24 +199,24 @@ public class ShutdownPrepareService {
         @Nullable Consumer<Task> taskNotifier,
         @Nullable Consumer<List<Task>> onTimeout
     ) {
-        return awaitTasksCompleteInternal(timeout, sleeper, taskName, false, taskManager, taskNotifier, onTimeout);
+        return awaitTasksCompleteInternal(timeout, sleeper, taskName, "finish", taskManager, taskNotifier, onTimeout);
     }
 
     protected boolean awaitTasksCancellation(TimeValue timeout, Sleeper sleeper, String taskName, TaskManager taskManager) {
-        return awaitTasksCompleteInternal(timeout, sleeper, taskName, true, taskManager, null, null);
+        return awaitTasksCompleteInternal(timeout, sleeper, taskName, "complete", taskManager, null, null);
     }
 
     /// Repeatedly polls the `taskManager` to list tasks whose action name is `taskName`, invoking `sleeper` to sleep for
     /// [#AWAIT_TASKS_POLL_INTERVAL] between each poll, until either no matching tasks are returned or the total time waited reaches
     /// `timeout`. Invokes `taskNotifier` exactly once for each matching task encountered. Returns true if it found no matching tasks, false
-    /// if it timed out or was interrupted. Set `isWaitForCancel` if we've cancelled the task, and we're waiting for it to actually complete
-    /// (this will be reflected in the logging).
+    /// if it timed out or was interrupted. The `waitFor` parameter give a verb describing what we're waiting for the task to do, to use in
+    /// logging, e.g. `finish` or `cancel`.
     // package-private for testing
     static boolean awaitTasksCompleteInternal(
         TimeValue timeout,
         Sleeper sleeper,
         String taskName,
-        boolean isWaitForCancel,
+        String waitFor,
         TaskManager taskManager,
         @Nullable Consumer<Task> taskNotifier,
         @Nullable Consumer<List<Task>> onTimeout
@@ -241,13 +241,7 @@ public class ShutdownPrepareService {
                 // literally just want to wait and not take up resources on this thread for now.
                 millisWaited += AWAIT_TASKS_POLL_INTERVAL.millis();
                 if (TimeValue.ZERO.equals(timeout) == false && millisWaited >= timeout.millis()) {
-                    logger.warn(
-                        "timed out after waiting [{}] for [{}] {} tasks to {}",
-                        timeout,
-                        tasksRemaining.size(),
-                        taskName,
-                        isWaitForCancel ? "finish" : "cancel"
-                    );
+                    logger.warn("timed out after waiting [{}] for [{}] {} tasks to {}", timeout, tasksRemaining.size(), taskName, waitFor);
                     if (onTimeout != null) {
                         onTimeout.accept(tasksRemaining);
                     }
@@ -257,7 +251,7 @@ public class ShutdownPrepareService {
                     "waiting for [{}] {} tasks to {}, next poll in [{}]",
                     tasksRemaining.size(),
                     taskName,
-                    isWaitForCancel ? "finish" : "cancel",
+                    waitFor,
                     AWAIT_TASKS_POLL_INTERVAL
                 );
                 try {
@@ -269,7 +263,7 @@ public class ShutdownPrepareService {
                         timeout,
                         tasksRemaining.size(),
                         taskName,
-                        isWaitForCancel ? "finish" : "cancel"
+                        waitFor
                     );
                     return false;
                 }

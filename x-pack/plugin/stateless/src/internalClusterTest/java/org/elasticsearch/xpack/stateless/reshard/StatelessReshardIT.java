@@ -97,14 +97,11 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndexClosedException;
@@ -193,6 +190,7 @@ import static org.elasticsearch.xpack.stateless.reshard.ReshardingTestHelpers.ma
 import static org.elasticsearch.xpack.stateless.reshard.ReshardingTestHelpers.postSplitRouting;
 import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
 import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
@@ -5140,7 +5138,6 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         plugins.add(EsqlPlugin.class);
         plugins.add(TestTelemetryPlugin.class);
         plugins.add(AddSettingPlugin.class);
-        plugins.add(PostIndexListenerPlugin.class);
         return plugins;
     }
 
@@ -5149,37 +5146,6 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         public List<Setting<?>> getSettings() {
             return List.of(SplitTargetService.START_SPLIT_RETRY_TIMEOUT);
         }
-    }
-
-    public static class PostIndexListenerPlugin extends Plugin {
-        private static final AtomicReference<ExpectedWrite> EXPECTED_WRITE = new AtomicReference<>();
-
-        @Override
-        public void onIndexModule(IndexModule indexModule) {
-            indexModule.addIndexOperationListener(new IndexingOperationListener() {
-                @Override
-                public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
-                    final var expectedWrite = EXPECTED_WRITE.get();
-                    if (expectedWrite != null
-                        && expectedWrite.shardId().equals(shardId)
-                        && expectedWrite.documentId().equals(index.id())
-                        && index.origin() == Engine.Operation.Origin.PRIMARY
-                        && result.getResultType() == Engine.Result.Type.SUCCESS) {
-                        expectedWrite.applied().countDown();
-                    }
-                }
-            });
-        }
-
-        static void expectWrite(ShardId shardId, String documentId, CountDownLatch applied) {
-            Assert.assertTrue(EXPECTED_WRITE.compareAndSet(null, new ExpectedWrite(shardId, documentId, applied)));
-        }
-
-        static void reset() {
-            EXPECTED_WRITE.set(null);
-        }
-
-        private record ExpectedWrite(ShardId shardId, String documentId, CountDownLatch applied) {}
     }
 
     @Override
@@ -5480,32 +5446,29 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet(SAFE_AWAIT_TIMEOUT);
         safeAwait(splitAttempted);
 
-        final CountDownLatch targetWriteApplied = new CountDownLatch(1);
+        final var reshardIndexService = internalCluster().getInstance(ReshardIndexService.class, indexNode);
         try {
-            PostIndexListenerPlugin.expectWrite(new ShardId(index, 1), targetDocumentId, targetWriteApplied);
             final var indexRequest = prepareIndex(indexName).setId(targetDocumentId)
                 .setSource("field", "value")
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .execute();
 
-            // Writes already go to the target in HANDOFF, but refresh waits for SPLIT so searches include it.
-            safeAwait(targetWriteApplied);
+            // The write reaches the target in HANDOFF, but its refresh waits for SPLIT, which is where the delete has to unblock it.
+            assertBusy(() -> assertThat(reshardIndexService.getShardsTrackingSplitCompletion(), contains(new ShardId(index, 1))));
             assertFalse(indexRequest.isDone());
 
             assertAcked(indicesAdmin().prepareDelete(indexName).get(SAFE_AWAIT_TIMEOUT));
             assertBusy(() -> assertTrue("index request was never answered after the index was deleted", indexRequest.isDone()));
         } finally {
             releaseSplit.countDown();
-            PostIndexListenerPlugin.reset();
         }
 
         // Answering the request is not enough: a leftover tracker entry leaves the closed IndexShard pinned.
-        final var reshardIndexService = internalCluster().getInstance(ReshardIndexService.class, indexNode);
         assertBusy(() -> assertThat(reshardIndexService.getShardsTrackingSplitCompletion(), empty()));
     }
 
-    /// Deleting an index mid-reshard must leave nothing behind: the stale-index GC reclaims the per-index prefix, and no reshard
-    /// state survives the abandoned split.
+    /// The stale-index GC must reclaim the per-index prefix of a deleted index. The reshard state checks are cheap guards rather
+    /// than the real coverage for the leaks, which lives in the unit tests and in the handoff test above.
     private static void assertReshardStateEventuallyCleanedUp(String indexNode, Set<String> deletedIndexUUIDs) throws Exception {
         final var splitTargetService = internalCluster().getInstance(SplitTargetService.class, indexNode);
         final var splitSourceService = internalCluster().getInstance(SplitSourceService.class, indexNode);

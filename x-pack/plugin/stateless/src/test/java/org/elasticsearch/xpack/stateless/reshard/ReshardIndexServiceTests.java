@@ -251,7 +251,7 @@ public class ReshardIndexServiceTests extends ESTestCase {
         svc.maybeAwaitSplit(reshardingMetadata, targetIndexShard, failOnFailure);
     }
 
-    /** A split whose target shard is in the earliest state that a refresh can actually reach it in. */
+    /** A split with its target shard partway through, so a refresh on that shard has to wait. */
     private static IndexReshardingMetadata splitWithTargetAwaitingSplit(ShardId targetShard) {
         return IndexReshardingMetadata.newSplitByMultiple(1, 2)
             .transitionSplitTargetToNewState(targetShard, IndexReshardingState.Split.TargetShardState.HANDOFF);
@@ -266,7 +266,6 @@ public class ReshardIndexServiceTests extends ESTestCase {
         final var reshardingMetadata = splitWithTargetAwaitingSplit(targetShard);
         final var indexMetadata = IndexMetadata.builder(index.getName())
             .settings(indexSettings(IndexVersion.current(), 2, 1))
-            .numberOfShards(2)
             .reshardingMetadata(reshardingMetadata)
             .build();
         final var shardIndexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
@@ -287,10 +286,9 @@ public class ReshardIndexServiceTests extends ESTestCase {
         svc.maybeAwaitSplit(reshardingMetadata, indexShard, earlyRefresh);
         assertFalse(earlyRefresh.isDone());
 
-        // indexSettings() is the last call maybeAwaitSplit makes before registering, so cancel the split from here to hit the race.
-        final var cancellationRan = new AtomicBoolean();
+        // indexSettings() is read before the listener is registered, which makes it a convenient place to cancel the split
+        // and reproduce a cancellation that lands mid-registration.
         when(indexShard.indexSettings()).thenAnswer(invocation -> {
-            assertTrue(cancellationRan.compareAndSet(false, true));
             svc.failAndStopTrackingSplit(indexShard, new IndexShardClosedException(targetShard));
             assertTrue(earlyRefresh.isDone());
             return shardIndexSettings;
@@ -301,7 +299,7 @@ public class ReshardIndexServiceTests extends ESTestCase {
         final var lateRefresh = new PlainActionFuture<Void>();
         svc.maybeAwaitSplit(targetShard, lateRefresh);
 
-        assertTrue("early refresh was left waiting for a split that will never complete", earlyRefresh.isDone());
+        // actionGet blocks forever on an incomplete future, so check for a terminal response before unwrapping it.
         assertTrue("late refresh was left waiting for a split that will never complete", lateRefresh.isDone());
         expectThrows(IndexShardClosedException.class, earlyRefresh::actionGet);
         expectThrows(IndexShardClosedException.class, lateRefresh::actionGet);

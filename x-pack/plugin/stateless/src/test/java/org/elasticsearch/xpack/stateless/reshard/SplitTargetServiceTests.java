@@ -42,6 +42,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -109,7 +110,7 @@ public class SplitTargetServiceTests extends ESTestCase {
         assertThrows(IllegalStateException.class, () -> sts.acceptHandoff(indexShard, request5, ActionListener.noop()));
     }
 
-    public void testCancelSplitsIsIdempotent() {
+    public void testCancelSplitsFailsWaitingRefreshesOnce() {
         var threadPool = mock(ThreadPool.class);
         var clusterService = mock(ClusterService.class);
         var reshardIndexService = new ReshardIndexService(
@@ -130,7 +131,7 @@ public class SplitTargetServiceTests extends ESTestCase {
             IndexReshardingMetadata.newSplitByMultiple(1, 2),
             indexShard,
             ActionListener.wrap(ignored -> fail("should not have completed"), e -> {
-                assertTrue(e instanceof IndexShardClosedException);
+                assertThat(e, instanceOf(IndexShardClosedException.class));
                 failureCount.incrementAndGet();
             })
         );

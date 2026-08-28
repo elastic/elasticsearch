@@ -84,7 +84,6 @@ public class ScalarFunctionWritables {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.add(And.ENTRY);
-        entries.add(ToAscii.ENTRY);
         entries.add(Atan2.ENTRY);
         entries.add(BitLength.ENTRY);
         entries.add(Case.ENTRY);
@@ -143,6 +142,7 @@ public class ScalarFunctionWritables {
         entries.add(Substring.ENTRY);
         entries.add(StartsWith.ENTRY);
         entries.add(Tau.ENTRY);
+        entries.add(ToAscii.ENTRY);
         entries.add(ToLower.ENTRY);
         entries.add(ToUpper.ENTRY);
         entries.add(HistogramFraction.ENTRY);

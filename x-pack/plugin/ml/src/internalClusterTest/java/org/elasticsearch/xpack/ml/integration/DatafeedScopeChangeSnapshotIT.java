@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -222,8 +223,8 @@ public class DatafeedScopeChangeSnapshotIT extends MlSingleNodeTestCase {
 
     private boolean annotationsIndexExists(String expectedName) {
         GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
-            .setIndices(AnnotationIndex.LATEST_INDEX_NAME)
-            .setIndicesOptions(org.elasticsearch.action.support.IndicesOptions.LENIENT_EXPAND_OPEN)
+            .setIndices(expectedName)
+            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
             .get();
         return Arrays.asList(getIndexResponse.getIndices()).contains(expectedName);
     }
@@ -235,10 +236,13 @@ public class DatafeedScopeChangeSnapshotIT extends MlSingleNodeTestCase {
             AnnotationIndex.READ_ALIAS_NAME,
             AnnotationIndex.WRITE_ALIAS_NAME,
             AnnotationIndex.LATEST_INDEX_NAME
-        ).setIndicesOptions(org.elasticsearch.action.support.IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN).get();
+        ).setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN).get();
         Map<String, List<AliasMetadata>> aliases = aliasesResponse.getAliases();
         if (aliases != null) {
             for (var aliasList : aliases.values()) {
+                for (AliasMetadata aliasMetadata : aliasList) {
+                    assertThat("Annotations aliases should be hidden but are not: " + aliases, aliasMetadata.isHidden(), is(true));
+                }
                 count += aliasList.size();
             }
         }

@@ -329,6 +329,8 @@ public final class DatafeedManager {
                     UpdateDatafeedAction.Request effectiveRequest = maybeDefaultProjectRoutingForMigration(request, current, intent);
                     final boolean defaultedProjectRoutingForMigration = effectiveRequest != request;
                     final String defaultProjectRouting = ProjectRoutingResolver.LOCAL_ONLY;
+                    // Signals cover the first-time null -> _alias:_origin pin even though isEffectiveScopeChange excludes it
+                    // from the rollback-snapshot gate: unset project_routing is not pinned to origin at query time.
                     final boolean userInitiatedProjectRoutingChange = defaultedProjectRoutingForMigration == false
                         && DatafeedUpdate.isUserInitiatedProjectRoutingChange(current, update);
                     final boolean rollbackSnapshotRetained = requiresRollbackSnapshotBeforeScopeChange(
@@ -354,10 +356,10 @@ public final class DatafeedManager {
                             l.onResponse(response);
                         }, l::onFailure);
                     } else if (userInitiatedProjectRoutingChange) {
-                        updateListener = ActionListener.wrap(response -> {
-                            l.onResponse(response);
+                        updateListener = l.delegateFailureAndWrap((delegate, response) -> {
+                            delegate.onResponse(response);
                             notifyUserInitiatedProjectRoutingChange(current, update, threadPool, rollbackSnapshotRetained);
-                        }, l::onFailure);
+                        });
                     } else {
                         updateListener = l;
                     }
@@ -530,19 +532,28 @@ public final class DatafeedManager {
         ThreadPool threadPool,
         boolean rollbackSnapshotRetained
     ) {
-        String message = projectRoutingChangeMessage(current.getProjectRouting(), rawUpdate.getProjectRouting(), rollbackSnapshotRetained);
-        logger.info("[{}] {}", current.getId(), message);
-        auditor.info(current.getJobId(), message);
-        String jobId = current.getJobId();
-        String datafeedId = current.getId();
-        jobResultsProvider.dataCounts(
-            jobId,
-            dataCounts -> scheduleProjectRoutingChangeAnnotation(datafeedId, jobId, message, dataCounts, threadPool),
-            e -> {
-                logger.warn(() -> "[" + datafeedId + "] failed to load data counts for project_routing change annotation", e);
-                scheduleProjectRoutingChangeAnnotation(datafeedId, jobId, message, null, threadPool);
-            }
-        );
+        // Runs after the update response was already sent, so a failure here must never reach the API listener.
+        try {
+            String message = projectRoutingChangeMessage(
+                current.getProjectRouting(),
+                rawUpdate.getProjectRouting(),
+                rollbackSnapshotRetained
+            );
+            logger.info("[{}] {}", current.getId(), message);
+            auditor.info(current.getJobId(), message);
+            String jobId = current.getJobId();
+            String datafeedId = current.getId();
+            jobResultsProvider.dataCounts(
+                jobId,
+                dataCounts -> scheduleProjectRoutingChangeAnnotation(datafeedId, jobId, message, dataCounts, threadPool),
+                e -> {
+                    logger.warn(() -> "[" + datafeedId + "] failed to load data counts for project_routing change annotation", e);
+                    scheduleProjectRoutingChangeAnnotation(datafeedId, jobId, message, null, threadPool);
+                }
+            );
+        } catch (Exception e) {
+            logger.warn(() -> "[" + current.getId() + "] failed to emit project_routing change signals", e);
+        }
     }
 
     private void scheduleProjectRoutingChangeAnnotation(

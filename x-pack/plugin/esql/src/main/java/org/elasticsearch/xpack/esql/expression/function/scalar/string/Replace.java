@@ -388,40 +388,50 @@ public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
      * Executes a Replace without surpassing the memory limit.
      */
     private static BytesRef safeReplace(BytesRef strBytesRef, Pattern regex, BytesRef newStrBytesRef) {
-        String str = strBytesRef.utf8ToString();
-        Matcher m = regex.matcher(str);
-        if (false == m.find()) {
-            return strBytesRef;
-        }
-        String newStr = newStrBytesRef.utf8ToString();
-
-        // Count potential groups (E.g. "$1") used in the replacement
-        int constantReplacementLength = newStr.length();
-        int groupsInReplacement = 0;
-        for (int i = 0; i < newStr.length(); i++) {
-            if (newStr.charAt(i) == '$') {
-                groupsInReplacement++;
-                constantReplacementLength -= 2;
-                i++;
+        try {
+            String str = strBytesRef.utf8ToString();
+            Matcher m = regex.matcher(str);
+            if (false == m.find()) {
+                return strBytesRef;
             }
-        }
+            String newStr = newStrBytesRef.utf8ToString();
 
-        // Initialize the buffer with an approximate size for the first replacement
-        StringBuilder result = new StringBuilder(str.length() + newStr.length() + 8);
-        do {
-            int matchSize = m.end() - m.start();
-            int potentialReplacementSize = constantReplacementLength + groupsInReplacement * matchSize;
-            int remainingStr = str.length() - m.end();
-            if (result.length() + potentialReplacementSize + remainingStr > MAX_BYTES_REF_RESULT_SIZE) {
-                throw new IllegalArgumentException(
-                    "Creating strings with more than [" + MAX_BYTES_REF_RESULT_SIZE + "] bytes is not supported"
-                );
+            // Count potential groups (E.g. "$1") used in the replacement
+            int constantReplacementLength = newStr.length();
+            int groupsInReplacement = 0;
+            for (int i = 0; i < newStr.length(); i++) {
+                if (newStr.charAt(i) == '$') {
+                    groupsInReplacement++;
+                    constantReplacementLength -= 2;
+                    i++;
+                }
             }
 
-            m.appendReplacement(result, newStr);
-        } while (m.find());
-        m.appendTail(result);
-        return new BytesRef(result.toString());
+            // Initialize the buffer with an approximate size for the first replacement
+            StringBuilder result = new StringBuilder(str.length() + newStr.length() + 8);
+            do {
+                int matchSize = m.end() - m.start();
+                int potentialReplacementSize = constantReplacementLength + groupsInReplacement * matchSize;
+                int remainingStr = str.length() - m.end();
+                if (result.length() + potentialReplacementSize + remainingStr > MAX_BYTES_REF_RESULT_SIZE) {
+                    throw new IllegalArgumentException(
+                        "Creating strings with more than [" + MAX_BYTES_REF_RESULT_SIZE + "] bytes is not supported"
+                    );
+                }
+
+                m.appendReplacement(result, newStr);
+            } while (m.find());
+            m.appendTail(result);
+            return new BytesRef(result.toString());
+        } catch (StackOverflowError e) {
+            /*
+             * A bad regex on problematic data can trigger a StackOverflowError. Catch it here and
+             * rethrow as IllegalArgumentException so the evaluator turns it into a warning and a
+             * null result, instead of a fatal JVM error that kills the node. The input string is
+             * omitted from the message to avoid writing potentially sensitive data to logs.
+             */
+            throw new IllegalArgumentException("Caught a StackOverflowError while applying regex [" + regex.pattern() + "]");
+        }
     }
 
     @Override

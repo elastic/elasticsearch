@@ -541,9 +541,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationBucketIncludeEmptyBucketsIT
   method: test {csv-spec:bucket_include_empty_buckets.Large number of buckets doesn't OOM - stats}
   issue: https://github.com/elastic/elasticsearch/issues/155921
-- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
-  method: testRelocatingTaskIsNotCancelledOnShutdownTimeout
-  issue: https://github.com/elastic/elasticsearch/issues/155593
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecUnmappedNullifyIT
   method: test {csv-spec:unmapped-nullify.statsNullifiedFirst}
   issue: https://github.com/elastic/elasticsearch/issues/156026
@@ -758,8 +755,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotResiliencyWithReadFromObjectStoreTests
   method: testSuccessfulSnapshotWithConcurrentDynamicMappingUpdates
   issue: https://github.com/elastic/elasticsearch/issues/157733
-- class: org.elasticsearch.upgrades.DiskBBQVectorSearchIT
-  issue: https://github.com/elastic/elasticsearch/issues/157744
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=health/10_basic/cluster health basic test}
   issue: https://github.com/elastic/elasticsearch/issues/157740
@@ -805,3 +800,12 @@ tests:
 - class: org.elasticsearch.cluster.metadata.MetadataCreateIndexServiceTests
   method: testRegistryInstalledTemplateIsFalseForNonManagedTemplate
   issue: https://github.com/elastic/elasticsearch/issues/157930
+- class: org.elasticsearch.xpack.esql.datasources.ReadConfigFingerprintDerivationSitesTests
+  method: testEveryDerivationSiteIsDeclared
+  issue: https://github.com/elastic/elasticsearch/issues/157937
+- class: org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDeciderIT
+  method: testEstimatedHeapAllocationDecider
+  issue: https://github.com/elastic/elasticsearch/issues/157939
+- class: org.elasticsearch.action.bulk.ShardBatchIndexerCanUseBatchTests
+  method: testDynamicSettingUpdate
+  issue: https://github.com/elastic/elasticsearch/issues/157947

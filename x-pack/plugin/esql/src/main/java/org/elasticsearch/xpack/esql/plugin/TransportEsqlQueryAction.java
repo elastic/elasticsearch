@@ -622,7 +622,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 QuerySettings.TIME_ZONE.get(result.configuration().resolvedSettings()),
                 task.getStartTime(),
                 ((EsqlQueryTask) task).getExpirationTimeMillis(),
-                result.executionInfo()
+                result.executionInfo(),
+                result.approximationApplied()
             );
         }
         return new EsqlQueryResponse(
@@ -643,7 +644,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             QuerySettings.TIME_ZONE.get(result.configuration().resolvedSettings()),
             task.getStartTime(),
             threadPool.absoluteTimeInMillis() + request.keepAlive().millis(),
-            result.executionInfo()
+            result.executionInfo(),
+            result.approximationApplied()
         );
     }
 

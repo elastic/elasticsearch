@@ -202,6 +202,12 @@ public final class CsvAssert {
         }
     }
 
+    public static void assertApproximationApplied(String expected, Boolean actual) {
+        if (expected != null) {
+            assertEquals("Incorrect approximation_applied", expected, String.valueOf(actual));
+        }
+    }
+
     private record DataFailure(int row, int column, Object expected, Object actual) {}
 
     public static void assertData(

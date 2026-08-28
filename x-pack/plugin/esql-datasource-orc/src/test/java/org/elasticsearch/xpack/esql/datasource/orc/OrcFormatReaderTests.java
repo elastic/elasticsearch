@@ -52,12 +52,15 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.junit.After;
 import org.junit.Before;
 
@@ -70,9 +73,18 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 public class OrcFormatReaderTests extends ESTestCase {
 
@@ -378,6 +390,59 @@ public class OrcFormatReaderTests extends ESTestCase {
             assertTrue(page.getBlock(1).isNull(1));
             assertEquals(87.3, ((DoubleBlock) page.getBlock(2)).getDouble(1), 0.001);
         });
+    }
+
+    /**
+     * A column declared in the query schema but absent from the ORC file's footer must emit an
+     * informational warning via the {@link FormatReadContext#informationalWarningSink()} on the
+     * first page produced. The warning must not fire before any page is read (row-group pruning
+     * might return zero rows) and must not re-emit on subsequent pages.
+     */
+    public void testAbsentDeclaredColumnEmitsWarningSink() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("emp_no", TypeDescription.createInt())
+            .addField("first_name", TypeDescription.createString());
+
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 2;
+            LongColumnVector empNoCol = (LongColumnVector) batch.cols[0];
+            BytesColumnVector firstNameCol = (BytesColumnVector) batch.cols[1];
+            empNoCol.vector[0] = 1;
+            firstNameCol.setVal(0, "Alice".getBytes(StandardCharsets.UTF_8));
+            empNoCol.vector[1] = 2;
+            firstNameCol.setVal(1, "Bob".getBytes(StandardCharsets.UTF_8));
+        });
+
+        // Project emp_no, first_name, AND department — department is absent from the ORC file.
+        List<String> projection = List.of("emp_no", "first_name", "department");
+        List<String> warnings = new ArrayList<>();
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(projection)
+            .batchSize(1024)
+            .informationalWarningSink(warnings::add)
+            .build();
+
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        try (CloseableIterator<Page> iter = reader.read(createStorageObject(orcData), ctx)) {
+            assertTrue("no warning before first page is polled", warnings.isEmpty());
+            assertTrue(iter.hasNext());
+            assertTrue("no warning after hasNext() — warning deferred to next()", warnings.isEmpty());
+            Page page = iter.next();
+            try {
+                assertEquals(2, page.getPositionCount());
+                assertEquals(3, page.getBlockCount());
+                assertTrue("absent column must be a null block", page.getBlock(2).isNull(0));
+                assertEquals(1, warnings.size());
+                assertEquals(SkipWarnings.absentDeclaredColumnMessage("department"), warnings.get(0));
+            } finally {
+                page.releaseBlocks();
+            }
+            // Drain any remaining pages; warning must not re-emit (emitAbsentColumnWarningsOnce is idempotent).
+            while (iter.hasNext()) {
+                iter.next().releaseBlocks();
+            }
+            assertEquals("warning must not re-emit on subsequent pages", 1, warnings.size());
+        }
     }
 
     public void testReadWithBatching() throws Exception {
@@ -1590,8 +1655,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         // The epoch-scaling overflow leg of the unit rule: an int64 declared `date` WITH `format: epoch_second` scales
         // the raw seconds to millis (x1000). A value too large to scale (Long.MAX_VALUE seconds) must FAIL PER CELL and
         // route through the reader's error policy — never a bare ArithmeticException escaping castBlock, never a whole-
-        // read abort that also drops the good rows. Columnar readers cannot drop a single row, so skip_row degrades to
-        // the same null+warn as null_field here (ErrorPolicy Javadoc); only fail_fast aborts.
+        // read abort that also drops the good rows.
         long good = 1704067200L; // 2024-01-01T00:00:00Z in seconds -> 1704067200000 millis
         long overflow = Long.MAX_VALUE; // as epoch-seconds this cannot scale to millis
         TypeDescription schema = TypeDescription.createStruct().addField("ts", TypeDescription.createLong());
@@ -1604,27 +1668,42 @@ public class OrcFormatReaderTests extends ESTestCase {
         });
         List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
 
-        // null_field and skip_row: the overflow cell nulls, both good rows survive, one Warning per bad cell.
-        for (ErrorPolicy lenient : List.of(ErrorPolicy.PERMISSIVE, ErrorPolicy.LENIENT)) {
-            OrcFormatReader reader = (OrcFormatReader) declaredReader("ts").withDeclaredDateFormats(Map.of("ts", "epoch_second"));
-            try (
-                CloseableIterator<Page> it = reader.readRange(
-                    createStorageObject(orcData),
-                    new RangeReadContext(List.of("ts"), 10, 0, orcData.length, asDatetime, lenient)
-                )
-            ) {
-                Page page = it.next();
-                assertEquals("skip_row cannot drop a row in a columnar batch — every position survives", 3, page.getPositionCount());
-                LongBlock longs = (LongBlock) page.getBlock(0);
-                assertEquals(1704067200000L, longs.getLong(longs.getFirstValueIndex(0)));
-                assertTrue("the overflowing epoch-second cell reads as null under " + lenient.mode(), longs.isNull(1));
-                assertEquals(1704067200000L, longs.getLong(longs.getFirstValueIndex(2)));
-                page.releaseBlocks();
-            }
-            List<String> warnings = drainWarnings();
-            assertFalse("the nulled overflow cell must emit a Warning under " + lenient.mode(), warnings.isEmpty());
-            assertTrue("Warning should name the column, got: " + warnings, warnings.toString().contains("[ts]"));
+        // null_field: the overflow cell nulls, both good rows survive, one Warning per bad cell.
+        OrcFormatReader nullFieldReader = (OrcFormatReader) declaredReader("ts").withDeclaredDateFormats(Map.of("ts", "epoch_second"));
+        try (
+            CloseableIterator<Page> it = nullFieldReader.readRange(
+                createStorageObject(orcData),
+                new RangeReadContext(List.of("ts"), 10, 0, orcData.length, asDatetime, ErrorPolicy.PERMISSIVE)
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(3, page.getPositionCount());
+            LongBlock longs = (LongBlock) page.getBlock(0);
+            assertEquals(1704067200000L, longs.getLong(longs.getFirstValueIndex(0)));
+            assertTrue("the overflowing epoch-second cell reads as null under null_field", longs.isNull(1));
+            assertEquals(1704067200000L, longs.getLong(longs.getFirstValueIndex(2)));
+            page.releaseBlocks();
         }
+        List<String> nullFieldWarnings = drainWarnings();
+        assertFalse("the nulled overflow cell must emit a Warning under null_field", nullFieldWarnings.isEmpty());
+        assertTrue("Warning should name the column, got: " + nullFieldWarnings, nullFieldWarnings.toString().contains("[ts]"));
+
+        // skip_row: the overflowing row is dropped entirely; only the 2 good rows survive.
+        OrcFormatReader skipRowReader = (OrcFormatReader) declaredReader("ts").withDeclaredDateFormats(Map.of("ts", "epoch_second"));
+        try (
+            CloseableIterator<Page> it = skipRowReader.readRange(
+                createStorageObject(orcData),
+                new RangeReadContext(List.of("ts"), 10, 0, orcData.length, asDatetime, ErrorPolicy.LENIENT)
+            )
+        ) {
+            Page page = it.next();
+            assertEquals("skip_row drops the overflowing row", 2, page.getPositionCount());
+            LongBlock longs = (LongBlock) page.getBlock(0);
+            assertEquals(1704067200000L, longs.getLong(longs.getFirstValueIndex(0)));
+            assertEquals(1704067200000L, longs.getLong(longs.getFirstValueIndex(1)));
+            page.releaseBlocks();
+        }
+        drainWarnings();
 
         // fail_fast: the same overflow aborts the read with a sensible per-cell error — not a bare ArithmeticException.
         OrcFormatReader strict = (OrcFormatReader) declaredReader("ts").withDeclaredDateFormats(Map.of("ts", "epoch_second"));
@@ -1840,6 +1919,67 @@ public class OrcFormatReaderTests extends ESTestCase {
         assertEquals(ErrorPolicy.STRICT, new OrcFormatReader(blockFactory).defaultErrorPolicy());
     }
 
+    /**
+     * The behavioural half of {@link FormatReader#dropsRowsUnderPushedFilter()}: with a SearchArgument actually
+     * pushed in, a {@code skip_row} coercion failure must still drop the whole row.
+     * <p>
+     * This is the assertion that carries weight, and it is the mirror image of Parquet's
+     * {@code testSkipRowDoesNotDropUnderPushedFilterHencePushdownIsWithheld}. Parquet answers {@code false}, which
+     * is the safe answer — the planner then withholds the filter and nothing downstream depends on the reader. ORC
+     * answers {@code true}, which is what *permits* {@code PushFiltersToSource} to hand it a filter for a
+     * {@code skip_row} read, so the row-drop under that filter has to be demonstrated rather than assumed. ORC can
+     * make that promise because it has one decode path — {@code convertToPage} always runs
+     * {@code ColumnarRowDropHelper#filterBlocks} — and because it never calls {@code OrcFile.ReaderOptions#setRowFilter},
+     * so a SearchArgument prunes whole stripes and row-index ranges but never individual rows inside a batch,
+     * leaving batch coordinates intact.
+     * <p>
+     * The predicate matches every row, so the emitted count is entirely about the row-drop.
+     */
+    public void testDropsRowsUnderPushedFilter() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("n", TypeDescription.createString())
+            .addField("id", TypeDescription.createLong());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 3;
+            ((BytesColumnVector) batch.cols[0]).setVal(0, "41".getBytes(StandardCharsets.UTF_8));
+            ((BytesColumnVector) batch.cols[0]).setVal(1, "oops".getBytes(StandardCharsets.UTF_8));
+            ((BytesColumnVector) batch.cols[0]).setVal(2, "43".getBytes(StandardCharsets.UTF_8));
+            LongColumnVector idCol = (LongColumnVector) batch.cols[1];
+            idCol.vector[0] = 1L;
+            idCol.vector[1] = 2L;
+            idCol.vector[2] = 3L;
+        });
+
+        SearchArgument sarg = SearchArgumentFactory.newBuilder().startNot().lessThanEquals("id", PredicateLeaf.Type.LONG, 0L).end().build();
+        OrcFormatReader reader = (OrcFormatReader) declaredReader("n").withPushedFilter(sarg);
+        List<Attribute> plannerSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, "n", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG)
+        );
+        try (
+            CloseableIterator<Page> it = reader.readRange(
+                createStorageObject(orcData),
+                new RangeReadContext(List.of("n", "id"), 10, 0, orcData.length, plannerSchema, ErrorPolicy.LENIENT)
+            )
+        ) {
+            Page page = it.next();
+            assertEquals("skip_row must still drop the bad row with a filter pushed in", 2, page.getPositionCount());
+            LongBlock ns = (LongBlock) page.getBlock(0);
+            assertEquals(41L, ns.getLong(ns.getFirstValueIndex(0)));
+            assertEquals(43L, ns.getLong(ns.getFirstValueIndex(1)));
+            // The id column drops in lockstep: row 2 is gone from every column, not just the failing one.
+            LongBlock ids = (LongBlock) page.getBlock(1);
+            assertEquals(1L, ids.getLong(ids.getFirstValueIndex(0)));
+            assertEquals(3L, ids.getLong(ids.getFirstValueIndex(1)));
+            page.releaseBlocks();
+        }
+        drainWarnings();
+
+        // ...which is why the reader may advertise the capability. Pinned so a future row-level ORC predicate path
+        // cannot quietly inherit "true" and start null-filling instead of dropping.
+        assertTrue(new OrcFormatReader(blockFactory).dropsRowsUnderPushedFilter());
+    }
+
     public void testCoercionUnparseableValueEmitsWarningAndNull() throws Exception {
         // Per-cell leniency under an explicit null_field (PERMISSIVE) error policy: a token the declared type
         // cannot coerce nulls THAT cell and records a response Warning header; the surrounding cells still decode.
@@ -1903,6 +2043,266 @@ public class OrcFormatReaderTests extends ESTestCase {
             });
         }
         assertTrue("fail_fast must not emit coercion warnings", drainWarnings().isEmpty());
+    }
+
+    public void testSkipRowDropsBadRow() throws Exception {
+        // error_mode: skip_row on a columnar ORC batch must DROP the entire row when a declared-type
+        // coercion fails — not null-fill the bad cell. Three rows: good/bad/good → 2 survivor rows.
+        TypeDescription schema = TypeDescription.createStruct().addField("n", TypeDescription.createString());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 3;
+            ((BytesColumnVector) batch.cols[0]).setVal(0, "41".getBytes(StandardCharsets.UTF_8));
+            ((BytesColumnVector) batch.cols[0]).setVal(1, "oops".getBytes(StandardCharsets.UTF_8));
+            ((BytesColumnVector) batch.cols[0]).setVal(2, "43".getBytes(StandardCharsets.UTF_8));
+        });
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = declaredReader("n");
+        List<Attribute> plannerSchema = List.of(new ReferenceAttribute(Source.EMPTY, "n", DataType.LONG));
+        try (
+            CloseableIterator<Page> it = reader.readRange(
+                storageObject,
+                new RangeReadContext(List.of("n"), 10, 0, orcData.length, plannerSchema, ErrorPolicy.LENIENT)
+            )
+        ) {
+            Page page = it.next();
+            assertEquals("bad row must be dropped under skip_row", 2, page.getPositionCount());
+            LongBlock longs = (LongBlock) page.getBlock(0);
+            assertEquals(41L, longs.getLong(longs.getFirstValueIndex(0)));
+            assertEquals(43L, longs.getLong(longs.getFirstValueIndex(1)));
+            page.releaseBlocks();
+        }
+        // The response headers must describe a row drop, not a null-fill: the summary and the per-cell detail have
+        // to agree with each other AND with what the page actually shows, or the user reads "returning null" next
+        // to a row that is gone. Pinned in both readers (ParquetFormatReaderTests.testSkipRowDropsBadRow).
+        List<String> warnings = drainWarnings();
+        assertThat(warnings, hasItem(containsString("their entire row is dropped")));
+        assertThat(warnings, hasItem(allOf(containsString("[n]"), containsString("; row will be dropped"))));
+        assertThat("no null-fill wording under skip_row", warnings, everyItem(not(containsString("returning null"))));
+    }
+
+    public void testSkipRowMultiColumnSingleBadRowDropsAllColumns() throws Exception {
+        // A coercion failure in one column drops the entire row from ALL column blocks, not just the
+        // failing column. Three rows across two columns: the middle row fails on "n" — both "n" and
+        // "tag" for that row must be absent from the output.
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("n", TypeDescription.createString())
+            .addField("tag", TypeDescription.createString());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 3;
+            ((BytesColumnVector) batch.cols[0]).setVal(0, "1".getBytes(StandardCharsets.UTF_8));
+            ((BytesColumnVector) batch.cols[0]).setVal(1, "bad".getBytes(StandardCharsets.UTF_8));
+            ((BytesColumnVector) batch.cols[0]).setVal(2, "3".getBytes(StandardCharsets.UTF_8));
+            ((BytesColumnVector) batch.cols[1]).setVal(0, "a".getBytes(StandardCharsets.UTF_8));
+            ((BytesColumnVector) batch.cols[1]).setVal(1, "b".getBytes(StandardCharsets.UTF_8));
+            ((BytesColumnVector) batch.cols[1]).setVal(2, "c".getBytes(StandardCharsets.UTF_8));
+        });
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = declaredReader("n");
+        List<Attribute> plannerSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, "n", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, "tag", DataType.KEYWORD)
+        );
+        try (
+            CloseableIterator<Page> it = reader.readRange(
+                storageObject,
+                new RangeReadContext(List.of("n", "tag"), 10, 0, orcData.length, plannerSchema, ErrorPolicy.LENIENT)
+            )
+        ) {
+            Page page = it.next();
+            assertEquals("bad row drops all columns", 2, page.getPositionCount());
+            LongBlock ns = (LongBlock) page.getBlock(0);
+            assertEquals(1L, ns.getLong(ns.getFirstValueIndex(0)));
+            assertEquals(3L, ns.getLong(ns.getFirstValueIndex(1)));
+            BytesRefBlock tags = (BytesRefBlock) page.getBlock(1);
+            assertEquals("a", tags.getBytesRef(tags.getFirstValueIndex(0), new org.apache.lucene.util.BytesRef()).utf8ToString());
+            assertEquals("c", tags.getBytesRef(tags.getFirstValueIndex(1), new org.apache.lucene.util.BytesRef()).utf8ToString());
+            page.releaseBlocks();
+        }
+        drainWarnings();
+    }
+
+    public void testSkipRowAllRowsInBatchDroppedEmitsEmptyPage() throws Exception {
+        // Every row of the batch fails coercion, so the compaction leaves nothing. The reader must still emit a
+        // well-formed page — zero positions, one block per projected attribute, all agreeing on the count (Page's
+        // constructor asserts that) — rather than a ragged page or a null block. Under LENIENT (max_error_ratio
+        // 1.0) an all-bad batch is exactly at the limit, not over it, so this must not throw either.
+        TypeDescription schema = TypeDescription.createStruct().addField("n", TypeDescription.createString());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 2;
+            ((BytesColumnVector) batch.cols[0]).setVal(0, "nope".getBytes(StandardCharsets.UTF_8));
+            ((BytesColumnVector) batch.cols[0]).setVal(1, "also-nope".getBytes(StandardCharsets.UTF_8));
+        });
+        OrcFormatReader reader = declaredReader("n");
+        List<Attribute> plannerSchema = List.of(new ReferenceAttribute(Source.EMPTY, "n", DataType.LONG));
+        try (
+            CloseableIterator<Page> it = reader.readRange(
+                createStorageObject(orcData),
+                new RangeReadContext(List.of("n"), 10, 0, orcData.length, plannerSchema, ErrorPolicy.LENIENT)
+            )
+        ) {
+            Page page = it.next();
+            assertEquals("all rows dropped leaves an empty page", 0, page.getPositionCount());
+            assertEquals(1, page.getBlockCount());
+            assertEquals(0, page.getBlock(0).getPositionCount());
+            page.releaseBlocks();
+        }
+        drainWarnings();
+    }
+
+    public void testSkipRowBudgetExceededThrows() throws Exception {
+        // error_mode: skip_row with max_errors=1 must throw a ParsingException (HTTP 400) after the
+        // second bad row is detected, which exceeds the budget of 1 error.
+        TypeDescription schema = TypeDescription.createStruct().addField("n", TypeDescription.createString());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 4;
+            ((BytesColumnVector) batch.cols[0]).setVal(0, "1".getBytes(StandardCharsets.UTF_8));
+            ((BytesColumnVector) batch.cols[0]).setVal(1, "bad".getBytes(StandardCharsets.UTF_8));
+            ((BytesColumnVector) batch.cols[0]).setVal(2, "also-bad".getBytes(StandardCharsets.UTF_8));
+            ((BytesColumnVector) batch.cols[0]).setVal(3, "4".getBytes(StandardCharsets.UTF_8));
+        });
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = declaredReader("n");
+        List<Attribute> plannerSchema = List.of(new ReferenceAttribute(Source.EMPTY, "n", DataType.LONG));
+        ErrorPolicy budget = new ErrorPolicy(1L, false);
+        try (
+            CloseableIterator<Page> it = reader.readRange(
+                storageObject,
+                new RangeReadContext(List.of("n"), 10, 0, orcData.length, plannerSchema, budget)
+            )
+        ) {
+            ParsingException e = expectThrows(ParsingException.class, () -> {
+                while (it.hasNext()) {
+                    it.next().releaseBlocks();
+                }
+            });
+            // The thrown message is the one the client actually sees, so it must name the counts and the file.
+            assertThat(e.getMessage(), containsString("dropped rows"));
+            assertThat(e.getMessage(), containsString("maximum allowed is [1] errors"));
+        }
+        // checkBudget also records the trip into the same collector, ahead of the throw.
+        assertThat(drainWarnings(), hasItem(containsString("Columnar error budget exceeded")));
+    }
+
+    /**
+     * A pushed {@code LIMIT} must return N <em>surviving</em> rows, not N source rows minus whatever {@code skip_row}
+     * dropped along the way. ORC wraps the iterator in {@code RowLimitingIterator}, which counts emitted page
+     * positions — so a dropped row must not consume the budget. Twin of
+     * {@code ParquetFormatReaderTests.testSkipRowUnderRowLimitStillReturnsLimitRows}.
+     * <p>
+     * Fixture: {@code bad, good, good} with {@code LIMIT 2}. If the limiter counted source rows, the bad one would
+     * eat a slot and only {@code 42} would come out.
+     */
+    public void testSkipRowUnderRowLimitStillReturnsLimitRows() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct().addField("n", TypeDescription.createString());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 3;
+            ((BytesColumnVector) batch.cols[0]).setVal(0, "nope".getBytes(StandardCharsets.UTF_8));
+            ((BytesColumnVector) batch.cols[0]).setVal(1, "42".getBytes(StandardCharsets.UTF_8));
+            ((BytesColumnVector) batch.cols[0]).setVal(2, "43".getBytes(StandardCharsets.UTF_8));
+        });
+        List<Attribute> plannerSchema = List.of(new ReferenceAttribute(Source.EMPTY, "n", DataType.LONG));
+        List<Long> got = new ArrayList<>();
+        try (
+            CloseableIterator<Page> it = declaredReader("n").readRange(
+                createStorageObject(orcData),
+                new RangeReadContext(List.of("n"), 10, 0, orcData.length, plannerSchema, ErrorPolicy.LENIENT, null, /* rowLimit = */ 2)
+            )
+        ) {
+            while (it.hasNext()) {
+                Page p = it.next();
+                LongBlock longs = (LongBlock) p.getBlock(0);
+                for (int i = 0; i < p.getPositionCount(); i++) {
+                    got.add(longs.getLong(longs.getFirstValueIndex(i)));
+                }
+                p.releaseBlocks();
+            }
+        }
+        assertEquals("LIMIT 2 must yield 2 surviving rows, not 2 source rows minus the dropped one", List.of(42L, 43L), got);
+        drainWarnings();
+    }
+
+    public void testSkipRowListColumnDropsRow() throws Exception {
+        // error_mode: skip_row on a LIST column must DROP the entire row when any element fails declared-type
+        // coercion — not null-fill the cell. Three rows: good/bad/good → 2 survivor rows. Twin of
+        // ParquetFormatReaderTests.testSkipRowListColumnDropsRow (the path that previously missed the sink).
+        TypeDescription schema = TypeDescription.createStruct().addField("x", TypeDescription.createList(TypeDescription.createString()));
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 3;
+            ListColumnVector listCol = (ListColumnVector) batch.cols[0];
+            BytesColumnVector child = (BytesColumnVector) listCol.child;
+            listCol.childCount = 4;
+            child.ensureSize(4, false);
+            listCol.offsets[0] = 0;
+            listCol.lengths[0] = 2;
+            child.setVal(0, "41".getBytes(StandardCharsets.UTF_8));
+            child.setVal(1, "43".getBytes(StandardCharsets.UTF_8));
+            listCol.offsets[1] = 2;
+            listCol.lengths[1] = 1;
+            child.setVal(2, "hello".getBytes(StandardCharsets.UTF_8));
+            listCol.offsets[2] = 3;
+            listCol.lengths[2] = 1;
+            child.setVal(3, "45".getBytes(StandardCharsets.UTF_8));
+        });
+        List<Attribute> plannerSchema = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
+        try (
+            CloseableIterator<Page> it = declaredReader("x").readRange(
+                createStorageObject(orcData),
+                new RangeReadContext(List.of("x"), 10, 0, orcData.length, plannerSchema, ErrorPolicy.LENIENT)
+            )
+        ) {
+            Page page = it.next();
+            assertEquals("bad row must be dropped under skip_row", 2, page.getPositionCount());
+            LongBlock longs = (LongBlock) page.getBlock(0);
+            assertEquals(2, longs.getValueCount(0));
+            int start0 = longs.getFirstValueIndex(0);
+            assertEquals(41L, longs.getLong(start0));
+            assertEquals(43L, longs.getLong(start0 + 1));
+            assertEquals(1, longs.getValueCount(1));
+            assertEquals(45L, longs.getLong(longs.getFirstValueIndex(1)));
+            page.releaseBlocks();
+        }
+        drainWarnings();
+    }
+
+    public void testDeclaredCoercionWarningsRouteToSuppliedSink() throws Exception {
+        // Twin of ParquetFormatReaderTests.testDeclaredCoercionWarningsRouteToSuppliedSink: when the caller
+        // supplies an informationalWarningSink, per-value coercion warnings must be relayed to that sink, not
+        // emitted to this thread's HeaderWarning context — an async read runs the decode loop on a background
+        // thread whose ThreadContext is never merged into the client response.
+        int distinctBad = SkipWarnings.MAX_ADDED_WARNINGS + 5;
+        TypeDescription schema = TypeDescription.createStruct().addField("ts", TypeDescription.createString());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = distinctBad;
+            BytesColumnVector col = (BytesColumnVector) batch.cols[0];
+            col.ensureSize(distinctBad, false);
+            for (int i = 0; i < distinctBad; i++) {
+                col.setVal(i, ("not-a-date-" + i).getBytes(StandardCharsets.UTF_8));
+            }
+        });
+        List<Attribute> plannerSchema = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
+        List<String> sink = new ArrayList<>();
+        try (
+            CloseableIterator<Page> it = declaredReader("ts").readRange(
+                createStorageObject(orcData),
+                new RangeReadContext(List.of("ts"), 10_000, 0, orcData.length, plannerSchema, ErrorPolicy.PERMISSIVE, sink::add)
+            )
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        long coercionDetails = sink.stream().filter(w -> w.contains("cannot coerce value")).count();
+        assertThat("per-value coercion warnings must reach the supplied sink", coercionDetails, greaterThan(0L));
+        assertThat(
+            "each reader instance caps its per-value coercion details at MAX_ADDED_WARNINGS",
+            coercionDetails,
+            lessThanOrEqualTo((long) SkipWarnings.MAX_ADDED_WARNINGS)
+        );
+        List<String> leaked = drainWarnings();
+        assertTrue(
+            "no coercion warning may leak to this thread's HeaderWarning context when a sink is supplied, got: " + leaked,
+            leaked.stream().noneMatch(w -> w.contains("cannot coerce value"))
+        );
     }
 
     public void testStringToDatetimeBadTokenNullFieldWarnsFailFastFails() throws Exception {

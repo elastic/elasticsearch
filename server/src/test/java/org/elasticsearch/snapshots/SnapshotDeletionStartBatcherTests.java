@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -1462,7 +1463,7 @@ public class SnapshotDeletionStartBatcherTests extends ESTestCase {
         });
 
         assertEquals(
-            clusterService.getMasterService().pendingTasks().stream().map(t -> t.source().toString()).toList(),
+            clusterService.getMasterService().pendingTasks().stream().map(PendingClusterTask::source).toList(),
             List.of("update repository metadata", "snapshot-deletion-start[default/" + repoName + "][1]", "ensure first attempt was no-op")
         );
 

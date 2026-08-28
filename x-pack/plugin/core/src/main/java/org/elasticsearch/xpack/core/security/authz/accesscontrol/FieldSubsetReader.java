@@ -33,6 +33,7 @@ import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FilterIterator;
+import org.apache.lucene.util.IOBooleanSupplier;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -226,8 +227,9 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             return stripSuffix(fieldName, ignoreMalformed);
         }
 
-        // A value redirected by "doc_values.on_failure=ignore" is kept verbatim in a <field>._on_failure companion. This is currently
-        // write-only, but handled here so its visibility follows the parent before it is ever wired into a synthetic-source read path.
+        // A value redirected by "doc_values.on_failure=ignore" is stored verbatim in a <field>._on_failure companion; synthetic source
+        // reads it back (CompositeSyntheticFieldLoader#onFailureValuesLayer) to reconstruct the parent's full array. Both columns must
+        // follow the same FLS decision as the parent so neither a denial nor a grant produces a truncated or leaked array.
         String onFailure = OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX;
         if (fieldName.endsWith(onFailure + counts)) {
             return stripSuffix(fieldName, onFailure + counts);
@@ -805,6 +807,12 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         @Override
         public boolean seekExact(BytesRef term) throws IOException {
             return accept(term) && in.seekExact(term);
+        }
+
+        @Override
+        public IOBooleanSupplier prepareSeekExact(BytesRef term) throws IOException {
+            // TermStates uses this method before seekExact(term, state), so the field filter must be applied at both stages.
+            return accept(term) ? in.prepareSeekExact(term) : null;
         }
 
         @Override

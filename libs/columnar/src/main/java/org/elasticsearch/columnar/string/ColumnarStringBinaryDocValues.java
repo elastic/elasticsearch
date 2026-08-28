@@ -23,7 +23,7 @@ import java.io.IOException;
  * the segment used is invisible here — a layout resolves its own encoding inside the reader, so nothing
  * layout-specific reaches this surface.
  */
-public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
+public final class ColumnarStringBinaryDocValues extends BinaryDocValues implements StringColumnSource {
 
     private final StringColumnReader reader;
     private final ColumnIterator iterator;
@@ -52,6 +52,7 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
     }
 
     /** The column behind this surface, so a merge can read what it recorded rather than its values. */
+    @Override
     public StringColumnReader reader() {
         return reader;
     }

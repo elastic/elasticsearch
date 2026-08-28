@@ -247,7 +247,7 @@ The following settings are supported:
 
 ::::{admonition} Overriding client settings in repository settings.
 
-You may also specify all non-secure client settings directly in the repository settings. When you do, the client settings found in the repository settings are merged with those of the named client, with repository settings taking precedence.
+You can also specify all non-secure client settings directly in the repository settings. When you do, the client settings found in the repository settings are merged with those of the named client, with repository settings taking precedence.
 
 For example, the following API call creates a repository using the client settings from `repository.s3.my-client.*`, except that it specifies a different value for `repository.s3.my-client.endpoint` that only applies to this one repository:
 

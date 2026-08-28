@@ -110,7 +110,9 @@ public class SplitTargetServiceTests extends ESTestCase {
         assertThrows(IllegalStateException.class, () -> sts.acceptHandoff(indexShard, request5, ActionListener.noop()));
     }
 
-    public void testCancelSplitsFailsWaitingRefreshesOnce() {
+    /// Closing a shard cancels its split. Nothing else answers the refreshes waiting on it, so the state machine's `cancel()` must
+    /// fail them.
+    public void testWaitingRefreshesAreAnsweredWhenSplitIsCancelled() {
         var threadPool = mock(ThreadPool.class);
         var clusterService = mock(ClusterService.class);
         var reshardIndexService = new ReshardIndexService(
@@ -137,7 +139,6 @@ public class SplitTargetServiceTests extends ESTestCase {
         );
         sts.initializeSplitInCloneState(indexShard, split);
 
-        sts.cancelSplits(indexShard);
         sts.cancelSplits(indexShard);
 
         assertEquals(1, failureCount.get());

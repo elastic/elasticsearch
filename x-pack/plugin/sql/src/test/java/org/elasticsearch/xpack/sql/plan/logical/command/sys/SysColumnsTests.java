@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.sql.Types;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -42,7 +43,6 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.ql.TestUtils.UTC;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.sql.analysis.analyzer.AnalyzerTestUtils.analyzer;
@@ -382,7 +382,10 @@ public class SysColumnsTests extends ESTestCase {
     ) {
         EsIndex test = new EsIndex("test", mapping);
         Analyzer analyzer = analyzer(config, IndexResolution.valid(test));
-        Command cmd = (Command) analyzer.analyze(parser.createStatement(sql, params, UTC), true);
+        Command cmd = (Command) analyzer.analyze(
+            parser.createStatement(sql, params, ZoneOffset.UTC, SqlPlugin.DEFAULT_MAX_QUERY_LENGTH),
+            true
+        );
 
         IndexResolver resolver = mock(IndexResolver.class);
         when(resolver.clusterName()).thenReturn(CLUSTER_NAME);

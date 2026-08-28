@@ -68,20 +68,6 @@ public class SqlParser {
     }
 
     /**
-     * Used only in tests
-     */
-    public LogicalPlan createStatement(String sql, ZoneId zoneId) {
-        return createStatement(sql, Collections.emptyList(), zoneId, SqlPlugin.DEFAULT_MAX_QUERY_LENGTH);
-    }
-
-    /**
-     * Used only in tests
-     */
-    public LogicalPlan createStatement(String sql, List<SqlTypedParamValue> params, ZoneId zoneId) {
-        return createStatement(sql, params, zoneId, SqlPlugin.DEFAULT_MAX_QUERY_LENGTH);
-    }
-
-    /**
      * Parses an SQL statement into execution plan
      * @param sql - the SQL statement
      * @param params - a list of parameters for the statement if the statement is parametrized

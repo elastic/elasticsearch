@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
@@ -19,6 +20,7 @@ import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.security.SecurityFeatures;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -30,6 +32,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -188,6 +191,133 @@ public abstract class AbstractRemoteClusterSecurityBWCRestIT extends AbstractRem
                 assertSearchResponse(SearchResponseUtils.parseSearchResponse(parser), alsoSearchLocally);
             }
             assertEsqlResponse(performRequestWithApiKey(esqlRequest(esqlCommand), apiKeyEncoded));
+        }
+    }
+
+    protected boolean fulfillingClusterSupportsUserManagedServiceAccounts() throws IOException {
+        return getFulfillingClusterNodeFeatures().contains(SecurityFeatures.USER_MANAGED_SERVICE_ACCOUNTS.id());
+    }
+
+    protected void assertUserManagedServiceAccountCcsFailsClosed(UserManagedServiceAccountCcsContext context) throws Exception {
+        final Request searchRequest = new Request(
+            "GET",
+            "/my_remote_cluster:remote_index_managed/_search?ccs_minimize_roundtrips=" + randomBoolean()
+        );
+        searchRequest.setOptions(context.bearerAuth());
+        final ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(searchRequest));
+        assertThat(exception.getResponse().getStatusLine().getStatusCode(), greaterThanOrEqualTo(400));
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                "remote cluster ["
+                    + REMOTE_CLUSTER_ALIAS
+                    + "] does not support user-managed service accounts, so it cannot serve a request"
+                    + " authenticated by service account ["
+                    + context.principal()
+                    + "]"
+            )
+        );
+    }
+
+    protected void assertUserManagedServiceAccountCcsSucceeds(UserManagedServiceAccountCcsContext context) throws Exception {
+        final Request allowedSearchRequest = new Request(
+            "GET",
+            "/my_remote_cluster:remote_index_managed/_search?ccs_minimize_roundtrips=" + randomBoolean()
+        );
+        allowedSearchRequest.setOptions(context.bearerAuth());
+        final Response allowedSearchResponse = client().performRequest(allowedSearchRequest);
+        assertOK(allowedSearchResponse);
+        final SearchResponse allowedSearch = SearchResponseUtils.parseSearchResponse(responseAsParser(allowedSearchResponse));
+        try {
+            assertThat(
+                Arrays.stream(allowedSearch.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toList()),
+                containsInAnyOrder("remote_index_managed")
+            );
+        } finally {
+            allowedSearch.decRef();
+        }
+
+        final Request deniedSearchRequest = new Request(
+            "GET",
+            "/my_remote_cluster:remote_index_denied/_search?ccs_minimize_roundtrips=" + randomBoolean()
+        );
+        deniedSearchRequest.setOptions(context.bearerAuth());
+        final ResponseException deniedSearch = expectThrows(ResponseException.class, () -> client().performRequest(deniedSearchRequest));
+        assertThat(deniedSearch.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(deniedSearch.getMessage(), containsString("unauthorized for service account [" + context.principal() + "]"));
+        assertThat(deniedSearch.getMessage(), containsString("on indices [remote_index_denied]"));
+    }
+
+    protected UserManagedServiceAccountCcsSetup setupUserManagedServiceAccountCcsOnQueryCluster(
+        boolean indexDeniedTargetOnFulfillingCluster
+    ) throws Exception {
+        {
+            final Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
+            bulkRequest.setJsonEntity(indexDeniedTargetOnFulfillingCluster ? """
+                { "index": { "_index": "remote_index_managed" } }
+                { "foo": "bar" }
+                { "index": { "_index": "remote_index_denied" } }
+                { "bar": "foo" }
+                """ : """
+                { "index": { "_index": "remote_index_managed" } }
+                { "foo": "bar" }
+                """);
+            assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
+        }
+
+        final String roleName = "user_managed_bwc_role";
+        final var putRoleRequest = new Request("PUT", "/_security/role/" + roleName);
+        putRoleRequest.setJsonEntity("""
+            {
+              "remote_indices": [
+                {
+                  "names": ["remote_index_managed"],
+                  "privileges": ["read", "read_cross_cluster"],
+                  "clusters": ["my_remote_cluster"]
+                }
+              ]
+            }""");
+        assertOK(adminClient().performRequest(putRoleRequest));
+
+        final var putAccountRequest = new Request("PUT", "/_security/service/bwc/worker");
+        putAccountRequest.setJsonEntity(Strings.format("""
+            { "roles": ["%s"], "enabled": true }""", roleName));
+        assertOK(adminClient().performRequest(putAccountRequest));
+
+        final var createTokenRequest = new Request("PUT", "/_security/service/bwc/worker/credential/token/t1");
+        final String serviceToken = ObjectPath.createFromResponse(adminClient().performRequest(createTokenRequest)).evaluate("token.value");
+        final RequestOptions bearerAuth = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + serviceToken).build();
+
+        final Request authenticateRequest = new Request("GET", "/_security/_authenticate");
+        authenticateRequest.setOptions(bearerAuth);
+        assertOK(client().performRequest(authenticateRequest));
+
+        return new UserManagedServiceAccountCcsSetup(new UserManagedServiceAccountCcsContext(bearerAuth), () -> {
+            final Request deleteTokenRequest = new Request("DELETE", "/_security/service/bwc/worker/credential/token/t1");
+            assertOK(adminClient().performRequest(deleteTokenRequest));
+            final Request deleteAccountRequest = new Request("DELETE", "/_security/service/bwc/worker");
+            assertOK(adminClient().performRequest(deleteAccountRequest));
+            final Request deleteRoleRequest = new Request("DELETE", "/_security/role/" + roleName);
+            assertOK(adminClient().performRequest(deleteRoleRequest));
+        });
+    }
+
+    protected record UserManagedServiceAccountCcsContext(RequestOptions bearerAuth) {
+
+        private static final String PRINCIPAL = "bwc/worker";
+
+        String principal() {
+            return PRINCIPAL;
+        }
+    }
+
+    protected record UserManagedServiceAccountCcsSetup(UserManagedServiceAccountCcsContext context, AutoCloseable cleanup)
+        implements
+            AutoCloseable {
+
+        @Override
+        public void close() throws Exception {
+            cleanup.close();
         }
     }
 

@@ -11,6 +11,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -63,5 +64,17 @@ public class RemoteClusterSecurityBWCToRCS1ClusterRestIT extends AbstractRemoteC
     @Before
     public void configureRemoteClusterForTest() throws Exception {
         configureRemoteCluster(REMOTE_CLUSTER_ALIAS, fulfillingCluster, true, randomBoolean(), false);
+    }
+
+    public void testUserManagedServiceAccountCcsFailsClosedAgainstOlderFulfillingCluster() throws Exception {
+        Assume.assumeFalse(
+            "user-managed service account CCS against a fulfilling cluster with the feature is covered by "
+                + "RemoteClusterSecurityUserManagedServiceAccountRCS1IT",
+            fulfillingClusterSupportsUserManagedServiceAccounts()
+        );
+
+        try (var ignored = setupUserManagedServiceAccountCcsOnQueryCluster(false)) {
+            assertUserManagedServiceAccountCcsFailsClosed(ignored.context());
+        }
     }
 }

@@ -92,6 +92,7 @@ class ImplClassWriter {
     private static final ClassDesc CD_LinkerHelper = ClassDesc.of(LinkerHelper.class.getName());
     private static final ClassDesc CD_LinkerAdapter = ClassDesc.of("org.elasticsearch.foreign.adapter.LinkerAdapter"); // not a dependency
     private static final ClassDesc CD_LoaderHelper = ClassDesc.of(LoaderHelper.class.getName());
+    private static final ClassDesc CD_System = ClassDesc.of("java.lang.System");
     private static final ClassDesc CD_Objects = ClassDesc.of("java.util.Objects");
     private static final ClassDesc CD_Math = ClassDesc.of("java.lang.Math");
     private static final ClassDesc CD_IllegalArgumentException = ClassDesc.of("java.lang.IllegalArgumentException");
@@ -232,7 +233,7 @@ class ImplClassWriter {
             // <clinit>: load the library, resolve the assertions flag, and initialize each MethodHandle field
             cb.withMethodBody("<clinit>", MethodTypeDesc.of(CD_void), ClassFile.ACC_STATIC, clinit -> {
                 if (model.libraryName().isEmpty() == false) {
-                    emitLoadLibrary(clinit, model.libraryName());
+                    emitLoadLibrary(clinit, model.libraryName(), model.system());
                 }
                 emitAssertionsDisabledInit(clinit, generatedDesc);
                 for (var nm : functionMethods) {
@@ -330,9 +331,13 @@ class ImplClassWriter {
     // <clinit> helpers
     // -------------------------------------------------------------------------
 
-    private static void emitLoadLibrary(CodeBuilder cb, String libName) {
+    private static void emitLoadLibrary(CodeBuilder cb, String libName, boolean system) {
         cb.ldc(libName);
-        cb.invokestatic(CD_LoaderHelper, "loadLibrary", MethodTypeDesc.of(CD_void, CD_String));
+        if (system) {
+            cb.invokestatic(CD_System, "loadLibrary", MethodTypeDesc.of(CD_void, CD_String));
+        } else {
+            cb.invokestatic(CD_LoaderHelper, "loadLibrary", MethodTypeDesc.of(CD_void, CD_String));
+        }
     }
 
     /**
@@ -1199,8 +1204,9 @@ class ImplClassWriter {
 
     private static ClassDesc javaClassDescForParam(NativeType paramType, String structSimpleName, String libraryPrefix) {
         if (paramType == NativeType.ADDRESSABLE && structSimpleName != null) {
-            // Param is a struct interface that may not extend Addressable; use the struct interface type
-            // in the Java method descriptor so callers can pass the struct directly.
+            // Param is a struct interface, or a record/class implementing Addressable, that isn't
+            // declared as the literal Addressable type; use its own type in the Java method
+            // descriptor so callers can pass it directly.
             return ClassDesc.of(libraryPrefix + "$" + structSimpleName);
         }
         return javaClassDesc(paramType);

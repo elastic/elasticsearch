@@ -103,16 +103,31 @@ public class CsvStatsCaptureTests extends ESTestCase {
         assertEquals(3L, SplitStats.of(c).rowCount());
     }
 
-    /** SKIP_ROW drops a malformed row, but the stats over the surviving rows are exact (fingerprint pins error_mode), so they commit. */
-    public void testSkipRowWithDroppedRowsCommitsStatsOverSurvivors() throws Exception {
+    /**
+     * SKIP_ROW plus a coercion failure of a PROJECTED column: the survivor set is a function of the query's
+     * projection, which the cache identity cannot carry. A COUNT(*) scan of this same file coerces nothing, drops
+     * nothing and answers 3 where this scan measured 2, and both scans carry the same identity -- so the whole
+     * publish, row count and column statistics alike, must be suppressed.
+     */
+    public void testSkipRowCoercionDropSuppressesPublish() throws Exception {
         ErrorPolicy skipRowQuiet = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 10, 1.0, false);
         StorageObject o = obj("id:integer,n:integer\n1,10\nnot-an-integer,20\n3,30\n");
         Map<String, Object> published = capture(o, FormatReadContext.builder().batchSize(10).errorPolicy(skipRowQuiet).build());
-        assertNotNull("SKIP_ROW now commits the stats over surviving rows instead of publishing nothing", published);
+        assertNull("a projection-dependent (coercion) drop must suppress the publish", published);
+    }
+
+    /**
+     * SKIP_ROW plus a STRUCTURAL drop (a wrong-width row): detected while tokenising, before and independently of
+     * the projection, so every scan shape drops the same row. The statistics over the survivors are exact for every
+     * query carrying this identity and must commit -- the suppression above is scoped to coercion drops, not to
+     * drops.
+     */
+    public void testSkipRowStructuralDropCommitsStatsOverSurvivors() throws Exception {
+        ErrorPolicy skipRowQuiet = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 10, 1.0, false);
+        StorageObject o = obj("id:integer,n:integer\n1,10\n2,20,extra\n3,30\n");
+        Map<String, Object> published = capture(o, FormatReadContext.builder().batchSize(10).errorPolicy(skipRowQuiet).build());
+        assertNotNull("a structural drop is projection-independent; survivors must commit", published);
         SplitStats stats = SplitStats.of(published);
-        assertNotNull(stats);
-        // The cache fingerprint pins error_mode, so a full scan drops the SAME row -- every statistic over the
-        // survivors (id in {1,3}, 2 rows) is exact vs that scan, so all commit and serve.
         assertEquals("row count over survivors", 2L, stats.rowCount());
         assertEquals(1, ((Number) stats.columnMin("id")).intValue());
         assertEquals(3, ((Number) stats.columnMax("id")).intValue());

@@ -153,6 +153,7 @@ import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
+import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -207,6 +208,7 @@ import org.elasticsearch.xpack.esql.plan.physical.UnpackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UserAgentExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.DenseVectorExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
@@ -423,6 +425,8 @@ public class LocalExecutionPlanner {
             return planChangePoint(changePoint, context);
         } else if (node instanceof CompletionExec completion) {
             return planCompletion(completion, context);
+        } else if (node instanceof DenseVectorExec denseVector) {
+            return planDenseVector(denseVector, context);
         } else if (node instanceof SampleExec Sample) {
             return planSample(Sample, context);
         } else if (node instanceof IpLocationExec ipLoc) {
@@ -587,6 +591,42 @@ public class LocalExecutionPlanner {
             new CompletionOperator.Factory(inferenceService, inferenceId, promptEvaluatorFactory, taskSettings, completion.timeout()),
             outputLayout
         );
+    }
+
+    private PhysicalOperation planDenseVector(DenseVectorExec denseVector, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(denseVector.child(), context);
+        String inferenceId = BytesRefs.toString(denseVector.inferenceId().fold(context.foldCtx()));
+
+        List<NamedExpression> fields = denseVector.fields();
+        List<Attribute> generatedFields = denseVector.generatedFields();
+
+        // One TextEmbeddingOperator per input field: each embeds its field and appends its <field>_dense_vector column.
+        // Chained so the page accumulates all generated columns. Evaluators read from the growing layout; the original
+        // input fields are never removed, so appending output columns doesn't disturb earlier channels.
+        PhysicalOperation operation = source;
+        for (int i = 0; i < fields.size(); i++) {
+            ExpressionEvaluator.Factory inputEvaluatorFactory = EvalMapper.toEvaluator(
+                context.foldCtx(),
+                fields.get(i),
+                operation.layout,
+                context.analysisRegistry()
+            );
+            Layout outputLayout = operation.layout.builder().append(generatedFields.get(i)).build();
+            operation = operation.with(
+                new TextEmbeddingOperator.Factory(
+                    inferenceService,
+                    inferenceId,
+                    inputEvaluatorFactory,
+                    denseVector.timeout(),
+                    denseVector.source(),
+                    // The DENSE_VECTOR command tolerates per-row inference failures: warn, null the row, and continue.
+                    true
+                ),
+                outputLayout
+            );
+        }
+
+        return operation;
     }
 
     private PhysicalOperation planFuseScoreEvalExec(FuseScoreEvalExec fuse, LocalExecutionPlannerContext context) {
@@ -2041,6 +2081,9 @@ public class LocalExecutionPlanner {
             .path(path)
             .projectedColumns(projectedColumns)
             .attributes(externalSource.output())
+            // Projection-independent, unlike attributes(): a read-configuration identity must not vary with what the query
+            // selects, or a coordinator and a data node would derive different identities for the same read.
+            .unifiedSchema(externalSource.unifiedSchema())
             .batchSize(pageSize)
             .maxBufferSize(effectiveBufferSize)
             .rowLimit(pushedLimit)

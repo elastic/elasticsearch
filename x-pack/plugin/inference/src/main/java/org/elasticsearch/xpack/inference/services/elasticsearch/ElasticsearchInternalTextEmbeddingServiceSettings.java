@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -31,6 +30,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARIT
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 public class ElasticsearchInternalTextEmbeddingServiceSettings extends ElasticsearchInternalServiceSettings {
 
@@ -66,7 +66,7 @@ public class ElasticsearchInternalTextEmbeddingServiceSettings extends Elasticse
 
     private static ElasticsearchInternalTextEmbeddingServiceSettings forPersisted(Map<String, Object> map) {
         var commonFields = commonFieldsFromMap(map);
-        Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, new ValidationException());
+        Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, SERVICE_SETTINGS, new ValidationException());
 
         return new ElasticsearchInternalTextEmbeddingServiceSettings(commonFields, dims);
     }
@@ -108,7 +108,7 @@ public class ElasticsearchInternalTextEmbeddingServiceSettings extends Elasticse
     }
 
     private static SimilarityMeasure extractSimilarityOrDefault(Map<String, Object> map, ValidationException validationException) {
-        SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        SimilarityMeasure similarity = extractSimilarity(map, SERVICE_SETTINGS, validationException);
         return Objects.requireNonNullElse(similarity, SimilarityMeasure.COSINE);
     }
 
@@ -119,7 +119,7 @@ public class ElasticsearchInternalTextEmbeddingServiceSettings extends Elasticse
         DenseVectorFieldMapper.ElementType elementType = extractOptionalEnum(
             map,
             ELEMENT_TYPE,
-            ModelConfigurations.SERVICE_SETTINGS,
+            SERVICE_SETTINGS,
             DenseVectorFieldMapper.ElementType::fromString,
             EnumSet.of(DenseVectorFieldMapper.ElementType.BYTE, DenseVectorFieldMapper.ElementType.FLOAT),
             validationException

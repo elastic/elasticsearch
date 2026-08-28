@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -41,6 +42,8 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
  */
 public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotRequest> implements ToXContentObject {
 
+    private static final TransportVersion RESTORE_OVER_EXISTING = TransportVersion.fromName("restore_over_existing");
+
     private String snapshot;
     private String repository;
     private String[] indices = Strings.EMPTY_ARRAY;
@@ -55,6 +58,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private boolean quiet = false;
     private Settings indexSettings = Settings.EMPTY;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
+    private boolean restoreOverExisting = false;
 
     // This field does not get serialised (except toString for debugging purpose) because it is always set locally by authz
     private boolean skipOperatorOnlyState = false;
@@ -95,6 +99,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         indexSettings = readSettingsFromStream(in);
         ignoreIndexSettings = in.readStringArray();
         snapshotUuid = in.readOptionalString();
+        restoreOverExisting = in.getTransportVersion().supports(RESTORE_OVER_EXISTING) && in.readBoolean();
     }
 
     @Override
@@ -115,6 +120,9 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         indexSettings.writeTo(out);
         out.writeStringArray(ignoreIndexSettings);
         out.writeOptionalString(snapshotUuid);
+        if (out.getTransportVersion().supports(RESTORE_OVER_EXISTING)) {
+            out.writeBoolean(restoreOverExisting);
+        }
     }
 
     @Override
@@ -419,6 +427,27 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     }
 
     /**
+     * Returns true if the restore is allowed to target a data stream that already exists, in which case Elasticsearch atomically deletes
+     * the existing data stream and its backing/failure-store indices and restores the snapshot's version under the same name in a single
+     * cluster-state update, rather than failing because the destination already exists. Defaults to {@code false}, preserving the
+     * requirement that a restored data stream not already exist.
+     *
+     * @return true if the destination data stream for a matching restore may already exist
+     */
+    public boolean restoreOverExisting() {
+        return restoreOverExisting;
+    }
+
+    /**
+     * @param restoreOverExisting true to allow restoring over a data stream that already exists
+     * @return this request
+     */
+    public RestoreSnapshotRequest restoreOverExisting(boolean restoreOverExisting) {
+        this.restoreOverExisting = restoreOverExisting;
+        return this;
+    }
+
+    /**
      * If {@code false}, report the start and completion of the restore at {@code INFO} log level.
      * If {@code true}, report the start and completion of the restore at {@code DEBUG} log level.
      *
@@ -561,6 +590,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                 includeGlobalState = nodeBooleanValue(entry.getValue(), "include_global_state");
             } else if (name.equals("include_aliases")) {
                 includeAliases = nodeBooleanValue(entry.getValue(), "include_aliases");
+            } else if (name.equals("restore_over_existing")) {
+                restoreOverExisting = nodeBooleanValue(entry.getValue(), "restore_over_existing");
             } else if (name.equals("rename_pattern")) {
                 if (entry.getValue() instanceof String) {
                     renamePattern((String) entry.getValue());
@@ -629,6 +660,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             builder.endObject();
         }
         builder.array("ignore_index_settings", ignoreIndexSettings);
+        builder.field("restore_over_existing", restoreOverExisting);
     }
 
     @Override
@@ -656,6 +688,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             && Objects.equals(indexSettings, that.indexSettings)
             && Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings)
             && Objects.equals(snapshotUuid, that.snapshotUuid)
+            && restoreOverExisting == that.restoreOverExisting
             && skipOperatorOnlyState == that.skipOperatorOnlyState;
     }
 
@@ -674,6 +707,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             quiet,
             indexSettings,
             snapshotUuid,
+            restoreOverExisting,
             skipOperatorOnlyState
         );
         result = 31 * result + Arrays.hashCode(indices);

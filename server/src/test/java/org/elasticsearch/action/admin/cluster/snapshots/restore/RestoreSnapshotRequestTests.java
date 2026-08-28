@@ -76,6 +76,7 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         }
 
         instance.includeGlobalState(randomBoolean());
+        instance.restoreOverExisting(randomBoolean());
 
         if (randomBoolean()) {
             instance.indicesOptions(

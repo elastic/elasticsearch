@@ -544,11 +544,31 @@ public final class RestoreService implements ClusterStateApplier {
                 + explicitlyRequestedSystemIndices;
 
         projectBuilder.dataStreams(dataStreamsToRestore, dataStreamAliasesToRestore);
+
+        // When the caller opts in via RestoreSnapshotRequest#restoreOverExisting(), restore over data streams that already exist by
+        // deleting each existing destination (and its backing/failure-store indices) in the same cluster-state update as the restore,
+        // instead of failing because it already exists. The exact current identity is captured here so that a data stream deleted and
+        // recreated under the same name before the update is published is rejected rather than silently overwritten.
+        final List<DataStream> existingDataStreamsToDelete;
+        if (request.restoreOverExisting()) {
+            final ProjectMetadata currentProject = clusterService.state().metadata().getProject(projectId);
+            existingDataStreamsToDelete = new ArrayList<>();
+            for (String dataStreamName : dataStreamsToRestore.keySet()) {
+                final DataStream current = currentProject.dataStreams().get(dataStreamName);
+                if (current != null) {
+                    existingDataStreamsToDelete.add(current);
+                }
+            }
+        } else {
+            existingDataStreamsToDelete = List.of();
+        }
+
         // Now we can start the actual restore process by adding shards to be recovered in the cluster state
         // and updating cluster metadata (global and index) as needed
         submitUnbatchedTask(
             "restore_snapshot[" + snapshotId.getName() + ']',
             new RestoreSnapshotStateTask(
+                listener,
                 request,
                 snapshot,
                 featureStatesToRestore.keySet(),
@@ -567,7 +587,8 @@ public final class RestoreService implements ClusterStateApplier {
                 dataStreamsToRestore.values(),
                 updater,
                 clusterService.getSettings(),
-                listener
+                UUIDs.randomBase64UUID(),
+                existingDataStreamsToDelete
             )
         );
     }
@@ -710,7 +731,7 @@ public final class RestoreService implements ClusterStateApplier {
                 (state, builder) -> {},
                 clusterService.getSettings(),
                 restoreUUID,
-                List.copyOf(targets)
+                targets.stream().map(DataStreamRestoreTarget::destinationDataStream).toList()
             )
         );
     }
@@ -1575,10 +1596,12 @@ public final class RestoreService implements ClusterStateApplier {
         private final RestoreSnapshotRequest request;
 
         /**
-         * The {@link DataStreamRestoreTarget}s that the caller has explicitly authorized deleting and restoring over. Empty for an ordinary
-         * restore, which only ever restores into a data stream that doesn't already exist.
+         * The existing destination data streams that the caller has explicitly authorized deleting and restoring over, resolved to their
+         * exact current identity (name plus exact backing/failure {@link Index} identities) so that a data stream deleted and recreated
+         * under the same name since the caller resolved it is never silently adopted. Empty for an ordinary restore, which only ever
+         * restores into a data stream that doesn't already exist.
          */
-        private final Collection<DataStreamRestoreTarget> existingDataStreamTargets;
+        private final Collection<DataStream> existingDataStreamsToDelete;
 
         /**
          * Feature states to restore.
@@ -1613,34 +1636,6 @@ public final class RestoreService implements ClusterStateApplier {
         private RestoreInfo restoreInfo;
 
         RestoreSnapshotStateTask(
-            RestoreSnapshotRequest request,
-            Snapshot snapshot,
-            Set<String> featureStatesToRestore,
-            Map<String, IndexId> indicesToRestore,
-            SnapshotInfo snapshotInfo,
-            Metadata metadata,
-            Collection<DataStream> dataStreamsToRestore,
-            BiConsumer<ClusterState, ProjectMetadata.Builder> updater,
-            Settings settings,
-            ActionListener<RestoreCompletionResponse> listener
-        ) {
-            this(
-                listener,
-                request,
-                snapshot,
-                featureStatesToRestore,
-                indicesToRestore,
-                snapshotInfo,
-                metadata,
-                dataStreamsToRestore,
-                updater,
-                settings,
-                UUIDs.randomBase64UUID(),
-                List.of()
-            );
-        }
-
-        RestoreSnapshotStateTask(
             ActionListener<RestoreCompletionResponse> listener,
             RestoreSnapshotRequest request,
             Snapshot snapshot,
@@ -1652,7 +1647,7 @@ public final class RestoreService implements ClusterStateApplier {
             BiConsumer<ClusterState, ProjectMetadata.Builder> updater,
             Settings settings,
             String restoreUUID,
-            Collection<DataStreamRestoreTarget> existingDataStreamTargets
+            Collection<DataStream> existingDataStreamsToDelete
         ) {
             super(request.masterNodeTimeout());
             this.request = request;
@@ -1666,7 +1661,7 @@ public final class RestoreService implements ClusterStateApplier {
             this.settings = settings;
             this.listener = new AllocationActionListener<>(listener, threadPool.getThreadContext());
             this.restoreUUID = restoreUUID;
-            this.existingDataStreamTargets = existingDataStreamTargets;
+            this.existingDataStreamsToDelete = existingDataStreamsToDelete;
         }
 
         @Override
@@ -1691,12 +1686,12 @@ public final class RestoreService implements ClusterStateApplier {
             // Check if the snapshot to restore is currently being deleted
             ensureSnapshotNotDeleted(currentState);
 
-            if (existingDataStreamTargets.isEmpty() == false) {
+            if (existingDataStreamsToDelete.isEmpty() == false) {
                 // Validate and delete the destination data streams and their backing/failure-store indices, in the same cluster-state
                 // update, before the ordinary per-index restore loop below runs. Once deleted, the restored backing/failure indices no
                 // longer exist from that loop's perspective, so they naturally take its "index doesn't exist yet" path and are created
                 // fresh with new index UUIDs, exactly like an ordinary restore into a brand-new index.
-                currentState = validateAndDeleteExistingDataStreams(currentState, projectId, existingDataStreamTargets);
+                currentState = validateAndDeleteExistingDataStreams(currentState, projectId, existingDataStreamsToDelete);
             }
 
             // Clear out all existing indices which fall within a system index pattern being restored
@@ -1925,17 +1920,16 @@ public final class RestoreService implements ClusterStateApplier {
          * unchanged: the thrown exception discards the whole (never-returned) {@link ClusterState}, matching the {@link
          * ClusterStateUpdateTask} contract that already gives the rest of this task's per-index loop its all-or-nothing guarantee.
          *
-         * @param existingDataStreamTargets the targets the caller resolved for this restore
+         * @param existingDataStreamsToDelete the existing destination data streams, at the exact identity the caller resolved
          */
         private ClusterState validateAndDeleteExistingDataStreams(
             ClusterState currentState,
             ProjectId projectId,
-            Collection<DataStreamRestoreTarget> existingDataStreamTargets
+            Collection<DataStream> existingDataStreamsToDelete
         ) {
             final ProjectState projectState = currentState.projectState(projectId);
             final ProjectMetadata projectMetadata = projectState.metadata();
-            for (DataStreamRestoreTarget target : existingDataStreamTargets) {
-                final DataStream expected = target.destinationDataStream();
+            for (DataStream expected : existingDataStreamsToDelete) {
                 final DataStream current = projectMetadata.dataStreams().get(expected.getName());
                 if (current == null) {
                     throw new SnapshotRestoreException(
@@ -1975,10 +1969,7 @@ public final class RestoreService implements ClusterStateApplier {
                     );
                 }
             }
-            final Set<DataStream> destinationsToDelete = existingDataStreamTargets.stream()
-                .map(DataStreamRestoreTarget::destinationDataStream)
-                .collect(Collectors.toSet());
-            return MetadataDataStreamsService.deleteDataStreams(projectState, destinationsToDelete, settings);
+            return MetadataDataStreamsService.deleteDataStreams(projectState, Set.copyOf(existingDataStreamsToDelete), settings);
         }
 
         private static boolean sameBackingAndFailureIndices(DataStream a, DataStream b) {

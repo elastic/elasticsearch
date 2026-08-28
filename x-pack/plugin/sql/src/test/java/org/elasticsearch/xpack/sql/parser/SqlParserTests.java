@@ -340,7 +340,13 @@ public class SqlParserTests extends ESTestCase {
         final String sql = query.toString();
         expectThrows(
             ParsingException.class,
-            equalTo("line -1:0: SQL statement is too large [" + sql.length() + " characters > " + maxLength + "]"),
+            equalTo(
+                "line -1:0: SQL statement is too large ["
+                    + sql.length()
+                    + " characters > "
+                    + maxLength
+                    + "], adjust [xpack.sql.max_query_length] to increase the limit"
+            ),
             () -> new SqlParser().createStatement(sql, List.of(), ZoneOffset.UTC, maxLength)
         );
     }

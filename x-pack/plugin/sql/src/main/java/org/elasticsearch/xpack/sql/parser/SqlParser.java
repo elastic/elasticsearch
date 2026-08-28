@@ -132,7 +132,11 @@ public class SqlParser {
         int maxLength
     ) {
         if (sql.length() > maxLength) {
-            throw new ParsingException("SQL statement is too large [{} characters > {}]", sql.length(), maxLength);
+            throw new ParsingException(
+                "SQL statement is too large [{} characters > {}], adjust [xpack.sql.max_query_length] to increase the limit",
+                sql.length(),
+                maxLength
+            );
         }
         try {
             ParserPipeline pipeline = createParserPipeline(sql, params);

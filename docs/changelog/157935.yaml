@@ -1,0 +1,5 @@
+area: Infra/Core
+issues: []
+pr: 157935
+summary: Scrub JDK_JAVA_OPTIONS from the environment on startup
+type: bug

@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
@@ -58,8 +59,10 @@ import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearningExtension;
+import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
@@ -67,6 +70,7 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Date;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -102,6 +106,7 @@ public final class DatafeedManager {
     private final CredentialTransitions credentialTransitions;
     private final Supplier<CloudCredentialManager> credentialManagerSupplier;
     private final AnomalyDetectionAuditor auditor;
+    private final AnnotationPersister annotationPersister;
     private volatile boolean requireRollbackSnapshotBeforeScopeChange;
 
     public DatafeedManager(
@@ -112,7 +117,8 @@ public final class DatafeedManager {
         ClusterService clusterService,
         Client client,
         MachineLearningExtension mlExtension,
-        AnomalyDetectionAuditor auditor
+        AnomalyDetectionAuditor auditor,
+        AnnotationPersister annotationPersister
     ) {
         this.datafeedConfigProvider = datafeedConfigProvider;
         this.jobConfigProvider = jobConfigProvider;
@@ -122,6 +128,7 @@ public final class DatafeedManager {
         this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
         MachineLearningExtension extension = Objects.requireNonNull(mlExtension);
         this.auditor = Objects.requireNonNull(auditor);
+        this.annotationPersister = Objects.requireNonNull(annotationPersister);
         this.credentialManagerSupplier = extension::getCloudCredentialManager;
         this.credentialTransitions = new CredentialTransitions(
             this.auditor,
@@ -318,8 +325,11 @@ public final class DatafeedManager {
                     UpdateDatafeedAction.Request effectiveRequest = maybeDefaultProjectRoutingForMigration(request, current, intent);
                     final boolean defaultedProjectRoutingForMigration = effectiveRequest != request;
                     final String defaultProjectRouting = ProjectRoutingResolver.LOCAL_ONLY;
-                    ActionListener<PutDatafeedAction.Response> updateListener = defaultedProjectRoutingForMigration
-                        ? ActionListener.wrap(response -> {
+                    final boolean userInitiatedProjectRoutingChange = defaultedProjectRoutingForMigration == false
+                        && DatafeedUpdate.isUserInitiatedProjectRoutingChange(current, update);
+                    ActionListener<PutDatafeedAction.Response> updateListener;
+                    if (defaultedProjectRoutingForMigration) {
+                        updateListener = ActionListener.wrap(response -> {
                             logger.info(
                                 "[{}] CPS migration: defaulting project_routing to [{}] to preserve local search scope",
                                 current.getId(),
@@ -333,8 +343,15 @@ public final class DatafeedManager {
                                 )
                             );
                             l.onResponse(response);
-                        }, l::onFailure)
-                        : l;
+                        }, l::onFailure);
+                    } else if (userInitiatedProjectRoutingChange) {
+                        updateListener = ActionListener.wrap(response -> {
+                            notifyUserInitiatedProjectRoutingChange(current, update);
+                            l.onResponse(response);
+                        }, l::onFailure);
+                    } else {
+                        updateListener = l;
+                    }
                     // KEEP with an existing CPS envelope must not stamp caller security headers
                     // over the minted key's Authentication stored at mint time.
                     final Map<String, String> headersForUpdate = intent == CredentialTransitions.Intent.KEEP
@@ -496,6 +513,37 @@ public final class DatafeedManager {
             oldRouting == null ? "" : oldRouting,
             newRouting
         );
+    }
+
+    private void notifyUserInitiatedProjectRoutingChange(DatafeedConfig current, DatafeedUpdate rawUpdate) {
+        String message = projectRoutingChangeMessage(current.getProjectRouting(), rawUpdate.getProjectRouting());
+        logger.info("[{}] {}", current.getId(), message);
+        auditor.info(current.getJobId(), message);
+        try {
+            persistProjectRoutingChangeAnnotation(current.getJobId(), message);
+        } catch (Exception e) {
+            logger.warn(() -> "[" + current.getId() + "] failed to persist project_routing change annotation", e);
+        }
+    }
+
+    private static String projectRoutingChangeMessage(@Nullable String oldRouting, String newRouting) {
+        return Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_PROJECT_ROUTING_CHANGED, oldRouting == null ? "" : oldRouting, newRouting);
+    }
+
+    private void persistProjectRoutingChangeAnnotation(String jobId, String message) {
+        Date now = new Date();
+        Annotation annotation = new Annotation.Builder().setAnnotation(message)
+            .setCreateTime(now)
+            .setCreateUsername(InternalUsers.XPACK_USER.principal())
+            .setTimestamp(now)
+            .setEndTimestamp(now)
+            .setJobId(jobId)
+            .setModifiedTime(now)
+            .setModifiedUsername(InternalUsers.XPACK_USER.principal())
+            .setType(Annotation.Type.ANNOTATION)
+            .setEvent(Annotation.Event.SEARCH_SCOPE_CHANGED)
+            .build();
+        annotationPersister.persistAnnotation(null, annotation);
     }
 
     public void deleteDatafeed(DeleteDatafeedAction.Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {

@@ -1154,7 +1154,8 @@ public class MachineLearning extends Plugin
             clusterService,
             client,
             machineLearningExtension.get(),
-            anomalyDetectionAuditor
+            anomalyDetectionAuditor,
+            anomalyDetectionAnnotationPersister
         );
 
         // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager if ML is enabled

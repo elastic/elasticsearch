@@ -39,6 +39,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -61,6 +62,7 @@ import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearningExtension;
+import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.CredentialTransitions.Change;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
@@ -90,6 +92,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -132,6 +135,26 @@ public class DatafeedManagerTests extends ESTestCase {
         MachineLearningExtension mlExtension,
         AnomalyDetectionAuditor auditor
     ) {
+        return newDatafeedManager(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            settings,
+            client,
+            mlExtension,
+            auditor,
+            mock(AnnotationPersister.class)
+        );
+    }
+
+    private DatafeedManager newDatafeedManager(
+        DatafeedConfigProvider datafeedConfigProvider,
+        JobConfigProvider jobConfigProvider,
+        Settings settings,
+        Client client,
+        MachineLearningExtension mlExtension,
+        AnomalyDetectionAuditor auditor,
+        AnnotationPersister annotationPersister
+    ) {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings = new ClusterSettings(
             settings,
@@ -146,7 +169,31 @@ public class DatafeedManagerTests extends ESTestCase {
             clusterService,
             client,
             mlExtension,
-            auditor
+            auditor,
+            annotationPersister
+        );
+    }
+
+    private static String projectRoutingChangeMessage(@Nullable String oldRouting, String newRouting) {
+        return Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_PROJECT_ROUTING_CHANGED, oldRouting == null ? "" : oldRouting, newRouting);
+    }
+
+    private static void verifyProjectRoutingChangeSignals(
+        AnomalyDetectionAuditor auditor,
+        AnnotationPersister annotationPersister,
+        String jobId,
+        @Nullable String oldRouting,
+        String newRouting
+    ) {
+        String message = projectRoutingChangeMessage(oldRouting, newRouting);
+        verify(auditor, atLeastOnce()).info(eq(jobId), eq(message));
+        verify(annotationPersister).persistAnnotation(
+            isNull(),
+            argThat(
+                annotation -> annotation.getEvent() == Annotation.Event.SEARCH_SCOPE_CHANGED
+                    && annotation.getJobId().equals(jobId)
+                    && annotation.getAnnotation().equals(message)
+            )
         );
     }
 
@@ -334,6 +381,7 @@ public class DatafeedManagerTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         mockSearchProbeSucceeds(credentialManager, client);
         mockGrantSucceeds(apiKeyService, new PersistedCloudCredential("minted-key-id", randomCloudCredentialEncryptedData()));
+        mockRevokeSucceeds(apiKeyService);
         stubGetDatafeedConfig(datafeedConfigProvider, storedConfig);
         stubUpdateDatefeedConfigCapturesUpdateAndInvokesMintHook(datafeedConfigProvider, storedConfig, capturedUpdate);
         doAnswer(invocation -> {
@@ -1574,7 +1622,16 @@ public class DatafeedManagerTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
 
         AnomalyDetectionAuditor auditor = mockAuditor();
-        DatafeedManager manager = newDatafeedManager(datafeedConfigProvider, jobConfigProvider, settings, client, mlExtension, auditor);
+        AnnotationPersister annotationPersister = mock(AnnotationPersister.class);
+        DatafeedManager manager = newDatafeedManager(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            settings,
+            client,
+            mlExtension,
+            auditor,
+            annotationPersister
+        );
 
         DatafeedConfig legacyConfig = new DatafeedConfig.Builder("df-1", "job-1").setIndices(List.of("logs-*")).build();
         AtomicReference<DatafeedUpdate> capturedUpdate = new AtomicReference<>();
@@ -1598,6 +1655,7 @@ public class DatafeedManagerTests extends ESTestCase {
             eq("job-1"),
             eq(Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_CPS_MIGRATION_PROJECT_ROUTING_DEFAULTED, ProjectRoutingResolver.LOCAL_ONLY))
         );
+        verify(annotationPersister, never()).persistAnnotation(any(), any());
     }
 
     @SuppressWarnings("unchecked")
@@ -1813,7 +1871,16 @@ public class DatafeedManagerTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
 
         AnomalyDetectionAuditor auditor = mockAuditor();
-        DatafeedManager manager = newDatafeedManager(datafeedConfigProvider, jobConfigProvider, settings, client, mlExtension, auditor);
+        AnnotationPersister annotationPersister = mock(AnnotationPersister.class);
+        DatafeedManager manager = newDatafeedManager(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            settings,
+            client,
+            mlExtension,
+            auditor,
+            annotationPersister
+        );
 
         DatafeedConfig storedConfig = migratedCpsDatafeed("df-scope-retain", "job-scope-retain");
         AtomicReference<DatafeedUpdate> capturedUpdate = new AtomicReference<>();
@@ -1851,6 +1918,13 @@ public class DatafeedManagerTests extends ESTestCase {
                     )
                 )
             )
+        );
+        verifyProjectRoutingChangeSignals(
+            auditor,
+            annotationPersister,
+            "job-scope-retain",
+            ProjectRoutingResolver.LOCAL_ONLY,
+            "_alias:prod-*"
         );
     }
 
@@ -1977,13 +2051,16 @@ public class DatafeedManagerTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
 
+        AnomalyDetectionAuditor auditor = mockAuditor();
+        AnnotationPersister annotationPersister = mock(AnnotationPersister.class);
         DatafeedManager manager = newDatafeedManager(
             datafeedConfigProvider,
             jobConfigProvider,
             settings,
             client,
             mlExtension,
-            mockAuditor()
+            auditor,
+            annotationPersister
         );
 
         DatafeedConfig storedConfig = migratedCpsDatafeed("df-scope-off", "job-scope-off");
@@ -2014,6 +2091,125 @@ public class DatafeedManagerTests extends ESTestCase {
         assertThat(capturedUpdate.get().getProjectRouting(), equalTo("_alias:prod-*"));
         verify(client, never()).execute(same(UpdateModelSnapshotAction.INSTANCE), any(), any());
         verify(jobConfigProvider, never()).getJob(anyString(), any(), any());
+        verifyProjectRoutingChangeSignals(
+            auditor,
+            annotationPersister,
+            "job-scope-off",
+            ProjectRoutingResolver.LOCAL_ONLY,
+            "_alias:prod-*"
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testUpdateDatafeedFirstTimeLocalOnlyAssignmentShouldEmitProjectRoutingChangeSignals() {
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
+
+        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
+        MachineLearningExtension mlExtension = mockMlExtension(credentialManager, apiKeyService);
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+
+        AnomalyDetectionAuditor auditor = mockAuditor();
+        AnnotationPersister annotationPersister = mock(AnnotationPersister.class);
+        DatafeedManager manager = newDatafeedManager(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            settings,
+            client,
+            mlExtension,
+            auditor,
+            annotationPersister
+        );
+
+        PersistedCloudCredential existingCred = randomPersistedCloudCredential("existing-key-id");
+        DatafeedConfig storedConfig = new DatafeedConfig.Builder("df-first-local", "job-first-local").setIndices(List.of("logs-*"))
+            .setCloudInternalCredential(existingCred)
+            .build();
+        AtomicReference<DatafeedUpdate> capturedUpdate = new AtomicReference<>();
+        stubUpdateMigrationPath(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            credentialManager,
+            apiKeyService,
+            client,
+            threadPool,
+            storedConfig,
+            capturedUpdate
+        );
+
+        UpdateDatafeedAction.Request request = new UpdateDatafeedAction.Request(
+            new DatafeedUpdate.Builder("df-first-local").setProjectRouting(ProjectRoutingResolver.LOCAL_ONLY).build()
+        );
+        manager.updateDatafeed(request, mockClusterStateForUpdate(), null, threadPool, ActionTestUtils.assertNoFailureListener(r -> {}));
+
+        assertThat(capturedUpdate.get(), notNullValue());
+        assertThat(capturedUpdate.get().getProjectRouting(), equalTo(ProjectRoutingResolver.LOCAL_ONLY));
+        verify(client, never()).execute(same(UpdateModelSnapshotAction.INSTANCE), any(), any());
+        verify(jobConfigProvider, never()).getJob(anyString(), any(), any());
+        verifyProjectRoutingChangeSignals(auditor, annotationPersister, "job-first-local", null, ProjectRoutingResolver.LOCAL_ONLY);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testUpdateDatafeedProjectRoutingChangeAnnotationFailureShouldNotFailUpdate() {
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        Settings settings = Settings.builder()
+            .put("serverless.cross_project.enabled", true)
+            .put("xpack.security.enabled", false)
+            .put("xpack.ml.datafeed.require_rollback_snapshot_before_scope_change", false)
+            .build();
+
+        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
+        MachineLearningExtension mlExtension = mockMlExtension(credentialManager, apiKeyService);
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+
+        AnomalyDetectionAuditor auditor = mockAuditor();
+        AnnotationPersister annotationPersister = mock(AnnotationPersister.class);
+        when(annotationPersister.persistAnnotation(any(), any())).thenThrow(new RuntimeException("annotation index unavailable"));
+        DatafeedManager manager = newDatafeedManager(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            settings,
+            client,
+            mlExtension,
+            auditor,
+            annotationPersister
+        );
+
+        DatafeedConfig storedConfig = new DatafeedConfig.Builder("df-annotation-fail", "job-annotation-fail").setIndices(List.of("logs-*"))
+            .setCloudInternalCredential(randomPersistedCloudCredential("existing-key-id"))
+            .build();
+        AtomicReference<DatafeedUpdate> capturedUpdate = new AtomicReference<>();
+        stubUpdateMigrationPath(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            credentialManager,
+            apiKeyService,
+            client,
+            threadPool,
+            storedConfig,
+            capturedUpdate
+        );
+
+        UpdateDatafeedAction.Request request = new UpdateDatafeedAction.Request(
+            new DatafeedUpdate.Builder("df-annotation-fail").setProjectRouting(ProjectRoutingResolver.LOCAL_ONLY).build()
+        );
+        manager.updateDatafeed(request, mockClusterStateForUpdate(), null, threadPool, ActionTestUtils.assertNoFailureListener(r -> {}));
+
+        assertThat(capturedUpdate.get(), notNullValue());
+        verify(auditor, atLeastOnce()).info(
+            eq("job-annotation-fail"),
+            eq(projectRoutingChangeMessage(null, ProjectRoutingResolver.LOCAL_ONLY))
+        );
     }
 
     /**

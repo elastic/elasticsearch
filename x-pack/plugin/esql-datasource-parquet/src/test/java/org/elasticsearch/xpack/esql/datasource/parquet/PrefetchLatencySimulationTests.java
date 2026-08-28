@@ -205,33 +205,29 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
     }
 
     /**
-     * Small row groups under the default 32MB queued-byte cap fill to the count wish.
+     * Small row groups under the default queued-byte cap fill to the count wish.
      * This is the complement of the byte-cap tests: the cap must not starve a narrow scan.
      * It does not by itself prove that a byte cap exists.
      */
     public void testDefaultBudgetFillsToCountCap() throws Exception {
-        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
-        byte[] parquetData = createMultiRowGroupFile(schema, 5000, 4096);
-        CountingStorageObject storage = new CountingStorageObject(parquetData, asyncIoExecutor);
-
-        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(storage, FormatReadContext.of(null, 1024))) {
+        try (CloseableIterator<Page> iter = openOptimized(smallInt64MultiRowGroupFile())) {
             OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) iter;
             int ctorCount = opi.pendingPrefetchCount();
             assertTrue("constructor should queue at least one group", ctorCount >= 1);
+            assertTrue("constructor should record prefetch bytes", opi.queuedPrefetchBytes() > 0);
             long rgBytes = opi.queuedPrefetchBytes() / ctorCount;
-            assertTrue("constructor should record prefetch bytes", rgBytes > 0);
             assertEquals("constructor should fill to the count wish", opi.prefetchDepth(), ctorCount);
             assertTrue(
-                "queued bytes should be well under the 32MB default: " + opi.queuedPrefetchBytes(),
-                opi.queuedPrefetchBytes() < 32_000_000L
+                "queued bytes should be well under the default cap: " + opi.queuedPrefetchBytes(),
+                opi.queuedPrefetchBytes() < OptimizedParquetColumnIterator.MAX_QUEUED_PREFETCH_BYTES
             );
 
             growPrefetchDepth(opi, 5);
             int wish = opi.prefetchDepth();
             opi.refillPrefetchQueue();
-            assertEquals("narrow scans still fill to the count cap; need ≥" + wish + " row groups", wish, opi.pendingPrefetchCount());
+            assertEquals("narrow scans still fill to the count cap; need >=" + wish + " row groups", wish, opi.pendingPrefetchCount());
             assertTrue(opi.queuedPrefetchBytes() >= rgBytes * 2);
-            assertTrue(opi.queuedPrefetchBytes() < 32_000_000L);
+            assertTrue(opi.queuedPrefetchBytes() < OptimizedParquetColumnIterator.MAX_QUEUED_PREFETCH_BYTES);
         }
     }
 
@@ -241,11 +237,7 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
      * than one group.
      */
     public void testByteBudgetOverrunWhenQueueEmpty() throws Exception {
-        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
-        byte[] parquetData = createMultiRowGroupFile(schema, 5000, 4096);
-        CountingStorageObject storage = new CountingStorageObject(parquetData, asyncIoExecutor);
-
-        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(storage, FormatReadContext.of(null, 1024))) {
+        try (CloseableIterator<Page> iter = openOptimized(smallInt64MultiRowGroupFile())) {
             OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) iter;
             growPrefetchDepth(opi, 3);
             opi.setPrefetchByteBudget(1);
@@ -260,15 +252,10 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
      * A budget equal to the first two groups admits exactly those two, regardless of the count wish.
      */
     public void testByteBudgetAdmitsTwoNotThree() throws Exception {
-        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
-        byte[] parquetData = createMultiRowGroupFile(schema, 5000, 4096);
-        CountingStorageObject storage = new CountingStorageObject(parquetData, asyncIoExecutor);
-
-        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(storage, FormatReadContext.of(null, 1024))) {
+        try (CloseableIterator<Page> iter = openOptimized(smallInt64MultiRowGroupFile())) {
             OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) iter;
-            int ctorCount = opi.pendingPrefetchCount();
-            assertTrue("constructor should queue at least one group", ctorCount >= 1);
-            assertTrue("constructor should record prefetch bytes", opi.queuedPrefetchBytes() / ctorCount > 0);
+            assertTrue("constructor should queue at least one group", opi.pendingPrefetchCount() >= 1);
+            assertTrue("constructor should record prefetch bytes", opi.queuedPrefetchBytes() > 0);
 
             long bytesTwo = queuedBytesAtDepth(opi, 2);
             long bytesThree = queuedBytesAtDepth(opi, 3);
@@ -288,15 +275,10 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
      * occupancy past the byte cap.
      */
     public void testStallsDoNotExceedByteBudget() throws Exception {
-        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
-        byte[] parquetData = createMultiRowGroupFile(schema, 5000, 4096);
-        CountingStorageObject storage = new CountingStorageObject(parquetData, asyncIoExecutor);
-
-        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(storage, FormatReadContext.of(null, 1024))) {
+        try (CloseableIterator<Page> iter = openOptimized(smallInt64MultiRowGroupFile())) {
             OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) iter;
-            int ctorCount = opi.pendingPrefetchCount();
-            assertTrue("constructor should queue at least one group", ctorCount >= 1);
-            assertTrue("constructor should record prefetch bytes", opi.queuedPrefetchBytes() / ctorCount > 0);
+            assertTrue("constructor should queue at least one group", opi.pendingPrefetchCount() >= 1);
+            assertTrue("constructor should record prefetch bytes", opi.queuedPrefetchBytes() > 0);
 
             long bytesTwo = queuedBytesAtDepth(opi, 2);
             long bytesThree = queuedBytesAtDepth(opi, 3);
@@ -310,6 +292,39 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
             assertEquals("queued occupancy follows the byte cap, not the wish", 2, opi.pendingPrefetchCount());
             assertEquals("admitted bytes should match the injected 2-group budget", bytesTwo, opi.queuedPrefetchBytes());
         }
+    }
+
+    /**
+     * Consume and cancel must keep queued-byte accounting in sync: a tiny budget scan returns
+     * the same rows as an unconstrained read and drains the queue at exhaustion.
+     */
+    public void testTinyBudgetScanDrainsQueue() throws Exception {
+        byte[] parquetData = smallInt64MultiRowGroupFile();
+        int unconstrained = countRows(new ParquetFormatReader(blockFactory, true), new CountingStorageObject(parquetData, asyncIoExecutor));
+        try (CloseableIterator<Page> iter = openOptimized(parquetData)) {
+            OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) iter;
+            opi.setPrefetchByteBudget(1);
+            opi.refillPrefetchQueue();
+            int rows = 0;
+            while (iter.hasNext()) {
+                rows += iter.next().getPositionCount();
+            }
+            assertEquals(unconstrained, rows);
+            assertEquals(0, opi.queuedPrefetchBytes());
+            assertEquals(0, opi.pendingPrefetchCount());
+        }
+    }
+
+    private byte[] smallInt64MultiRowGroupFile() throws IOException {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+        return createMultiRowGroupFile(schema, 5000, 4096);
+    }
+
+    private CloseableIterator<Page> openOptimized(byte[] parquetData) throws IOException {
+        return new ParquetFormatReader(blockFactory, true).read(
+            new CountingStorageObject(parquetData, asyncIoExecutor),
+            FormatReadContext.of(null, 1024)
+        );
     }
 
     private static void growPrefetchDepth(OptimizedParquetColumnIterator opi, int minDepth) {
@@ -328,9 +343,9 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
         int safety = 0;
         while (opi.prefetchDepth() > targetDepth) {
             int before = opi.prefetchDepth();
-            opi.adaptPrefetchDepth(true);
-            opi.adaptPrefetchDepth(true);
-            opi.adaptPrefetchDepth(true);
+            for (int i = 0; i < OptimizedParquetColumnIterator.SHRINK_AFTER_NO_STALLS; i++) {
+                opi.adaptPrefetchDepth(true);
+            }
             if (opi.prefetchDepth() >= before) {
                 fail("could not shrink prefetch depth to " + targetDepth + ", stuck at " + opi.prefetchDepth());
             }
@@ -352,7 +367,7 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
         shrinkPrefetchDepthTo(opi, depth);
         opi.setPrefetchByteBudget(Long.MAX_VALUE);
         opi.refillPrefetchQueue();
-        assertEquals("unlimited budget should fill to the count wish; need ≥" + depth + " row groups", depth, opi.pendingPrefetchCount());
+        assertEquals("unlimited budget should fill to the count wish; need >=" + depth + " row groups", depth, opi.pendingPrefetchCount());
         long bytes = opi.queuedPrefetchBytes();
         assertTrue("queued bytes at depth " + depth + " should be positive", bytes > 0);
         return bytes;

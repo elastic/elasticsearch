@@ -531,10 +531,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 nextOrdinal = nextSurvivingRowGroupOrdinal(nextOrdinal + 1);
                 continue;
             }
-            // Compare remaining capacity instead of summing: a corrupt footer length must not
-            // wrap the add and admit a group we already know cannot fit.
-            if (pendingPrefetches.isEmpty() == false
-                && (queuedPrefetchBytes >= prefetchByteBudget || prefetchBytes > prefetchByteBudget - queuedPrefetchBytes)) {
+            // Remaining capacity, not a sum: a huge footer length cannot wrap a long add and
+            // admit a group we already know cannot fit. When queued already exceeds the cap
+            // (empty-queue overrun), the right-hand side is negative and any positive
+            // prefetchBytes fails the check.
+            if (pendingPrefetches.isEmpty() == false && prefetchBytes > prefetchByteBudget - queuedPrefetchBytes) {
                 break;
             }
             try {
@@ -872,11 +873,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      * when that group exceeds this cap, so the scan cannot stall waiting for a group that never
      * starts.
      */
-    private static final long MAX_QUEUED_PREFETCH_BYTES = 32_000_000L;
+    static final long MAX_QUEUED_PREFETCH_BYTES = 32_000_000L;
     private static final long SHALLOW_PREFETCH_BYTES = 8_000_000L;
     private static final int MAX_PREFETCH_DEPTH = 8;
     private static final int PREFETCH_DEPTH_GROWTH = 2;
-    private static final int SHRINK_AFTER_NO_STALLS = 3;
+    static final int SHRINK_AFTER_NO_STALLS = 3;
     private static final double BREAKER_GROWTH_THRESHOLD = 0.75;
 
     /**

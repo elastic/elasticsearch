@@ -57,7 +57,8 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
             mock(ActionFilters.class),
             mock(ThreadPool.class),
             client,
-            clusterService
+            clusterService,
+            Settings.EMPTY
         );
         return metricsAction;
     }

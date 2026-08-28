@@ -352,6 +352,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED,
         HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH,
         HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_CONTENT_LENGTH,
+        HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_EXPANDED_CONTENT_LENGTH,
         HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE,
         HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE,
         HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT,

@@ -17,7 +17,9 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.settings.Setting.boolSetting;
@@ -97,6 +99,35 @@ public final class HttpTransportSettings {
         ByteSizeValue.of(8, ByteSizeUnit.MB),
         ByteSizeValue.ZERO,
         ByteSizeValue.ofBytes(Integer.MAX_VALUE),
+        Property.NodeScope
+    );
+    public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_PROTOBUF_EXPANDED_CONTENT_LENGTH = new Setting<>(
+        "http.max_protobuf_expanded_content_length",
+        ByteSizeValue.of(100, ByteSizeUnit.MB).getStringRep(),
+        s -> ByteSizeValue.parseBytesSizeValue(s, "http.max_protobuf_expanded_content_length"),
+        new Setting.Validator<>() {
+            @Override
+            public void validate(ByteSizeValue value) {}
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(SETTING_HTTP_MAX_PROTOBUF_CONTENT_LENGTH).iterator();
+            }
+
+            @Override
+            public void validate(ByteSizeValue value, Map<Setting<?>, Object> settings) {
+                ByteSizeValue protobufContentLength = (ByteSizeValue) settings.get(SETTING_HTTP_MAX_PROTOBUF_CONTENT_LENGTH);
+                if (protobufContentLength != null && value.getBytes() < protobufContentLength.getBytes()) {
+                    throw new IllegalArgumentException(
+                        "[http.max_protobuf_expanded_content_length] ("
+                            + value
+                            + ") must not be less than [http.max_protobuf_content_length] ("
+                            + protobufContentLength
+                            + ")"
+                    );
+                }
+            }
+        },
         Property.NodeScope
     );
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_CHUNK_SIZE = Setting.byteSizeSetting(

@@ -9,7 +9,10 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
@@ -21,5 +24,17 @@ public class TransportSerializationException extends TransportException {
 
     public TransportSerializationException(String msg, Throwable cause) {
         super(msg, cause);
+    }
+
+    /**
+     * A tripped circuit breaker while reading a message is back-pressure rather than a serialization failure, so report the breaker's
+     * retriable status instead of a 500.
+     */
+    @Override
+    public RestStatus status() {
+        if (ExceptionsHelper.unwrap(getCause(), CircuitBreakingException.class) instanceof CircuitBreakingException cbe) {
+            return cbe.status();
+        }
+        return super.status();
     }
 }

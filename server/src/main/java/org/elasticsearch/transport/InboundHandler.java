@@ -12,8 +12,10 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -457,8 +459,13 @@ public class InboundHandler {
                 "Failed to deserialize response from handler [" + handler + "]",
                 e
             );
-            logger.warn(() -> "Failed to deserialize response from [" + remoteAddress + "]", serializationException);
-            assert ignoreDeserializationErrors : e;
+            if (isCircuitBreakingException(e)) {
+                // A tripped circuit breaker is expected back-pressure rather than a deserialization bug, so log it quietly
+                logger.debug(() -> "Failed to deserialize response from [" + remoteAddress + "]", serializationException);
+            } else {
+                logger.warn(() -> "Failed to deserialize response from [" + remoteAddress + "]", serializationException);
+                assert ignoreDeserializationErrors : e;
+            }
             doHandleException(handler, serializationException);
             return;
         }
@@ -469,6 +476,10 @@ public class InboundHandler {
         } finally {
             response.decRef();
         }
+    }
+
+    private static boolean isCircuitBreakingException(Exception e) {
+        return ExceptionsHelper.unwrap(e, CircuitBreakingException.class) != null;
     }
 
     /**
@@ -484,7 +495,7 @@ public class InboundHandler {
                 "Failed to deserialize exception response from stream for handler [" + handler + "]",
                 e
             );
-            assert ignoreDeserializationErrors : error;
+            assert ignoreDeserializationErrors || isCircuitBreakingException(e) : error;
         }
         handleException(
             handler,

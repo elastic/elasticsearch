@@ -14,12 +14,14 @@ import org.apache.lucene.document.column.Column;
 import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.document.column.LongValuesCursor;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.sourcebatch.LuceneColumn;
 
 import java.util.List;
@@ -72,6 +74,21 @@ public final class LuceneLongColumn extends LongColumn implements LuceneColumn {
         assert values.length == docCount * 8 : "values.length must equal docCount * 8";
         EscfLongColumn column = new EscfLongColumn(docCount, validity, new BytesArray(values));
         return new LuceneLongColumn(column, name, fieldType, Density.SPARSE, kind);  // validity != null → always sparse
+    }
+
+    /**
+     * Creates a {@link LuceneLongColumn} for a {@link MultiValuedBinaryDocValuesField.SeparateCount}
+     * companion {@code .counts} column. The column name is {@code name + COUNT_FIELD_SUFFIX}, the
+     * field type is {@link MultiValuedBinaryDocValuesField.SeparateCount#COUNT_FIELD_TYPE}, and the
+     * numeric kind is {@link LongColumn.NumericKind#LONG}.
+     */
+    public static LuceneLongColumn counts(EscfColumnData data, String name) {
+        return of(
+            data,
+            name + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX,
+            MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_TYPE,
+            LongColumn.NumericKind.LONG
+        );
     }
 
     /**
@@ -169,6 +186,23 @@ public final class LuceneLongColumn extends LongColumn implements LuceneColumn {
 
         void setDocValue(long v) {
             fieldsData = v;
+        }
+
+        @Override
+        public Number numericValue() {
+            final long raw = (Long) fieldsData;
+            // For stored-only fields (no doc values), the indexing chain calls numericValue().floatValue()
+            // or .doubleValue() to retrieve the actual value. Return the correctly-typed Number so that
+            // the stored representation matches what StoredField would produce.
+            if (fieldType().stored() && fieldType().docValuesType() == DocValuesType.NONE) {
+                return switch (kind) {
+                    case LONG -> raw;
+                    case INT -> (int) raw;
+                    case FLOAT -> NumericUtils.sortableIntToFloat((int) raw);
+                    case DOUBLE -> NumericUtils.sortableLongToDouble(raw);
+                };
+            }
+            return raw;
         }
 
         @Override

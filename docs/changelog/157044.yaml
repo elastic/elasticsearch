@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 155559
+pr: 157044
+summary: Honor pruning in the `_shard_doc` sort comparator
+type: bug

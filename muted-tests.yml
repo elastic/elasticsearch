@@ -152,6 +152,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
   method: testLookupJoinOthers {p0=EQ}
   issue: https://github.com/elastic/elasticsearch/issues/157452
+- class: org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoaderTests
+  method: testCanReuseAcrossBinaryBlocks
+  issue: https://github.com/elastic/elasticsearch/issues/157945
 
 # Examples:
 #

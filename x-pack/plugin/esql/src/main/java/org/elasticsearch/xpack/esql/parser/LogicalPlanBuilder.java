@@ -1558,33 +1558,36 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitDenseVectorCommand(EsqlBaseParser.DenseVectorCommandContext ctx) {
         Source source = source(ctx);
 
+        if (context.inferenceSettings().denseVectorEnabled() == false) {
+            throw new ParsingException(source, "DENSE_VECTOR command is disabled in settings.");
+        }
+
         // Explicit field list; no expressions or renames.
         List<NamedExpression> fields = ctx.qualifiedNames()
             .qualifiedName()
             .stream()
             .map(qn -> (NamedExpression) visitQualifiedName(qn))
             .toList();
-        // Reuse the completion row limit
-        // TODO: Change to own limit
-        Literal rowLimit = Literal.integer(source, context.inferenceSettings().completionRowLimit());
+        Literal rowLimit = Literal.integer(source, context.inferenceSettings().denseVectorRowLimit());
         return p -> applyDenseVectorOptions(new DenseVector(source, p, rowLimit, fields), ctx.commandNamedParameters());
     }
 
     private DenseVector applyDenseVectorOptions(DenseVector denseVector, EsqlBaseParser.CommandNamedParametersContext ctx) {
         MapExpression optionsExpression = (ctx == null) ? null : visitCommandNamedParameters(ctx);
 
-        if (optionsExpression == null || optionsExpression.containsKey(DenseVector.INFERENCE_ID_OPTION_NAME) == false) {
-            throw new ParsingException(
-                denseVector.source(),
-                "Missing mandatory option [{}] in DENSE_VECTOR",
-                DenseVector.INFERENCE_ID_OPTION_NAME
-            );
-        }
+        Map<String, Expression> optionsMap = optionsExpression == null ? new HashMap<>() : optionsExpression.keyFoldedMap();
 
-        Map<String, Expression> optionsMap = optionsExpression.keyFoldedMap();
+        // inference_id resolution precedence: WITH { "inference_id" } > cluster default setting > built-in default.
+        // The built-in default is already baked into the DenseVector node (DenseVector.DEFAULT_INFERENCE_ID), so we only
+        // override it here when the query supplies a WITH id or a cluster-level default is configured.
         Expression inferenceId = optionsMap.remove(DenseVector.INFERENCE_ID_OPTION_NAME);
         if (inferenceId != null) {
             denseVector = applyInferenceId(denseVector, inferenceId);
+        } else {
+            String clusterDefault = context.inferenceSettings().denseVectorDefaultInferenceId();
+            if (clusterDefault.isEmpty() == false) {
+                denseVector = denseVector.withInferenceId(Literal.keyword(denseVector.source(), clusterDefault));
+            }
         }
 
         Expression timeoutExpr = optionsMap.remove(DenseVector.TIMEOUT_OPTION_NAME);

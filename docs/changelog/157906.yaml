@@ -1,5 +1,5 @@
-area: ES|QL
+area: Aggregations
 issues: []
 pr: 157906
-summary: Cap `multi_terms` aggregation at 10k fields
-type: enhancement
+summary: Cap `multi_terms` aggregation at 128 fields
+type: bug

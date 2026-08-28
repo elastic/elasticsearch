@@ -43,7 +43,7 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
     public static final String NAME = "multi_terms";
     public static final ParseField TERMS_FIELD = new ParseField("terms");
     /** Hard cap on the number of fields/scripts in a multi_terms aggregation. */
-    public static final int MAX_TERMS_SIZE = 10_000;
+    public static final int MAX_TERMS_SIZE = 128;
     public static final ParseField ORDER_FIELD = new ParseField("order");
     public static final ParseField SHARD_SIZE_FIELD_NAME = new ParseField("shard_size");
     public static final ParseField MIN_DOC_COUNT_FIELD_NAME = new ParseField("min_doc_count");

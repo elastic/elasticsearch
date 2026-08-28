@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -118,7 +119,8 @@ public class StatelessPrimaryRelocationSourceService {
     }
 
     void startRelocation(Task task, StatelessPrimaryRelocationAction.Request request, ActionListener<StartRelocationResponse> listener) {
-        initiatePrewarm(task, request);
+        final var parentClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
+        initiatePrewarm(parentClient, request);
 
         RecoveryClusterStateDelay.ensureClusterStateVersion(
             request.clusterStateVersion(),
@@ -132,7 +134,7 @@ public class StatelessPrimaryRelocationSourceService {
             new Consumer<>() {
                 @Override
                 public void accept(ActionListener<StartRelocationResponse> l) {
-                    startRelocationWithFreshClusterState(task, request, l);
+                    startRelocationWithFreshClusterState(parentClient, request, l);
                 }
 
                 @Override
@@ -143,7 +145,7 @@ public class StatelessPrimaryRelocationSourceService {
         );
     }
 
-    private void initiatePrewarm(Task task, StatelessPrimaryRelocationAction.Request request) {
+    private void initiatePrewarm(Client parentClient, StatelessPrimaryRelocationAction.Request request) {
         try {
             final ShardId shardId = request.shardId();
             final StatelessCommitService statelessCommitService = statelessCommitServiceProvider.get();
@@ -161,13 +163,15 @@ public class StatelessPrimaryRelocationSourceService {
             // If the shard is not about to be hollowed, then send an action to the target node to begin warming the cache immediately.
             // Note that if the shard is already hollow, the target warming will just read a single region.
             if (hollowShardsService.isHollowableIndexShard(indexShard) == false) {
-                client.execute(
+                parentClient.execute(
                     TransportStatelessPrimaryRelocationPrewarmAction.TYPE,
-                    new TransportStatelessPrimaryRelocationPrewarmAction.Request(
+                    new TransportStatelessPrimaryRelocationPrewarmAction.PrewarmRequest(
                         request.targetNode(),
-                        shardId,
-                        new BlobFileWithLength(latestBcc.toBlobFile(), latestBcc.calculateBccBlobLength()),
-                        hasRecentIdLookup
+                        new TransportStatelessPrimaryRelocationPrewarmAction.Request(
+                            shardId,
+                            new BlobFileWithLength(latestBcc.toBlobFile(), latestBcc.calculateBccBlobLength()),
+                            hasRecentIdLookup
+                        )
                     ),
                     ActionListener.noop()
                 );
@@ -178,7 +182,7 @@ public class StatelessPrimaryRelocationSourceService {
     }
 
     private void startRelocationWithFreshClusterState(
-        Task task,
+        Client parentClient,
         StatelessPrimaryRelocationAction.Request request,
         ActionListener<StartRelocationResponse> listener
     ) {
@@ -420,24 +424,26 @@ public class StatelessPrimaryRelocationSourceService {
                     latestBccBlobLength.set(blobLength);
                     otherBlobFilesCount.set(otherBlobFiles.size());
 
-                    client.execute(
+                    parentClient.execute(
                         TransportStatelessPrimaryRelocationHandoffAction.TYPE,
-                        new TransportStatelessPrimaryRelocationHandoffAction.Request(
+                        new TransportStatelessPrimaryRelocationHandoffAction.HandoffRequest(
                             request.targetNode(),
-                            request.recoveryId(),
-                            request.shardId(),
-                            new ReplicationTracker.PrimaryContext(
-                                primaryContext.clusterStateVersion(),
-                                localCheckpoints,
-                                primaryContext.getRoutingTable()
-                            ),
-                            retentionLeases,
-                            statelessCommitService.getSearchNodesPerCommit(indexShard.shardId()),
-                            new BlobFileWithLength(latestBccBlob, blobLength),
-                            otherBlobFiles,
-                            hasRecentIdLookup,
-                            lastCommitBlobs,
-                            lastCommitIsHollow
+                            new TransportStatelessPrimaryRelocationHandoffAction.Request(
+                                request.recoveryId(),
+                                request.shardId(),
+                                new ReplicationTracker.PrimaryContext(
+                                    primaryContext.clusterStateVersion(),
+                                    localCheckpoints,
+                                    primaryContext.getRoutingTable()
+                                ),
+                                retentionLeases,
+                                statelessCommitService.getSearchNodesPerCommit(indexShard.shardId()),
+                                new BlobFileWithLength(latestBccBlob, blobLength),
+                                otherBlobFiles,
+                                hasRecentIdLookup,
+                                lastCommitBlobs,
+                                lastCommitIsHollow
+                            )
                         ),
                         finalHandoffListener
                     );

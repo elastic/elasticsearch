@@ -11,15 +11,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -27,7 +26,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -38,7 +37,7 @@ import java.util.concurrent.Executor;
 /// Invoked by [StatelessPrimaryRelocationSourceService] (on the source node), request goes to the target node. The
 /// target-side handler delegates to [StatelessPrimaryRelocationTargetService].
 public class TransportStatelessPrimaryRelocationPrewarmAction extends TransportAction<
-    TransportStatelessPrimaryRelocationPrewarmAction.Request,
+    TransportStatelessPrimaryRelocationPrewarmAction.PrewarmRequest,
     ActionResponse.Empty> {
 
     private static final Logger logger = LogManager.getLogger(TransportStatelessPrimaryRelocationPrewarmAction.class);
@@ -76,33 +75,60 @@ public class TransportStatelessPrimaryRelocationPrewarmAction extends TransportA
         );
     }
 
-    /// Runs on the source node. Forwards the prewarm request to the target node using `sendChildRequest` so that
-    /// the prewarm task is correctly linked as a child of the active relocation task.
+    /// Runs on the source node. The request already carries the original relocation task as its parent, so forwarding
+    /// it directly preserves the expected task linkage on the target node.
     @Override
-    protected void doExecute(Task task, Request request, ActionListener<ActionResponse.Empty> listener) {
-        transportService.sendChildRequest(
+    protected void doExecute(Task task, PrewarmRequest request, ActionListener<ActionResponse.Empty> listener) {
+        final var transportRequest = request.request();
+        transportRequest.copyFieldsFrom(request);
+        transportService.sendRequest(
             request.targetNode(),
             PREWARM_RELOCATION_ACTION_NAME,
-            request,
-            task,
-            TransportRequestOptions.EMPTY,
+            transportRequest,
             // Prewarm failures are non-fatal, the relocation continues without the benefit of prewarming.
-            new ActionListenerResponseHandler<>(listener.delegateResponse((l, e) -> {
-                logger.debug(() -> Strings.format("%s ignoring prewarm action failure", request.shardId()), e);
+            new ActionListenerResponseHandler<>(ActionListener.noop().delegateResponse((l, e) -> {
+                logger.debug(() -> String.format("%s ignoring prewarm action failure", transportRequest.shardId()), e);
                 l.onFailure(e);
             }), in -> ActionResponse.Empty.INSTANCE, recoveryExecutor)
         );
     }
 
-    static class Request extends UntypedActionRequest {
+    static class PrewarmRequest extends ActionRequest {
 
         private final DiscoveryNode targetNode;
+        private final Request request;
+
+        PrewarmRequest(DiscoveryNode targetNode, Request request) {
+            this.targetNode = targetNode;
+            this.request = request;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            TransportAction.localOnly();
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            return null;
+        }
+
+        public DiscoveryNode targetNode() {
+            return targetNode;
+        }
+
+        public Request request() {
+            return request;
+        }
+    }
+
+    static class Request extends AbstractTransportRequest {
+
         private final ShardId shardId;
         private final BlobFileWithLength latestBccBlob;
         private final boolean hasRecentIdLookup;
 
-        Request(DiscoveryNode targetNode, ShardId shardId, BlobFileWithLength latestBccBlob, boolean hasRecentIdLookup) {
-            this.targetNode = targetNode;
+        Request(ShardId shardId, BlobFileWithLength latestBccBlob, boolean hasRecentIdLookup) {
             this.shardId = shardId;
             this.latestBccBlob = latestBccBlob;
             this.hasRecentIdLookup = hasRecentIdLookup;
@@ -110,7 +136,6 @@ public class TransportStatelessPrimaryRelocationPrewarmAction extends TransportA
 
         Request(StreamInput in) throws IOException {
             super(in);
-            this.targetNode = null;
             this.shardId = new ShardId(in);
             this.latestBccBlob = new BlobFileWithLength(in);
             this.hasRecentIdLookup = in.readBoolean();
@@ -122,15 +147,6 @@ public class TransportStatelessPrimaryRelocationPrewarmAction extends TransportA
             shardId.writeTo(out);
             latestBccBlob.writeTo(out);
             out.writeBoolean(hasRecentIdLookup);
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
-
-        public DiscoveryNode targetNode() {
-            return targetNode;
         }
 
         public ShardId shardId() {

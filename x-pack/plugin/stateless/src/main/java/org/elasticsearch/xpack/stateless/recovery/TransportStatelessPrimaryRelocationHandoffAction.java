@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.stateless.recovery;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.TransportAction;
@@ -29,7 +29,7 @@ import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -46,7 +46,7 @@ import java.util.concurrent.Executor;
 /// Invoked by [StatelessPrimaryRelocationSourceService] (on the source node), request goes to the target node. The
 /// target-side handler delegates to [StatelessPrimaryRelocationTargetService].
 public class TransportStatelessPrimaryRelocationHandoffAction extends TransportAction<
-    TransportStatelessPrimaryRelocationHandoffAction.Request,
+    TransportStatelessPrimaryRelocationHandoffAction.HandoffRequest,
     ActionResponse.Empty> {
 
     public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>(
@@ -102,23 +102,50 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
         );
     }
 
-    /// Runs on the source node. Forwards the handoff request to the target node using `sendChildRequest` so that
-    /// the handoff task is correctly linked as a child of the active relocation task.
+    /// Runs on the source node. The request already carries the original relocation task as its parent, so forwarding
+    /// it directly preserves the expected task linkage on the target node.
     @Override
-    protected void doExecute(Task task, Request request, ActionListener<ActionResponse.Empty> listener) {
-        transportService.sendChildRequest(
+    protected void doExecute(Task task, HandoffRequest request, ActionListener<ActionResponse.Empty> listener) {
+        final var transportRequest = request.request();
+        transportRequest.copyFieldsFrom(request);
+        transportService.sendRequest(
             request.targetNode(),
             PRIMARY_CONTEXT_HANDOFF_ACTION_NAME,
-            request,
-            task,
-            TransportRequestOptions.EMPTY,
+            transportRequest,
             new ActionListenerResponseHandler<>(listener, in -> ActionResponse.Empty.INSTANCE, recoveryExecutor)
         );
     }
 
-    static class Request extends UntypedActionRequest {
+    static class HandoffRequest extends ActionRequest {
 
         private final DiscoveryNode targetNode;
+        private final Request request;
+
+        HandoffRequest(DiscoveryNode targetNode, Request request) {
+            this.targetNode = targetNode;
+            this.request = request;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            TransportAction.localOnly();
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            return null;
+        }
+
+        public DiscoveryNode targetNode() {
+            return targetNode;
+        }
+
+        public Request request() {
+            return request;
+        }
+    }
+
+    static class Request extends AbstractTransportRequest {
 
         private final long recoveryId;
         private final ShardId shardId;
@@ -134,7 +161,6 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
         private final boolean lastCommitIsHollow;
 
         Request(
-            DiscoveryNode targetNode,
             long recoveryId,
             ShardId shardId,
             ReplicationTracker.PrimaryContext primaryContext,
@@ -146,7 +172,6 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
             Set<BlobFile> lastCommitBlobs,
             boolean lastCommitIsHollow
         ) {
-            this.targetNode = targetNode;
             this.recoveryId = recoveryId;
             this.shardId = shardId;
             this.primaryContext = primaryContext;
@@ -161,7 +186,6 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
 
         Request(StreamInput in) throws IOException {
             super(in);
-            this.targetNode = null;
             recoveryId = in.readVLong();
             shardId = new ShardId(in);
             primaryContext = new ReplicationTracker.PrimaryContext(in);
@@ -195,15 +219,6 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
                 out.writeCollection(lastCommitBlobs);
                 out.writeBoolean(lastCommitIsHollow);
             }
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
-
-        public DiscoveryNode targetNode() {
-            return targetNode;
         }
 
         public long recoveryId() {

@@ -57,7 +57,7 @@ The general query performance advice in [optimize {{esql}} query performance](es
 
 ### File discovery limits
 
-A dataset's resource path can use glob patterns to match many files. Two cluster settings bound file discovery:
+A dataset's resource path can use [glob patterns](esql-data-federation-patterns.md) to match many files. Two cluster settings bound file discovery:
 
 - `esql.external.max_discovered_files` (default 10,000): the maximum number of files a single dataset can resolve to.
 - `esql.external.max_glob_expansion` (default 100): the maximum number of concrete paths a brace pattern (`{a,b,c}`) expands to. Past this cap, the engine falls back to listing the storage instead of failing.

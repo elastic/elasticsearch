@@ -17,6 +17,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LongValues;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
 import org.elasticsearch.columnar.substrate.ChunkIndexMetadata;
@@ -55,10 +56,17 @@ public final class ValueStream {
     private static final int INLINE_MEAN_LENGTH = 32;
 
     /** Where a stream's bytes and offsets landed. */
-    public record Metadata(long numValues, int valuesPerBlock, ChunkIndexMetadata chunks, MonotonicWriter.Table offsets) {
+    /**
+     * What a written stream records about itself.
+     *
+     * @param valueBytes the total length of the values before compression, counted as they are written.
+     *                   Nothing downstream recovers it: the stored length is what the chunks compressed to,
+     *                   and the block offsets address the stream rather than measure it.
+     */
+    public record Metadata(long numValues, long valueBytes, int valuesPerBlock, ChunkIndexMetadata chunks, MonotonicWriter.Table offsets) {
 
         public static Metadata empty() {
-            return new Metadata(0, VALUES_PER_BLOCK, ChunkIndexMetadata.empty(), MonotonicWriter.Table.NONE);
+            return new Metadata(0, 0, VALUES_PER_BLOCK, ChunkIndexMetadata.empty(), MonotonicWriter.Table.NONE);
         }
 
         public void writeTo(DataOutput out) throws IOException {
@@ -66,6 +74,7 @@ public final class ValueStream {
             if (numValues == 0) {
                 return;
             }
+            out.writeVLong(valueBytes);
             out.writeVInt(valuesPerBlock);
             chunks.writeTo(out);
             out.writeVLong(offsets.dataOffset());
@@ -79,13 +88,14 @@ public final class ValueStream {
             if (numValues == 0) {
                 return empty();
             }
+            final long valueBytes = in.readVLong();
             final int valuesPerBlock = in.readVInt();
             final ChunkIndexMetadata chunks = ChunkIndexMetadata.readFrom(in);
             final long dataOffset = in.readVLong();
             final long dataLength = in.readVLong();
             final byte[] meta = new byte[in.readVInt()];
             in.readBytes(meta, 0, meta.length);
-            return new Metadata(numValues, valuesPerBlock, chunks, new MonotonicWriter.Table(dataOffset, dataLength, meta));
+            return new Metadata(numValues, valueBytes, valuesPerBlock, chunks, new MonotonicWriter.Table(dataOffset, dataLength, meta));
         }
 
         public Reader open(IndexInput data) throws IOException {
@@ -110,6 +120,7 @@ public final class ValueStream {
         private final MonotonicWriter offsets;
         private final int valuesPerBlock;
         private long count = 0;
+        private long valueBytes = 0;
         private boolean closed = false;
         // A block's lengths are written ahead of its bytes, so the block is buffered until it is full. It
         // holds valuesPerBlock values, which is bounded and independent of the column.
@@ -132,10 +143,24 @@ public final class ValueStream {
         ) throws IOException {
             this.valuesPerBlock = valuesPerBlock;
             this.data = data;
-            this.chunks = new ChunkedBytesWriter(codec, targetChunkBytes, dir, ctx, prefix, data);
             this.pending = new int[valuesPerBlock];
-            final long blocks = (numValues + valuesPerBlock - 1) / valuesPerBlock;
-            this.offsets = new MonotonicWriter(dir, ctx, prefix, blocks + 1L);
+            // Both hold a temporary file of their own. Whichever opens first is closed here if the one after
+            // it fails, since a writer that never finished being built is one nothing else can close.
+            ChunkedBytesWriter chunks = null;
+            MonotonicWriter offsets = null;
+            boolean success = false;
+            try {
+                chunks = new ChunkedBytesWriter(codec, targetChunkBytes, dir, ctx, prefix, data);
+                final long blocks = (numValues + valuesPerBlock - 1) / valuesPerBlock;
+                offsets = new MonotonicWriter(dir, ctx, prefix, blocks + 1L);
+                success = true;
+            } finally {
+                if (success == false) {
+                    IOUtils.closeWhileHandlingException(chunks, offsets);
+                }
+            }
+            this.chunks = chunks;
+            this.offsets = offsets;
         }
 
         public void add(BytesRef value) throws IOException {
@@ -146,6 +171,7 @@ public final class ValueStream {
             pending[pendingCount++] = value.length;
             pendingLength += value.length;
             count++;
+            valueBytes += value.length;
             if (pendingCount == valuesPerBlock) {
                 flushBlock();
             }
@@ -197,18 +223,25 @@ public final class ValueStream {
         }
 
         private void writeInline() throws IOException {
-            scratch = ArrayUtil.growNoCopy(scratch, ByteArrayInts.MAX_VINT_BYTES);
+            // Each length stays in front of its own value rather than leading the block. A value is then
+            // self-describing at its own address and can be handed over without consulting anything else,
+            // which is the shape the binary surface speaks. The two are also what repeats, so a compressor
+            // matches them as one token where separating them would leave it matching the shorter halves.
+            //
+            // The block is assembled whole and handed over once. Appending a length and then a value for
+            // every one of them costs two calls and two bounds checks per value, to move a handful of bytes.
+            scratch = ArrayUtil.growNoCopy(scratch, 1 + pendingCount * ByteArrayInts.MAX_VINT_BYTES + pendingLength);
             scratch[0] = INLINE;
-            chunks.append(scratch, 0, 1);
-            int at = 0;
+            int at = 1;
+            int from = 0;
             for (int i = 0; i < pendingCount; i++) {
                 final int length = pending[i];
-                // The marker is already appended, so scratch is free to hold this value's length.
-                final int vintBytes = ByteArrayInts.writeVInt(length, scratch, 0);
-                chunks.append(scratch, 0, vintBytes);
-                chunks.append(pendingBytes, at, length);
+                at += ByteArrayInts.writeVInt(length, scratch, at);
+                System.arraycopy(pendingBytes, from, scratch, at, length);
                 at += length;
+                from += length;
             }
+            chunks.append(scratch, 0, at);
         }
 
         public Metadata finish() throws IOException {
@@ -220,7 +253,7 @@ public final class ValueStream {
             }
             offsets.add(chunks.uncompressedLength());
             final ChunkIndexMetadata index = ChunkIndexMetadata.of(chunks.finish());
-            return new Metadata(count, valuesPerBlock, index, offsets.finish(data));
+            return new Metadata(count, valueBytes, valuesPerBlock, index, offsets.finish(data));
         }
 
         @Override

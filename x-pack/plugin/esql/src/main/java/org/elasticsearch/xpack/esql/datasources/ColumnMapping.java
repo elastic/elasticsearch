@@ -439,6 +439,15 @@ public final class ColumnMapping implements Writeable {
      * A pair outside {@link DeclaredTypeCoercions#supports} means the mapping was built against
      * types reconciliation can never produce — fail loud (an ill-formed mapping must not limp
      * along), matching this method's historical contract.
+     * <p>
+     * All-null sources skip type inference and return a constant-null block. {@code
+     * ConstantNullBlock} implements every typed block interface, so {@link #resolveSourceType}'s
+     * {@code instanceof} chain would otherwise bind {@link IntBlock} first and reject targets
+     * {@code BOOLEAN} and {@code IP} ({@link DeclaredTypeCoercions#supports} is false for
+     * {@code INTEGER} → those types) before the engine's own all-null short-circuit can run. A
+     * typed all-null array block still reports {@link Block#areAllValuesNull()} without being a
+     * {@code ConstantNullBlock}, so the guard is the flag, not the class. Does not close
+     * {@code source}: {@link #mapPage} does not take ownership of file-page blocks.
      *
      * @param sourceType file-side ES|QL type, or {@code null} when unknown. Required to
      *                   disambiguate {@link LongBlock} sources for KEYWORD casts (DATETIME vs
@@ -452,6 +461,9 @@ public final class ColumnMapping implements Writeable {
         @Nullable String columnName,
         @Nullable SkipWarnings warnings
     ) {
+        if (source.areAllValuesNull()) {
+            return bf.newConstantNullBlock(source.getPositionCount());
+        }
         DataType from = resolveSourceType(source, sourceType, targetType);
         if (DeclaredTypeCoercions.supports(from, targetType) == false) {
             throw new UnsupportedOperationException(
@@ -468,7 +480,8 @@ public final class ColumnMapping implements Writeable {
      * ES|QL types (LONG, DATETIME, DATE_NANOS). Under a DATE_NANOS target the source is DATETIME
      * (the only pair reconciliation widens into DATE_NANOS); under a KEYWORD target the three
      * stringify differently, so the type must come from the read schema — the assertion tripwires
-     * any caller that forgets to thread it.
+     * any caller that forgets to thread it. All-null sources never reach this method:
+     * {@link #castBlock} short-circuits them before inference.
      */
     private static DataType resolveSourceType(Block source, @Nullable DataType sourceType, DataType targetType) {
         if (sourceType != null) {

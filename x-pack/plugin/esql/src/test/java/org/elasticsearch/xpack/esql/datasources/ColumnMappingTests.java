@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.ConstantNullBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -667,6 +668,72 @@ public class ColumnMappingTests extends ESTestCase {
             );
         } finally {
             filePage.releaseBlocks();
+        }
+    }
+
+    // ===== all-null cast short-circuit =====
+    //
+    // ConstantNullBlock implements every typed block interface, so resolveSourceType's
+    // instanceof chain binds IntBlock first (INTEGER). supports(INTEGER, BOOLEAN|IP) is
+    // false, and that throw used to run before DeclaredTypeCoercions.castBlock's all-null
+    // short-circuit. Two-arg mapPage (null fileColumnTypes) is the path that infers from
+    // the block class.
+
+    public void testCastConstantNullBlockToAnyTargetWithoutSourceType() {
+        // LONG/DOUBLE/DATE_NANOS/KEYWORD happen to be supported from INTEGER; BOOLEAN and
+        // IP are the cells that threw on main.
+        DataType[] targets = { DataType.LONG, DataType.DOUBLE, DataType.DATE_NANOS, DataType.KEYWORD, DataType.BOOLEAN, DataType.IP };
+        int n = randomIntBetween(1, 8);
+        for (DataType target : targets) {
+            ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { target });
+            Block src = blockFactory.newConstantNullBlock(n);
+            Page filePage = new Page(n, new Block[] { src });
+            try {
+                Page out = mapping.mapPage(filePage, blockFactory);
+                try {
+                    Block result = out.getBlock(0);
+                    assertTrue("all-null ConstantNullBlock must cast to " + target, result.areAllValuesNull());
+                    assertEquals("position count preserved for " + target, n, result.getPositionCount());
+                } finally {
+                    out.releaseBlocks();
+                }
+            } finally {
+                filePage.releaseBlocks();
+            }
+        }
+    }
+
+    public void testCastAllNullIntArrayBlockToBooleanAndIpWithoutSourceType() {
+        // IntBlock.Builder.build() does not collapse an all-null build to ConstantNullBlock —
+        // the result is an IntArrayBlock whose elementType is still INT. Narrowing the
+        // short-circuit to instanceof ConstantNullBlock would throw on BOOLEAN/IP the same
+        // way main did for ConstantNullBlock.
+        DataType[] targets = { DataType.BOOLEAN, DataType.IP };
+        int n = randomIntBetween(1, 8);
+        for (DataType target : targets) {
+            ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { target });
+            IntBlock src;
+            try (IntBlock.Builder b = blockFactory.newIntBlockBuilder(n)) {
+                for (int i = 0; i < n; i++) {
+                    b.appendNull();
+                }
+                src = b.build();
+            }
+            assertTrue("IntBlock.Builder must not collapse all-null to ConstantNullBlock", src instanceof ConstantNullBlock == false);
+            assertTrue(src.areAllValuesNull());
+            Page filePage = new Page(n, new Block[] { src });
+            try {
+                Page out = mapping.mapPage(filePage, blockFactory);
+                try {
+                    Block result = out.getBlock(0);
+                    assertTrue("all-null IntArrayBlock must cast to " + target, result.areAllValuesNull());
+                    assertEquals("position count preserved for " + target, n, result.getPositionCount());
+                } finally {
+                    out.releaseBlocks();
+                }
+            } finally {
+                filePage.releaseBlocks();
+            }
         }
     }
 

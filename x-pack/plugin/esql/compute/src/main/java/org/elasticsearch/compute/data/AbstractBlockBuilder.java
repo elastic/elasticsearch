@@ -89,6 +89,20 @@ public abstract class AbstractBlockBuilder implements Block.Builder {
     }
 
     /**
+     * Whether {@link #beginPositionEntry()} is open and no values have been appended into it.
+     * {@link #endPositionEntry()} asserts in that state; the caller must {@link #cancelPositionEntry()}
+     * and {@link #appendNull()} instead.
+     */
+    public boolean currentPositionEntryIsEmpty() {
+        return positionEntryIsOpen && valueCount == firstValueIndexes[positionCount];
+    }
+
+    /** Whether {@link #beginPositionEntry()} (or a successful reopen) is still open. */
+    public boolean isPositionEntryOpen() {
+        return positionEntryIsOpen;
+    }
+
+    /**
      * Cancels the current position entry, discarding all values appended since the last
      * {@link #beginPositionEntry()} call. After this call the builder is in the same state
      * as before {@code beginPositionEntry} was called: the caller must immediately either

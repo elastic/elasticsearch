@@ -105,6 +105,64 @@ public class NdJsonIngestParityTests extends MapperServiceTestCase {
             {"a.b":1,"a":2}""");
     }
 
+    /** An empty array contributes no values, so the leaf is simply absent from the document. */
+    public void testEmptyArrayContributesNothing() throws IOException {
+        assertParity("""
+            {"a.b":[],"id":1}""");
+    }
+
+    /**
+     * An empty array under one spelling of a leaf, then a populated array of objects under the other. The empty
+     * array contributes nothing, so the leaf must still take the later array's value rather than being pinned to
+     * the null the empty array appeared to claim.
+     */
+    public void testEmptyArrayThenObjectArrayOnPrefix() throws IOException {
+        assertParity("""
+            {"a.b":[],"a":[{"b":1}],"id":10}""");
+    }
+
+    /** Mirror of {@link #testEmptyArrayThenObjectArrayOnPrefix}, empty array on the prefix. */
+    public void testEmptyArrayOnPrefixThenFlatKey() throws IOException {
+        assertParity("""
+            {"a":[],"a.b":1,"id":10}""");
+    }
+
+    /** An empty array beside the other spelling of the same leaf, in either order: the value still lands. */
+    public void testEmptyArrayBesideTheOtherSpellingOfOneLeaf() throws IOException {
+        assertParity("""
+            {"a.b":[],"a":{"b":2},"id":10}""");
+        assertParity("""
+            {"a":{"b":3},"a.b":[],"id":20}""");
+    }
+
+    /** The same, one level deeper, so the empty array and the value meet below the array's own node. */
+    public void testDeepEmptyArrayThenObjectArrayOnPrefix() throws IOException {
+        assertParity("""
+            {"a.b.c":[],"a":[{"b":{"c":1}}],"id":10}""");
+    }
+
+    /** A flat spelling then an array of objects on the prefix: both occurrences reach the leaf. */
+    public void testFlatKeyThenObjectArrayOnPrefix() throws IOException {
+        assertParity("""
+            {"a.b":1,"a":[{"b":2}],"id":10}""");
+    }
+
+    /** Mirror of {@link #testFlatKeyThenObjectArrayOnPrefix} with the array first. */
+    public void testObjectArrayOnPrefixThenFlatKey() throws IOException {
+        assertParity("""
+            {"a":[{"b":1}],"a.b":2,"id":10}""");
+    }
+
+    /**
+     * An array of objects whose elements disagree on the shape at one name: {@code x.a} is a scalar in the first
+     * element and an object in the second, so the array fills the leaf-and-prefix node {@code x.a} and its child
+     * {@code x.a.b} from different elements.
+     */
+    public void testSparseObjectArrayOverLeafAndPrefix() throws IOException {
+        assertParity("""
+            {"x":[{"a":1},{"a":{"b":2}}],"id":10}""");
+    }
+
     private void assertParity(String json) throws IOException {
         assertThat("reader disagrees with ingest on " + json, readerLeaves(json), equalTo(ingestLeaves(json)));
     }

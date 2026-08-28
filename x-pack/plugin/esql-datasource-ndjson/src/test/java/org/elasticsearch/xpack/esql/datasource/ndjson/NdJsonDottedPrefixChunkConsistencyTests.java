@@ -33,17 +33,16 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Every chunk of one file must decide the flat-versus-nested question the same way.
+ * Every chunk of one file must decode a dotted column against the same schema.
  *
- * <p>A flat dotted key {@code "a.b"} decodes as one field only when the file also has a column {@code "a"};
- * otherwise it is read as the nested path {@code a -> b}. Answering that per chunk lets two chunks of the
- * same file disagree whenever the sibling column is not present in every record — the chunks that happen not
- * to see it read the column as a nested path and produce nulls, so the same query returns different data
- * depending on where the chunk boundaries fell. The file's schema is therefore resolved once, before any
- * chunk is dispatched, and every chunk decodes against that one answer.
+ * <p>A dotted key {@code "a.b"} walks as the nested path {@code a -> b}. The file's schema is
+ * resolved once, before any chunk is dispatched, and every chunk decodes against that one
+ * answer. A per-chunk inference would let two chunks of the same file disagree whenever a
+ * sibling column is not present in every record, so the same query would return different data
+ * depending on where the chunk boundaries fell.
  *
- * <p>The sibling here appears only in the first part of the file, which is what makes a per-chunk answer
- * wrong for every chunk after it.
+ * <p>The sibling here appears only in the first part of the file, which is what makes a
+ * per-chunk answer wrong for every chunk after it.
  */
 public class NdJsonDottedPrefixChunkConsistencyTests extends ESTestCase {
 
@@ -62,7 +61,8 @@ public class NdJsonDottedPrefixChunkConsistencyTests extends ESTestCase {
         int rows = 0;
         while (ndjson.length() < chunkSize * 3) {
             if (ndjson.length() < chunkSize / 2) {
-                // Only these early records carry the sibling scalar that makes "languages.long" a flat key.
+                // Early records also carry a sibling scalar; later records do not. The dotted key must
+                // still decode in every chunk.
                 ndjson.append("{\"languages\":\"en\",\"languages.long\":").append((long) rows).append("}\n");
             } else {
                 ndjson.append("{\"languages.long\":").append((long) rows).append("}\n");
@@ -119,7 +119,7 @@ public class NdJsonDottedPrefixChunkConsistencyTests extends ESTestCase {
         }
 
         assertEquals("every row must be read", rows, seenRows);
-        assertEquals("a chunk whose records omit the sibling must still decode the flat key, not null it", 0, nulls);
+        assertEquals("a chunk whose records omit the sibling must still decode the dotted key, not null it", 0, nulls);
         assertEquals("sum of languages.long", (long) (rows - 1) * rows / 2, sum);
     }
 

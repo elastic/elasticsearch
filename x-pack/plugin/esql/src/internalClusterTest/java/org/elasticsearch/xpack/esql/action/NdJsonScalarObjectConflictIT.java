@@ -7,15 +7,10 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
@@ -26,7 +21,6 @@ import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
-import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
 import org.junit.Before;
@@ -38,10 +32,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -49,17 +40,9 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * End-to-end reproduction of the NDJSON scalar/object shape-conflict handling, run through a real {@code FROM <dataset>}
- * query (planner + execution + client response), not just the reader-level unit tests in
- * {@code NdJsonPageIteratorTests}/{@code NdJsonPageDecoderTests}. A field ("user") that is a scalar in
- * some sampled NDJSON records and a JSON object in others must, per {@link ErrorPolicy}: fail the query
- * under the default strict policy with an actionable client-visible error; drop the conflicting record
- * whole under {@code skip_row}; or null-fill just that field under {@code null_field} — each surfacing a
- * client-visible {@code Warning} under the non-strict modes, with the other rows returning normally. This
- * proves the reader's {@code ErrorPolicy} routing and
- * {@code SkipWarnings} actually propagate all the way to the client through
- * {@code AsyncExternalSourceOperator} and the transport response, not just to a hand-bound test
- * {@code ThreadContext} (mirroring {@code FromDatasetIT} and {@code WarningsIT}).
+ * End-to-end: a field ({@code user}) that is a scalar in some NDJSON records and a JSON object in others
+ * is not a shape conflict. The object record null-fills {@code user} and the query succeeds under every
+ * {@code error_mode}, including STRICT. Runs through a real {@code FROM <dataset>} query.
  */
 public class NdJsonScalarObjectConflictIT extends AbstractEsqlIntegTestCase {
 
@@ -124,12 +107,8 @@ public class NdJsonScalarObjectConflictIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * The exact repro shape: {@code user} is a plain string in most
-     * records but a nested object in one of them. Scalar-first-wins schema inference resolves {@code user}
-     * to {@code KEYWORD}, so the object-valued record is the one that hits the shape conflict at decode
-     * time. Registers a data source and two datasets over the same fixture — {@code strict_ds} with the
-     * default (strict) error policy and {@code lenient_ds} with {@code error_mode: skip_row} — so each
-     * test just picks the dataset matching the policy it exercises.
+     * {@code user} is a string in two records and a nested object in one. Registers {@code strict_ds}
+     * (default error policy) and {@code lenient_ds} ({@code error_mode: skip_row}).
      */
     @Before
     public void writeFixtureAndRegister() throws Exception {
@@ -179,72 +158,33 @@ public class NdJsonScalarObjectConflictIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Default (strict) policy: reaching the scalar/object conflict must fail the whole query with an
-     * actionable message naming the conflicting field and both shapes, mirroring how core ES dynamic
-     * mapping rejects the same ambiguity as a hard document-parsing conflict.
+     * STRICT keeps every record. The object-valued {@code user} null-fills that column; the two scalar
+     * records keep their strings.
      */
-    public void testStrictPolicyFailsOnScalarObjectConflict() {
-        String query = "FROM strict_ds | KEEP event, user | SORT event";
-        Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest(query), TIMEOUT).close());
-        String trace = ExceptionsHelper.stackTrace(e);
-        assertTrue("strict policy must fail on the shape conflict, got: " + trace, trace.contains("user"));
-        assertTrue("error must explain the conflict, got: " + trace, trace.contains("resolved to scalar type"));
+    public void testStrictKeepsObjectRecordWithNullUser() {
+        try (var response = run(syncEsqlQueryRequest("FROM strict_ds | KEEP event, user | SORT event"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(3));
+            assertThat(((Number) rows.get(0).get(0)).intValue(), equalTo(1));
+            assertThat(rows.get(0).get(1), equalTo("alice"));
+            assertThat(((Number) rows.get(1).get(0)).intValue(), equalTo(2));
+            assertNull(rows.get(1).get(1));
+            assertThat(((Number) rows.get(2).get(0)).intValue(), equalTo(3));
+            assertThat(rows.get(2).get(1), equalTo("carol"));
+        }
     }
 
     /**
-     * Non-strict policy ({@code error_mode: skip_row}, set on {@code lenient_ds}): the conflicting record is
-     * dropped whole and every other row still returns — {@code skip_row} means "skip the row", and error_mode
-     * governs the outcome the same for an inferred or a declared schema ({@code null_field} keeps the record and
-     * nulls just the cell instead). The query runs through a chosen coordinator and we read that node's accumulated
-     * response {@code Warning} headers, proving the warning recorded by the reader propagates to the client.
+     * {@code skip_row} has nothing to drop: a scalar/object mix is not a value error.
      */
-    public void testSkipRowPolicyDropsRecordAndWarnsClient() throws Exception {
-        EsqlQueryRequest request = syncEsqlQueryRequest("FROM lenient_ds | KEEP event, user | SORT event");
-
-        DiscoveryNode coordinator = randomFrom(clusterService().state().nodes().stream().toList());
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<List<List<Object>>> values = new AtomicReference<>();
-        AtomicReference<List<? extends ColumnInfo>> columns = new AtomicReference<>();
-        List<String> warnings = new CopyOnWriteArrayList<>();
-        AtomicReference<Exception> failure = new AtomicReference<>();
-        // ActionListener.wrap (not the run() helper) so we can also read the coordinator's response
-        // Warning headers; the transport client owns the response ref-count, so we must not close it
-        // here (that would double-decRef -- see ExternalCsvHivePartitionedIT).
-        client(coordinator.getName()).execute(EsqlQueryAction.INSTANCE, request, ActionListener.wrap(response -> {
-            try {
-                values.set(getValuesList(response));
-                columns.set(response.columns());
-                TransportService transportService = internalCluster().getInstance(TransportService.class, coordinator.getName());
-                warnings.addAll(
-                    transportService.getThreadPool().getThreadContext().getResponseHeaders().getOrDefault("Warning", List.of())
-                );
-            } finally {
-                latch.countDown();
-            }
-        }, e -> {
-            failure.set(e);
-            latch.countDown();
-        }));
-        assertTrue("query did not complete within 2 minutes", latch.await(2, TimeUnit.MINUTES));
-        if (failure.get() != null) {
-            throw new AssertionError("non-strict read must not fail, but did", failure.get());
+    public void testSkipRowAlsoKeepsObjectRecord() {
+        try (var response = run(syncEsqlQueryRequest("FROM lenient_ds | KEEP event, user | SORT event"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(3));
+            assertThat(rows.get(0).get(1), equalTo("alice"));
+            assertNull(rows.get(1).get(1));
+            assertThat(rows.get(2).get(1), equalTo("carol"));
         }
-
-        assertThat(columns.get().size(), equalTo(2));
-        assertThat(columns.get().get(0).name(), equalTo("event"));
-        assertThat(columns.get().get(1).name(), equalTo("user"));
-
-        List<List<Object>> rows = values.get();
-        assertThat("the object-valued record is dropped whole under skip_row; the two scalar records remain", rows.size(), equalTo(2));
-        assertThat(((Number) rows.get(0).get(0)).intValue(), equalTo(1));
-        assertThat(rows.get(0).get(1), equalTo("alice"));
-        assertThat(((Number) rows.get(1).get(0)).intValue(), equalTo(3));
-        assertThat(rows.get(1).get(1), equalTo("carol"));
-
-        assertTrue(
-            "client must receive a Warning naming the conflicting field, got: " + warnings,
-            warnings.stream().anyMatch(w -> w.contains("user"))
-        );
     }
 
     private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {

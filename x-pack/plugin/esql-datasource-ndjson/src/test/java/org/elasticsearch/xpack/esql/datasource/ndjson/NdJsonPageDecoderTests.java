@@ -259,7 +259,8 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * leaf columns must be filled with null for that row instead of throwing a {@link NullPointerException}.
      * Regression test for https://github.com/elastic/elasticsearch/issues/152574. A JSON {@code null} is a common,
      * legitimate shape (e.g. an intermittently-null nested object) and stays silent under every {@link ErrorPolicy}
-     * — unlike an actual scalar value where an object was expected, which is a genuine schema conflict under STRICT.
+     * Unlike an actual scalar value where an object was expected, that is skipped and null-filled under every
+     * {@link ErrorPolicy}, including STRICT.
      * <p>
      * This drives the decoder with an explicit dotted schema, i.e. the planner-resolved (bound) read-schema path
      * where {@code address} exists only as a nested-object prefix. It deliberately does not go through per-file
@@ -351,10 +352,9 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
-     * The scalar-sibling prefix conflict ({@code languages} scalar beside {@code languages.long}): the flat key
-     * {@code languages.long} is registered as a direct child of the object (it cannot live under a scalar
-     * {@code languages}), so it decodes via a direct child lookup without dotted-path resolution. Both columns
-     * decode from a single record.
+     * A scalar {@code languages} beside {@code languages.long} shares one node that is both a leaf and a prefix.
+     * The flat key {@code "languages.long"} reaches {@code languages → long} via {@code resolveDottedPath}. Both
+     * columns decode from a single record.
      */
     public void testScalarSiblingPrefixConflictStillDecodes() throws IOException {
         String ndjson = "{\"languages\":5,\"languages.long\":42}\n";
@@ -383,6 +383,240 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             LongBlock ab = page.getBlock(0);
             assertTrue("a.b unreachable from deeper flat key -> null", ab.isNull(0));
         }
+    }
+
+    /**
+     * An array of objects at an ancestor of a leaf-and-prefix node ({@code x.a} beside {@code x.a.b}) opens a
+     * multivalue entry on both columns. An element that fills only one of them leaves the other entry empty; that
+     * empty entry is committed as null so the row stays one position per column. A sibling {@code id} pins alignment.
+     */
+    public void testSparseObjectArrayOnLeafAndPrefixNullFillsTheUnfilledColumn() throws IOException {
+        String ndjson = "{\"x\":[{\"a\":1}],\"id\":10}\n" + "{\"x\":[{\"a\":{\"b\":2}}],\"id\":20}\n";
+
+        try (
+            Page page = decodePage(
+                ndjson,
+                List.of(attribute("x.a", DataType.LONG), attribute("x.a.b", DataType.LONG), attribute("id", DataType.LONG))
+            )
+        ) {
+            assertNotNull(page);
+            assertEquals(2, page.getPositionCount());
+            LongBlock xa = page.getBlock(0);
+            LongBlock xab = page.getBlock(1);
+            LongBlock id = page.getBlock(2);
+            assertEquals(1L, xa.getLong(xa.getFirstValueIndex(0)));
+            assertTrue("object-array element with only x.a leaves x.a.b null", xab.isNull(0));
+            assertTrue("object-array element with only x.a.b leaves x.a null", xa.isNull(1));
+            assertEquals(2L, xab.getLong(xab.getFirstValueIndex(1)));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+            assertEquals(20L, id.getLong(id.getFirstValueIndex(1)));
+        }
+    }
+
+    /**
+     * A later object at a leaf-and-prefix node whose scalar is already claimed still populates dotted children.
+     * {@code {"a.b":1,"a":{"b":{"c":2}}}} with columns {@code a.b} and {@code a.b.c} fills both; a sibling
+     * {@code id} pins alignment.
+     */
+    public void testLaterObjectAtClaimedDualNodeStillDecodesDescendants() throws IOException {
+        String ndjson = "{\"a.b\":1,\"a\":{\"b\":{\"c\":2}},\"id\":10}\n" + "{\"a\":1,\"a\":{\"b\":2},\"id\":20}\n";
+
+        try (
+            Page page = decodePage(
+                ndjson,
+                List.of(
+                    attribute("a.b", DataType.LONG),
+                    attribute("a.b.c", DataType.LONG),
+                    attribute("a", DataType.LONG),
+                    attribute("id", DataType.LONG)
+                )
+            )
+        ) {
+            assertNotNull(page);
+            assertEquals(2, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            LongBlock abc = page.getBlock(1);
+            LongBlock a = page.getBlock(2);
+            LongBlock id = page.getBlock(3);
+            assertEquals(1L, ab.getLong(ab.getFirstValueIndex(0)));
+            assertEquals(2L, abc.getLong(abc.getFirstValueIndex(0)));
+            assertTrue(a.isNull(0));
+            assertTrue(abc.isNull(1));
+            assertEquals(1L, a.getLong(a.getFirstValueIndex(1)));
+            assertEquals(2L, ab.getLong(ab.getFirstValueIndex(1)));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+            assertEquals(20L, id.getLong(id.getFirstValueIndex(1)));
+        }
+    }
+
+    /**
+     * A later empty array on a prefix must not append a second position on a descendant a flat spelling already
+     * filled. {@code {"a.b":1,"a":[]}} keeps {@code a.b=1} aligned with {@code id}.
+     */
+    public void testLaterEmptyArrayOnPrefixDoesNotAddPosition() throws IOException {
+        String ndjson = "{\"a.b\":1,\"a\":[],\"id\":10}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG), attribute("id", DataType.LONG)))) {
+            assertNotNull(page);
+            assertEquals(1, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            LongBlock id = page.getBlock(1);
+            assertEquals(1L, ab.getLong(ab.getFirstValueIndex(0)));
+            assertEquals(1, ab.getValueCount(0));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+        }
+    }
+
+    /**
+     * A later array of objects on a prefix merges into a descendant a flat spelling already filled:
+     * {@code {"a.b":1,"a":[{"b":2}]}} yields {@code [1, 2]} on {@code a.b}, one position, aligned with {@code id}.
+     */
+    public void testLaterObjectArrayOnPrefixMergesIntoClaimedDescendant() throws IOException {
+        String ndjson = "{\"a.b\":1,\"a\":[{\"b\":2}],\"id\":10}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG), attribute("id", DataType.LONG)))) {
+            assertNotNull(page);
+            assertEquals(1, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            LongBlock id = page.getBlock(1);
+            assertEquals(2, ab.getValueCount(0));
+            int first = ab.getFirstValueIndex(0);
+            assertEquals(1L, ab.getLong(first));
+            assertEquals(2L, ab.getLong(first + 1));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+        }
+    }
+
+    /**
+     * An empty array contributes nothing and does not claim the leaf's cell, so a later spelling in the same
+     * record still fills it: ingest with {@code subobjects: false} indexes {@code {"a.b":[],"a":[{"b":1}]}} as
+     * {@code a.b=[1]}, not as a null (see {@code NdJsonIngestParityTests}). Claiming the cell eagerly would both
+     * pin the column to null against that value and, since a null cannot be reopened to gain values, leave the
+     * following array with no open entry to append into, which starts a SECOND position for the column and
+     * leaves it one longer than its siblings.
+     * <p>
+     * Both spellings of the empty array reach the same leaf ({@code "a.b":[]} flat, {@code "a":[]} on the
+     * prefix), and the deeper {@code a.b.c} case pins the behavior below the array's own node. A sibling
+     * {@code id} column pins the alignment.
+     */
+    public void testEmptyArrayDoesNotClaimTheCellAgainstALaterValue() throws IOException {
+        String ndjson = "{\"a.b\":[],\"a\":[{\"b\":1}],\"id\":10}\n" + "{\"a\":[],\"a.b\":2,\"id\":20}\n" + "{\"a.b\":[],\"id\":30}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG), attribute("id", DataType.LONG)))) {
+            assertNotNull(page);
+            assertEquals(3, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            LongBlock id = page.getBlock(1);
+            assertEquals("[] must not add a position of its own", 3, ab.getPositionCount());
+            assertEquals(1L, ab.getLong(ab.getFirstValueIndex(0)));
+            assertEquals(1, ab.getValueCount(0));
+            assertEquals(2L, ab.getLong(ab.getFirstValueIndex(1)));
+            assertTrue("[] alone leaves the cell to the end-of-record fill", ab.isNull(2));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+            assertEquals(20L, id.getLong(id.getFirstValueIndex(1)));
+            assertEquals(30L, id.getLong(id.getFirstValueIndex(2)));
+        }
+
+        String deeper = "{\"a.b.c\":[],\"a\":[{\"b\":{\"c\":1}}],\"id\":10}\n";
+        try (Page page = decodePage(deeper, List.of(attribute("a.b.c", DataType.LONG), attribute("id", DataType.LONG)))) {
+            assertNotNull(page);
+            assertEquals(1, page.getPositionCount());
+            LongBlock abc = page.getBlock(0);
+            assertEquals(1L, abc.getLong(abc.getFirstValueIndex(0)));
+            assertEquals(10L, ((LongBlock) page.getBlock(1)).getLong(0));
+        }
+    }
+
+    /**
+     * A cell nulled by an error policy cannot be widened, so an array of objects on an ancestor finds no open
+     * entry on that leaf. Its values must be dropped rather than appended: appending with no entry open starts a
+     * SECOND position for the column, and {@code Page} only asserts equal position counts, so the record would
+     * otherwise ship crooked in production. The leaf's sibling {@code a.c} in the same array is unaffected.
+     */
+    public void testArrayOnPrefixCannotWidenAPolicyNulledCell() throws IOException {
+        String ndjson = "{\"a.b\":\"notanumber\",\"a\":[{\"b\":1,\"c\":7},{\"b\":2,\"c\":8}],\"id\":10}\n";
+
+        try (
+            Page page = decodePage(
+                ndjson,
+                List.of(attribute("a.b", DataType.LONG), attribute("a.c", DataType.LONG), attribute("id", DataType.LONG)),
+                // Ratio 0.0 disables the ratio check: this record carries more than one bad value and the test is
+                // about the rollback, not about the error budget.
+                new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false)
+            )
+        ) {
+            assertNotNull(page);
+            assertEquals(1, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            LongBlock ac = page.getBlock(1);
+            LongBlock id = page.getBlock(2);
+            assertEquals("the nulled leaf must not gain a position of its own", 1, ab.getPositionCount());
+            assertTrue("null_field nulled this cell; the later array cannot widen it", ab.isNull(0));
+            assertEquals(2, ac.getValueCount(0));
+            int first = ac.getFirstValueIndex(0);
+            assertEquals(7L, ac.getLong(first));
+            assertEquals(8L, ac.getLong(first + 1));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+        }
+    }
+
+    /**
+     * A coercion failure inside an array poisons the position, and {@code cancelAndNullPositionEntry} rolls every
+     * column under that array back to a null. A column whose reopen was refused (see
+     * {@link #testArrayOnPrefixCannotWidenAPolicyNulledCell}) has no entry to roll back and already holds that
+     * null, so it must be left alone: {@code cancelPositionEntry} asserts when no entry is open. Under
+     * {@code null_field} the record survives with both {@code a.*} cells null and {@code id} intact.
+     */
+    public void testPoisonedArrayWithRefusedReopenRollsBackCleanly() throws IOException {
+        String ndjson = "{\"a.b\":\"notanumber\",\"a\":[{\"b\":1,\"c\":\"alsobad\"}],\"id\":10}\n";
+
+        try (
+            Page page = decodePage(
+                ndjson,
+                List.of(attribute("a.b", DataType.LONG), attribute("a.c", DataType.LONG), attribute("id", DataType.LONG)),
+                // Ratio 0.0 disables the ratio check: this record carries more than one bad value and the test is
+                // about the rollback, not about the error budget.
+                new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false)
+            )
+        ) {
+            assertNotNull(page);
+            assertEquals(1, page.getPositionCount());
+            assertTrue(((LongBlock) page.getBlock(0)).isNull(0));
+            assertTrue("the poisoned array nulls the whole position for this column", ((LongBlock) page.getBlock(1)).isNull(0));
+            assertEquals(10L, ((LongBlock) page.getBlock(2)).getLong(0));
+        }
+    }
+
+    /**
+     * A declared column that appears only as JSON null is present in the file. The cell is still null, but
+     * {@code close()} must not emit an absent-declared-column warning.
+     */
+    public void testJsonNullMarksDeclaredColumnPresent() throws IOException {
+        String ndjson = "{\"a.b\":null}\n{\"a\":{\"b\":null}}\n";
+        List<String> warnings = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("a.b", DataType.LONG)),
+                null,
+                1024,
+                blockFactory,
+                ErrorPolicy.STRICT,
+                "test://decode",
+                new NdJsonReaderCounters(),
+                warnings::add
+            )
+        ) {
+            try (Page page = decoder.decodePage()) {
+                assertNotNull(page);
+                assertEquals(2, page.getPositionCount());
+                LongBlock ab = page.getBlock(0);
+                assertTrue(ab.isNull(0));
+                assertTrue(ab.isNull(1));
+            }
+        }
+        assertTrue("JSON null is a present key, not an absent column: " + warnings, warnings.isEmpty());
     }
 
     /**
@@ -488,12 +722,12 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
-     * An empty array {@code []} commits a null cell, so it claims the row's single position for a dotted column: a
-     * later spelling of the same column in the record is drained (first-committed-cell-wins, distinct from the
-     * fully transparent plain JSON null). Reversed, a real value committed first wins and a later {@code []} is
-     * drained. A sibling {@code id} column pins alignment.
+     * An empty array {@code []} contributes no value and does not claim the row, exactly like a plain JSON null:
+     * the other spelling of the column in the same record supplies the value, in either order. This matches
+     * ingest with {@code subobjects: false}, which indexes {@code {"a.b":[],"a":{"b":2}}} as {@code a.b=[2]}
+     * (see {@code NdJsonIngestParityTests}). A sibling {@code id} column pins alignment.
      */
-    public void testSameRecordDuplicateEmptyArrayClaimsRow() throws IOException {
+    public void testSameRecordDuplicateEmptyArrayDoesNotClaimRow() throws IOException {
         String ndjson = "{\"a.b\":[],\"a\":{\"b\":2},\"id\":10}\n" + "{\"a\":{\"b\":3},\"a.b\":[],\"id\":20}\n";
 
         try (Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG), attribute("id", DataType.LONG)))) {
@@ -501,8 +735,10 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             assertEquals(2, page.getPositionCount());
             LongBlock ab = page.getBlock(0);
             LongBlock id = page.getBlock(1);
-            assertTrue("empty array claims the row -> null", ab.isNull(0));
-            assertEquals("value committed before [] wins", 3L, ab.getLong(ab.getFirstValueIndex(1)));
+            assertEquals("[] first, value second", 2L, ab.getLong(ab.getFirstValueIndex(0)));
+            assertEquals(1, ab.getValueCount(0));
+            assertEquals("value first, [] second", 3L, ab.getLong(ab.getFirstValueIndex(1)));
+            assertEquals(1, ab.getValueCount(1));
             assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
             assertEquals(20L, id.getLong(id.getFirstValueIndex(1)));
         }

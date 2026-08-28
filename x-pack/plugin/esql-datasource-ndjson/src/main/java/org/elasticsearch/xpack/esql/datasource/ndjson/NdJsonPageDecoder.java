@@ -1318,7 +1318,7 @@ public class NdJsonPageDecoder implements Closeable {
      * the tree segment by segment and the flat spelling resolves the same path at read time
      * ({@link BlockDecoder#resolveDottedPath}).
      * <p>
-     * A node can be both a leaf and a prefix — a scalar column {@code a} beside a column {@code a.b} — which is what
+     * A node can be both a leaf and a prefix: a scalar column {@code a} beside a column {@code a.b}, which is what
      * treating a dot as an ordinary character in a column name means. Nothing about the tree shape depends on whether
      * a value is spelled flat or nested; only what a shape mismatch means at read time does (see
      * {@link BlockDecoder#decodeValue}).
@@ -1616,7 +1616,7 @@ public class NdJsonPageDecoder implements Closeable {
             }
             hashMapFallbacks++;
             BlockDecoder resolved = children.get(fieldName);
-            if (resolved == null && fieldName.indexOf('.') >= 0) {
+            if (resolved == null && NdJsonUtils.isFieldPath(fieldName)) {
                 // A flat dotted key (e.g. "a.b") with no direct child: ES ingest reinterprets a dotted field
                 // name as the equivalent nested object, so a record spelling a column flat must reach the same
                 // leaf as the nested {"a":{"b":...}} spelling. Resolve it as a path through this decoder's
@@ -1686,7 +1686,18 @@ public class NdJsonPageDecoder implements Closeable {
         private void beginPositionEntry(boolean includeSelf, boolean includeChildren) {
             // We may have DataType.NULL for unknown columns. And NullBlock.Builder throws on beginPositionEntry()
             if (includeSelf && blockBuilder != null && dataType != DataType.NULL) {
-                blockBuilder.beginPositionEntry();
+                if (blockTracker.get(blockIdx)) {
+                    // A flat spelling already committed this leaf; a later array on an ancestor merges into that
+                    // cell. reopenLastPositionEntry returns false when the cell is already null: a null is a
+                    // property of the whole position, not a member of its value list, so it cannot widen. This
+                    // node then has NO open entry for the rest of the array, which every path that assumes one
+                    // must check for (see decodeValue's append guard, endPositionEntry and
+                    // cancelAndNullPositionEntry): appending anyway would start a second position for this
+                    // column and misalign it from its siblings.
+                    ((AbstractBlockBuilder) blockBuilder).reopenLastPositionEntry();
+                } else {
+                    blockBuilder.beginPositionEntry();
+                }
             }
             if (includeChildren && children != null) {
                 for (var child : children.values()) {
@@ -1697,7 +1708,21 @@ public class NdJsonPageDecoder implements Closeable {
 
         private void endPositionEntry(boolean includeSelf, boolean includeChildren) {
             if (includeSelf && blockBuilder != null && dataType != DataType.NULL) {
-                blockBuilder.endPositionEntry();
+                AbstractBlockBuilder abb = (AbstractBlockBuilder) blockBuilder;
+                // A refused reopen left no entry open and the cell as the null it already was: nothing to commit.
+                if (abb.isPositionEntryOpen()) {
+                    if (abb.currentPositionEntryIsEmpty()) {
+                        // An array of objects opened this entry, then no element wrote a value here (a
+                        // leaf-and-prefix sibling was filled instead, or every element omitted this field).
+                        // Commit a null so the position stays aligned with its siblings; endPositionEntry
+                        // asserts on an empty entry.
+                        abb.cancelPositionEntry();
+                        blockTracker.set(blockIdx);
+                        blockBuilder.appendNull();
+                    } else {
+                        blockBuilder.endPositionEntry();
+                    }
+                }
             }
             if (includeChildren && children != null) {
                 for (var child : children.values()) {
@@ -1711,12 +1736,19 @@ public class NdJsonPageDecoder implements Closeable {
          * {@link #beginPositionEntry}) and writes a null for this position instead. Used
          * when a coercion failure poisoned an array: the whole position is nulled rather
          * than committed as a partial multivalue, matching the columnar reader contract.
+         * <p>
+         * A node whose reopen {@link #beginPositionEntry} refused has no entry to cancel, and its cell already
+         * holds the null this method would write, so it is left alone: {@code cancelPositionEntry} asserts when
+         * no entry is open.
          */
         private void cancelAndNullPositionEntry(boolean includeSelf, boolean includeChildren) {
             if (includeSelf && blockBuilder != null && dataType != DataType.NULL) {
-                ((AbstractBlockBuilder) blockBuilder).cancelPositionEntry();
-                blockTracker.set(blockIdx);
-                blockBuilder.appendNull();
+                AbstractBlockBuilder abb = (AbstractBlockBuilder) blockBuilder;
+                if (abb.isPositionEntryOpen()) {
+                    abb.cancelPositionEntry();
+                    blockTracker.set(blockIdx);
+                    blockBuilder.appendNull();
+                }
             }
             if (includeChildren && children != null) {
                 for (var child : children.values()) {
@@ -1758,39 +1790,44 @@ public class NdJsonPageDecoder implements Closeable {
         }
 
         /**
-         * An empty JSON array {@code []} must not run {@link Block.Builder#beginPositionEntry()} with no values:
-         * {@link org.elasticsearch.compute.data.AbstractBlockBuilder#endPositionEntry()} asserts on empty multi-value
-         * slots. Treat {@code []} like a missing field for every leaf column under this decoder subtree.
+         * An empty JSON array {@code []} contributes no values, exactly like a missing field, which is what ingest
+         * does with {@code subobjects: false}: {@code {"a.b":[],"a":[{"b":1}]}} indexes {@code a.b} as {@code [1]}.
+         * So this neither appends a cell nor sets {@link #blockTracker}. Leaving the cell unclaimed is what lets a
+         * later spelling in the same record still fill it; when none does, the end-of-record fill nulls it.
+         * <p>
+         * Claiming it here instead (appending the null eagerly) would both pin the column to {@code null} against
+         * a later value and, because a null cannot be reopened to gain values, leave a following array on an
+         * ancestor with no open entry to append into.
+         * <p>
+         * This also keeps {@link Block.Builder#beginPositionEntry()} from being run with no values, which
+         * {@link org.elasticsearch.compute.data.AbstractBlockBuilder#endPositionEntry()} asserts against.
+         * <p>
+         * The key itself was present, so a leaf counts as seen for the absent-declared-column warning, the same
+         * way a JSON null does. Columns nested <em>under</em> an empty array get no such mark: their own keys
+         * never appeared, which is exactly the missing-field case.
          */
-        private void appendNullsForEmptyArray() {
-            if (blockBuilder != null) {
-                if (dataType != DataType.NULL) {
-                    blockTracker.set(blockIdx);
-                    blockBuilder.appendNull();
-                }
-            } else if (children != null) {
-                for (var child : children.values()) {
-                    child.appendNullsForEmptyArray();
-                }
+        private void noteEmptyArray() {
+            if (blockBuilder != null && dataType != DataType.NULL) {
+                markColumnSeen(blockIdx);
             }
         }
 
         /**
          * Decodes the current JSON value into this decoder's block (or, for a structural prefix node, recurses into
          * its children). NDJSON is schema-on-read: the inferred/bound schema flattens nested objects to dotted leaf
-         * columns. Purely STRUCTURAL shape mismatches are not errors — they are null-filled for the affected column(s)
+         * columns. Purely STRUCTURAL shape mismatches are not errors: they are null-filled for the affected column(s)
          * and {@code DEBUG}-logged, never failing the query regardless of {@code error_mode}:
          * <ul>
          *   <li>a JSON {@code null} where an object was expected on a structural prefix node leaves its leaf columns
-         *       null for that row (e.g. an intermittently-null nested object across millions of records) — logged at
+         *       null for that row (e.g. an intermittently-null nested object across millions of records), logged at
          *       {@code DEBUG} only, never {@code WARN}, since surfacing it by default would flood the log without
          *       giving the cluster admin an actionable signal;</li>
          *   <li>a stray scalar among a heterogeneous array of objects is likewise null-filled and {@code DEBUG}-logged,
          *       and symmetrically a stray object among a heterogeneous array of scalars is simply omitted from that
-         *       column's multi-value entry and {@code DEBUG}-logged — neither direction is a value error.</li>
+         *       column's multi-value entry and {@code DEBUG}-logged. Neither direction is a value error.</li>
          * </ul>
          * A cell that genuinely cannot be REPRESENTED under the column's type, by contrast, is governed by
-         * {@code error_mode} — identically for a declared or an inferred column: a bad value or a cross-kind token
+         * {@code error_mode}, identically for a declared or an inferred column: a bad value or a cross-kind token
          * ({@link #coercionFailure} / {@link #crossKindDrift}) routes through {@link ErrorPolicy}: {@code FAIL_FAST}
          * fails the query, {@code SKIP_ROW} drops the whole record, {@code NULL_FIELD} nulls the cell and warns.
          * A scalar and an object at one name are NOT such a conflict here: a dot is an ordinary character in a column
@@ -1814,6 +1851,12 @@ public class NdJsonPageDecoder implements Closeable {
             // into the entry that occurrence opened. A plain JSON null does not set blockTracker (see below),
             // so it neither claims the cell nor merges into it.
             if (blockBuilder != null && entry == ArrayEntry.NONE && blockTracker.get(blockIdx)) {
+                if (token == JsonToken.START_OBJECT && children != null) {
+                    // A later object at a leaf-and-prefix node still populates dotted children; it does not
+                    // merge into this node's already-claimed scalar cell.
+                    decodeObject(parser, entry);
+                    return;
+                }
                 appendFurtherOccurrence(parser);
                 return;
             }
@@ -1831,7 +1874,7 @@ public class NdJsonPageDecoder implements Closeable {
                     // - symmetrically, a scalar leaf skips leading stray objects (e.g. [null, {"x":1}, "a"]) until
                     // the first scalar or the array end: without this, an all-object array on a scalar leaf would
                     // call beginPositionEntry() and then never append a value before endPositionEntry(), which
-                    // AbstractBlockBuilder#endPositionEntry() asserts against (see appendNullsForEmptyArray).
+                    // AbstractBlockBuilder#endPositionEntry() asserts against (see noteEmptyArray).
                     JsonToken first = parser.nextToken();
                     // What this node can take from an array: scalars when it has a column of its own, objects when it
                     // has columns underneath. A scalar column that also prefixes dotted columns can take both, and the
@@ -1862,7 +1905,7 @@ public class NdJsonPageDecoder implements Closeable {
                         first = parser.nextToken();
                     }
                     if (first == JsonToken.END_ARRAY) {
-                        appendNullsForEmptyArray();
+                        noteEmptyArray();
                         return;
                     }
                     boolean includeChildren = first == JsonToken.START_OBJECT;
@@ -1931,7 +1974,7 @@ public class NdJsonPageDecoder implements Closeable {
                         return;
                     }
                     // The object's members address flattened names under this one (a.b, a.b.c), none of which is a
-                    // column here — this node has no children. They are unreachable exactly as an unprojected
+                    // column here. This node has no children. They are unreachable exactly as an unprojected
                     // field is, so they are skipped silently and this node's cell is left for the end-of-record
                     // fill. The scalar this column resolved to is not contradicted by an object at the same name.
                     parser.skipChildren();
@@ -1974,8 +2017,20 @@ public class NdJsonPageDecoder implements Closeable {
             if (token == JsonToken.VALUE_NULL) {
                 // A JSON null contributes no value and does not claim the row: it neither appends a cell nor sets
                 // blockTracker. The end-of-record fill supplies the null when no spelling of this column provides
-                // a value, and a spelling that does provide one is not merged with the null. Nulls inside an array are
-                // unsupported and skipped either way, so this single return covers both cases.
+                // a value, and a spelling that does provide one is not merged with the null. The key was present,
+                // so mark the column seen (absent-column warnings track file presence, not a committed non-null).
+                // Nulls inside an array are unsupported and skipped either way, so this single return covers both.
+                markColumnSeen(blockIdx);
+                return;
+            }
+            if (entry != ArrayEntry.NONE && ((AbstractBlockBuilder) blockBuilder).isPositionEntryOpen() == false) {
+                // An enclosing array asked beginPositionEntry to reopen this leaf's cell and was refused: the cell
+                // is already null and cannot widen. With no entry open, appending here would not join a multivalue,
+                // it would start a SECOND position for this column, leaving it one position longer than its
+                // siblings for this record (a Page only asserts equal position counts). The array therefore
+                // contributes nothing to this column, exactly as appendFurtherOccurrence drops a further
+                // occurrence into an already-nulled cell.
+                markColumnSeen(blockIdx);
                 return;
             }
             blockTracker.set(blockIdx);

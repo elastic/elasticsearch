@@ -9,13 +9,9 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
@@ -38,10 +34,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -49,14 +42,9 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * End-to-end reproduction of the cross-file scalar/object shape-conflict handling: a
- * field that is a scalar leaf in one file's schema and a nested object (dotted-prefix parent) in
- * another's must reconcile to a single shape under the default {@code UNION_BY_NAME} schema
- * resolution, with the losing file's records routed through the same {@code ErrorPolicy}
- * machinery {@link NdJsonScalarObjectConflictIT} exercises for a single file. Runs through a real
- * {@code FROM <dataset>} query (planner + execution + client response), mirroring
- * {@code NdJsonScalarObjectConflictIT}'s dataset-registration pattern rather than the ad hoc
- * {@code EXTERNAL} command, which is slated for removal.
+ * End-to-end: one file's scalar {@code user} and another's nested {@code user.id}/{@code user.tier}
+ * are independent columns under {@code UNION_BY_NAME}. Both files' rows return; the object file
+ * null-fills {@code user}. Runs through a real {@code FROM <dataset>} query.
  */
 public class NdJsonCrossFileScalarObjectConflictIT extends AbstractEsqlIntegTestCase {
 
@@ -121,14 +109,9 @@ public class NdJsonCrossFileScalarObjectConflictIT extends AbstractEsqlIntegTest
     }
 
     /**
-     * The exact cross-file repro shape: {@code a.ndjson}'s {@code user} is a plain
-     * string, {@code b.ndjson}'s is a nested object. Lexicographic glob ordering (see
-     * {@code GlobExpander}) makes {@code a.ndjson} the first file, so first-shape-wins schema
-     * reconciliation resolves {@code user} to {@code KEYWORD} and {@code b.ndjson} is the one that
-     * hits the shape conflict at decode time. Registers a data source and two datasets over the
-     * same two-file directory — {@code strict_ds} with the default (strict) error policy and
-     * {@code lenient_ds} with {@code error_mode: skip_row} — so each test just picks the dataset
-     * matching the policy it exercises.
+     * {@code a.ndjson}'s {@code user} is a string; {@code b.ndjson}'s is a nested object.
+     * Registers {@code strict_ds} (default error policy) and {@code lenient_ds}
+     * ({@code error_mode: skip_row}) over the same two-file directory.
      */
     @Before
     public void writeFixtureAndRegister() throws Exception {
@@ -199,58 +182,18 @@ public class NdJsonCrossFileScalarObjectConflictIT extends AbstractEsqlIntegTest
     }
 
     /**
-     * Non-strict policy ({@code error_mode: skip_row}, set on {@code lenient_ds}): {@code b.ndjson}'s conflicting
-     * record is dropped whole — not null-filled — while {@code a.ndjson}'s row is unaffected, and the client
-     * receives a {@code Warning} naming the conflict. Nothing silently vanishes, end to end. error_mode governs the
-     * outcome the same for an inferred or a declared schema; {@code null_field} would keep the record and null the
-     * cell instead. The query runs through a chosen coordinator and we read that node's accumulated response
-     * {@code Warning} headers, proving the warning recorded by the reader propagates all the way to the client.
+     * {@code skip_row} has nothing to drop: a scalar in one file and an object in another are
+     * independent columns, not a value error.
      */
-    public void testSkipRowPolicyDropsRecordAndWarnsClient() throws Exception {
-        EsqlQueryRequest request = syncEsqlQueryRequest("FROM lenient_ds | KEEP event, user | SORT event");
-
-        DiscoveryNode coordinator = randomFrom(clusterService().state().nodes().stream().toList());
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<List<List<Object>>> values = new AtomicReference<>();
-        AtomicReference<List<? extends ColumnInfo>> columns = new AtomicReference<>();
-        List<String> warnings = new CopyOnWriteArrayList<>();
-        AtomicReference<Exception> failure = new AtomicReference<>();
-        // ActionListener.wrap (not the run() helper) so we can also read the coordinator's
-        // response Warning headers; the transport client owns the response ref-count, so we must
-        // not close it here (that would double-decRef -- see ExternalCsvHivePartitionedIT).
-        client(coordinator.getName()).execute(EsqlQueryAction.INSTANCE, request, ActionListener.wrap(response -> {
-            try {
-                values.set(getValuesList(response));
-                columns.set(response.columns());
-                TransportService transportService = internalCluster().getInstance(TransportService.class, coordinator.getName());
-                warnings.addAll(
-                    transportService.getThreadPool().getThreadContext().getResponseHeaders().getOrDefault("Warning", List.of())
-                );
-            } finally {
-                latch.countDown();
-            }
-        }, e -> {
-            failure.set(e);
-            latch.countDown();
-        }));
-        assertTrue("query did not complete within 2 minutes", latch.await(2, TimeUnit.MINUTES));
-        if (failure.get() != null) {
-            throw new AssertionError("non-strict read must not fail, but did", failure.get());
+    public void testSkipRowAlsoKeepsBothFiles() {
+        try (var response = run(syncEsqlQueryRequest("FROM lenient_ds | KEEP event, user | SORT event"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(2));
+            assertThat(((Number) rows.get(0).get(0)).intValue(), equalTo(1));
+            assertThat(rows.get(0).get(1), equalTo("alice"));
+            assertThat(((Number) rows.get(1).get(0)).intValue(), equalTo(2));
+            assertNull(rows.get(1).get(1));
         }
-
-        assertThat(columns.get().size(), equalTo(2));
-        assertThat(columns.get().get(0).name(), equalTo("event"));
-        assertThat(columns.get().get(1).name(), equalTo("user"));
-
-        List<List<Object>> rows = values.get();
-        assertThat("b.ndjson's object-valued record is dropped whole under skip_row; only a.ndjson's row remains", rows.size(), equalTo(1));
-        assertThat(((Number) rows.get(0).get(0)).intValue(), equalTo(1));
-        assertThat(rows.get(0).get(1), equalTo("alice"));
-
-        assertTrue(
-            "client must receive a Warning naming the conflicting field, got: " + warnings,
-            warnings.stream().anyMatch(w -> w.contains("user"))
-        );
     }
 
     private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {

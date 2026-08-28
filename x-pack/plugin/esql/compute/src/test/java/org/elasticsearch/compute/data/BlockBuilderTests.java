@@ -303,6 +303,29 @@ public class BlockBuilderTests extends ESTestCase {
     }
 
     /**
+     * An opened position entry with no values is empty: {@link AbstractBlockBuilder#endPositionEntry()} asserts, so
+     * the caller cancels and {@link Block.Builder#appendNull() appends a null} instead.
+     */
+    public void testCurrentPositionEntryIsEmptyUntilAValueIsAppended() {
+        assumeAbstractBlockBuilder();
+        assumeMultiValued();
+        Object value = BlockTestUtils.randomValue(elementType);
+        try (Block.Builder builder = elementType.newBlockBuilder(1, blockFactory)) {
+            AbstractBlockBuilder abb = (AbstractBlockBuilder) builder;
+            builder.beginPositionEntry();
+            assertThat(abb.currentPositionEntryIsEmpty(), is(true));
+            BlockTestUtils.append(builder, value);
+            assertThat(abb.currentPositionEntryIsEmpty(), is(false));
+            builder.endPositionEntry();
+            try (Block block = builder.build()) {
+                assertThat(block.getPositionCount(), equalTo(1));
+                assertThat(block.isNull(0), is(false));
+            }
+        }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
      * A cell whose second value is discovered only after the first was already appended as a single value: reopening
      * the committed position and appending merges the two into one multivalue, rather than starting a second position.
      */

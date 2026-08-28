@@ -9,11 +9,9 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 
-import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -87,6 +85,7 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature BBQ_DISK_SUPPORT = new NodeFeature("mapper.bbq_disk_support");
     public static final NodeFeature BBQ_DISK_BYTE_SUPPORT = new NodeFeature("mapper.bbq_disk_byte_support");
     public static final NodeFeature ASH_QUANTIZATION_TYPE_SUPPORT = new NodeFeature("mapper.ash_quantization_type_support");
+    public static final NodeFeature DISK_BBQ_STABLE_FORMAT_SELECTION = new NodeFeature("mapper.disk_bbq_stable_format_selection");
     public static final NodeFeature SEARCH_LOAD_PER_SHARD = new NodeFeature("mapper.search_load_per_shard");
     public static final NodeFeature PATTERN_TEXT = new NodeFeature("mapper.patterned_text");
     public static final NodeFeature IGNORED_SOURCE_FIELDS_PER_ENTRY = new NodeFeature("mapper.ignored_source_fields_per_entry");
@@ -130,6 +129,7 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.doc_values.extended_form_only_in_columnar"
     );
     public static final NodeFeature DOC_VALUES_NULLABILITY = new NodeFeature("mapper.doc_values.nullability");
+    public static final NodeFeature DOC_VALUES_ON_FAILURE = new NodeFeature("mapper.doc_values.on_failure");
     public static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX = new NodeFeature(
         "mapper.dense_vector.dynamic_template_nested_object_fix"
     );
@@ -176,101 +176,99 @@ public class MapperFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        Set<NodeFeature> features = new HashSet<>(
-            Set.of(
-                DATE_RANGE_INDEXING_FIX,
-                DONT_EXPAND_DOTS_IN_IGNORED_SOURCE,
-                REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION,
-                SOURCE_MODE_FROM_INDEX_SETTING,
-                IGNORED_SOURCE_AS_TOP_LEVEL_METADATA_ARRAY_FIELD,
-                ALWAYS_STORE_OBJECT_ARRAYS_IN_NESTED_OBJECTS,
-                LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT,
-                FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
-                CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX,
-                META_FETCH_FIELDS_ERROR_CODE_CHANGED,
-                SPARSE_VECTOR_STORE_SUPPORT,
-                COUNTED_KEYWORD_SYNTHETIC_SOURCE_NATIVE_SUPPORT,
-                SORT_FIELDS_CHECK_FOR_NESTED_OBJECT_FIX,
-                DYNAMIC_HANDLING_IN_COPY_TO,
-                TSDB_NESTED_FIELD_SUPPORT,
-                SYNTHETIC_RECOVERY_SOURCE,
-                SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX,
-                UKNOWN_FIELD_MAPPING_UPDATE_ERROR_MESSAGE,
-                DOC_VALUES_SKIPPER,
-                RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING,
-                INVALID_DATE_FIX,
-                NPE_ON_DIMS_UPDATE_FIX,
-                RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING,
-                USE_DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ,
-                IVF_FORMAT_CLUSTER_FEATURE,
-                IVF_NESTED_SUPPORT,
-                BBQ_DISK_SUPPORT,
-                SEARCH_LOAD_PER_SHARD,
-                SPARSE_VECTOR_INDEX_OPTIONS_FEATURE,
-                PATTERN_TEXT,
-                IGNORED_SOURCE_FIELDS_PER_ENTRY,
-                MULTI_FIELD_UNICODE_OPTIMISATION_FIX,
-                MATCH_ONLY_TEXT_BLOCK_LOADER_FIX,
-                MATCH_ONLY_TEXT_DOC_VALUES_PREFIX_WILDCARD_REGEXP,
-                PATTERN_TEXT_RENAME,
-                DISKBBQ_ON_DISK_RESCORING,
-                PROVIDE_INDEX_SORT_SETTING_DEFAULTS,
-                INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LIMIT,
-                EXCLUDE_VECTORS_DOCVALUE_BUGFIX,
-                BASE64_DENSE_VECTORS,
-                FIX_DENSE_VECTOR_WRONG_FIELDS,
-                BBQ_DISK_STATS_SUPPORT,
-                SKIPPERS_ON_UNINDEXED_FIELDS,
-                STORED_FIELDS_SPEC_MERGE_BUG,
-                GENERIC_VECTOR_FORMAT,
-                EXPONENTIAL_HISTOGRAM_TYPE,
-                STORE_HIGH_CARDINALITY_KEYWORDS_IN_BINARY_DOC_VALUES,
-                HIGH_CARDINALITY_LENGTH_FUNCTION_FUSE_TO_LOAD,
-                MV_MIN_FUNCTION_FUSE_TO_LOAD,
-                MV_MAX_FUNCTION_FUSE_TO_LOAD,
-                TDIGEST_TYPE,
-                TEXT_FIELD_DOC_VALUES,
-                TEXT_FIELD_DOC_VALUES_PREFIX_WILDCARD_REGEXP,
-                DENSE_VECTOR_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX,
-                DOC_VALUES_MULTI_VALUE,
-                DOC_VALUES_MULTI_VALUE_ENFORCEMENT,
-                DOC_VALUES_MULTI_VALUE_RENAME,
-                DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX,
-                FLATTENED_MAPPED_SUBFIELDS_FEATURE,
-                FLATTENED_COLUMNAR_DOCUMENT_ORDER,
-                ARRAY_OBJECTS_LIMIT,
-                ES940_DISK_BBQ,
-                FLATTENED_PASSTHROUGH_FEATURE,
-                IGNORED_VALUES_STORED_IN_BINARY_DV,
-                IP_MAPPER_CARDINALITY_OPTION,
-                KEYWORD_NORMALIZER_SKIP_STORE_SETTING,
-                KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED,
-                ANALYZER_WRAPPER_RELOADABLE_SEARCH_ANALYZER,
-                ROUTING_AS_DOC_VALUES,
-                ID_FIELD_MODE_MAPPING_ATTRIBUTE,
-                ROUTING_AS_DOC_VALUES_BY_DEFAULT,
-                STORE_NOT_ALLOWED_IN_COLUMNAR_INDEX_MODE,
-                KEYWORD_DV_CASE_INSENSITIVE_REGEXP,
-                COLUMNAR_MAINTAIN_ARRAY_ORDER,
-                COLUMNAR_REJECTS_RUNTIME_DYNAMIC,
-                COLUMNAR_ACCEPTS_SUBOBJECTS_FALSE,
-                KEYWORD_COLUMNAR_DEFAULT_HIGH_CARDINALITY,
-                TEXT_FIELDS_ENABLE_DOC_VALUES_BY_DEFAULT_IN_COLUMNAR_MODE,
-                COLUMNAR_MAINTAIN_ARRAY_ORDER_IP_TEXT,
-                COLUMNAR_INLINE_ARRAY_ORDER_BINARY_DOC_VALUES,
-                COLUMNAR_IP_INLINE_ARRAY_ORDER_BINARY_DOC_VALUES,
-                COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS,
-                COLUMNAR_SUPPORTS_SHAPE_FIELDS,
-                DOC_VALUES_MULTI_VALUE_INDEX_SETTING,
-                DOC_VALUES_MULTI_VALUE_FALSE_ALIAS,
-                DOC_VALUES_EXTENDED_FORM_ONLY_IN_COLUMNAR,
-                DOC_VALUES_NULLABILITY,
-                DUPLICATE_DYNAMIC_TEMPLATE_NAMES_WARNING
-            )
+        return Set.of(
+            DATE_RANGE_INDEXING_FIX,
+            DONT_EXPAND_DOTS_IN_IGNORED_SOURCE,
+            REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION,
+            SOURCE_MODE_FROM_INDEX_SETTING,
+            IGNORED_SOURCE_AS_TOP_LEVEL_METADATA_ARRAY_FIELD,
+            ALWAYS_STORE_OBJECT_ARRAYS_IN_NESTED_OBJECTS,
+            LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT,
+            FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
+            CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX,
+            META_FETCH_FIELDS_ERROR_CODE_CHANGED,
+            SPARSE_VECTOR_STORE_SUPPORT,
+            COUNTED_KEYWORD_SYNTHETIC_SOURCE_NATIVE_SUPPORT,
+            SORT_FIELDS_CHECK_FOR_NESTED_OBJECT_FIX,
+            DYNAMIC_HANDLING_IN_COPY_TO,
+            TSDB_NESTED_FIELD_SUPPORT,
+            SYNTHETIC_RECOVERY_SOURCE,
+            SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX,
+            UKNOWN_FIELD_MAPPING_UPDATE_ERROR_MESSAGE,
+            DOC_VALUES_SKIPPER,
+            RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING,
+            INVALID_DATE_FIX,
+            NPE_ON_DIMS_UPDATE_FIX,
+            RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING,
+            USE_DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ,
+            IVF_FORMAT_CLUSTER_FEATURE,
+            IVF_NESTED_SUPPORT,
+            BBQ_DISK_SUPPORT,
+            SEARCH_LOAD_PER_SHARD,
+            SPARSE_VECTOR_INDEX_OPTIONS_FEATURE,
+            PATTERN_TEXT,
+            IGNORED_SOURCE_FIELDS_PER_ENTRY,
+            MULTI_FIELD_UNICODE_OPTIMISATION_FIX,
+            MATCH_ONLY_TEXT_BLOCK_LOADER_FIX,
+            MATCH_ONLY_TEXT_DOC_VALUES_PREFIX_WILDCARD_REGEXP,
+            PATTERN_TEXT_RENAME,
+            DISKBBQ_ON_DISK_RESCORING,
+            PROVIDE_INDEX_SORT_SETTING_DEFAULTS,
+            INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LIMIT,
+            EXCLUDE_VECTORS_DOCVALUE_BUGFIX,
+            BASE64_DENSE_VECTORS,
+            FIX_DENSE_VECTOR_WRONG_FIELDS,
+            BBQ_DISK_STATS_SUPPORT,
+            SKIPPERS_ON_UNINDEXED_FIELDS,
+            STORED_FIELDS_SPEC_MERGE_BUG,
+            GENERIC_VECTOR_FORMAT,
+            EXPONENTIAL_HISTOGRAM_TYPE,
+            STORE_HIGH_CARDINALITY_KEYWORDS_IN_BINARY_DOC_VALUES,
+            HIGH_CARDINALITY_LENGTH_FUNCTION_FUSE_TO_LOAD,
+            MV_MIN_FUNCTION_FUSE_TO_LOAD,
+            MV_MAX_FUNCTION_FUSE_TO_LOAD,
+            TDIGEST_TYPE,
+            TEXT_FIELD_DOC_VALUES,
+            TEXT_FIELD_DOC_VALUES_PREFIX_WILDCARD_REGEXP,
+            DENSE_VECTOR_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX,
+            DOC_VALUES_MULTI_VALUE,
+            DOC_VALUES_MULTI_VALUE_ENFORCEMENT,
+            DOC_VALUES_MULTI_VALUE_RENAME,
+            DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX,
+            FLATTENED_MAPPED_SUBFIELDS_FEATURE,
+            FLATTENED_COLUMNAR_DOCUMENT_ORDER,
+            ARRAY_OBJECTS_LIMIT,
+            ES940_DISK_BBQ,
+            FLATTENED_PASSTHROUGH_FEATURE,
+            IGNORED_VALUES_STORED_IN_BINARY_DV,
+            IP_MAPPER_CARDINALITY_OPTION,
+            KEYWORD_NORMALIZER_SKIP_STORE_SETTING,
+            KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED,
+            ANALYZER_WRAPPER_RELOADABLE_SEARCH_ANALYZER,
+            ROUTING_AS_DOC_VALUES,
+            ID_FIELD_MODE_MAPPING_ATTRIBUTE,
+            ROUTING_AS_DOC_VALUES_BY_DEFAULT,
+            STORE_NOT_ALLOWED_IN_COLUMNAR_INDEX_MODE,
+            KEYWORD_DV_CASE_INSENSITIVE_REGEXP,
+            COLUMNAR_MAINTAIN_ARRAY_ORDER,
+            COLUMNAR_REJECTS_RUNTIME_DYNAMIC,
+            COLUMNAR_ACCEPTS_SUBOBJECTS_FALSE,
+            KEYWORD_COLUMNAR_DEFAULT_HIGH_CARDINALITY,
+            TEXT_FIELDS_ENABLE_DOC_VALUES_BY_DEFAULT_IN_COLUMNAR_MODE,
+            COLUMNAR_MAINTAIN_ARRAY_ORDER_IP_TEXT,
+            COLUMNAR_INLINE_ARRAY_ORDER_BINARY_DOC_VALUES,
+            COLUMNAR_IP_INLINE_ARRAY_ORDER_BINARY_DOC_VALUES,
+            COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS,
+            COLUMNAR_SUPPORTS_SHAPE_FIELDS,
+            DOC_VALUES_MULTI_VALUE_INDEX_SETTING,
+            DOC_VALUES_MULTI_VALUE_FALSE_ALIAS,
+            DOC_VALUES_EXTENDED_FORM_ONLY_IN_COLUMNAR,
+            DOC_VALUES_NULLABILITY,
+            DUPLICATE_DYNAMIC_TEMPLATE_NAMES_WARNING,
+            BBQ_DISK_BYTE_SUPPORT,
+            ASH_QUANTIZATION_TYPE_SUPPORT,
+            DOC_VALUES_ON_FAILURE,
+            DISK_BBQ_STABLE_FORMAT_SELECTION
         );
-        if (Build.current().isSnapshot()) {
-            features.addAll(Set.of(BBQ_DISK_BYTE_SUPPORT, ASH_QUANTIZATION_TYPE_SUPPORT));
-        }
-        return Set.copyOf(features);
     }
 }

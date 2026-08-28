@@ -18,7 +18,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -43,6 +42,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
 
@@ -194,12 +194,7 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
             ConfigurationParseContext context,
             ValidationException validationException
         ) {
-            var dimensions = extractOptionalPositiveInteger(
-                serviceSettings,
-                DIMENSIONS_FIELD,
-                ModelConfigurations.SERVICE_SETTINGS,
-                validationException
-            );
+            var dimensions = extractOptionalPositiveInteger(serviceSettings, DIMENSIONS_FIELD, SERVICE_SETTINGS, validationException);
             // dimensions_set_by_user is internal and not user-settable. In a request we intentionally do not read it, so that a
             // user-supplied value is rejected as an unknown setting; the flag is derived from whether dimensions were provided.
             // In a persisted config we read the stored value, defaulting to false for configs persisted before the field existed.

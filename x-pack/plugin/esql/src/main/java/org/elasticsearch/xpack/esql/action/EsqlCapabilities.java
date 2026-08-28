@@ -704,6 +704,12 @@ public class EsqlCapabilities {
         SPATIAL_GRID_INTERSECTS,
 
         /**
+         * Support geo_shape in ST_GEOHASH, ST_GEOTILE and ST_GEOHEX functions.
+         * The grid cell is calculated from the centroid of the shape.
+         */
+        SPATIAL_GRID_GEO_SHAPE,
+
+        /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
          * https://github.com/elastic/elasticsearch/issues/110184
          */
@@ -1313,7 +1319,11 @@ public class EsqlCapabilities {
          * Support for COMPLETION command
          */
         COMPLETION,
-
+        /**
+         * Support for the DENSE_VECTOR command. Dev/snapshot-only — the command is gated behind
+         * {@code isDevVersion()} in the grammar.
+         */
+        DENSE_VECTOR_COMMAND(Build.current().isSnapshot()),
         /**
          * Allow mixed numeric types in conditional functions - case, greatest and least
          */
@@ -1535,6 +1545,11 @@ public class EsqlCapabilities {
         WHERE_IN_MULTI_COLUMN_SUBQUERY(Build.current().isSnapshot()),
 
         /**
+         * Support non-correlated IN subqueries in the {@code EVAL} command.
+         */
+        EVAL_IN_SUBQUERY,
+
+        /**
          * Support for views in cluster state (and REST API).
          */
         VIEWS_IN_CLUSTER_STATE,
@@ -1617,6 +1632,12 @@ public class EsqlCapabilities {
          * Does the usage information for ESQL contain a histogram of {@code took} values?
          */
         USAGE_CONTAINS_TOOK,
+
+        /**
+         * Does the usage information for ESQL contain datasource telemetry (storage, query, discovery,
+         * parse counters and histograms, plus cluster-state inventory counts)?
+         */
+        USAGE_CONTAINS_DATASOURCES,
 
         /**
          * Support loading of ip fields if they are not indexed.
@@ -2870,8 +2891,7 @@ public class EsqlCapabilities {
         /**
          * Support for projecting nested STRUCT subfields (e.g. {@code event.action}) from
          * Parquet (Java) and ORC external sources. Gated so format readers that do not yet
-         * implement nested support (parquet-rs, csv, ndjson, etc.) skip the csv-spec tests
-         * until they catch up.
+         * implement nested support (csv, ndjson, etc.) skip the csv-spec tests until they catch up.
          *
          * <p>Tracks: elastic/esql-planning#435 (this PR) and elastic/esql-planning#320
          * (correctness gap for Parquet-Java MAP/STRUCT/nested LIST).
@@ -3363,6 +3383,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_NET_ZERO_PROJECTION(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
 
         /**
+         * Support for {@code INLINE STATS} under {@code unmapped_fields="LOAD_ALL"}. Only meaningful when
+         * {@link #OPTIONAL_FIELDS_LOAD_ALL} is available.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_INLINE_STATS(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
+
+        /**
          * Support for {@code STATS} under {@code unmapped_fields="LOAD_ALL"}.
          * Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL} is available.
          */
@@ -3383,6 +3409,12 @@ public class EsqlCapabilities {
          * {@code STATS … BY} and {@code LIMIT N BY}.
          */
         GROUP_BY_FLATTENED,
+
+        /**
+         * Support for using a {@code double_range} as a grouping key in
+         * {@code STATS … BY} and {@code LIMIT N BY}.
+         */
+        GROUP_BY_DOUBLE_RANGE,
 
         /**
          * Fix for {@code ReorderLimitProjectAndOrderBy} unconditionally lifting an {@code OrderBy} above a renaming/dropping
@@ -3531,7 +3563,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code HIGHLIGHT} command.
          */
-        HIGHLIGHT_V6(Build.current().isSnapshot()),
+        HIGHLIGHT_V6,
 
         /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.

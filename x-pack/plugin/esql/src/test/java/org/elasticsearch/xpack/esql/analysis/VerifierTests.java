@@ -3997,6 +3997,22 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testHistogramBucketRequiresMatchingPerSeriesAggregation() {
+        analyzer().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json", IndexMode.TIME_SERIES)
+            .stripErrorPrefix(true)
+            .error(
+                "TS exp_histo_sample | STATS count = COUNT(@timestamp) BY bucket = BUCKET(responseTime, 42)",
+                containsString("histogram field [responseTime] used in BUCKET must also be aggregated in the same STATS command")
+            );
+        analyzer().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json", IndexMode.TIME_SERIES)
+            .stripErrorPrefix(true)
+            .error(
+                "TS exp_histo_sample | STATS count = COUNT(responseTime, bucket), "
+                    + "latest = COUNT(LAST_OVER_TIME(responseTime), bucket) BY bucket = BUCKET(responseTime, 42)",
+                containsString("all uses of histogram field [responseTime] must have the same per-series aggregation")
+            );
+    }
+
     public void testNoDimensionsInAggsOnlyInByClause() {
         tsdb().error(
             "TS test | STATS count(bool_field) BY bucket(@timestamp, 1 minute)",

@@ -14,7 +14,8 @@ entries:
   title: Fix nested `IN` subqueries with `FORK` in ES|QL
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   description: Fixes ES|QL queries that previously failed when `FORK` appeared inside nested `IN` subqueries.
   areas:
@@ -28,7 +29,8 @@ entries:
   title: Speed up ES|QL Parquet discovery by reusing footer parses
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   areas:
   - ES|QL
@@ -41,7 +43,8 @@ entries:
   title: Avoid re-encoding binary doc values after field-level security
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   description: Avoids a redundant decode, re-encode, and decode cycle for binary doc values that field-level security has already filtered.
   areas:
@@ -55,7 +58,8 @@ entries:
   title: Fix ES|QL type checks for fused block-loader functions
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   description: Fixes type checking so exactness used for type checks is no longer coupled to pushdown exactness for fused block-loader functions.
   areas:
@@ -69,7 +73,8 @@ entries:
   title: Fix ES|QL hang on short reads from coalesced range readers
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   areas:
   - ES|QL
@@ -82,7 +87,8 @@ entries:
   title: Add `max_connection` setting for Azure repository clients
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   description: Introduces a per-client `max_connection` parameter for Azure snapshot repository clients.
   areas:
@@ -96,7 +102,8 @@ entries:
   title: Improve errors when searching closed indices
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   description: Returns a descriptive error instead of a null pointer exception when creating a search context for a closed index.
   areas:
@@ -110,7 +117,8 @@ entries:
   title: Fix Parquet I/O failures reported as HTTP 400 in ES|QL
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   areas:
   - ES|QL
@@ -123,7 +131,8 @@ entries:
   title: Fix ES|QL failures on `unsigned_long` counter fields
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   description: Fixes null pointer exception when ES|QL queries `unsigned_long` counter fields. Those fields are treated as unsupported.
   areas:
@@ -139,7 +148,8 @@ entries:
   title: Reduce ES|QL Parquet memory by reusing decompress buffers
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   areas:
   - ES|QL
@@ -152,7 +162,8 @@ entries:
   title: Add OpenTelemetry schema support for Universal Profiling
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   description: Adds OpenTelemetry profiling data streams and a `schema` parameter on the stack traces API so deployments can ingest and query profiling data without ILM-based ECS indices.
   prs:
@@ -164,7 +175,8 @@ entries:
   title: Fix ES|QL `CIDR_MATCH` optimizer and implicit casting
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   description: Fixes incorrect `CIDR_MATCH` optimization and unresolved references after implicit casting in the ES|QL analyzer.
   areas:
@@ -180,7 +192,8 @@ entries:
   title: Define coordinating-only nodes as having no roles
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   description: Fixes the `coordinating_only` node selector so dedicated machine learning and transform nodes are no longer treated as coordinating-only. This affects `GET /_nodes` and task APIs scoped with that filter.
   areas:
@@ -196,7 +209,8 @@ entries:
   title: Add `region_display_name` to inference endpoint metadata
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   areas:
   - Inference
@@ -209,7 +223,8 @@ entries:
   title: Fix incorrect recovery byte metrics under concurrent recovery
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   areas:
   - Recovery
@@ -222,7 +237,8 @@ entries:
   title: Optimize `bitmap_terms` queries on sorted point fields
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   areas:
   - Relevance
@@ -230,12 +246,13 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/157211
 - file:
     name: 152269.yaml
-    checksum: 04ad43989c6f8148ebb3fc37d3d2b6514e758b3d
+    checksum: 8def28b46f90e59bc676c9947ddcdd7884ad10c7
   type: deprecation
-  title: Deprecate legacy monitoring REST APIs
+  title: Deprecate the `_monitoring/bulk` and `_monitoring/migrate/alerts` legacy monitoring REST APIs
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   impact: The `_monitoring/bulk` and `_monitoring/migrate/alerts` APIs, used by legacy internal collection for Stack Monitoring, are deprecated and will be removed in a future release. Calling either endpoint now returns a deprecation warning.
   action: Migrate Stack Monitoring from internal collection to Metricbeat or Elastic Agent.
@@ -251,7 +268,8 @@ entries:
   title: Speed up ES|QL `MIN` and `MAX` using skipper metadata
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   areas:
   - Engine
@@ -265,7 +283,8 @@ entries:
   title: Fix phrase queries on nested `match_only_text` documents
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   description: Fixes phrase queries against `match_only_text` fields that did not return nested documents because the wrong `_source` document was loaded to check term positions.
   areas:
@@ -281,7 +300,8 @@ entries:
   title: Fix wildcard and regexp queries on keyed flattened fields returning HTTP 500
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   description: Returns HTTP 4xx instead of HTTP 500 when wildcard or regexp queries run on keyed flattened fields, which are not supported.
   areas:
@@ -297,7 +317,8 @@ entries:
   title: Improve ES|QL time-series `STATS` window dispatch
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   description: Improves how ES|QL dispatches time-series aggregation windows per aggregate.
   areas:
@@ -314,7 +335,8 @@ entries:
   title: Count histogram values in ES|QL buckets
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   areas:
   - ES|QL
@@ -327,7 +349,8 @@ entries:
   title: Grant ES|QL view read to viewer and editor roles
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   areas:
   - Authorization
@@ -340,7 +363,8 @@ entries:
   title: Surface Elastic Inference Service HTTP 422 errors as validation errors
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   areas:
   - Inference
@@ -353,7 +377,8 @@ entries:
   title: Identify shards that are currently restoring from a snapshot
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   description: Adds a restore-service check that tells whether a primary shard is actively restoring from a snapshot, rather than only waiting to restore.
   areas:
@@ -369,7 +394,8 @@ entries:
   title: Fix incorrect IVF search scores across segments
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   areas:
   - Vector search
@@ -382,7 +408,8 @@ entries:
   title: Track Zstandard memory with the ES|QL circuit breaker
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   areas:
   - ES|QL
@@ -395,7 +422,8 @@ entries:
   title: Fix field-level security hiding LogsDB `.counts` fields
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   description: Fixes field-level security so `.counts` companion fields stay visible under their parent field.
   areas:
@@ -409,7 +437,8 @@ entries:
   title: Fix missing warnings for duplicate dynamic template names
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   areas:
   - Mapping
@@ -424,7 +453,8 @@ entries:
   title: Fix error messages for invalid `index.mode` values
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   description: Returns a clear error listing valid index modes when `index.mode` is not recognized, instead of a Java enum exception such as `No enum constant org.elasticsearch.index.IndexMode.VECTORDB`.
   areas:
@@ -438,7 +468,8 @@ entries:
   title: Fix `inference/_update` API to allow rotating secrets
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   areas:
   - Inference
@@ -451,7 +482,8 @@ entries:
   title: Support ES|QL `STATS` command when `SET_UNMAPPED_FIELDS=LOAD_ALL`
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   areas:
   - ES|QL
@@ -466,7 +498,8 @@ entries:
   title: Fix percentiles aggregations failing with a closed circuit breaker
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   areas:
   - Aggregations
@@ -481,7 +514,8 @@ entries:
   title: Fix diversify retriever ignoring diversification field embeddings
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   areas:
   - Relevance
@@ -496,7 +530,8 @@ entries:
   title: Ingest pipelines are now subject to size and count limits
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   description: 'Enforces three dynamic settings when a pipeline is created or updated: `ingest.pipeline.max_pipelines` (default 10000), `ingest.pipeline.max_pipeline_size` (default 1mb), and `ingest.pipeline.max_total_metadata_size` (default 25mb). Existing pipelines are never invalidated.'
   impact: A request to create or update an ingest pipeline that would exceed one of these limits is rejected with an HTTP 400 error naming the setting. Most deployments will see no change. Existing pipelines continue to work and can be replaced by a definition no larger than the one they supersede.
@@ -513,7 +548,8 @@ entries:
   title: Speed up searches that return both hits and aggregations
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   description: Improves search performance when a request collects hits (`size` greater than 0) and aggregations by skipping documents that cannot compete, whenever both collectors can prune.
   areas:
@@ -527,7 +563,8 @@ entries:
   title: Fix ES|QL failures for conflicting multi-field types
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   description: Fixes query failures when a multi-field sub-field has conflicting types across indices.
   areas:
@@ -541,7 +578,8 @@ entries:
   title: Fix keyword range queries on columnar binary doc values
   products:
   - product: cloud-serverless
-    target: 2026-08-26
+    versions:
+    - 2026-08-26
   - product: elasticsearch
   description: Fixes keyword range queries that compared Java strings instead of indexed bytes on the binary doc-values path, which could miss matches such as emoji in columnar index modes.
   areas:

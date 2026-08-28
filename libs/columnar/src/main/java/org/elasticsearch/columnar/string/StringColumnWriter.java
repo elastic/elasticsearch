@@ -130,6 +130,8 @@ public final class StringColumnWriter {
             }
         }
 
+        // Set false the moment a value is seen out of order; nothing after that can restore it.
+        boolean sorted = true;
         final ValueStream.Metadata written;
         try (
             ValueStream.Writer stream = new ValueStream.Writer(
@@ -144,16 +146,28 @@ public final class StringColumnWriter {
             )
         ) {
             StringColumnValues values = cursors.get();
+            // Whether the values arrive in term order, which lets a search bisect them instead of comparing
+            // every one. Free to know here: the values are already in hand, and the comparison is one memcmp.
+            final BytesRefBuilder previous = new BytesRefBuilder();
+            boolean hasPrevious = false;
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
                 for (int i = 0, count = values.valueCount(); i < count; i++) {
                     values.nextValue();
-                    stream.add(values.value());
+                    final BytesRef value = values.value();
+                    if (hasPrevious && previous.get().compareTo(value) > 0) {
+                        sorted = false;
+                    }
+                    stream.add(value);
+                    if (sorted) {
+                        previous.copyBytes(value);
+                        hasPrevious = true;
+                    }
                 }
             }
             written = stream.finish();
         }
         return withSummary(
-            StringColumnMetadata.plain(iterator, numDocsWithField, numValues, written),
+            StringColumnMetadata.plain(iterator, numDocsWithField, numValues, written, sorted),
             surveyed,
             numValues,
             valuesPerBlock,
@@ -241,6 +255,10 @@ public final class StringColumnWriter {
     ) throws IOException {
         final int dictionarySize = vocabulary.size();
         final BytesRef scratch = new BytesRef();
+        // The dictionary is in term order, so ordinals rise exactly as values do. An escaped value has no
+        // ordinal to place among them, so a column that lets anything escape is not called sorted.
+        boolean sorted = true;
+        int previousOrdinalSeen = -1;
 
         final ValueStream.Metadata dictionary;
         try (
@@ -296,6 +314,12 @@ public final class StringColumnWriter {
                                 // only to look them up again, which is most of what merging such a column costs.
                                 final int mapped = values.ordinal();
                                 if (mapped >= 0) {
+                                    // Carried over rather than resolved, but it still says where the value sits
+                                    // among the terms, so the order is read from it as from any other ordinal.
+                                    if (mapped < previousOrdinalSeen) {
+                                        sorted = false;
+                                    }
+                                    previousOrdinalSeen = mapped;
                                     ordinalTemp.writeVInt(mapped);
                                     index++;
                                     continue;
@@ -312,11 +336,16 @@ public final class StringColumnWriter {
                                     hasPrevious = true;
                                 }
                                 if (ordinal == Vocabulary.DROPPED) {
+                                    sorted = false;
                                     ordinalTemp.writeVInt(dictionarySize);
                                     escapeTemp.writeVInt(value.length);
                                     escapeTemp.writeBytes(value.bytes, value.offset, value.length);
                                     escapes++;
                                 } else {
+                                    if (ordinal < previousOrdinalSeen) {
+                                        sorted = false;
+                                    }
+                                    previousOrdinalSeen = ordinal;
                                     ordinalTemp.writeVInt(ordinal);
                                 }
                                 index++;
@@ -363,7 +392,8 @@ public final class StringColumnWriter {
                 ordinals,
                 escapeStream,
                 escapeRanks,
-                dictionarySize
+                dictionarySize,
+                sorted
             );
         } finally {
             IOUtils.close(replays);

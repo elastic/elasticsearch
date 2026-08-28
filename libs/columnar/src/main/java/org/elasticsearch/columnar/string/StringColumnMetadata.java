@@ -31,7 +31,7 @@ import java.io.IOException;
  * of its own, since a value is either named by a term or held in {@link Dictionary#escapes()}.
  *
  * <p>What both layouts have is here: how many documents and values the column holds, what its values would
- * occupy stored plainly, and what it recorded of the terms it holds most.
+ * occupy stored plainly, whether they arrive in order, and what it recorded of the terms it holds most.
  */
 public sealed interface StringColumnMetadata extends ColumnMetadata permits StringColumnMetadata.Plain, StringColumnMetadata.Dictionary {
 
@@ -46,6 +46,13 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
 
     /** What the column's values would occupy stored plainly, which a decision about its layout is weighed against. */
     long valueBytes();
+
+    /**
+     * Whether the column's values arrive in non-decreasing term order, as they do under an index sort on
+     * this field. A term is then a contiguous run of ranks, which a search can find by bisecting the values
+     * instead of comparing every one of them.
+     */
+    boolean valuesSorted();
 
     /** What the column recorded of the terms it holds most, or null when it recorded nothing. */
     Summary summary();
@@ -89,6 +96,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         long numValues,
         long valueBytes,
         ValueStream.Metadata values,
+        boolean valuesSorted,
         Summary summary
     ) implements StringColumnMetadata {
 
@@ -99,7 +107,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
 
         @Override
         public Plain withSummary(Summary summary) {
-            return new Plain(iterator, numDocsWithField, numValues, valueBytes, values, summary);
+            return new Plain(iterator, numDocsWithField, numValues, valueBytes, values, valuesSorted, summary);
         }
 
         @Override
@@ -125,6 +133,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         ValueStream.Metadata escapes,
         MonotonicWriter.Table escapeRanks,
         int dictionarySize,
+        boolean valuesSorted,
         Summary summary
     ) implements StringColumnMetadata {
 
@@ -150,6 +159,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                 escapes,
                 escapeRanks,
                 dictionarySize,
+                valuesSorted,
                 summary
             );
         }
@@ -170,12 +180,18 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
     }
 
     static StringColumnMetadata empty(ColumnIteratorMetadata iterator) {
-        return plain(iterator, 0, 0, ValueStream.Metadata.empty());
+        return plain(iterator, 0, 0, ValueStream.Metadata.empty(), true);
     }
 
     /** A column that stores its values as they were written. */
-    static Plain plain(ColumnIteratorMetadata iterator, int numDocsWithField, long numValues, ValueStream.Metadata values) {
-        return new Plain(iterator, numDocsWithField, numValues, values.valueBytes(), values, null);
+    static Plain plain(
+        ColumnIteratorMetadata iterator,
+        int numDocsWithField,
+        long numValues,
+        ValueStream.Metadata values,
+        boolean valuesSorted
+    ) {
+        return new Plain(iterator, numDocsWithField, numValues, values.valueBytes(), values, valuesSorted, null);
     }
 
     /** A column that names its values with ordinals into {@code dictionary}. */
@@ -188,7 +204,8 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         NumericColumnMetadata ordinals,
         ValueStream.Metadata escapes,
         MonotonicWriter.Table escapeRanks,
-        int dictionarySize
+        int dictionarySize,
+        boolean valuesSorted
     ) {
         return new Dictionary(
             iterator,
@@ -200,6 +217,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             escapes,
             escapeRanks,
             dictionarySize,
+            valuesSorted,
             null
         );
     }
@@ -213,6 +231,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         }
         out.writeVLong(numValues());
         out.writeVLong(valueBytes());
+        out.writeByte((byte) (valuesSorted() ? 1 : 0));
         out.writeByte(layout().id());
         writeBody(out);
         final Summary summary = summary();
@@ -249,9 +268,10 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         }
         long numValues = in.readVLong();
         long valueBytes = in.readVLong();
+        boolean valuesSorted = in.readByte() != 0;
         StringColumnLayout layout = StringColumnLayout.fromId(in.readByte());
         final StringColumnMetadata column = switch (layout) {
-            case PLAIN -> plain(iterator, numDocsWithField, numValues, ValueStream.Metadata.readFrom(in));
+            case PLAIN -> plain(iterator, numDocsWithField, numValues, ValueStream.Metadata.readFrom(in), valuesSorted);
             case DICTIONARY -> {
                 final int dictionarySize = in.readVInt();
                 final ValueStream.Metadata dictionary = ValueStream.Metadata.readFrom(in);
@@ -274,7 +294,8 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                     ordinals,
                     escapes,
                     escapeRanks,
-                    dictionarySize
+                    dictionarySize,
+                    valuesSorted
                 );
             }
         };

@@ -755,8 +755,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "Cannot retrieve privileges for API keys with assigned role descriptors. "
-                    + "Please use the Get API key information API https://ela.st/es-api-get-api-key"
+                "Cannot retrieve privileges for a subject with limited-by roles."
             )
         );
     }

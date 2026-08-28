@@ -151,7 +151,15 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
     }
 
     protected List<Attribute> refreshedOutput() {
-        return toReferenceAttributesPreservingIds(outputUnion(children()), this.output());
+        List<Attribute> union = outputUnion(children());
+        List<Attribute> converted = toReferenceAttributesPreservingIds(union, this.output());
+        for (int i = 0; i < union.size(); i++) {
+            if (union.get(i) instanceof UnmappedFieldsAttribute ufa) {
+                // Keep the subtype so coordinator expansion can find $$unmapped_fields after the FORK union.
+                converted.set(i, ufa.withId(converted.get(i).id()));
+            }
+        }
+        return converted;
     }
 
     @Override

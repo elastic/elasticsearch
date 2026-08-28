@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
@@ -63,6 +64,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
@@ -568,7 +570,7 @@ public class Verifier {
                     fail(
                         p,
                         "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                            + "STATS and INLINE STATS commands; [{}] is not supported yet",
+                            + "STATS, INLINE STATS and FORK commands; [{}] is not supported yet",
                         p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
                             : p instanceof TelemetryAware ta ? ta.telemetryLabel()
                             : p.nodeName()
@@ -592,7 +594,8 @@ public class Verifier {
             || plan instanceof OrderBy
             || plan instanceof Limit
             || plan instanceof Aggregate
-            || plan instanceof InlineStats;
+            || plan instanceof InlineStats
+            || (plan instanceof Fork && (plan instanceof UnionAll) == false);
     }
 
     /**

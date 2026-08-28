@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -377,6 +378,18 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         UnmappedFieldsPattern pattern = patternFor("FROM test | EVAL len = LENGTH(_unmapped_fields)");
         assertKept(pattern, "unmapped_extra");
         assertNotKept(pattern, excl("_unmapped_fields", "len"));
+    }
+
+    public void testForkSurfacesUnmappedFieldsAttribute() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | FORK (WHERE true) (WHERE true)"));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
+        for (EsRelation relation : plan.collect(EsRelation.class)) {
+            UnmappedFieldsPattern pattern = EsqlTestUtils.singleValue(
+                CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)
+            ).pattern();
+            assertKept(pattern, "unmapped_extra");
+            assertNotKept(pattern, excl("_fork"));
+        }
     }
 
     private static void assertKept(UnmappedFieldsPattern pattern, String... names) {

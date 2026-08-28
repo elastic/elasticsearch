@@ -1694,8 +1694,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // sources and are handled in ResolveUnmapped. See #142033.
             boolean alignUnmappedAcrossBranches = switch (unmappedResolution) {
                 case LOAD, NULLIFY -> fork instanceof UnionAll == false;
-                // FORK is rejected under LOAD_ALL (see Verifier#checkLoadAllModeSupportedCommands), so this path is
-                // effectively unreachable for LOAD_ALL; treat it like DEFAULT and do no cross-branch alignment.
+                // LOAD_ALL does not yet align named unmapped mentions across branches (LOAD/NULLIFY do).
+                // DetermineUnmappedFieldsToKeep throws if that alignment would be required.
                 case DEFAULT, LOAD_ALL -> false;
             };
             List<Attribute> outputUnion = Fork.outputUnion(fork.children());

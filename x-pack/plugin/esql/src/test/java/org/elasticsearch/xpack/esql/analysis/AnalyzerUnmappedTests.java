@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -1475,7 +1477,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             Tuple.tuple("| DISSECT first_name \"%{a}\"", "DISSECT"),
             Tuple.tuple("| GROK first_name \"%{WORD:a}\"", "GROK"),
             Tuple.tuple("| MV_EXPAND first_name", "MV_EXPAND"),
-            Tuple.tuple("| FORK (WHERE emp_no > 1) (WHERE emp_no < 100)", "FORK"),
             Tuple.tuple("| EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code", "LOOKUP JOIN")
         )) {
             test().addLanguagesLookup()
@@ -1483,7 +1484,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                     setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
                     containsString(
                         "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                            + "STATS and INLINE STATS commands; ["
+                            + "STATS, INLINE STATS and FORK commands; ["
                             + commandAndLabel.v2()
                             + "] is not supported yet"
                     )
@@ -1514,6 +1515,15 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertThat(Expressions.names(plan.output()), hasItems("c", "m"));
     }
 
+    public void testLoadAllModeAllowsFork() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("""
+            FROM test
+            | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
+            """));
+        assertThat(Expressions.names(plan.output()), hasItem("_fork"));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
+    }
+
     public void testLoadAllModeAllowsStats() {
         LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | STATS c = COUNT(*) BY languages"));
         assertThat(Expressions.names(plan.output()), equalTo(List.of("c", "languages")));
@@ -1534,7 +1544,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 setUnmappedLoadAll("TS test | STATS MAX(RATE(network.bytes_in)) BY host"),
                 containsString(
                     "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS and INLINE STATS commands; [TS] is not supported yet"
+                        + "STATS, INLINE STATS and FORK commands; [TS] is not supported yet"
                 )
             );
         test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
@@ -1542,7 +1552,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 setUnmappedLoadAll("TS test | SORT @timestamp | LIMIT 10"),
                 containsString(
                     "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS and INLINE STATS commands; [TS] is not supported yet"
+                        + "STATS, INLINE STATS and FORK commands; [TS] is not supported yet"
                 )
             );
     }

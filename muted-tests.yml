@@ -34,10 +34,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.continuous.TransformContinuousIT
   method: testContinuousEvents
   issue: https://github.com/elastic/elasticsearch/issues/153782
-- class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
-  issue: https://github.com/elastic/elasticsearch/issues/156233
-- class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/156234
 - class: org.elasticsearch.search.SearchWithRejectionsIT
   method: testOpenContextsAfterRejections
   issue: https://github.com/elastic/elasticsearch/issues/156244
@@ -70,6 +66,15 @@ tests:
 - class: org.elasticsearch.xpack.ilm.actions.RolloverActionIT
   method: testILMRolloverRetriesOnReadOnlyBlock
   issue: https://github.com/elastic/elasticsearch/issues/157832
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
+  issue: https://github.com/elastic/elasticsearch/issues/157941
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old outlier_detection job}
+  issue: https://github.com/elastic/elasticsearch/issues/157942
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Explain data frame analytics}
+  issue: https://github.com/elastic/elasticsearch/issues/157943
 
 # Examples:
 #

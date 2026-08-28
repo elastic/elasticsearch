@@ -75,7 +75,9 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
             supplier(
                 "<integer>, <long>",
                 DataType.INTEGER,
-                ESTestCase::randomInt,
+                // Safe range: rounding these at any negative precision stays inside integer, so the shared
+                // expected-value function below cannot overflow. Overflow is covered explicitly further down.
+                () -> randomIntBetween(-2_000_000_000, 2_000_000_000),
                 DataType.LONG,
                 ESTestCase::randomLong,
                 "RoundIntEvaluator[val=Attribute[channel=0], decimals=Attribute[channel=1]]",
@@ -111,7 +113,8 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
             supplier(
                 "<integer>, <integer>",
                 DataType.INTEGER,
-                ESTestCase::randomInt,
+                // Safe range, as above.
+                () -> randomIntBetween(-2_000_000_000, 2_000_000_000),
                 DataType.INTEGER,
                 ESTestCase::randomInt,
                 "RoundIntEvaluator[val=Attribute[channel=0], decimals=CastIntToLongEvaluator[v=Attribute[channel=1]]]",
@@ -216,6 +219,74 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
                     "RoundUnsignedLongEvaluator[val=Attribute[channel=0], decimals=Attribute[channel=1]]",
                     DataType.UNSIGNED_LONG,
                     equalTo(new BigInteger("10000000000000000000"))
+                )
+            )
+        );
+
+        // Integer overflows. Rounding up at a negative precision can carry past Integer.MAX_VALUE, which
+        // used to wrap silently to a negative result rather than report the overflow.
+        suppliers.add(
+            new TestCaseSupplier(
+                "<max integer>, <-1>",
+                List.of(DataType.INTEGER, DataType.LONG),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(Integer.MAX_VALUE, DataType.INTEGER, "number"),
+                        new TestCaseSupplier.TypedData(-1L, DataType.LONG, "decimals")
+                    ),
+                    "RoundIntEvaluator[val=Attribute[channel=0], decimals=Attribute[channel=1]]",
+                    DataType.INTEGER,
+                    equalTo(null)
+                ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("Line 1:1: java.lang.ArithmeticException: integer overflow")
+            )
+        );
+        suppliers.add(
+            new TestCaseSupplier(
+                "<min integer>, <-1>",
+                List.of(DataType.INTEGER, DataType.LONG),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(Integer.MIN_VALUE, DataType.INTEGER, "number"),
+                        new TestCaseSupplier.TypedData(-1L, DataType.LONG, "decimals")
+                    ),
+                    "RoundIntEvaluator[val=Attribute[channel=0], decimals=Attribute[channel=1]]",
+                    DataType.INTEGER,
+                    equalTo(null)
+                ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("Line 1:1: java.lang.ArithmeticException: integer overflow")
+            )
+        );
+        suppliers.add(
+            new TestCaseSupplier(
+                // the widest overflow window: 2145000000 carries up to 2150000000
+                "<big integer>, <-7>",
+                List.of(DataType.INTEGER, DataType.LONG),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(2145000000, DataType.INTEGER, "number"),
+                        new TestCaseSupplier.TypedData(-7L, DataType.LONG, "decimals")
+                    ),
+                    "RoundIntEvaluator[val=Attribute[channel=0], decimals=Attribute[channel=1]]",
+                    DataType.INTEGER,
+                    equalTo(null)
+                ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("Line 1:1: java.lang.ArithmeticException: integer overflow")
+            )
+        );
+        suppliers.add(
+            new TestCaseSupplier(
+                // an even precision on the same input rounds down instead, so it stays in range
+                "<max integer>, <-2>",
+                List.of(DataType.INTEGER, DataType.LONG),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(Integer.MAX_VALUE, DataType.INTEGER, "number"),
+                        new TestCaseSupplier.TypedData(-2L, DataType.LONG, "decimals")
+                    ),
+                    "RoundIntEvaluator[val=Attribute[channel=0], decimals=Attribute[channel=1]]",
+                    DataType.INTEGER,
+                    equalTo(2147483600)
                 )
             )
         );

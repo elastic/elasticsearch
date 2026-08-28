@@ -98,6 +98,11 @@ public class EsqlCapabilities {
         FN_ROUND_UL_FIXES,
 
         /**
+         * Fix on function {@code ROUND} that reports integer overflow as a warning and a null result.
+         */
+        FN_ROUND_INT_OVERFLOW_WARNS,
+
+        /**
          * Support for function {@code SCALB}.
          */
         FN_SCALB,
@@ -1171,6 +1176,11 @@ public class EsqlCapabilities {
          * See <a href="https://github.com/elastic/elasticsearch/pull/155923">#155923</a>.
          */
         FIX_PARTIAL_PREFIX_COMPOUND_TOPN_PUSHDOWN,
+
+        /**
+         * Reject doubles at the exactly representable 2^63 boundary when converting to long.
+         */
+        FIX_DOUBLE_TO_LONG_OVERFLOW,
 
         /**
          * Clamp {@code COUNT_DISTINCT} precision thresholds before narrowing them to integers.

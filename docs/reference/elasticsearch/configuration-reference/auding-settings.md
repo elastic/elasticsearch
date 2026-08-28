@@ -56,7 +56,10 @@ $$$xpack-sa-lf-events-emit-request$$$
     Be advised that sensitive data may be audited in plain text when including the request body in audit events, even though all the security APIs, such as those that change the user’s password, have the credentials filtered out when audited.
     ::::
 
+$$$xpack-sa-lf-events-max-request-body-size$$$
 
+`xpack.security.audit.logfile.events.max_request_body_size` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Maximum rendered JSON body size (in characters) that may be included in audit events when [`xpack.security.audit.logfile.events.emit_request_body`](#xpack-sa-lf-events-emit-request) is `true`. The limit is applied to the JSON representation of the request body (after format conversion), so it correctly accounts for formats that expand when converted to JSON. Requests whose rendered body exceeds this limit are rejected with HTTP 413 (Request Entity Too Large), ensuring the audit log is always a complete record of accepted requests. The default value is `2147483647b` (`Integer.MAX_VALUE`). Set to `0` to disable the limit entirely. Lower this value on nodes with limited available memory as needed.
 
 ## Local Node Info Settings [node-audit-settings]
 

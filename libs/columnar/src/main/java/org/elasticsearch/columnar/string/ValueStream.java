@@ -62,7 +62,6 @@ public final class ValueStream {
     /** Mean value length below which a block keeps its lengths inline. */
     private static final int INLINE_MEAN_LENGTH = 32;
 
-    /** Where a stream's bytes and offsets landed. */
     /**
      * What a written stream records about itself.
      *
@@ -412,32 +411,19 @@ public final class ValueStream {
         }
 
         /** Points {@code dst} at the value at {@code valueAddress}; the bytes are valid until the next call. */
-        /**
-         * Where a value's bytes begin, as a token comparable only within one reader. Two addresses hold the
-         * same stored bytes when this and the value's length both match: a run is stored once and every
-         * value of it points at that one copy, so a caller tells a repeat from a new value without
-         * comparing any bytes. The length is needed because a value of no bytes begins where the value
-         * stored after it does.
-         *
-         * <p>Two equal values stored apart - in different blocks, or in a block that did not take the run
-         * form - answer differently, so a caller comparing them treats a repeat as new: correct, slower.
-         */
-        public long identityOf(long valueAddress) throws IOException {
-            assert valueAddress >= 0 && valueAddress < numValues : valueAddress + " out of [0, " + numValues + ")";
-            final long blockIndex = valueAddress >>> blockShift;
-            ensureBlock(blockIndex);
-            final int within = (int) (valueAddress & blockMask);
-            return (blockIndex << 32) | Integer.toUnsignedLong(starts[within]);
-        }
-
         public void get(long valueAddress, BytesRef dst) throws IOException {
             read(valueAddress, dst);
         }
 
         /**
-         * Places the value's bytes in {@code dst} and returns its {@link #identityOf} token, for callers
-         * that need both and would otherwise address the same value twice. With {@code dst.length} that
-         * token says whether this value repeats the one before it.
+         * Places the value's bytes in {@code dst} and returns where they begin, as a token comparable only
+         * within one reader. Two addresses hold the same stored bytes when this and {@code dst.length} both
+         * match: a run is stored once and every value of it points at that one copy, so a caller tells a
+         * repeat from a new value without comparing any bytes. The length is part of it because a value of
+         * no bytes begins where the value stored after it does.
+         *
+         * <p>Two equal values stored apart - in different blocks, or in a block that did not take the run
+         * form - answer differently, so a caller comparing them treats a repeat as new: correct, slower.
          */
         public long read(long valueAddress, BytesRef dst) throws IOException {
             assert valueAddress >= 0 && valueAddress < numValues : valueAddress + " out of [0, " + numValues + ")";
@@ -468,37 +454,17 @@ public final class ValueStream {
             final long first = blockIndex << blockShift;
             final int count = (int) Math.min(valuesPerBlock, numValues - first);
             if (width == RUNS) {
-                int at = block.offset + 1;
-                int runCount = 0;
-                int shift = 0;
-                byte b;
-                do {
-                    b = bytes[at++];
-                    runCount |= (b & 0x7F) << shift;
-                    shift += 7;
-                } while ((b & 0x80) != 0);
+                cursor[0] = block.offset + 1;
+                final int runCount = ByteArrayInts.readVInt(bytes, cursor);
                 if (runLengths.length < runCount) {
                     runLengths = new int[runCount];
                     runRepeats = new int[runCount];
                 }
                 for (int r = 0; r < runCount; r++) {
-                    int length = 0;
-                    shift = 0;
-                    do {
-                        b = bytes[at++];
-                        length |= (b & 0x7F) << shift;
-                        shift += 7;
-                    } while ((b & 0x80) != 0);
-                    runLengths[r] = length;
-                    int repeat = 0;
-                    shift = 0;
-                    do {
-                        b = bytes[at++];
-                        repeat |= (b & 0x7F) << shift;
-                        shift += 7;
-                    } while ((b & 0x80) != 0);
-                    runRepeats[r] = repeat;
+                    runLengths[r] = ByteArrayInts.readVInt(bytes, cursor);
+                    runRepeats[r] = ByteArrayInts.readVInt(bytes, cursor);
                 }
+                int at = cursor[0];
                 // Every value of a run points at the one copy of its bytes, so the run is expanded without
                 // the bytes being duplicated.
                 int position = at;

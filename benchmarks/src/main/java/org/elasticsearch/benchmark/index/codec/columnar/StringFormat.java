@@ -51,6 +51,7 @@ import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatFactory;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -314,6 +315,13 @@ public enum StringFormat {
         long matchPrefix(BytesRef prefix) throws IOException;
 
         /**
+         * Documents holding {@code term} somewhere inside their value, the shape of
+         * {@code WHERE field LIKE "*x*"}. Order is no help, so every format has to look at what the values
+         * say; what differs is how many of them it has to look at.
+         */
+        long matchContains(BytesRef term) throws IOException;
+
+        /**
          * The term as a query run through an {@link org.apache.lucene.search.IndexSearcher}. This is the
          * path a filter actually takes: a scorer collects a window at a time, which is what a two-phase
          * iterator exists to make cheap and what asking it document by document throws away.
@@ -359,6 +367,11 @@ public enum StringFormat {
         @Override
         public long matchPrefix(BytesRef prefix) throws IOException {
             return count(reader.matchPrefix(prefix));
+        }
+
+        @Override
+        public long matchContains(BytesRef term) throws IOException {
+            return count(reader.matchContains(term));
         }
 
         @Override
@@ -419,18 +432,21 @@ public enum StringFormat {
             }
             final long[] counts = new long[dictionarySize];
             final int[] ordinals = new int[pageSize];
+            // An escaped value is reached by its address, which a document's rank gives.
+            final int[] ranks = new int[pageSize];
             final BytesRefHash escaped = new BytesRefHash();
             final BytesRef scratch = new BytesRef();
             long checksum = 0;
             for (int start = 0; start < docs.length; start += pageSize) {
                 final int count = Math.min(pageSize, docs.length - start);
                 reader.readOrdinals(docs, start, count, ordinals);
+                reader.ranks(docs, start, count, ranks);
                 for (int i = 0; i < count; i++) {
                     final int ordinal = ordinals[i];
                     if (ordinal < dictionarySize) {
                         counts[ordinal]++;
                     } else {
-                        checksum += StringFormat.group(escaped, reader.resolveEscape(docs[start + i], scratch));
+                        checksum += StringFormat.group(escaped, reader.resolveEscape(reader.firstValueAddress(ranks[i]), scratch));
                     }
                 }
             }
@@ -633,6 +649,46 @@ public enum StringFormat {
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
                 final int ordinal = values.ordValue();
                 if (ordinal >= start && ordinal < end) {
+                    found++;
+                }
+            }
+            return found;
+        }
+
+        /**
+         * The same vectorized search Elasticsearch uses for {@code LIKE "*x*"} on a binary field, so what is
+         * compared is how many values each format has to search rather than how each searches one. A format
+         * with a term dictionary searches each term once and tests ordinals after, which is the same saving
+         * the columnar dictionary makes.
+         */
+        @Override
+        public long matchContains(BytesRef term) throws IOException {
+            if (format == ES819_BINARY) {
+                final BinaryDocValues values = leaf.getBinaryDocValues(FIELD);
+                long found = 0;
+                for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                    final BytesRef value = values.binaryValue();
+                    if (ESVectorUtil.contains(value.bytes, value.offset, value.length, term.bytes, term.offset, term.length)) {
+                        found++;
+                    }
+                }
+                return found;
+            }
+            final SortedDocValues values = leaf.getSortedDocValues(FIELD);
+            final int size = values.getValueCount();
+            final FixedBitSet matching = new FixedBitSet(Math.max(1, size));
+            for (int ordinal = 0; ordinal < size; ordinal++) {
+                final BytesRef candidate = values.lookupOrd(ordinal);
+                if (ESVectorUtil.contains(candidate.bytes, candidate.offset, candidate.length, term.bytes, term.offset, term.length)) {
+                    matching.set(ordinal);
+                }
+            }
+            if (matching.cardinality() == 0) {
+                return 0;
+            }
+            long found = 0;
+            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                if (matching.get(values.ordValue())) {
                     found++;
                 }
             }

@@ -672,7 +672,6 @@ public final class StringColumnReader {
         );
     }
 
-    /** Ranks named in documents. A dense column numbers them alike, so nothing is needed for it. */
     /**
      * The documents holding a contiguous range of ranks. A dense column ranks its documents by document id,
      * so the range is the answer. A sparse one drives its presence iterator instead of walking to each rank
@@ -707,6 +706,21 @@ public final class StringColumnReader {
     }
 
     /**
+     * Resolves the requested documents to their ranks, answering false when any of them has no value. A page
+     * carries one entry a document and has no way to say a document has nothing, so a caller asking about
+     * documents a sparse column skips is told to read them itself rather than handed a neighbour's value.
+     */
+    private boolean ranksOfAll(int[] docs, int offset, int count) throws IOException {
+        iterator().ranks(docs, offset, count, pageRanks);
+        for (int i = 0; i < count; i++) {
+            if (pageRanks[i] == ColumnIterator.NO_RANK) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * Fills {@code ordinals} with the column ordinal of each requested rank, resolving no bytes. An ordinal
      * below {@link #dictionarySize()} names a dictionary entry and is stable for the whole column, which
      * lets a consumer accumulate into a dense array rather than a hash; the escape marker says the value is
@@ -723,7 +737,9 @@ public final class StringColumnReader {
             return false;
         }
         growPage(count);
-        iterator().ranks(docs, offset, count, pageRanks);
+        if (ranksOfAll(docs, offset, count) == false) {
+            return false;
+        }
         for (int i = 0; i < count; i++) {
             ordinals[i] = Math.toIntExact(this.ordinals.valueAt(pageRanks[i]));
         }
@@ -765,7 +781,9 @@ public final class StringColumnReader {
             return true;
         }
         growPage(count);
-        iterator().ranks(docs, offset, count, pageRanks);
+        if (ranksOfAll(docs, offset, count) == false) {
+            return false;
+        }
 
         if (hasDictionary() == false) {
             // A run is stored once, so consecutive values of it answer with the same token and only the

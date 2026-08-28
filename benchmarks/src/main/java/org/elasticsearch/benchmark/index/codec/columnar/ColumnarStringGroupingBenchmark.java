@@ -106,6 +106,7 @@ public class ColumnarStringGroupingBenchmark {
 
     private BytesRef term;
     private BytesRef prefix;
+    private BytesRef contained;
     private Path path;
     private Directory directory;
     private StringFormat.Column column;
@@ -126,6 +127,13 @@ public class ColumnarStringGroupingBenchmark {
         };
         final int keep = Math.max(1, Math.min(term.length, 4));
         prefix = new BytesRef(Arrays.copyOfRange(term.bytes, term.offset, term.offset + keep));
+        // Taken from the middle of the term, so it is a match no prefix or bisection could have found and
+        // every value has to be searched for it.
+        final int from = term.length / 3;
+        final int to = Math.max(from + 1, term.length - term.length / 3);
+        contained = term.length == 0
+            ? new BytesRef("")
+            : new BytesRef(Arrays.copyOfRange(term.bytes, term.offset + from, term.offset + to));
         // A term that matches fewer documents than it should makes a format look instant, which is the
         // easiest way to misread a filter benchmark. Checked against the values themselves, and here rather
         // than in a setup of its own, whose order is not defined.
@@ -154,6 +162,11 @@ public class ColumnarStringGroupingBenchmark {
     @Benchmark
     public void matchTerm(Blackhole bh) throws IOException {
         bh.consume(column.matchTerm(term));
+    }
+
+    @Benchmark
+    public void matchContains(Blackhole bh) throws IOException {
+        bh.consume(column.matchContains(contained));
     }
 
     /** The term as a query through a searcher, which is the path a filter actually takes. */

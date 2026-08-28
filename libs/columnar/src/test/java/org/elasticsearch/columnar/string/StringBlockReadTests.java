@@ -95,14 +95,19 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
             final BytesRef scratch = new BytesRef();
             final int page = 128;
             final int[] ordinals = new int[page];
+            final int[] ranks = new int[page];
             for (int from = 0; from < docs.length; from += page) {
                 final int count = Math.min(page, docs.length - from);
                 assertTrue("expected ordinals", reader.readOrdinals(docs, from, count, ordinals));
+                // An escaped value is reached by its address, which is what a document's rank gives; the two
+                // only coincide on a column every document has a value in.
+                reader.ranks(docs, from, count, ranks);
                 for (int i = 0; i < count; i++) {
                     final String value = docValues[from + i].utf8ToString();
                     final int ordinal = ordinals[i];
                     if (ordinal >= dictionarySize) {
-                        assertEquals("escaped [" + value + "]", value, reader.resolveEscape(docs[from + i], scratch).utf8ToString());
+                        final long address = reader.firstValueAddress(ranks[i]);
+                        assertEquals("escaped [" + value + "]", value, reader.resolveEscape(address, scratch).utf8ToString());
                     } else {
                         assertEquals("ordinal [" + ordinal + "]", value, reader.termAt(ordinal, new BytesRef()).utf8ToString());
                         final Integer seen = byTerm.putIfAbsent(value, ordinal);
@@ -132,6 +137,72 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
                 assertFalse("a plain column has no column-wide ordinals", reader.readOrdinals(docs, 0, docs.length, new int[docs.length]));
             }
         );
+    }
+
+    /**
+     * A column not every document has a value in, asked about documents that do not. A page has no way to
+     * say a document has no value, so the read has to decline rather than answer with someone else's.
+     */
+    public void testSparsePageIsDeclined() throws IOException {
+        final String[] terms = { "alpha", "bravo", "charlie" };
+        final BytesRef[] docValues = new BytesRef[between(500, 2000)];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = d % 3 == 1 ? null : new BytesRef(terms[d % terms.length]);
+        }
+        for (DictionaryPolicy policy : List.of(ROOMY, DictionaryPolicy.NONE)) {
+            withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
+                final int[] all = new int[docValues.length];
+                for (int d = 0; d < all.length; d++) {
+                    all[d] = d;
+                }
+                final int[] ordinals = new int[all.length];
+                assertFalse(
+                    "a page covering documents with no value cannot be served",
+                    reader.readBlock(all, 0, all.length, new StringBlockSink() {
+                        @Override
+                        public void appendOrdinals(int[] ords, int n, BytesRef[] dictionary, int dictionarySize) {}
+
+                        @Override
+                        public void appendValues(BytesRef[] values, int n) {}
+                    })
+                );
+                if (reader.hasDictionary()) {
+                    assertFalse("ordinals cannot be served for documents with no value", reader.readOrdinals(all, 0, all.length, ordinals));
+                }
+                // The documents that do have a value are still served.
+                final List<Integer> present = new ArrayList<>();
+                for (int d = 0; d < docValues.length; d++) {
+                    if (docValues[d] != null) {
+                        present.add(d);
+                    }
+                }
+                final int[] dense = present.stream().mapToInt(Integer::intValue).toArray();
+                final List<String> seen = new ArrayList<>();
+                assertTrue(
+                    "a page of documents that all have a value is served",
+                    reader.readBlock(dense, 0, dense.length, new StringBlockSink() {
+                        @Override
+                        public void appendOrdinals(int[] ords, int n, BytesRef[] dictionary, int dictionarySize) {
+                            for (int i = 0; i < n; i++) {
+                                seen.add(dictionary[ords[i]].utf8ToString());
+                            }
+                        }
+
+                        @Override
+                        public void appendValues(BytesRef[] values, int n) {
+                            for (int i = 0; i < n; i++) {
+                                seen.add(values[i].utf8ToString());
+                            }
+                        }
+                    })
+                );
+                final List<String> want = new ArrayList<>();
+                for (int doc : dense) {
+                    want.add(docValues[doc].utf8ToString());
+                }
+                assertEquals("values of the documents that have one", want, seen);
+            });
+        }
     }
 
     /** Documents read out of order, and not all of them, which is what a filtered aggregation hands over. */

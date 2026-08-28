@@ -282,6 +282,21 @@ public final class ColumnMapping implements Writeable {
      * cell and emits a response {@code Warning} header naming the column — identical to the
      * declared-type coercion the readers run; with a {@code null} sink the failure propagates and
      * fails the page.
+     * <p>
+     * <b>Known gap — this cast always nulls, never drops.</b> The reconciliation cast is the one coercion site that
+     * does <em>not</em> honour {@code error_mode: skip_row}: a value that fails here nulls its cell and the row
+     * survives, which is {@code null_field} behaviour, and the row is not counted against {@code max_errors}. Two
+     * reasons it is not simply wired to a {@code ColumnarRowDropHelper} like the columnar readers are:
+     * <ul>
+     *   <li>No {@code ErrorPolicy} reaches this layer at all — {@code SchemaAdaptingIterator}'s warning sink is
+     *       unconditionally live, so even {@code fail_fast} warn+nulls here.</li>
+     *   <li>The reader already owns the read's one budget. A second helper in the adapter would give a single read
+     *       two independent {@code max_errors} budgets; making it correct means hoisting the budget to an object
+     *       both layers share, which is a wider change than the drop itself.</li>
+     * </ul>
+     * Reachable only when cross-file unification actually widens a column (a multi-file glob whose files drift), so
+     * it does not affect the single-declared-type reads {@code skip_row} is normally used with. Tracked separately;
+     * until then this is the documented behaviour rather than an oversight.
      */
     Page mapPage(
         Page filePage,

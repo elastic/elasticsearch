@@ -64,7 +64,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
-import org.elasticsearch.xpack.esql.datasources.spi.Configured;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
@@ -83,6 +84,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
@@ -105,6 +107,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 /**
  * FormatReader implementation for Parquet files.
@@ -120,7 +123,7 @@ import java.util.function.Consumer;
  *   <li>Direct conversion from Parquet to ESQL blocks</li>
  * </ul>
  */
-public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtractorAware, DynamicThresholdAware {
+public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigFormatReader, ColumnExtractorAware, DynamicThresholdAware {
 
     private static final Logger logger = LogManager.getLogger(ParquetFormatReader.class);
 
@@ -136,7 +139,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     private final ParquetPushedExpressions pushedExpressions;
     private final boolean forceBaselinePath;
     private final boolean optimizedReader;
-    private final boolean lateMaterializationEnabled;
     private final DynamicThreshold dynamicThreshold;
     /** Declared per-column date parse patterns (physical name &rarr; pattern); see {@link #withDeclaredDateFormats}. */
     private final Map<String, String> declaredDateFormats;
@@ -167,12 +169,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
     /** Length of the Parquet trailer: 4-byte footer length + 4-byte magic. */
     private static final int PARQUET_TRAILER_BYTES = 8;
-
-    static final String CONFIG_OPTIMIZED_READER = "optimized_reader";
-    static final String CONFIG_LATE_MATERIALIZATION = "late_materialization";
-
-    /** Keys recognised by {@link #withConfigTrackingConsumedKeys(Map)}. */
-    static final Set<String> RECOGNIZED_KEYS = Set.of(CONFIG_OPTIMIZED_READER, CONFIG_LATE_MATERIALIZATION);
 
     /** Clears the parsed-footer cache. Intended for test isolation only. */
     static void clearParsedFooterCacheForTests() {
@@ -272,11 +268,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     public ParquetFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, FilterCompat.NOOP, null, false, true, true, null, Map.of(), Set.of());
+        this(blockFactory, FilterCompat.NOOP, null, false, true, null, Map.of(), Set.of());
     }
 
+    // Test oracle: false selects the baseline iterator. Production uses the public ctor (always optimized).
     ParquetFormatReader(BlockFactory blockFactory, boolean optimizedReader) {
-        this(blockFactory, FilterCompat.NOOP, null, false, optimizedReader, true, null, Map.of(), Set.of());
+        this(blockFactory, FilterCompat.NOOP, null, false, optimizedReader, null, Map.of(), Set.of());
     }
 
     private ParquetFormatReader(
@@ -285,7 +282,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         ParquetPushedExpressions pushedExpressions,
         boolean forceBaselinePath,
         boolean optimizedReader,
-        boolean lateMaterializationEnabled,
         DynamicThreshold dynamicThreshold,
         Map<String, String> declaredDateFormats,
         Set<String> declaredTypeColumns
@@ -295,7 +291,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         this.pushedExpressions = pushedExpressions;
         this.forceBaselinePath = forceBaselinePath;
         this.optimizedReader = optimizedReader;
-        this.lateMaterializationEnabled = lateMaterializationEnabled;
         this.dynamicThreshold = dynamicThreshold;
         this.declaredDateFormats = declaredDateFormats;
         this.declaredTypeColumns = declaredTypeColumns;
@@ -313,7 +308,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             pushedExpressions,
             true,
             optimizedReader,
-            lateMaterializationEnabled,
             dynamicThreshold,
             declaredDateFormats,
             declaredTypeColumns
@@ -329,7 +323,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 null,
                 forceBaselinePath,
                 optimizedReader,
-                lateMaterializationEnabled,
                 dynamicThreshold,
                 declaredDateFormats,
                 declaredTypeColumns
@@ -342,7 +335,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 exprs,
                 forceBaselinePath,
                 optimizedReader,
-                lateMaterializationEnabled,
                 dynamicThreshold,
                 declaredDateFormats,
                 declaredTypeColumns
@@ -359,7 +351,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             pushedExpressions,
             forceBaselinePath,
             optimizedReader,
-            lateMaterializationEnabled,
             threshold,
             declaredDateFormats,
             declaredTypeColumns
@@ -384,7 +375,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             pushedExpressions,
             forceBaselinePath,
             optimizedReader,
-            lateMaterializationEnabled,
             dynamicThreshold,
             Map.copyOf(physicalNameToPattern),
             declaredTypeColumns
@@ -410,45 +400,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             pushedExpressions,
             forceBaselinePath,
             optimizedReader,
-            lateMaterializationEnabled,
             dynamicThreshold,
             declaredDateFormats,
             Set.copyOf(physicalDeclaredColumns)
         );
-    }
-
-    @Override
-    public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-        if (config == null || config.isEmpty()) {
-            return Configured.empty(this);
-        }
-        boolean newOptimized = parseBooleanConfig(config, CONFIG_OPTIMIZED_READER, optimizedReader);
-        boolean newLateMat = parseBooleanConfig(config, CONFIG_LATE_MATERIALIZATION, lateMaterializationEnabled);
-        FormatReader result = (newOptimized == optimizedReader && newLateMat == lateMaterializationEnabled)
-            ? this
-            : new ParquetFormatReader(
-                blockFactory,
-                pushedFilter,
-                pushedExpressions,
-                forceBaselinePath,
-                newOptimized,
-                newLateMat,
-                dynamicThreshold,
-                declaredDateFormats,
-                declaredTypeColumns
-            );
-        return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
-    }
-
-    private static boolean parseBooleanConfig(Map<String, Object> config, String key, boolean defaultValue) {
-        Object value = config.get(key);
-        if (value == null) {
-            return defaultValue;
-        }
-        if (value instanceof Boolean b) {
-            return b;
-        }
-        return org.elasticsearch.core.Booleans.parseBoolean(value.toString());
     }
 
     @Override
@@ -457,10 +412,31 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
+     * Parquet cannot drop rows once a filter is pushed into it. A pushed
+     * {@link ParquetPushedExpressions} turns on late materialization in
+     * {@link OptimizedParquetColumnIterator}, whose {@code nextWithLateMaterialization} /
+     * {@code nextTwoPhaseBatch} paths emit their pages without going through
+     * {@code ColumnarRowDropHelper#filterBlocks} — a coercion failure there would null the cell and keep
+     * the row. Only the {@code nextStandard} path drops. Returning {@code false} makes the planner keep
+     * the predicate in a {@code FilterExec} above the source for {@code skip_row} reads that declare
+     * column types, which routes every batch through {@code nextStandard}.
+     * <p>
+     * Lifting this restriction means teaching both filtered paths to translate their post-predicate
+     * positions back into batch coordinates before reporting them to the helper (see the "Coordinate
+     * spaces" note on {@code ColumnarRowDropHelper}).
+     */
+    @Override
+    public boolean dropsRowsUnderPushedFilter() {
+        return false;
+    }
+
+    /**
      * Coercion-failure leniency for one read: {@code fail_fast} is strict — a per-value coercion
      * failure must propagate, which the coercion sinks express as a {@code null}
-     * {@link SkipWarnings}. Every other mode (including {@code skip_row}, which a columnar batch
-     * cannot honor row-wise) degrades to warn+null.
+     * {@link SkipWarnings}. Every other mode ({@code skip_row} and {@code null_field}) allows the
+     * read to continue: {@code skip_row} accumulates per-batch failed positions via
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper} and drops the
+     * whole row at emit; {@code null_field} nulls the cell and warns.
      */
     private ErrorPolicy resolveErrorPolicy(@Nullable ErrorPolicy contextPolicy) {
         return contextPolicy != null ? contextPolicy : defaultErrorPolicy();
@@ -493,7 +469,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      */
     private void recordPerColumnMaterialization(List<Attribute> projectedAttributes, boolean useOptimized) {
         Set<String> predicateNames = pushedExpressions != null ? pushedExpressions.predicateColumnNames() : Set.of();
-        boolean lateActive = useOptimized && lateMaterializationEnabled && pushedExpressions != null;
+        boolean lateActive = useOptimized && pushedExpressions != null;
         for (Attribute attr : projectedAttributes) {
             if (attr.dataType() == DataType.NULL || attr.dataType() == DataType.UNSUPPORTED) {
                 continue;
@@ -1276,6 +1252,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     @Override
     public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
         long startNanos = System.nanoTime();
+        long startCpuNanos = ThreadCpuTimer.currentNanos();
         try {
             // The synthetic {@link ColumnExtractor#ROW_POSITION_COLUMN} flows through the regular
             // read path: {@link #buildProjectedAttributes} types it as LONG and {@link #buildColumnInfos}
@@ -1314,6 +1291,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             // ParquetColumnIterator / OptimizedParquetColumnIterator), accumulating into the same
             // counter so read_nanos covers the reader's full producer-thread lifecycle.
             counters.addTotalReadNanos(System.nanoTime() - startNanos);
+            if (startCpuNanos >= 0) {
+                counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
+            }
         }
     }
 
@@ -1603,6 +1583,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     @Override
     public CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) throws IOException {
         long startNanos = System.nanoTime();
+        long startCpuNanos = ThreadCpuTimer.currentNanos();
         try {
             long rangeStart = context.rangeStart();
             long rangeEnd = context.rangeEnd();
@@ -1680,6 +1661,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             );
         } finally {
             counters.addTotalReadNanos(System.nanoTime() - startNanos);
+            if (startCpuNanos >= 0) {
+                counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
+            }
         }
     }
 
@@ -1739,7 +1723,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         ErrorPolicy errorPolicy,
         @Nullable Consumer<String> warningSink
     ) throws IOException {
-        counters.setLateMaterializationEnabled(lateMaterializationEnabled);
+        counters.setLateMaterializationEnabled(true);
         try {
             FileMetaData fileMetaData = reader.getFileMetaData();
             MessageType parquetSchema = fileMetaData.getSchema();
@@ -1850,7 +1834,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     ) {
         if (inputFile instanceof ParquetStorageObjectAdapter == false) {
             throw new ElasticsearchException(
-                "optimized_reader requires ParquetStorageObjectAdapter but got [" + inputFile.getClass().getName() + "]"
+                "optimized Parquet scan requires ParquetStorageObjectAdapter but got [" + inputFile.getClass().getName() + "]"
             );
         }
         ParquetStorageObjectAdapter adapter = (ParquetStorageObjectAdapter) inputFile;
@@ -1889,8 +1873,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             rowLimit,
             FilterCompat.isFilteringRequired(recordFilter),
             filterPredicate != null,
-            lateMaterializationEnabled && pushedExpressions != null,
-            dynamicThreshold != null
+            pushedExpressions != null,
+            dynamicThreshold != null,
+            // Keyed on the mode alone, matching ColumnarRowDropHelper#forPolicy, so this decision and the
+            // iterator's own cannot disagree about whether the read drops rows.
+            errorPolicy != null && errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW
         );
         IndexColumnPaths indexColumnPaths = computeIndexColumnPaths(
             FilterCompat.isFilteringRequired(recordFilter),
@@ -1958,8 +1945,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             // surviving row paid the predicate cost twice (once in late-mat, once again in FilterExec).
             // With WildcardLike now pushed as Pushability.YES, FilterExec is dropped for that conjunct,
             // so suppressing late-mat at the file level would leak unfiltered rows past the source.
-            ParquetPushedExpressions effectivePushed = lateMaterializationEnabled ? pushedExpressions : null;
-            if (effectivePushed != null) {
+            if (pushedExpressions != null) {
                 counters.markLateMaterializationUsed();
             }
 
@@ -1982,7 +1968,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             // OptimizedFilteredReaderTests.testPushedExpressionsLikeWithStatsTrivialEqDoesNotLeak
             // and the unit tests in ParquetPushedExpressionsTests cover this contract.
             MessageType fileSchema = reader.getFileMetaData().getSchema();
-            FilterPredicate triviallyPassesPredicate = effectivePushed != null
+            FilterPredicate triviallyPassesPredicate = pushedExpressions != null
                 && filterPredicate != null
                 && (pushedExpressions == null || pushedExpressions.hasYesConjunctOutsideFilterPredicate(fileSchema) == false)
                     ? filterPredicate
@@ -2004,7 +1990,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 survivingRowGroups,
                 rowGroupFirstRowGlobalOverride,
                 codecFactory,
-                effectivePushed,
+                pushedExpressions,
                 triviallyPassesPredicate,
                 this,
                 fullFooter,
@@ -2080,21 +2066,32 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
     /**
      * Unfiltered {@code LIMIT}: a remaining row budget with no record filter, no FilterPredicate
-     * page ranges, no late materialization, and no dynamic-threshold TopN. Only then may source
-     * row counts stand in for survivor counts (stop later groups, prefix-clip the first window).
+     * page ranges, no late materialization, no dynamic-threshold TopN, and no row dropping. Only
+     * then may source row counts stand in for survivor counts (stop later groups, prefix-clip the
+     * first window).
+     * <p>
+     * {@code rowDropping} is the {@code error_mode: skip_row} arm of that same condition: a batch
+     * whose declared-type coercion fails emits fewer rows than it decoded, so a window clipped to
+     * the first {@code LIMIT} <em>source</em> rows can come up short and the rows that would have
+     * made up the difference are never read — {@code LIMIT 2} over {@code bad, good, good} returns
+     * one row. It differs from the other four in that it shrinks the batch after decode rather than
+     * before it, but the consequence for this substitution is identical, so it disqualifies the
+     * optimisation the same way.
      */
     static boolean unfilteredLimit(
         int rowLimit,
         boolean filteringRequired,
         boolean pageRangeFilterActive,
         boolean lateMaterializationActive,
-        boolean dynamicThresholdActive
+        boolean dynamicThresholdActive,
+        boolean rowDropping
     ) {
         return rowLimit != NO_LIMIT
             && filteringRequired == false
             && pageRangeFilterActive == false
             && lateMaterializationActive == false
-            && dynamicThresholdActive == false;
+            && dynamicThresholdActive == false
+            && rowDropping == false;
     }
 
     /**
@@ -2935,6 +2932,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         /** The read's error policy; strict ({@code fail_fast}) makes {@link #coercionWarnings()} return {@code null}. */
         private final ErrorPolicy errorPolicy;
         /**
+         * Per-batch row-drop accumulator for {@code skip_row} mode; {@code null} for other modes.
+         * Initialized once in the constructor; {@link ColumnarRowDropHelper#beginBatch} is called
+         * before each decoded batch in {@link #next()}.
+         */
+        @Nullable
+        private final ColumnarRowDropHelper rowDropHelper;
+        /**
          * Relay for this read's per-value coercion warnings, or {@code null} to fall back to emitting
          * directly via {@code HeaderWarning}. Under the async source
          * this iterator runs on a background reader thread, so a non-null sink (the source buffer
@@ -2961,11 +2965,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 return null;
             }
             if (coercionWarnings == null) {
+                String outcome = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW
+                    ? "their entire row is dropped"
+                    : "they are returned as null";
                 coercionWarnings = new SkipWarnings(
-                    "Parquet file ["
-                        + fileLocation
-                        + "] has values that could not be coerced to the declared column type; "
-                        + "they are returned as null",
+                    "Parquet file [" + fileLocation + "] has values that could not be coerced to the declared column type; " + outcome,
                     warningSink
                 );
             }
@@ -3004,6 +3008,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         ) {
             this.errorPolicy = errorPolicy;
             this.warningSink = warningSink;
+            this.rowDropHelper = ColumnarRowDropHelper.forPolicy(errorPolicy, fileLocation);
             this.reader = reader;
             this.projectedSchema = projectedSchema;
             this.attributes = attributes;
@@ -3096,6 +3101,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
         private boolean advanceRowGroup() throws IOException {
             long startNanos = System.nanoTime();
+            long startCpuNanos = ThreadCpuTimer.currentNanos();
             try {
                 if (rowGroup != null) {
                     rowGroup.close();
@@ -3118,6 +3124,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                         if (ci != null && ci.isRowPosition() == false && ci.maxRepLevel() == 0) {
                             PageReader pageReader = rowGroup.getPageReader(ci.descriptor());
                             pageColumnReaders[i] = new PageColumnReader(pageReader, ci.descriptor(), ci, allRows, coercionWarnings());
+                        }
+                    }
+                    if (rowDropHelper != null) {
+                        var sink = (IntConsumer) rowDropHelper::markFailed;
+                        for (PageColumnReader r : pageColumnReaders) {
+                            if (r != null) r.setFailedPositionSink(sink);
                         }
                     }
                 } else {
@@ -3167,6 +3179,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 return rowsRemainingInGroup > 0;
             } finally {
                 counters.addTotalReadNanos(System.nanoTime() - startNanos);
+                if (startCpuNanos >= 0) {
+                    counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
+                }
             }
         }
 
@@ -3176,6 +3191,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 throw new NoSuchElementException();
             }
             long startNanos = System.nanoTime();
+            long startCpuNanos = ThreadCpuTimer.currentNanos();
             try {
                 int effectiveBatch = batchSize;
                 if (rowBudget != FormatReader.NO_LIMIT) {
@@ -3188,7 +3204,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 // rowGroupOrdinal is always the physical block index here.
                 int firstRowOfBatchInRG = (int) (rowGroup.getRowCount() - rowsRemainingInGroup);
 
+                if (rowDropHelper != null) {
+                    rowDropHelper.beginBatch(rowsToRead);
+                }
+                IntConsumer failedSink = rowDropHelper != null ? rowDropHelper::markFailed : null;
+
                 Block[] blocks = new Block[attributes.size()];
+                int producedRows = rowsToRead;
                 try {
                     for (int col = 0; col < columnInfos.length; col++) {
                         ColumnInfo info = columnInfos[col];
@@ -3204,9 +3226,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                         } else {
                             try {
                                 if (pageColumnReaders != null && pageColumnReaders[col] != null) {
+                                    // sink was already set on the reader via setFailedPositionSink
                                     blocks[col] = pageColumnReaders[col].readBatch(rowsToRead, blockFactory);
                                 } else {
-                                    blocks[col] = readColumnBlock(columnReaders[col], info, rowsToRead, col);
+                                    blocks[col] = readColumnBlock(columnReaders[col], info, rowsToRead, col, failedSink);
                                 }
                             } catch (CircuitBreakingException e) {
                                 throw e;
@@ -3229,6 +3252,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                             }
                         }
                     }
+                    if (rowDropHelper != null && rowDropHelper.hasFailures()) {
+                        blocks = rowDropHelper.filterBlocks(blocks, blockFactory);
+                        producedRows = rowsToRead - rowDropHelper.failedCount();
+                    }
                 } catch (CircuitBreakingException e) {
                     Releasables.closeExpectNoException(blocks);
                     throw e;
@@ -3246,22 +3273,44 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     );
                 }
 
+                // Budget accounting sits outside the try on purpose: checkBudget throws ParsingException to mark a
+                // client-data problem (HTTP 400), and routing it through ParquetReadFailures.wrap above would put it
+                // at the mercy of that mapping rather than stating the classification here. Mirrors OrcFormatReader.
+                if (rowDropHelper != null) {
+                    rowDropHelper.addToTotals(rowsToRead, rowDropHelper.failedCount());
+                    try {
+                        rowDropHelper.checkBudget(coercionWarnings());
+                    } catch (Exception e) {
+                        Releasables.closeExpectNoException(blocks);
+                        throw e;
+                    }
+                }
+
                 pageBatchIndexInRowGroup++;
                 rowsRemainingInGroup -= rowsToRead;
                 if (rowBudget != FormatReader.NO_LIMIT) {
-                    rowBudget -= rowsToRead;
+                    rowBudget -= producedRows;
                 }
-                counters.addRowsEmitted(rowsToRead);
+                counters.addRowsEmitted(producedRows);
                 // Emit only after the page is fully built: if any column read above threw, we
                 // should not warn about absent columns — no data was produced for this batch.
                 emitAbsentColumnWarningsOnce();
                 return new Page(blocks);
             } finally {
                 counters.addTotalReadNanos(System.nanoTime() - startNanos);
+                if (startCpuNanos >= 0) {
+                    counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
+                }
             }
         }
 
-        private Block readColumnBlock(ColumnReader cr, ColumnInfo info, int rowsToRead, int colIndex) {
+        private Block readColumnBlock(
+            ColumnReader cr,
+            ColumnInfo info,
+            int rowsToRead,
+            int colIndex,
+            @Nullable IntConsumer failedPositionSink
+        ) {
             // Declared-type coercion beyond the fused pairs: decode the column at the file's own
             // type with the arms below, then coerce the block to the declared type. Per-value
             // failures follow the read's error policy: the default nulls the cell + emits a
@@ -3272,7 +3321,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 && declared != fileType
                 && DeclaredTypeCoercions.fusedInDecode(fileType, declared, info.dateFormatter() != null) == false
                 && DeclaredTypeCoercions.supports(fileType, declared)) {
-                Block physical = readColumnBlock(cr, info.fileTyped(), rowsToRead, colIndex);
+                Block physical = readColumnBlock(cr, info.fileTyped(), rowsToRead, colIndex, null);
                 try {
                     return DeclaredTypeCoercions.castBlock(
                         physical,
@@ -3281,7 +3330,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                         info.dateFormatter(),
                         blockFactory,
                         attributes.get(colIndex).name(),
-                        coercionWarnings()
+                        coercionWarnings(),
+                        failedPositionSink
                     );
                 } finally {
                     physical.close();
@@ -3294,7 +3344,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     rowsToRead,
                     blockFactory,
                     attributes.get(colIndex).name(),
-                    coercionWarnings()
+                    coercionWarnings(),
+                    failedPositionSink
                 );
             }
             // WARNING: the dispatching logic below is duplicated in PageColumnReader#readBatch
@@ -3331,7 +3382,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     long scaledHint = totalRows > 0 ? (columnUncompressedBytes[colIndex] * rowsToRead) / totalRows : 0L;
                     yield readBytesRefColumn(cr, info, rowsToRead, scaledHint);
                 }
-                case DATETIME -> readDatetimeColumn(cr, info, rowsToRead, attributes.get(colIndex).name());
+                case DATETIME -> readDatetimeColumn(cr, info, rowsToRead, attributes.get(colIndex).name(), failedPositionSink);
                 case DATE_NANOS -> readDateNanosColumn(cr, info, rowsToRead);
                 default -> {
                     ParquetColumnDecoding.skipValues(cr, rowsToRead);
@@ -3509,7 +3560,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             }
         }
 
-        private Block readDatetimeColumn(ColumnReader cr, ColumnInfo info, int rows, String columnName) {
+        private Block readDatetimeColumn(
+            ColumnReader cr,
+            ColumnInfo info,
+            int rows,
+            String columnName,
+            @Nullable IntConsumer failedPositionSink
+        ) {
             if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT96) {
                 return readInt96TimestampColumn(cr, info.maxDefLevel(), rows);
             }
@@ -3520,6 +3577,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             // failure follows the read's error policy through the shared onCoercionFailure chokepoint: fail_fast
             // propagates, anything else nulls the cell + warns — the same per-cell outcome as castBlock.
             boolean isStringCoercion = info.parquetType() == PrimitiveType.PrimitiveTypeName.BINARY;
+            boolean skipRow = failedPositionSink != null;
             long[] values = UninitializedArrays.newLongArray(rows);
             BitSet isNull = info.maxDefLevel() > 0 || isStringCoercion ? new BitSet(rows) : null;
             boolean noNulls = true;
@@ -3531,7 +3589,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     try {
                         values[i] = DeclaredTypeCoercions.parseDatetimeMillis(cr.getBinary().toStringUsingUTF8(), info.dateFormatter());
                     } catch (IllegalArgumentException | DateTimeException e) {
-                        DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, coercionWarnings());
+                        DeclaredTypeCoercions.onCoercionFailure(
+                            columnName,
+                            DataType.KEYWORD,
+                            DataType.DATETIME,
+                            e,
+                            coercionWarnings(),
+                            skipRow
+                        );
+                        if (skipRow) failedPositionSink.accept(i);
                         isNull.set(i);
                         noNulls = false;
                     }

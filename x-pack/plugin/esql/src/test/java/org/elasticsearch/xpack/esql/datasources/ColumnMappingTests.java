@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ConstantNullBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -673,15 +674,15 @@ public class ColumnMappingTests extends ESTestCase {
 
     // ===== all-null cast short-circuit =====
     //
-    // ConstantNullBlock implements every typed block interface, so resolveSourceType's
-    // instanceof chain binds IntBlock first (INTEGER). supports(INTEGER, BOOLEAN|IP) is
-    // false, and that throw used to run before DeclaredTypeCoercions.castBlock's all-null
-    // short-circuit. Two-arg mapPage (null fileColumnTypes) is the path that infers from
-    // the block class.
+    // Two-arg mapPage (null fileColumnTypes) infers from the block class. An all-null LongBlock
+    // under KEYWORD trips resolveSourceType's DATETIME/DATE_NANOS/LONG assert on main — that is
+    // the reachable UBN mapping. ConstantNullBlock implements every typed interface so the
+    // instanceof chain binds IntBlock first; BOOLEAN/IP targets are not a CastType and are
+    // covered only defensively.
 
     public void testCastConstantNullBlockToAnyTargetWithoutSourceType() {
-        // LONG/DOUBLE/DATE_NANOS/KEYWORD happen to be supported from INTEGER; BOOLEAN and
-        // IP are the cells that threw on main.
+        // LONG/DOUBLE/DATE_NANOS/KEYWORD are supported from INTEGER and already short-circuit
+        // in DeclaredTypeCoercions; BOOLEAN and IP are defensive (CastType cannot encode them).
         DataType[] targets = { DataType.LONG, DataType.DOUBLE, DataType.DATE_NANOS, DataType.KEYWORD, DataType.BOOLEAN, DataType.IP };
         int n = randomIntBetween(1, 8);
         for (DataType target : targets) {
@@ -692,7 +693,9 @@ public class ColumnMappingTests extends ESTestCase {
                 Page out = mapping.mapPage(filePage, blockFactory);
                 try {
                     Block result = out.getBlock(0);
+                    assertSame("ConstantNullBlock is incRef'd, not copied, for " + target, src, result);
                     assertTrue("all-null ConstantNullBlock must cast to " + target, result.areAllValuesNull());
+                    assertEquals("short-circuit yields ElementType.NULL for " + target, ElementType.NULL, result.elementType());
                     assertEquals("position count preserved for " + target, n, result.getPositionCount());
                 } finally {
                     out.releaseBlocks();
@@ -706,8 +709,9 @@ public class ColumnMappingTests extends ESTestCase {
     public void testCastAllNullIntArrayBlockToBooleanAndIpWithoutSourceType() {
         // IntBlock.Builder.build() does not collapse an all-null build to ConstantNullBlock —
         // the result is an IntArrayBlock whose elementType is still INT. Narrowing the
-        // short-circuit to instanceof ConstantNullBlock would throw on BOOLEAN/IP the same
-        // way main did for ConstantNullBlock.
+        // short-circuit to instanceof ConstantNullBlock would throw on BOOLEAN/IP. Those
+        // targets are defensive (not a CastType); the reachable typed-array case is the
+        // LongBlock → KEYWORD sibling below.
         DataType[] targets = { DataType.BOOLEAN, DataType.IP };
         int n = randomIntBetween(1, 8);
         for (DataType target : targets) {
@@ -719,7 +723,7 @@ public class ColumnMappingTests extends ESTestCase {
                 }
                 src = b.build();
             }
-            assertTrue("IntBlock.Builder must not collapse all-null to ConstantNullBlock", src instanceof ConstantNullBlock == false);
+            assumeFalse("IntBlock.Builder collapsed all-null to ConstantNullBlock", src instanceof ConstantNullBlock);
             assertTrue(src.areAllValuesNull());
             Page filePage = new Page(n, new Block[] { src });
             try {
@@ -727,6 +731,7 @@ public class ColumnMappingTests extends ESTestCase {
                 try {
                     Block result = out.getBlock(0);
                     assertTrue("all-null IntArrayBlock must cast to " + target, result.areAllValuesNull());
+                    assertEquals("short-circuit yields ElementType.NULL for " + target, ElementType.NULL, result.elementType());
                     assertEquals("position count preserved for " + target, n, result.getPositionCount());
                 } finally {
                     out.releaseBlocks();
@@ -734,6 +739,54 @@ public class ColumnMappingTests extends ESTestCase {
             } finally {
                 filePage.releaseBlocks();
             }
+        }
+    }
+
+    public void testCastAllNullLongBlockToKeywordWithoutSourceType() {
+        // Reachable UBN mapping: KEYWORD is a CastType, and an all-null LongBlock with no
+        // sourceType trips resolveSourceType's DATETIME/DATE_NANOS/LONG assert on main.
+        int n = randomIntBetween(1, 8);
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.KEYWORD });
+        LongBlock src;
+        try (LongBlock.Builder b = blockFactory.newLongBlockBuilder(n)) {
+            for (int i = 0; i < n; i++) {
+                b.appendNull();
+            }
+            src = b.build();
+        }
+        assumeFalse("LongBlock.Builder collapsed all-null to ConstantNullBlock", src instanceof ConstantNullBlock);
+        assertTrue(src.areAllValuesNull());
+        Page filePage = new Page(n, new Block[] { src });
+        try {
+            Page out = mapping.mapPage(filePage, blockFactory);
+            try {
+                Block result = out.getBlock(0);
+                assertTrue(result.areAllValuesNull());
+                assertEquals(ElementType.NULL, result.elementType());
+                assertEquals(n, result.getPositionCount());
+            } finally {
+                out.releaseBlocks();
+            }
+        } finally {
+            filePage.releaseBlocks();
+        }
+    }
+
+    public void testAllNullUnsupportedCastStillThrowsWhenSourceTypeKnown() {
+        // Gating the short-circuit on sourceType == null keeps supports() fail-loud for an
+        // ill-formed mapping even when the page happens to be all-null.
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.LONG });
+        Block src = blockFactory.newConstantNullBlock(2);
+        Page filePage = new Page(2, new Block[] { src });
+        try {
+            RuntimeException e = expectThrows(
+                RuntimeException.class,
+                () -> mapping.mapPage(filePage, blockFactory, new DataType[] { DataType.BOOLEAN })
+            );
+            assertTrue("wrapped under mapPage's catch", e.getMessage() != null && e.getMessage().contains("Failed to map page"));
+            assertTrue("underlying cause surfaces", e.getCause() instanceof UnsupportedOperationException);
+        } finally {
+            filePage.releaseBlocks();
         }
     }
 

@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 157985
-summary: Skip type inference for all-null casts
-type: enhancement
+summary: Skip type inference for all-null casts when the file type is unknown
+type: bug

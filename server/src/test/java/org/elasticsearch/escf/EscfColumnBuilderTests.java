@@ -821,8 +821,6 @@ public class EscfColumnBuilderTests extends ESTestCase {
         assertEquals(List.of(1L, 2L, 3L), unionArrayLongs(col, 1));
     }
 
-    // ── Helpers ──
-
     private static List<Long> unionArrayLongs(EscfColumn col, int row) {
         ArrayReader r = col.getArrayValue(row);
         List<Long> out = new ArrayList<>();
@@ -995,7 +993,7 @@ public class EscfColumnBuilderTests extends ESTestCase {
         b2.endArray();
         EscfColumnData data2 = b2.finish(1);
         EscfColumn col2 = EscfColumn.from(data2);
-        assertTrue("non-null child validity → has null leaf values", ((EscfArrayColumn) col).hasNullElements());
+        assertTrue("non-null child validity → has null leaf values", ((EscfArrayColumn) col2).hasNullElements());
     }
 
     /** Builds in SPLIT mode; scalar/union cases behave identically under MERGE. */

@@ -573,11 +573,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         return fatal;
     }
 
-    /**
-     * Sender-side options for {@link GetCheckpointNodeAction} fan-out. The request body also carries
-     * {@code timeout} for the receiving node; without a transport timeout the coordinator waits
-     * forever if that node never responds.
-     */
+    /** Sender timeout for GetCheckpoint node fan-out. Null/zero means wait forever. */
     static TransportRequestOptions checkpointNodeTransportOptions(TimeValue timeout) {
         return timeout != null && timeout.millis() > 0 ? TransportRequestOptions.timeout(timeout) : TransportRequestOptions.EMPTY;
     }

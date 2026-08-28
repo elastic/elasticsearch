@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
@@ -124,6 +125,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
@@ -1301,7 +1303,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             resolved.dataType(),
                             resolved.nullable(),
                             null,
-                            false
+                            false,
+                            // the expanded values are the target's values, so a declared values analyzer carries over
+                            AnalyzedTextExpression.valuesAnalyzerOf(resolved)
                         )
                         : resolved
                 );
@@ -2563,7 +2567,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Set<String> names = new HashSet<>(attrList.size());
             for (var a : attrList) {
                 String nameCandidate = a.name();
-                if (DataType.isPrimitive(a.dataType())) {
+                if (a instanceof UnresolvedAttribute == false && DataType.isPrimitive(a.dataType())) {
                     names.add(nameCandidate);
                 }
             }
@@ -3240,6 +3244,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         ) {
             Expression convertExpression = (Expression) convert;
             if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof TypeConflictedField tcf) {
+                if (convert instanceof ToText toText && toText.valuesAnalyzer() != null) {
+                    // For to_text on a type-conflicted field, the analyzer option is rejected here in the same way the
+                    // post-analysis verifier rejects it on a single-typed field.
+                    return new UnresolvedAttribute(fa.source(), fa.name(), ToText.analyzerOnMappedFieldMessage(fa.name()));
+                }
                 // The field has an unresolved type conflict (TypeConflictedField), so we attempt to create UnionTypeEsField with
                 // index-specific conversions
                 Map<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();

@@ -4334,6 +4334,22 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testWhereInSubqueryBeforeInlineStats() {
+        assumeTrue("WHERE IN subquery must be enabled", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        assumeTrue("INLINE STATS must be enabled", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        defaultAnalyzer().query("""
+            FROM test
+            | WHERE gender IN (
+                FROM test
+                | STATS avg = AVG(salary) BY gender
+                | SORT avg DESC
+                | LIMIT 3
+                | KEEP gender
+              )
+            | INLINE STATS MAX(salary) BY gender
+            """);
+    }
+
     public void testMvExpandBeforeTSStatsNotAllowed() {
         tsdb().error("TS test | MV_EXPAND name | STATS max(network.connections)", equalTo("""
             1:11: mv_expand [MV_EXPAND name] in the time-series before the first aggregation \

@@ -1,6 +1,6 @@
 version: 9.5.2
-released: false
-generated: 2026-08-19T00:38:07.272735262Z
+released: true
+generated: 2026-08-20T17:05:57.911278389Z
 changelogs:
   - pr: 3143
     summary: Fail gracefully when restoring a categorizer with an out-of-range token ID

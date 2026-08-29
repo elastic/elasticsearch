@@ -19,12 +19,12 @@ import java.util.concurrent.atomic.AtomicReference;
  * Optional attributes may be attached when setting a value and are reported with that value on the next poll.
  * <p>
  * Prefer this type when the value changes infrequently. Each {@link #set} allocates a measurement holder, so for
- * values that are updated frequently use {@link LongGauge} (or {@link LongGaugeMetric}) instead.
+ * values that are updated frequently use {@link LongAsyncGauge} (or {@link LongGaugeMetric}) instead.
  *
  * @param value The holder of the current value of the gauge.
  * @param gauge The gauge being published to
  */
-public record ConsumingLongGaugeMetric(AtomicReference<LongWithAttributes> value, LongGauge gauge) {
+public record ConsumingLongGaugeMetric(AtomicReference<LongWithAttributes> value, LongAsyncGauge gauge) {
 
     /**
      * Create a "consuming" long gauge
@@ -37,7 +37,7 @@ public record ConsumingLongGaugeMetric(AtomicReference<LongWithAttributes> value
      */
     public static ConsumingLongGaugeMetric create(MeterRegistry meterRegistry, String name, String description, String unit) {
         final AtomicReference<LongWithAttributes> value = new AtomicReference<>();
-        return new ConsumingLongGaugeMetric(value, meterRegistry.registerLongsGauge(name, description, unit, () -> {
+        return new ConsumingLongGaugeMetric(value, meterRegistry.registerLongsAsyncGauge(name, description, unit, () -> {
             final var currentValue = value.getAndSet(null);
             return currentValue == null ? List.of() : List.of(currentValue);
         }));

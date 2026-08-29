@@ -157,7 +157,6 @@ public class StringColumnTests extends ColumnarStringTestCase {
         assertColumn(docs);
     }
 
-    /** Writes {@code docValues} as a string column, reads it back, and asserts every value round-trips in order. */
     /**
      * A value larger than the bytes a chunk is meant to hold. A chunk closes only on a block boundary, so it
      * has to grow past its target rather than split the value across two chunks.
@@ -229,6 +228,7 @@ public class StringColumnTests extends ColumnarStringTestCase {
         assertColumn(mixed);
     }
 
+    /** Writes {@code docValues} as a string column, reads it back, and asserts every value round-trips in order. */
     private void assertColumn(BytesRef[] docValues) throws IOException {
         assertColumn(docValues, randomValidBlockSize());
     }
@@ -247,7 +247,7 @@ public class StringColumnTests extends ColumnarStringTestCase {
             int seenDocs = 0;
             ColumnIterator iterator = reader.iterator();
             for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
-                int index = iterator.index();
+                int index = iterator.rank();
                 assertEquals("value count at doc " + doc, 1, reader.valueCount(index));
                 BytesRef actual = reader.valueAt(reader.firstValueAddress(index));
                 assertEquals("doc " + doc, docValues[doc], actual);

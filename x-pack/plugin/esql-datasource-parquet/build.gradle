@@ -83,6 +83,10 @@ tasks.named("test").configure {
   exclude '**/OptimizedReaderPerformanceTests.class'
 }
 
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.parquet'
+}
+
 // OptimizedReaderPerformanceTests asserts a wall-time ratio (optimized vs baseline). The Arrow
 // debug allocator's per-buffer ledger inflates the Arrow path ~20x and only penalizes the
 // optimized side, so the ratio is meaningless under it — and the flag is a static-final JVM

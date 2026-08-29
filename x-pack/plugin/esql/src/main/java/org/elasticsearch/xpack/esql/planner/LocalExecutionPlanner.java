@@ -1334,9 +1334,10 @@ public class LocalExecutionPlanner {
         final Integer rowSize = topNByExec.estimatedRowSize();
         PhysicalOperation source = plan(topNByExec.child(), context);
 
-        // Source layout has [base..., catIdAttr, stateAttr] as declared channels; look them up by ID.
-        int catIdChannel = source.layout.get(topNByExec.catIdAttr().id()).channel();
-        int stateChannel = source.layout.get(topNByExec.stateAttr().id()).channel();
+        // catId and state channels are positionally guaranteed by planTopNByInitial: catId is
+        // appended right after the base fields, state immediately after catId.
+        int catIdChannel = topNByExec.baseCategorizeOutput().size();
+        int stateChannel = catIdChannel + 1;
 
         CategorizeDef categorizeDef = null;
         List<Integer> groupKeys = new ArrayList<>(topNByExec.groupings().size());
@@ -1360,11 +1361,11 @@ public class LocalExecutionPlanner {
 
         // mergedLayout: source layout without the state channel (dropped by CategorizeGroupingMergeOperator).
         Layout.Builder mergedLayoutBuilder = new Layout.Builder();
+        int channelIdx = 0;
         for (Layout.ChannelSet cs : source.layout.inverse()) {
-            if (cs.nameIds().contains(topNByExec.stateAttr().id())) {
-                continue;
+            if (channelIdx++ != stateChannel) {
+                mergedLayoutBuilder.append(cs);
             }
-            mergedLayoutBuilder.append(cs);
         }
         Layout mergedLayout = mergedLayoutBuilder.build();
         var common = topNCommon(
@@ -1388,7 +1389,7 @@ public class LocalExecutionPlanner {
 
         // INTERMEDIATE: append a state channel so the coordinator can merge; FINAL: no state channel.
         Layout outLayout = emitState
-            ? mergedLayout.builder().append(new Layout.ChannelSet(Set.of(topNByExec.stateAttr().id()), DataType.KEYWORD)).build()
+            ? mergedLayout.builder().append(new Layout.ChannelSet(Set.of(new NameId()), DataType.KEYWORD)).build()
             : mergedLayout;
         source = source.with(
             new CategorizeGroupingMergeOperator.Factory(catIdChannel, stateChannel, categorizeDef, topNFactory, emitState),
@@ -2573,9 +2574,10 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(limitBy.child(), context);
         int limitValue = (Integer) limitBy.limitPerGroup().fold(context.foldCtx);
 
-        // Source layout has [base..., catIdAttr, stateAttr] as declared channels; look them up by ID.
-        int catIdChannel = source.layout.get(limitBy.catIdAttr().id()).channel();
-        int stateChannel = source.layout.get(limitBy.stateAttr().id()).channel();
+        // catId and state channels are positionally guaranteed by planLimitByInitial: catId is
+        // appended right after the base fields, state immediately after catId.
+        int catIdChannel = limitBy.baseCategorizeOutput().size();
+        int stateChannel = catIdChannel + 1;
 
         CategorizeDef categorizeDef = null;
         List<Integer> groupKeys = new ArrayList<>(limitBy.groupings().size());
@@ -2597,8 +2599,9 @@ public class LocalExecutionPlanner {
         // mergedLayout: source layout without the state channel (dropped by CategorizeGroupingMergeOperator).
         // catId stays at its original channel index since state follows catId.
         Layout.Builder mergedLayoutBuilder = new Layout.Builder();
+        int channelIdx = 0;
         for (Layout.ChannelSet cs : source.layout.inverse()) {
-            if (cs.nameIds().contains(limitBy.stateAttr().id())) {
+            if (channelIdx++ == stateChannel) {
                 continue;
             }
             mergedLayoutBuilder.append(cs);
@@ -2608,7 +2611,7 @@ public class LocalExecutionPlanner {
 
         // INTERMEDIATE: append a state channel so the coordinator can merge; FINAL: no state channel.
         Layout outLayout = emitState
-            ? mergedLayout.builder().append(new Layout.ChannelSet(Set.of(limitBy.stateAttr().id()), DataType.KEYWORD)).build()
+            ? mergedLayout.builder().append(new Layout.ChannelSet(Set.of(new NameId()), DataType.KEYWORD)).build()
             : mergedLayout;
         source = source.with(
             new CategorizeGroupingMergeOperator.Factory(catIdChannel, stateChannel, categorizeDef, limitFactory, emitState),

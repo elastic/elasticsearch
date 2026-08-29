@@ -115,7 +115,8 @@ public class CategorizeStateMergeOperatorTests extends OperatorTestCase {
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
         return equalTo(
-            "CategorizeGroupingMergeOperator[catIdChannel=0, stateChannel=1, emitState=false, inner=GroupedLimitOperator[limitPerGroup = 100]]"
+            "CategorizeGroupingMergeOperator[catIdChannel=0, stateChannel=1, emitState=false, "
+                + "inner=GroupedLimitOperator[limitPerGroup = 100]]"
         );
     }
 

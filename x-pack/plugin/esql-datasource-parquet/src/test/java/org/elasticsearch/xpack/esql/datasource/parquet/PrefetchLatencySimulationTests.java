@@ -49,9 +49,13 @@ import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -243,27 +247,54 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
     }
 
     public void testPrefetchFailureEntersAndSuccessfulProbeExitsProbeMode() throws Exception {
-        byte[] parquetData = createLargeUncompressedProjectedRowGroupFile();
-        CountingStorageObject storage = new CountingStorageObject(parquetData, asyncIoExecutor);
+        byte[] parquetData = createLargeUncompressedProjectedRowGroupsFile();
+        FailFirstAsyncStorageObject storage = new FailFirstAsyncStorageObject(
+            parquetData,
+            asyncIoExecutor,
+            new IOException("injected prefetch failure")
+        );
 
         try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(storage, FormatReadContext.of(null, 1024))) {
             OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) iter;
             int floor = opi.prefetchDepth();
             assertTrue("fixture must produce a nontrivial byte-based prefetch floor", floor > 1);
-            opi.adaptPrefetchDepth(false);
-            assertTrue(opi.prefetchDepth() > 1);
 
-            opi.prefetchFailed();
+            assertTrue(iter.hasNext());
+            assertEquals("the first real prefetch must fail", 1, storage.failedAsyncReadCount.get());
             assertTrue(opi.probingPrefetch());
             assertEquals(1, opi.prefetchDepth());
+            Page first = iter.next();
+            first.releaseBlocks();
 
-            opi.prefetchSucceeded(true);
+            assertTrue(storage.successfulAsyncReads.await(10, TimeUnit.SECONDS));
+            assertTrue(iter.hasNext());
             assertFalse(opi.probingPrefetch());
             assertEquals(floor, opi.prefetchDepth());
+            assertEquals("the fallback barrier must not leak queued-byte accounting", 0L, opi.queuedPrefetchBytes());
+            Page second = iter.next();
+            second.releaseBlocks();
+            assertFalse(iter.hasNext());
         }
     }
 
-    private byte[] createLargeUncompressedProjectedRowGroupFile() throws IOException {
+    public void testNestedWrappedErrorFromPrefetchEscapesWithoutSyncFallback() throws Exception {
+        byte[] parquetData = smallInt64MultiRowGroupFile();
+        AssertionError injected = new AssertionError("injected wrapped prefetch error");
+        FailFirstAsyncStorageObject storage = new FailFirstAsyncStorageObject(
+            parquetData,
+            asyncIoExecutor,
+            new CompletionException(new CompletionException(injected))
+        );
+
+        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(storage, FormatReadContext.of(null, 1024))) {
+            int syncReadBaseline = storage.syncReadCount.get();
+            AssertionError actual = expectThrows(AssertionError.class, iter::hasNext);
+            assertSame(injected, actual);
+            assertEquals("wrapped Errors must be classified before synchronous fallback", syncReadBaseline, storage.syncReadCount.get());
+        }
+    }
+
+    private byte[] createLargeUncompressedProjectedRowGroupsFile() throws IOException {
         MessageType schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.BINARY)
             .named("payload")
@@ -282,10 +313,12 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
                 .withPageSize(10 * 1024 * 1024)
                 .build()
         ) {
-            // This test only inspects depth transitions and never iterates, so one >8 MB row
-            // group is enough to cross SHALLOW_PREFETCH_BYTES without writing a second fixture.
+            // Two >8 MB row groups cross SHALLOW_PREFETCH_BYTES and provide a real successful
+            // probe after the first row group's failed prefetch falls back synchronously.
             byte[] value = new byte[9 * 1024 * 1024];
-            writer.write(groupFactory.newGroup().append("payload", Binary.fromConstantByteArray(value)));
+            for (int i = 0; i < 2; i++) {
+                writer.write(groupFactory.newGroup().append("payload", Binary.fromConstantByteArray(value)));
+            }
         }
         return outputStream.toByteArray();
     }
@@ -574,6 +607,47 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
                     buffer.flip();
                     listener.onResponse(new DirectReadBuffer(buffer, () -> {}));
                 } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            });
+        }
+    }
+
+    private static final class FailFirstAsyncStorageObject extends CountingStorageObject {
+        private final Executor failureExecutor;
+        private final Exception firstFailure;
+        private final AtomicBoolean failNextAsyncRead = new AtomicBoolean(true);
+        private final AtomicInteger failedAsyncReadCount = new AtomicInteger();
+        private final CountDownLatch successfulAsyncReads = new CountDownLatch(2);
+
+        private FailFirstAsyncStorageObject(byte[] data, ExecutorService asyncIoExecutor, Exception firstFailure) {
+            super(data, asyncIoExecutor);
+            this.failureExecutor = asyncIoExecutor;
+            this.firstFailure = firstFailure;
+        }
+
+        @Override
+        public void readBytesAsync(
+            long position,
+            long length,
+            DirectBufferFactory factory,
+            Executor executor,
+            ActionListener<DirectReadBuffer> listener
+        ) {
+            if (failNextAsyncRead.compareAndSet(true, false)) {
+                failedAsyncReadCount.incrementAndGet();
+                failureExecutor.execute(() -> listener.onFailure(firstFailure));
+                return;
+            }
+            super.readBytesAsync(position, length, factory, executor, new ActionListener<>() {
+                @Override
+                public void onResponse(DirectReadBuffer response) {
+                    listener.onResponse(response);
+                    successfulAsyncReads.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
             });

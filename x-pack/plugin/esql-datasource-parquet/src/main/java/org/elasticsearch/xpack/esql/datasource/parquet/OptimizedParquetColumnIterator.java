@@ -1338,7 +1338,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     if (syncFallback) {
                         // Delay the barrier until after the empty-range branch above. An empty
                         // row group needs no fallback and later queued prefetches remain useful.
-                        prefetch.drainForFallback(pendingPrefetches);
+                        prefetch.drainForFallback(detachPendingPrefetches());
                         ColumnChunkPrefetcher.PrefetchedChunks fetched = ColumnChunkPrefetcher.fetchSync(
                             storageObjectForFallback(),
                             block,
@@ -2064,12 +2064,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             try {
                 result = head.future().join();
             } catch (CompletionException | CancellationException e) {
-                logger.debug(
-                    "Prefetch for row group [{}] failed in [{}], falling back to synchronous I/O: {}",
-                    expectedOrdinal,
-                    fileLocation,
-                    e.getMessage()
-                );
+                String failureContext = "Prefetch failed for row group [" + expectedOrdinal + "] in [" + fileLocation + "]";
+                RuntimeException asyncFailure = ParquetReadFailures.wrap(e, failureContext);
+                logger.debug(() -> Strings.format("%s; falling back to synchronous I/O", failureContext), asyncFailure);
                 prefetchFailed();
                 return selection;
             }
@@ -2092,15 +2089,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         }
     }
 
-    // Package-private for deterministic depth-transition tests.
-    void prefetchFailed() {
+    private void prefetchFailed() {
         consecutiveNoStalls = 0;
         probing = true;
         prefetchDepth = 1;
     }
 
-    // Package-private for deterministic depth-transition tests.
-    void prefetchSucceeded(boolean wasReady) {
+    private void prefetchSucceeded(boolean wasReady) {
         if (probing) {
             probing = false;
             prefetchDepth = Math.max(prefetchDepth, prefetchDepthFloor);
@@ -2157,7 +2152,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
     // Visible for testing
     List<Integer> pendingPrefetchOrdinals() {
-        return pendingPrefetches.stream().map(PendingPrefetch::ordinal).toList();
+        List<Integer> ordinals = new ArrayList<>(pendingPrefetches.size());
+        for (PendingPrefetch pendingPrefetch : pendingPrefetches) {
+            ordinals.add(pendingPrefetch.ordinal());
+        }
+        return ordinals;
     }
 
     // Visible for testing

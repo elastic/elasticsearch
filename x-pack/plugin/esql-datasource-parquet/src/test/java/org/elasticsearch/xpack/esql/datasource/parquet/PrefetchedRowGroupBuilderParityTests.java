@@ -117,8 +117,8 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
     public void testBuildRejectsNullChunksAtBoundary() throws IOException {
         byte[] file = writeIntFile(WriterVersion.PARQUET_1_0, CompressionCodecName.UNCOMPRESSED, false, true);
         try (ParquetFileReader reader = openReader(file)) {
-            NullPointerException exception = expectThrows(
-                NullPointerException.class,
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
                 () -> PrefetchedRowGroupBuilder.build(
                     reader.getRowGroups().getFirst(),
                     0,
@@ -131,7 +131,7 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
                     blockFactory.breaker()
                 )
             );
-            assertEquals("prefetchedChunks", exception.getMessage());
+            assertEquals("prefetchedChunks must not be null", exception.getMessage());
         }
     }
 

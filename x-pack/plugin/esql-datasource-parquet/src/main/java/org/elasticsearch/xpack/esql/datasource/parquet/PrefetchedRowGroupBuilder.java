@@ -41,7 +41,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -103,7 +102,9 @@ final class PrefetchedRowGroupBuilder {
         CompressionCodecFactory codecFactory,
         CircuitBreaker breaker
     ) {
-        Objects.requireNonNull(prefetchedChunks, "prefetchedChunks");
+        if (prefetchedChunks == null) {
+            throw new IllegalArgumentException("prefetchedChunks must not be null");
+        }
         Map<String, ColumnDescriptor> descriptorsByPath = new HashMap<>();
         for (ColumnDescriptor desc : projectedSchema.getColumns()) {
             descriptorsByPath.put(String.join(".", desc.getPath()), desc);
@@ -239,9 +240,8 @@ final class PrefetchedRowGroupBuilder {
     }
 
     /**
-     * Sequential path: walk the entire column chunk page-by-page until {@code totalSize} bytes
-     * are consumed. Used when no offset index is available, no row ranges were supplied, or
-     * the prefetched chunks could not satisfy the column.
+     * Sequential path: walk the fully prefetched column chunk page-by-page until every value is
+     * covered. Used when no offset index is available or no row ranges were supplied.
      */
     private static PrefetchedPageReader buildSequential(
         ColumnChunkMetaData column,

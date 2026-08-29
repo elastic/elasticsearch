@@ -74,7 +74,7 @@ import java.util.concurrent.atomic.LongAdder;
 /**
  * Tests that the optimized Parquet reader's prefetch pipeline correctly integrates with
  * the circuit breaker: reserving memory before async I/O, releasing on clear/cancel/failure,
- * and gracefully skipping prefetch when the breaker limit would be exceeded.
+ * and retrying failed prefetches synchronously through the same breaker-accounted path.
  */
 public class PrefetchCircuitBreakerTests extends ESTestCase {
 
@@ -111,9 +111,9 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
     /**
      * Verifies the optimized reader works correctly with a tight breaker limit. The prefetch
      * competes with Parquet-mr decode allocations and ESQL block creation for the same breaker
-     * budget. The query may either complete normally (prefetch skipped for some row groups) or
-     * throw a CircuitBreakingException if decode allocations exceed the limit. Either outcome
-     * is acceptable — the key assertion is that the breaker returns to zero.
+     * budget. The query may either complete normally or throw a CircuitBreakingException from
+     * asynchronous prefetch, its synchronous fallback, or decode allocations. Any outcome must
+     * return the breaker to zero.
      */
     public void testPrefetchWithTightBreakerLimit() throws Exception {
         MessageType wideSchema = buildWideSchema(10);
@@ -126,13 +126,13 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
 
         StorageObject storage = createAsyncStorageObject(parquetData);
         try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(storage, FormatReadContext.of(null, 1024))) {
-            while (iter.hasNext()) {
-                try {
+            try {
+                while (iter.hasNext()) {
                     Page page = iter.next();
                     page.releaseBlocks();
-                } catch (CircuitBreakingException e) {
-                    break;
                 }
+            } catch (CircuitBreakingException e) {
+                // The tight limit may reject either a prefetch/fallback buffer or decode output.
             }
         }
         assertEquals("Breaker should return to zero", 0, breaker.getUsed());

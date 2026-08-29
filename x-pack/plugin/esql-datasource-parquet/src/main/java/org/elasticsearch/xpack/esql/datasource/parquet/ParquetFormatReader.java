@@ -2917,9 +2917,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         private PageReadStore rowGroup;
         private PageColumnReader[] pageColumnReaders;
         private ColumnReader[] columnReaders;
+        private ParquetColumnDecoding.ListColumnReader[] listColumnReaders;
         /** Per-column uncompressed byte size for the current row group (0 if unknown). */
         private long[] columnUncompressedBytes;
         private long rowsRemainingInGroup;
+        private long rowsBeforeCurrentGroup;
         private boolean exhausted = false;
         private int rowGroupOrdinal = -1;
         private int pageBatchIndexInRowGroup = 0;
@@ -2929,6 +2931,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
          * cap is per read, not per column chunk.
          */
         private SkipWarnings coercionWarnings;
+        private final ParquetColumnDecoding.ListCorruptionHandler listCorruptionHandler;
         /** The read's error policy; strict ({@code fail_fast}) makes {@link #coercionWarnings()} return {@code null}. */
         private final ErrorPolicy errorPolicy;
         /**
@@ -3008,6 +3011,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         ) {
             this.errorPolicy = errorPolicy;
             this.warningSink = warningSink;
+            this.listCorruptionHandler = new ParquetColumnDecoding.ListCorruptionHandler(errorPolicy, fileLocation, warningSink);
             this.rowDropHelper = ColumnarRowDropHelper.forPolicy(errorPolicy, fileLocation);
             this.reader = reader;
             this.projectedSchema = projectedSchema;
@@ -3104,6 +3108,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             long startCpuNanos = ThreadCpuTimer.currentNanos();
             try {
                 if (rowGroup != null) {
+                    rowsBeforeCurrentGroup += rowGroup.getRowCount();
                     rowGroup.close();
                     rowGroup = null;
                 }
@@ -3144,6 +3149,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                         createdBy
                     );
                     columnReaders = new ColumnReader[columnInfos.length];
+                    listColumnReaders = new ParquetColumnDecoding.ListColumnReader[columnInfos.length];
                     columnUncompressedBytes = new long[columnInfos.length];
 
                     // Best-effort: rowGroupOrdinal may not match the physical block index when
@@ -3166,6 +3172,17 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                                 : columnInfos[i].maxRepLevel() > 0;
                             if (needColumnReader) {
                                 columnReaders[i] = store.getColumnReader(columnInfos[i].descriptor());
+                                if (columnInfos[i].maxRepLevel() > 0) {
+                                    listColumnReaders[i] = new ParquetColumnDecoding.ListColumnReader(
+                                        columnReaders[i],
+                                        columnInfos[i].maxDefLevel(),
+                                        listCorruptionHandler,
+                                        attributes.get(i).name(),
+                                        fileLocation,
+                                        rowGroupOrdinal,
+                                        rowsBeforeCurrentGroup
+                                    );
+                                }
                                 String colPath = String.join(".", columnInfos[i].descriptor().getPath());
                                 Long size = chunkSizes.get(colPath);
                                 columnUncompressedBytes[i] = size != null ? size : 0L;
@@ -3174,7 +3191,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                     }
                 } else {
                     columnReaders = null;
+                    listColumnReaders = null;
                     columnUncompressedBytes = null;
+                }
+                if (rowsRemainingInGroup == 0) {
+                    validateListColumnsExhausted();
                 }
                 return rowsRemainingInGroup > 0;
             } finally {
@@ -3229,7 +3250,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                                     // sink was already set on the reader via setFailedPositionSink
                                     blocks[col] = pageColumnReaders[col].readBatch(rowsToRead, blockFactory);
                                 } else {
-                                    blocks[col] = readColumnBlock(columnReaders[col], info, rowsToRead, col, failedSink);
+                                    blocks[col] = readColumnBlock(
+                                        columnReaders[col],
+                                        listColumnReaders != null ? listColumnReaders[col] : null,
+                                        info,
+                                        rowsToRead,
+                                        col,
+                                        failedSink
+                                    );
                                 }
                             } catch (CircuitBreakingException e) {
                                 throw e;
@@ -3288,6 +3316,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
 
                 pageBatchIndexInRowGroup++;
                 rowsRemainingInGroup -= rowsToRead;
+                if (rowsRemainingInGroup == 0) {
+                    try {
+                        validateListColumnsExhausted();
+                    } catch (RuntimeException e) {
+                        Releasables.closeExpectNoException(blocks);
+                        throw e;
+                    }
+                }
                 if (rowBudget != FormatReader.NO_LIMIT) {
                     rowBudget -= producedRows;
                 }
@@ -3304,8 +3340,20 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             }
         }
 
+        private void validateListColumnsExhausted() {
+            if (listColumnReaders == null) {
+                return;
+            }
+            for (ParquetColumnDecoding.ListColumnReader listReader : listColumnReaders) {
+                if (listReader != null) {
+                    listReader.validateExhausted();
+                }
+            }
+        }
+
         private Block readColumnBlock(
             ColumnReader cr,
+            @Nullable ParquetColumnDecoding.ListColumnReader listReader,
             ColumnInfo info,
             int rowsToRead,
             int colIndex,
@@ -3321,7 +3369,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 && declared != fileType
                 && DeclaredTypeCoercions.fusedInDecode(fileType, declared, info.dateFormatter() != null) == false
                 && DeclaredTypeCoercions.supports(fileType, declared)) {
-                Block physical = readColumnBlock(cr, info.fileTyped(), rowsToRead, colIndex, null);
+                Block physical = readColumnBlock(cr, listReader, info.fileTyped(), rowsToRead, colIndex, null);
                 try {
                     return DeclaredTypeCoercions.castBlock(
                         physical,
@@ -3339,7 +3387,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             }
             if (info.maxRepLevel() > 0) {
                 return ParquetColumnDecoding.readListColumn(
-                    cr,
+                    listReader,
                     info,
                     rowsToRead,
                     blockFactory,

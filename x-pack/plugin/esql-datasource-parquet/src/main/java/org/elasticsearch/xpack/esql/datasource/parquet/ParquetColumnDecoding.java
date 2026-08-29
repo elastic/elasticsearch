@@ -26,10 +26,13 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Utf8Sanitizer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -38,6 +41,7 @@ import java.nio.ByteOrder;
 import java.time.DateTimeException;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 
 /**
@@ -556,6 +560,219 @@ final class ParquetColumnDecoding {
 
     // ---- Skip helpers ----
 
+    /**
+     * Shared policy, warning, and error-budget owner for malformed LIST repetition-level streams.
+     * One instance is retained for the lifetime of an iterator or extractor so separate columns
+     * and row groups contribute to the same error count and warning cap.
+     */
+    static final class ListCorruptionHandler {
+        private final ErrorPolicy errorPolicy;
+        private final String fileLocation;
+        private final SkipWarnings warnings;
+        private long errorCount;
+
+        ListCorruptionHandler(ErrorPolicy errorPolicy, String fileLocation, @Nullable Consumer<String> warningSink) {
+            this.errorPolicy = errorPolicy;
+            this.fileLocation = fileLocation;
+            this.warnings = SkipWarnings.of(
+                errorPolicy,
+                "Parquet file [" + fileLocation + "] has malformed LIST repetition levels; invalid fragments were skipped",
+                warningSink
+            );
+        }
+
+        boolean isStrict() {
+            return errorPolicy.isStrict();
+        }
+
+        void recoveredOrphan(String columnName, int rowGroupOrdinal, long rowOrdinal, long rowsSeen, long discardedValues) {
+            errorCount++;
+            warnings.add(
+                "Parquet column ["
+                    + columnName
+                    + "] in file ["
+                    + fileLocation
+                    + "] row group ["
+                    + (rowGroupOrdinal + 1)
+                    + "] started row ["
+                    + rowOrdinal
+                    + "] at a non-zero repetition level; discarded ["
+                    + discardedValues
+                    + "] orphan values"
+            );
+            // Structural corruption is discovered while streaming. As with the text readers, a
+            // ratio can trip before later good rows have a chance to dilute it.
+            rowsSeen = Math.max(1L, rowsSeen);
+            if (errorPolicy.isBudgetExceeded(errorCount, rowsSeen)) {
+                warnings.add(
+                    "Parquet error budget exceeded in file ["
+                        + fileLocation
+                        + "]: ["
+                        + errorCount
+                        + "] structural errors by row ["
+                        + rowsSeen
+                        + "]"
+                );
+                throw new ParsingException(
+                    Source.EMPTY,
+                    "Error budget exceeded: [{}] structural errors by row [{}] in [{}]; " + "maximum allowed is [{}] errors or [{}] ratio",
+                    errorCount,
+                    rowsSeen,
+                    fileLocation,
+                    errorPolicy.maxErrors(),
+                    errorPolicy.maxErrorRatio()
+                );
+            }
+        }
+    }
+
+    /**
+     * Stateful view of one repeated leaf in one row group. It keeps parquet-mr's level cursor and
+     * physical-value cursor in lock-step, validates every record boundary, and makes end-of-stream
+     * checks independent of parquet-mr's post-exhaustion sentinel levels.
+     */
+    static final class ListColumnReader {
+        private final ColumnReader reader;
+        private final int maxDefLevel;
+        private final ListCorruptionHandler corruptionHandler;
+        private final String columnName;
+        private final String fileLocation;
+        private final int rowGroupOrdinal;
+        private final long rowsBeforeGroup;
+        private final long totalValueCount;
+        private long consumedValueCount;
+        private long rowCount;
+
+        ListColumnReader(
+            ColumnReader reader,
+            int maxDefLevel,
+            ListCorruptionHandler corruptionHandler,
+            String columnName,
+            String fileLocation,
+            int rowGroupOrdinal,
+            long rowsBeforeGroup
+        ) {
+            this.reader = reader;
+            this.maxDefLevel = maxDefLevel;
+            this.corruptionHandler = corruptionHandler;
+            this.columnName = columnName;
+            this.fileLocation = fileLocation;
+            this.rowGroupOrdinal = rowGroupOrdinal;
+            this.rowsBeforeGroup = rowsBeforeGroup;
+            this.totalValueCount = reader.getTotalValueCount();
+        }
+
+        ColumnReader reader() {
+            return reader;
+        }
+
+        boolean hasRemaining() {
+            return consumedValueCount < totalValueCount;
+        }
+
+        int currentDefinitionLevel() {
+            ensureRemaining("read a definition level");
+            return reader.getCurrentDefinitionLevel();
+        }
+
+        int currentRepetitionLevel() {
+            ensureRemaining("read a repetition level");
+            return reader.getCurrentRepetitionLevel();
+        }
+
+        void ensureRowStart() {
+            ensureRemaining("start footer row [" + (rowCount + 1) + "]");
+            int repetitionLevel = reader.getCurrentRepetitionLevel();
+            if (repetitionLevel == 0) {
+                return;
+            }
+            if (corruptionHandler.isStrict()) {
+                throw corruption("row [" + (rowCount + 1) + "] starts at repetition level [" + repetitionLevel + "] instead of [0]");
+            }
+
+            long discarded = 0;
+            do {
+                skipCurrentValue();
+                discarded++;
+            } while (hasRemaining() && reader.getCurrentRepetitionLevel() > 0);
+
+            if (hasRemaining() == false) {
+                throw corruption(
+                    "orphan continuation fragment before row ["
+                        + (rowCount + 1)
+                        + "] consumed the remaining ["
+                        + discarded
+                        + "] values without reaching repetition level [0]"
+                );
+            }
+            corruptionHandler.recoveredOrphan(columnName, rowGroupOrdinal, rowCount + 1, rowsBeforeGroup + rowCount + 1, discarded);
+        }
+
+        void consumeAfterRead() {
+            consumeCurrent();
+        }
+
+        void consumeUndefined() {
+            consumeCurrent();
+        }
+
+        void skipCurrentValue() {
+            if (currentDefinitionLevel() >= maxDefLevel) {
+                reader.skip();
+            }
+            consumeCurrent();
+        }
+
+        void rowCompleted() {
+            rowCount++;
+        }
+
+        void validateExhausted() {
+            if (hasRemaining()) {
+                throw corruption(
+                    "footer row count was exhausted after ["
+                        + rowCount
+                        + "] rows but ["
+                        + (totalValueCount - consumedValueCount)
+                        + "] level values remain"
+                );
+            }
+        }
+
+        private void consumeCurrent() {
+            ensureRemaining("consume a level value");
+            reader.consume();
+            consumedValueCount++;
+        }
+
+        private void ensureRemaining(String action) {
+            if (hasRemaining() == false) {
+                throw corruption(
+                    "cannot "
+                        + action
+                        + ": footer row count exceeds the ["
+                        + totalValueCount
+                        + "] available level values after ["
+                        + rowCount
+                        + "] rows"
+                );
+            }
+        }
+
+        private IllegalArgumentException corruption(String detail) {
+            return new IllegalArgumentException(
+                "Malformed Parquet LIST column ["
+                    + columnName
+                    + "] in file ["
+                    + fileLocation
+                    + "] row group ["
+                    + (rowGroupOrdinal + 1)
+                    + "]: "
+                    + detail
+            );
+        }
+    }
+
     static void skipValues(ColumnReader cr, int rows) {
         for (int i = 0; i < rows; i++) {
             cr.consume();
@@ -566,12 +783,14 @@ final class ParquetColumnDecoding {
      * Skips all Parquet values for the given number of rows in a LIST column,
      * respecting repetition levels to consume entire lists per row.
      */
-    static void skipListValues(ColumnReader cr, int rows) {
+    static void skipListValues(ListColumnReader input, int rows) {
         for (int row = 0; row < rows; row++) {
-            cr.consume();
-            while (cr.getCurrentRepetitionLevel() > 0) {
-                cr.consume();
+            input.ensureRowStart();
+            input.skipCurrentValue();
+            while (input.hasRemaining() && input.currentRepetitionLevel() > 0) {
+                input.skipCurrentValue();
             }
+            input.rowCompleted();
         }
     }
 
@@ -585,7 +804,9 @@ final class ParquetColumnDecoding {
      * as a constant null block.
      */
     static Block readListColumn(ColumnReader cr, ColumnInfo info, int rows, BlockFactory blockFactory) {
-        return readListColumn(cr, info, rows, blockFactory, null, null);
+        ListCorruptionHandler handler = new ListCorruptionHandler(ErrorPolicy.STRICT, "<unknown>", null);
+        String column = String.join(".", info.descriptor().getPath());
+        return readListColumn(new ListColumnReader(cr, info.maxDefLevel(), handler, column, "<unknown>", 0, 0), info, rows, blockFactory);
     }
 
     /**
@@ -602,11 +823,21 @@ final class ParquetColumnDecoding {
         @Nullable String columnName,
         @Nullable SkipWarnings warnings
     ) {
-        return readListColumn(cr, info, rows, blockFactory, columnName, warnings, null);
+        ListCorruptionHandler handler = new ListCorruptionHandler(ErrorPolicy.STRICT, "<unknown>", null);
+        String column = columnName != null ? columnName : String.join(".", info.descriptor().getPath());
+        return readListColumn(
+            new ListColumnReader(cr, info.maxDefLevel(), handler, column, "<unknown>", 0, 0),
+            info,
+            rows,
+            blockFactory,
+            columnName,
+            warnings,
+            null
+        );
     }
 
     static Block readListColumn(
-        ColumnReader cr,
+        ListColumnReader input,
         ColumnInfo info,
         int rows,
         BlockFactory blockFactory,
@@ -620,7 +851,7 @@ final class ParquetColumnDecoding {
             && declared != fileElementType
             && DeclaredTypeCoercions.fusedInDecode(fileElementType, declared, info.dateFormatter() != null) == false
             && DeclaredTypeCoercions.supports(fileElementType, declared)) {
-            Block physical = readListColumn(cr, info.fileTyped(), rows, blockFactory);
+            Block physical = readListColumn(input, info.fileTyped(), rows, blockFactory);
             try {
                 return DeclaredTypeCoercions.castBlock(
                     physical,
@@ -639,28 +870,32 @@ final class ParquetColumnDecoding {
         DataType elementType = info.esqlType();
         int maxDef = info.maxDefLevel();
         return switch (elementType) {
-            case INTEGER -> readListIntColumn(cr, maxDef, rows, blockFactory);
+            case INTEGER -> readListIntColumn(input, maxDef, rows, blockFactory);
             case LONG -> {
                 if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
                     // TIME_MILLIS: physical INT32 widened to long (raw ms value, no unit conversion)
-                    yield readListInt32AsLongColumn(cr, maxDef, rows, blockFactory);
+                    yield readListInt32AsLongColumn(input, maxDef, rows, blockFactory);
                 }
                 long multiplier = info.logicalType() instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time
                     ? timeNanoMultiplier(time)
                     : 1L;
-                yield readListLongColumn(cr, maxDef, rows, blockFactory, multiplier);
+                yield readListLongColumn(input, maxDef, rows, blockFactory, multiplier);
             }
-            case UNSIGNED_LONG -> readListUnsignedLongColumn(cr, maxDef, rows, blockFactory);
-            case DOUBLE -> readListDoubleColumn(cr, maxDef, rows, blockFactory);
-            case BOOLEAN -> readListBooleanColumn(cr, maxDef, rows, blockFactory);
-            case KEYWORD, TEXT -> readListBytesRefColumn(cr, info, rows, blockFactory);
-            case DATETIME -> readListDatetimeColumn(cr, info, rows, blockFactory, columnName, warnings, failedPositionSink);
-            case DATE_NANOS -> readListDateNanosColumn(cr, info, rows, blockFactory);
+            case UNSIGNED_LONG -> readListUnsignedLongColumn(input, maxDef, rows, blockFactory);
+            case DOUBLE -> readListDoubleColumn(input, maxDef, rows, blockFactory);
+            case BOOLEAN -> readListBooleanColumn(input, maxDef, rows, blockFactory);
+            case KEYWORD, TEXT -> readListBytesRefColumn(input, info, rows, blockFactory);
+            case DATETIME -> readListDatetimeColumn(input, info, rows, blockFactory, columnName, warnings, failedPositionSink);
+            case DATE_NANOS -> readListDateNanosColumn(input, info, rows, blockFactory);
             default -> {
-                skipListValues(cr, rows);
+                skipListValues(input, rows);
                 yield blockFactory.newConstantNullBlock(rows);
             }
         };
+    }
+
+    static Block readListColumn(ListColumnReader input, ColumnInfo info, int rows, BlockFactory blockFactory) {
+        return readListColumn(input, info, rows, blockFactory, null, null, null);
     }
 
     /**
@@ -673,31 +908,36 @@ final class ParquetColumnDecoding {
      * After this method returns, the reader is positioned at the start of the next row
      * (repetition level == 0).
      */
-    private static void readListRow(ColumnReader cr, int maxDef, Block.Builder builder, Runnable appender) {
-        int def = cr.getCurrentDefinitionLevel();
+    private static void readListRow(ListColumnReader input, int maxDef, Block.Builder builder, Runnable appender) {
+        input.ensureRowStart();
+        int def = input.currentDefinitionLevel();
         if (def >= maxDef) {
             builder.beginPositionEntry();
             appender.run();
-            cr.consume();
-            while (cr.getCurrentRepetitionLevel() > 0) {
-                if (cr.getCurrentDefinitionLevel() >= maxDef) {
+            input.consumeAfterRead();
+            while (input.hasRemaining() && input.currentRepetitionLevel() > 0) {
+                if (input.currentDefinitionLevel() >= maxDef) {
                     appender.run();
+                    input.consumeAfterRead();
+                } else {
+                    input.consumeUndefined();
                 }
-                cr.consume();
             }
             builder.endPositionEntry();
         } else {
-            cr.consume();
+            input.consumeUndefined();
             boolean hasValues = false;
-            while (cr.getCurrentRepetitionLevel() > 0) {
-                if (cr.getCurrentDefinitionLevel() >= maxDef) {
+            while (input.hasRemaining() && input.currentRepetitionLevel() > 0) {
+                if (input.currentDefinitionLevel() >= maxDef) {
                     if (hasValues == false) {
                         builder.beginPositionEntry();
                         hasValues = true;
                     }
                     appender.run();
+                    input.consumeAfterRead();
+                } else {
+                    input.consumeUndefined();
                 }
-                cr.consume();
             }
             if (hasValues) {
                 builder.endPositionEntry();
@@ -705,35 +945,36 @@ final class ParquetColumnDecoding {
                 builder.appendNull();
             }
         }
+        input.rowCompleted();
     }
 
-    private static Block readListIntColumn(ColumnReader cr, int maxDef, int rows, BlockFactory blockFactory) {
+    private static Block readListIntColumn(ListColumnReader input, int maxDef, int rows, BlockFactory blockFactory) {
         try (var builder = blockFactory.newIntBlockBuilder(rows)) {
-            Runnable appender = () -> builder.appendInt(cr.getInteger());
+            Runnable appender = () -> builder.appendInt(input.reader().getInteger());
             for (int row = 0; row < rows; row++) {
-                readListRow(cr, maxDef, builder, appender);
+                readListRow(input, maxDef, builder, appender);
             }
             return builder.build();
         }
     }
 
-    private static Block readListLongColumn(ColumnReader cr, int maxDef, int rows, BlockFactory blockFactory, long multiplier) {
+    private static Block readListLongColumn(ListColumnReader input, int maxDef, int rows, BlockFactory blockFactory, long multiplier) {
         try (var builder = blockFactory.newLongBlockBuilder(rows)) {
             Runnable appender = multiplier == 1
-                ? () -> builder.appendLong(cr.getLong())
-                : () -> builder.appendLong(cr.getLong() * multiplier);
+                ? () -> builder.appendLong(input.reader().getLong())
+                : () -> builder.appendLong(input.reader().getLong() * multiplier);
             for (int row = 0; row < rows; row++) {
-                readListRow(cr, maxDef, builder, appender);
+                readListRow(input, maxDef, builder, appender);
             }
             return builder.build();
         }
     }
 
-    private static Block readListInt32AsLongColumn(ColumnReader cr, int maxDef, int rows, BlockFactory blockFactory) {
+    private static Block readListInt32AsLongColumn(ListColumnReader input, int maxDef, int rows, BlockFactory blockFactory) {
         try (var builder = blockFactory.newLongBlockBuilder(rows)) {
-            Runnable appender = () -> builder.appendLong(cr.getInteger());
+            Runnable appender = () -> builder.appendLong(input.reader().getInteger());
             for (int row = 0; row < rows; row++) {
-                readListRow(cr, maxDef, builder, appender);
+                readListRow(input, maxDef, builder, appender);
             }
             return builder.build();
         }
@@ -744,54 +985,54 @@ final class ParquetColumnDecoding {
      * Each element is sign-flip-encoded ({@code value ^ 2^63}) on the way in, mirroring the scalar read path and the
      * indexing path, so the always-decoding output edge produces the true unsigned value.
      */
-    private static Block readListUnsignedLongColumn(ColumnReader cr, int maxDef, int rows, BlockFactory blockFactory) {
+    private static Block readListUnsignedLongColumn(ListColumnReader input, int maxDef, int rows, BlockFactory blockFactory) {
         try (var builder = blockFactory.newLongBlockBuilder(rows)) {
-            Runnable appender = () -> builder.appendLong(encodeUnsignedLong(cr.getLong()));
+            Runnable appender = () -> builder.appendLong(encodeUnsignedLong(input.reader().getLong()));
             for (int row = 0; row < rows; row++) {
-                readListRow(cr, maxDef, builder, appender);
+                readListRow(input, maxDef, builder, appender);
             }
             return builder.build();
         }
     }
 
-    private static Block readListDoubleColumn(ColumnReader cr, int maxDef, int rows, BlockFactory blockFactory) {
+    private static Block readListDoubleColumn(ListColumnReader input, int maxDef, int rows, BlockFactory blockFactory) {
         try (var builder = blockFactory.newDoubleBlockBuilder(rows)) {
-            Runnable appender = () -> builder.appendDouble(cr.getDouble());
+            Runnable appender = () -> builder.appendDouble(input.reader().getDouble());
             for (int row = 0; row < rows; row++) {
-                readListRow(cr, maxDef, builder, appender);
+                readListRow(input, maxDef, builder, appender);
             }
             return builder.build();
         }
     }
 
-    private static Block readListBooleanColumn(ColumnReader cr, int maxDef, int rows, BlockFactory blockFactory) {
+    private static Block readListBooleanColumn(ListColumnReader input, int maxDef, int rows, BlockFactory blockFactory) {
         try (var builder = blockFactory.newBooleanBlockBuilder(rows)) {
-            Runnable appender = () -> builder.appendBoolean(cr.getBoolean());
+            Runnable appender = () -> builder.appendBoolean(input.reader().getBoolean());
             for (int row = 0; row < rows; row++) {
-                readListRow(cr, maxDef, builder, appender);
+                readListRow(input, maxDef, builder, appender);
             }
             return builder.build();
         }
     }
 
-    private static Block readListBytesRefColumn(ColumnReader cr, ColumnInfo info, int rows, BlockFactory blockFactory) {
+    private static Block readListBytesRefColumn(ListColumnReader input, ColumnInfo info, int rows, BlockFactory blockFactory) {
         int maxDef = info.maxDefLevel();
         // UUID-annotated bytes are raw 16-byte payloads: format them as hex (matching the scalar path)
         // rather than sanitizing, which would mangle valid UUID bytes into replacement characters.
         boolean isUuid = info.logicalType() instanceof LogicalTypeAnnotation.UUIDLogicalTypeAnnotation;
         try (var builder = blockFactory.newBytesRefBlockBuilder(rows)) {
             Runnable appender = isUuid
-                ? () -> builder.appendBytesRef(new BytesRef(formatUuid(cr.getBinary().getBytes())))
-                : () -> builder.appendBytesRef(Utf8Sanitizer.sanitize(new BytesRef(cr.getBinary().getBytes())));
+                ? () -> builder.appendBytesRef(new BytesRef(formatUuid(input.reader().getBinary().getBytes())))
+                : () -> builder.appendBytesRef(Utf8Sanitizer.sanitize(new BytesRef(input.reader().getBinary().getBytes())));
             for (int row = 0; row < rows; row++) {
-                readListRow(cr, maxDef, builder, appender);
+                readListRow(input, maxDef, builder, appender);
             }
             return builder.build();
         }
     }
 
     private static Block readListDatetimeColumn(
-        ColumnReader cr,
+        ListColumnReader input,
         ColumnInfo info,
         int rows,
         BlockFactory blockFactory,
@@ -804,13 +1045,13 @@ final class ParquetColumnDecoding {
         // failure follows castBlock's bulk semantics (whole position nulls, or propagates when strict), so
         // this arm gathers each row before appending.
         if (info.parquetType() == PrimitiveType.PrimitiveTypeName.BINARY) {
-            return readListStringDatetimeColumn(cr, info, rows, blockFactory, columnName, warnings, failedPositionSink);
+            return readListStringDatetimeColumn(input, info, rows, blockFactory, columnName, warnings, failedPositionSink);
         }
         try (var builder = blockFactory.newLongBlockBuilder(rows)) {
             int maxDef = info.maxDefLevel();
-            Runnable appender = () -> builder.appendLong(convertTimestampToMillis(cr.getLong(), info.logicalType()));
+            Runnable appender = () -> builder.appendLong(convertTimestampToMillis(input.reader().getLong(), info.logicalType()));
             for (int row = 0; row < rows; row++) {
-                readListRow(cr, maxDef, builder, appender);
+                readListRow(input, maxDef, builder, appender);
             }
             return builder.build();
         }
@@ -827,18 +1068,18 @@ final class ParquetColumnDecoding {
      * sink; {@code null} = strict, the failure propagates.
      */
     private static Block readListStringDatetimeColumn(
-        ColumnReader cr,
+        ListColumnReader input,
         ColumnInfo info,
         int rows,
         BlockFactory blockFactory,
         @Nullable String columnName,
         @Nullable SkipWarnings warnings
     ) {
-        return readListStringDatetimeColumn(cr, info, rows, blockFactory, columnName, warnings, null);
+        return readListStringDatetimeColumn(input, info, rows, blockFactory, columnName, warnings, null);
     }
 
     private static Block readListStringDatetimeColumn(
-        ColumnReader cr,
+        ListColumnReader input,
         ColumnInfo info,
         int rows,
         BlockFactory blockFactory,
@@ -852,13 +1093,14 @@ final class ParquetColumnDecoding {
         boolean skipRow = failedPositionSink != null;
         try (var builder = blockFactory.newLongBlockBuilder(rows)) {
             for (int row = 0; row < rows; row++) {
+                input.ensureRowStart();
                 int count = 0;
                 boolean failed = false;
                 boolean rowDone = false;
                 while (rowDone == false) {
-                    if (cr.getCurrentDefinitionLevel() >= maxDef) {
+                    if (input.currentDefinitionLevel() >= maxDef) {
                         // Always read the value so the data cursor advances even after a failure.
-                        String value = cr.getBinary().toStringUsingUTF8();
+                        String value = input.reader().getBinary().toStringUsingUTF8();
                         if (failed == false) {
                             if (count == parsed.length) {
                                 parsed = Arrays.copyOf(parsed, count * 2);
@@ -877,10 +1119,13 @@ final class ParquetColumnDecoding {
                                 failed = true;
                             }
                         }
+                        input.consumeAfterRead();
+                    } else {
+                        input.consumeUndefined();
                     }
-                    cr.consume();
-                    rowDone = cr.getCurrentRepetitionLevel() == 0;
+                    rowDone = input.hasRemaining() == false || input.currentRepetitionLevel() == 0;
                 }
+                input.rowCompleted();
                 if (failed || count == 0) {
                     // failed: bulk semantics null the whole position (already warned above).
                     // count == 0: null list, empty list, or all-null elements — a null position,
@@ -907,14 +1152,14 @@ final class ParquetColumnDecoding {
      * deduplicated warning header is emitted when any element was dropped. This uses a lazy {@code beginPositionEntry}
      * so an all-overflow defined list never triggers the empty-position assertion in {@link Block.Builder}.
      */
-    private static Block readListDateNanosColumn(ColumnReader cr, ColumnInfo info, int rows, BlockFactory blockFactory) {
+    private static Block readListDateNanosColumn(ListColumnReader input, ColumnInfo info, int rows, BlockFactory blockFactory) {
         int maxDef = info.maxDefLevel();
         LogicalTypeAnnotation logical = info.logicalType();
         boolean micros = isMicrosTimestamp(logical);
         boolean[] anyOverflow = { false };
         try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(rows)) {
             for (int row = 0; row < rows; row++) {
-                readDateNanosListRow(cr, maxDef, micros, logical, builder, anyOverflow);
+                readDateNanosListRow(input, maxDef, micros, logical, builder, anyOverflow);
             }
             if (anyOverflow[0]) {
                 warnTimestampOutOfRange(info);
@@ -929,21 +1174,30 @@ final class ParquetColumnDecoding {
      * entry is opened lazily on the first retained element, so a list with no retained elements is emitted as null.
      */
     private static void readDateNanosListRow(
-        ColumnReader cr,
+        ListColumnReader input,
         int maxDef,
         boolean micros,
         LogicalTypeAnnotation logical,
         LongBlock.Builder builder,
         boolean[] anyOverflow
     ) {
-        boolean open = cr.getCurrentDefinitionLevel() >= maxDef && appendDateNanosElement(cr, logical, micros, builder, false, anyOverflow);
-        cr.consume();
-        while (cr.getCurrentRepetitionLevel() > 0) {
-            if (cr.getCurrentDefinitionLevel() >= maxDef) {
-                open = appendDateNanosElement(cr, logical, micros, builder, open, anyOverflow);
-            }
-            cr.consume();
+        input.ensureRowStart();
+        boolean open = input.currentDefinitionLevel() >= maxDef
+            && appendDateNanosElement(input.reader(), logical, micros, builder, false, anyOverflow);
+        if (input.currentDefinitionLevel() >= maxDef) {
+            input.consumeAfterRead();
+        } else {
+            input.consumeUndefined();
         }
+        while (input.hasRemaining() && input.currentRepetitionLevel() > 0) {
+            if (input.currentDefinitionLevel() >= maxDef) {
+                open = appendDateNanosElement(input.reader(), logical, micros, builder, open, anyOverflow);
+                input.consumeAfterRead();
+            } else {
+                input.consumeUndefined();
+            }
+        }
+        input.rowCompleted();
         if (open) {
             builder.endPositionEntry();
         } else {

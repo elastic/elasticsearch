@@ -121,6 +121,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private final String fileLocation;
     /** See {@link #coercionWarnings()}. */
     private SkipWarnings coercionWarnings;
+    private final ParquetColumnDecoding.ListCorruptionHandler listCorruptionHandler;
     /**
      * Relay for this eager read's per-value coercion warnings, or {@code null} to fall back to
      * emitting directly via {@code HeaderWarning}. This iterator
@@ -276,11 +277,15 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
     private PrefetchedPageReadStore rowGroup;
     private ColumnReader[] columnReaders;
+    private ParquetColumnDecoding.ListColumnReader[] listColumnReaders;
     private PageColumnReader[] pageColumnReaders;
+    private boolean validateListExhaustion;
     /** Mirrors the sink installed on {@link #pageColumnReaders} by {@link #applyDropHelperSinks}; passed to list-column reads. */
     @Nullable
     private IntConsumer listColumnSink;
     private long rowsRemainingInGroup;
+    private long rowsBeforeCurrentGroup;
+    private long currentGroupRowsForBudget;
     private boolean exhausted = false;
     private int rowGroupOrdinal = -1;
     private int pageBatchIndexInRowGroup = 0;
@@ -417,6 +422,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     ) {
         this.errorPolicy = errorPolicy;
         this.warningSink = warningSink;
+        this.listCorruptionHandler = new ParquetColumnDecoding.ListCorruptionHandler(errorPolicy, fileLocation, warningSink);
         this.reader = reader;
         this.projectedSchema = projectedSchema;
         this.attributes = attributes;
@@ -1232,6 +1238,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         try {
             closeTwoPhaseState();
             if (rowGroup != null) {
+                rowsBeforeCurrentGroup += currentGroupRowsForBudget;
+                currentGroupRowsForBudget = 0;
                 rowGroup.close();
                 rowGroup = null;
             }
@@ -1317,8 +1325,12 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                         breaker
                     );
                     rowsRemainingInGroup = buildRowRanges != null ? buildRowRanges.selectedRowCount() : rowGroup.getRowCount();
+                    currentGroupRowsForBudget = rowsRemainingInGroup;
                     triggerNextRowGroupPrefetch();
                     initColumnReaders(buildRowRanges);
+                    if (rowsRemainingInGroup == 0 && validateListExhaustion) {
+                        validateListColumnsExhausted();
+                    }
                     return rowsRemainingInGroup > 0;
                 } catch (Exception e) {
                     releaseCurrentReservation();
@@ -1818,6 +1830,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         closePageColumnReaders();
         pageColumnReaders = new PageColumnReader[columnInfos.length];
         columnReaders = null;
+        listColumnReaders = null;
+        validateListExhaustion = false;
         for (int i = 0; i < columnInfos.length; i++) {
             if (columnInfos[i] != null
                 && columnInfos[i].isRowPosition() == false
@@ -1845,6 +1859,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         closePageColumnReaders();
         pageColumnReaders = new PageColumnReader[columnInfos.length];
         columnReaders = null;
+        listColumnReaders = null;
+        validateListExhaustion = false;
         for (int i = 0; i < columnInfos.length; i++) {
             if (columnInfos[i] != null
                 && columnInfos[i].isRowPosition() == false
@@ -1900,6 +1916,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         closePageColumnReaders();
         pageColumnReaders = new PageColumnReader[columnInfos.length];
         columnReaders = null;
+        listColumnReaders = null;
+        validateListExhaustion = currentRowRanges == null || currentRowRanges.isAll();
         for (int i = 0; i < columnInfos.length; i++) {
             if (columnInfos[i] != null && columnInfos[i].isRowPosition() == false && columnInfos[i].maxRepLevel() == 0) {
                 ColumnDescriptor desc = columnInfos[i].descriptor();
@@ -1927,9 +1945,19 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 createdBy
             );
             columnReaders = new ColumnReader[columnInfos.length];
+            listColumnReaders = new ParquetColumnDecoding.ListColumnReader[columnInfos.length];
             for (int i = 0; i < columnInfos.length; i++) {
                 if (columnInfos[i] != null && columnInfos[i].isRowPosition() == false && columnInfos[i].maxRepLevel() > 0) {
                     columnReaders[i] = store.getColumnReader(columnInfos[i].descriptor());
+                    listColumnReaders[i] = new ParquetColumnDecoding.ListColumnReader(
+                        columnReaders[i],
+                        columnInfos[i].maxDefLevel(),
+                        listCorruptionHandler,
+                        attributes.get(i).name(),
+                        fileLocation,
+                        rowGroupOrdinal,
+                        rowsBeforeCurrentGroup
+                    );
                 }
             }
         }
@@ -2153,6 +2181,14 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
             pageBatchIndexInRowGroup++;
             rowsRemainingInGroup -= rowsToRead;
+            if (rowsRemainingInGroup == 0 && validateListExhaustion) {
+                try {
+                    validateListColumnsExhausted();
+                } catch (RuntimeException e) {
+                    result.releaseBlocks();
+                    throw e;
+                }
+            }
             if (rowBudget != FormatReader.NO_LIMIT) {
                 // Decrement by emitted (post-drop) rows so that skip_row failures on the standard
                 // path don't eat from the LIMIT budget — the downstream sees only surviving rows.
@@ -2537,7 +2573,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     if (pageColumnReaders != null && pageColumnReaders[col] != null) {
                         pageColumnReaders[col].skipRows(rowsToRead);
                     } else if (columnReaders != null && columnReaders[col] != null) {
-                        ParquetColumnDecoding.skipValues(columnReaders[col], rowsToRead);
+                        if (listColumnReaders != null && listColumnReaders[col] != null) {
+                            ParquetColumnDecoding.skipListValues(listColumnReaders[col], rowsToRead);
+                        } else {
+                            ParquetColumnDecoding.skipValues(columnReaders[col], rowsToRead);
+                        }
                     }
                     blocks[col] = blockFactory.newConstantNullBlock(0);
                 } else if (positions == null) {
@@ -2668,7 +2708,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         }
         if (info.maxRepLevel() > 0) {
             return ParquetColumnDecoding.readListColumn(
-                cr,
+                listColumnReaders[colIndex],
                 info,
                 rowsToRead,
                 blockFactory,
@@ -2679,6 +2719,17 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         }
         ParquetColumnDecoding.skipValues(cr, rowsToRead);
         return blockFactory.newConstantNullBlock(rowsToRead);
+    }
+
+    private void validateListColumnsExhausted() {
+        if (listColumnReaders == null) {
+            return;
+        }
+        for (ParquetColumnDecoding.ListColumnReader listReader : listColumnReaders) {
+            if (listReader != null) {
+                listReader.validateExhausted();
+            }
+        }
     }
 
     /**

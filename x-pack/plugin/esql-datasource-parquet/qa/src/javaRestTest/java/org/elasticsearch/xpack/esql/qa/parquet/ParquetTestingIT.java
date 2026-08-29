@@ -179,7 +179,6 @@ public class ParquetTestingIT extends ESRestTestCase {
      */
     private static final Set<String> BAD_DATA_READS_OK = Set.of(
         "bad_data/ARROW-GH-43605.parquet",
-        "bad_data/ARROW-GH-45185.parquet",
         "bad_data/ARROW-RS-GH-6229-LEVELS.parquet"
     );
 
@@ -388,6 +387,10 @@ public class ParquetTestingIT extends ESRestTestCase {
             "Bad data file " + parquetFile + " should produce a 4xx error but got " + status + ": " + ex.getMessage(),
             status >= 400 && status < 500
         );
+        if ("bad_data/ARROW-GH-45185.parquet".equals(parquetFile)) {
+            assertTrue(ex.getMessage(), ex.getMessage().contains("ARROW-GH-45185.parquet"));
+            assertTrue(ex.getMessage(), ex.getMessage().contains("column [x]"));
+        }
     }
 
     /**

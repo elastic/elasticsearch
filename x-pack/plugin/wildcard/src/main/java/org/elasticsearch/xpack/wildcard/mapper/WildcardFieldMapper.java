@@ -17,6 +17,7 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -24,6 +25,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -35,6 +37,7 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
@@ -46,7 +49,15 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.EscfColumnBuilder;
+import org.elasticsearch.escf.EscfColumnBuilder.CollisionPolicy;
+import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.escf.EscfColumnTransforms;
+import org.elasticsearch.escf.LuceneBinaryColumn;
+import org.elasticsearch.escf.LuceneLongColumn;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -56,10 +67,12 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.StringBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer;
+import org.elasticsearch.index.mapper.BatchMappingContext;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BinaryDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
+import org.elasticsearch.index.mapper.CustomDocValuesField;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
@@ -78,6 +91,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomB
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.wildcard.WildcardDocValuesField;
@@ -1134,6 +1148,171 @@ public class WildcardFieldMapper extends FieldMapper {
     @Override
     public WildcardFieldType fieldType() {
         return (WildcardFieldType) super.fieldType();
+    }
+
+    @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        // wildcard is always indexed and always has doc values (IndexType.terms(true, true), no index/doc_values
+        // toggle), and arrayOrderBinaryDocValues is unconditionally true in strict columnar mode - see
+        // Builder#build. So mapColumnBatch only needs the array-order shape, unlike KeywordFieldMapper#mapColumnBatch.
+        return indexSettings.getMode().isStrictColumnar()
+            && storeIgnoredFieldsInBinaryDocValues
+            && copyTo().copyToFields().isEmpty()
+            && multiFieldsSupportColumnarParse(indexSettings);
+    }
+
+    // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.
+    private static EscfColumnBuilder mergeStringColumn() {
+        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        b.lockScalar(EscfColumnKind.STRING);
+        return b;
+    }
+
+    private static EscfColumnBuilder mergeLongColumn() {
+        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        b.lockScalar(EscfColumnKind.LONG);
+        return b;
+    }
+
+    /**
+     * The indexed ngram field wraps every value with {@link #TOKEN_START_OR_END_CHAR} markers (see
+     * {@link #addLineEndChars}). {@link #TOKEN_START_OR_END_CHAR} is {@code (char) 0}, a single UTF-8 byte, so the
+     * wrap can be done directly on the UTF-8 bytes without a String round-trip.
+     */
+    private static BytesRef addLineEndBytes(BytesRef value) {
+        byte[] bytes = new byte[value.length + 3];
+        bytes[0] = 0;
+        System.arraycopy(value.bytes, value.offset, bytes, 1, value.length);
+        bytes[value.length + 1] = 0;
+        bytes[value.length + 2] = 0;
+        return new BytesRef(bytes);
+    }
+
+    /**
+     * Maps a batch of documents for this field from the supplied ESCF source column. Unlike
+     * {@link KeywordFieldMapper#mapColumnBatch}, this only has one shape to build (see
+     * {@link #supportsColumnarParse}), and the indexed ngram field carries a different value (wrapped with
+     * line-end markers via {@link #addLineEndBytes}) than the doc-values field (the raw value), so a dedicated
+     * terms builder is always required - there is no zero-copy path.
+     *
+     * @throws UnsupportedOperationException when a document has more than one ignore_above-exceeded value
+     *         (causes {@link org.elasticsearch.index.mapper.ShardBatchMapper} to fall back to the row path)
+     */
+    @Override
+    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+        final int docCount = ctx.docCount();
+        final boolean emitFallback = storeIgnored;
+
+        // retainValues=false: each value is appended to the document blob (or the terms/fallback builders)
+        // before the cursor advances, so no value has to outlive the nextDoc() that moves past it.
+        final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
+        final EscfColumnBuilder terms = mergeStringColumn();
+        final EscfColumnBuilder binaryDvs = mergeStringColumn();
+        final EscfColumnBuilder dvCounts = mergeLongColumn();
+        final EscfColumnBuilder fallback = emitFallback ? mergeStringColumn() : null;
+        final EscfColumnBuilder fallbackCounts = emitFallback ? mergeLongColumn() : null;
+        final BytesRef nullValueBytes = nullValue == null ? null : new BytesRef(nullValue);
+
+        int currentDoc = -1;
+        boolean ignoredThisDoc = false;
+        // Buffer for the in-order binary doc-values blob. Each document's slots are appended as they are read
+        // and the finished blob is handed to binaryDvs.setString, which copies it out immediately, so the
+        // buffer is free to be rewritten.
+        final BytesRefBuilder docBlob = new BytesRefBuilder();
+        int pos = 0;
+        int docSlotCount = 0;
+        int lastValueLength = 0;
+        // True when the current doc has at least one non-null slot; gates binary dv blob emission.
+        boolean hasNonNull = false;
+
+        while (true) {
+            final int nextDoc = cursor.nextDoc();
+            if (nextDoc != currentDoc) {
+                // Flush the completed doc's elements. All-null docs write counts (matching
+                // ArrayOrderInlineNull.recordNull) but no blob; docs with only ignore_above-exceeded values
+                // write neither, matching the row path (createFields is never called for them).
+                if (docSlotCount > 0) {
+                    dvCounts.setLong(currentDoc, docSlotCount);
+                    if (hasNonNull) {
+                        final int length = docSlotCount == 1 ? lastValueLength : pos;
+                        binaryDvs.setString(currentDoc, docBlob.bytes(), pos - length, length);
+                    }
+                    pos = 0;
+                    docSlotCount = 0;
+                    hasNonNull = false;
+                }
+                if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
+                    break;
+                }
+                currentDoc = nextDoc;
+                ignoredThisDoc = false;
+            }
+
+            BytesRef value = cursor.value();
+
+            // Explicit JSON null: apply null_value substitution if configured; otherwise record a null
+            // doc-values slot (no ngram field, no ignore_above check), mirroring the row path's
+            // ArrayOrderInlineNull.recordNull for an absent value with no null_value.
+            if (value == null) {
+                if (nullValueBytes != null) {
+                    value = nullValueBytes;
+                    // Fall through to normal value processing below.
+                } else {
+                    pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, null);
+                    docSlotCount++;
+                    // hasNonNull stays false: null slots do not produce a binary dv blob.
+                    continue;
+                }
+            }
+
+            // ignore_above: record _ignored once per doc; the value records no slot at all, matching the row
+            // path where createFields (and therefore ArrayOrderInlineNull.recordValue) is never called for it.
+            if (ignoreAbove.isIgnored(value)) {
+                if (ignoredThisDoc == false) {
+                    ctx.addIgnoredFieldColumnar(currentDoc, fullPath());
+                    if (fallback != null) {
+                        fallback.setString(currentDoc, value);
+                        fallbackCounts.setLong(currentDoc, 1L);
+                    }
+                    ignoredThisDoc = true;
+                } else if (fallback != null) {
+                    // TODO: support multiple ignore_above-exceeded values per doc (multi-valued fallback
+                    // requires SeparateCount vint-length encoding across multiple values).
+                    throw new UnsupportedOperationException(
+                        "mapColumnBatch: more than one ignore_above-exceeded value in field ["
+                            + fullPath()
+                            + "] for doc ["
+                            + currentDoc
+                            + "]; multi-valued synthetic-source fallback is not yet supported"
+                    );
+                }
+                continue;
+            }
+
+            terms.setString(currentDoc, addLineEndBytes(value));
+            pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, value);
+            lastValueLength = value.length;
+            docSlotCount++;
+            hasNonNull = true;
+        }
+
+        // Attach output columns. Terms, binary-dv blob, and counts are each emitted independently.
+        // All-null docs emit counts but no binary blob, so binaryDvs and dvCounts are decoupled.
+        if (terms.isEmpty() == false) {
+            ctx.addColumn(LuceneBinaryColumn.of(terms.finish(docCount), fieldType().name(), NGRAM_FIELD_TYPE));
+        }
+        if (binaryDvs.isEmpty() == false) {
+            ctx.addColumn(LuceneBinaryColumn.of(binaryDvs.finish(docCount), fieldType().name(), CustomDocValuesField.TYPE));
+        }
+        if (dvCounts.isEmpty() == false) {
+            ctx.addColumn(LuceneLongColumn.counts(dvCounts.finish(docCount), fieldType().name()));
+        }
+        if (emitFallback && fallback != null && fallback.isEmpty() == false) {
+            ctx.addColumn(LuceneBinaryColumn.of(fallback.finish(docCount), originalName(), CustomDocValuesField.TYPE));
+            ctx.addColumn(LuceneLongColumn.counts(fallbackCounts.finish(docCount), originalName()));
+        }
+
+        mapColumnBatchToMultiFields(ctx, source);
     }
 
     @Override

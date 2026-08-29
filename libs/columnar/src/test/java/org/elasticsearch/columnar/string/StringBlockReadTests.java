@@ -86,6 +86,7 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
         }
         withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
             assertTrue("expected a dictionary", reader.hasDictionary());
+            final DictionaryStringColumnReader dictionary = (DictionaryStringColumnReader) reader;
             final int[] docs = new int[docValues.length];
             for (int d = 0; d < docs.length; d++) {
                 docs[d] = d;
@@ -107,9 +108,9 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
                     final int ordinal = ordinals[i];
                     if (ordinal >= dictionarySize) {
                         final long address = reader.firstValueAddress(ranks[i]);
-                        assertEquals("escaped [" + value + "]", value, reader.resolveEscape(address, scratch).utf8ToString());
+                        assertEquals("escaped [" + value + "]", value, dictionary.resolveEscape(address, scratch).utf8ToString());
                     } else {
-                        assertEquals("ordinal [" + ordinal + "]", value, reader.termAt(ordinal, new BytesRef()).utf8ToString());
+                        assertEquals("ordinal [" + ordinal + "]", value, dictionary.termAt(ordinal, new BytesRef()).utf8ToString());
                         final Integer seen = byTerm.putIfAbsent(value, ordinal);
                         assertTrue("term [" + value + "] took two ordinals", seen == null || seen == ordinal);
                     }

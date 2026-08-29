@@ -101,6 +101,8 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
      * map, or a value that escaped this column's dictionary, falls back to the bytes.
      */
     public StringColumnValues directValues(int[] ordinalMap) {
+        // A map is only ever built from a dictionary, so that is the only column with ordinals to carry over.
+        final DictionaryStringColumnReader dictionary = reader instanceof DictionaryStringColumnReader typed ? typed : null;
         return new StringColumnValues() {
             private long first;
             private long count;
@@ -119,10 +121,10 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
 
             @Override
             public int ordinal() throws IOException {
-                if (ordinalMap == null) {
+                if (ordinalMap == null || dictionary == null) {
                     return -1;
                 }
-                final int ordinal = reader.ordinalAt(at);
+                final int ordinal = dictionary.ordinalAt(at);
                 if (ordinal >= ordinalMap.length) {
                     // Escaped this column's dictionary, so only its bytes say what it is.
                     return -1;

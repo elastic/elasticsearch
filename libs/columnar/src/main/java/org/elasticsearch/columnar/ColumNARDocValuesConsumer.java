@@ -35,6 +35,7 @@ import org.elasticsearch.columnar.numeric.NumericPipelineSelector;
 import org.elasticsearch.columnar.numeric.SkipIndexCodec;
 import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
+import org.elasticsearch.columnar.string.DictionaryStringColumnReader;
 import org.elasticsearch.columnar.string.StringColumnMetadata;
 import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.columnar.string.StringColumnValues;
@@ -305,11 +306,12 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 // with; it must not decide the shape of the merged column.
                 continue;
             }
-            if (reader.hasDictionary() == false || reader.escapeCount() > 0) {
+            if ((reader instanceof DictionaryStringColumnReader) == false || reader.escapeCount() > 0) {
                 return null;
             }
-            for (int ordinal = 0; ordinal < reader.dictionarySize(); ordinal++) {
-                reader.termAt(ordinal, term);
+            final DictionaryStringColumnReader dictionary = (DictionaryStringColumnReader) reader;
+            for (int ordinal = 0; ordinal < dictionary.dictionarySize(); ordinal++) {
+                dictionary.termAt(ordinal, term);
                 if (union.add(BytesRef.deepCopyOf(term))) {
                     unionBytes += term.length;
                     if (unionBytes > dictionaryPolicy.maxBytes()) {
@@ -440,13 +442,14 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             return null;
         }
         final StringColumnReader reader = ((ColumnarStringBinaryDocValues) values).reader();
-        if (reader.hasDictionary() == false) {
+        if ((reader instanceof DictionaryStringColumnReader) == false) {
             return null;
         }
-        final int[] map = new int[reader.dictionarySize()];
+        final DictionaryStringColumnReader dictionary = (DictionaryStringColumnReader) reader;
+        final int[] map = new int[dictionary.dictionarySize()];
         final BytesRef term = new BytesRef();
         for (int ordinal = 0; ordinal < map.length; ordinal++) {
-            reader.termAt(ordinal, term);
+            dictionary.termAt(ordinal, term);
             final int id = vocabulary.terms().find(term);
             if (id < 0 || vocabulary.ordinalOfId()[id] == Vocabulary.DROPPED) {
                 // The merged vocabulary was built from these dictionaries, so every term should be in it.

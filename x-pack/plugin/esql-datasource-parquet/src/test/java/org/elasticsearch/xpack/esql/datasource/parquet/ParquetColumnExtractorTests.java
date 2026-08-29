@@ -484,6 +484,21 @@ public class ParquetColumnExtractorTests extends ESTestCase {
         assertThat(warnings, hasItem(containsString("discarded [1] orphan values")));
     }
 
+    public void testExtractMalformedListDoesNotRechargeRecoveryAcrossCalls() throws IOException {
+        byte[] data = ParquetFormatReaderTests.ARROW_GH_45185;
+        StorageObject storageObject = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        ErrorPolicy oneError = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 1, 0.0, false);
+        try (
+            ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, reader, loadFooter(storageObject), oneError);
+            Block first = extractor.extract("x", new long[] { 1 }, blockFactory);
+            Block second = extractor.extract("x", new long[] { 4 }, blockFactory)
+        ) {
+            assertEquals(2, ((IntBlock) first).getValueCount(0));
+            assertEquals(1, ((IntBlock) second).getValueCount(0));
+        }
+    }
+
     public void testExtractMalformedListFailsStrictlyDuringSparseSkip() throws IOException {
         byte[] data = ParquetFormatReaderTests.ARROW_GH_45185;
         StorageObject storageObject = createStorageObject(data);

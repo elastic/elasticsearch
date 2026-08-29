@@ -1954,6 +1954,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     listColumnReaders[i] = new ParquetColumnDecoding.ListColumnReader(
                         columnReaders[i],
                         columnInfos[i].maxDefLevel(),
+                        columnInfos[i].maxRepLevel(),
                         listCorruptionHandler,
                         attributes.get(i).name(),
                         fileLocation,

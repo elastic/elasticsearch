@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.logging.log4j.Level;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnReader;
 import org.apache.parquet.io.api.Binary;
@@ -22,10 +23,13 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
@@ -171,6 +175,7 @@ public class ParquetListCorruptionTests extends ESTestCase {
         ParquetColumnDecoding.ListColumnReader input = new ParquetColumnDecoding.ListColumnReader(
             reader,
             info.maxDefLevel(),
+            info.maxRepLevel(),
             handler,
             "x",
             file,
@@ -183,6 +188,80 @@ public class ParquetListCorruptionTests extends ESTestCase {
         }
         input.validateExhausted();
         assertThat(warnings.getLast(), containsString("discarded [1] orphan values"));
+    }
+
+    public void testRepeatedRecoveryEventIsChargedOnce() {
+        ErrorPolicy policy = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 1, 0.0, false);
+        List<String> warnings = new ArrayList<>();
+        ParquetColumnDecoding.ListCorruptionHandler handler = new ParquetColumnDecoding.ListCorruptionHandler(
+            policy,
+            "memory://malformed-list.parquet",
+            warnings::add,
+            true
+        );
+
+        handler.recoveredOrphan("x", 0, 1, 1, 1);
+        handler.recoveredOrphan("x", 0, 1, 1, 1);
+        assertEquals(1, warnings.stream().filter(warning -> warning.contains("started row [1]")).count());
+
+        ParsingException e = expectThrows(ParsingException.class, () -> handler.recoveredOrphan("x", 0, 2, 2, 1));
+        assertThat(e.getMessage(), containsString("[2] structural errors"));
+    }
+
+    public void testRecoveryLoggingFollowsErrorPolicy() {
+        try (var mockLog = MockLog.capture(ParquetColumnDecoding.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "recovered list corruption",
+                    ParquetColumnDecoding.class.getName(),
+                    Level.INFO,
+                    "*started row [1] at a non-zero repetition level; discarded [1] orphan values"
+                )
+            );
+            ErrorPolicy policy = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 1, 0.0, true);
+            ParquetColumnDecoding.ListCorruptionHandler handler = new ParquetColumnDecoding.ListCorruptionHandler(
+                policy,
+                "memory://malformed-list.parquet",
+                new ArrayList<String>()::add
+            );
+
+            handler.recoveredOrphan("x", 0, 1, 1, 1);
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    public void testOutOfRangeDefinitionLevelsFailInEveryMode() {
+        ColumnInfo info = intListInfo();
+        for (ErrorPolicy policy : policies()) {
+            for (int invalidLevel : new int[] { -1, info.maxDefLevel() + 1 }) {
+                FakeColumnReader reader = new FakeColumnReader(new int[] { 0 }, new int[] { invalidLevel }, new int[] { 1 });
+                ParquetColumnDecoding.ListColumnReader input = input(reader, info, policy, new ArrayList<>());
+                IllegalArgumentException e = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> ParquetColumnDecoding.readListColumn(input, info, 1, blockFactory)
+                );
+                assertThat(e.getMessage(), containsString("definition level [" + invalidLevel + "] is outside"));
+            }
+        }
+    }
+
+    public void testOutOfRangeRepetitionLevelsFailInEveryMode() {
+        ColumnInfo info = intListInfo();
+        for (ErrorPolicy policy : policies()) {
+            for (int invalidLevel : new int[] { -1, info.maxRepLevel() + 1 }) {
+                FakeColumnReader reader = new FakeColumnReader(
+                    new int[] { invalidLevel },
+                    new int[] { info.maxDefLevel() },
+                    new int[] { 1 }
+                );
+                ParquetColumnDecoding.ListColumnReader input = input(reader, info, policy, new ArrayList<>());
+                IllegalArgumentException e = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> ParquetColumnDecoding.readListColumn(input, info, 1, blockFactory)
+                );
+                assertThat(e.getMessage(), containsString("repetition level [" + invalidLevel + "] is outside"));
+            }
+        }
     }
 
     private static ColumnInfo intListInfo() {
@@ -202,7 +281,7 @@ public class ParquetListCorruptionTests extends ESTestCase {
     ) {
         String file = "memory://malformed-list.parquet";
         ParquetColumnDecoding.ListCorruptionHandler handler = new ParquetColumnDecoding.ListCorruptionHandler(policy, file, warnings::add);
-        return new ParquetColumnDecoding.ListColumnReader(reader, info.maxDefLevel(), handler, "x", file, 0, 0);
+        return new ParquetColumnDecoding.ListColumnReader(reader, info.maxDefLevel(), info.maxRepLevel(), handler, "x", file, 0, 0);
     }
 
     /**
@@ -211,6 +290,7 @@ public class ParquetListCorruptionTests extends ESTestCase {
      */
     private static final class FakeColumnReader implements ColumnReader {
         private final int[] repetitionLevels;
+        private final int[] definitionLevels;
         private final Object[] values;
         private int levelIndex;
         private int physicalIndex;
@@ -218,6 +298,10 @@ public class ParquetListCorruptionTests extends ESTestCase {
 
         FakeColumnReader(int[] repetitionLevels, int[] values) {
             this(repetitionLevels, box(values));
+        }
+
+        FakeColumnReader(int[] repetitionLevels, int[] definitionLevels, int[] values) {
+            this(repetitionLevels, definitionLevels, box(values));
         }
 
         FakeColumnReader(int[] repetitionLevels, long[] values) {
@@ -229,9 +313,15 @@ public class ParquetListCorruptionTests extends ESTestCase {
         }
 
         private FakeColumnReader(int[] repetitionLevels, Object[] values) {
+            this(repetitionLevels, defaultDefinitionLevels(repetitionLevels.length), values);
+        }
+
+        private FakeColumnReader(int[] repetitionLevels, int[] definitionLevels, Object[] values) {
             this.repetitionLevels = repetitionLevels;
+            this.definitionLevels = definitionLevels;
             this.values = values;
             assert repetitionLevels.length == values.length;
+            assert definitionLevels.length == values.length;
         }
 
         @Override
@@ -260,7 +350,7 @@ public class ParquetListCorruptionTests extends ESTestCase {
 
         @Override
         public int getCurrentDefinitionLevel() {
-            return 3;
+            return definitionLevels[levelIndex];
         }
 
         @Override
@@ -328,6 +418,12 @@ public class ParquetListCorruptionTests extends ESTestCase {
                 boxed[i] = values[i];
             }
             return boxed;
+        }
+
+        private static int[] defaultDefinitionLevels(int length) {
+            int[] levels = new int[length];
+            Arrays.fill(levels, 3);
+            return levels;
         }
     }
 }

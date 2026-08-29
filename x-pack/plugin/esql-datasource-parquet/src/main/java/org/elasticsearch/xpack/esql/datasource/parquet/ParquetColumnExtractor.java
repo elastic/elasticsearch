@@ -172,7 +172,8 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         this.listCorruptionHandler = new ParquetColumnDecoding.ListCorruptionHandler(
             errorPolicy,
             storageObject.path().toString(),
-            warningSink
+            warningSink,
+            true
         );
         List<BlockMetaData> blocks = ownedFooter.getBlocks();
         this.rowGroupOffsets = new long[blocks.size() + 1];
@@ -816,11 +817,12 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         ParquetColumnDecoding.ListColumnReader listReader = new ParquetColumnDecoding.ListColumnReader(
             cr,
             info.maxDefLevel(),
+            info.maxRepLevel(),
             listCorruptionHandler,
             leafPath,
             storageObject.path().toString(),
             bucket.rowGroupIndex,
-            0
+            rowGroupOffsets[bucket.rowGroupIndex]
         );
 
         int unique = bucket.uniqueCount;

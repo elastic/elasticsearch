@@ -3202,6 +3202,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                                     listColumnReaders[i] = new ParquetColumnDecoding.ListColumnReader(
                                         columnReaders[i],
                                         columnInfos[i].maxDefLevel(),
+                                        columnInfos[i].maxRepLevel(),
                                         listCorruptionHandler,
                                         attributes.get(i).name(),
                                         fileLocation,

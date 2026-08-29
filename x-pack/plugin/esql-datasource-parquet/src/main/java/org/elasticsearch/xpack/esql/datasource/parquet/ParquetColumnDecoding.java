@@ -26,6 +26,9 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Utf8Sanitizer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
@@ -41,6 +44,8 @@ import java.nio.ByteOrder;
 import java.time.DateTimeException;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 
@@ -51,6 +56,8 @@ import java.util.function.IntConsumer;
  * fixes in one decode path are automatically reflected in the other.
  */
 final class ParquetColumnDecoding {
+
+    private static final Logger logger = LogManager.getLogger(ParquetColumnDecoding.class);
 
     private ParquetColumnDecoding() {}
 
@@ -569,11 +576,24 @@ final class ParquetColumnDecoding {
         private final ErrorPolicy errorPolicy;
         private final String fileLocation;
         private final SkipWarnings warnings;
+        @Nullable
+        private final Set<RecoveryKey> recoveredEvents;
         private long errorCount;
+        private long rowsSeen;
 
         ListCorruptionHandler(ErrorPolicy errorPolicy, String fileLocation, @Nullable Consumer<String> warningSink) {
+            this(errorPolicy, fileLocation, warningSink, false);
+        }
+
+        ListCorruptionHandler(
+            ErrorPolicy errorPolicy,
+            String fileLocation,
+            @Nullable Consumer<String> warningSink,
+            boolean deduplicateRecoveries
+        ) {
             this.errorPolicy = errorPolicy;
             this.fileLocation = fileLocation;
+            this.recoveredEvents = deduplicateRecoveries ? new HashSet<>() : null;
             this.warnings = SkipWarnings.of(
                 errorPolicy,
                 "Parquet file [" + fileLocation + "] has malformed LIST repetition levels; invalid fragments were skipped",
@@ -586,44 +606,49 @@ final class ParquetColumnDecoding {
         }
 
         void recoveredOrphan(String columnName, int rowGroupOrdinal, long rowOrdinal, long rowsSeen, long discardedValues) {
+            if (recoveredEvents != null && recoveredEvents.add(new RecoveryKey(columnName, rowGroupOrdinal, rowOrdinal)) == false) {
+                return;
+            }
             errorCount++;
-            warnings.add(
-                "Parquet column ["
-                    + columnName
-                    + "] in file ["
-                    + fileLocation
-                    + "] row group ["
-                    + (rowGroupOrdinal + 1)
-                    + "] started row ["
-                    + rowOrdinal
-                    + "] at a non-zero repetition level; discarded ["
-                    + discardedValues
-                    + "] orphan values"
-            );
+            String detail = "Parquet column ["
+                + columnName
+                + "] in file ["
+                + fileLocation
+                + "] row group ["
+                + (rowGroupOrdinal + 1)
+                + "] started row ["
+                + rowOrdinal
+                + "] at a non-zero repetition level; discarded ["
+                + discardedValues
+                + "] orphan values";
+            warnings.add(detail);
             // Structural corruption is discovered while streaming. As with the text readers, a
             // ratio can trip before later good rows have a chance to dilute it.
-            rowsSeen = Math.max(1L, rowsSeen);
-            if (errorPolicy.isBudgetExceeded(errorCount, rowsSeen)) {
+            this.rowsSeen = Math.max(this.rowsSeen, Math.max(1L, rowsSeen));
+            if (errorPolicy.isBudgetExceeded(errorCount, this.rowsSeen)) {
                 warnings.add(
                     "Parquet error budget exceeded in file ["
                         + fileLocation
                         + "]: ["
                         + errorCount
                         + "] structural errors by row ["
-                        + rowsSeen
+                        + this.rowsSeen
                         + "]"
                 );
                 throw new ParsingException(
                     Source.EMPTY,
                     "Error budget exceeded: [{}] structural errors by row [{}] in [{}]; " + "maximum allowed is [{}] errors or [{}] ratio",
                     errorCount,
-                    rowsSeen,
+                    this.rowsSeen,
                     fileLocation,
                     errorPolicy.maxErrors(),
                     errorPolicy.maxErrorRatio()
                 );
             }
+            logger.log(errorPolicy.logErrors() ? Level.INFO : Level.DEBUG, detail);
         }
+
+        private record RecoveryKey(String columnName, int rowGroupOrdinal, long rowOrdinal) {}
     }
 
     /**
@@ -634,6 +659,7 @@ final class ParquetColumnDecoding {
     static final class ListColumnReader {
         private final ColumnReader reader;
         private final int maxDefLevel;
+        private final int maxRepLevel;
         private final ListCorruptionHandler corruptionHandler;
         private final String columnName;
         private final String fileLocation;
@@ -646,6 +672,7 @@ final class ParquetColumnDecoding {
         ListColumnReader(
             ColumnReader reader,
             int maxDefLevel,
+            int maxRepLevel,
             ListCorruptionHandler corruptionHandler,
             String columnName,
             String fileLocation,
@@ -654,6 +681,7 @@ final class ParquetColumnDecoding {
         ) {
             this.reader = reader;
             this.maxDefLevel = maxDefLevel;
+            this.maxRepLevel = maxRepLevel;
             this.corruptionHandler = corruptionHandler;
             this.columnName = columnName;
             this.fileLocation = fileLocation;
@@ -672,17 +700,24 @@ final class ParquetColumnDecoding {
 
         int currentDefinitionLevel() {
             ensureRemaining("read a definition level");
-            return reader.getCurrentDefinitionLevel();
+            int definitionLevel = reader.getCurrentDefinitionLevel();
+            if (definitionLevel < 0 || definitionLevel > maxDefLevel) {
+                throw corruption("definition level [" + definitionLevel + "] is outside [0, " + maxDefLevel + "]");
+            }
+            return definitionLevel;
         }
 
         int currentRepetitionLevel() {
             ensureRemaining("read a repetition level");
-            return reader.getCurrentRepetitionLevel();
+            int repetitionLevel = reader.getCurrentRepetitionLevel();
+            if (repetitionLevel < 0 || repetitionLevel > maxRepLevel) {
+                throw corruption("repetition level [" + repetitionLevel + "] is outside [0, " + maxRepLevel + "]");
+            }
+            return repetitionLevel;
         }
 
         void ensureRowStart() {
-            ensureRemaining("start footer row [" + (rowCount + 1) + "]");
-            int repetitionLevel = reader.getCurrentRepetitionLevel();
+            int repetitionLevel = currentRepetitionLevel();
             if (repetitionLevel == 0) {
                 return;
             }
@@ -694,7 +729,7 @@ final class ParquetColumnDecoding {
             do {
                 skipCurrentValue();
                 discarded++;
-            } while (hasRemaining() && reader.getCurrentRepetitionLevel() > 0);
+            } while (hasRemaining() && currentRepetitionLevel() > 0);
 
             if (hasRemaining() == false) {
                 throw corruption(
@@ -930,7 +965,7 @@ final class ParquetColumnDecoding {
         ListCorruptionHandler handler = new ListCorruptionHandler(ErrorPolicy.STRICT, "<unknown>", null);
         String column = columnName != null ? columnName : String.join(".", info.descriptor().getPath());
         return readListColumn(
-            new ListColumnReader(cr, info.maxDefLevel(), handler, column, "<unknown>", 0, 0),
+            new ListColumnReader(cr, info.maxDefLevel(), info.maxRepLevel(), handler, column, "<unknown>", 0, 0),
             info,
             rows,
             blockFactory,

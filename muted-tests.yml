@@ -85,6 +85,9 @@ tests:
 - class: org.elasticsearch.upgrades.MlAssignmentPlannerUpgradeIT
   method: testMlAssignmentPlannerUpgrade {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/158100
+- class: org.elasticsearch.upgrades.ApiKeyBackwardsCompatibilityIT
+  method: testCreatingAndUpdatingApiKeys {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/158101
 
 # Examples:
 #

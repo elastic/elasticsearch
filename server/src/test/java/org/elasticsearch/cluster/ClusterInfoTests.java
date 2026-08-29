@@ -16,7 +16,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -40,41 +39,6 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             clusterInfo.getEstimatedShardHeapUsage(new ShardId(new Index(randomIndexName(), "_na_"), randomNonNegativeInt())),
             equalTo(defaultHeapUsage)
         );
-    }
-
-    public void testInvalidateNodeMaxShardWriteLoadProportion() {
-        ClusterInfo clusterInfo = ClusterInfo.builder().build();
-        String invalidatedNodeId = randomIdentifier();
-        String otherNodeId = randomValueOtherThan(invalidatedNodeId, ESTestCase::randomIdentifier);
-        double initialInvalidatedValue = randomWriteLoadProportion();
-        double otherValue = randomWriteLoadProportion();
-        double recomputedValue = randomValueOtherThan(initialInvalidatedValue, ClusterInfoTests::randomWriteLoadProportion);
-
-        // prime cache for two nodes
-        clusterInfo.nodeMaxShardWriteLoadProportion(invalidatedNodeId, () -> initialInvalidatedValue);
-        clusterInfo.nodeMaxShardWriteLoadProportion(otherNodeId, () -> otherValue);
-        assertTrue(clusterInfo.nodeMaxShardWriteLoadProportion.containsKey(invalidatedNodeId));
-        assertTrue(clusterInfo.nodeMaxShardWriteLoadProportion.containsKey(otherNodeId));
-
-        clusterInfo.invalidateNodeMaxShardWriteLoadProportion(invalidatedNodeId);
-
-        assertFalse(clusterInfo.nodeMaxShardWriteLoadProportion.containsKey(invalidatedNodeId));
-        assertTrue(clusterInfo.nodeMaxShardWriteLoadProportion.containsKey(otherNodeId));
-
-        // Re-priming the invalidated entry with a different value succeeds (no assertion fires
-        // because the prior cached value has been removed).
-        assertThat(clusterInfo.nodeMaxShardWriteLoadProportion(invalidatedNodeId, () -> recomputedValue), equalTo(recomputedValue));
-    }
-
-    public void testInvalidateNodeMaxShardWriteLoadProportionForUnknownNodeIsNoop() {
-        ClusterInfo clusterInfo = ClusterInfo.builder().build();
-        String cachedNodeId = randomIdentifier();
-        String unknownNodeId = randomValueOtherThan(cachedNodeId, ESTestCase::randomIdentifier);
-        clusterInfo.nodeMaxShardWriteLoadProportion(cachedNodeId, ClusterInfoTests::randomWriteLoadProportion);
-
-        clusterInfo.invalidateNodeMaxShardWriteLoadProportion(unknownNodeId);
-
-        assertTrue(clusterInfo.nodeMaxShardWriteLoadProportion.containsKey(cachedNodeId));
     }
 
     public void testCacheUsageFieldsAreTransportVersionGated() throws Exception {

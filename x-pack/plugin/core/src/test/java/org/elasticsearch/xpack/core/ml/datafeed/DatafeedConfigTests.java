@@ -1097,8 +1097,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
 
     /**
      * Verifies that when the CPS feature flag is enabled, building a config with project_routing succeeds.
-     * Feature flags cannot be disabled in unit tests, so the forbidden case (project_routing when CPS is
-     * disabled) is validated at runtime and in integration tests.
+     * Persisted configs with project_routing also build when the flag is disabled; CPS fields are inert at runtime.
      */
     public void testProjectRoutingRespectsFeatureFlag() {
         assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
@@ -1241,8 +1240,8 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         assertThat(DatafeedConfig.isCPSAllowed(decider, true), equalTo(true));
     }
 
-    /** Mirrors the put/update datafeed guard: {@code project_routing} is rejected when cluster CPS is on but the ML flag is off. */
-    public void testIsCPSAllowed_rejectsProjectRoutingGapUsedByDatafeedManager() {
+    /** Mirrors the combined CPS gate used at runtime: {@code project_routing} is inert when cluster CPS is on but the ML flag is off. */
+    public void testIsCPSAllowedShouldLeaveProjectRoutingInertWhenMlFlagOff() {
         org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
             new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
                 Settings.builder().put("serverless.cross_project.enabled", true).build()
@@ -1350,6 +1349,67 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         // local-only datafeed to cross-project mode at runtime.
         assertThat(result, sameInstance(datafeed));
         assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(false));
+    }
+
+    public void testMlCpsFeatureDisabledNormalizesPersistedCpsStateForExecution() {
+        IndicesOptions cpsEnabledOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN)
+            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+            .build();
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
+        builder.setIndices(List.of("index1"));
+        builder.setIndicesOptions(cpsEnabledOptions);
+        builder.setProjectRouting("_alias:prod-*");
+        DatafeedConfig persisted = builder.build();
+
+        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
+            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
+                Settings.builder().put("serverless.cross_project.enabled", true).build()
+            );
+
+        DatafeedConfig effective = DatafeedConfig.withCrossProjectModeIfEnabled(persisted, decider, true, false);
+
+        assertThat(effective, not(sameInstance(persisted)));
+        assertThat(effective.getProjectRouting(), nullValue());
+        assertThat(effective.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(false));
+        assertThat(persisted.getProjectRouting(), equalTo("_alias:prod-*"));
+        assertThat(persisted.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(true));
+    }
+
+    public void testPersistedCpsConfigBuildsWhenMlFlagDisabled() {
+        assumeFalse("Run with -Des.ml_cross_project_feature_flag_enabled=false", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        PersistedCloudCredential cred = randomPersistedCloudCredential();
+        IndicesOptions cpsOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN)
+            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+            .build();
+        DatafeedConfig config = new DatafeedConfig.Builder("flag-off-persisted", "test-job").setIndices(List.of("logs-*"))
+            .setProjectRouting("_alias:prod-*")
+            .setIndicesOptions(cpsOptions)
+            .setCloudInternalCredential(cred)
+            .build();
+
+        assertThat(config.getProjectRouting(), equalTo("_alias:prod-*"));
+        assertThat(config.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(true));
+        assertThat(config.getCloudInternalCredential(), equalTo(cred));
+    }
+
+    public void testMlCpsFeatureReenabledRestoresRoutingFromPersistedConfig() {
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
+        builder.setIndices(List.of("index1"));
+        builder.setProjectRouting("_alias:linked_project");
+        DatafeedConfig persisted = builder.build();
+
+        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
+            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
+                Settings.builder().put("serverless.cross_project.enabled", true).build()
+            );
+
+        DatafeedConfig flagOffEffective = DatafeedConfig.withCrossProjectModeIfEnabled(persisted, decider, true, false);
+        assertThat(flagOffEffective.getProjectRouting(), nullValue());
+
+        DatafeedConfig flagOnEffective = DatafeedConfig.withCrossProjectModeIfEnabled(persisted, decider, true, true);
+        assertThat(flagOnEffective.getProjectRouting(), equalTo("_alias:linked_project"));
+        assertThat(flagOnEffective.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(true));
     }
 
     public void testMlCpsFeatureAndClusterCpsEnabledWithCredentialShouldPromoteIndicesOptions() {
@@ -1543,12 +1603,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
               "job_id": "test-job",
               "indices": ["remote-1:src"]
             }""");
-        assertNull(
-            datafeedConfig.validateNoCrossProjectWhenCrossProjectIsDisabled(
-                new CrossProjectModeDecider(Settings.EMPTY),
-                (org.elasticsearch.action.ActionRequestValidationException) null
-            )
-        );
+        assertNull(datafeedConfig.validateNoCrossProjectWhenCrossProjectIsDisabled(new CrossProjectModeDecider(Settings.EMPTY), null));
     }
 
     public void testCloudInternalApiKeyPersistedForInternalStorage() throws IOException {

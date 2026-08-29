@@ -512,7 +512,7 @@ public abstract class DenseVectorQuery extends Query {
             public float score() throws IOException {
                 BytesRef ref = values.binaryValue();
                 if (elementType == ElementType.BFLOAT16) {
-                    VectorEncoderDecoder.decodeBFloat16DenseVector(ref, decoded);
+                    VectorEncoderDecoder.decodeBFloat16DenseVector(indexVersion, ref, decoded);
                 } else {
                     VectorEncoderDecoder.decodeDenseVector(indexVersion, ref, decoded);
                 }

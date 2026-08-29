@@ -91,6 +91,25 @@ book_no:keyword | title:text | publisher:text | title_dense_vector:dense_vector 
 ;
 
 
+// Each chained DENSE_VECTOR clause is an independent command with its own WITH options (per-field endpoints).
+dense_vector command chained clauses
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+FROM books
+| WHERE book_no IN ("7480", "8605")
+| DENSE_VECTOR title WITH { "inference_id" : "test_dense_inference" }
+| DENSE_VECTOR publisher WITH { "inference_id" : "test_dense_inference" }
+| SORT book_no
+| KEEP book_no, title, publisher, title_dense_vector, publisher_dense_vector
+;
+
+book_no:keyword | title:text | publisher:text | title_dense_vector:dense_vector | publisher_dense_vector:dense_vector
+7480            | The Hobbit | Mariner Books  | [50.0, 49.0, 48.0]              | [45.0, 49.0, 53.0]
+8605            | Dead Souls | Vintage        | [45.0, 49.0, 53.0]              | [50.0, 49.0, 50.0]
+;
+
+
 dense_vector command on a single explicitly-named field over an index
 required_capability: dense_vector_command
 required_capability: dense_vector_field_type_released

@@ -15,6 +15,11 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessageResponse;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCallResponse;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsageResponse;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 
@@ -134,7 +139,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
     @Override
     protected void next(Deque<ServerSentEvent> item) throws Exception {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
-        var results = new ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk>(item.size());
+        var results = new ArrayDeque<ChatCompletionChunkResponse>(item.size());
 
         for (var event : item) {
             if (ERROR_EVENT_TYPE.equals(event.type()) && event.hasData()) {
@@ -158,16 +163,14 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
     }
 
     /**
-     * Parse a single ServerSentEvent into zero or more ChatCompletionChunk
+     * Parse a single ServerSentEvent into zero or more ChatCompletionChunkResponse
      * @param parserConfig the parser configuration
      * @param event the server sent event
-     * @return a stream of ChatCompletionChunk
+     * @return a stream of ChatCompletionChunkResponse
      * @throws IOException if parsing fails
      */
-    private Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parse(
-        XContentParserConfiguration parserConfig,
-        ServerSentEvent event
-    ) throws IOException {
+    private Stream<ChatCompletionChunkResponse> parse(XContentParserConfiguration parserConfig, ServerSentEvent event) throws IOException {
+        // Handle known event types
         switch (event.type()) {
             case VERTEX_EVENT_EVENT_TYPE, PING_EVENT_TYPE, CONTENT_BLOCK_STOP_EVENT_TYPE:
                 logger.debug("Skipping event type [{}].", event.type());
@@ -210,10 +213,10 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
      * }
      * </code></pre>
      * @param parser the parser positioned at the root {@code START_OBJECT}
-     * @return a stream of {@link StreamingUnifiedChatCompletionResults.ChatCompletionChunk}
+     * @return a stream of {@link ChatCompletionChunkResponse}
      * @throws IOException if parsing fails
      */
-    private Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parseMessageStart(XContentParser parser) throws IOException {
+    private Stream<ChatCompletionChunkResponse> parseMessageStart(XContentParser parser) throws IOException {
         var messageMap = extractInnerStringObjectMap(parser.map(), MESSAGE_FIELD);
         model = extractMandatoryString(messageMap, MODEL_FIELD);
         id = extractMandatoryString(messageMap, ID_FIELD);
@@ -225,8 +228,8 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
         cacheReadTokens = Objects.requireNonNullElse(extractOptionalInteger(usageMap, CACHE_READ_INPUT_TOKENS_FIELD), 0);
         cacheCreationTokens = Objects.requireNonNullElse(extractOptionalInteger(usageMap, CACHE_CREATION_INPUT_TOKENS_FIELD), 0);
 
-        var delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, role, null);
-        var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, finishReason, 0);
+        var delta = new ChatCompletionMessageResponse(null, null, role, null);
+        var choice = new ChatCompletionChoiceResponse(delta, finishReason, 0);
         return Stream.of(newChunk(List.of(choice), null));
     }
 
@@ -240,20 +243,20 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
      * {"type":"content_block_start","index":3,"content_block":{"type":"redacted_thinking","data":"..."}}
      * </code></pre>
      * @param parser the parser positioned at the root {@code START_OBJECT}
-     * @return a stream of {@link StreamingUnifiedChatCompletionResults.ChatCompletionChunk}
+     * @return a stream of {@link ChatCompletionChunkResponse}
      * @throws IOException if parsing fails
      */
-    private Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parseContentBlockStart(XContentParser parser)
-        throws IOException {
+    private Stream<ChatCompletionChunkResponse> parseContentBlockStart(XContentParser parser) throws IOException {
         var outerMap = parser.map();
         var blockIndex = extractMandatoryInteger(outerMap, INDEX_FIELD);
         var contentBlockMap = extractInnerStringObjectMap(outerMap, CONTENT_BLOCK_FIELD);
         var type = extractMandatoryString(contentBlockMap, TYPE_FIELD);
-        StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta delta;
+
+        ChatCompletionMessageResponse delta;
         switch (type) {
             case TEXT_TYPE -> {
                 var text = extractMandatoryString(contentBlockMap, TEXT_FIELD);
-                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(text, null, null, null, null, null);
+                delta = new ChatCompletionMessageResponse(text, null, null, null, null, null);
             }
             case TOOL_USE_TYPE -> {
                 var id = extractMandatoryString(contentBlockMap, ID_FIELD);
@@ -262,14 +265,9 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
                 contentBlockIndexToToolCallIndex.put(blockIndex, toolCallIndex);
                 // A tool_use content block start always carries an empty input object; the actual tool input arrives
                 // as input_json_delta fragments, which clients concatenate onto the arguments, so seed them empty.
-                var function = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function("", name);
-                var toolCall = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(
-                    toolCallIndex,
-                    id,
-                    function,
-                    FUNCTION_TYPE
-                );
-                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, null, List.of(toolCall));
+                var function = new ChatCompletionToolCallResponse.Function("", name);
+                var toolCall = new ChatCompletionToolCallResponse(toolCallIndex, id, function, FUNCTION_TYPE);
+                delta = new ChatCompletionMessageResponse(null, null, null, List.of(toolCall));
             }
             case THINKING_TYPE -> {
                 if (excludeReasoning) {
@@ -285,14 +283,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
                     thinking,
                     null
                 );
-                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(
-                    null,
-                    null,
-                    null,
-                    null,
-                    thinking,
-                    List.of(reasoningDetail)
-                );
+                delta = new ChatCompletionMessageResponse(null, null, null, null, thinking, List.of(reasoningDetail));
             }
             case REDACTED_THINKING_TYPE -> {
                 // Anthropic only emits redacted_thinking when extended thinking was enabled on the request;
@@ -304,14 +295,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
                 var reasoningIdx = (long) reasoningBlockCount++;
                 contentBlockIndexToReasoningIndex.put(blockIndex, (int) reasoningIdx);
                 var reasoningDetail = new ReasoningDetail.EncryptedReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, reasoningIdx, data);
-                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    List.of(reasoningDetail)
-                );
+                delta = new ChatCompletionMessageResponse(null, null, null, null, null, List.of(reasoningDetail));
             }
             default -> {
                 logger.debug("Unknown content block start type [{}].", type);
@@ -320,7 +304,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
         }
         // Anthropic streams a single message, so the chunk always holds one choice at index 0; parallel tool calls are
         // distinguished by the tool call index, not the choice index.
-        var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, null, 0);
+        var choice = new ChatCompletionChoiceResponse(delta, null, 0);
         return Stream.of(newChunk(List.of(choice), null));
     }
 
@@ -334,20 +318,20 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
      * {"type":"content_block_delta","index":2,"delta":{"type":"signature_delta","signature":"..."}}
      * </code></pre>
      * @param parser the parser positioned at the root {@code START_OBJECT}
-     * @return a stream of {@link StreamingUnifiedChatCompletionResults.ChatCompletionChunk}
+     * @return a stream of {@link ChatCompletionChunkResponse}
      * @throws IOException if parsing fails
      */
-    private Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parseContentBlockDelta(XContentParser parser)
-        throws IOException {
+    private Stream<ChatCompletionChunkResponse> parseContentBlockDelta(XContentParser parser) throws IOException {
         var outerMap = parser.map();
         var blockIndex = extractMandatoryInteger(outerMap, INDEX_FIELD);
         var deltaMap = extractInnerStringObjectMap(outerMap, DELTA_FIELD);
         var type = extractMandatoryString(deltaMap, TYPE_FIELD);
-        StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta delta;
+
+        ChatCompletionMessageResponse delta;
         switch (type) {
             case TEXT_DELTA_TYPE -> {
                 var text = extractMandatoryString(deltaMap, TEXT_FIELD);
-                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(text, null, null, null, null, null);
+                delta = new ChatCompletionMessageResponse(text, null, null, null, null, null);
             }
             case INPUT_JSON_DELTA_TYPE -> {
                 var partialJson = extractMandatoryString(deltaMap, PARTIAL_JSON_FIELD);
@@ -356,24 +340,9 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
                     logger.debug("Received [{}] for unknown content block index [{}].", INPUT_JSON_DELTA_TYPE, blockIndex);
                     return Stream.empty();
                 }
-                var function = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function(
-                    partialJson,
-                    null
-                );
-                var toolCall = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(
-                    toolCallIndex,
-                    null,
-                    function,
-                    null
-                );
-                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(
-                    null,
-                    null,
-                    null,
-                    List.of(toolCall),
-                    null,
-                    null
-                );
+                var function = new ChatCompletionToolCallResponse.Function(partialJson, null);
+                var toolCall = new ChatCompletionToolCallResponse(toolCallIndex, null, function, null);
+                delta = new ChatCompletionMessageResponse(null, null, null, List.of(toolCall), null, null);
             }
             case THINKING_DELTA_TYPE -> {
                 if (excludeReasoning) {
@@ -392,14 +361,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
                     thinking,
                     null
                 );
-                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(
-                    null,
-                    null,
-                    null,
-                    null,
-                    thinking,
-                    List.of(reasoningDetail)
-                );
+                delta = new ChatCompletionMessageResponse(null, null, null, null, thinking, List.of(reasoningDetail));
             }
             case SIGNATURE_DELTA_TYPE -> {
                 if (excludeReasoning) {
@@ -418,14 +380,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
                     null,
                     signature
                 );
-                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    List.of(reasoningDetail)
-                );
+                delta = new ChatCompletionMessageResponse(null, null, null, null, null, List.of(reasoningDetail));
             }
             default -> {
                 logger.debug("Unknown content block delta type [{}].", type);
@@ -434,7 +389,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
         }
         // Anthropic streams a single message, so the chunk always holds one choice at index 0; parallel tool calls are
         // distinguished by the tool call index, not the choice index.
-        var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, null, 0);
+        var choice = new ChatCompletionChoiceResponse(delta, null, 0);
         return Stream.of(newChunk(List.of(choice), null));
     }
 
@@ -449,10 +404,10 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
      * }
      * </code></pre>
      * @param parser the parser positioned at the root {@code START_OBJECT}
-     * @return a stream of {@link StreamingUnifiedChatCompletionResults.ChatCompletionChunk}
+     * @return a stream of {@link ChatCompletionChunkResponse}
      * @throws IOException if parsing fails
      */
-    private Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parseMessageDelta(XContentParser parser) throws IOException {
+    public Stream<ChatCompletionChunkResponse> parseMessageDelta(XContentParser parser) throws IOException {
         var outerMap = parser.map();
         var deltaMap = extractInnerStringObjectMap(outerMap, DELTA_FIELD);
         var stopReason = extractOptionalString(deltaMap, STOP_REASON_FIELD);
@@ -477,8 +432,8 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
         }
 
         var finishReason = convertStopReason(stopReason);
-        var emptyDelta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, null, null, null, null);
-        var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(emptyDelta, finishReason, 0);
+        var emptyDelta = new ChatCompletionMessageResponse(null, null, null, null, null, null);
+        var choice = new ChatCompletionChoiceResponse(emptyDelta, finishReason, 0);
         return Stream.of(newChunk(List.of(choice), null));
     }
 
@@ -486,30 +441,21 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
      * Builds a usage-only chunk from accumulated state, emitted on message_stop.
      * Usage is emitted once here rather than at message_start/message_delta to avoid double-counting.
      */
-    private Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> buildMessageStop() {
+    private Stream<ChatCompletionChunkResponse> buildMessageStop() {
         var promptTokens = inputTokens + cacheReadTokens + cacheCreationTokens;
         var totalTokens = promptTokens + outputTokens;
         Integer cachedTokens = cacheReadTokens > 0 ? cacheReadTokens : null;
         Integer cachedWriteTokens = cacheCreationTokens > 0 ? cacheCreationTokens : null;
-        var promptTokensDetails = StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage.PromptTokensDetails.ofNullable(
-            cachedTokens,
-            cachedWriteTokens
-        );
-        var usage = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage(
-            outputTokens,
-            promptTokens,
-            totalTokens,
-            promptTokensDetails,
-            null
-        );
+        var promptTokensDetails = ChatCompletionUsageResponse.PromptTokensDetails.ofNullable(cachedTokens, cachedWriteTokens);
+        var usage = new ChatCompletionUsageResponse(outputTokens, promptTokens, totalTokens, promptTokensDetails, null);
         return Stream.of(newChunk(List.of(), usage));
     }
 
-    private StreamingUnifiedChatCompletionResults.ChatCompletionChunk newChunk(
-        @Nullable List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice> choices,
-        @Nullable StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage usage
+    private ChatCompletionChunkResponse newChunk(
+        @Nullable List<ChatCompletionChoiceResponse> choices,
+        @Nullable ChatCompletionUsageResponse usage
     ) {
-        return new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(id, choices, model, OBJECT_VALUE, usage);
+        return new ChatCompletionChunkResponse(id, choices, model, OBJECT_VALUE, usage);
     }
 
     private static String convertStopReason(@Nullable String stopReason) {

@@ -54,6 +54,9 @@ public final class StringColumnWriter {
      */
     private static final int ORDINAL_BLOCK_SIZE = 128;
 
+    /** Terms to a block in the dictionary, so the stream records an offset for every term. */
+    private static final int TERMS_PER_BLOCK = 1;
+
     /**
      * Values per entry in the escape-rank table, which bounds the count of escapes before a value to one
      * block's worth of ordinals.
@@ -265,10 +268,12 @@ public final class StringColumnWriter {
             // Read by ordinal, so consecutive reads land anywhere in it. Compressing it would mean
             // decompressing a chunk for nearly every value read, to save a few tens of kilobytes: the
             // dictionary is bounded by the policy however large the column is.
+            // One term to a block, so the stream keeps an offset for each of them and a term is read where
+            // it lies. The offsets are a monotonic table, read off the mapped file.
             ValueStream.Writer writer = new ValueStream.Writer(
                 ChunkCodec.IDENTITY,
                 targetChunkBytes,
-                valuesPerBlock,
+                TERMS_PER_BLOCK,
                 dictionarySize,
                 directory,
                 context,

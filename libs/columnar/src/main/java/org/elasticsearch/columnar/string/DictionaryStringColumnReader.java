@@ -56,7 +56,8 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     private boolean directSlots;
 
     DictionaryStringColumnReader(StringColumnMetadata.Dictionary column, IndexInput data) throws IOException {
-        super(column, data, column.dictionary().valuesPerBlock());
+        // The ordinals are what this column addresses in blocks; the dictionary keeps one term to a block.
+        super(column, data, column.ordinals().blockSize());
         this.dictionary = column.dictionary().open(data);
         this.ordinals = new NumericColumnReader(column.ordinals(), data);
         this.dictionarySize = column.dictionarySize();
@@ -114,7 +115,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         return value;
     }
 
-    /** The term at {@code ordinal}, on a column that has a dictionary. */
+    /** The term at {@code ordinal}. The dictionary keeps an offset for each, so its bytes are read where they lie. */
     public BytesRef termAt(int ordinal, BytesRef dst) throws IOException {
         dictionary.get(ordinal, dst);
         return dst;
@@ -340,9 +341,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
             }
         }
 
-        // The ordinals this page holds, each once and in order. Ordered because the dictionary is read
-        // forward: resolving in whatever order the documents happen to be in would re-enter its blocks, and
-        // a block is decoded every time it is re-entered.
+        // The ordinals this page holds, each once and in order, so a slot can be found by bisecting them.
         final int distinct = distinctOrdinals(count, dictionarySize);
 
         pageBytesLength = 0;

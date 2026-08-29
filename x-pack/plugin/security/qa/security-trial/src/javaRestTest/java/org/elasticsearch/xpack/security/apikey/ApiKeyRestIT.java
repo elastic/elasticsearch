@@ -752,12 +752,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         );
         final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(getPrivilegesRequest));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "Cannot retrieve privileges for a subject with limited-by roles."
-            )
-        );
+        assertThat(e.getMessage(), containsString("Cannot retrieve privileges for a subject with limited-by roles."));
     }
 
     public void testRemoteIndicesSupportForApiKeys() throws IOException {

@@ -753,9 +753,7 @@ public class RBACEngine implements AuthorizationEngine {
             try {
                 getUserPrivilegesResponse = buildUserPrivilegesResponseObject(role);
             } catch (UnsupportedOperationException e) {
-                listener.onFailure(
-                    new IllegalArgumentException("Cannot retrieve privileges for a subject with limited-by roles.", e)
-                );
+                listener.onFailure(new IllegalArgumentException("Cannot retrieve privileges for a subject with limited-by roles.", e));
                 return;
             }
             listener.onResponse(getUserPrivilegesResponse);

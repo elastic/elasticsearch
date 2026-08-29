@@ -3589,8 +3589,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final RoleDescriptor assignedRole = new RoleDescriptor(
             assignedRoleName,
             null,
-            new IndicesPrivileges[] {
-                IndicesPrivileges.builder().indices("index-a", "index-b").privileges("read").build() },
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("index-a", "index-b").privileges("read").build() },
             null
         );
         final RoleDescriptor limitedByRole = new RoleDescriptor(

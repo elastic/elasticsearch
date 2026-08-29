@@ -597,7 +597,7 @@ class ImplClassWriter {
 
     /**
      * Emits the fixed {@code Objects.checkFromIndexSize(0L, <shape>, segment.byteSize())} template for
-     * every {@code @VectorSegment}/{@code @MatrixSegment}-annotated parameter, in parameter order, at
+     * every {@code @VectorSegment}/{@code @MatrixSegment}/{@code @SlicedSegment}-annotated parameter, in parameter order, at
      * the very top of the method body — before the try block, so a failing check propagates its own
      * {@link IndexOutOfBoundsException} rather than being wrapped in {@link AssertionError}.
      */
@@ -608,6 +608,7 @@ class ImplClassWriter {
             switch (check) {
                 case BoundsCheckModel.VectorSegmentCheck v -> emitVectorSegmentCheck(cb, generatedDesc, paramTypes, slots, v);
                 case BoundsCheckModel.MatrixSegmentCheck m -> emitMatrixSegmentCheck(cb, generatedDesc, paramTypes, slots, m);
+                case BoundsCheckModel.SlicedSegmentCheck s -> emitSlicedSegmentCheck(cb, paramTypes, slots, s);
             }
         }
     }
@@ -699,6 +700,18 @@ class ImplClassWriter {
         cb.invokespecial(CD_IllegalArgumentException, "<init>", MethodTypeDesc.of(CD_void, CD_String));
         cb.athrow();
         cb.labelBinding(paddingOk);
+    }
+
+    /** Emits {@code Objects.checkFromIndexSize((long) offset, (long) size, segment.byteSize())}. */
+    private static void emitSlicedSegmentCheck(
+        CodeBuilder cb,
+        List<NativeType> paramTypes,
+        int[] slots,
+        BoundsCheckModel.SlicedSegmentCheck check
+    ) {
+        emitLongParamLoad(cb, paramTypes.get(check.offsetParamIndex()), slots[check.offsetParamIndex()]);
+        emitLongParamLoad(cb, paramTypes.get(check.sizeParamIndex()), slots[check.sizeParamIndex()]);
+        emitCheckFromIndexSize(cb, slots[check.segParamIndex()]);
     }
 
     /** Converts a bit count on the stack into a whole-byte count, rounding up: {@code Math.ceilDiv(bits, 8)}. */

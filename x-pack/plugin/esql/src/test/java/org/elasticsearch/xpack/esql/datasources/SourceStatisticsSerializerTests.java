@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
+import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -610,6 +612,37 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         assertEquals("max marked unservable", Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMaxUnservableKey("c")));
     }
 
+    public void testNormalizeStatsToReconciledNumericToTextMarksUnservable() {
+        // The reconcile's non-widenable fallback can land on TEXT as well as KEYWORD. Both are served under
+        // lexicographic BytesRef order, so a numeric per-file extremum passed through unchanged would serve a
+        // warm MIN/MAX in the wrong order domain. The TEXT half of the representation-change arm must drop and
+        // mark exactly like the KEYWORD half.
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.columnMinKey("c"), 3L);
+        stats.put(SourceStatisticsSerializer.columnMaxKey("c"), 9L);
+        Map<String, DataType> fileTypes = Map.of("c", DataType.LONG);
+        Map<String, DataType> reconciled = Map.of("c", DataType.TEXT);
+        Map<String, Object> out = SourceStatisticsSerializer.normalizeStatsToReconciled(stats, fileTypes, reconciled);
+        assertFalse("numeric min dropped under TEXT reconcile", out.containsKey(SourceStatisticsSerializer.columnMinKey("c")));
+        assertFalse("numeric max dropped under TEXT reconcile", out.containsKey(SourceStatisticsSerializer.columnMaxKey("c")));
+        assertEquals("min marked unservable", Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMinUnservableKey("c")));
+        assertEquals("max marked unservable", Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMaxUnservableKey("c")));
+    }
+
+    public void testNormalizeStatsToReconciledNanosToMillisNarrowingMarksUnservable() {
+        // Widening reconciliation never narrows DATE_NANOS to DATETIME, but if a file/reconciled pairing in that
+        // direction ever reaches the normalizer, passing the epoch-nanos value through unchanged would serve it
+        // as epoch-millis — a warm MIN/MAX a million times too large. The narrowing arm must safe-miss, never
+        // pass through.
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.columnMinKey("ts"), 2_000_000L); // epoch-nanos in a DATE_NANOS file
+        Map<String, DataType> fileTypes = Map.of("ts", DataType.DATE_NANOS);
+        Map<String, DataType> reconciled = Map.of("ts", DataType.DATETIME);
+        Map<String, Object> out = SourceStatisticsSerializer.normalizeStatsToReconciled(stats, fileTypes, reconciled);
+        assertFalse("nanos value must not pass through as millis", out.containsKey(SourceStatisticsSerializer.columnMinKey("ts")));
+        assertEquals("min marked unservable", Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMinUnservableKey("ts")));
+    }
+
     public void testOverlayRekeyMovesWholeFamilyAndOnlyExactColumn() {
         Map<String, Object> stats = new HashMap<>();
         stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
@@ -762,5 +795,164 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
     public void testRemoveColumnStatFamiliesIdentityReturnsSameInstanceWhenNothingPinned() {
         Map<String, Object> stats = Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
         assertSame(stats, SourceStatisticsSerializer.removeColumnStatFamilies(stats, Set.of(), false));
+    }
+
+    /**
+     * The serve gate. A query must not be handed statistics measured by a read configured differently — the dual of
+     * the publish gate, and the only thing standing between a mapped dataset under a lenient policy and its inferred
+     * sibling's row count (the declared overlay poisons columns, but the row count is not a column).
+     */
+    public void testRestrictToReadConfigDropsForeignMeasurements() {
+        Map<String, Object> stats = statsWithReadConfig("config-inferred", 100L, 7L);
+
+        Map<String, Object> restricted = SourceStatisticsSerializer.restrictToReadConfig(stats, "config-declared");
+
+        assertFalse(
+            "a row count measured by a differently-configured read must not be served",
+            restricted.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)
+        );
+        assertFalse("nor may its per-column statistics", restricted.containsKey(SourceStatisticsSerializer.columnMinKey("id")));
+    }
+
+    /** The one licensed crossing: under FAIL_FAST the physical record count is the same number for every read. */
+    public void testRestrictToReadConfigKeepsOnlyTheLicensedCount() {
+        Map<String, Object> stats = statsWithReadConfig("config-inferred", 100L, 7L);
+        stats.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+
+        Map<String, Object> restricted = SourceStatisticsSerializer.restrictToReadConfig(stats, "config-declared");
+
+        assertEquals("the licensed count crosses", 100L, restricted.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        assertFalse(
+            "a column extremum depends on the type the column was read at and never crosses",
+            restricted.containsKey(SourceStatisticsSerializer.columnMinKey("id"))
+        );
+    }
+
+    /** Its own configuration serves everything, or the gate would take every warm read cold. */
+    public void testRestrictToReadConfigPassesItsOwnMeasurements() {
+        Map<String, Object> stats = statsWithReadConfig("config-inferred", 100L, 7L);
+
+        Map<String, Object> restricted = SourceStatisticsSerializer.restrictToReadConfig(stats, "config-inferred");
+
+        assertEquals(100L, restricted.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        assertEquals(7L, restricted.get(SourceStatisticsSerializer.columnMinKey("id")));
+    }
+
+    /**
+     * An entry carrying no configuration predates this identity, or came from a rail that records none (the columnar
+     * readers). It behaves exactly as it did before, rather than going cold on an identity it never participated in.
+     */
+    public void testRestrictToReadConfigLeavesConfiglessEntriesAlone() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        stats.put(SourceStatisticsSerializer.columnMinKey("id"), 7L);
+
+        Map<String, Object> restricted = SourceStatisticsSerializer.restrictToReadConfig(stats, "config-declared");
+
+        assertEquals(100L, restricted.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        assertEquals(7L, restricted.get(SourceStatisticsSerializer.columnMinKey("id")));
+    }
+
+    /**
+     * A fold over files measured by the SAME resolved read configuration was itself measured by it, so the merged
+     * map must carry it. Without this the multi-file fold arrives at the serve gate unstamped, takes the
+     * pass-through meant for the columnar readers that stamp nothing, and hands one dataset a measurement another
+     * dataset's read produced.
+     */
+    public void testMergeStatisticsReattachesAgreedReadConfig() {
+        Map<String, Object> merged = SourceStatisticsSerializer.mergeStatistics(
+            List.of(statsWithReadConfig("aaa", 100L, 7L), statsWithReadConfig("aaa", 200L, 9L))
+        );
+
+        assertEquals(
+            "the fold inherits the configuration every input shared",
+            "aaa",
+            merged.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY)
+        );
+        assertFalse(
+            "and is therefore refused to a differently-configured read",
+            SourceStatisticsSerializer.restrictToReadConfig(merged, "bbb").containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)
+        );
+        assertEquals(
+            "while its own read is served",
+            300L,
+            SourceStatisticsSerializer.restrictToReadConfig(merged, "aaa").get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+        );
+    }
+
+    /**
+     * The columnar readers harvest without stamping a read configuration. A fold over their contributions must stay
+     * unstamped so the serve gate's deliberate pass-through still applies -- stamping anything here would take
+     * warmth away from a rail that never joins this identity.
+     */
+    public void testMergeStatisticsLeavesUnstampedFoldUnstamped() {
+        Map<String, Object> a = new HashMap<>(Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L));
+        Map<String, Object> b = new HashMap<>(Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, 200L));
+
+        Map<String, Object> merged = SourceStatisticsSerializer.mergeStatistics(List.of(a, b));
+
+        assertFalse(
+            "an unstamped fold must not acquire a configuration it never had",
+            merged.containsKey(ExternalStats.READ_CONFIG_FINGERPRINT_KEY)
+        );
+        assertEquals(300L, SourceStatisticsSerializer.restrictToReadConfig(merged, "aaa").get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+    }
+
+    /**
+     * A union_by_name glob legitimately resolves per-file-different read configurations, so the fold belongs to no
+     * single one. Leaving it unstamped would be indistinguishable from the columnar case and would serve it to
+     * everybody; the sentinel makes it known-and-never-matching instead. Mixed PRESENCE -- one stamped input, one
+     * not -- is the same situation and gets the same answer.
+     */
+    public void testMergeStatisticsStampsMixedSentinel() {
+        Map<String, Object> merged = SourceStatisticsSerializer.mergeStatistics(
+            List.of(statsWithReadConfig("aaa", 100L, 7L), statsWithReadConfig("ccc", 200L, 9L))
+        );
+
+        assertEquals(ReadConfigFingerprint.MIXED, merged.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY));
+        assertFalse(
+            "not even a constituent configuration may be served a fold it only partly measured",
+            SourceStatisticsSerializer.restrictToReadConfig(merged, "aaa").containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)
+        );
+
+        Map<String, Object> unstamped = new HashMap<>(Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, 50L));
+        Map<String, Object> mixedPresence = SourceStatisticsSerializer.mergeStatistics(
+            List.of(statsWithReadConfig("aaa", 100L, 7L), unstamped)
+        );
+        assertEquals(ReadConfigFingerprint.MIXED, mixedPresence.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY));
+    }
+
+    /**
+     * The licence that lets a physical record count cross configurations folds as an AND: a sum of
+     * configuration-independent counts is itself configuration-independent, but one unlicensed input makes the sum
+     * depend on how that file's rows were read. Note what still crosses under the licence -- the count, never the
+     * extrema.
+     */
+    public void testMergeStatisticsLicenceRequiresEveryInput() {
+        Map<String, Object> first = statsWithReadConfig("aaa", 100L, 7L);
+        first.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+        Map<String, Object> second = statsWithReadConfig("ccc", 200L, 9L);
+        second.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+
+        Map<String, Object> allLicensed = SourceStatisticsSerializer.mergeStatistics(List.of(first, second));
+        assertEquals(Boolean.TRUE, allLicensed.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
+        Map<String, Object> served = SourceStatisticsSerializer.restrictToReadConfig(allLicensed, "foreign");
+        assertEquals("the licensed count crosses", 300L, served.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        assertFalse("the extrema do not", served.containsKey(SourceStatisticsSerializer.columnMinKey("id")));
+
+        Map<String, Object> unlicensed = statsWithReadConfig("aaa", 200L, 9L);
+        Map<String, Object> partly = SourceStatisticsSerializer.mergeStatistics(List.of(first, unlicensed));
+        assertFalse(
+            "one unlicensed input withdraws the licence from the sum",
+            partly.containsKey(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)
+        );
+    }
+
+    private static Map<String, Object> statsWithReadConfig(String readConfig, long rowCount, long columnMin) {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, readConfig);
+        stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, rowCount);
+        stats.put(SourceStatisticsSerializer.columnMinKey("id"), columnMin);
+        return stats;
     }
 }

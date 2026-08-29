@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
+import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -47,6 +48,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -142,7 +144,9 @@ public final class StreamingParallelParsingCoordinator {
             null,
             -1L,
             StripeColumnScope.PROJECTED,
-            WarningSinks.NONE
+            WarningSinks.NONE,
+            StreamingSegmentatorAdmission.unbounded(),
+            new NoopCircuitBreaker("streaming-parse-test")
         );
     }
 
@@ -173,54 +177,14 @@ public final class StreamingParallelParsingCoordinator {
      * coordinator reconciler can union the chunks under the real file key (see
      * {@link ParallelParsingCoordinator}).
      * <p>
-     * {@code partialResultsWarningSink} receives a single client-visible message if a non-strict
-     * {@link ErrorPolicy} truncates the read at a {@code external_max_record_size} cap-hit — a genuine partial-
-     * results signal. Production passes {@link AsyncExternalSourceBuffer#recordWarning} so the operator
-     * can re-emit it on the driver thread (the segmentator runs on a forked worker whose response
-     * headers never reach the client — see #835). Pass {@code null} to fall back to a direct
-     * {@link HeaderWarning} on the current thread (tests, benchmarks).
-     */
-    public static CloseableIterator<Page> parallelRead(
-        SegmentableFormatReader reader,
-        InputStream decompressedStream,
-        @Nullable StorageObject storageObject,
-        List<String> projectedColumns,
-        int batchSize,
-        int parallelism,
-        Executor executor,
-        ErrorPolicy errorPolicy,
-        @Nullable List<Attribute> readSchema,
-        long baseFileOffset,
-        int maxRecordBytes,
-        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
-        long statsStripeSize,
-        StripeColumnScope statsColumnScope,
-        @Nullable Consumer<String> partialResultsWarningSink,
-        StreamingSegmentatorAdmission admission
-    ) throws IOException {
-        return parallelRead(
-            reader,
-            decompressedStream,
-            storageObject,
-            projectedColumns,
-            batchSize,
-            parallelism,
-            executor,
-            errorPolicy,
-            readSchema,
-            baseFileOffset,
-            maxRecordBytes,
-            captureSink,
-            statsStripeSize,
-            statsColumnScope,
-            new WarningSinks(partialResultsWarningSink, null)
-        );
-    }
-
-    /**
-     * As the above, plus {@code warningSinks.informationalWarningSink()} — see {@link WarningSinks}'
-     * Javadoc. Kept as a separate overload so the many existing truncation-focused callers (tests,
-     * benchmarks) that don't care about generic per-format warnings are unaffected.
+     * {@link WarningSinks#partialResultsWarningSink()} receives a single client-visible message if a
+     * non-strict {@link ErrorPolicy} truncates the read at a {@code external_max_record_size} cap-hit — a
+     * genuine partial-results signal. Production passes {@link AsyncExternalSourceBuffer#recordWarning} so
+     * the operator can re-emit it on the driver thread (the segmentator runs on a forked worker whose
+     * response headers never reach the client — see #835). Pass {@link WarningSinks#NONE} to fall back to a
+     * direct {@link HeaderWarning} on the current thread (tests, benchmarks).
+     * {@link WarningSinks#informationalWarningSink()} carries generic per-format diagnostic messages;
+     * truncation-focused callers that do not need it may pass {@link WarningSinks#NONE}.
      * <p>
      * Supplies an {@link StreamingSegmentatorAdmission#unbounded()} controller: the segmentator is
      * dispatched immediately, matching the pre-admission behavior. Retained for tests and benchmarks
@@ -493,6 +457,10 @@ public final class StreamingParallelParsingCoordinator {
          */
         private final InputStream decompressedStream;
         private final AtomicBoolean streamClosed = new AtomicBoolean(false);
+        /** CPU nanos accumulated across segmentator and all parser threads; delivered to {@link #originalReader} on close. */
+        private final AtomicLong coordinatorCpuNanos = new AtomicLong();
+        /** The reader as supplied by the caller; {@link #reader} may be swapped by {@link #bindInferredSchema}. */
+        private final SegmentableFormatReader originalReader;
 
         /**
          * Convenience overload for tests/benchmarks that supplies an {@link StreamingSegmentatorAdmission#unbounded()}
@@ -558,6 +526,7 @@ public final class StreamingParallelParsingCoordinator {
         ) {
             this.admission = admission;
             this.breaker = breaker;
+            this.originalReader = reader;
             this.reader = reader;
             this.storageObject = storageObject;
             this.projectedColumns = projectedColumns;
@@ -724,6 +693,7 @@ public final class StreamingParallelParsingCoordinator {
         }
 
         private void runSegmentator(InputStream stream, int chunkSize) {
+            long startCpu = ThreadCpuTimer.currentNanos();
             byte[] carry = null;
             int carryLen = 0;
             int chunkIndex = 0;
@@ -868,6 +838,9 @@ public final class StreamingParallelParsingCoordinator {
                 firstError.compareAndSet(null, e);
                 signalReady();
             } finally {
+                if (startCpu >= 0) {
+                    coordinatorCpuNanos.addAndGet(ThreadCpuTimer.elapsedNanos(startCpu));
+                }
                 closeStream();
                 // No POISON-to-parkers fan-out anymore: parser tasks are one-shot (one per chunk)
                 // and exit on their own after processing. Segmentator's done; decrement and signal
@@ -1072,6 +1045,7 @@ public final class StreamingParallelParsingCoordinator {
                 // query's sink. The reader now stamps stripe addressing itself, so the sink no longer
                 // carries a coverage.
                 ExternalStatsCapture.Handle bound = captureSink != null ? ExternalStatsCapture.bind(captureSink) : () -> {};
+                long startCpu = ThreadCpuTimer.currentNanos();
                 try (bound) {
                     try (CloseableIterator<Page> pages = reader.read(chunkObj, ctx)) {
                         while (pages.hasNext()) {
@@ -1080,6 +1054,10 @@ public final class StreamingParallelParsingCoordinator {
                             }
                             putPageAndSignal(queue, pages.next());
                         }
+                    }
+                } finally {
+                    if (startCpu >= 0) {
+                        coordinatorCpuNanos.addAndGet(ThreadCpuTimer.elapsedNanos(startCpu));
                     }
                 }
             } catch (Exception e) {
@@ -1576,6 +1554,7 @@ public final class StreamingParallelParsingCoordinator {
                 Thread.currentThread().interrupt();
             }
             drainAllQueues();
+            originalReader.acceptReadCpuNanos(coordinatorCpuNanos.get());
             // Backstop: if the segmentator was never promoted from the admission queue (still pending
             // when the timeout fired) or if any code path did not call closeStream() themselves,
             // release the stream now. In the timeout and interrupt paths tasksOutstanding may still

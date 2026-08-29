@@ -830,3 +830,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CsvExternalReadConfigParityIT
   method: testDuplicateListingColdEqualsWarm
   issue: https://github.com/elastic/elasticsearch/issues/157988
+- class: org.elasticsearch.xpack.esql.action.ExternalReadConfigContaminationIT
+  method: testLicensedCountStillCrossesTheMultiFileFold
+  issue: https://github.com/elastic/elasticsearch/issues/157990

@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -51,12 +51,10 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
 
     private static boolean isLimitByWithCategorizeGrouping(LogicalPlan fragment) {
         if (fragment instanceof TopNBy topNBy) {
-            return topNBy.groupings().stream().anyMatch(g -> g.anyMatch(e -> e instanceof GroupingFunction.NonEvaluatableGroupingFunction));
+            return topNBy.groupings().stream().anyMatch(g -> g.anyMatch(e -> e instanceof Categorize));
         }
         if (fragment instanceof LimitBy limitBy) {
-            return limitBy.groupings()
-                .stream()
-                .anyMatch(g -> g.anyMatch(e -> e instanceof GroupingFunction.NonEvaluatableGroupingFunction));
+            return limitBy.groupings().stream().anyMatch(g -> g.anyMatch(e -> e instanceof Categorize));
         }
         return false;
     }

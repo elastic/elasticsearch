@@ -11,6 +11,7 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
@@ -151,7 +152,7 @@ public class LocalMapper {
 
     /** Returns true if any expression in the list contains a {@link GroupingFunction.NonEvaluatableGroupingFunction}. */
     public static boolean hasCategorize(List<? extends org.elasticsearch.xpack.esql.core.expression.Expression> groupings) {
-        return groupings.stream().anyMatch(g -> g.anyMatch(e -> e instanceof GroupingFunction.NonEvaluatableGroupingFunction));
+        return groupings.stream().anyMatch(g -> g.anyMatch(e -> e instanceof Categorize));
     }
 
     private PhysicalPlan mapBinary(BinaryPlan binary) {

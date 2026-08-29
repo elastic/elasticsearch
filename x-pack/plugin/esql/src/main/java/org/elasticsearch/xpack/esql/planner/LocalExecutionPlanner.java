@@ -1367,13 +1367,21 @@ public class LocalExecutionPlanner {
             throw new EsqlIllegalArgumentException("TopNBy " + mode + " mode requires a CATEGORIZE grouping");
         }
 
-        // mergedLayout: source layout without the state channel (dropped by CategorizeGroupingMergeOperator).
+        // mergedLayout: source layout without the state channel, with catId relabeled to topNByExec.catIdAttr().id()
+        // so the layout NameIds match TopNByExec.output() and planExchangeSink's consistency assertion holds.
         Layout.Builder mergedLayoutBuilder = new Layout.Builder();
         int channelIdx = 0;
         for (Layout.ChannelSet cs : source.layout.inverse()) {
-            if (channelIdx++ != stateChannel) {
+            if (channelIdx == stateChannel) {
+                channelIdx++;
+                continue; // drop state channel
+            }
+            if (channelIdx == catIdChannel) {
+                mergedLayoutBuilder.append(new Layout.ChannelSet(Set.of(topNByExec.catIdAttr().id()), DataType.INTEGER));
+            } else {
                 mergedLayoutBuilder.append(cs);
             }
+            channelIdx++;
         }
         Layout mergedLayout = mergedLayoutBuilder.build();
         var common = topNCommon(
@@ -1396,8 +1404,9 @@ public class LocalExecutionPlanner {
         );
 
         // INTERMEDIATE: append a state channel so the coordinator can merge; FINAL: no state channel.
+        // Use topNByExec.stateAttr().id() so the layout NameId matches TopNByExec.output().
         Layout outLayout = emitState
-            ? mergedLayout.builder().append(new Layout.ChannelSet(Set.of(new NameId()), DataType.KEYWORD)).build()
+            ? mergedLayout.builder().append(new Layout.ChannelSet(Set.of(topNByExec.stateAttr().id()), DataType.KEYWORD)).build()
             : mergedLayout;
         source = source.with(
             new CategorizeMergeOperator.Factory(catIdChannel, stateChannel, categorizeDef, topNFactory, emitState),
@@ -2607,22 +2616,29 @@ public class LocalExecutionPlanner {
             throw new EsqlIllegalArgumentException("LIMIT BY " + mode + " mode requires a CATEGORIZE grouping");
         }
 
-        // mergedLayout: source layout without the state channel (dropped by CategorizeGroupingMergeOperator).
-        // catId stays at its original channel index since state follows catId.
+        // mergedLayout: source layout without the state channel, with catId relabeled to limitBy.catIdAttr().id()
+        // so the layout NameIds match LimitByExec.output() and planExchangeSink's consistency assertion holds.
         Layout.Builder mergedLayoutBuilder = new Layout.Builder();
         int channelIdx = 0;
         for (Layout.ChannelSet cs : source.layout.inverse()) {
-            if (channelIdx++ == stateChannel) {
-                continue;
+            if (channelIdx == stateChannel) {
+                channelIdx++;
+                continue; // drop state channel
             }
-            mergedLayoutBuilder.append(cs);
+            if (channelIdx == catIdChannel) {
+                mergedLayoutBuilder.append(new Layout.ChannelSet(Set.of(limitBy.catIdAttr().id()), DataType.INTEGER));
+            } else {
+                mergedLayoutBuilder.append(cs);
+            }
+            channelIdx++;
         }
         Layout mergedLayout = mergedLayoutBuilder.build();
         var limitFactory = new GroupedLimitOperator.Factory(limitValue, groupKeys, buildElementTypes(mergedLayout));
 
         // INTERMEDIATE: append a state channel so the coordinator can merge; FINAL: no state channel.
+        // Use limitBy.stateAttr().id() so the layout NameId matches LimitByExec.output().
         Layout outLayout = emitState
-            ? mergedLayout.builder().append(new Layout.ChannelSet(Set.of(new NameId()), DataType.KEYWORD)).build()
+            ? mergedLayout.builder().append(new Layout.ChannelSet(Set.of(limitBy.stateAttr().id()), DataType.KEYWORD)).build()
             : mergedLayout;
         source = source.with(
             new CategorizeMergeOperator.Factory(catIdChannel, stateChannel, categorizeDef, limitFactory, emitState),

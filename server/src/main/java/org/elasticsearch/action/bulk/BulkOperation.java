@@ -528,7 +528,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             );
             releaseOnFinish.close();
         } else {
-            client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
+            final ActionListener<BulkShardResponse> shardListener = new ActionListener<>() {
                 // Lazily get the project metadata to avoid keeping it around longer than it is needed
                 private ProjectMetadata projectMetadata = null;
 
@@ -589,7 +589,17 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     projectMetadata = null;
                     releaseOnFinish.close();
                 }
-            });
+            };
+
+            try {
+                client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, shardListener);
+            } catch (Exception e) {
+                // executeLocally throws rather than notifying the listener if it cannot start the shard request at all: a cancelled
+                // parent task, oversized task headers, or an unresolvable action. All of those happen before TransportAction#execute,
+                // which is itself exception-safe, so the listener is still uncompleted here and failing it is what keeps
+                // releaseOnFinish, and with it the whole bulk operation, from being dropped.
+                shardListener.onFailure(e);
+            }
         }
     }
 

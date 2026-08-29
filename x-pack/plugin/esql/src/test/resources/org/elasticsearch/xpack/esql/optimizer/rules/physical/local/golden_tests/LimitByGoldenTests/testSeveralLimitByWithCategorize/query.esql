@@ -1,0 +1,4 @@
+FROM sample_data
+| LIMIT 1 BY CATEGORIZE(message)
+| LIMIT 100
+| LIMIT 2 BY CATEGORIZE(message)

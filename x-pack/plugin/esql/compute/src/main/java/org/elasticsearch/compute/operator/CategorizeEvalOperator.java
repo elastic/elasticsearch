@@ -97,9 +97,17 @@ public class CategorizeEvalOperator implements Operator {
         this.textChannel = textChannel;
         this.inner = inner;
         AggregatorMode aggregatorMode = isSingleNode ? AggregatorMode.SINGLE : AggregatorMode.INITIAL;
-        this.blockHash = new CategorizeBlockHash(blockFactory, 0, aggregatorMode, categorizeDef, analysisRegistry);
-        // emitState == true only for distributed (non-single-node) execution
-        this.buffer = new CategorizerStateBuffer(blockFactory, inner, blockHash, isSingleNode == false);
+        boolean success = false;
+        try {
+            this.blockHash = new CategorizeBlockHash(blockFactory, 0, aggregatorMode, categorizeDef, analysisRegistry);
+            // emitState == true only for distributed (non-single-node) execution
+            this.buffer = new CategorizerStateBuffer(blockFactory, inner, blockHash, isSingleNode == false);
+            success = true;
+        } finally {
+            if (success == false) {
+                inner.close();
+            }
+        }
     }
 
     @Override
@@ -109,15 +117,20 @@ public class CategorizeEvalOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
-        IntBlock catIds = blockHash.categorize(page.getBlock(textChannel));
-        boolean success = false;
+        IntBlock catIds = null;
+        boolean pageConsumed = false;
         try {
+            catIds = blockHash.categorize(page.getBlock(textChannel));
             Page withCatIds = page.appendBlock(catIds);
-            success = true;
+            // page's blocks and catIds are now inside withCatIds; the inner operator (e.g.
+            // GroupedLimitOperator) always releases the page it receives, even on exception.
+            catIds = null;
+            pageConsumed = true;
             inner.addInput(withCatIds);
         } finally {
-            if (success == false) {
-                catIds.close();
+            Releasables.closeExpectNoException(catIds);
+            if (pageConsumed == false) {
+                page.releaseBlocks();
             }
         }
         // Drain any pages the inner operator has produced. This is required when the inner is

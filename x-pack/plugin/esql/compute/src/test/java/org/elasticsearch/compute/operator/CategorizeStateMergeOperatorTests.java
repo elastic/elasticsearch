@@ -10,9 +10,12 @@ package org.elasticsearch.compute.operator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.aggregation.blockhash.CategorizeBlockHash;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.CannedSourceOperator;
@@ -29,13 +32,15 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
- * Tests for {@link CategorizeStateMergeOperator}: state-channel removal, ID remapping via empty
+ * Tests for {@link CategorizeGroupingMergeOperator}: state-channel removal, ID remapping via empty
  * and real categorizer states, multivalued positions, and end-to-end pipeline correctness.
  */
 public class CategorizeStateMergeOperatorTests extends OperatorTestCase {
@@ -73,7 +78,7 @@ public class CategorizeStateMergeOperatorTests extends OperatorTestCase {
             IntBlock catIds;
             try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(size)) {
                 for (int i = 0; i < size; i++) {
-                    builder.appendInt(i % 3 + 1); // positive IDs; empty state will remap these to 0
+                    builder.appendInt(i % 3 + 1); // positive IDs; empty state remaps these to NULL_ORD
                 }
                 catIds = builder.build();
             }
@@ -85,13 +90,10 @@ public class CategorizeStateMergeOperatorTests extends OperatorTestCase {
 
     @Override
     protected void assertSimpleOutput(List<Page> input, List<Page> results) {
-        assertThat(results.size(), equalTo(input.size()));
-        for (int i = 0; i < results.size(); i++) {
-            Page inputPage = input.get(i);
-            Page resultPage = results.get(i);
-            assertThat(resultPage.getPositionCount(), equalTo(inputPage.getPositionCount()));
-            // State channel is dropped: block count decreases by one
-            assertThat("state channel dropped", resultPage.getBlockCount(), equalTo(inputPage.getBlockCount() - 1));
+        assertThat(results.isEmpty(), equalTo(false));
+        for (Page resultPage : results) {
+            // State channel dropped: every result page has exactly one block
+            assertThat("state channel dropped", resultPage.getBlockCount(), equalTo(1));
             // Empty state maps all IDs to NULL_ORD (0)
             IntBlock remapped = resultPage.getBlock(0);
             for (int p = 0; p < resultPage.getPositionCount(); p++) {
@@ -102,24 +104,39 @@ public class CategorizeStateMergeOperatorTests extends OperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new CategorizeStateMergeOperator.Factory(0, 1, CATEGORIZE_DEF);
+        return new CategorizeGroupingMergeOperator.Factory(
+            0,
+            1,
+            CATEGORIZE_DEF,
+            new GroupedLimitOperator.Factory(100, List.of(0), List.of(ElementType.INT))
+        );
     }
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return equalTo("CategorizeStateMergeOperator[catIdChannel=0, stateChannel=1]");
+        return equalTo(
+            "CategorizeGroupingMergeOperator[catIdChannel=0, stateChannel=1, emitState=false, inner=GroupedLimitOperator[limitPerGroup = 100]]"
+        );
     }
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return equalTo("CategorizeStateMergeOperator[catIdChannel=0, stateChannel=1]");
+        return equalTo(
+            "CategorizeGroupingMergeOperator[catIdChannel=0, stateChannel=1, emitState=false, "
+                + "inner=GroupedLimitOperator[limitPerGroup = 100, groupKeys = [0], groups = 0]]"
+        );
+    }
+
+    @Override
+    protected void assertStatus(Map<String, Object> map, List<Page> input, List<Page> output) {
+        assertThat(map, nullValue());
     }
 
     /** NULL_ORD (0) in local IDs maps to NULL_ORD (0) in global IDs regardless of state. */
     public void testNullOrdPassesThroughUnchanged() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
-        try (CategorizeStateMergeOperator op = new CategorizeStateMergeOperator.Factory(0, 1, CATEGORIZE_DEF).get(ctx)) {
+        try (CategorizeGroupingMergeOperator op = mergeFactory().get(ctx)) {
             IntBlock catIds = blockFactory.newConstantIntBlockWith(0, 3);
             BytesRefBlock state = blockFactory.newConstantBytesRefBlockWith(EMPTY_STATE, 3);
             op.addInput(new Page(catIds, state));
@@ -141,7 +158,7 @@ public class CategorizeStateMergeOperatorTests extends OperatorTestCase {
     public void testStateChannelDropped() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
-        try (CategorizeStateMergeOperator op = new CategorizeStateMergeOperator.Factory(0, 1, CATEGORIZE_DEF).get(ctx)) {
+        try (CategorizeGroupingMergeOperator op = mergeFactory().get(ctx)) {
             IntBlock catIds = blockFactory.newConstantIntBlockWith(1, 2);
             BytesRefBlock state = blockFactory.newConstantBytesRefBlockWith(EMPTY_STATE, 2);
             op.addInput(new Page(catIds, state));
@@ -157,41 +174,17 @@ public class CategorizeStateMergeOperatorTests extends OperatorTestCase {
     }
 
     /**
-     * A real categorizer state: two messages produce two distinct local IDs, the merge operator
-     * remaps them to positive global IDs, and identical messages from two separate states share
-     * the same global ID.
+     * A real categorizer state: two distinct messages produce two positive global IDs that differ
+     * from each other.
      */
     public void testRealStateRemapsIdsToGlobalIds() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
 
-        // Build the categorizer state for ["Connection error", "Disconnected"]
-        CategorizeEvalOperator[] holder = new CategorizeEvalOperator[1];
-        new CategorizeEvalOperator.Factory(0, CATEGORIZE_DEF, analysisRegistry, holder).get(ctx);
-        CategorizeEvalOperator evalOp = holder[0];
-
-        Page evalPage;
-        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(2)) {
-            builder.appendBytesRef(new BytesRef("Connection error"));
-            builder.appendBytesRef(new BytesRef("Disconnected"));
-            evalOp.addInput(new Page(builder.build()));
-            evalOp.finish();
-            evalPage = evalOp.getOutput();
-        }
-        assertNotNull(evalPage);
-
-        // Serialize the state via the emit operator
-        CategorizeStateEmitOperator emitOp = new CategorizeStateEmitOperator.Factory(holder).get(ctx);
-        IntBlock localCatIds = evalPage.getBlock(1);
-        evalPage.getBlock(0).close(); // release the original text block
-        emitOp.addInput(new Page(localCatIds));
-        emitOp.finish();
-        Page emitPage = emitOp.getOutput();
-        assertNotNull(emitPage);
-
-        // Feed the emit output through the merge operator
-        try (CategorizeStateMergeOperator mergeOp = new CategorizeStateMergeOperator.Factory(0, 1, CATEGORIZE_DEF).get(ctx)) {
-            mergeOp.addInput(emitPage);
+        // Build a page with two rows using a real shard categorizer state
+        Page shardPage = buildShardPage(blockFactory, List.of("Connection error", "Disconnected"));
+        try (CategorizeGroupingMergeOperator mergeOp = mergeFactory().get(ctx)) {
+            mergeOp.addInput(shardPage);
             mergeOp.finish();
             Page mergeResult = mergeOp.getOutput();
             assertNotNull(mergeResult);
@@ -207,7 +200,6 @@ public class CategorizeStateMergeOperatorTests extends OperatorTestCase {
                 mergeResult.releaseBlocks();
             }
         }
-        evalOp.close();
     }
 
     /**
@@ -226,21 +218,21 @@ public class CategorizeStateMergeOperatorTests extends OperatorTestCase {
      *       global ordinals so that the coordinator's LIMIT BY correctly retains one row per category.</li>
      * </ul>
      */
-    public void testCrossShardSameLocalOrdinalMappedToDifferentGlobalIds() throws IOException {
+    public void testCrossShardSameLocalOrdinalMappedToDifferentGlobalIds() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
 
         // Shard 1: "Error" messages → local cat 1 = "error *"
-        Page shard1Page = buildShardPage(ctx, blockFactory, List.of("Error alpha timeout", "Error beta timeout", "Error gamma timeout"), 0);
+        Page shard1Row = keepFirstRow(blockFactory, buildShardPage(blockFactory, List.of("Error alpha", "Error beta", "Error gamma")));
         // Shard 2: "Info" messages → also local cat 1 (independent ordinal counter)
-        Page shard2Page = buildShardPage(ctx, blockFactory, List.of("Info alpha success", "Info beta success", "Info gamma success"), 0);
+        Page shard2Row = keepFirstRow(blockFactory, buildShardPage(blockFactory, List.of("Info alpha", "Info beta", "Info gamma")));
 
-        try (CategorizeStateMergeOperator mergeOp = new CategorizeStateMergeOperator.Factory(0, 1, CATEGORIZE_DEF).get(ctx)) {
-            mergeOp.addInput(shard1Page);
+        try (CategorizeGroupingMergeOperator mergeOp = mergeFactory().get(ctx)) {
+            mergeOp.addInput(shard1Row);
             Page merged1 = mergeOp.getOutput();
             assertNotNull(merged1);
 
-            mergeOp.addInput(shard2Page);
+            mergeOp.addInput(shard2Row);
             mergeOp.finish();
             Page merged2 = mergeOp.getOutput();
             assertNotNull(merged2);
@@ -261,55 +253,11 @@ public class CategorizeStateMergeOperatorTests extends OperatorTestCase {
         }
     }
 
-    /**
-     * Simulates what one data-node shard emits through the exchange for a single kept row.
-     * Runs all {@code messages} through a fresh {@link CategorizeEvalOperator}, picks the row
-     * at {@code keepPosition}, then uses {@link CategorizeStateEmitOperator} to append the full
-     * shard categorizer state. Returns a page suitable as input to {@link CategorizeStateMergeOperator}:
-     * channel 0 = local cat ID of the kept row, channel 1 = serialized categorizer state.
-     */
-    private Page buildShardPage(DriverContext ctx, BlockFactory blockFactory, List<String> messages, int keepPosition) throws IOException {
-        CategorizeEvalOperator[] holder = new CategorizeEvalOperator[1];
-        CategorizeEvalOperator evalOp = new CategorizeEvalOperator.Factory(0, CATEGORIZE_DEF, analysisRegistry, holder).get(ctx);
-        try {
-            try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(messages.size())) {
-                for (String msg : messages) {
-                    builder.appendBytesRef(new BytesRef(msg));
-                }
-                evalOp.addInput(new Page(builder.build()));
-            }
-            evalOp.finish();
-            Page evalPage = evalOp.getOutput();
-            assertNotNull(evalPage);
-
-            // Pick the local cat ID for the kept row; release other blocks.
-            IntBlock allCatIds = evalPage.getBlock(1);
-            evalPage.getBlock(0).close();
-            int keptCatId;
-            try {
-                keptCatId = allCatIds.getInt(allCatIds.getFirstValueIndex(keepPosition));
-            } finally {
-                allCatIds.close();
-            }
-
-            // Emit the full shard state alongside the kept row's local cat ID.
-            IntBlock keptBlock = blockFactory.newConstantIntBlockWith(keptCatId, 1);
-            CategorizeStateEmitOperator emitOp = new CategorizeStateEmitOperator.Factory(holder).get(ctx);
-            emitOp.addInput(new Page(keptBlock));
-            emitOp.finish();
-            Page emitPage = emitOp.getOutput();
-            assertNotNull(emitPage);
-            return emitPage;
-        } finally {
-            evalOp.close();
-        }
-    }
-
     /** Multivalued IntBlock positions are remapped element-by-element via the empty state. */
     public void testMultivaluedIdsRemappedViaEmptyState() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
-        try (CategorizeStateMergeOperator op = new CategorizeStateMergeOperator.Factory(0, 1, CATEGORIZE_DEF).get(ctx)) {
+        try (CategorizeGroupingMergeOperator op = mergeFactory().get(ctx)) {
             IntBlock catIds;
             try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(2)) {
                 // position 0: single value 1
@@ -337,6 +285,177 @@ public class CategorizeStateMergeOperatorTests extends OperatorTestCase {
             } finally {
                 result.releaseBlocks();
             }
+        }
+    }
+
+    /**
+     * INTERMEDIATE mode ({@code emitState=true}): no output is returned before {@link Operator#finish()}.
+     */
+    public void testIntermediateModeOutputWithheldUntilFinish() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+        try (
+            CategorizeGroupingMergeOperator op = new CategorizeGroupingMergeOperator.Factory(
+                0,
+                1,
+                CATEGORIZE_DEF,
+                new GroupedLimitOperator.Factory(10, List.of(0), List.of(ElementType.INT)),
+                true
+            ).get(ctx)
+        ) {
+            op.addInput(buildShardPage(blockFactory, List.of("Error alpha")));
+            assertNull("no output before finish() in INTERMEDIATE mode", op.getOutput());
+            assertFalse("not finished before finish()", op.isFinished());
+            op.finish();
+            Page p = op.getOutput();
+            assertNotNull("output available after finish()", p);
+            p.releaseBlocks();
+        }
+    }
+
+    /**
+     * Regression for the buffering requirement in INTERMEDIATE mode: every output page must carry the
+     * <em>final</em> merged categorizer state. A buggy implementation that serialized state after each
+     * drain would produce stale snapshots missing categories seen by later input pages.
+     *
+     * <p>Two shard pages are fed (different categories, both local cat 1). After merging, the global
+     * model has two categories. Every output page must carry that complete two-category state, not a
+     * one-category snapshot.
+     */
+    public void testIntermediateModeEveryOutputPageCarriesFinalMergedState() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+        try (
+            CategorizeGroupingMergeOperator op = new CategorizeGroupingMergeOperator.Factory(
+                0,
+                1,
+                CATEGORIZE_DEF,
+                new GroupedLimitOperator.Factory(Integer.MAX_VALUE, List.of(0), List.of(ElementType.INT)),
+                true
+            ).get(ctx)
+        ) {
+            op.addInput(buildShardPage(blockFactory, List.of("Connection refused")));
+            op.addInput(buildShardPage(blockFactory, List.of("Disk failure")));
+            op.finish();
+
+            List<Page> output = new ArrayList<>();
+            Page p;
+            while ((p = op.getOutput()) != null) {
+                output.add(p);
+            }
+
+            assertThat("some output produced", output.isEmpty(), equalTo(false));
+            for (Page page : output) {
+                // inner GroupedLimitOperator output: 1 block (catId). With state appended: 2 blocks.
+                assertThat("INTERMEDIATE mode appends state block to each page", page.getBlockCount(), equalTo(2));
+            }
+
+            // All output pages carry the same (final) merged-model bytes
+            BytesRef expected = extractState(output.get(0));
+            for (Page page : output) {
+                assertThat("all output pages carry the final merged state", extractState(page), equalTo(expected));
+            }
+
+            output.forEach(Page::releaseBlocks);
+        }
+    }
+
+    /**
+     * Complement to {@link #testCrossShardSameLocalOrdinalMappedToDifferentGlobalIds}: when two
+     * shards independently assign local ordinal 1 to the <em>same</em> logical category (same message
+     * pattern), state merging must collapse both to a single global ordinal.
+     */
+    public void testSameLogicalCategoryFromTwoShardsMapsToDifferentLocalButSameGlobalId() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+
+        // Identical message lists → identical category patterns → local cat 1 on each shard
+        List<String> messages = List.of("Error alpha", "Error beta", "Error gamma");
+        Page shard1 = keepFirstRow(blockFactory, buildShardPage(blockFactory, messages));
+        Page shard2 = keepFirstRow(blockFactory, buildShardPage(blockFactory, messages));
+
+        try (CategorizeGroupingMergeOperator mergeOp = mergeFactory().get(ctx)) {
+            mergeOp.addInput(shard1);
+            Page out1 = mergeOp.getOutput();
+            assertNotNull(out1);
+
+            mergeOp.addInput(shard2);
+            mergeOp.finish();
+            Page out2 = mergeOp.getOutput();
+            assertNotNull(out2);
+
+            try {
+                IntBlock ids1 = out1.getBlock(0);
+                IntBlock ids2 = out2.getBlock(0);
+                int globalId1 = ids1.getInt(ids1.getFirstValueIndex(0));
+                int globalId2 = ids2.getInt(ids2.getFirstValueIndex(0));
+                assertThat("same logical category from two shards maps to the same global ID", globalId1, equalTo(globalId2));
+            } finally {
+                out1.releaseBlocks();
+                out2.releaseBlocks();
+            }
+        }
+    }
+
+    /**
+     * Returns a {@link CategorizeGroupingMergeOperator.Factory} in FINAL mode (no state re-emit)
+     * wrapping a {@link GroupedLimitOperator} with a large per-group limit.
+     */
+    private CategorizeGroupingMergeOperator.Factory mergeFactory() {
+        return new CategorizeGroupingMergeOperator.Factory(
+            0,
+            1,
+            CATEGORIZE_DEF,
+            new GroupedLimitOperator.Factory(Integer.MAX_VALUE, List.of(0), List.of(ElementType.INT))
+        );
+    }
+
+    private static BytesRef extractState(Page page) {
+        BytesRefBlock stateBlock = page.getBlock(page.getBlockCount() - 1);
+        return stateBlock.getBytesRef(stateBlock.getFirstValueIndex(0), new BytesRef());
+    }
+
+    /**
+     * Categorizes all {@code messages} with a fresh {@link CategorizeBlockHash} and returns a page
+     * suitable as input to {@link CategorizeGroupingMergeOperator} with {@code catIdChannel=0,
+     * stateChannel=1}: one row per message, local catIds at channel 0, constant serialized
+     * categorizer state at channel 1.
+     */
+    private Page buildShardPage(BlockFactory blockFactory, List<String> messages) {
+        CategorizeBlockHash hash = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.INITIAL, CATEGORIZE_DEF, analysisRegistry);
+        try {
+            BytesRefBlock textBlock;
+            try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(messages.size())) {
+                for (String msg : messages) {
+                    builder.appendBytesRef(new BytesRef(msg));
+                }
+                textBlock = builder.build();
+            }
+            IntBlock catIds = hash.categorize(textBlock);
+            textBlock.close();
+            BytesRef state = hash.serializeCategorizer();
+            BytesRefBlock stateBlock = blockFactory.newConstantBytesRefBlockWith(state, catIds.getPositionCount());
+            return new Page(catIds, stateBlock);
+        } finally {
+            hash.close();
+        }
+    }
+
+    /**
+     * Returns a new 1-row page carrying the local cat ID at position 0 of {@code sourcePage} and a
+     * copy of the constant categorizer state. Releases {@code sourcePage}.
+     */
+    private static Page keepFirstRow(BlockFactory blockFactory, Page sourcePage) {
+        try {
+            IntBlock allCatIds = sourcePage.getBlock(0);
+            BytesRefBlock stateBlock = sourcePage.getBlock(1);
+            int keptCatId = allCatIds.getInt(allCatIds.getFirstValueIndex(0));
+            BytesRef state = BytesRef.deepCopyOf(stateBlock.getBytesRef(stateBlock.getFirstValueIndex(0), new BytesRef()));
+            IntBlock keptBlock = blockFactory.newConstantIntBlockWith(keptCatId, 1);
+            BytesRefBlock keptState = blockFactory.newConstantBytesRefBlockWith(state, 1);
+            return new Page(keptBlock, keptState);
+        } finally {
+            sourcePage.releaseBlocks();
         }
     }
 }

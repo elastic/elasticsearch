@@ -82,8 +82,10 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExternalSourc
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
@@ -98,6 +100,7 @@ import org.elasticsearch.xpack.esql.planner.ExplainPlanTransformer;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import org.elasticsearch.xpack.esql.session.Result;
@@ -1687,7 +1690,13 @@ public class ComputeService {
             // input). After de-serializing the data node plan, the output attributes have different NameIds than the ExchangeSink of
             // the data node plan.
             || fragment instanceof MetricsInfo
-            || fragment instanceof TsInfo;
+            || fragment instanceof TsInfo
+            // For CATEGORIZE groupings, Mapper adds coordinator-side catId/state synthetic attrs to ExchangeExec.output() so
+            // planLimitByMerge/planTopNByMerge can look them up by ID. The ExchangeSinkExec therefore declares those attrs in its
+            // output, but FragmentExec only knows the base output (the INITIAL-mode node generates its own distinct NameIds for
+            // catId/state and does not expose them in the logical plan). Skip the consistency check for these fragments.
+            || (fragment instanceof LimitBy limitBy && LocalMapper.hasCategorize(limitBy.groupings()))
+            || (fragment instanceof TopNBy topNBy && LocalMapper.hasCategorize(topNBy.groupings()));
     }
 
     String newChildSession(String session) {

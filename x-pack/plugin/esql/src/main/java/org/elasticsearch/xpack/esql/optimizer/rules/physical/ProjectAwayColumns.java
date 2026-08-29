@@ -108,11 +108,13 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                     // The only exception is when we are dealing with a FORK branch, because we might be dealing with a combination
                     // of branches where some branches have no aggregation, and some branches have. In that case, we need to project.
                     //
-                    // Also skip projection for TopNBy / LimitBy with CATEGORIZE groupings. Data nodes append extra
-                    // physical-only channels (cat_id + serialized state) beyond the logical output via
-                    // CategorizeEvalOperator and CategorizeGroupingMergeOperator. A logical Project wrapping the
-                    // fragment would strip those channels before they reach the exchange sink, breaking multi-phase
-                    // CATEGORIZE.
+                    // Also skip projection for TopNBy / LimitBy with CATEGORIZE groupings. The coordinator-side
+                    // LimitByExec(FINAL)/TopNByExec(FINAL) declares synthetic catId/state attributes that do not
+                    // correspond to any logical plan attribute in the fragment. Inserting a logical Project that
+                    // references these coordinator-side attrs would fail at data-node plan time because the data
+                    // node's LimitByExec(INITIAL) generates its own synthetic attrs with different NameIds.
+                    // The coordinator exchange output is set directly in Mapper when FINAL mode is created;
+                    // the data node projects to [base..., catId, state] inside planLimitByInitial/planTopNByInitial.
                     if ((logicalFragment instanceof Aggregate == false
                         && logicalFragment instanceof MetricsInfo == false
                         && logicalFragment instanceof TsInfo == false

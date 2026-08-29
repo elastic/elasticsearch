@@ -116,7 +116,7 @@ public class LocalMapper {
 
         if (unary instanceof LimitBy limitBy) {
             LimitByExec exec = new LimitByExec(limitBy.source(), mappedChild, limitBy.limitPerGroup(), limitBy.groupings(), null);
-            return hasCategorize(limitBy.groupings()) ? exec.withInitialCategorizeMode(limitBy.output()) : exec;
+            return hasCategorize(limitBy.groupings()) ? exec.withInitialMode(limitBy.output()) : exec;
         }
 
         if (unary instanceof TopN topN) {
@@ -126,7 +126,7 @@ public class LocalMapper {
         if (unary instanceof TopNBy topNBy) {
             TopNByExec exec = new TopNByExec(topNBy.source(), mappedChild, topNBy.order(), topNBy.limitPerGroup(), topNBy.groupings(), null)
                 .withNonSortedOutput();
-            return hasCategorize(topNBy.groupings()) ? exec.withInitialCategorizeMode(topNBy.output()) : exec;
+            return hasCategorize(topNBy.groupings()) ? exec.withInitialMode(topNBy.output()) : exec;
         }
 
         if (unary instanceof MetricsInfo metricsInfo) {

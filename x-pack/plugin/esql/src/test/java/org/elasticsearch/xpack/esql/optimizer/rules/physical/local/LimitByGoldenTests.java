@@ -127,6 +127,20 @@ public class LimitByGoldenTests extends GoldenTestCase {
             """, STAGES_WITH_NODE_REDUCE);
     }
 
+    /**
+     * Two CATEGORIZE expression groupings that cannot be collapsed
+     *
+     * The second LIMIT BY should be SINGLE mode whilst the previous one should have INITIAL, INTERMEDIATE, FINAL phases in the plans
+     */
+    public void testSeveralLimitByWithCategorize() {
+        runGoldenTest("""
+            FROM sample_data
+            | LIMIT 1 BY CATEGORIZE(message)
+            | LIMIT 100
+            | LIMIT 2 BY CATEGORIZE(message)
+            """, STAGES_WITH_NODE_REDUCE);
+    }
+
     private static final EsqlTestUtils.TestSearchStatsWithMinMax STATS = new EsqlTestUtils.TestSearchStatsWithMinMax(
         Map.of("date", dateTimeToLong("2023-10-20T12:15:03.360Z")),
         Map.of("date", dateTimeToLong("2023-10-23T13:55:01.543Z"))

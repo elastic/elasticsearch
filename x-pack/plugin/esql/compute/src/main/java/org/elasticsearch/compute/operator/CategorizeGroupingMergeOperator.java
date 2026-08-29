@@ -122,9 +122,17 @@ public class CategorizeGroupingMergeOperator implements Operator {
         this.blockFactory = blockFactory;
         this.inner = inner;
         this.emitState = emitState;
-        AggregatorMode aggregatorMode = emitState ? AggregatorMode.INTERMEDIATE : AggregatorMode.FINAL;
-        this.blockHash = new CategorizeBlockHash(blockFactory, 0, aggregatorMode, categorizeDef, null);
-        this.buffer = new CategorizerStateBuffer(blockFactory, inner, blockHash, emitState);
+        boolean success = false;
+        try {
+            AggregatorMode aggregatorMode = emitState ? AggregatorMode.INTERMEDIATE : AggregatorMode.FINAL;
+            this.blockHash = new CategorizeBlockHash(blockFactory, 0, aggregatorMode, categorizeDef, null);
+            this.buffer = new CategorizerStateBuffer(blockFactory, inner, blockHash, emitState);
+            success = true;
+        } finally {
+            if (success == false) {
+                inner.close();
+            }
+        }
     }
 
     @Override
@@ -134,7 +142,19 @@ public class CategorizeGroupingMergeOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
-        inner.addInput(mergeAndRemap(page));
+        boolean pageConsumed = false;
+        try {
+            Page remapped = mergeAndRemap(page);
+            // mergeAndRemap consumes page (closes the state and catId blocks, moves the rest
+            // into remapped). The inner operator (e.g. GroupedLimitOperator) always releases
+            // the page it receives, even on exception, so we must not release remapped ourselves.
+            pageConsumed = true;
+            inner.addInput(remapped);
+        } finally {
+            if (pageConsumed == false) {
+                page.releaseBlocks();
+            }
+        }
         // See CategorizeEvalOperator.addInput for the rationale: GroupedLimitOperator can
         // leave a page in `lastOutput` which turns inner.needsInput() false. Drain eagerly so
         // our own needsInput() (which delegates) does not stall the driver pipeline.

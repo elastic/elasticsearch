@@ -262,7 +262,7 @@ public class PlannerUtils {
     private static LimitByExec asNodeReduction(LimitByExec limitBy) {
         return switch (limitBy.mode()) {
             case SINGLE -> limitBy;
-            case INITIAL -> limitBy.withIntermediateCategorizeMode();
+            case INITIAL -> limitBy.withIntermediateMode();
             // LocalMapper only ever produces SINGLE or INITIAL; guard against future modes.
             case INTERMEDIATE, FINAL -> throw new EsqlIllegalArgumentException(
                 "unexpected LIMIT BY categorize mode [{}] when planning node-level reduction",
@@ -277,13 +277,13 @@ public class PlannerUtils {
      * SINGLE nodes (no CATEGORIZE) are returned unchanged.
      */
     private static TopNByExec asNodeReduction(TopNByExec topNBy) {
-        return switch (topNBy.categorizeMode()) {
+        return switch (topNBy.mode()) {
             case SINGLE -> topNBy;
-            case INITIAL -> topNBy.withCategorizeMode(AggregatorMode.INTERMEDIATE);
+            case INITIAL -> topNBy.withIntermediateMode();
             // LocalMapper only ever produces SINGLE or INITIAL; guard against future modes.
             case INTERMEDIATE, FINAL -> throw new EsqlIllegalArgumentException(
                 "unexpected TOPN BY categorize mode [{}] when planning node-level reduction",
-                topNBy.categorizeMode()
+                topNBy.mode()
             );
         };
     }

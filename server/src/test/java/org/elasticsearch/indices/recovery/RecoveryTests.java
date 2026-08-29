@@ -456,7 +456,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                     }
 
                     @Override
-                    public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                    public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                         assertThat(ExceptionsHelper.unwrap(e, IOException.class).getMessage(), equalTo("simulated"));
                     }
 

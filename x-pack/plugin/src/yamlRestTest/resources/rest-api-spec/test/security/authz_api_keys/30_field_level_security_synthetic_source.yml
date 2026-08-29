@@ -1494,3 +1494,243 @@ Fields with ignore_above in logsdb_columnar - uses _ignored_source doc values:
   - match: { hits.hits.0._source.name: A }
   - match: { hits.hits.0._source.note: elephant }
   - is_false: "hits.hits.0._source.secret"
+
+---
+on_failure sidecar of a denied field is not exposed under FLS (logsdb_columnar):
+  # ._on_failure is not in the mapping, so FieldSubsetReader rewrites its name to the parent before the permission
+  # automaton runs. A grant of ["*"] except ["secret"] must not expose secret's redirected values via synthetic source.
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.doc_values.on_failure" ]
+      reason: "._on_failure sidecar visibility under FLS requires both columnar index modes and the doc_values.on_failure feature flag"
+
+  - do:
+      indices.create:
+        index: index_fls_on_failure_deny
+        body:
+          settings:
+            index.mode: logsdb_columnar
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              name:
+                type: keyword
+                doc_values:
+                  multi_value: false
+                  on_failure: ignore
+              secret:
+                type: keyword
+                doc_values:
+                  multi_value: false
+                  on_failure: ignore
+
+  - do:
+      bulk:
+        index: index_fls_on_failure_deny
+        refresh: true
+        body:
+          - '{"create": {}}'
+          - '{"@timestamp": "2026-01-01T00:00:00Z", "name": ["a", "b", "c"], "secret": ["s1", "s2", "s3"]}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_fls_on_failure_deny" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "*" ]
+                    except: [ "secret" ]
+  - match: { name: "test-fls" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser: both fields return their full arrays (primary column + ._on_failure sidecar)
+  - do:
+      search:
+        index: index_fls_on_failure_deny
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: [ "a", "b", "c" ] }
+  - match: { hits.hits.0._source.secret: [ "s1", "s2", "s3" ] }
+
+  # With FLS API Key: name is granted (full array preserved), secret and its ._on_failure column are denied
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: index_fls_on_failure_deny
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: [ "a", "b", "c" ] }
+  - is_false: "hits.hits.0._source.secret"
+
+---
+on_failure sidecar follows an explicitly granted field under FLS (logsdb_columnar):
+  # With grant: ["@timestamp", "name"] (no wildcard), name._on_failure does not literally match "name".
+  # FieldSubsetReader must rewrite the sidecar name to its parent so the full array ["a","b","c"] is preserved,
+  # not truncated to ["a"] (which is all that lives in the primary doc-values column).
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.doc_values.on_failure" ]
+      reason: "._on_failure sidecar visibility under FLS requires both columnar index modes and the doc_values.on_failure feature flag"
+
+  - do:
+      indices.create:
+        index: index_fls_on_failure_grant
+        body:
+          settings:
+            index.mode: logsdb_columnar
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              name:
+                type: keyword
+                doc_values:
+                  multi_value: false
+                  on_failure: ignore
+              secret:
+                type: keyword
+                doc_values:
+                  multi_value: false
+                  on_failure: ignore
+
+  - do:
+      bulk:
+        index: index_fls_on_failure_grant
+        refresh: true
+        body:
+          - '{"create": {}}'
+          - '{"@timestamp": "2026-01-01T00:00:00Z", "name": ["a", "b", "c"], "secret": ["s1", "s2", "s3"]}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_fls_on_failure_grant" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "@timestamp", "name" ]
+  - match: { name: "test-fls" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser: both fields return their full arrays
+  - do:
+      search:
+        index: index_fls_on_failure_grant
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: [ "a", "b", "c" ] }
+  - match: { hits.hits.0._source.secret: [ "s1", "s2", "s3" ] }
+
+  # With FLS API Key: name is explicitly granted so its ._on_failure sidecar must follow — full array preserved
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: index_fls_on_failure_grant
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: [ "a", "b", "c" ] }
+  - is_false: "hits.hits.0._source.secret"
+
+---
+on_failure sidecar of a denied field is not exposed under FLS (columnar):
+  # Same as the logsdb_columnar deny case above, but for strict columnar mode (no data-stream semantics).
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.doc_values.on_failure" ]
+      reason: "._on_failure sidecar visibility under FLS requires both columnar index modes and the doc_values.on_failure feature flag"
+
+  - do:
+      indices.create:
+        index: index_fls_on_failure_columnar_deny
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              name:
+                type: keyword
+                doc_values:
+                  multi_value: false
+                  on_failure: ignore
+              secret:
+                type: keyword
+                doc_values:
+                  multi_value: false
+                  on_failure: ignore
+
+  - do:
+      bulk:
+        index: index_fls_on_failure_columnar_deny
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"name": ["a", "b", "c"], "secret": ["s1", "s2", "s3"]}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_fls_on_failure_columnar_deny" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "*" ]
+                    except: [ "secret" ]
+  - match: { name: "test-fls" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser: both fields return their full arrays
+  - do:
+      search:
+        index: index_fls_on_failure_columnar_deny
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: [ "a", "b", "c" ] }
+  - match: { hits.hits.0._source.secret: [ "s1", "s2", "s3" ] }
+
+  # With FLS API Key: name is granted (full array preserved), secret and its ._on_failure column are denied
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: index_fls_on_failure_columnar_deny
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: [ "a", "b", "c" ] }
+  - is_false: "hits.hits.0._source.secret"

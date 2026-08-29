@@ -18,6 +18,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -34,8 +35,13 @@ public final class ScanningBinaryDocValuesWildcardQuery extends AbstractBinaryDo
     private final String pattern;
     private final boolean caseInsensitive;
 
-    public ScanningBinaryDocValuesWildcardQuery(String fieldName, String pattern, boolean caseInsensitive, boolean arrayOrderInlineNull) {
-        super(fieldName, buildByteRunAutomaton(fieldName, pattern, caseInsensitive), arrayOrderInlineNull);
+    public ScanningBinaryDocValuesWildcardQuery(
+        String fieldName,
+        String pattern,
+        boolean caseInsensitive,
+        BinaryDocValuesFormat binaryFormat
+    ) {
+        super(fieldName, buildByteRunAutomaton(fieldName, pattern, caseInsensitive), binaryFormat);
         this.pattern = Objects.requireNonNull(pattern);
         this.caseInsensitive = caseInsensitive;
     }
@@ -56,7 +62,7 @@ public final class ScanningBinaryDocValuesWildcardQuery extends AbstractBinaryDo
         if (caseInsensitive == false) {
             var innerPattern = getContainsPattern(pattern);
             if (innerPattern != null) {
-                return new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef(innerPattern), arrayOrderInlineNull);
+                return new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef(innerPattern), binaryFormat);
             }
         }
         return super.rewrite(indexSearcher);
@@ -104,11 +110,12 @@ public final class ScanningBinaryDocValuesWildcardQuery extends AbstractBinaryDo
         ScanningBinaryDocValuesWildcardQuery that = (ScanningBinaryDocValuesWildcardQuery) o;
         return Objects.equals(fieldName, that.fieldName)
             && Objects.equals(pattern, that.pattern)
-            && caseInsensitive == that.caseInsensitive;
+            && caseInsensitive == that.caseInsensitive
+            && binaryFormat == that.binaryFormat;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), fieldName, pattern, caseInsensitive);
+        return Objects.hash(classHash(), fieldName, pattern, caseInsensitive, binaryFormat);
     }
 }

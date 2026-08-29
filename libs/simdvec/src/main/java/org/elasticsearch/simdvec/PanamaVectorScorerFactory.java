@@ -28,6 +28,7 @@ import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentES91OSQVect
 import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentESNextAshVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.OnHeapES91OSQVectorsScorer;
+import org.elasticsearch.simdvec.internal.vectorization.PanamaAshSphericalScalarQuantizer;
 import org.elasticsearch.simdvec.internal.vectorization.PanamaOptimizedScalarQuantization;
 import org.elasticsearch.simdvec.internal.vectorization.PanamaVectorConstants;
 
@@ -131,6 +132,11 @@ final class PanamaVectorScorerFactory implements VectorScorerFactory {
     @Override
     public OptimizedScalarQuantization newOptimizedScalarQuantization() {
         return new PanamaOptimizedScalarQuantization();
+    }
+
+    @Override
+    public AshSphericalScalarQuantizer newAshSphericalScalarQuantizer(int bitsPerDim) {
+        return new PanamaAshSphericalScalarQuantizer(bitsPerDim);
     }
 
     @Override

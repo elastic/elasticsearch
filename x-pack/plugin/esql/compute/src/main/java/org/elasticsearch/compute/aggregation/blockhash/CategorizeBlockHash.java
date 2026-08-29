@@ -25,6 +25,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CategorizeMergeOperator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
@@ -226,7 +227,7 @@ public class CategorizeBlockHash extends BlockHash {
     /**
      * Merges the wire-format categorizer state in {@code bytes} into this instance's global categorizer,
      * then remaps every category ID in {@code ids} (preserving multi-valued structure) and returns a new
-     * block. For use by {@link org.elasticsearch.compute.operator.CategorizeGroupingMergeOperator} in
+     * block. For use by {@link CategorizeMergeOperator} in
      * INTERMEDIATE and FINAL modes.
      */
     public IntBlock recategorize(BytesRef bytes, IntBlock ids) {

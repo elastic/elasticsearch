@@ -33,7 +33,7 @@ import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.query.TimeSeriesSourceOperator;
 import org.elasticsearch.compute.operator.CategorizeEvalOperator;
-import org.elasticsearch.compute.operator.CategorizeGroupingMergeOperator;
+import org.elasticsearch.compute.operator.CategorizeMergeOperator;
 import org.elasticsearch.compute.operator.ChangePointOperator;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.ColumnLoadOperator;
@@ -1321,7 +1321,7 @@ public class LocalExecutionPlanner {
 
     /**
      * INTERMEDIATE mode (node-reduce driver) and FINAL mode (coordinator): wraps
-     * {@link GroupedTopNOperator} in {@link CategorizeGroupingMergeOperator} which merges
+     * {@link GroupedTopNOperator} in {@link CategorizeMergeOperator} which merges
      * per-page categorizer state, remaps local category IDs to global IDs, and delegates to the
      * inner operator. Exchange carries {@code [base | catId | state]} channels.
      *
@@ -1392,7 +1392,7 @@ public class LocalExecutionPlanner {
             ? mergedLayout.builder().append(new Layout.ChannelSet(Set.of(new NameId()), DataType.KEYWORD)).build()
             : mergedLayout;
         source = source.with(
-            new CategorizeGroupingMergeOperator.Factory(catIdChannel, stateChannel, categorizeDef, topNFactory, emitState),
+            new CategorizeMergeOperator.Factory(catIdChannel, stateChannel, categorizeDef, topNFactory, emitState),
             outLayout
         );
         int baseChannels = topNByExec.baseCategorizeOutput().size();
@@ -2561,7 +2561,7 @@ public class LocalExecutionPlanner {
 
     /**
      * INTERMEDIATE mode (node-reduce driver) and FINAL mode (coordinator): wraps
-     * {@link GroupedLimitOperator} in {@link CategorizeGroupingMergeOperator} which merges
+     * {@link GroupedLimitOperator} in {@link CategorizeMergeOperator} which merges
      * per-page categorizer state, remaps local category IDs to global IDs, and delegates to the
      * inner operator. Exchange carries {@code [base | catId | state]} channels.
      *
@@ -2614,7 +2614,7 @@ public class LocalExecutionPlanner {
             ? mergedLayout.builder().append(new Layout.ChannelSet(Set.of(new NameId()), DataType.KEYWORD)).build()
             : mergedLayout;
         source = source.with(
-            new CategorizeGroupingMergeOperator.Factory(catIdChannel, stateChannel, categorizeDef, limitFactory, emitState),
+            new CategorizeMergeOperator.Factory(catIdChannel, stateChannel, categorizeDef, limitFactory, emitState),
             outLayout
         );
         int baseChannels = limitBy.baseCategorizeOutput().size();

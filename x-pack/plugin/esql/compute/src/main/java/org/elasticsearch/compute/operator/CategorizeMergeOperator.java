@@ -48,7 +48,7 @@ import org.elasticsearch.core.Releasables;
  * columns. Category IDs are assigned per incoming page as the global model grows — identical to
  * the append-only behaviour of {@code CategorizeBlockHash} in FINAL mode.
  */
-public class CategorizeGroupingMergeOperator implements Operator {
+public class CategorizeMergeOperator implements Operator {
 
     public static final class Factory implements Operator.OperatorFactory {
         private final int catIdChannel;
@@ -76,8 +76,8 @@ public class CategorizeGroupingMergeOperator implements Operator {
         }
 
         @Override
-        public CategorizeGroupingMergeOperator get(DriverContext driverContext) {
-            return new CategorizeGroupingMergeOperator(
+        public CategorizeMergeOperator get(DriverContext driverContext) {
+            return new CategorizeMergeOperator(
                 catIdChannel,
                 stateChannel,
                 categorizeDef,
@@ -109,7 +109,7 @@ public class CategorizeGroupingMergeOperator implements Operator {
     private final boolean emitState;
     private final CategorizerStateBuffer buffer;
 
-    private CategorizeGroupingMergeOperator(
+    private CategorizeMergeOperator(
         int catIdChannel,
         int stateChannel,
         CategorizeDef categorizeDef,

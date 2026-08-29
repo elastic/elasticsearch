@@ -19,7 +19,7 @@ import java.util.ArrayDeque;
 
 /**
  * Shared buffering logic for {@link CategorizeEvalOperator} (INITIAL mode) and
- * {@link CategorizeGroupingMergeOperator} (INTERMEDIATE mode).
+ * {@link CategorizeMergeOperator} (INTERMEDIATE mode).
  *
  * <p>When {@code emitState} is {@code false} (SINGLE and FINAL phases), every method
  * is a pass-through to the inner operator and no buffering occurs.

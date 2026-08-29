@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunctio
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
@@ -48,7 +49,7 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
         return apply(plan, false);
     }
 
-    private static boolean hasCategorizeGrouping(org.elasticsearch.xpack.esql.plan.logical.LogicalPlan fragment) {
+    private static boolean hasCategorizeGrouping(LogicalPlan fragment) {
         if (fragment instanceof TopNBy topNBy) {
             return topNBy.groupings().stream().anyMatch(g -> g.anyMatch(e -> e instanceof GroupingFunction.NonEvaluatableGroupingFunction));
         }

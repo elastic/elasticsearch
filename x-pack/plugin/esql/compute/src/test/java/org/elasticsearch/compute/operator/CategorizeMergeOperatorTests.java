@@ -40,10 +40,10 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- * Tests for {@link CategorizeGroupingMergeOperator}: state-channel removal, ID remapping via empty
+ * Tests for {@link CategorizeMergeOperator}: state-channel removal, ID remapping via empty
  * and real categorizer states, multivalued positions, and end-to-end pipeline correctness.
  */
-public class CategorizeStateMergeOperatorTests extends OperatorTestCase {
+public class CategorizeMergeOperatorTests extends OperatorTestCase {
 
     private static final BlockHash.CategorizeDef CATEGORIZE_DEF = new BlockHash.CategorizeDef(
         null,
@@ -104,7 +104,7 @@ public class CategorizeStateMergeOperatorTests extends OperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new CategorizeGroupingMergeOperator.Factory(
+        return new CategorizeMergeOperator.Factory(
             0,
             1,
             CATEGORIZE_DEF,
@@ -137,7 +137,7 @@ public class CategorizeStateMergeOperatorTests extends OperatorTestCase {
     public void testNullOrdPassesThroughUnchanged() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
-        try (CategorizeGroupingMergeOperator op = mergeFactory().get(ctx)) {
+        try (CategorizeMergeOperator op = mergeFactory().get(ctx)) {
             IntBlock catIds = blockFactory.newConstantIntBlockWith(0, 3);
             BytesRefBlock state = blockFactory.newConstantBytesRefBlockWith(EMPTY_STATE, 3);
             op.addInput(new Page(catIds, state));
@@ -159,7 +159,7 @@ public class CategorizeStateMergeOperatorTests extends OperatorTestCase {
     public void testStateChannelDropped() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
-        try (CategorizeGroupingMergeOperator op = mergeFactory().get(ctx)) {
+        try (CategorizeMergeOperator op = mergeFactory().get(ctx)) {
             IntBlock catIds = blockFactory.newConstantIntBlockWith(1, 2);
             BytesRefBlock state = blockFactory.newConstantBytesRefBlockWith(EMPTY_STATE, 2);
             op.addInput(new Page(catIds, state));
@@ -184,7 +184,7 @@ public class CategorizeStateMergeOperatorTests extends OperatorTestCase {
 
         // Build a page with two rows using a real shard categorizer state
         Page shardPage = buildShardPage(blockFactory, List.of("Connection error", "Disconnected"));
-        try (CategorizeGroupingMergeOperator mergeOp = mergeFactory().get(ctx)) {
+        try (CategorizeMergeOperator mergeOp = mergeFactory().get(ctx)) {
             mergeOp.addInput(shardPage);
             mergeOp.finish();
             Page mergeResult = mergeOp.getOutput();
@@ -228,7 +228,7 @@ public class CategorizeStateMergeOperatorTests extends OperatorTestCase {
         // Shard 2: "Info" messages → also local cat 1 (independent ordinal counter)
         Page shard2Row = keepFirstRow(blockFactory, buildShardPage(blockFactory, List.of("Info alpha", "Info beta", "Info gamma")));
 
-        try (CategorizeGroupingMergeOperator mergeOp = mergeFactory().get(ctx)) {
+        try (CategorizeMergeOperator mergeOp = mergeFactory().get(ctx)) {
             mergeOp.addInput(shard1Row);
             Page merged1 = mergeOp.getOutput();
             assertNotNull(merged1);
@@ -258,7 +258,7 @@ public class CategorizeStateMergeOperatorTests extends OperatorTestCase {
     public void testMultivaluedIdsRemappedViaEmptyState() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
-        try (CategorizeGroupingMergeOperator op = mergeFactory().get(ctx)) {
+        try (CategorizeMergeOperator op = mergeFactory().get(ctx)) {
             IntBlock catIds;
             try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(2)) {
                 // position 0: single value 1
@@ -296,7 +296,7 @@ public class CategorizeStateMergeOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
         try (
-            CategorizeGroupingMergeOperator op = new CategorizeGroupingMergeOperator.Factory(
+            CategorizeMergeOperator op = new CategorizeMergeOperator.Factory(
                 0,
                 1,
                 CATEGORIZE_DEF,
@@ -327,7 +327,7 @@ public class CategorizeStateMergeOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
         try (
-            CategorizeGroupingMergeOperator op = new CategorizeGroupingMergeOperator.Factory(
+            CategorizeMergeOperator op = new CategorizeMergeOperator.Factory(
                 0,
                 1,
                 CATEGORIZE_DEF,
@@ -375,7 +375,7 @@ public class CategorizeStateMergeOperatorTests extends OperatorTestCase {
         Page shard1 = keepFirstRow(blockFactory, buildShardPage(blockFactory, messages));
         Page shard2 = keepFirstRow(blockFactory, buildShardPage(blockFactory, messages));
 
-        try (CategorizeGroupingMergeOperator mergeOp = mergeFactory().get(ctx)) {
+        try (CategorizeMergeOperator mergeOp = mergeFactory().get(ctx)) {
             mergeOp.addInput(shard1);
             Page out1 = mergeOp.getOutput();
             assertNotNull(out1);
@@ -399,11 +399,11 @@ public class CategorizeStateMergeOperatorTests extends OperatorTestCase {
     }
 
     /**
-     * Returns a {@link CategorizeGroupingMergeOperator.Factory} in FINAL mode (no state re-emit)
+     * Returns a {@link CategorizeMergeOperator.Factory} in FINAL mode (no state re-emit)
      * wrapping a {@link GroupedLimitOperator} with a large per-group limit.
      */
-    private CategorizeGroupingMergeOperator.Factory mergeFactory() {
-        return new CategorizeGroupingMergeOperator.Factory(
+    private CategorizeMergeOperator.Factory mergeFactory() {
+        return new CategorizeMergeOperator.Factory(
             0,
             1,
             CATEGORIZE_DEF,
@@ -418,7 +418,7 @@ public class CategorizeStateMergeOperatorTests extends OperatorTestCase {
 
     /**
      * Categorizes all {@code messages} with a fresh {@link CategorizeBlockHash} and returns a page
-     * suitable as input to {@link CategorizeGroupingMergeOperator} with {@code catIdChannel=0,
+     * suitable as input to {@link CategorizeMergeOperator} with {@code catIdChannel=0,
      * stateChannel=1}: one row per message, local catIds at channel 0, constant serialized
      * categorizer state at channel 1.
      */

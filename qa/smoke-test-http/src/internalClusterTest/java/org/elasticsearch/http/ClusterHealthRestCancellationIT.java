@@ -63,9 +63,7 @@ public class ClusterHealthRestCancellationIT extends HttpSmokeTestCase {
                     .getMasterService()
                     .pendingTasks()
                     .stream()
-                    .anyMatch(
-                        pendingClusterTask -> pendingClusterTask.source().string().equals("cluster_health (wait_for_events [LANGUID])")
-                    )
+                    .anyMatch(pendingClusterTask -> pendingClusterTask.source().equals("cluster_health (wait_for_events [LANGUID])"))
             )
         );
 

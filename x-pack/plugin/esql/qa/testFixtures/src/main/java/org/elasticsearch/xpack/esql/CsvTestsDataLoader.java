@@ -304,6 +304,7 @@ public class CsvTestsDataLoader {
             .withDynamic("false")
             .withTypeMapping(removeFields("float_vector")),
         new TestDataset("dense_vector_coalesce").withRequiredCapabilities(EsqlCapabilities.Cap.COALESCE_DENSE_VECTOR),
+        new TestDataset("dense_vector_limit_by"),
         new TestDataset("dense_vector_bfloat16").withRequiredCapabilities(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT),
         new TestDataset("dense_vector_arithmetic"),
         new TestDataset("web_logs"),
@@ -604,7 +605,7 @@ public class CsvTestsDataLoader {
         return (prop == null || prop.isBlank()) ? null : Set.of(prop.split(", *"));
     }
 
-    private static boolean isLookupDataset(TestDataset dataset) throws IOException {
+    static boolean isLookupDataset(TestDataset dataset) throws IOException {
         Settings settings = dataset.loadSettings();
         String mode = settings.get("index.mode");
         return (mode != null && mode.equalsIgnoreCase("lookup"));
@@ -619,7 +620,7 @@ public class CsvTestsDataLoader {
         return mappingNode.get("_source") != null;
     }
 
-    private static boolean isTimeSeries(TestDataset dataset) throws IOException {
+    static boolean isTimeSeries(TestDataset dataset) throws IOException {
         Settings settings = dataset.loadSettings();
         String mode = settings.get("index.mode");
         return (mode != null && mode.equalsIgnoreCase("time_series"));

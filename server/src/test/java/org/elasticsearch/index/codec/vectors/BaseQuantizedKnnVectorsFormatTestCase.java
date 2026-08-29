@@ -31,7 +31,11 @@ import static org.hamcrest.Matchers.instanceOf;
 public abstract class BaseQuantizedKnnVectorsFormatTestCase extends BaseKnnVectorsFormatTestCase {
 
     public void testRescoreUsesRawVectorSlice() throws IOException {
+        // Int4 (bits=4 / PACKED_NIBBLE) requires even dimensions; subclasses may randomly pick bits=4.
         int dimension = random().nextInt(12, 64);
+        if (dimension % 2 != 0) {
+            dimension++;
+        }
         float[] vector = randomVector(dimension);
         try (Directory dir = newDirectory()) {
             try (IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {

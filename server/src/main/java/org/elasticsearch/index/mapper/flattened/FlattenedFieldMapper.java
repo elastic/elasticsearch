@@ -9,8 +9,6 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
-import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.ImpactsEnum;
@@ -75,6 +73,7 @@ import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparator
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.BatchMappingContext;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.CustomDocValuesField;
@@ -106,6 +105,7 @@ import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullPrefixQuery;
 import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullTermQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
+import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.FlattenedDocValuesField;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
@@ -730,9 +730,9 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                     if (usesArrayOrderBinaryDocValues) {
                         return new KeyedArrayOrderInlineNullTermQuery(name(), keyedValue);
                     }
-                    return new ScanningBinaryDocValuesTermQuery(name(), keyedValue, false);
+                    return new ScanningBinaryDocValuesTermQuery(name(), keyedValue, BinaryDocValuesFormat.SEPARATE_COUNT);
                 } else {
-                    return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
+                    return XSortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
                 }
             } else {
                 return super.termQuery(value, context);
@@ -760,7 +760,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                         return new KeyedArrayOrderInlineNullPrefixQuery(name(), new BytesRef(keyPrefix));
                     }
                     // Separate-count binary blob: slots are full key\0value, so a prefix scan finds any value under this key.
-                    return new ScanningBinaryDocValuesPrefixQuery(name(), keyPrefix, false, false);
+                    return new ScanningBinaryDocValuesPrefixQuery(name(), keyPrefix, false, BinaryDocValuesFormat.SEPARATE_COUNT);
                 }
 
                 // SortedSet doc-values: match any ord in [key\0, key\1) i.e. any value stored under this key.
@@ -768,7 +768,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 BytesRef upper = new BytesRef(keyPrefix);
                 upper.bytes[upper.offset + upper.length - 1] = (byte) 0x01; // bump the trailing separator byte for an exclusive upper bound
 
-                return SortedSetDocValuesField.newSlowRangeQuery(name(), lower, upper, true, false);
+                return XSortedSetDocValuesRangeQuery.newSlowRangeQuery(name(), lower, upper, true, false);
             }
             return new PrefixQuery(new Term(name(), keyPrefix));
         }
@@ -2006,14 +2006,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
         final String keyedFieldName = fieldType().name() + KEYED_FIELD_SUFFIX;
         ctx.addColumn(LuceneBinaryColumn.of(keyed.finish(docCount), keyedFieldName, CustomDocValuesField.TYPE));
-        ctx.addColumn(
-            LuceneLongColumn.of(
-                counts.finish(docCount),
-                keyedFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX,
-                MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_TYPE,
-                LongColumn.NumericKind.LONG
-            )
-        );
+        ctx.addColumn(LuceneLongColumn.counts(counts.finish(docCount), keyedFieldName));
     }
 
     // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.

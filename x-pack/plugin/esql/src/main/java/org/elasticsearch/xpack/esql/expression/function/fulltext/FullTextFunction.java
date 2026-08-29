@@ -731,26 +731,14 @@ public abstract class FullTextFunction extends Function
      * Check if the full-text function exists only in the current node (not in child nodes)
      */
     private static boolean isInCurrentNode(LogicalPlan plan, FullTextFunction function) {
-        final Holder<Boolean> found = new Holder<>(false);
-        plan.forEachExpression(FullTextFunction.class, ftf -> {
-            if (ftf == function) {
-                found.set(true);
-            }
-        });
-        return found.get();
+        return plan.expressions().stream().anyMatch(e -> e.anyMatch(c -> c == function));
     }
 
     /**
      * Checks if there is a subquery in the children plans.
      */
     private static boolean hasSubqueryInChildrenPlans(LogicalPlan plan) {
-        Holder<Boolean> hasSubquery = new Holder<>(false);
-        plan.forEachDown(p -> {
-            if (p instanceof UnionAll) {
-                hasSubquery.set(true);
-            }
-        });
-        return hasSubquery.get();
+        return plan.anyMatch(p -> p instanceof UnionAll);
     }
 
     private static boolean hasFilterPushdownTarget(LogicalPlan plan) {

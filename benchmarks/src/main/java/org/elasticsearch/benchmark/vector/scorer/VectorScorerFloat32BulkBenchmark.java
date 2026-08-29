@@ -33,8 +33,8 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.panamaSco
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.panamaScorer;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.writeFloatVectorData;
-import static org.elasticsearch.nativeaccess.jdk.ScalarOperations.dotProduct;
-import static org.elasticsearch.nativeaccess.jdk.ScalarOperations.squareDistance;
+import static org.elasticsearch.simdvec.ScalarOperations.dotProduct;
+import static org.elasticsearch.simdvec.ScalarOperations.squareDistance;
 
 public class VectorScorerFloat32BulkBenchmark extends VectorScorerBulkBenchmark {
 

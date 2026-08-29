@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceUsageAccumulator;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
@@ -136,8 +137,9 @@ public final class DataSourceModule implements Closeable {
         LocalFileAccess localFileAccess
     ) {
         this.capabilities = capabilities;
-        // Node telemetry sink for external-source read metrics; NOOP when no registry is supplied (tests).
-        this.externalSourceMetrics = meterRegistry == null ? ExternalSourceMetrics.NOOP : new ExternalSourceMetrics(meterRegistry);
+        // Always create a live accumulator so phone-home counters work even when APM is disabled.
+        DataSourceUsageAccumulator accumulator = new DataSourceUsageAccumulator();
+        this.externalSourceMetrics = new ExternalSourceMetrics(meterRegistry != null ? meterRegistry : MeterRegistry.NOOP, accumulator);
         LocalFileAccess effectiveLocalFileAccess = localFileAccess != null ? localFileAccess : LocalFileAccess.UNRESTRICTED;
         // Off-timer scheduler for the async read-retry backoff, so a retry does not park a GENERIC-pool thread on
         // Thread.sleep while it waits; DIRECT (run promptly on the executor) when no ThreadPool is supplied (tests).
@@ -334,7 +336,7 @@ public final class DataSourceModule implements Closeable {
         return sourceFactories;
     }
 
-    /** The node-level external-source telemetry holder, or {@link ExternalSourceMetrics#NOOP} when no registry was supplied. */
+    /** The node-level external-source telemetry holder. Always a live instance backed by a real {@link DataSourceUsageAccumulator}. */
     public ExternalSourceMetrics externalSourceMetrics() {
         return externalSourceMetrics;
     }

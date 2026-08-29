@@ -2783,15 +2783,31 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
     private static DataType convertGroupTypeToEsql(GroupType groupType) {
         LogicalTypeAnnotation logical = groupType.getLogicalTypeAnnotation();
         if (logical instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation && groupType.getFieldCount() == 1) {
-            GroupType repeatedGroup = groupType.getType(0).asGroupType();
-            if (repeatedGroup.getFieldCount() == 1) {
-                Type elementType = repeatedGroup.getType(0);
-                if (elementType.isPrimitive()) {
-                    return convertParquetTypeToEsql(elementType);
-                }
+            Type repeatedType = groupType.getType(0);
+            if (repeatedType.isRepetition(Type.Repetition.REPEATED) == false) {
+                return DataType.UNSUPPORTED;
+            }
+            Type elementType = isListElementType(repeatedType, groupType.getName()) ? repeatedType : repeatedType.asGroupType().getType(0);
+            if (elementType.isPrimitive()) {
+                return convertParquetTypeToEsql(elementType);
             }
         }
         return DataType.UNSUPPORTED;
+    }
+
+    /**
+     * Applies Parquet's backward-compatibility rules for deciding whether the repeated type in a LIST
+     * is itself the element or is the standard three-level wrapper around the element.
+     */
+    private static boolean isListElementType(Type repeatedType, String parentName) {
+        if (repeatedType.isPrimitive()) {
+            return true;
+        }
+        GroupType repeatedGroup = repeatedType.asGroupType();
+        return repeatedGroup.getFieldCount() != 1
+            || repeatedGroup.getType(0).isRepetition(Type.Repetition.REPEATED)
+            || repeatedType.getName().equals("array")
+            || repeatedType.getName().equals(parentName + "_tuple");
     }
 
     /**

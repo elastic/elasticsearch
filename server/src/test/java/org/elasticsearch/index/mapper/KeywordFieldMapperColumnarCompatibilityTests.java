@@ -401,4 +401,109 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
             )
         );
     }
+
+    // ---- multi-fields ---------------------------------------------------------------------------
+
+    public void testMultiFieldSingleValue() throws IOException {
+        // The parent and its keyword multi-field both parse the same raw source values.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("lower").field("type", "keyword").endObject();
+            b.endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "multi-field single value",
+                1L,
+                doc("d1", 1L, "{\"f\":\"Hello\"}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":\"World\"}")
+            )
+        );
+    }
+
+    public void testMultiFieldArrayValues() throws IOException {
+        // Multi-valued source arrays replay independently through the parent and its multi-field.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("raw").field("type", "keyword").endObject();
+            b.endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "multi-field array values",
+                1L,
+                doc("d1", 1L, "{\"f\":[\"alpha\",\"beta\"]}"),
+                doc("d2", 2L, "{\"f\":[]}"),
+                doc("d3", 3L, "{}")
+            )
+        );
+    }
+
+    public void testMultiFieldDivergingIgnoreAbove() throws IOException {
+        // The parent and multi-field have different ignore_above limits, so a value can trip one
+        // field's ignore_above-fallback path without tripping the other's.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword").field("ignore_above", 4);
+            b.startObject("fields");
+            b.startObject("raw").field("type", "keyword").endObject();
+            b.endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch("multi-field diverging ignore_above", 1L, doc("d1", 1L, "{\"f\":\"toolong\"}"), doc("d2", 2L, "{\"f\":\"ok\"}"))
+        );
+    }
+
+    public void testMultiFieldTwoMultiFields() throws IOException {
+        // Two multi-fields under the same parent produce independent output columns.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("raw").field("type", "keyword").endObject();
+            b.startObject("other").field("type", "keyword").field("ignore_above", 3).endObject();
+            b.endObject();
+            b.endObject();
+        }), columnarSettings(), batch("multi-field two multi-fields", 1L, doc("d1", 1L, "{\"f\":\"abcd\"}"), doc("d2", 2L, "{}")));
+    }
+
+    public void testMultiFieldNotIndexedParent() throws IOException {
+        // The parent is not indexed (doc values only) while its multi-field is fully indexed;
+        // mapColumnBatch must dispatch to the multi-field regardless of the parent's own emit flags.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword").field("index", false);
+            b.startObject("fields");
+            b.startObject("raw").field("type", "keyword").endObject();
+            b.endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch("multi-field not-indexed parent", 1L, doc("d1", 1L, "{\"f\":\"only_dv_and_multifield\"}"), doc("d2", 2L, "{}"))
+        );
+    }
+
+    public void testMultiFieldMultiValueFalse() throws IOException {
+        // The parent is multi_value=false while its multi-field keeps the default multi_value=true.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.startObject("fields");
+            b.startObject("raw").field("type", "keyword").endObject();
+            b.endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "multi-field parent multi_value=false",
+                1L,
+                doc("d1", 1L, "{\"f\":\"solo\"}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":\"solo2\"}")
+            )
+        );
+    }
 }

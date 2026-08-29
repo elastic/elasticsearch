@@ -223,12 +223,26 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
         assertThat(resolution.columnMappers()[0], instanceOf(IpFieldMapper.class));
     }
 
-    public void testKeywordWithMultiFieldsFallsBack() throws IOException {
+    public void testKeywordWithColumnarCapableMultiFieldIsSupported() throws IOException {
         MapperService ms = mapper(mapping(b -> {
             b.startObject("host");
             b.field("type", "keyword");
             b.startObject("fields");
             b.startObject("lower").field("type", "keyword").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("host"), ms.mappingLookup(), indexSettings);
+        assertNotNull(resolution);
+        assertThat(resolution.columnMappers()[0], instanceOf(KeywordFieldMapper.class));
+    }
+
+    public void testKeywordWithNonColumnarMultiFieldFallsBack() throws IOException {
+        MapperService ms = mapper(mapping(b -> {
+            b.startObject("host");
+            b.field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("text").field("type", "text").endObject();
             b.endObject();
             b.endObject();
         }));

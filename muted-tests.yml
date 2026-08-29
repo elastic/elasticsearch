@@ -836,3 +836,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalReadConfigContaminationIT
   method: testHeterogeneousMultiFileFoldIsNotServedAcrossConfigurations
   issue: https://github.com/elastic/elasticsearch/issues/157991
+- class: org.elasticsearch.xpack.esql.action.ExternalReadConfigContaminationIT
+  method: testDeclaredMultiFileReadIsNotServedTheInferredFold
+  issue: https://github.com/elastic/elasticsearch/issues/157992

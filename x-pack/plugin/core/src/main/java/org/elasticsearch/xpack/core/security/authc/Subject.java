@@ -128,7 +128,7 @@ public class Subject {
 
     /**
      * Whether this subject carries a cloud identity-provider cap on its assigned roles. A capped subject produces two
-     * role references, which the API-key owner-snapshot path cannot represent without dropping the cap.
+     * role references.
      */
     public boolean hasCloudLimitedByRoles() {
         return metadata.containsKey(AuthenticationField.CLOUD_LIMITED_BY_ROLES_KEY);

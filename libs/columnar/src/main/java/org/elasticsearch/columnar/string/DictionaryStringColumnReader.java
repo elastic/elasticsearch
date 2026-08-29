@@ -167,10 +167,31 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         if (ranksOfAll(docs, offset, count) == false) {
             return false;
         }
+        final OrdinalBlockCursor cursor = new OrdinalBlockCursor();
         for (int i = 0; i < count; i++) {
-            ordinals[i] = Math.toIntExact(this.ordinals.valueAt(pageRanks[i]));
+            ordinals[i] = cursor.at(pageRanks[i]);
         }
         return true;
+    }
+
+    /**
+     * Reads ordinals a block at a time. Documents arrive in order, so a page spans a handful of blocks and
+     * each is addressed once and then indexed.
+     */
+    private final class OrdinalBlockCursor {
+        private final int blockShift = Integer.numberOfTrailingZeros(ordinals.blockSize());
+        private final int blockMask = ordinals.blockSize() - 1;
+        private long loaded = -1;
+        private long[] block;
+
+        int at(long valueAddress) throws IOException {
+            final long blockIndex = valueAddress >>> blockShift;
+            if (blockIndex != loaded) {
+                block = ordinals.block(blockIndex);
+                loaded = blockIndex;
+            }
+            return Math.toIntExact(block[(int) (valueAddress & blockMask)]);
+        }
     }
 
     /**
@@ -193,6 +214,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         }
         final ColumnIterator presence = iterator();
         final BytesRef value = new BytesRef();
+        final OrdinalBlockMask mask = new OrdinalBlockMask(matching, escapeCount > 0);
         return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(presence) {
             @Override
             public boolean matches() throws IOException {
@@ -201,17 +223,18 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
                 final long count = valueCount(rank);
                 for (long i = 0; i < count; i++) {
                     final long address = first + i;
-                    final int ordinal = ordinalAt(address);
-                    if (ordinal != dictionarySize) {
-                        if (matching.get(ordinal)) {
+                    if (mask.covers(address) == false) {
+                        mask.load(address);
+                    }
+                    if (mask.matches(address)) {
+                        return true;
+                    }
+                    if (mask.escaped(address)) {
+                        // Nothing names this value, so its own bytes are searched.
+                        escapes.get(escapeRankOf(address), value);
+                        if (ESVectorUtil.contains(value.bytes, value.offset, value.length, term.bytes, term.offset, term.length)) {
                             return true;
                         }
-                        continue;
-                    }
-                    // Nothing names this value, so its own bytes are searched.
-                    escapes.get(escapeRankOf(address), value);
-                    if (ESVectorUtil.contains(value.bytes, value.offset, value.length, term.bytes, term.offset, term.length)) {
-                        return true;
                     }
                 }
                 return false;
@@ -221,7 +244,35 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
             public float matchCost() {
                 return 3f;
             }
+
+            @Override
+            public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+                if (escapeCount > 0) {
+                    super.intoBitSet(upTo, bitSet, offset);
+                    return;
+                }
+                collectFromOrdinals(presence, mask, upTo, bitSet, offset);
+            }
         });
+    }
+
+    /**
+     * Fills a window from the ordinals alone, testing a decoded block of them at a time. Sound only where
+     * nothing escaped: an escaped ordinal says the value is elsewhere, so its bytes still decide it.
+     */
+    private void collectFromOrdinals(ColumnIterator presence, OrdinalBlockMask mask, int upTo, FixedBitSet bitSet, int offset)
+        throws IOException {
+        int doc = presence.docID();
+        while (doc < upTo && doc != DocIdSetIterator.NO_MORE_DOCS) {
+            final int rank = presence.rank();
+            if (mask.covers(rank) == false) {
+                mask.load(rank);
+            }
+            if (mask.matches(rank)) {
+                bitSet.set(doc - offset);
+            }
+            doc = presence.nextDoc();
+        }
     }
 
     /**
@@ -261,30 +312,13 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
                 return 3f;
             }
 
-            /**
-             * A window of documents confirmed a block of ordinals at a time, which is one vectorized pass
-             * over the block rather than a value read and a comparison for every document.
-             *
-             * <p>A column that let values escape keeps the per-document path: an escaped ordinal says only
-             * that the value is elsewhere, and its bytes still decide whether it matches.
-             */
             @Override
             public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
                 if (escapeCount > 0) {
                     super.intoBitSet(upTo, bitSet, offset);
                     return;
                 }
-                int doc = presence.docID();
-                while (doc < upTo && doc != DocIdSetIterator.NO_MORE_DOCS) {
-                    final int rank = presence.rank();
-                    if (mask.covers(rank) == false) {
-                        mask.load(rank);
-                    }
-                    if (mask.matches(rank)) {
-                        bitSet.set(doc - offset);
-                    }
-                    doc = presence.nextDoc();
-                }
+                collectFromOrdinals(presence, mask, upTo, bitSet, offset);
             }
         });
     }
@@ -333,8 +367,9 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     @Override
     protected boolean appendPage(int count, StringBlockSink sink) throws IOException {
         int escapedInPage = 0;
+        final OrdinalBlockCursor cursor = new OrdinalBlockCursor();
         for (int i = 0; i < count; i++) {
-            final int ordinal = Math.toIntExact(ordinals.valueAt(pageRanks[i]));
+            final int ordinal = cursor.at(pageRanks[i]);
             pageOrdinals[i] = ordinal;
             if (ordinal >= dictionarySize) {
                 escapedInPage++;
@@ -432,25 +467,44 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     }
 
     /**
-     * The ordinals of one block, as a bit a value saying whether it falls in a range. Loaded a block at a
-     * time so the range test is one vectorized pass over the block rather than one comparison a document,
-     * and kept until a document lands outside it.
+     * The ordinals of one block, as a bit a value saying whether it is wanted. Loaded a block at a time so a
+     * range is one vectorized pass over the block rather than one comparison a document, and kept until a
+     * document lands outside it.
      */
     private final class OrdinalBlockMask {
         private final FixedBitSet matches;
+        /** The ordinals wanted when they do not form a range, and null when {@code lowOrdinal} bounds them. */
+        private final FixedBitSet selected;
+        /** Where a block holds values no term names, kept only when a caller has to decide those itself. */
+        private final FixedBitSet escapedAt;
         private final long lowOrdinal;
         private final long highOrdinal;
         private final int blockShift;
         private final int blockMask;
         private long loaded = -1;
 
+        /** For a filter the dictionary answers as a range of ordinals, which is tested a block at a time. */
         OrdinalBlockMask(int lowOrdinal, int highOrdinal) {
+            this(null, lowOrdinal, highOrdinal, false);
+        }
+
+        /**
+         * For a filter whose terms are scattered through the dictionary. There is no range to test, but the
+         * ordinals are still read a block at a time rather than one per value.
+         */
+        OrdinalBlockMask(FixedBitSet selected, boolean markEscapes) {
+            this(selected, 0, 0, markEscapes);
+        }
+
+        private OrdinalBlockMask(FixedBitSet selected, int lowOrdinal, int highOrdinal, boolean markEscapes) {
+            this.selected = selected;
             this.lowOrdinal = lowOrdinal;
             // inRangeBitmask takes an inclusive upper bound, where the ordinal range is exclusive.
             this.highOrdinal = highOrdinal - 1L;
             this.blockShift = Integer.numberOfTrailingZeros(ordinals.blockSize());
             this.blockMask = ordinals.blockSize() - 1;
             this.matches = new FixedBitSet(ordinals.blockSize());
+            this.escapedAt = markEscapes ? new FixedBitSet(ordinals.blockSize()) : null;
         }
 
         boolean covers(long valueAddress) {
@@ -460,12 +514,34 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         void load(long valueAddress) throws IOException {
             final long blockIndex = valueAddress >>> blockShift;
             matches.clear();
-            ESVectorUtil.inRangeBitmask(ordinals.block(blockIndex), lowOrdinal, highOrdinal, matches.getBits());
+            final long[] block = ordinals.block(blockIndex);
+            if (selected == null) {
+                ESVectorUtil.inRangeBitmask(block, lowOrdinal, highOrdinal, matches.getBits());
+            } else {
+                if (escapedAt != null) {
+                    escapedAt.clear();
+                }
+                for (int i = 0; i < block.length; i++) {
+                    final long ordinal = block[i];
+                    if (ordinal < dictionarySize) {
+                        if (selected.get((int) ordinal)) {
+                            matches.set(i);
+                        }
+                    } else if (escapedAt != null && ordinal == dictionarySize) {
+                        escapedAt.set(i);
+                    }
+                }
+            }
             loaded = blockIndex;
         }
 
         boolean matches(long valueAddress) {
             return matches.get((int) (valueAddress & blockMask));
+        }
+
+        /** Whether nothing names the value at {@code valueAddress}, so its own bytes have to decide it. */
+        boolean escaped(long valueAddress) {
+            return escapedAt != null && escapedAt.get((int) (valueAddress & blockMask));
         }
     }
 }

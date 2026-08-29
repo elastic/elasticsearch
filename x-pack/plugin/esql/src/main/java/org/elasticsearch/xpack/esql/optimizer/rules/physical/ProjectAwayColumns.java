@@ -49,7 +49,7 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
         return apply(plan, false);
     }
 
-    private static boolean hasCategorizeGrouping(LogicalPlan fragment) {
+    private static boolean isLimitByWithCategorizeGrouping(LogicalPlan fragment) {
         if (fragment instanceof TopNBy topNBy) {
             return topNBy.groupings().stream().anyMatch(g -> g.anyMatch(e -> e instanceof GroupingFunction.NonEvaluatableGroupingFunction));
         }
@@ -119,7 +119,7 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                     if ((logicalFragment instanceof Aggregate == false
                         && logicalFragment instanceof MetricsInfo == false
                         && logicalFragment instanceof TsInfo == false
-                        && hasCategorizeGrouping(logicalFragment) == false)) {
+                        && isLimitByWithCategorizeGrouping(logicalFragment) == false)) {
                         // we should respect the order of the attributes
                         List<Attribute> output = new ArrayList<>();
                         for (Attribute attribute : logicalFragment.output()) {

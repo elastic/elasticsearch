@@ -220,7 +220,9 @@ public enum StringFormat {
     private DictionaryPolicy dictionaryPolicy() {
         return switch (this) {
             case COLUMNAR -> ColumNARDocValuesFormat.DEFAULT_DICTIONARY_POLICY;
-            case COLUMNAR_DICTIONARY -> new DictionaryPolicy(1 << 20, 0.0, Double.MAX_VALUE);
+            // Enough for every shape here to name all of its values: a budget that stops short leaves a
+            // dictionary most values escape, which measures the shortfall rather than the layout.
+            case COLUMNAR_DICTIONARY -> new DictionaryPolicy(4 << 20, 0.0, Double.MAX_VALUE);
             case COLUMNAR_PLAIN -> DictionaryPolicy.NONE;
             default -> throw new IllegalStateException("not a columnar format: " + this);
         };

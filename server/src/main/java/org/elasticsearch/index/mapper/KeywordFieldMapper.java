@@ -76,7 +76,6 @@ import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader.ArrayOrderSource;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.ByteLengthFromBytesRefDocValuesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFromBinaryBlockLoader;
@@ -818,18 +817,29 @@ public final class KeywordFieldMapper extends FieldMapper {
          */
         public enum DocValuesDiskFormat {
             /** No doc values are written for this field. */
-            NONE(false),
+            NONE(null),
             /** Lucene's sorted-set doc values: sorted and deduplicated, with array order (if kept) in {@code .offsets}. */
-            SORTED_SET(false),
-            /** {@code [len][value]...}, count in a {@code .counts} companion; a lone value stored raw. */
-            BINARY_SEPARATE_COUNT(true),
-            /** {@code [len+1][value]...} with inline nulls, slot count in {@code .counts}; a lone value stored raw. */
-            BINARY_ARRAY_ORDER_INLINE_NULL(true);
+            SORTED_SET(null),
+            /** A {@link MultiValuedBinaryDocValuesField} framed as {@link BinaryDocValuesFormat#SEPARATE_COUNT}. */
+            BINARY_SEPARATE_COUNT(BinaryDocValuesFormat.SEPARATE_COUNT),
+            /** A {@link MultiValuedBinaryDocValuesField} framed as {@link BinaryDocValuesFormat#ARRAY_ORDER_INLINE_NULL}. */
+            BINARY_ARRAY_ORDER_INLINE_NULL(BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL);
 
-            private final boolean binary;
+            @Nullable
+            private final BinaryDocValuesFormat binaryFormat;
 
-            DocValuesDiskFormat(boolean binary) {
-                this.binary = binary;
+            DocValuesDiskFormat(@Nullable BinaryDocValuesFormat binaryFormat) {
+                this.binaryFormat = binaryFormat;
+            }
+
+            /**
+             * How the bytes are framed, or {@code null} for the layouts that write no binary blob. Naming the
+             * framing here rather than restating it keeps the byte layout documented in one place, so a new
+             * framing is described once in {@link BinaryDocValuesFormat} and only referred to from here.
+             */
+            @Nullable
+            public BinaryDocValuesFormat binaryFormat() {
+                return binaryFormat;
             }
 
             /**
@@ -838,13 +848,26 @@ public final class KeywordFieldMapper extends FieldMapper {
              * doc-values queries, fielddata and block loaders all have to take a different path for them.
              */
             public boolean isBinary() {
-                return binary;
+                return binaryFormat != null;
             }
         }
 
         /** Where this field's doc values are written; see {@link DocValuesDiskFormat}. */
         public DocValuesDiskFormat diskFormat() {
             return diskFormat;
+        }
+
+        /**
+         * How this field's binary doc values are framed, and so which decoder reads them back. Every reader of them
+         * takes this — the doc-values queries, fielddata, index sorting and the block loaders alike.
+         *
+         * <p>{@code null} when {@link #usesBinaryDocValues()} is false: a field that writes no binary blob has no
+         * framing, and naming one anyway would be a guess a caller could act on. Callers reach this behind that
+         * check, or pass it to a reader that only consults it once it finds a binary column.
+         */
+        @Nullable
+        public BinaryDocValuesFormat binaryFormat() {
+            return diskFormat.binaryFormat();
         }
 
         /**
@@ -890,7 +913,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (indexType.hasTerms()) {
                 return super.termQuery(value, context);
             } else if (usesBinaryDocValues()) {
-                return new ScanningBinaryDocValuesTermQuery(name(), indexedValueForSearch(value), storesArrayOrderInline());
+                return new ScanningBinaryDocValuesTermQuery(name(), indexedValueForSearch(value), binaryFormat());
             } else {
                 return XSortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
             }
@@ -903,7 +926,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return super.termsQuery(values, context);
             } else if (usesBinaryDocValues()) {
                 List<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
-                return new ScanningBinaryDocValuesTermInSetQuery(name(), bytesRefs, storesArrayOrderInline());
+                return new ScanningBinaryDocValuesTermInSetQuery(name(), bytesRefs, binaryFormat());
             } else {
                 Collection<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
                 return SortedSetDocValuesField.newSlowSetQuery(name(), bytesRefs);
@@ -928,7 +951,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     upperTerm == null ? null : indexedValueForSearch(upperTerm),
                     includeLower,
                     includeUpper,
-                    storesArrayOrderInline()
+                    binaryFormat()
                 );
             } else {
                 return XSortedSetDocValuesRangeQuery.newSlowRangeQuery(
@@ -994,7 +1017,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     name(),
                     indexedValueForSearch(value).utf8ToString(),
                     caseInsensitive,
-                    storesArrayOrderInline()
+                    binaryFormat()
                 );
             } else {
                 if (caseInsensitive == false) {
@@ -1094,29 +1117,33 @@ public final class KeywordFieldMapper extends FieldMapper {
                         if (docValuesParams != null && docValuesParams.multiValue() == false) {
                             return new BytesRefsFromBinaryBlockLoader(name());
                         } else {
-                            return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(
-                                name(),
-                                storesArrayOrderInline() ? ArrayOrderSource.INLINE : ArrayOrderSource.NONE
-                            );
+                            return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name(), binaryFormat());
                         }
                     } else {
                         return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize(), preservesArrayOrder);
                     }
                 }
-                ArrayOrderSource arrayOrderSource = storesArrayOrderInline() ? ArrayOrderSource.INLINE : ArrayOrderSource.NONE;
+                // Null for a sorted-set field, which only LENGTH can be here for; it resolves the sorted-set column first and never
+                // reaches the branch that reads this. The rest are either binary-only or take it inside a usesBinaryDocValues() arm.
+                BinaryDocValuesFormat binaryFormat = binaryFormat();
                 return switch (cfg.function()) {
-                    case BYTE_LENGTH -> new ByteLengthFromBytesRefDocValuesBlockLoader(blContext.warnings(), name(), arrayOrderSource);
+                    // Only pushed down for binary doc values, so the framing is always known here - see supportsBlockLoaderFunction.
+                    case BYTE_LENGTH -> new ByteLengthFromBytesRefDocValuesBlockLoader(
+                        blContext.warnings(),
+                        name(),
+                        Objects.requireNonNull(binaryFormat)
+                    );
                     case LENGTH -> new Utf8CodePointsFromOrdsBlockLoader(
                         blContext.warnings(),
                         name(),
                         blContext.ordinalsByteSize(),
-                        arrayOrderSource
+                        binaryFormat
                     );
                     case MV_MAX -> usesBinaryDocValues()
-                        ? new MvMaxBytesRefsFromBinaryBlockLoader(name(), arrayOrderSource)
+                        ? new MvMaxBytesRefsFromBinaryBlockLoader(name(), binaryFormat)
                         : new MvMaxBytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                     case MV_MIN -> usesBinaryDocValues()
-                        ? new MvMinBytesRefsFromBinaryBlockLoader(name(), arrayOrderSource)
+                        ? new MvMinBytesRefsFromBinaryBlockLoader(name(), binaryFormat)
                         : new MvMinBytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                     default -> throw new UnsupportedOperationException("unknown fusion config [" + cfg.function() + "]");
                 };
@@ -1261,7 +1288,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     CoreValuesSourceType.KEYWORD,
                     KeywordDocValuesField::new,
                     indexVersion,
-                    storesArrayOrderInline()
+                    binaryFormat()
                 );
             } else {
                 return new SortedSetOrdinalsIndexFieldData.Builder(
@@ -1352,7 +1379,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
 
                 if (usesBinaryDocValues()) {
-                    return new ScanningBinaryDocValuesWildcardQuery(name(), value, caseInsensitive, storesArrayOrderInline());
+                    return new ScanningBinaryDocValuesWildcardQuery(name(), value, caseInsensitive, binaryFormat());
                 }
 
                 if (caseInsensitive == false) {
@@ -1421,7 +1448,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                         syntaxFlags,
                         matchFlags,
                         maxDeterminizedStates,
-                        storesArrayOrderInline(),
+                        binaryFormat(),
                         context.getCircuitBreaker()
                     );
                 } else {

@@ -412,8 +412,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
     }
 
     /**
-     * Parquet cannot drop rows once a filter is pushed into it. A pushed
-     * {@link ParquetPushedExpressions} turns on late materialization in
+     * Parquet cannot drop rows once a filter is pushed into it. This restates the SPI default rather than
+     * relying on it: Parquet is the concrete reason the default is the conservative one, so the reasoning
+     * belongs where the decode paths it names live.
+     * <p>
+     * A pushed {@link ParquetPushedExpressions} turns on late materialization in
      * {@link OptimizedParquetColumnIterator}, whose {@code nextWithLateMaterialization} /
      * {@code nextTwoPhaseBatch} paths emit their pages without going through
      * {@code ColumnarRowDropHelper#filterBlocks} — a coercion failure there would null the cell and keep
@@ -2932,6 +2935,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
          */
         private SkipWarnings coercionWarnings;
         private final ParquetColumnDecoding.ListCorruptionHandler listCorruptionHandler;
+        /** See {@link #nullListElementWarnings()}. */
+        private SkipWarnings nullListElementWarnings;
         /** The read's error policy; strict ({@code fail_fast}) makes {@link #coercionWarnings()} return {@code null}. */
         private final ErrorPolicy errorPolicy;
         /**
@@ -2977,6 +2982,27 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 );
             }
             return coercionWarnings;
+        }
+
+        /**
+         * The sink for the notice that a LIST column returned fewer values than the file holds, because its lists
+         * carry null elements an ES|QL multivalue cannot represent. Lazily created and shared by every column and
+         * row group of this iterator, so {@link SkipWarnings#addOnce} deduplicates one column's notice across every
+         * batch of the read.
+         * <p>
+         * Deliberately NOT policy-gated like {@link #coercionWarnings()}: that gate is correct there because
+         * coercion warn+null only <em>happens</em> under a lenient policy, whereas this drop is forced by the Block
+         * representation and therefore happens under every {@code error_mode} — including the default
+         * {@code fail_fast}. A notice that appeared only under a lenient policy would leave the default
+         * configuration silent, which is the bug. It follows that {@code fail_fast} warns here rather than failing:
+         * the loss is a representation limit, not malformed input, so failing would make every null-bearing LIST
+         * column unreadable by default.
+         */
+        private SkipWarnings nullListElementWarnings() {
+            if (nullListElementWarnings == null) {
+                nullListElementWarnings = new SkipWarnings(ParquetColumnDecoding.NULL_LIST_ELEMENTS_SUMMARY, warningSink);
+            }
+            return nullListElementWarnings;
         }
 
         private void emitAbsentColumnWarningsOnce() {
@@ -3393,7 +3419,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                     blockFactory,
                     attributes.get(colIndex).name(),
                     coercionWarnings(),
-                    failedPositionSink
+                    failedPositionSink,
+                    nullListElementWarnings()
                 );
             }
             // WARNING: the dispatching logic below is duplicated in PageColumnReader#readBatch

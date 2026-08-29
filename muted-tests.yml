@@ -72,6 +72,9 @@ tests:
 - class: org.elasticsearch.upgrades.MlJobSnapshotUpgradeIT
   method: testSnapshotUpgrader {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/158091
+- class: org.elasticsearch.upgrades.MlJobSnapshotUpgradeIT
+  method: testSnapshotUpgrader {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/158092
 
 # Examples:
 #

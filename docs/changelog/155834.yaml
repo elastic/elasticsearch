@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 147137
+pr: 155834
+summary: Enables CATEGORIZE in LIMIT BY
+type: enhancement

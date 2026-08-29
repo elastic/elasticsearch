@@ -11,8 +11,8 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -199,7 +199,12 @@ public class SnapshotHistoryStore implements Closeable {
             IndexRequest request = new IndexRequest(SLM_HISTORY_DATA_STREAM).source(builder).opType(DocWriteRequest.OpType.CREATE);
             processor.add(request);
         } catch (Exception e) {
-            logger.error(() -> format("failed to send SLM history item to index [%s]: [%s]", SLM_HISTORY_DATA_STREAM, item), e);
+            logErrorOrWarning(
+                logger,
+                clusterService.state(),
+                () -> format("failed to send SLM history item to index [%s]: [%s]", SLM_HISTORY_DATA_STREAM, item),
+                e
+            );
         }
     }
 

@@ -7,15 +7,14 @@
 
 package org.elasticsearch.xpack.slm.history;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -23,10 +22,11 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
@@ -207,17 +207,14 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
             assertThat(action, sameInstance(TransportBulkAction.TYPE));
             assertThat(request, instanceOf(BulkRequest.class));
 
-            @SuppressWarnings("unchecked")
-            ActionListener<BulkResponse> bulkListener = (ActionListener<BulkResponse>) listener;
-
             if (currentAttempt <= 2) {
                 // First 2 attempts fail with EsRejectedExecutionException
-                bulkListener.onFailure(new EsRejectedExecutionException("rejected"));
+                // VerifyingClient will call listener.onFailure with this exception
+                throw new EsRejectedExecutionException("rejected");
             } else {
-                // Third attempt succeeds
-                bulkListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0L));
+                // Third attempt succeeds - return response for VerifyingClient to call listener.onResponse
+                return new BulkResponse(new BulkItemResponse[0], 0L);
             }
-            return null;
         });
 
         retryHistoryStore.putAsync(record);

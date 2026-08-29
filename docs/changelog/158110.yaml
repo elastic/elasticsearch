@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 158110
+summary: "ESQL:DS: Make strict NDJSON reconciliation name-based"
+type: enhancement

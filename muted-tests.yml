@@ -839,3 +839,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalReadConfigContaminationIT
   method: testDeclaredMultiFileReadIsNotServedTheInferredFold
   issue: https://github.com/elastic/elasticsearch/issues/157992
+- class: org.elasticsearch.xpack.esql.action.NdjsonExternalReadConfigParityIT
+  method: testDuplicateListingColdEqualsWarm
+  issue: https://github.com/elastic/elasticsearch/issues/157989

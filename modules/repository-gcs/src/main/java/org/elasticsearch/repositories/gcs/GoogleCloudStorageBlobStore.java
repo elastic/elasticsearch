@@ -686,17 +686,22 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 executor,
                 (partNum, offset, partSize, lastPart) -> {
                     final var partRequest = UploadPartRequest.builder()
-                    .bucket(bucketName)
-                    .key(blobName)
-                    .uploadId(uploadId)
-                    .partNumber(partNum + 1)
-                    .build();
-                try (var stream = provider.apply(offset, partSize)) {
-                    final byte[] partBytes = stream.readNBytes(Math.toIntExact(partSize));
-                    final var partResponse = client().meteredUploadPart(purpose, partRequest, RequestBody.of(ByteBuffer.wrap(partBytes)));
-                    completedParts[partNum] = CompletedPart.builder().partNumber(partNum + 1).eTag(partResponse.eTag()).build();
+                        .bucket(bucketName)
+                        .key(blobName)
+                        .uploadId(uploadId)
+                        .partNumber(partNum + 1)
+                        .build();
+                    try (var stream = provider.apply(offset, partSize)) {
+                        final byte[] partBytes = stream.readNBytes(Math.toIntExact(partSize));
+                        final var partResponse = client().meteredUploadPart(
+                            purpose,
+                            partRequest,
+                            RequestBody.of(ByteBuffer.wrap(partBytes))
+                        );
+                        completedParts[partNum] = CompletedPart.builder().partNumber(partNum + 1).eTag(partResponse.eTag()).build();
+                    }
                 }
-            });
+            );
 
             client().meteredCompleteMultipartUpload(
                 purpose,

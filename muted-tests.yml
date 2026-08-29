@@ -77,6 +77,8 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/158092
 - class: org.elasticsearch.upgrades.RolesBackwardsCompatibilityIT
   issue: https://github.com/elastic/elasticsearch/issues/158093
+- class: org.elasticsearch.upgrades.SemanticTextUpgradeIT
+  issue: https://github.com/elastic/elasticsearch/issues/158094
 
 # Examples:
 #

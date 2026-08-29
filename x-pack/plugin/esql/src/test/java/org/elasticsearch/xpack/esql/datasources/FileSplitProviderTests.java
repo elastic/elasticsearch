@@ -205,6 +205,39 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
+     * The other certified producer of {@code exhaustivelyPruned}: every file is dropped because a WHERE
+     * conjunct references a column absent from that file (UNKNOWN → FALSE). Same coordinator signal as
+     * {@link #testAllPartitionsPrunedYieldsNoSplitsAndExhaustivePrune}.
+     */
+    public void testAllFilesDroppedByMissingColumnFilterAreExhaustivePrune() {
+        StoragePath pathA = StoragePath.of("s3://b/a.parquet");
+        StoragePath pathB = StoragePath.of("s3://b/b.parquet");
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(pathA, 100, Instant.EPOCH), new StorageEntry(pathB, 200, Instant.EPOCH)),
+            "s3://b/*.parquet"
+        );
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = new HashMap<>();
+        schemaInfo.put(pathA, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of(refAttr("name"))), null, null));
+        schemaInfo.put(pathB, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of(refAttr("id"))), null, null));
+        Expression filter = new GreaterThan(SRC, fieldAttr("price"), intLiteral(100), null);
+        // 7-arg ctor so schemaMap is populated; the 5-arg ctor would skip the missing-column check.
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemaInfo,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(filter),
+            ExternalSchema.EMPTY
+        );
+        SplitDiscoveryResult result = provider.discoverSplits(ctx);
+
+        assertTrue("a missing-column filter contradiction must prune every file", result.splits().isEmpty());
+        assertEquals(0, result.filesScanned());
+        assertTrue("a missing-column prune of a resolved, non-empty fileList is exhaustive", result.exhaustivelyPruned());
+    }
+
+    /**
      * An unresolved or already-empty fileList yields zero splits, but that is NOT an exhaustive prune: there is
      * nothing to read anyway (empty) or the listing happens at runtime (unresolved), so the coordinator must not
      * treat it as "pruned to nothing" and swap in {@link FileList#EMPTY}.
@@ -3783,9 +3816,14 @@ public class FileSplitProviderTests extends ESTestCase {
         return registry;
     }
 
-    // -- UNION_BY_NAME file skipping --
+    // -- UNION_BY_NAME file retention --
 
-    public void testSkipsFileWithNoProjColumnOverlap() {
+    /**
+     * A file whose schema is disjoint from the query projection still contributes all-NULL rows
+     * (the null group under {@code STATS BY}, {@code IS NULL} matches, {@code SORT}/{@code LIMIT}
+     * positions). Keep it; the per-file mapping is a count-only / null-fill read, not a drop.
+     */
+    public void testKeepsFileWithNoProjColumnOverlap() {
         StoragePath pathA = StoragePath.of("s3://b/a.parquet");
         StoragePath pathB = StoragePath.of("s3://b/b.parquet");
         StoragePath pathC = StoragePath.of("s3://b/c.parquet");
@@ -3823,9 +3861,10 @@ public class FileSplitProviderTests extends ESTestCase {
         );
         List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
 
-        assertEquals(2, splits.size());
+        assertEquals(3, splits.size());
         assertEquals(pathA, ((FileSplit) splits.get(0)).path());
         assertEquals(pathB, ((FileSplit) splits.get(1)).path());
+        assertEquals(pathC, ((FileSplit) splits.get(2)).path());
     }
 
     public void testKeepsFileWithPartialOverlap() {
@@ -3965,7 +4004,7 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals("File without schema info entry is kept (conservative)", 2, splits.size());
     }
 
-    public void testSkippingWithPartitionPruningCombined() {
+    public void testPartitionPruneKeepsDisjointSchemaFile() {
         StoragePath pathA = StoragePath.of("s3://b/year=2024/a.parquet");
         StoragePath pathB = StoragePath.of("s3://b/year=2024/b.parquet");
         StoragePath pathC = StoragePath.of("s3://b/year=2023/c.parquet");
@@ -4005,9 +4044,11 @@ public class FileSplitProviderTests extends ESTestCase {
         );
         List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
 
-        // pathC pruned by partition filter (year=2023), pathB pruned by column skipping (only 'bonus')
-        assertEquals(1, splits.size());
+        // pathC pruned by partition filter (year=2023). pathB has no overlap with [id, name] but is
+        // kept: all-NULL rows still contribute.
+        assertEquals(2, splits.size());
         assertEquals(pathA, ((FileSplit) splits.get(0)).path());
+        assertEquals(pathB, ((FileSplit) splits.get(1)).path());
     }
 
     // -- filter-based file skipping --

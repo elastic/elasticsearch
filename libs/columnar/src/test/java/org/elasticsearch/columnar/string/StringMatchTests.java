@@ -286,33 +286,66 @@ public class StringMatchTests extends ColumnarStringTestCase {
             final BytesRef[] docValues = repeated(between(600, 2000));
             withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
                 for (String probe : TERMS) {
-                    final List<Integer> oneAtATime = matched(reader.matchTerm(new BytesRef(probe)));
-                    for (int window : new int[] { 1, 7, 64, 128, 512, docValues.length + 1 }) {
-                        final DocIdSetIterator matches = reader.matchTerm(new BytesRef(probe));
-                        final TwoPhaseIterator twoPhase = TwoPhaseIterator.unwrap(matches);
-                        if (twoPhase == null) {
-                            continue; // answers exactly, so there is no window to collect
-                        }
-                        final FixedBitSet bits = new FixedBitSet(docValues.length);
-                        final DocIdSetIterator approximation = twoPhase.approximation();
-                        approximation.nextDoc();
-                        for (int upTo = window; approximation.docID() != DocIdSetIterator.NO_MORE_DOCS; upTo += window) {
-                            twoPhase.intoBitSet(Math.min(upTo, docValues.length), bits, 0);
-                            if (upTo >= docValues.length) {
-                                break;
-                            }
-                        }
-                        final List<Integer> windowed = new ArrayList<>();
-                        for (int d = bits.nextSetBit(0); d != DocIdSetIterator.NO_MORE_DOCS; d = d + 1 < bits.length()
-                            ? bits.nextSetBit(d + 1)
-                            : DocIdSetIterator.NO_MORE_DOCS) {
-                            windowed.add(d);
-                        }
-                        assertEquals("term [" + probe + "] collected in windows of " + window, oneAtATime, windowed);
-                    }
+                    assertWindowedAgrees("term [" + probe + "]", docValues.length, () -> reader.matchTerm(new BytesRef(probe)));
+                    assertWindowedAgrees("contains [" + probe + "]", docValues.length, () -> reader.matchContains(new BytesRef(probe)));
                 }
             });
         }
+    }
+
+    /**
+     * A window collected from a column that let values escape has to agree with asking one document at a
+     * time, for a term the dictionary holds and for one only an escaped value carries.
+     *
+     * <p>An ordinal is enough to decide a value the dictionary named, and a block of them is tested at once.
+     * An escaped value has no ordinal but the marker, which says only that its bytes are elsewhere, so a
+     * column holding any of them cannot be answered from ordinals alone however the documents are asked for.
+     */
+    public void testWindowedCollectionWithEscapes() throws IOException {
+        final BytesRef[] docValues = new BytesRef[between(600, 2000)];
+        for (int d = 0; d < docValues.length; d++) {
+            // Rare enough to escape a dictionary built from the terms the column repeats.
+            docValues[d] = d % 37 == 5 ? new BytesRef("escaped-" + d) : new BytesRef(TERMS[d % (TERMS.length - 1)]);
+        }
+        withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            assertTrue("expected a dictionary", reader.hasDictionary());
+            assertTrue("expected values to have escaped it", reader.escapeCount() > 0);
+            final List<String> probes = new ArrayList<>(Arrays.asList(TERMS));
+            // Carried by an escaped value and by nothing the dictionary names.
+            probes.add("escaped-5");
+            for (String probe : probes) {
+                assertWindowedAgrees("term [" + probe + "]", docValues.length, () -> reader.matchTerm(new BytesRef(probe)));
+                assertWindowedAgrees("contains [" + probe + "]", docValues.length, () -> reader.matchContains(new BytesRef(probe)));
+            }
+        });
+    }
+
+    /**
+     * A column ranked by document id whose values are in order answers with the range of documents itself.
+     * Bisecting the values leaves the ends of one run and nothing about a document is left to check, so the
+     * iterator carries no second phase for a caller to run.
+     */
+    public void testSortedDenseColumnAnswersInOnePhase() throws IOException {
+        final BytesRef[] docValues = sorted(repeated(between(400, 2000)));
+        withColumn(
+            docValues,
+            randomValidBlockSize(),
+            randomChunkCodec(),
+            randomTargetChunkBytes(),
+            DictionaryPolicy.NONE,
+            (metadata, reader) -> {
+                assertTrue("expected a column every document has a value in", metadata.iterator().isDense());
+                assertTrue("expected values in term order", reader.valuesSorted());
+                final DocIdSetIterator matches = reader.matchTerm(new BytesRef("alpha"));
+                assertNull("a sorted dense column has nothing left to check", TwoPhaseIterator.unwrap(matches));
+                assertTrue("expected the term to match something", matches.cost() > 0);
+                assertEquals(
+                    "the one phase answers what a check would",
+                    matched(reader.matchTerm(new BytesRef("alpha"))),
+                    matched(matches)
+                );
+            }
+        );
     }
 
     /**
@@ -439,6 +472,43 @@ public class StringMatchTests extends ColumnarStringTestCase {
             }
         }
         return docs;
+    }
+
+    /** A match to run again, since collecting a window consumes the iterator it is collected from. */
+    @FunctionalInterface
+    private interface Match {
+        DocIdSetIterator get() throws IOException;
+    }
+
+    /**
+     * Collecting a match in windows of any size has to agree with asking one document at a time. A window is
+     * what a scorer fills, so this is the shape a search reads a filter through, and a filter that answers a
+     * block of documents at once has to leave the same answer as one that is asked about each of them.
+     */
+    private void assertWindowedAgrees(String label, int docCount, Match match) throws IOException {
+        final List<Integer> oneAtATime = matched(match.get());
+        for (int window : new int[] { 1, 7, 64, 128, 512, docCount + 1 }) {
+            final TwoPhaseIterator twoPhase = TwoPhaseIterator.unwrap(match.get());
+            if (twoPhase == null) {
+                continue; // answers exactly, so there is no window to collect
+            }
+            final FixedBitSet bits = new FixedBitSet(docCount);
+            final DocIdSetIterator approximation = twoPhase.approximation();
+            approximation.nextDoc();
+            for (int upTo = window; approximation.docID() != DocIdSetIterator.NO_MORE_DOCS; upTo += window) {
+                twoPhase.intoBitSet(Math.min(upTo, docCount), bits, 0);
+                if (upTo >= docCount) {
+                    break;
+                }
+            }
+            final List<Integer> windowed = new ArrayList<>();
+            for (int d = bits.nextSetBit(0); d != DocIdSetIterator.NO_MORE_DOCS; d = d + 1 < bits.length()
+                ? bits.nextSetBit(d + 1)
+                : DocIdSetIterator.NO_MORE_DOCS) {
+                windowed.add(d);
+            }
+            assertEquals(label + " collected in windows of " + window, oneAtATime, windowed);
+        }
     }
 
     private static List<Integer> matched(DocIdSetIterator matches) throws IOException {

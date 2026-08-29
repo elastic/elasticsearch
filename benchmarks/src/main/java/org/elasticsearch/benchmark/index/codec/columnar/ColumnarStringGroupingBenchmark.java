@@ -188,6 +188,12 @@ public class ColumnarStringGroupingBenchmark {
     }
 
     /** Format cost alone: every value read, nothing hashed. */
+    /** One value at a time through the doc values API, the shape a fetch or a sort asks for. */
+    @Benchmark
+    public void readPerDocument(Blackhole bh) throws IOException {
+        bh.consume(column.readPerDocument());
+    }
+
     @Benchmark
     public void scan(Blackhole bh) throws IOException {
         bh.consume(column.scan());

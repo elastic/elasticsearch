@@ -43,6 +43,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarStringTermQuery;
 import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
+import org.elasticsearch.columnar.string.DictionaryStringColumnReader;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.StringBlockSink;
 import org.elasticsearch.columnar.string.StringColumnReader;
@@ -308,6 +309,13 @@ public enum StringFormat {
          */
         long scan() throws IOException;
 
+        /**
+         * Every value read one document at a time through the doc values API, the shape of a fetch or of an
+         * aggregation that works a document at a time. {@link #scan()} lets a format read however it reads
+         * best; this asks all of them for one value at a time, which is all some consumers can ask for.
+         */
+        long readPerDocument() throws IOException;
+
         /** Documents whose value is {@code term}, the shape of {@code WHERE field == "..."}. */
         long matchTerm(BytesRef term) throws IOException;
 
@@ -342,6 +350,7 @@ public enum StringFormat {
     private static final class ColumnarColumn implements Column {
         private final DirectoryReader directoryReader;
         private final IndexSearcher searcher;
+        private final LeafReader leaf;
         private final StringColumnReader reader;
         private final int[] docs;
         private final int pageSize;
@@ -350,7 +359,7 @@ public enum StringFormat {
             this.directoryReader = DirectoryReader.open(directory);
             this.searcher = new IndexSearcher(directoryReader);
             this.searcher.setQueryCache(null);
-            final LeafReader leaf = directoryReader.leaves().get(0).reader();
+            this.leaf = directoryReader.leaves().get(0).reader();
             this.reader = ((ColumnarStringBinaryDocValues) leaf.getBinaryDocValues(FIELD)).reader();
             this.pageSize = pageSize;
             this.docs = new int[docCount];
@@ -418,6 +427,16 @@ public enum StringFormat {
         }
 
         @Override
+        public long readPerDocument() throws IOException {
+            long checksum = 0;
+            final BinaryDocValues values = leaf.getBinaryDocValues(FIELD);
+            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                checksum += values.binaryValue().length;
+            }
+            return checksum;
+        }
+
+        @Override
         public long aggregate() throws IOException {
             final int dictionarySize = reader.dictionarySize();
             if (dictionarySize == 0) {
@@ -430,6 +449,8 @@ public enum StringFormat {
                 }
                 return sink.checksum;
             }
+            // A non-zero dictionary size is what says this column has one.
+            final DictionaryStringColumnReader dictionary = (DictionaryStringColumnReader) reader;
             final long[] counts = new long[dictionarySize];
             final int[] ordinals = new int[pageSize];
             // An escaped value is reached by its address, which a document's rank gives.
@@ -446,7 +467,7 @@ public enum StringFormat {
                     if (ordinal < dictionarySize) {
                         counts[ordinal]++;
                     } else {
-                        checksum += StringFormat.group(escaped, reader.resolveEscape(reader.firstValueAddress(ranks[i]), scratch));
+                        checksum += StringFormat.group(escaped, dictionary.resolveEscape(reader.firstValueAddress(ranks[i]), scratch));
                     }
                 }
             }
@@ -728,6 +749,12 @@ public enum StringFormat {
                 checksum += values.lookupOrd(values.ordValue()).length;
             }
             return checksum;
+        }
+
+        @Override
+        public long readPerDocument() throws IOException {
+            // The stock formats have no bulk read here: scan already asks for one value at a time.
+            return scan();
         }
 
         @Override

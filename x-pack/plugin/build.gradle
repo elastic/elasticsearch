@@ -60,6 +60,9 @@ if (buildParams.snapshotBuild == false) {
   // * Data Stream Lifecycle. manage_data_stream_lifecycle privilege is only available with dlm_feature_flag_enabled set
   // We disable these tests for snapshot builds to maintain release build coverage.
   restTestBlacklist.add('privileges/11_builtin/Test get builtin privileges')
+  // BBQ disk byte and ASH quantization type are snapshot-only. Remove when released.
+  restTestBlacklist.add('search.vectors/46_knn_search_bbq_ivf_ash/*')
+  restTestBlacklist.add('search.vectors/46_knn_search_bbq_ivf_byte/*')
 }
 
 tasks.withType(StandaloneRestIntegTestTask).configureEach {

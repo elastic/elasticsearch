@@ -244,6 +244,29 @@ public class EscfCursorsTests extends ESTestCase {
         assertLongTuple(2, 3, tuples.get(2));
     }
 
+    /**
+     * A DOUBLE child is a fixed-64 column too, so it shares the long cursor. As with a scalar DOUBLE
+     * column, the yielded word is the raw {@code doubleToRawLongBits} of each element.
+     */
+    public void testDoubleArrayTupleCursorYieldsRawBits() {
+        // 3 rows: [[1.5, -2.25], [], [0.0, Double.NaN]]
+        int[] rowOffsets = { 0, 2, 2, 4 };
+        double[] elements = { 1.5, -2.25, 0.0, Double.NaN };
+        long[] raw = new long[elements.length];
+        for (int i = 0; i < elements.length; i++) {
+            raw[i] = Double.doubleToRawLongBits(elements[i]);
+        }
+        EscfColumn child = EscfColumn.from(EscfColumnData.ofFixed64(EscfColumnKind.DOUBLE, raw.length, null, longBytes(raw)));
+        EscfArrayColumn array = new EscfArrayColumn(3, null, child, intsRef(rowOffsets));
+
+        List<long[]> tuples = drainLongTuples(array.longCursor());
+        assertEquals(4, tuples.size());
+        assertLongTuple(0, raw[0], tuples.get(0));
+        assertLongTuple(0, raw[1], tuples.get(1));
+        assertLongTuple(2, raw[2], tuples.get(2));
+        assertLongTuple(2, raw[3], tuples.get(3));
+    }
+
     public void testLongArrayTupleCursorWrongChildKindThrows() {
         // Build an ARRAY column with a STRING child — longCursor() should throw
         int[] rowOffsets = { 0, 1 };

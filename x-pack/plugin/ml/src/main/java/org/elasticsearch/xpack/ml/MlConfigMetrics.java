@@ -172,7 +172,7 @@ public final class MlConfigMetrics extends AbstractLifecycleComponent implements
 
     private void registerGauges(MeterRegistry meterRegistry) {
         metrics.add(
-            meterRegistry.registerLongGauge(
+            meterRegistry.registerLongAsyncGauge(
                 "es.ml.datafeeds.cps.internal_credentials.current",
                 "Count of datafeed configs with a persisted cloud_internal_credential envelope.",
                 "datafeeds",
@@ -180,7 +180,7 @@ public final class MlConfigMetrics extends AbstractLifecycleComponent implements
             )
         );
         metrics.add(
-            meterRegistry.registerLongsGauge(
+            meterRegistry.registerLongsAsyncGauge(
                 "es.ml.datafeeds.cps.auth_type.current",
                 "Count of datafeed configs by CPS authentication type.",
                 "datafeeds",
@@ -188,7 +188,7 @@ public final class MlConfigMetrics extends AbstractLifecycleComponent implements
             )
         );
         metrics.add(
-            meterRegistry.registerLongsGauge(
+            meterRegistry.registerLongsAsyncGauge(
                 "es.ml.datafeeds.cps.project_routing.current",
                 "Count of datafeed configs by project_routing bucket.",
                 "datafeeds",

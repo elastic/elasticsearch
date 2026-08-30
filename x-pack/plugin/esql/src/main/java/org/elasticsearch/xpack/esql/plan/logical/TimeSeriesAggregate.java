@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -191,19 +192,28 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
     public void verify(Failures failures) {
         if (origin != Origin.PROMQL_COMMAND) {
             // We forbid grouping by a metric field itself. Metric fields are allowed only inside aggregate functions.
-            groupings().forEach(g -> g.forEachDown(e -> {
-                if (e instanceof FieldAttribute fieldAttr && fieldAttr.isMetric()) {
-                    failures.add(
-                        fail(
-                            fieldAttr,
-                            "cannot group by a metric field [{}] in a time-series aggregation. "
-                                + "If you want to group by a metric field, use the FROM "
-                                + "command instead of the TS command.",
-                            fieldAttr.sourceText()
-                        )
-                    );
+            groupings().forEach(g -> {
+                // Histogram buckets are evaluated after the per-series histogram merge, in the second aggregation phase.
+                Bucket histogramBucket = Alias.unwrap(g) instanceof Bucket bucket && bucket.field().dataType().isHistogram()
+                    ? bucket
+                    : null;
+                if (histogramBucket != null) {
+                    verifyHistogramBucket(histogramBucket, failures);
                 }
-            }));
+                g.forEachDown(e -> {
+                    if (e instanceof FieldAttribute fieldAttr && fieldAttr.isMetric() && histogramBucket == null) {
+                        failures.add(
+                            fail(
+                                fieldAttr,
+                                "cannot group by a metric field [{}] in a time-series aggregation. "
+                                    + "If you want to group by a metric field, use the FROM "
+                                    + "command instead of the TS command.",
+                                fieldAttr.sourceText()
+                            )
+                        );
+                    }
+                });
+            });
         }
 
         for (NamedExpression aggregate : aggregates) {
@@ -245,6 +255,33 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
                         );
                 });
             }
+        }
+    }
+
+    private void verifyHistogramBucket(Bucket bucket, Failures failures) {
+        List<AggregateFunction> perSeriesAggregations = new ArrayList<>();
+        for (NamedExpression aggregate : aggregates) {
+            aggregate.forEachDown(TimeSeriesAggregateFunction.class, function -> {
+                if (function.field().semanticEquals(bucket.field())) {
+                    perSeriesAggregations.add(function.perTimeSeriesAggregation());
+                }
+            });
+        }
+        if (perSeriesAggregations.isEmpty()) {
+            failures.add(
+                fail(
+                    bucket,
+                    "histogram field [{}] used in BUCKET must also be aggregated in the same STATS command",
+                    bucket.field().sourceText()
+                )
+            );
+            return;
+        }
+        AggregateFunction expected = perSeriesAggregations.getFirst();
+        if (perSeriesAggregations.stream().skip(1).anyMatch(aggregation -> expected.semanticEquals(aggregation) == false)) {
+            failures.add(
+                fail(bucket, "all uses of histogram field [{}] must have the same per-series aggregation", bucket.field().sourceText())
+            );
         }
     }
 

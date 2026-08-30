@@ -112,7 +112,8 @@ public class ExpandUnmappedFieldsPostProcessor {
                 result.attributeMetadata(),
                 result.configuration(),
                 result.completionInfo(),
-                result.executionInfo()
+                result.executionInfo(),
+                result.approximationApplied()
             );
             success = true;
             return expanded;

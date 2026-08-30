@@ -881,6 +881,44 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
         assertNull(resolution.columnMappers()[schema.findLeaf(" ", 0)]);
     }
 
+    /**
+     * An empty-object leaf (e.g. {@code {"json":{}}}) must not force a batch fallback. The sequential path also
+     * produces no index writes for empty objects under {@code subobjects: DISABLED} — {@code DocumentParser}
+     * exits immediately when the object value has no children, creating no mapper and indexing nothing.
+     * <p>
+     * This is the root cause of the elastic/logs rally track logsdb_columnar regression: the k8-application
+     * corpus always has {@code "json": {}} in its documents, creating an always-empty-object schema leaf that
+     * was previously forcing every batch to fall back.
+     */
+    public void testEmptyObjectLeafIsSkippedNotFallback() throws IOException {
+        // No mapping for "json" — the sequential path also creates none for an empty object.
+        MapperService ms = mapper(mapping(b -> b.startObject("host").field("type", "keyword").endObject()));
+
+        // All rows have "json" as an empty object.
+        SourceSchema schema = schemaOfJson("{\"host\":\"srv\",\"json\":{}}", "{\"host\":\"srv2\",\"json\":{}}");
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
+        assertNotNull("an always-empty-object leaf must be skipped, not cause a batch fallback", resolution);
+        // The empty-object leaf has a null column mapper (skip, same as dynamic:false).
+        assertNull(resolution.columnMappers()[schema.findLeaf("json", 0)]);
+        // Other mapped leaves are resolved normally.
+        assertThat(resolution.columnMappers()[schema.findLeaf("host", 0)], instanceOf(KeywordFieldMapper.class));
+    }
+
+    /**
+     * If even one row writes a field as a real value (not empty object), the leaf is no longer "always empty-object"
+     * and must still fall back so the sequential path can index and map it.
+     */
+    public void testMixedEmptyObjectAndRealValueLeafFallsBack() throws IOException {
+        MapperService ms = mapper(mapping(b -> b.startObject("host").field("type", "keyword").endObject()));
+
+        // First row has "json" as empty object; second has it as a string — not always-empty-object.
+        SourceSchema schema = schemaOfJson("{\"host\":\"srv\",\"json\":{}}", "{\"host\":\"srv2\",\"json\":\"value\"}");
+        assertNull(
+            "a leaf that is sometimes a real value must still fall back for dynamic mapping",
+            ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings)
+        );
+    }
+
     /** Control for the two tests above: the same mapping without the nested object resolves normally. */
     public void testPlainObjectWithSameShapeResolves() throws IOException {
         MapperService ms = mapper(mapping(b -> {

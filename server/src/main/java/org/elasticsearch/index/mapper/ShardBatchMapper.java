@@ -211,6 +211,14 @@ public final class ShardBatchMapper {
                     logger.debug("batch indexing disabled: runtime-field shadow at [{}]", fullPath);
                     return null;
                 }
+                // Empty-object leaves carry no indexable data. The sequential path also produces no
+                // index writes for empty objects under subobjects:DISABLED (DocumentParser exits
+                // parseObjectOrNested immediately when the object has no children, creating no mapper
+                // and indexing nothing). Skip such leaves rather than falling back.
+                if (schema.isAlwaysEmptyObject(leaf)) {
+                    columnMappers[leaf] = null;
+                    continue;
+                }
                 final ObjectMapper.Dynamic parentDynamic = findNearestParentDynamic(fullPath, lookup);
                 if (parentDynamic == ObjectMapper.Dynamic.FALSE) {
                     // The sequential path rejects an unmapped field that matches routing_path rather than dropping it,

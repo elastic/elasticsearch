@@ -37,13 +37,14 @@ import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.DictionaryStringColumnReader;
 import org.elasticsearch.columnar.string.StringColumnMetadata;
+import org.elasticsearch.columnar.string.StringColumnOptions;
+import org.elasticsearch.columnar.string.StringColumnOptionsSelector;
 import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.columnar.string.StringColumnValues;
 import org.elasticsearch.columnar.string.StringColumnWriter;
 import org.elasticsearch.columnar.string.ValueStream;
 import org.elasticsearch.columnar.string.Vocabulary;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
-import org.elasticsearch.columnar.substrate.ChunkCodec;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 
 import java.io.IOException;
@@ -73,10 +74,9 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     private final NumericPipelineSelector pipelineSelector;
     private final ColumnarFieldTypeSelector typeSelector;
     private final int blockSize;
-    private final DictionaryPolicy dictionaryPolicy;
+    private final StringColumnOptionsSelector stringSelector;
 
     /** Bytes a chunk of a string column's byte stream holds before it is closed and compressed. */
-    private static final int TARGET_CHUNK_BYTES = 64 * 1024;
     private boolean closed = false;
 
     private record FieldEntry(int fieldNumber, byte fieldTypeId, ColumnMetadata metadata) {}
@@ -86,12 +86,12 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         NumericPipelineSelector pipelineSelector,
         ColumnarFieldTypeSelector typeSelector,
         int blockSize,
-        DictionaryPolicy dictionaryPolicy
+        StringColumnOptionsSelector stringSelector
     ) throws IOException {
         this.pipelineSelector = pipelineSelector;
         this.typeSelector = typeSelector;
         this.blockSize = blockSize;
-        this.dictionaryPolicy = dictionaryPolicy;
+        this.stringSelector = stringSelector;
         this.maxDoc = state.segmentInfo.maxDoc();
         this.directory = state.directory;
         this.context = state.context;
@@ -176,10 +176,11 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         switch (type) {
             case LONG, DOUBLE -> writeNumericColumn(field, type, () -> numericMergeCursor(field, mergeState));
             case STRING -> {
-                Vocabulary.Terms known = unionOfDictionaries(field, mergeState);
+                final DictionaryPolicy policy = stringSelector.select(field.name, type).dictionary();
+                Vocabulary.Terms known = unionOfDictionaries(field, mergeState, policy);
                 if (known == null) {
                     // No union to take, but the segments may have recorded what they surveyed.
-                    known = combinedSummaries(field, mergeState);
+                    known = combinedSummaries(field, mergeState, policy);
                 }
                 final Vocabulary.Terms vocabulary = known;
                 writeStringColumn(field, type, () -> stringMergeCursor(field, mergeState, vocabulary), vocabulary);
@@ -279,7 +280,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
      * segment without a dictionary, or one that let values escape, holds values the union would not name.
      * It is bounded by the same policy as a surveyed vocabulary, and abandoned once it exceeds it.
      */
-    private Vocabulary.Terms unionOfDictionaries(FieldInfo field, MergeState mergeState) throws IOException {
+    private Vocabulary.Terms unionOfDictionaries(FieldInfo field, MergeState mergeState, DictionaryPolicy dictionaryPolicy)
+        throws IOException {
         if (dictionaryPolicy.enabled() == false) {
             return null;
         }
@@ -335,7 +337,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
      * bound as a survey trims, so a term the merged column holds often enough survives; the coverage is an
      * under-estimate because each summed count was.
      */
-    private Vocabulary.Terms combinedSummaries(FieldInfo field, MergeState mergeState) throws IOException {
+    private Vocabulary.Terms combinedSummaries(FieldInfo field, MergeState mergeState, DictionaryPolicy dictionaryPolicy)
+        throws IOException {
         if (dictionaryPolicy.enabled() == false) {
             return null;
         }
@@ -588,15 +591,16 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             numValues++;
         }
 
+        final StringColumnOptions options = stringSelector.select(field.name, type);
         StringColumnMetadata metadata = StringColumnWriter.write(
             maxDoc,
             numDocsWithField,
             numValues,
             cursors,
             ValueStream.VALUES_PER_BLOCK,
-            ChunkCodec.ZSTD,
-            TARGET_CHUNK_BYTES,
-            dictionaryPolicy,
+            options.chunkCodec(),
+            options.targetChunkBytes(),
+            options.dictionary(),
             known,
             directory,
             context,

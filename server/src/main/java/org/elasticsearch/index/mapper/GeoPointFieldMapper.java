@@ -14,6 +14,7 @@ import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.index.DocValuesType;
@@ -33,6 +34,11 @@ import org.elasticsearch.common.geo.SimpleVectorTileFormatter;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.EscfColumnBuilder;
+import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.escf.LuceneBinaryColumn;
+import org.elasticsearch.escf.LuceneLongColumn;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.index.IndexMode;
@@ -85,6 +91,21 @@ import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPrefere
 public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoint> {
 
     public static final String CONTENT_TYPE = "geo_point";
+
+    /** Field type for the SORTED_NUMERIC doc-values channel of a geo_point column (no BKD points). */
+    private static final FieldType GEO_DV_ONLY_FIELD_TYPE;
+    /** Field type for the 2D BKD-points channel of a geo_point column (no doc values). */
+    private static final FieldType GEO_BKD_ONLY_FIELD_TYPE;
+
+    static {
+        GEO_DV_ONLY_FIELD_TYPE = new FieldType();
+        GEO_DV_ONLY_FIELD_TYPE.setDocValuesType(DocValuesType.SORTED_NUMERIC);
+        GEO_DV_ONLY_FIELD_TYPE.freeze();
+
+        GEO_BKD_ONLY_FIELD_TYPE = new FieldType();
+        GEO_BKD_ONLY_FIELD_TYPE.setDimensions(2, Integer.BYTES);
+        GEO_BKD_ONLY_FIELD_TYPE.freeze();
+    }
 
     private static Builder builder(FieldMapper in) {
         return toType(in).builder;
@@ -379,6 +400,86 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    public boolean resolvesColumnGroup() {
+        return true;
+    }
+
+    @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        // At least one output channel must be active; stored-field and script channels are not yet handled.
+        return indexSettings.getMode().isStrictColumnar()
+            && (indexed || fieldType().hasDocValues())
+            && fieldType().isStored() == false
+            && hasScript() == false
+            && copyTo().copyToFields().isEmpty()
+            && multiFields().iterator().hasNext() == false;
+    }
+
+    /**
+     * Handles a batch of geo_point documents encoded as separate {@code lat} and {@code lon} sub-columns.
+     * Emits a SORTED_NUMERIC doc-values column (packed long: latEncoded shifted left 32 bits OR-ed with lonEncoded)
+     * when {@code doc_values} is enabled, and a 2D BKD-points column (8 sortable bytes: lat then lon)
+     * when {@code index} is enabled. Documents missing either coordinate are silently skipped.
+     */
+    @Override
+    public void mapColumnGroupBatch(BatchMappingContext ctx, EscfColumn[] columns, String[] relativeKeys) {
+        assert columns.length == relativeKeys.length;
+        int latIdx = -1;
+        int lonIdx = -1;
+        for (int k = 0; k < relativeKeys.length; k++) {
+            switch (relativeKeys[k]) {
+                case "lat" -> latIdx = k;
+                case "lon" -> lonIdx = k;
+            }
+        }
+        if (latIdx == -1 || lonIdx == -1) {
+            throw new UnsupportedOperationException(
+                "mapColumnGroupBatch: geo_point field [" + fullPath() + "] requires both [lat] and [lon] sub-fields"
+            );
+        }
+        final int docCount = ctx.docCount();
+        final EscfColumn latCol = columns[latIdx];
+        final EscfColumn lonCol = columns[lonIdx];
+        final boolean hasDv = fieldType().hasDocValues();
+        final EscfColumnBuilder dvBuilder = hasDv ? new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT) : null;
+        final EscfColumnBuilder bkdBuilder = indexed ? new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT) : null;
+        final byte[] bkdBytes = indexed ? new byte[8] : null;
+        for (int doc = 0; doc < docCount; doc++) {
+            if (latCol.isPresent(doc) == false || lonCol.isPresent(doc) == false) {
+                continue;
+            }
+            final double lat = readGeoCoordinate(latCol, doc);
+            final double lon = readGeoCoordinate(lonCol, doc);
+            final int latEnc = GeoEncodingUtils.encodeLatitude(lat);
+            final int lonEnc = GeoEncodingUtils.encodeLongitude(lon);
+            if (hasDv) {
+                dvBuilder.setLong(doc, (((long) latEnc) << 32) | (lonEnc & 0xFFFFFFFFL));
+            }
+            if (indexed) {
+                NumericUtils.intToSortableBytes(latEnc, bkdBytes, 0);
+                NumericUtils.intToSortableBytes(lonEnc, bkdBytes, Integer.BYTES);
+                bkdBuilder.setBinary(doc, new BytesRef(bkdBytes));
+            }
+        }
+        if (hasDv) {
+            ctx.addColumn(LuceneLongColumn.of(dvBuilder.finish(docCount), fullPath(), GEO_DV_ONLY_FIELD_TYPE, LongColumn.NumericKind.LONG));
+        }
+        if (indexed) {
+            ctx.addColumn(LuceneBinaryColumn.of(bkdBuilder.finish(docCount), fullPath(), GEO_BKD_ONLY_FIELD_TYPE));
+        }
+    }
+
+    private static double readGeoCoordinate(EscfColumn col, int doc) {
+        return switch (col.kind()) {
+            case EscfColumnKind.DOUBLE -> col.getDoubleValue(doc);
+            case EscfColumnKind.LONG -> (double) col.getLongValue(doc);
+            default -> throw new UnsupportedOperationException(
+                "mapColumnGroupBatch: unsupported ESCF column kind [" + EscfColumnKind.name(col.kind()) + "] for geo_point coordinate"
+            );
+        };
     }
 
     public static class GeoPointFieldType extends AbstractPointFieldType<GeoPoint> implements GeoShapeQueryable {

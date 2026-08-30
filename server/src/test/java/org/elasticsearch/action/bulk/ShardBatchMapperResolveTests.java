@@ -23,6 +23,7 @@ import org.elasticsearch.index.mapper.ColumnGroupResolver;
 import org.elasticsearch.index.mapper.ColumnGroupResolver.ColumnGroupLookup;
 import org.elasticsearch.index.mapper.ColumnGroupResolver.ColumnGroupResolution;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -915,6 +916,50 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
         SourceSchema schema = schemaOfJson("{\"host\":\"srv\",\"json\":{}}", "{\"host\":\"srv2\",\"json\":\"value\"}");
         assertNull(
             "a leaf that is sometimes a real value must still fall back for dynamic mapping",
+            ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings)
+        );
+    }
+
+    /**
+     * geo_point fields encoded as {@code {"lat": ..., "lon": ...}} objects produce sub-leaves that previously
+     * caused a {@link ColumnGroupLookup.Conflict} fallback. With {@link GeoPointFieldMapper#resolvesColumnGroup()}
+     * returning true, they are owned by the geo_point group mapper and the batch proceeds on the columnar path.
+     * This is the root cause of the elastic/logs k8-application corpus logsdb_columnar regression.
+     */
+    public void testGeoPointObjectFormatIsSupported() throws IOException {
+        MapperService ms = mapper(mapping(b -> b.startObject("location").field("type", "geo_point").endObject()));
+        SourceSchema schema = schemaOfJson("{\"location\":{\"lat\":40.7,\"lon\":-74.0}}");
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
+        assertNotNull("geo_point in {lat, lon} object format should not cause a batch fallback", resolution);
+
+        final int locationNonLeaf = schema.findNonLeaf("location", 0);
+        final int latLeaf = schema.findLeaf("lat", locationNonLeaf);
+        final int lonLeaf = schema.findLeaf("lon", locationNonLeaf);
+
+        assertNull("lat leaf should be owned by the geo_point group, not an individual leaf mapper", resolution.columnMappers()[latLeaf]);
+        assertNull("lon leaf should be owned by the geo_point group, not an individual leaf mapper", resolution.columnMappers()[lonLeaf]);
+
+        assertEquals(1, resolution.columnGroups().length);
+        assertThat(resolution.columnGroups()[0].mapper(), instanceOf(GeoPointFieldMapper.class));
+        assertArrayEquals(new String[] { "lat", "lon" }, resolution.columnGroups()[0].relativeKeys());
+    }
+
+    /**
+     * geo_point multi-fields receive the geohash string on the row path, which the columnar path does not generate.
+     * So geo_point with multi-fields must fall back to preserve correctness.
+     */
+    public void testGeoPointWithMultiFieldFallsBack() throws IOException {
+        MapperService ms = mapper(mapping(b -> {
+            b.startObject("location");
+            b.field("type", "geo_point");
+            b.startObject("fields");
+            b.startObject("geohash").field("type", "keyword").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        SourceSchema schema = schemaOfJson("{\"location\":{\"lat\":40.7,\"lon\":-74.0}}");
+        assertNull(
+            "geo_point with multi-fields should fall back (multi-fields receive geohash, incompatible with columnar path)",
             ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings)
         );
     }

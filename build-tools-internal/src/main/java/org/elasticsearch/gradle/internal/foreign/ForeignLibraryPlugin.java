@@ -9,9 +9,12 @@
 
 package org.elasticsearch.gradle.internal.foreign;
 
+import org.elasticsearch.gradle.plugin.GenerateTestBuildInfoTask;
+import org.elasticsearch.gradle.test.TestBuildInfoPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
@@ -83,6 +86,8 @@ public class ForeignLibraryPlugin implements Plugin<Project> {
         mainSourceSet.getOutput().dir(processAnnotations.flatMap(JavaCompile::getDestinationDirectory));
 
         swapModuleInfoInJar(project, augmentModuleInfo);
+
+        registerTestBuildInfoTask(project, processAnnotations);
 
         // All non-main source sets get the same annotation processing, but no module-info augmentation
         // and no jar swap: they are non-modular and run on the classpath.
@@ -161,6 +166,35 @@ public class ForeignLibraryPlugin implements Plugin<Project> {
             task.getJavaLauncher().set(javaToolchains.launcherFor(spec -> spec.getLanguageVersion().set(PROCESSOR_TOOLCHAIN)));
             task.getOutputModuleInfo()
                 .set(project.getLayout().getBuildDirectory().file(AUGMENTED_MODULE_INFO_DIR + "/" + MODULE_INFO_CLASS));
+        });
+    }
+
+    /**
+     * Make a foreign-library module represent itself to the entitlement test-scope resolver.
+     *
+     * <p>Foreign-library modules live in {@code libs} and are part of the server trust boundary, but — unlike
+     * plugins and the server itself — nothing generates their entitlement test-build-info. On a module's own
+     * test classpath, the annotation processor's {@code <Library>$Impl}/{@code $Provider} classes (which issue
+     * the native downcalls) sit in the sibling {@code generated-foreign-library-classes} directory that no other
+     * build-info records, so they resolve to {@code component [(unknown)]} and fail native-library entitlement
+     * checks. Applying {@link TestBuildInfoPlugin} registers a {@code generateTestBuildInfo} task that emits a
+     * {@code lib-test-build-info.json} enumerating both its main classes directory and that generated directory
+     * (see {@link org.elasticsearch.gradle.plugin.GenerateTestBuildInfoTask}); the test framework reads these
+     * and maps both to the module's scope.
+     */
+    private void registerTestBuildInfoTask(Project project, TaskProvider<JavaCompile> processAnnotations) {
+        project.getPluginManager().apply(TestBuildInfoPlugin.class);
+        project.getTasks().named("generateTestBuildInfo", GenerateTestBuildInfoTask.class).configure(task -> {
+            task.getComponentName().set(project.getName());
+            task.getOutputFile().set(project.getLayout().getBuildDirectory().file("generated-build-info/lib-test-build-info.json"));
+            // Add the annotation processor's generated-foreign-library-classes directory so the generated
+            // $Impl/$Provider classes get their own location. Its build dependency is the processor task, not
+            // processResources, so — unlike the source set's full output — it introduces no task cycle (the
+            // build-info feeds processResources). get() extracts the collection TestBuildInfoPlugin already set,
+            // so the derived value does not reference the property being assigned.
+            FileCollection codeLocations = task.getCodeLocations().get();
+            task.getCodeLocations()
+                .set(codeLocations.plus(project.files(processAnnotations.flatMap(JavaCompile::getDestinationDirectory))));
         });
     }
 

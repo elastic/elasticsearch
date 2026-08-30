@@ -26,6 +26,7 @@ import java.util.List;
 public class TestBuildInfoParser {
 
     private static final String PLUGIN_TEST_BUILD_INFO_RESOURCES = "META-INF/plugin-test-build-info.json";
+    private static final String LIB_TEST_BUILD_INFO_RESOURCES = "META-INF/lib-test-build-info.json";
     private static final String SERVER_TEST_BUILD_INFO_RESOURCE = "META-INF/server-test-build-info.json";
 
     private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("test_build_info", Builder::new);
@@ -76,18 +77,22 @@ public class TestBuildInfoParser {
     }
 
     public static List<TestBuildInfo> parseAllPluginTestBuildInfo() throws IOException {
+        return parseAll(PLUGIN_TEST_BUILD_INFO_RESOURCES);
+    }
+
+    private static List<TestBuildInfo> parseAll(String resourceName) throws IOException {
         var xContent = XContentFactory.xContent(XContentType.JSON);
-        List<TestBuildInfo> pluginsTestBuildInfos = new ArrayList<>();
-        var resources = TestBuildInfoParser.class.getClassLoader().getResources(PLUGIN_TEST_BUILD_INFO_RESOURCES);
+        List<TestBuildInfo> testBuildInfos = new ArrayList<>();
+        var resources = TestBuildInfoParser.class.getClassLoader().getResources(resourceName);
         while (resources.hasMoreElements()) {
             try (
                 var stream = getStream(resources.nextElement());
                 var parser = xContent.createParser(XContentParserConfiguration.EMPTY, stream)
             ) {
-                pluginsTestBuildInfos.add(fromXContent(parser));
+                testBuildInfos.add(fromXContent(parser));
             }
         }
-        return pluginsTestBuildInfos;
+        return testBuildInfos;
     }
 
     public static TestBuildInfo parseServerTestBuildInfo() throws IOException {
@@ -100,6 +105,30 @@ public class TestBuildInfoParser {
         try (var stream = getStream(resource); var parser = xContent.createParser(XContentParserConfiguration.EMPTY, stream)) {
             return fromXContent(parser);
         }
+    }
+
+    /**
+     * Parse the server build-info and fold in the locations of every self-representing library on the classpath.
+     * Foreign-library modules ({@code libs/zstd}, {@code libs/native}, {@code libs/simdvec}) emit a
+     * {@code lib-test-build-info.json} so their annotation-processor generated {@code $Impl}/{@code $Provider}
+     * classes — which no other build-info records — get a location; see {@code ForeignLibraryPlugin}. These
+     * libraries are part of the server trust boundary and are entitled through server scopes keyed on their module
+     * name, so their locations join the server build-info and are resolved with server scope.
+     */
+    public static TestBuildInfo parseServerAndLibTestBuildInfo() throws IOException {
+        var serverTestBuildInfo = parseServerTestBuildInfo();
+        if (serverTestBuildInfo == null) {
+            return null;
+        }
+        var libsTestBuildInfo = parseAll(LIB_TEST_BUILD_INFO_RESOURCES);
+        if (libsTestBuildInfo.isEmpty()) {
+            return serverTestBuildInfo;
+        }
+        List<TestBuildInfoLocation> locations = new ArrayList<>(serverTestBuildInfo.locations());
+        for (var libTestBuildInfo : libsTestBuildInfo) {
+            locations.addAll(libTestBuildInfo.locations());
+        }
+        return new TestBuildInfo(serverTestBuildInfo.component(), locations);
     }
 
     @SuppressForbidden(reason = "URLs from class loader")

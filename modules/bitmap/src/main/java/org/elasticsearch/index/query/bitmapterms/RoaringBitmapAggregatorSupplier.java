@@ -12,6 +12,7 @@ package org.elasticsearch.index.query.bitmapterms;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Map;
@@ -22,6 +23,7 @@ interface RoaringBitmapAggregatorSupplier {
     Aggregator build(
         String name,
         ValuesSource.Numeric valuesSource,
+        ValuesSourceConfig config,
         InternalRoaringBitmap.BitmapFormat width,
         AggregationContext context,
         Aggregator parent,

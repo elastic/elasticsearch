@@ -9,8 +9,15 @@
 
 package org.elasticsearch.index.query.bitmapterms;
 
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -19,6 +26,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Map;
@@ -45,6 +53,7 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
 
     private final ValuesSource.Numeric valuesSource;
     private final InternalRoaringBitmap.BitmapFormat width;
+    private final String termsField;
     private final LongObjectPagedHashMap<AccountedBitmap> bitmaps;
     private long accountedBitmapBytes;
     private int valuesUntilNextBreakerReservation;
@@ -53,6 +62,7 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
     RoaringBitmapAggregator(
         String name,
         ValuesSource.Numeric valuesSource,
+        ValuesSourceConfig config,
         InternalRoaringBitmap.BitmapFormat width,
         AggregationContext context,
         Aggregator parent,
@@ -61,12 +71,18 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
         super(name, context, parent, metadata);
         this.valuesSource = valuesSource;
         this.width = width;
+        this.termsField = termsFieldIfAvailable(config);
         this.bitmaps = new LongObjectPagedHashMap<>(1, bigArrays());
     }
 
     @Override
     protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
+            return LeafBucketCollector.NO_OP_COLLECTOR;
+        }
+        LeafReader reader = aggCtx.getLeafReaderContext().reader();
+        if (termsField != null && reader.getLiveDocs() == null) {
+            collectTerms(reader.terms(termsField));
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         SortedNumericLongValues values = valuesSource.longValues(aggCtx.getLeafReaderContext());
@@ -76,21 +92,12 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
                 if (values.advanceExact(doc) == false) {
                     return;
                 }
-                AccountedBitmap accountedBitmap = bitmaps.get(owningBucketOrd);
-                if (accountedBitmap == null) {
-                    InternalRoaringBitmap.MutableBitmap bitmap = InternalRoaringBitmap.mutable(width);
-                    accountedBitmap = new AccountedBitmap(bitmap, bitmap.ramBytesUsed());
-                    bitmaps.put(owningBucketOrd, accountedBitmap);
-                    addRequestCircuitBreakerBytes(accountedBitmap.accountedBytes);
-                    accountedBitmapBytes += accountedBitmap.accountedBytes;
-                }
+                AccountedBitmap accountedBitmap = getOrCreateBitmap(owningBucketOrd);
                 int valueCount = values.docValueCount();
                 for (int i = 0; i < valueCount; i++) {
                     long value = values.nextValue();
                     if (value < 0) {
-                        throw new IllegalArgumentException(
-                            "[roaring_bitmap] aggregation only supports non-negative values, but field produced [" + value + "]"
-                        );
+                        throw negativeValue(value);
                     }
                     reserveBreakerBytes();
                     accountedBitmap.bitmap.add(value);
@@ -100,6 +107,88 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
                 }
             }
         };
+    }
+
+    private String termsFieldIfAvailable(ValuesSourceConfig config) {
+        if (valuesSource == null
+            || parent() != null
+            || config.alignsWithSearchIndex() == false
+            || (topLevelQuery() != null && topLevelQuery().getClass() != MatchAllDocsQuery.class)) {
+            return null;
+        }
+        if (config.fieldType() instanceof NumberFieldMapper.NumberFieldType numberFieldType && numberFieldType.isIndexedWithTerms()) {
+            return numberFieldType.name();
+        }
+        return null;
+    }
+
+    boolean usesTermsIndex() {
+        return termsField != null;
+    }
+
+    private void collectTerms(Terms terms) throws IOException {
+        if (terms == null) {
+            return;
+        }
+        BytesRef min = terms.getMin();
+        if (min == null) {
+            return;
+        }
+        long minValue = decodeTerm(min);
+        if (minValue < 0) {
+            throw negativeValue(minValue);
+        }
+
+        AccountedBitmap accountedBitmap = getOrCreateBitmap(0);
+        long termCount = terms.size();
+        if (termCount >= 0) {
+            reserveBreakerBytes(termCount);
+        }
+        TermsEnum termsEnum = terms.iterator();
+        BytesRef term;
+        while ((term = termsEnum.next()) != null) {
+            if (termCount < 0) {
+                reserveBreakerBytes();
+            }
+            accountedBitmap.bitmap.add(decodeTerm(term));
+        }
+        accountBitmapMemory();
+    }
+
+    private long decodeTerm(BytesRef term) {
+        int expectedLength = switch (width) {
+            case INT -> Integer.BYTES;
+            case LONG -> Long.BYTES;
+            case UNMAPPED -> throw new IllegalStateException("cannot decode indexed terms for an unmapped field");
+        };
+        if (term.length != expectedLength) {
+            throw new IllegalStateException(
+                "[roaring_bitmap] aggregation expected indexed terms of length [" + expectedLength + "] but found [" + term.length + "]"
+            );
+        }
+        return switch (width) {
+            case INT -> NumericUtils.sortableBytesToInt(term.bytes, term.offset);
+            case LONG -> NumericUtils.sortableBytesToLong(term.bytes, term.offset);
+            case UNMAPPED -> throw new IllegalStateException("cannot decode indexed terms for an unmapped field");
+        };
+    }
+
+    private AccountedBitmap getOrCreateBitmap(long owningBucketOrd) {
+        AccountedBitmap accountedBitmap = bitmaps.get(owningBucketOrd);
+        if (accountedBitmap == null) {
+            InternalRoaringBitmap.MutableBitmap bitmap = InternalRoaringBitmap.mutable(width);
+            accountedBitmap = new AccountedBitmap(bitmap, bitmap.ramBytesUsed());
+            bitmaps.put(owningBucketOrd, accountedBitmap);
+            addRequestCircuitBreakerBytes(accountedBitmap.accountedBytes);
+            accountedBitmapBytes += accountedBitmap.accountedBytes;
+        }
+        return accountedBitmap;
+    }
+
+    private static IllegalArgumentException negativeValue(long value) {
+        return new IllegalArgumentException(
+            "[roaring_bitmap] aggregation only supports non-negative values, but field produced [" + value + "]"
+        );
     }
 
     @Override
@@ -153,12 +242,16 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
 
     private void reserveBreakerBytes() {
         if (valuesUntilNextBreakerReservation == 0) {
-            long reservation = BREAKER_RESERVATION_VALUES * bytesPerValue();
-            addRequestCircuitBreakerBytes(reservation);
-            accountedBitmapBytes += reservation;
+            reserveBreakerBytes(BREAKER_RESERVATION_VALUES);
             valuesUntilNextBreakerReservation = BREAKER_RESERVATION_VALUES;
         }
         valuesUntilNextBreakerReservation--;
+    }
+
+    private void reserveBreakerBytes(long valueCount) {
+        long reservation = Math.multiplyExact(valueCount, bytesPerValue());
+        addRequestCircuitBreakerBytes(reservation);
+        accountedBitmapBytes += reservation;
     }
 
     private long bytesPerValue() {

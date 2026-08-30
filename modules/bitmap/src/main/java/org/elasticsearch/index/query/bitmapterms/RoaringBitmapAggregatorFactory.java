@@ -41,7 +41,7 @@ final class RoaringBitmapAggregatorFactory extends ValuesSourceAggregatorFactory
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new RoaringBitmapAggregator(name, null, InternalRoaringBitmap.BitmapFormat.UNMAPPED, context, parent, metadata);
+        return new RoaringBitmapAggregator(name, null, config, InternalRoaringBitmap.BitmapFormat.UNMAPPED, context, parent, metadata);
     }
 
     @Override
@@ -66,6 +66,6 @@ final class RoaringBitmapAggregatorFactory extends ValuesSourceAggregatorFactory
                     + "]; only [integer] and [long] fields are supported"
             );
         };
-        return supplier.build(name, numeric, width, context, parent, metadata);
+        return supplier.build(name, numeric, config, width, context, parent, metadata);
     }
 }

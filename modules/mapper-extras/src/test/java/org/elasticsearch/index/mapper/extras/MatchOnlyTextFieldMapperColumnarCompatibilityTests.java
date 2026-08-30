@@ -369,11 +369,12 @@ public class MatchOnlyTextFieldMapperColumnarCompatibilityTests extends Abstract
     }
 
     public void testMultiFieldWithNonColumnarTextFallsBack() throws IOException {
-        // A "text" multi-field never supports columnar parse, so the parent must fall back too.
+        // A text multi-field with index_phrases=true writes a companion phrase field outside the
+        // batch dispatch and is not supported on the columnar path, so the parent must fall back too.
         MapperService ms = createMapperService(columnarSettings(), mapping(b -> {
             b.startObject(FIELD).field("type", "match_only_text");
             b.startObject("fields");
-            b.startObject("full").field("type", "text").endObject();
+            b.startObject("full").field("type", "text").field("index_phrases", true).endObject();
             b.endObject();
             b.endObject();
         }));

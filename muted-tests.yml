@@ -100,6 +100,9 @@ tests:
 - class: org.elasticsearch.upgrades.XpackSystemIndicesUpgradeIT
   method: testUpgradeSystemIndexAndDataStream {upgradedNodes=2}
   issue: https://github.com/elastic/elasticsearch/issues/158121
+- class: org.elasticsearch.upgrades.XpackSystemIndicesUpgradeIT
+  method: testUpgradeSystemIndexAndDataStream {upgradedNodes=0}
+  issue: https://github.com/elastic/elasticsearch/issues/158122
 
 # Examples:
 #

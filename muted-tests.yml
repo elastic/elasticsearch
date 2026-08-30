@@ -845,3 +845,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.TsvExternalReadConfigParityIT
   method: testDuplicateListingColdEqualsWarm
   issue: https://github.com/elastic/elasticsearch/issues/157993
+- class: org.elasticsearch.foreign.processor.BoundsCheckGeneratedClassBehaviorTests
+  method: testSlicedSegmentCheckThrowsWhenSliceExceedsSegment
+  issue: https://github.com/elastic/elasticsearch/issues/158125

@@ -593,7 +593,12 @@ public class EsqlSession {
                                     && r.completionInfo().approximationApplied();
                                 approximationApplied = approximationAppliedCoordinator || approximationAppliedDataNode;
                             }
-                            Versioned<Result> withAdditionalData = attachAdditionalData(r, columnMetadata.get(), approximationApplied, minimumVersion);
+                            Versioned<Result> withAdditionalData = attachAdditionalData(
+                                r,
+                                columnMetadata.get(),
+                                approximationApplied,
+                                minimumVersion
+                            );
                             l.onResponse(
                                 new Versioned<>(
                                     ExpandUnmappedFieldsPostProcessor.expand(

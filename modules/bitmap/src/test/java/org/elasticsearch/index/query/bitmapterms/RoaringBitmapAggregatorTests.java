@@ -57,6 +57,7 @@ import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUC
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
@@ -412,6 +413,40 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
         assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
     }
 
+    // In-place OR clones containers that only exist in the incoming bitmap. Reserve that possible
+    // growth before unioning so disjoint shard results cannot allocate beyond the breaker first.
+    public void testReduceTripsBreakerBeforeUnionGrowth() throws Exception {
+        InternalRoaringBitmap first = result(InternalRoaringBitmap.BitmapFormat.LONG, 1);
+        InternalRoaringBitmap second = result(InternalRoaringBitmap.BitmapFormat.LONG, 1L << 32);
+        long firstBytes = bitmapRamBytesUsed(InternalRoaringBitmap.BitmapFormat.LONG, 1);
+        long secondBytes = bitmapRamBytesUsed(InternalRoaringBitmap.BitmapFormat.LONG, 1L << 32);
+
+        long secondDeserializationEstimate = second.bitmap().length * InternalRoaringBitmap.DESERIALIZATION_EXPANSION_FACTOR;
+        assertThat(secondDeserializationEstimate, lessThan(2L * secondBytes));
+        CircuitBreakerService breakerService = LimitedBreaker.service(
+            CircuitBreaker.REQUEST,
+            ByteSizeValue.ofBytes(firstBytes + 2L * secondBytes - 1)
+        );
+        AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
+            new BigArrays(null, breakerService, CircuitBreaker.REQUEST),
+            null,
+            () -> false,
+            AggregatorFactories.builder(),
+            ignored -> {},
+            null
+        );
+
+        try (AggregatorReducer reducer = first.getReducer(reduceContext, 2)) {
+            reducer.accept(first);
+            CircuitBreakingException exception = expectThrows(CircuitBreakingException.class, () -> reducer.accept(second));
+            assertThat(exception.getBytesWanted(), equalTo(secondBytes));
+            // The incoming decoded bitmap is released immediately even though the speculative
+            // union reservation was refused; only the first shard remains retained by the reducer.
+            assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(firstBytes));
+        }
+        assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+    }
+
     private static long[] sparseLongValues(int count) {
         long[] values = new long[count];
         for (int i = 0; i < count; i++) {
@@ -500,6 +535,15 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
         InternalRoaringBitmap.MutableBitmap bitmap = InternalRoaringBitmap.mutable(width);
         bitmap.add(value);
         return new InternalRoaringBitmap("ids", width, bitmap.serialize(), null);
+    }
+
+    // Roaring 1.6.15 reports the same size for these fresh and portable-deserialized
+    // one-value bitmaps: both maps have empty performance-helper caches, and array
+    // container size is based on cardinality rather than backing-array capacity.
+    private static long bitmapRamBytesUsed(InternalRoaringBitmap.BitmapFormat width, long value) {
+        InternalRoaringBitmap.MutableBitmap bitmap = InternalRoaringBitmap.mutable(width);
+        bitmap.add(value);
+        return bitmap.ramBytesUsed();
     }
 
     private static void assertReservationCoversReportedGrowth(

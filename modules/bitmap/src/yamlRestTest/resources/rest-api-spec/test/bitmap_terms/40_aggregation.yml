@@ -144,6 +144,22 @@
   - match: { hits.total.relation: "eq" }
   # portable 32-bit Roaring serialization of the distinct set {5, 15} -- only the "odd" docs
   - match: { aggregations.ids.value: "OjAAAAEAAAAAAAEAEAAAAAUADwA=" }
+  - set: { aggregations.ids.value: bitmap }
+
+  # Passing the aggregation output directly to bitmap_terms selects only the exported values.
+  - do:
+      search:
+        index: test_roaring_bitmap_aggregation_filtered
+        body:
+          size: 0
+          track_total_hits: true
+          query:
+            bitmap_terms:
+              field: id
+              value: $bitmap
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.total.relation: "eq" }
 
 ---
 "roaring_bitmap aggregation on a long field only sees documents matching a filter":
@@ -194,6 +210,22 @@
   - match: { hits.total.relation: "eq" }
   # portable 64-bit Roaring serialization of the distinct set {1, Long.MAX_VALUE} -- only the "odd" docs
   - match: { aggregations.ids.value: "AgAAAAAAAAAAAAAAOjAAAAEAAAAAAAAAEAAAAAEA////fzowAAABAAAA//8AABAAAAD//w==" }
+  - set: { aggregations.ids.value: bitmap }
+
+  # Pin the portable 64-bit aggregation-to-query round trip and its selectivity.
+  - do:
+      search:
+        index: test_roaring_bitmap_aggregation_long_filtered
+        body:
+          size: 0
+          track_total_hits: true
+          query:
+            bitmap_terms:
+              field: id
+              value: $bitmap
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.total.relation: "eq" }
 
 ---
 "roaring_bitmap aggregation reads integer index terms":

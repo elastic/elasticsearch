@@ -189,12 +189,24 @@ public final class InternalRoaringBitmap extends InternalAggregation {
                 if (reduced == null) {
                     reduced = decoded;
                 } else {
+                    // Roaring's in-place OR clones containers from the incoming bitmap when the
+                    // destination does not already have the corresponding key. Reserve the incoming
+                    // bitmap's size as an upper bound before allowing that allocation to happen.
+                    long unionReservation = decodedBytes;
+                    boolean unionReservationAdded = false;
+                    boolean unionReservationReconciled = false;
                     try {
+                        adjustBreaker(unionReservation);
+                        unionReservationAdded = true;
                         long before = reduced.ramBytesUsed();
                         reduced.or(decoded);
-                        adjustBreaker(reduced.ramBytesUsed() - before);
+                        adjustBreaker(reduced.ramBytesUsed() - before - unionReservation);
+                        unionReservationReconciled = true;
                     } finally {
                         adjustBreaker(-decodedBytes);
+                        if (unionReservationAdded && unionReservationReconciled == false) {
+                            adjustBreaker(-unionReservation);
+                        }
                     }
                 }
             }

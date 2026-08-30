@@ -16,6 +16,7 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.EscfColumnTransforms;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineBatch;
@@ -29,7 +30,9 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceSchema;
 
-import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 
 /**
@@ -68,7 +71,35 @@ public final class ShardBatchMapper {
      * <p>{@code columnGroups} holds one entry per group mapper (e.g. {@code flattened}), ordered by the
      * first schema leaf that mapped to that group.
      */
-    public record BatchMapperResolution(FieldMapper[] columnMappers, ColumnGroupResolution[] columnGroups) {}
+    public record BatchMapperResolution(
+        FieldMapper[] columnMappers,
+        ColumnGroupResolution[] columnGroups,
+        AliasedLeafResolution[] aliasedLeaves
+    ) {}
+
+    /**
+     * A per-leaf-mapper field spelled two or more ways in one batch (for example {@code "a.b"} and
+     * {@code {"a": {"b": ...}}}), which the ESCF encoder keeps as separate schema leaves. Every leaf here
+     * is bound to the same {@link FieldMapper}; {@link #mapColumnBatch} merges their source columns into
+     * one via {@link EscfColumnTransforms#mergeAliasedLeaves} before invoking that mapper once per chunk.
+     * Only built when the index mode is {@link IndexSettings#getMode() strictly columnar} — see the
+     * mode-gating note in {@link #resolveMappers}.
+     *
+     * @param leafIndexes indexes into the batch's column array, in the order the leaves were encountered
+     */
+    public record AliasedLeafResolution(FieldMapper mapper, int[] leafIndexes) {}
+
+    private static final AliasedLeafResolution[] EMPTY_ALIASED_LEAVES = new AliasedLeafResolution[0];
+
+    /** Accumulates per-leaf-mapper aliasing groups, keyed by full path, in first-seen order. */
+    private static final class AliasedLeafGroup {
+        private final FieldMapper mapper;
+        private final List<Integer> leafIndexes = new ArrayList<>();
+
+        AliasedLeafGroup(FieldMapper mapper) {
+            this.mapper = mapper;
+        }
+    }
 
     /**
      * Resolve each schema leaf to a {@link FieldMapper}. Returns {@code null} if any scenario
@@ -123,9 +154,13 @@ public final class ShardBatchMapper {
         final int leafCount = schema.leafCount();
         final FieldMapper[] columnMappers = new FieldMapper[leafCount];
         ColumnGroupResolver.Builder groupBuilder = null;
-        // Full paths of leaves bound to a per-leaf mapper, used to detect dotted/nested aliasing. Allocated lazily
-        // because most batches resolve every leaf to a group or to nothing at all.
-        HashSet<String> mappedPaths = null;
+        // Full paths of leaves bound to a per-leaf mapper, mapped to the first leaf index seen for that path.
+        // Used to detect dotted/nested aliasing. Allocated lazily because most batches resolve every leaf to a
+        // group or to nothing at all.
+        HashMap<String, Integer> mappedPaths = null;
+        // Aliasing groups accumulated for strictly-columnar indices; see the mode-gating note below. Allocated
+        // lazily since aliasing is rare.
+        LinkedHashMap<String, AliasedLeafGroup> aliasedLeafGroups = null;
 
         for (int leaf = 0; leaf < leafCount; leaf++) {
             final String fullPath = schema.getFullPath(leaf);
@@ -222,22 +257,57 @@ public final class ShardBatchMapper {
             }
             // Two schema leaves can share a full path when a batch mixes the dotted and nested spellings of the same
             // field ({"a.b":1} and {"a":{"b":1}}); the encoder keeps them as separate columns. Per-leaf mappers are
-            // dispatched one column at a time, so a document carrying both spellings would emit two independent
-            // outputs where the sequential path emits one merged multi-valued field. Group mappers are immune —
-            // mapColumnGroupBatch receives all of a group's columns at once — so only the per-leaf columns are
-            // checked here.
+            // dispatched one column at a time, so on its own a document carrying both spellings would emit two
+            // independent outputs where the sequential path emits one merged multi-valued field. Group mappers are
+            // immune — mapColumnGroupBatch receives all of a group's columns at once — so only the per-leaf columns
+            // are checked here.
             if (mappedPaths == null) {
-                mappedPaths = new HashSet<>(leafCount);
+                mappedPaths = new HashMap<>(leafCount);
             }
-            if (mappedPaths.add(fullPath) == false) {
-                logger.debug("batch indexing disabled: [{}] is spelled both dotted and nested in this batch", fullPath);
-                return null;
+            final Integer firstLeaf = mappedPaths.putIfAbsent(fullPath, leaf);
+            if (firstLeaf != null) {
+                // This merge is only sound because strictly-columnar index modes guarantee subobjects:false as
+                // part of the mode's contract (IndexMode#isStrictColumnar javadoc): there is no real ObjectMapper
+                // tree, so both spellings are guaranteed to resolve through this same flat leaf FieldMapper with no
+                // intervening per-object mapping concerns. That guarantee does not extend to every mode that can
+                // reach this method (e.g. time_series), so leave those on the original whole-batch fallback.
+                if (indexSettings.getMode().isStrictColumnar() == false) {
+                    logger.debug("batch indexing disabled: [{}] is spelled both dotted and nested in this batch", fullPath);
+                    return null;
+                }
+                if (aliasedLeafGroups == null) {
+                    aliasedLeafGroups = new LinkedHashMap<>();
+                }
+                AliasedLeafGroup group = aliasedLeafGroups.get(fullPath);
+                if (group == null) {
+                    group = new AliasedLeafGroup(fieldMapper);
+                    group.leafIndexes.add(firstLeaf);
+                    aliasedLeafGroups.put(fullPath, group);
+                    columnMappers[firstLeaf] = null;
+                }
+                group.leafIndexes.add(leaf);
+                columnMappers[leaf] = null;
+                continue;
             }
             columnMappers[leaf] = fieldMapper;
         }
 
         final ColumnGroupResolution[] columnGroups = groupBuilder != null ? groupBuilder.build() : ColumnGroupResolver.EMPTY;
-        return new BatchMapperResolution(columnMappers, columnGroups);
+        final AliasedLeafResolution[] aliasedLeaves;
+        if (aliasedLeafGroups == null) {
+            aliasedLeaves = EMPTY_ALIASED_LEAVES;
+        } else {
+            aliasedLeaves = new AliasedLeafResolution[aliasedLeafGroups.size()];
+            int i = 0;
+            for (AliasedLeafGroup group : aliasedLeafGroups.values()) {
+                final int[] indexes = new int[group.leafIndexes.size()];
+                for (int j = 0; j < indexes.length; j++) {
+                    indexes[j] = group.leafIndexes.get(j);
+                }
+                aliasedLeaves[i++] = new AliasedLeafResolution(group.mapper, indexes);
+            }
+        }
+        return new BatchMapperResolution(columnMappers, columnGroups, aliasedLeaves);
     }
 
     /**
@@ -385,6 +455,17 @@ public final class ShardBatchMapper {
                         groupColumns[i] = escfChunk.column(leafIndexes[i]);
                     }
                     group.mapper().mapColumnGroupBatch(context, groupColumns, group.relativeKeys());
+                }
+                // Dispatch per-leaf-mapper fields spelled two or more ways in this batch: merge their source
+                // columns into one before invoking the mapper, once, per chunk.
+                for (AliasedLeafResolution aliased : resolution.aliasedLeaves()) {
+                    final int[] leafIndexes = aliased.leafIndexes();
+                    final EscfColumn[] toMerge = new EscfColumn[leafIndexes.length];
+                    for (int i = 0; i < leafIndexes.length; i++) {
+                        toMerge[i] = escfChunk.column(leafIndexes[i]);
+                    }
+                    final EscfColumn merged = EscfColumnTransforms.mergeAliasedLeaves(toMerge, escfChunk.docCount(), recycler);
+                    aliased.mapper().mapColumnBatch(context, merged);
                 }
             } else {
                 throw new IllegalStateException("unexpected batch mapping - only use escf currently");

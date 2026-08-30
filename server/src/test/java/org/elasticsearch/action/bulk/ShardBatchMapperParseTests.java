@@ -249,6 +249,118 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
         }
     }
 
+    private static final String NESTED_KEYWORD_MAPPING = """
+        {
+          "dynamic": "strict",
+          "properties": {
+            "a": {
+              "properties": {
+                "b": { "type": "keyword" }
+              }
+            }
+          }
+        }""";
+
+    /**
+     * A per-leaf-mapper field spelled two ways in one document ({@code {"a":{"b":"x"},"a.b":"y"}}) merges into one
+     * multi-valued doc-values blob with a 2-slot counts sidecar — matching what the sequential path would produce
+     * for the same document (two independent {@code IndexableField} instances for "a.b").
+     */
+    public void testAliasedPerLeafColumnsMergeWithinOneDocument() throws IOException {
+        IndexShard shard = newShardWithMapping(NESTED_KEYWORD_MAPPING, COLUMNAR_SETTINGS);
+        try {
+            final BulkItemRequest[] items = { new BulkItemRequest(0, indexRequest("doc1")) };
+            try (
+                SourceBatch batch = EscfEncoder.encode(List.of(new BytesArray("{\"a\":{\"b\":\"x\"},\"a.b\":\"y\"}")), XContentType.JSON)
+            ) {
+                EngineBatch result = mapBatch(shard, items, batch);
+                assertNotNull("expected columnar path to succeed for aliased per-leaf keyword field", result);
+
+                final MappedColumns mc = result.columns();
+                mc.fillPrimaryTerm(1L);
+                mc.setSeqNo(0, 1L);
+                mc.setVersion(0, 1L);
+
+                final MappedColumns.RowCursor cursor = mc.rowCursor();
+                cursor.advance();
+                final List<IndexableField> fields = cursor.fields();
+
+                assertTrue(
+                    "a.b binary DV should be present",
+                    fields.stream().anyMatch(f -> "a.b".equals(f.name()) && f.binaryValue() != null)
+                );
+                final long counts = fields.stream()
+                    .filter(f -> "a.b.counts".equals(f.name()))
+                    .mapToLong(f -> f.numericValue().longValue())
+                    .findFirst()
+                    .orElseThrow();
+                assertEquals("both spellings' values should be merged into one 2-slot doc", 2L, counts);
+            }
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /** The same merge applies when the two spellings come from different documents in the batch. */
+    public void testAliasedPerLeafColumnsMergeAcrossDocuments() throws IOException {
+        IndexShard shard = newShardWithMapping(NESTED_KEYWORD_MAPPING, COLUMNAR_SETTINGS);
+        try {
+            final BulkItemRequest[] items = { new BulkItemRequest(0, indexRequest("doc1")), new BulkItemRequest(1, indexRequest("doc2")) };
+            try (
+                SourceBatch batch = EscfEncoder.encode(
+                    List.of(new BytesArray("{\"a\":{\"b\":\"x\"}}"), new BytesArray("{\"a.b\":\"y\"}")),
+                    XContentType.JSON
+                )
+            ) {
+                EngineBatch result = mapBatch(shard, items, batch);
+                assertNotNull("expected columnar path to succeed", result);
+
+                final MappedColumns mc = result.columns();
+                mc.fillPrimaryTerm(1L);
+                mc.setSeqNo(0, 1L);
+                mc.setSeqNo(1, 2L);
+                mc.setVersion(0, 1L);
+                mc.setVersion(1, 1L);
+
+                final MappedColumns.RowCursor cursor = mc.rowCursor();
+                cursor.advance();
+                assertTrue(
+                    "doc0: a.b binary DV present",
+                    cursor.fields().stream().anyMatch(f -> "a.b".equals(f.name()) && f.binaryValue() != null)
+                );
+                cursor.advance();
+                assertTrue(
+                    "doc1: a.b binary DV present",
+                    cursor.fields().stream().anyMatch(f -> "a.b".equals(f.name()) && f.binaryValue() != null)
+                );
+            }
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /**
+     * An aliased leaf whose value is a JSON array (already multi-valued on its own, an ARRAY-kind source column)
+     * falls outside the v1 merge support matrix ({@code EscfColumnTransforms#mergeAliasedLeaves}); the chunk falls
+     * back to the row path rather than crashing.
+     */
+    public void testAliasedPerLeafColumnsWithArrayKindFallsBack() throws IOException {
+        IndexShard shard = newShardWithMapping(NESTED_KEYWORD_MAPPING, COLUMNAR_SETTINGS);
+        try {
+            final BulkItemRequest[] items = { new BulkItemRequest(0, indexRequest("doc1")) };
+            try (
+                SourceBatch batch = EscfEncoder.encode(
+                    List.of(new BytesArray("{\"a\":{\"b\":[\"x\",\"y\"]},\"a.b\":\"z\"}")),
+                    XContentType.JSON
+                )
+            ) {
+                assertNull("array-kind aliased leaf is outside v1 merge support and must fall back", mapBatch(shard, items, batch));
+            }
+        } finally {
+            closeShards(shard);
+        }
+    }
+
     // TODO(columnar): bring back once the corresponding field mappers support columnar parsing:
     // - testSupportedMapperTypes (date, long, double — keyword already covered above)
     // - testNumberMapperReceivesStringValue (long/double with a string source value)

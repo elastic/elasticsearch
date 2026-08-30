@@ -299,6 +299,44 @@ public class BoundsCheckGeneratedClassBehaviorTests extends ProcessorTestCase {
     }
 
     /**
+     * Proves the emitted {@code Objects.checkFromIndexSize(offset, size, segment.byteSize())} call
+     * really does throw when {@code offset + size} exceeds the segment, and really does let a
+     * correctly-sized call through to the native function. Uses {@code long} slice parameters and
+     * libc {@code pread}, whose four-argument signature matches the generated downcall descriptor.
+     */
+    public void testSlicedSegmentCheckThrowsWhenSliceExceedsSegment() throws Throwable {
+        LoadedLibrary lib = loadLibrary("test.PReadLib", """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.SlicedSegment;
+            @LibrarySpecification
+            public interface PReadLib {
+                @Function("pread")
+                long pread(
+                    int fd,
+                    @SlicedSegment(offsetParam = "offset", sizeParam = "size") MemorySegment buf,
+                    long size,
+                    long offset);
+            }
+            """);
+
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment buf = arena.allocate(10);
+            lib.expectThrows(IndexOutOfBoundsException.class, "pread", -1, buf, 2L, 9L);
+            lib.expectThrows(IndexOutOfBoundsException.class, "pread", -1, buf, 6L, 5L);
+
+            // Valid slice: bounds check passes (native pread may fail on the invalid fd, but not with IOOBE).
+            try {
+                lib.call("pread", -1, buf, 4L, 0L);
+            } catch (IndexOutOfBoundsException e) {
+                throw new AssertionError("valid offset/size must pass the generated bounds check", e);
+            }
+        }
+    }
+
+    /**
      * A negative element count must be rejected. Rounding the bit count up to whole bytes with
      * {@code (bits + 7) / 8} would truncate a small negative product toward zero -- for
      * {@code count = -1, elementBits = 8}, {@code (-8 + 7) / 8 == 0} -- and the check would pass a

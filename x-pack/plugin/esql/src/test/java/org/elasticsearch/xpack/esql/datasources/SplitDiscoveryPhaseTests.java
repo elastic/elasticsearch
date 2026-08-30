@@ -254,8 +254,8 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
 
     /**
      * Empty splits are NOT enough to swap: when the provider reports the empty result is not an exhaustive prune
-     * (e.g. files were dropped by the row-count-unsafe no-column-overlap heuristic, whose rows a {@code COUNT(*)}
-     * still needs), the source must fall through unchanged to the whole read so the row filter runs.
+     * (unresolved glob, empty file list, or a provider that cannot certify a filter contradiction), the source
+     * must fall through unchanged to the whole read so the row filter runs.
      */
     public void testEmptySplitsNotExhaustivelyPrunedNotSwapped() {
         FileList fileList = createFileList(3); // resolved, non-empty

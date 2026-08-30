@@ -12,11 +12,14 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -172,8 +175,9 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
         ToEvaluator toEvaluator,
         Function<List<BytesRef>, RuntimeSearch.TokenStreamMatcher> matcherBuilder
     ) {
-        // TODO: use the analyzer specified in the options, for now we use the standard analyzer.
-        Analyzer analyzer = new StandardAnalyzer();
+        // Without options there is no query-side override, so the values analyzer covers both sides — the query
+        // analyzer defaults to the values analyzer like search_analyzer does on an indexed field.
+        Analyzer analyzer = resolveValuesAnalyzer(toEvaluator);
         List<BytesRef> queryTerms;
         try {
             queryTerms = RuntimeSearch.analyzeTerms(analyzer, queryAsObject().toString());
@@ -192,6 +196,23 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
             analyzer,
             context -> new BytesRef()
         );
+    }
+
+    /**
+     * The values analyzer declared for this function's field — the role the mapping's {@code analyzer} plays for an
+     * indexed text field — or {@code null} when none was declared. Runtime text columns declare it through
+     * {@code TO_TEXT}'s {@code analyzer} option; references produced by {@code EVAL}/{@code RENAME} carry the
+     * declaration as attribute metadata. {@link AnalyzedTextExpression} covers both forms.
+     */
+    @Nullable
+    protected String valuesAnalyzerName() {
+        return AnalyzedTextExpression.valuesAnalyzerOf(field());
+    }
+
+    /** The declared values analyzer resolved through the registry, or the standard analyzer when none was declared. */
+    protected Analyzer resolveValuesAnalyzer(EvaluatorMapper.ToEvaluator toEvaluator) {
+        String name = valuesAnalyzerName();
+        return name == null ? new StandardAnalyzer() : RuntimeSearch.resolveNamedAnalyzer(name, toEvaluator);
     }
 
     @Override
@@ -270,31 +291,38 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
      */
     protected abstract Map<String, DataType> getAllowedOptions();
 
-    /** Resolves the analyzer from {@code opts} and delegates to {@link RuntimeSearch#textEvaluatorForQuery}. */
+    /** Resolves the query and values analyzers and delegates to {@link RuntimeSearch#textEvaluatorForQuery}. */
     protected ExpressionEvaluator.Factory textEvaluatorForQueryWithOptions(
         Query query,
         Map<String, Object> opts,
         EvaluatorMapper.ToEvaluator toEvaluator
     ) {
+        NamedAnalyzer valuesAnalyzer = RuntimeSearch.resolveNamedAnalyzer(valuesAnalyzerName(), toEvaluator);
+        NamedAnalyzer queryAnalyzer = RuntimeSearch.resolveNamedAnalyzer(opts, toEvaluator);
         return RuntimeSearch.textEvaluatorForQuery(
             source(),
             toEvaluator.apply(field()),
             query,
-            RuntimeSearch.resolveNamedAnalyzer(opts, toEvaluator)
+            // the analyzer option overrides the query side only, defaulting to the values analyzer
+            queryAnalyzer == null ? valuesAnalyzer : queryAnalyzer,
+            valuesAnalyzer
         );
     }
 
-    /** Resolves the analyzer from {@code opts} and delegates to {@link RuntimeSearch#textScoreEvaluatorForQuery}. */
+    /** Resolves the query and values analyzers and delegates to {@link RuntimeSearch#textScoreEvaluatorForQuery}. */
     protected ExpressionEvaluator.Factory textScoreEvaluatorForQueryWithOptions(
         Query query,
         Map<String, Object> opts,
         EvaluatorMapper.ToEvaluator toEvaluator
     ) {
+        NamedAnalyzer valuesAnalyzer = RuntimeSearch.resolveNamedAnalyzer(valuesAnalyzerName(), toEvaluator);
+        NamedAnalyzer queryAnalyzer = RuntimeSearch.resolveNamedAnalyzer(opts, toEvaluator);
         return RuntimeSearch.textScoreEvaluatorForQuery(
             source(),
             toEvaluator.apply(field()),
             query,
-            RuntimeSearch.resolveNamedAnalyzer(opts, toEvaluator)
+            queryAnalyzer == null ? valuesAnalyzer : queryAnalyzer,
+            valuesAnalyzer
         );
     }
 

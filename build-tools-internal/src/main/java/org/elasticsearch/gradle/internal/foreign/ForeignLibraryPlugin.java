@@ -170,17 +170,9 @@ public class ForeignLibraryPlugin implements Plugin<Project> {
     }
 
     /**
-     * Make a foreign-library module represent itself to the entitlement test-scope resolver.
-     *
-     * <p>Foreign-library modules live in {@code libs} and are part of the server trust boundary, but — unlike
-     * plugins and the server itself — nothing generates their entitlement test-build-info. On a module's own
-     * test classpath, the annotation processor's {@code <Library>$Impl}/{@code $Provider} classes (which issue
-     * the native downcalls) sit in the sibling {@code generated-foreign-library-classes} directory that no other
-     * build-info records, so they resolve to {@code component [(unknown)]} and fail native-library entitlement
-     * checks. Applying {@link TestBuildInfoPlugin} registers a {@code generateTestBuildInfo} task that emits a
-     * {@code lib-test-build-info.json} enumerating both its main classes directory and that generated directory
-     * (see {@link org.elasticsearch.gradle.plugin.GenerateTestBuildInfoTask}); the test framework reads these
-     * and maps both to the module's scope.
+     * Applies {@link TestBuildInfoPlugin} and configures it to emit a {@code lib-test-build-info.json} covering
+     * both the main classes directory and the annotation processor's generated directory, so the generated
+     * {@code $Impl}/{@code $Provider} classes are resolved to this module's scope at test time.
      */
     private void registerTestBuildInfoTask(Project project, TaskProvider<JavaCompile> processAnnotations) {
         project.getPluginManager().apply(TestBuildInfoPlugin.class);

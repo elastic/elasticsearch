@@ -108,12 +108,9 @@ public class TestBuildInfoParser {
     }
 
     /**
-     * Parse the server build-info and fold in the locations of every self-representing library on the classpath.
-     * Foreign-library modules ({@code libs/zstd}, {@code libs/native}, {@code libs/simdvec}) emit a
-     * {@code lib-test-build-info.json} so their annotation-processor generated {@code $Impl}/{@code $Provider}
-     * classes — which no other build-info records — get a location; see {@code ForeignLibraryPlugin}. These
-     * libraries are part of the server trust boundary and are entitled through server scopes keyed on their module
-     * name, so their locations join the server build-info and are resolved with server scope.
+     * Parses the server build-info and folds in locations from any {@code lib-test-build-info.json} files on
+     * the classpath. Foreign-library modules emit these so their generated {@code $Impl}/{@code $Provider}
+     * classes are resolved with server scope.
      */
     public static TestBuildInfo parseServerAndLibTestBuildInfo() throws IOException {
         var serverTestBuildInfo = parseServerTestBuildInfo();

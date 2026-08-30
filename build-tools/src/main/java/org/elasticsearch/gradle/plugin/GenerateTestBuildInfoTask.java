@@ -278,14 +278,9 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
     }
 
     /**
-     * Emit a {@link Location} for each directory code location. All of a task's directory code locations
-     * belong to the single Gradle project being described, and so to the single Java module that project
-     * declares. Only the main classes directory carries a {@code module-info.class}; sibling output
-     * directories — most notably the foreign-library annotation processor's
-     * {@code generated-foreign-library-classes}, which holds the {@code $Impl}/{@code $Provider} classes
-     * that issue the native downcalls — do not, but still belong to that same module. Resolve the module
-     * once from whichever directory declares it (falling back to {@link #getModuleName()}) and attribute
-     * every directory location to it.
+     * Emits a {@link Location} for each directory. All directories belong to the same module, but only the
+     * main classes directory carries a {@code module-info.class}; the module name is resolved once (falling
+     * back to {@link #getModuleName()}) and attributed to every directory.
      */
     private void extractLocationsFromDirectories(List<File> directories, List<Location> locations) throws IOException {
         String moduleName = getModuleName().getOrNull();
@@ -308,11 +303,8 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
     }
 
     /**
-     * look through the directory to find a class to use as this location's representative. Prefer a
-     * top-level class (its file name has no {@code $}); a module-info is never unique and is skipped.
-     * Fall back to a named nested class (e.g. the foreign-library {@code <Library>$Impl}/{@code $Provider}
-     * generated output, which populates a directory with nothing else) — still unique and loadable —
-     * while skipping anonymous/local classes, whose names are not stable across compilations.
+     * Returns a representative class name from the directory: prefers a top-level class, falls back to a
+     * named nested class (skipping anonymous/local classes), returns {@code null} if the directory has none.
      */
     private String extractClassNameFromDirectory(File dir) throws IOException {
         var visitor = new SimpleFileVisitor<Path>() {
@@ -344,9 +336,8 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
     }
 
     /**
-     * Whether a {@code .class} file name denotes an anonymous or local class, i.e. the segment right
-     * after the last {@code $} begins with a digit (e.g. {@code Outer$1.class}, {@code Outer$1Local.class}).
-     * Such names are not stable across compilations and must not be used as a representative class.
+     * True if the class file name denotes an anonymous or local class (the segment after the last
+     * {@code $} begins with a digit, e.g. {@code Outer$1.class}).
      */
     private static boolean isAnonymousOrLocal(String fileName) {
         int dollar = fileName.lastIndexOf('$');

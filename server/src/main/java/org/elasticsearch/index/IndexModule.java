@@ -144,7 +144,9 @@ public final class IndexModule {
             // initializer references IndexSettings, which in turn needs IndexMode.VALIDATE_WITH_SETTINGS — causing
             // a circular static initialization that results in a NullPointerException at boot time.
             String mode = settings.get("index.mode");
-            return Boolean.toString("columnar".equals(mode) == false && "logsdb_columnar".equals(mode) == false);
+            return Boolean.toString(
+                "columnar".equals(mode) == false && "logsdb_columnar".equals(mode) == false && "vectordb_columnar".equals(mode) == false
+            );
         },
         Property.IndexScope
     );

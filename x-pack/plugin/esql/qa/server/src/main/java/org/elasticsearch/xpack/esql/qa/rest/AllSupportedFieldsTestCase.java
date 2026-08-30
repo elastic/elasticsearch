@@ -1602,7 +1602,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case FLATTENED -> useStoredLoader()
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
                 : matchesList().item("column_at_a_time:");
-            case DENSE_VECTOR -> indexMode.isStrictColumnar()
+            // vectordb_columnar keeps dense_vector indexed, so it loads from the normalized vector values like non-columnar
+            // modes; the other strict-columnar modes store the vector as binary doc values.
+            case DENSE_VECTOR -> indexMode.isStrictColumnar() && indexMode.isSearchOptimizedColumnar() == false
                 ? matchesList().item("column_at_a_time:FloatDenseVectorFromBinary.Bytes")
                 : matchesList().item("column_at_a_time:FloatDenseVectorFromDocValues.Normalized.Load");
             case GEO_POINT -> extractPreference == MappedFieldType.FieldExtractPreference.STORED || syntheticSourceByDefault() == false

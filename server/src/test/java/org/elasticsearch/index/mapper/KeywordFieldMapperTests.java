@@ -276,6 +276,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testVectordbColumnarIndexingDefaults() throws Exception {
+        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createVectordbColumnarModeDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "value")));
         assertThat(doc.rootDoc().getFields("field"), hasSize(1));

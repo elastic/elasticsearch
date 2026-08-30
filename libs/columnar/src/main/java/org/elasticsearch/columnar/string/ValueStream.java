@@ -9,6 +9,7 @@
 
 package org.elasticsearch.columnar.string;
 
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.Directory;
@@ -51,13 +52,23 @@ public final class ValueStream {
     public static final int VALUES_PER_BLOCK = 128;
 
     /** Marks a block whose lengths sit in front of their own values rather than together at its head. */
-    private static final byte INLINE = 0;
+    static final byte INLINE = 0;
 
     /**
      * A block whose values repeat in runs: each distinct value once, with how many documents in a row hold
      * it. Three, because one, two and four are the widths a packed block records its lengths at.
      */
-    private static final byte RUNS = 3;
+    static final byte RUNS = 3;
+
+    /**
+     * Every value a block's first byte may take. A packed block marks itself with the width its lengths are
+     * written at, so those widths and the layouts share one byte and a layout added later has to take a
+     * value none of them use. {@link #knownMarker} is what says which those are, and the reader turns away
+     * anything else rather than reading it as the layout that happens to share its number.
+     */
+    static boolean knownMarker(byte marker) {
+        return marker == INLINE || marker == RUNS || marker == 1 || marker == 2 || marker == 4;
+    }
 
     /** Mean value length below which a block keeps its lengths inline. */
     private static final int INLINE_MEAN_LENGTH = 32;
@@ -431,7 +442,10 @@ public final class ValueStream {
             final int span = (int) (offsets.get(blockIndex + 1) - start);
             chunks.span(start, span, block);
             final byte[] bytes = block.bytes;
-            final int width = bytes[block.offset];
+            final byte width = bytes[block.offset];
+            if (knownMarker(width) == false) {
+                throw new CorruptIndexException("unknown block layout marker [" + width + "]", chunks.toString());
+            }
             final long first = blockIndex << blockShift;
             final int count = (int) Math.min(valuesPerBlock, numValues - first);
             if (width == RUNS) {

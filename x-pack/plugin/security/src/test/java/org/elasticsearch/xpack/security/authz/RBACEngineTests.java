@@ -1603,7 +1603,13 @@ public class RBACEngineTests extends ESTestCase {
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
 
-        assertThat(e.getMessage(), equalTo("Cannot retrieve privileges for a subject with limited-by roles."));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Cannot retrieve privileges for a subject whose effective privileges are constrained by limited-by roles. "
+                    + "For API keys, use the Get API key information API https://ela.st/es-api-get-api-key"
+            )
+        );
         assertThat(e.getCause(), sameInstance(unsupportedOperationException));
     }
 

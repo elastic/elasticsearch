@@ -753,7 +753,13 @@ public class RBACEngine implements AuthorizationEngine {
             try {
                 getUserPrivilegesResponse = buildUserPrivilegesResponseObject(role);
             } catch (UnsupportedOperationException e) {
-                listener.onFailure(new IllegalArgumentException("Cannot retrieve privileges for a subject with limited-by roles.", e));
+                listener.onFailure(
+                    new IllegalArgumentException(
+                        "Cannot retrieve privileges for a subject whose effective privileges are constrained by limited-by roles. "
+                            + "For API keys, use the Get API key information API https://ela.st/es-api-get-api-key",
+                        e
+                    )
+                );
                 return;
             }
             listener.onResponse(getUserPrivilegesResponse);

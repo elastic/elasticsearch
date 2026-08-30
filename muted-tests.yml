@@ -106,6 +106,9 @@ tests:
 - class: org.elasticsearch.upgrades.XpackSystemIndicesUpgradeIT
   method: testUpgradeSystemIndexAndDataStream {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/158123
+- class: org.elasticsearch.index.mapper.BinaryFieldMapperTests
+  method: testSyntheticSourceMany
+  issue: https://github.com/elastic/elasticsearch/issues/158124
 
 # Examples:
 #

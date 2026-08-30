@@ -94,6 +94,9 @@ tests:
 - class: org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests
   method: testInvalidMaxAnalyzedOffset
   issue: https://github.com/elastic/elasticsearch/issues/158105
+- class: org.elasticsearch.upgrades.XpackSystemIndicesUpgradeIT
+  method: testUpgradeSystemIndexAndDataStream {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/158120
 
 # Examples:
 #

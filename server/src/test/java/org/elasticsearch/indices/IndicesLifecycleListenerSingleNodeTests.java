@@ -123,11 +123,12 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             newRouting = newRouting.moveToUnassigned(unassignedInfo, ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY)
                 .updateUnassigned(unassignedInfo, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
             newRouting = ShardRoutingHelper.initialize(newRouting, nodeId);
-            IndexShard shard = index.createShard(newRouting, IndexShardTestCase.NOOP_GCP_SYNCER, RetentionLeaseSyncer.EMPTY);
+            final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
+            final RecoveryState recoveryState = new RecoveryState(newRouting, localNode, null);
+            IndexShard shard = index.createShard(newRouting, recoveryState, IndexShardTestCase.NOOP_GCP_SYNCER, RetentionLeaseSyncer.EMPTY);
             IndexShardTestCase.updateRoutingEntry(shard, newRouting);
             assertEquals(5, counter.get());
-            final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-            shard.markAsRecovering("store", new RecoveryState(newRouting, localNode, null));
+            shard.markAsRecovering("store");
             IndexShardTestCase.recoverFromStore(shard);
             newRouting = ShardRoutingHelper.moveToStarted(newRouting);
             IndexShardTestCase.updateRoutingEntry(shard, newRouting);
@@ -170,10 +171,11 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             newRouting = newRouting.moveToUnassigned(unassignedInfo, ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY)
                 .updateUnassigned(unassignedInfo, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
             newRouting = ShardRoutingHelper.initialize(newRouting, nodeId);
-            IndexShard shard = index.createShard(newRouting, IndexShardTestCase.NOOP_GCP_SYNCER, RetentionLeaseSyncer.EMPTY);
-            IndexShardTestCase.updateRoutingEntry(shard, newRouting);
             final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-            shard.markAsRecovering("store", new RecoveryState(newRouting, localNode, null));
+            final RecoveryState recoveryState = new RecoveryState(newRouting, localNode, null);
+            IndexShard shard = index.createShard(newRouting, recoveryState, IndexShardTestCase.NOOP_GCP_SYNCER, RetentionLeaseSyncer.EMPTY);
+            IndexShardTestCase.updateRoutingEntry(shard, newRouting);
+            shard.markAsRecovering("store");
             IndexShardTestCase.recoverFromStore(shard);
             assertBusy(() -> assertThat(shard.state(), equalTo(IndexShardState.POST_RECOVERY)));
             newRouting = ShardRoutingHelper.moveToStarted(newRouting);

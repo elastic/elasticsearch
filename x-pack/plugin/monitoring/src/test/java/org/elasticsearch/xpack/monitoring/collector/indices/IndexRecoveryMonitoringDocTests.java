@@ -158,7 +158,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
                     "index_name": "_shard_0",
                     "id": 0,
                     "type": "PEER",
-                    "stage": "INIT",
+                    "stage": "CREATED",
                     "primary": false,
                     "priority": "UNASSIGNED_EXPECTED",
                     "start_time_in_millis": %s,

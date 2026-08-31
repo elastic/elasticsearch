@@ -781,9 +781,15 @@ public class IndexModuleTests extends ESTestCase {
             IndexService indexService = newIndexService(module);
             closeables.add(() -> closeIndexService(indexService));
 
-            IndexShard indexShard = indexService.createShard(shardRouting, IndexShardTestCase.NOOP_GCP_SYNCER, RetentionLeaseSyncer.EMPTY);
+            final var recoveryState = new RecoveryState(shardRouting, DiscoveryNodeUtils.create("_node_id", "_node_id"), null);
+            IndexShard indexShard = indexService.createShard(
+                shardRouting,
+                recoveryState,
+                IndexShardTestCase.NOOP_GCP_SYNCER,
+                RetentionLeaseSyncer.EMPTY
+            );
             closeables.add(() -> flushAndCloseShardNoCheck(indexShard));
-            indexShard.markAsRecovering("test", new RecoveryState(shardRouting, DiscoveryNodeUtils.create("_node_id", "_node_id"), null));
+            indexShard.markAsRecovering("test");
 
             final PlainActionFuture<Boolean> recoveryFuture = new PlainActionFuture<>();
             indexShard.recoverFromStore(recoveryFuture);

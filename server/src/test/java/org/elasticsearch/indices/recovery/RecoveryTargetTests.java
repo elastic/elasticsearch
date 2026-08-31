@@ -374,7 +374,7 @@ public class RecoveryTargetTests extends ESTestCase {
     public void testStageSequenceEnforcement() {
         final DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("1").roles(emptySet()).build();
         final AssertionError error = expectThrows(AssertionError.class, () -> {
-            Stage[] stages = Stage.values();
+            Stage[] stages = Arrays.copyOfRange(Stage.values(), 1, Stage.values().length); // exclude CREATED
             int i = randomIntBetween(0, stages.length - 1);
             int j = randomValueOtherThan(i, () -> randomIntBetween(0, stages.length - 1));
             Stage t = stages[i];
@@ -400,10 +400,11 @@ public class RecoveryTargetTests extends ESTestCase {
         });
         assertThat(error.getMessage(), startsWith("can't move recovery to stage"));
         // but reset should be always possible.
-        Stage[] stages = Stage.values();
-        int i = randomIntBetween(1, stages.length - 1);
-        ArrayList<Stage> list = new ArrayList<>(Arrays.asList(Arrays.copyOfRange(stages, 0, i)));
-        list.addAll(Arrays.asList(stages));
+        List<Stage> stages = Arrays.asList(Stage.values());
+        List<Stage> stagesWithoutCreated = stages.subList(1, stages.size());
+        int i = randomIntBetween(1, stagesWithoutCreated.size() - 1);
+        ArrayList<Stage> list = new ArrayList<>(stagesWithoutCreated.subList(0, i));
+        list.addAll(stagesWithoutCreated);
         ShardRouting shardRouting = TestShardRouting.newShardRouting(
             new ShardId("bla", "_na_", 0),
             discoveryNode.getId(),

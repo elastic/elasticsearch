@@ -151,6 +151,8 @@ public class SearchableSnapshotsRecoveryStateTests extends ESTestCase {
             ShardRoutingState.INITIALIZING
         );
         DiscoveryNode targetNode = DiscoveryNodeUtils.create("local");
-        return new SearchableSnapshotRecoveryState(shardRouting, targetNode, null);
+        final var recoveryState = new SearchableSnapshotRecoveryState(shardRouting, targetNode, null);
+        recoveryState.setStage(RecoveryState.Stage.INIT);
+        return recoveryState;
     }
 }

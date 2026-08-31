@@ -75,7 +75,6 @@ import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -215,8 +214,12 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         private ShardRouting createShardRouting(String nodeId, boolean isPrimary) {
             return shardRoutingBuilder(shardId, nodeId, isPrimary, ShardRoutingState.INITIALIZING).withRecoverySource(
-                isPrimary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE
+                isPrimary ? primaryRecoverySource() : RecoverySource.PeerRecoverySource.INSTANCE
             ).build();
+        }
+
+        protected RecoverySource primaryRecoverySource() {
+            return RecoverySource.EmptyStoreRecoverySource.INSTANCE;
         }
 
         protected EngineFactory getEngineFactory(ShardRouting routing) {
@@ -339,8 +342,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         protected synchronized void recoverPrimary(IndexShard primaryShard) {
-            final DiscoveryNode pNode = getDiscoveryNode(primaryShard.routingEntry().currentNodeId());
-            primaryShard.markAsRecovering("store", new RecoveryState(primaryShard.routingEntry(), pNode, null));
+            primaryShard.markAsRecovering("store");
             recoverFromStore(primaryShard);
         }
 

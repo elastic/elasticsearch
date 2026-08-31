@@ -1511,7 +1511,7 @@ public class IndexShardTests extends IndexShardTestCase {
         Store.MetadataSnapshot snapshot = newShard.snapshotStoreMetadata();
         assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_3"));
 
-        newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
+        newShard.markAsRecovering("store");
 
         snapshot = newShard.snapshotStoreMetadata();
         assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_3"));
@@ -2558,7 +2558,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 .build()
         );
         DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-        newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
+        newShard.markAsRecovering("store");
         assertTrue(recoverFromStore(newShard));
         assertEquals(replayedOps, newShard.recoveryState().getTranslog().recoveredOperations());
         assertEquals(translogOps, newShard.recoveryState().getTranslog().totalOperations());
@@ -2583,7 +2583,7 @@ public class IndexShardTests extends IndexShardTestCase {
         String historyUUID = shard.getHistoryUUID();
         IndexShard newShard = reinitShard(shard);
         DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-        newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
+        newShard.markAsRecovering("store");
         assertTrue(recoverFromStore(newShard));
         assertEquals(translogOps, newShard.recoveryState().getTranslog().recoveredOperations());
         assertEquals(translogOps, newShard.recoveryState().getTranslog().totalOperations());
@@ -2625,7 +2625,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 .build()
         );
         DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-        newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
+        newShard.markAsRecovering("store");
         assertTrue(recoverFromStore(newShard));
         IndexShardTestCase.updateRoutingEntry(
             newShard,
@@ -2686,7 +2686,7 @@ public class IndexShardTests extends IndexShardTestCase {
             ShardRoutingHelper.initWithSameId(primaryShardRouting, RecoverySource.ExistingStoreRecoverySource.INSTANCE)
         );
         DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-        newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
+        newShard.markAsRecovering("store");
         assertTrue(recoverFromStore(newShard));
         assertEquals(1, newShard.recoveryState().getTranslog().recoveredOperations());
         assertEquals(1, newShard.recoveryState().getTranslog().totalOperations());
@@ -2716,7 +2716,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 newShard,
                 ShardRoutingHelper.initWithSameId(primaryShardRouting, RecoverySource.ExistingStoreRecoverySource.INSTANCE)
             );
-            newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
+            newShard.markAsRecovering("store");
             assertTrue(recoverFromStore(newShard));
             try (Translog.Snapshot snapshot = getTranslog(newShard).newSnapshot()) {
                 assertThat(snapshot.totalOperations(), equalTo(newShard.indexSettings.isSoftDeleteEnabled() ? 0 : 2));
@@ -2738,7 +2738,7 @@ public class IndexShardTests extends IndexShardTestCase {
         );
 
         DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-        newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
+        newShard.markAsRecovering("store");
         assertTrue(recoverFromStore(newShard));
         assertEquals(0, newShard.recoveryState().getTranslog().recoveredOperations());
         assertEquals(0, newShard.recoveryState().getTranslog().totalOperations());
@@ -2767,7 +2767,7 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard newShard = reinitShard(shard);
         DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         ShardRouting routing = newShard.routingEntry();
-        newShard.markAsRecovering("store", new RecoveryState(routing, localNode, null));
+        newShard.markAsRecovering("store");
         try {
             recoverFromStore(newShard);
             fail("index not there!");
@@ -2782,14 +2782,14 @@ public class IndexShardTests extends IndexShardTestCase {
         routing = ShardRoutingHelper.initialize(routing, newShard.routingEntry().currentNodeId());
         assertTrue("it's already recovering, we should ignore new ones", newShard.ignoreRecoveryAttempt());
         try {
-            newShard.markAsRecovering("store", new RecoveryState(routing, localNode, null));
+            newShard.markAsRecovering("store");
             fail("we are already recovering, can't mark again");
         } catch (IllegalIndexShardStateException e) {
             // OK!
         }
 
         newShard = reinitShard(newShard, ShardRoutingHelper.initWithSameId(routing, RecoverySource.EmptyStoreRecoverySource.INSTANCE));
-        newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
+        newShard.markAsRecovering("store");
         assertTrue("recover even if there is nothing to recover", recoverFromStore(newShard));
 
         IndexShardTestCase.updateRoutingEntry(
@@ -2863,7 +2863,7 @@ public class IndexShardTests extends IndexShardTestCase {
             IndexEventListener.NOOP
         );
         DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-        newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
+        newShard.markAsRecovering("store");
         assertTrue(recoverFromStore(newShard));
         assertThat(getShardDocIDs(newShard), containsInAnyOrder("doc-0", "doc-2"));
         closeShards(newShard);
@@ -2922,7 +2922,7 @@ public class IndexShardTests extends IndexShardTestCase {
         Store targetStore = target.store();
 
         DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-        target.markAsRecovering("store", new RecoveryState(routing, localNode, null));
+        target.markAsRecovering("store");
         final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         target.restoreFromRepository(new RestoreOnlyRepository(randomProjectIdOrDefault(), "test") {
             @Override
@@ -3225,10 +3225,7 @@ public class IndexShardTests extends IndexShardTestCase {
             }
         }
         Translog.Snapshot snapshot = TestTranslog.newSnapshotFromOperations(operations);
-        primary.markAsRecovering(
-            "store",
-            new RecoveryState(primary.routingEntry(), getFakeDiscoNode(primary.routingEntry().currentNodeId()), null)
-        );
+        primary.markAsRecovering("store");
         recoverFromStore(primary);
 
         primary.recoveryState().getTranslog().totalOperations(snapshot.totalOperations());
@@ -3252,7 +3249,7 @@ public class IndexShardTests extends IndexShardTestCase {
         shard = reinitShard(shard);
         DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         DiscoveryNode sourceNode = isPrimary ? null : DiscoveryNodeUtils.builder("bar").roles(emptySet()).build();
-        shard.markAsRecovering("for testing", new RecoveryState(shard.routingEntry(), localNode, sourceNode));
+        shard.markAsRecovering("for testing");
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(shard.isActive());
         shard.prepareForIndexRecovery();
@@ -3273,7 +3270,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         IndexShard replica = newShard(primary.shardId(), false, "n2", metadata, null);
         DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-        replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
+        replica.markAsRecovering("for testing");
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(replica.isActive());
         recoverReplica(
@@ -3331,7 +3328,7 @@ public class IndexShardTests extends IndexShardTestCase {
         };
         IndexShard replica = newShard(primary.shardId(), false, "n2", metadata, null);
         DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-        replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
+        replica.markAsRecovering("for testing");
         assertListenerCalled.accept(replica);
         recoverReplica(
             replica,
@@ -3646,7 +3643,7 @@ public class IndexShardTests extends IndexShardTestCase {
         Map<String, MappingMetadata> requestedMappingUpdates = ConcurrentCollections.newConcurrentMap();
         {
             targetShard = newShard(targetRouting);
-            targetShard.markAsRecovering("store", new RecoveryState(targetShard.routingEntry(), localNode, null));
+            targetShard.markAsRecovering("store");
 
             BiConsumer<MappingMetadata, ActionListener<Void>> mappingConsumer = (mapping, listener) -> {
                 assertNull(requestedMappingUpdates.put("_doc", mapping));
@@ -3722,7 +3719,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(shard.state(), equalTo(IndexShardState.CREATED));
         final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         shard.requestRecoveryCancellation();
-        shard.markAsRecovering("store", new RecoveryState(shard.routingEntry(), localNode, null));
+        shard.markAsRecovering("store");
         expectThrows(RecoveryCancelledException.class, shard::ensureRecoveryNotCancelled);
         closeShards(shard);
     }
@@ -3730,7 +3727,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testRequestRecoveryCancellationSetsFlagForStoreRecovery() throws Exception {
         final IndexShard shard = reinitShard(newStartedShard(true));
         final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-        shard.markAsRecovering("store", new RecoveryState(shard.routingEntry(), localNode, null));
+        shard.markAsRecovering("store");
         shard.requestRecoveryCancellation();
         expectThrows(RecoveryCancelledException.class, shard::ensureRecoveryNotCancelled);
         closeShards(shard);
@@ -3742,7 +3739,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
 
         shard.requestRecoveryCancellation();
-        shard.markAsRecovering("store", new RecoveryState(shard.routingEntry(), localNode, null));
+        shard.markAsRecovering("store");
         expectThrows(RecoveryCancelledException.class, shard::ensureRecoveryNotCancelled);
         closeShards(shard);
     }
@@ -3754,7 +3751,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexShard replica = newShard(primary.shardId(), false, "node2", metadata, null);
         final DiscoveryNode node1 = getFakeDiscoNode(primary.routingEntry().currentNodeId());
         final DiscoveryNode node2 = getFakeDiscoNode(replica.routingEntry().currentNodeId());
-        replica.markAsRecovering("peer", new RecoveryState(replica.routingEntry(), node1, node2));
+        replica.markAsRecovering("peer");
         replica.requestRecoveryCancellation();
         expectThrows(RecoveryCancelledException.class, replica::ensureRecoveryNotCancelled);
         closeShards(primary, replica);
@@ -3771,7 +3768,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final DiscoveryNode node2 = getFakeDiscoNode(replica.routingEntry().currentNodeId());
 
         replica.requestRecoveryCancellation();
-        replica.markAsRecovering("peer", new RecoveryState(replica.routingEntry(), node1, node2));
+        replica.markAsRecovering("peer");
         expectThrows(RecoveryCancelledException.class, replica::ensureRecoveryNotCancelled);
 
         closeShards(primary, replica);
@@ -4276,19 +4273,9 @@ public class IndexShardTests extends IndexShardTestCase {
         snapshotter.start();
 
         if (isPrimary) {
-            newShard.markAsRecovering(
-                "store",
-                new RecoveryState(newShard.routingEntry(), getFakeDiscoNode(newShard.routingEntry().currentNodeId()), null)
-            );
+            newShard.markAsRecovering("store");
         } else {
-            newShard.markAsRecovering(
-                "peer",
-                new RecoveryState(
-                    newShard.routingEntry(),
-                    getFakeDiscoNode(newShard.routingEntry().currentNodeId()),
-                    getFakeDiscoNode(newShard.routingEntry().currentNodeId())
-                )
-            );
+            newShard.markAsRecovering("peer");
         }
         int iters = iterations(10, 100);
         latch.await();
@@ -5554,7 +5541,7 @@ public class IndexShardTests extends IndexShardTestCase {
             }
         );
         DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-        readonlyShard.markAsRecovering("store", new RecoveryState(readonlyShard.routingEntry(), localNode, null));
+        readonlyShard.markAsRecovering("store");
         recoverFromStore(readonlyShard);
         assertThat(readonlyShard.docStats().getCount(), equalTo(numDocs));
         closeShards(readonlyShard);

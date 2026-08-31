@@ -1010,7 +1010,7 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexService indexService = indexService(shardRouting.index());
         assert indexService != null;
         RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
-        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
+        IndexShard indexShard = indexService.createShard(shardRouting, recoveryState, globalCheckpointSyncer, retentionLeaseSyncer);
         indexShard.addShardFailureCallback(onShardFailure);
 
         throttlingRecoveryService.enqueue(
@@ -1033,7 +1033,6 @@ public class IndicesService extends AbstractLifecycleComponent
                 final var releaseStoreRef = Releasables.assertOnce(Releasables.releaseOnce(store::decRef));
                 try {
                     indexShard.startRecovery(
-                        recoveryState,
                         recoveryTargetService,
                         postRecoveryMerger.maybeMergeAfterRecovery(
                             indexService.getMetadata(),

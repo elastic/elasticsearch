@@ -30,8 +30,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -514,8 +512,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY
         );
-        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("node_g");
-        restoredShard.markAsRecovering("test from snap", new RecoveryState(restoredShard.routingEntry(), discoveryNode, null));
+        restoredShard.markAsRecovering("test from snap");
         runAsSnapshot(shard.getThreadPool(), () -> {
             final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
             restoredShard.restoreFromRepository(repository, future);

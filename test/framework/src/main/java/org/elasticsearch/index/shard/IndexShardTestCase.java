@@ -674,8 +674,14 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 Collections.emptyList(),
                 clusterSettings
             );
+            // Placeholder recovery state for this shard, mirroring what IndicesService#createShard provides in production.
+            final DiscoveryNode shardNode = DiscoveryNodeUtils.builder(routing.currentNodeId()).build();
+            final boolean sourceNodeRequired = routing.recoverySource().getType() == RecoverySource.Type.PEER
+                || routing.recoverySource().getType() == RecoverySource.Type.RESHARD_SPLIT;
+            final RecoveryState recoveryState = new RecoveryState(routing, shardNode, sourceNodeRequired ? shardNode : null);
             indexShard = new IndexShard(
                 routing,
+                recoveryState,
                 indexSettings,
                 shardPath,
                 store,
@@ -893,10 +899,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     protected void recoverShardFromStore(IndexShard primary) throws IOException {
-        primary.markAsRecovering(
-            "store",
-            new RecoveryState(primary.routingEntry(), getFakeDiscoNode(primary.routingEntry().currentNodeId()), null)
-        );
+        primary.markAsRecovering("store");
         recoverFromStore(primary);
         updateRoutingEntry(primary, ShardRoutingHelper.moveToStarted(primary.routingEntry()));
     }
@@ -997,7 +1000,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final DiscoveryNode pNode = getFakeDiscoNode(primary.routingEntry().currentNodeId());
         final DiscoveryNode rNode = getFakeDiscoNode(replica.routingEntry().currentNodeId());
         if (markAsRecovering) {
-            replica.markAsRecovering("remote", new RecoveryState(replica.routingEntry(), pNode, rNode));
+            replica.markAsRecovering("remote");
         } else {
             assertEquals(replica.state(), IndexShardState.RECOVERING);
         }
@@ -1292,7 +1295,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final ShardRouting shardRouting = shardRoutingBuilder(shardId, node.getId(), true, ShardRoutingState.INITIALIZING)
             .withRecoverySource(recoverySource)
             .build();
-        shard.markAsRecovering("from snapshot", new RecoveryState(shardRouting, node, null));
+        shard.markAsRecovering("from snapshot");
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         repository.restoreShard(shard.store(), snapshot.getSnapshotId(), indexId, shard.shardId(), shard.recoveryState(), future);
         future.actionGet();

@@ -39,6 +39,14 @@ import java.util.Map;
 public class RecoveryState implements ToXContentFragment, Writeable {
 
     public enum Stage {
+        /**
+         * the index shard and its recovery state object have been created but recovery has not started yet. It is
+         * possibly still queued on the data node. Initial stage of every recovery. Moves to {@link #INIT} once the
+         * recovery actually starts.
+         * note: stage ids are append-only for wire compatibility, hence this stage's id is out of declaration order.
+         */
+        CREATED((byte) 6),
+
         INIT((byte) 0),
 
         /**
@@ -126,6 +134,10 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         assert shardRouting.recoverySource().getType() != RecoverySource.Type.RESHARD_SPLIT || sourceNode != null
             : "reshard split target recovery requires source node but it is null";
         assert shardRouting.recoveryPriority() != null : "recovery priority must not be null in shard routing: " + shardRouting;
+        // Newly created recoveries start in the CREATED stage and move to INIT when the recovery starts. Note that this is
+        // deliberately not done in the delegate constructor: RecoveryState#reset creates a new instance mid-recovery via that
+        // constructor and must produce a state in the INIT stage.
+        stage = Stage.CREATED;
         timer.start();
     }
 
@@ -155,6 +167,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     private static final TransportVersion RECOVERY_PRIORITY_TRANSPORT_VERSION = TransportVersion.fromName(
         "recovery_priority_in_recovery_state"
     );
+    private static final TransportVersion RECOVERY_STAGE_CREATED = TransportVersion.fromName("recovery_stage_created");
 
     private RecoveryState(StreamInput in) throws IOException {
         timer = new Timer(in);
@@ -177,7 +190,12 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         timer.writeTo(out);
-        out.writeByte(stage.id());
+        final Stage stageToWrite = getStage();
+        if (stageToWrite == Stage.CREATED && out.getTransportVersion().supports(RECOVERY_STAGE_CREATED) == false) {
+            out.writeByte(Stage.INIT.id());
+        } else {
+            out.writeByte(stageToWrite.id());
+        }
         shardId.writeTo(out);
         recoverySource.writeTo(out);
         // Only send recoveryPriority to nodes which are new enough to know about it.
@@ -221,6 +239,10 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     // synchronized is strictly speaking not needed (this is called by a single thread), but just to be safe
     public synchronized RecoveryState setStage(Stage stage) {
         switch (stage) {
+            case CREATED -> {
+                assert false : "can't move recovery to stage [CREATED], only for newly created recoveries";
+                throw new IllegalArgumentException("can't move recovery to stage [CREATED], only for newly created recoveries");
+            }
             case INIT -> {
                 // reinitializing stop remove all state except for start time
                 this.stage = Stage.INIT;
@@ -251,6 +273,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
                 validateAndSetStage(Stage.FINALIZE, stage);
                 getTimer().stop();
             }
+
             default -> throw new IllegalArgumentException("unknown RecoveryState.Stage [" + stage + "]");
         }
         return this;

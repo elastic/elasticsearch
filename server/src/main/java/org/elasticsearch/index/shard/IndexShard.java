@@ -279,7 +279,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final RetentionLeaseSyncer retentionLeaseSyncer;
 
-    @Nullable
     private volatile RecoveryState recoveryState;
     private volatile boolean recoveryCancellationRequested = false;
 
@@ -340,6 +339,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     @SuppressWarnings("this-escape")
     public IndexShard(
         final ShardRouting shardRouting,
+        final RecoveryState recoveryState,
         final IndexSettings indexSettings,
         final ShardPath path,
         final Store store,
@@ -371,6 +371,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
         this.shardRouting = shardRouting;
+        assert recoveryState.getShardId().equals(shardRouting.shardId())
+            : "recovery state shardId [" + recoveryState.getShardId() + "] does not match [" + shardRouting.shardId() + "]";
+        assert recoveryState.getStage() == RecoveryState.Stage.CREATED : recoveryState.getStage();
+        this.recoveryState = Objects.requireNonNull(recoveryState);
         final Settings settings = indexSettings.getSettings();
         this.codecService = new CodecService(
             mapperService,
@@ -796,11 +800,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    /**
-     * Marks the shard as recovering based on a recovery state, fails with exception is recovering is not allowed to be set.
-     */
-    public IndexShardState markAsRecovering(String reason, RecoveryState recoveryState) throws IndexShardStartedException,
-        IndexShardRelocatedException, IndexShardRecoveringException, IndexShardClosedException {
+    /// Marks the shard as recovering. Moves the `recoveryState` to [RecoveryState.Stage#INIT] and the shard to
+    /// [IndexShardState#RECOVERING]. Fails with an exception if the shard is not allowed to start recovering.
+    public IndexShardState markAsRecovering(String reason) throws IndexShardStartedException, IndexShardRelocatedException,
+        IndexShardRecoveringException, IndexShardClosedException {
         synchronized (mutex) {
             if (state == IndexShardState.CLOSED) {
                 throw new IndexShardClosedException(shardId);
@@ -814,7 +817,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (state == IndexShardState.POST_RECOVERY) {
                 throw new IndexShardRecoveringException(shardId);
             }
-            this.recoveryState = recoveryState;
+            assert recoveryState.getStage() == RecoveryState.Stage.CREATED : "recovery already started: " + recoveryState;
+            recoveryState.setStage(RecoveryState.Stage.INIT);
             return changeState(IndexShardState.RECOVERING, reason);
         }
     }
@@ -1631,7 +1635,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // if this shard has no disk footprint then its local size is reported as 0
                 return store.stats(0, size -> 0);
             } else {
-                final long bytesStillToRecover = recoveryState == null ? -1L : recoveryState.getIndex().bytesStillToRecover();
+                final long bytesStillToRecover = recoveryState.getIndex().bytesStillToRecover();
                 final long reservedBytes = bytesStillToRecover == -1 ? StoreStats.UNKNOWN_RESERVED_BYTES : bytesStillToRecover;
                 return store.stats(reservedBytes, LongUnaryOperator.identity());
             }
@@ -2095,7 +2099,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void requestRecoveryCancellation() {
         synchronized (mutex) {
             if (state == IndexShardState.CREATED) {
-                // Recovery type not yet known. Store the flag.
+                // Recovery has not started yet (it may still be queued). Store the flag.
                 recoveryCancellationRequested = true;
                 return;
             }
@@ -2626,15 +2630,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * returns stats about ongoing recoveries, both source and target
+     * Returns stats about ongoing recoveries, both source and target
      */
     public RecoveryStats recoveryStats() {
         return recoveryStats;
     }
 
     /**
-     * Returns the current {@link RecoveryState} if this shard is recovering or has been recovering.
-     * Returns null if the recovery has not yet started or shard was not recovered (created via an API).
+     * Returns the shard's current {@link RecoveryState}
      */
     @Override
     public RecoveryState recoveryState() {
@@ -3846,7 +3849,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void startRecovery(
-        RecoveryState recoveryState,
         PeerRecoveryTargetService recoveryTargetService,
         RecoveryListener recoveryListener,
         RepositoriesService repositoriesService,
@@ -3854,6 +3856,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         IndicesService indicesService,
         long clusterStateVersion
     ) {
+        final RecoveryState recoveryState = this.recoveryState;
         // TODO: Create a proper object to encapsulate the recovery context
         // all of the current methods here follow a pattern of:
         // resolve context which isn't really dependent on the local shards and then async
@@ -3880,7 +3883,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             );
             case PEER -> {
                 try {
-                    markAsRecovering("from " + recoveryState.getSourceNode(), recoveryState);
+                    markAsRecovering("from " + recoveryState.getSourceNode());
                     recoveryTargetService.startRecovery(this, recoveryState.getSourceNode(), clusterStateVersion, recoveryListener);
                 } catch (Exception e) {
                     failShard("corrupted preexisting index", e);
@@ -3963,7 +3966,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         CheckedConsumer<ActionListener<Boolean>, Exception> action
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
-        markAsRecovering(reason, recoveryState); // mark the shard as recovering on the cluster state thread
+        markAsRecovering(reason); // mark the shard as recovering on the cluster state thread
         ActionListener<Boolean> actionListener = ActionListener.wrap(recoveryDone -> {
             if (recoveryDone) {
                 recoveryListener.onRecoveryDone(recoveryState, getTimestampRange(), getEventIngestedRange());

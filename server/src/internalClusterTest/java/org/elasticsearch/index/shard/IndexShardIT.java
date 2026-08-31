@@ -111,7 +111,6 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLength;
-import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
@@ -795,8 +794,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
     public static final IndexShard recoverShard(IndexShard newShard) throws IOException {
-        DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-        newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
+        newShard.markAsRecovering("store");
         recoverFromStore(newShard);
         IndexShardTestCase.updateRoutingEntry(
             newShard,
@@ -813,8 +811,10 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final IndexingOperationListener... listeners
     ) throws IOException {
         ShardRouting initializingShardRouting = getInitializingShardRouting(shard.routingEntry());
+        final var localNode = DiscoveryNodeUtils.builder(initializingShardRouting.currentNodeId()).build();
         return new IndexShard(
             initializingShardRouting,
+            new RecoveryState(initializingShardRouting, localNode, null),
             indexService.getIndexSettings(),
             shard.shardPath(),
             shard.store(),

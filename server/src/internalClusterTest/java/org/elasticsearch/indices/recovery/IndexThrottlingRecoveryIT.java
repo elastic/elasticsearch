@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocatio
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.recovery.RecoveryStats;
@@ -32,8 +31,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.MockIndexEventListener;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collection;
 import java.util.Map;
@@ -46,9 +45,9 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.notNullValue;
 
 /// Integration tests for source-side (see [PeerRecoverySourceService]) and target-side recovery queues (see [ThrottlingRecoveryService])
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
@@ -555,14 +554,11 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
             assertAcked(prepareCreate(indexTwo).setSettings(indexSettings(1, 0).build()).setWaitForActiveShards(ActiveShardCount.NONE));
             awaitRecoveryCountStats(Map.of(node, stats -> stats.currentFromStore() == 1 && stats.currentFromStoreQueued() == 1));
 
-            final var recoveryResponse = getRestClient().performRequest(new Request("GET", "/_recovery"));
-            final Map<String, Object> recoveryBody = XContentHelper.convertToMap(
-                XContentType.JSON.xContent(),
-                recoveryResponse.getEntity().getContent(),
-                false
-            );
-            assertThat("expected active recovery to be reported by /_recovery", recoveryBody, hasKey(indexOne));
-            assertThat("expected queued recovery to be reported by /_recovery", recoveryBody, hasKey(indexTwo));
+            final var recoveryResponse = ObjectPath.createFromResponse(getRestClient().performRequest(new Request("GET", "/_recovery")));
+            assertThat("expected active recovery to be reported by /_recovery", recoveryResponse.evaluate(indexOne), notNullValue());
+            assertThat("expected queued recovery to be reported by /_recovery", recoveryResponse.evaluate(indexTwo), notNullValue());
+            assertThat(recoveryResponse.evaluate(indexOne + ".shards.0.stage"), equalTo("INIT"));
+            assertThat(recoveryResponse.evaluate(indexTwo + ".shards.0.stage"), equalTo("CREATED"));
 
             final var catResponse = getRestClient().performRequest(new Request("GET", "/_cat/recovery"));
             final String catBody = EntityUtils.toString(catResponse.getEntity());

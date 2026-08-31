@@ -371,10 +371,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
         this.shardRouting = shardRouting;
-        assert recoveryState.getShardId().equals(shardRouting.shardId())
-            : "recovery state shardId [" + recoveryState.getShardId() + "] does not match [" + shardRouting.shardId() + "]";
-        assert recoveryState.getStage() == RecoveryState.Stage.CREATED : recoveryState.getStage();
+
         this.recoveryState = Objects.requireNonNull(recoveryState);
+        assert recoveryState.getShardId().equals(shardId)
+            : "recoveryState shardId [" + recoveryState.getShardId() + "] not equal to [" + shardId + "]";
+        assert recoveryState.getStage() == RecoveryState.Stage.CREATED : recoveryState.getStage();
+
         final Settings settings = indexSettings.getSettings();
         this.codecService = new CodecService(
             mapperService,

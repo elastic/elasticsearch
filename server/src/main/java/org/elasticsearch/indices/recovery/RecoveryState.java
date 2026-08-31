@@ -134,10 +134,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         assert shardRouting.recoverySource().getType() != RecoverySource.Type.RESHARD_SPLIT || sourceNode != null
             : "reshard split target recovery requires source node but it is null";
         assert shardRouting.recoveryPriority() != null : "recovery priority must not be null in shard routing: " + shardRouting;
-        // Newly created recoveries start in the CREATED stage and move to INIT when the recovery starts. Note that this is
-        // deliberately not done in the delegate constructor: RecoveryState#reset creates a new instance mid-recovery via that
-        // constructor and must produce a state in the INIT stage.
-        stage = Stage.CREATED;
         timer.start();
     }
 
@@ -157,7 +153,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         this.recoveryPriority = recoveryPriority;
         this.sourceNode = sourceNode;
         this.targetNode = targetNode;
-        stage = Stage.INIT;
+        stage = Stage.CREATED;
         this.index = index;
         translog = new Translog();
         verifyIndex = new VerifyIndex();
@@ -240,8 +236,12 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     public synchronized RecoveryState setStage(Stage stage) {
         switch (stage) {
             case CREATED -> {
-                assert false : "can't move recovery to stage [CREATED], only for newly created recoveries";
-                throw new IllegalArgumentException("can't move recovery to stage [CREATED], only for newly created recoveries");
+                assert false : "can't move recovery to stage [CREATED] from [" + stage + "]";
+                throw new IllegalArgumentException(
+                    "can't move recovery to stage [CREATED] from ["
+                        + stage
+                        + "]: CREATED is the initial stage of every recovery, not a valid transition target"
+                );
             }
             case INIT -> {
                 // reinitializing stop remove all state except for start time
@@ -273,7 +273,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
                 validateAndSetStage(Stage.FINALIZE, stage);
                 getTimer().stop();
             }
-
             default -> throw new IllegalArgumentException("unknown RecoveryState.Stage [" + stage + "]");
         }
         return this;
@@ -284,7 +283,19 @@ public class RecoveryState implements ToXContentFragment, Writeable {
      * information
      */
     public RecoveryState reset() {
-        return new RecoveryState(shardId, primary, recoverySource, recoveryPriority, sourceNode, targetNode, new Index(), timer);
+        // The recovery is already in flight when it is reset, so the fresh instance starts at INIT.
+        final RecoveryState freshState = new RecoveryState(
+            shardId,
+            primary,
+            recoverySource,
+            recoveryPriority,
+            sourceNode,
+            targetNode,
+            new Index(),
+            timer
+        );
+        freshState.setStage(Stage.INIT);
+        return freshState;
     }
 
     public synchronized RecoveryState setLocalTranslogStage() {

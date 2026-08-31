@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
@@ -154,13 +155,24 @@ public class PlannerUtils {
             subplans.set(
                 me.children()
                     .stream()
-                    .map(child -> (PhysicalPlan) new ExchangeSinkExec(child.source(), child.output(), false, child))
+                    .map(child -> (PhysicalPlan) new ExchangeSinkExec(child.source(), child.output(), false, alignPageLayout(child)))
                     .toList()
             );
             return new ExchangeSourceExec(me.source(), me.output(), false);
         });
 
         return new Tuple<>(subplans.get(), mainPlan);
+    }
+
+    /**
+     * The pages a sub plan sends through the exchange are consumed by the main plan assuming their layout matches the
+     * sub plan's logical {@code output()} exactly. Most operators don't guarantee that: e.g. an {@code EvalExec} whose
+     * alias name-shadows an existing column hides the shadowed attribute from {@code output()} but physically appends
+     * a new channel, leaving the stale one in the page. Only an explicit projection pins the page layout, so top every
+     * sub plan with one.
+     */
+    private static PhysicalPlan alignPageLayout(PhysicalPlan child) {
+        return child instanceof ProjectExec ? child : new ProjectExec(child.source(), child, child.output());
     }
 
     public static Tuple<PhysicalPlan, PhysicalPlan> breakPlanBetweenCoordinatorAndDataNode(PhysicalPlan plan, Configuration config) {

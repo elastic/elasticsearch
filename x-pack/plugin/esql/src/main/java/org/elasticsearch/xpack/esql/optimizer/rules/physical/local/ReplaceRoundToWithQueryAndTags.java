@@ -296,71 +296,84 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
 
     @Override
     protected PhysicalPlan rule(EvalExec evalExec, LocalPhysicalOptimizerContext ctx) {
-        PhysicalPlan plan = evalExec;
         // TimeSeriesSourceOperator and LuceneTopNSourceOperator do not support QueryAndTags, skip them
         // Lookup join is not supported yet
         if (evalExec.child() instanceof EsQueryExec queryExec && queryExec.canSubstituteRoundToWithQueryBuilderAndTags()) {
-            // Look for RoundTo and plan the push down for it.
-            List<RoundTo> roundTos = evalExec.fields()
-                .stream()
-                .map(Alias::child)
-                .filter(RoundTo.class::isInstance)
-                .map(RoundTo.class::cast)
-                .toList();
-            // It is not clear how to push down multiple RoundTos, dealing with multiple RoundTos is out of the scope of this PR.
-            if (roundTos.size() == 1) {
-                RoundTo roundTo = roundTos.get(0);
-                if (roundTo.field() instanceof FieldAttribute == false) {
-                    return evalExec;
-                }
-                // The range queries and tags generated below assume DOWN (floor) semantics: each interval [p_i, p_{i+1})
-                // is tagged with p_i. UP (ceiling) convention would require tagging with p_{i+1} instead, which is not
-                // implemented here. Skip the pushdown for UP convention.
-                if (roundTo.roundingConvention() != DOWN) {
-                    return evalExec;
-                }
-                int count = roundTo.points().size();
-                int roundingPointsUpperLimit = adjustedRoundingPointsThreshold(
-                    ctx.searchStats(),
-                    roundingPointsThreshold(ctx),
-                    queryExec.query(),
-                    queryExec.indexMode()
-                );
-                if (count > roundingPointsUpperLimit) {
-                    logger.debug(
-                        "Skipping RoundTo push down for [{}], as it has [{}] points, which is more than [{}]",
-                        roundTo.source(),
-                        count,
-                        roundingPointsUpperLimit
-                    );
-                    return evalExec;
-                }
-                // Time-series indices are sorted by _tsid, then @timestamp. Replacing round_to causes fragmentation,
-                // leading to reading many small chunks of data. It is more efficient to query sequentially
-                // and apply round_to on the timestamp field.
-                //
-                // For example, with 1,000 TSIDs over 15 minutes (tbucket=1m), replacing round_to would generate
-                // 15 queries. Each query would necessitate 1,000 seeks, requiring decompression and partial reads
-                // of many doc-value blocks.
-                //
-                // However, if the EsQueryExec index mode is time-series (e.g., rate), we prefer partitioning by tsid
-                // prefixes. When prefix partitioning is not available (old codec), we fall back to replacing round_to
-                // with QueryAndTags.
-                if (((FieldAttribute) roundTo.field()).name().equals(MetadataAttribute.TIMESTAMP_FIELD)
-                    && ctx.searchStats().targetShards().values().stream().allMatch(imd -> IndexMode.isTsdb(imd.getIndexMode()))) {
-                    if (queryExec.indexMode().isTsdb() == false) {
-                        return evalExec;
-                    }
-                    // prefer partitioning by tsid prefixes
-                    var partitioning = ctx.configuration().pragmas().dataPartitioning(ctx.plannerSettings().defaultDataPartitioning());
-                    if (partitioning != DataPartitioning.SHARD && ctx.searchStats().canPartitionByTsidPrefix()) {
-                        return evalExec;
-                    }
-                }
-                plan = planRoundTo(roundTo, evalExec, queryExec, ctx);
+            RoundTo roundTo = pushableRoundTo(evalExec, queryExec, ctx);
+            if (roundTo != null) {
+                return planRoundTo(roundTo, evalExec, queryExec, ctx);
             }
         }
-        return plan;
+        return evalExec;
+    }
+
+    /**
+     * Returns the single {@code RoundTo} in the {@code EvalExec} that can be pushed down to the given {@code EsQueryExec} as a list of
+     * {@code QueryBuilderAndTags}, or {@code null} if there is no such {@code RoundTo}. This is the gating logic shared between this rule
+     * (which performs the actual rewrite) and {@link ReplaceSampledStatsByExactStats} (which needs to know whether a sampled count
+     * aggregation could instead be executed exactly via query-and-tags push down, so that sampling can be skipped).
+     */
+    static RoundTo pushableRoundTo(EvalExec evalExec, EsQueryExec queryExec, LocalPhysicalOptimizerContext ctx) {
+        // Look for RoundTo and plan the push down for it.
+        List<RoundTo> roundTos = evalExec.fields()
+            .stream()
+            .map(Alias::child)
+            .filter(RoundTo.class::isInstance)
+            .map(RoundTo.class::cast)
+            .toList();
+        // It is not clear how to push down multiple RoundTos.
+        if (roundTos.size() != 1) {
+            return null;
+        }
+        RoundTo roundTo = roundTos.get(0);
+        if (roundTo.field() instanceof FieldAttribute == false) {
+            return null;
+        }
+        // The range queries and tags generated below assume DOWN (floor) semantics: each interval [p_i, p_{i+1})
+        // is tagged with p_i. UP (ceiling) convention would require tagging with p_{i+1} instead, which is not
+        // implemented here. Skip the pushdown for UP convention.
+        if (roundTo.roundingConvention() != DOWN) {
+            return null;
+        }
+        int count = roundTo.points().size();
+        int roundingPointsUpperLimit = adjustedRoundingPointsThreshold(
+            ctx.searchStats(),
+            roundingPointsThreshold(ctx),
+            queryExec.query(),
+            queryExec.indexMode()
+        );
+        if (count > roundingPointsUpperLimit) {
+            logger.debug(
+                "Skipping RoundTo push down for [{}], as it has [{}] points, which is more than [{}]",
+                roundTo.source(),
+                count,
+                roundingPointsUpperLimit
+            );
+            return null;
+        }
+        // Time-series indices are sorted by _tsid, then @timestamp. Replacing round_to causes fragmentation,
+        // leading to reading many small chunks of data. It is more efficient to query sequentially
+        // and apply round_to on the timestamp field.
+        //
+        // For example, with 1,000 TSIDs over 15 minutes (tbucket=1m), replacing round_to would generate
+        // 15 queries. Each query would necessitate 1,000 seeks, requiring decompression and partial reads
+        // of many doc-value blocks.
+        //
+        // However, if the EsQueryExec index mode is time-series (e.g., rate), we prefer partitioning by tsid
+        // prefixes. When prefix partitioning is not available (old codec), we fall back to replacing round_to
+        // with QueryAndTags.
+        if (((FieldAttribute) roundTo.field()).name().equals(MetadataAttribute.TIMESTAMP_FIELD)
+            && ctx.searchStats().targetShards().values().stream().allMatch(imd -> IndexMode.isTsdb(imd.getIndexMode()))) {
+            if (queryExec.indexMode().isTsdb() == false) {
+                return null;
+            }
+            // prefer partitioning by tsid prefixes
+            var partitioning = ctx.configuration().pragmas().dataPartitioning(ctx.plannerSettings().defaultDataPartitioning());
+            if (partitioning != DataPartitioning.SHARD && ctx.searchStats().canPartitionByTsidPrefix()) {
+                return null;
+            }
+        }
+        return roundTo;
     }
 
     /**
@@ -412,7 +425,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         return new EvalExec(evalExec.source(), queryExecWithTags, updatedFields);
     }
 
-    private static List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags(
+    static List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags(
         RoundTo roundTo,
         EsQueryExec queryExec,
         LocalPhysicalOptimizerContext ctx
@@ -551,7 +564,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
      * If the query level pragmas is set to -1(default), the cluster level flags will be used.
      * If the query level pragmas is set to greater than or equals to 0, the query level pragmas will be used.
      */
-    private int roundingPointsThreshold(LocalPhysicalOptimizerContext ctx) {
+    private static int roundingPointsThreshold(LocalPhysicalOptimizerContext ctx) {
         int queryLevelRoundingPointsThreshold = ctx.configuration().pragmas().roundToPushDownThreshold();
         int clusterLevelRoundingPointsThreshold = ctx.flags().roundToPushdownThreshold();
         int roundingPointsThreshold;

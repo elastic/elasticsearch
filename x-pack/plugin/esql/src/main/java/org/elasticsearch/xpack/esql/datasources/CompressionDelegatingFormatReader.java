@@ -132,6 +132,14 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
+    public boolean dropsRowsUnderPushedFilter() {
+        // Inert today (the text readers this wraps offer no filter pushdown), but forwarded so the wrapper stays
+        // transparent: wrapping a reader that had opted into the pushdown would otherwise silently answer the
+        // interface default and cost it every pushed filter.
+        return inner.dropsRowsUnderPushedFilter();
+    }
+
+    @Override
     public RowPositionStrategy rowPositionStrategy() {
         return inner.rowPositionStrategy();
     }

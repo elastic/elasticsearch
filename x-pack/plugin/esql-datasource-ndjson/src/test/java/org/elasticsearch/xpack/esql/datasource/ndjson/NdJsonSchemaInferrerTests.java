@@ -41,6 +41,17 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
             """, field("name", DataType.KEYWORD), field("age", DataType.INTEGER));
     }
 
+    public void testInferredOrderFollowsFirstAppearance() throws IOException {
+        check("""
+            {"ts": "2026-01-01T00:00:00Z", "error_code": 7, "level": "INFO"}
+            {"ts": "2026-01-01T00:00:01Z", "error_code": 3, "level": "WARN"}
+            """, field("ts", DataType.DATETIME), field("error_code", DataType.INTEGER), field("level", DataType.KEYWORD));
+        check("""
+            {"ts": "2026-01-01T00:00:02Z", "level": "INFO"}
+            {"ts": "2026-01-01T00:00:03Z", "error_code": 5, "level": "ERROR"}
+            """, field("ts", DataType.DATETIME), field("level", DataType.KEYWORD), field("error_code", DataType.INTEGER, true));
+    }
+
     /**
      * Test case: Verifies the schema inference properly handles nested JSON objects.
      */

@@ -64,6 +64,23 @@ public class AuditUtilTests extends ESTestCase {
         assertEquals(json, AuditUtil.restRequestContent(request, 0, null));
     }
 
+    public void testRestRequestContentNullXContentType() {
+        // Protobuf handlers set XContentType to null; restRequestContent must return a placeholder, not throw.
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(new byte[] { 0x0A, 0x02 }), null)
+            .withHeaders(Map.of("Content-Type", List.of("application/x-protobuf")))
+            .build();
+        assertThat(AuditUtil.restRequestContent(request, 0, null), containsString("Unrecognized content type"));
+    }
+
+    public void testRestRequestContentInvalidBodyReturnsInvalidFormat() {
+        // Malformed YAML body: convertToJson throws; must not propagate, must return "Invalid Format".
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
+            new BytesArray("key: [unclosed".getBytes(StandardCharsets.UTF_8)),
+            XContentType.YAML
+        ).build();
+        assertThat(AuditUtil.restRequestContent(request, 0, null), containsString("Invalid Format"));
+    }
+
     public void testHasProtobufContent() {
         assertTrue(AuditUtil.hasProtobufContent(protobufRequest(randomByteArrayOfLength(randomIntBetween(1, 32)))));
 

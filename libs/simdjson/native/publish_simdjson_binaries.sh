@@ -17,15 +17,16 @@
 #
 # Environment:
 #   TOOLCHAIN_IMAGE      Docker image for cross-compilation
-#                        (default: es-simdjson-cross-toolchain:local, built on demand;
-#                         or docker.elastic.co/elasticsearch-infra/es-simdjson-cross-toolchain:1)
+#                        (default: es-native-cross-toolchain:local, built on demand;
+#                         or docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:4)
 #   ARTIFACTORY_API_KEY  Required for upload (non --local, or --force-upload)
 
 set -euo pipefail
 
 VERSION="0.1.0"
-LOCAL_TOOLCHAIN_IMAGE="es-simdjson-cross-toolchain:local"
-REMOTE_TOOLCHAIN_IMAGE="docker.elastic.co/elasticsearch-infra/es-simdjson-cross-toolchain:1"
+VEC_NATIVE_DIR="$(cd "$(dirname "$0")/../../simdvec/native" && pwd)"
+LOCAL_TOOLCHAIN_IMAGE="es-native-cross-toolchain:local"
+REMOTE_TOOLCHAIN_IMAGE="docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:4"
 DEFAULT_TOOLCHAIN_IMAGE="${LOCAL_TOOLCHAIN_IMAGE}"
 
 LOCAL=false
@@ -65,39 +66,21 @@ ensure_toolchain_image() {
     return
   fi
   if [ "$TOOLCHAIN_IMAGE" = "$LOCAL_TOOLCHAIN_IMAGE" ]; then
-    echo "Building local simdjson toolchain image ${LOCAL_TOOLCHAIN_IMAGE} ..."
-    "$(dirname "$0")/build_cross_toolchain_image.sh" --local
+    echo "Building local native toolchain image ${LOCAL_TOOLCHAIN_IMAGE} ..."
+    "${VEC_NATIVE_DIR}/build_cross_toolchain_image.sh" --local
     return
   fi
   echo "Toolchain image not found locally; pulling ${TOOLCHAIN_IMAGE} ..."
   docker pull "$TOOLCHAIN_IMAGE"
 }
 
-# Older published toolchain images may lack curl/xz, which the Darwin target needs to
-# fetch the macOS SDK via xmac. Install them on demand inside the container.
 run_make_all_in_toolchain() {
   ensure_toolchain_image
   docker run --rm \
     -v "$(pwd)":/workspace \
     -w /workspace \
     "$TOOLCHAIN_IMAGE" \
-    bash -lc '
-      set -euo pipefail
-      if ! command -v curl >/dev/null 2>&1 \
-        || ! command -v xz >/dev/null 2>&1 \
-        || ! command -v bzip2 >/dev/null 2>&1; then
-        if ! command -v apt-get >/dev/null 2>&1; then
-          echo "Error: curl, xz, and bzip2 are required to fetch the macOS SDK but are missing from the toolchain image."
-          exit 1
-        fi
-        echo "Installing macOS SDK fetch dependencies (curl, xz-utils, bzip2) ..."
-        export DEBIAN_FRONTEND=noninteractive
-        apt-get update
-        apt-get install -y --no-install-recommends curl xz-utils bzip2 ca-certificates
-        rm -rf /var/lib/apt/lists/*
-      fi
-      make all verify-linux-abi
-    '
+    make all verify-linux-abi
 }
 
 ARTIFACTORY_REPOSITORY="${ARTIFACTORY_REPOSITORY:-https://artifactory.elastic.dev/artifactory/elasticsearch-native/}"

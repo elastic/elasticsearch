@@ -13,8 +13,8 @@
 # simdjson handles ISA selection internally (AVX-512 vs AVX2 vs NEON etc.),
 # so we compile a single source file per platform — no tier-1/tier-2 split.
 #
-# Intended to be run inside the cross-compilation toolchain container
-# (es-simdjson-cross-toolchain — clang-21 plus GCC 8 libstdc++ cross libs).
+# Intended to be run inside the shared cross-compilation toolchain container
+# (es-native-cross-toolchain:4 — clang-21 plus GCC 8 libstdc++ cross libs).
 # The Darwin target requires a macOS SDK, fetched on-demand via xmac from
 # Apple's public CDN and cached in build/.macos-sdk/.
 #

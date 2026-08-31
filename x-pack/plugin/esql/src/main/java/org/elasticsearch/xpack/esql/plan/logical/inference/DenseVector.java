@@ -32,9 +32,9 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
@@ -141,7 +141,9 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
             in.getTransportVersion().supports(ESQL_DENSE_VECTOR_TYPE_OPTION)
                 ? org.elasticsearch.inference.DataType.fromString(in.readString())
                 : DEFAULT_INPUT_TYPE,
-            in.getTransportVersion().supports(ESQL_DENSE_VECTOR_TYPE_OPTION) && in.readBoolean() ? TaskType.fromStream(in) : null
+            // Nodes without the type option have no multimodal support, so their plans only ever describe text embedding
+            // requests.
+            in.getTransportVersion().supports(ESQL_DENSE_VECTOR_TYPE_OPTION) ? in.readOptionalEnum(TaskType.class) : TaskType.TEXT_EMBEDDING
         );
     }
 
@@ -155,12 +157,7 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
         }
         if (out.getTransportVersion().supports(ESQL_DENSE_VECTOR_TYPE_OPTION)) {
             out.writeString(inputType.name());
-            if (endpointTaskType == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                endpointTaskType.writeTo(out);
-            }
+            out.writeOptionalEnum(endpointTaskType);
         }
     }
 
@@ -321,10 +318,10 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
      * {@link TaskType#EMBEDDING} endpoint; {@code image} requires a multimodal {@link TaskType#EMBEDDING} endpoint.
      */
     @Override
-    public Set<TaskType> acceptedTaskTypes() {
+    public EnumSet<TaskType> acceptedTaskTypes() {
         return inputType == org.elasticsearch.inference.DataType.TEXT
-            ? Set.of(TaskType.TEXT_EMBEDDING, TaskType.EMBEDDING)
-            : Set.of(TaskType.EMBEDDING);
+            ? EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.EMBEDDING)
+            : EnumSet.of(TaskType.EMBEDDING);
     }
 
     @Override

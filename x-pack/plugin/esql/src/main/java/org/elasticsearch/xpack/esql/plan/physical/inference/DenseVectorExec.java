@@ -79,9 +79,11 @@ public class DenseVectorExec extends InferenceExec {
             in.getTransportVersion().supports(InferencePlan.ESQL_DENSE_VECTOR_TYPE_OPTION)
                 ? org.elasticsearch.inference.DataType.fromString(in.readString())
                 : org.elasticsearch.inference.DataType.TEXT,
-            in.getTransportVersion().supports(InferencePlan.ESQL_DENSE_VECTOR_TYPE_OPTION) && in.readBoolean()
-                ? TaskType.fromStream(in)
-                : null
+            // Nodes without the type option have no multimodal support, so their plans only ever describe text embedding
+            // requests.
+            in.getTransportVersion().supports(InferencePlan.ESQL_DENSE_VECTOR_TYPE_OPTION)
+                ? in.readOptionalEnum(TaskType.class)
+                : TaskType.TEXT_EMBEDDING
         );
     }
 
@@ -100,12 +102,7 @@ public class DenseVectorExec extends InferenceExec {
         }
         if (out.getTransportVersion().supports(InferencePlan.ESQL_DENSE_VECTOR_TYPE_OPTION)) {
             out.writeString(inputType.name());
-            if (endpointTaskType == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                endpointTaskType.writeTo(out);
-            }
+            out.writeOptionalEnum(endpointTaskType);
         }
     }
 

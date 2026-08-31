@@ -23,6 +23,7 @@ import java.util.Locale;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -86,22 +87,6 @@ public class DenseVectorIT extends InferenceCommandIntegTestCase {
         }
     }
 
-    public void testDenseVectorImageType() {
-        // A base64 data URI embedded through a multimodal (embedding) endpoint. The value produces a dense_vector column.
-        var query = String.format(Locale.ROOT, """
-            ROW input = "data:image/jpeg;base64,V2hvIGlzIFZpY3RvciBIdWdvPw=="
-            | DENSE_VECTOR input WITH { "inference_id": "%s", "type": "image" }
-            | KEEP input, input_dense_vector
-            """, EMBEDDING_MODEL_ID);
-
-        try (var resp = run(query)) {
-            assertThat(resp.columns().stream().map(c -> c.name()).toList(), hasItem("input_dense_vector"));
-            List<List<Object>> values = getValuesList(resp);
-            assertThat(values, hasSize(1));
-            assertThat(values.get(0).get(1), notNullValue());
-        }
-    }
-
     @SuppressWarnings("unchecked")
     public void testDenseVectorImageAndTextTypesDiffer() {
         // Differential check that the type option actually reaches the inference request. The same base64 data URI is
@@ -150,9 +135,14 @@ public class DenseVectorIT extends InferenceCommandIntegTestCase {
         }
     }
 
+    /**
+     * Returns the vector of the single row a query is expected to produce. The generated column is asserted to be the
+     * only projected one, which is what makes reading it positionally safe.
+     */
     @SuppressWarnings("unchecked")
     private List<Number> firstVector(String query) {
         try (var resp = run(query)) {
+            assertThat(resp.columns().stream().map(c -> c.name()).toList(), contains("input_dense_vector"));
             List<List<Object>> values = getValuesList(resp);
             assertThat(values, hasSize(1));
             return (List<Number>) values.get(0).get(0);

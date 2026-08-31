@@ -620,20 +620,22 @@ public class LocalExecutionPlanner {
                 context.analysisRegistry()
             );
             Layout outputLayout = operation.layout.builder().append(generatedFields.get(i)).build();
-            Operator.OperatorFactory operatorFactory = endpointTaskType == TaskType.TEXT_EMBEDDING
-                ? new TextEmbeddingOperator.Factory(
-                    inferenceService,
-                    inferenceId,
-                    inputEvaluatorFactory,
-                    denseVector.timeout(),
-                    denseVector.source(),
-                    true
-                )
-                : new EmbeddingOperator.Factory(
+            // Only an embedding endpoint takes the multimodal request shape; every other task type, including an
+            // unresolved one, takes the plain text embedding request.
+            Operator.OperatorFactory operatorFactory = endpointTaskType == TaskType.EMBEDDING
+                ? new EmbeddingOperator.Factory(
                     inferenceService,
                     inferenceId,
                     inputEvaluatorFactory,
                     inputType,
+                    denseVector.timeout(),
+                    denseVector.source(),
+                    true
+                )
+                : new TextEmbeddingOperator.Factory(
+                    inferenceService,
+                    inferenceId,
+                    inputEvaluatorFactory,
                     denseVector.timeout(),
                     denseVector.source(),
                     true

@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.inference;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -15,12 +18,15 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.AbstractLogicalPlanSerializationTests;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTestUtils.randomReferenceAttribute;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DenseVectorSerializationTests extends AbstractLogicalPlanSerializationTests<DenseVector> {
     @Override
@@ -75,6 +81,31 @@ public class DenseVectorSerializationTests extends AbstractLogicalPlanSerializat
             inputType,
             endpointTaskType
         );
+    }
+
+    /**
+     * Plans from a node without the {@code esql_dense_vector_type_option} transport version carry neither the input type
+     * nor the endpoint task type. Both must fall back to the text embedding request shape, the only one such a node can
+     * describe; a null task type would select the multimodal shape instead.
+     */
+    public void testOlderTransportVersionMeansTextEmbedding() throws IOException {
+        TransportVersion before = TransportVersionUtils.getPreviousVersion(InferencePlan.ESQL_DENSE_VECTOR_TYPE_OPTION);
+        DenseVector original = new DenseVector(
+            randomSource(),
+            new EsRelation(randomSource(), randomIdentifier(), IndexMode.STANDARD, Map.of(), Map.of(), Map.of(), List.of()),
+            randomInferenceId(),
+            randomRowLimit(),
+            List.of(),
+            List.of(),
+            randomTimeout(),
+            org.elasticsearch.inference.DataType.IMAGE,
+            org.elasticsearch.inference.TaskType.EMBEDDING
+        );
+
+        DenseVector roundTripped = copyInstance(original, before);
+
+        assertThat(roundTripped.inputType(), equalTo(org.elasticsearch.inference.DataType.TEXT));
+        assertThat(roundTripped.endpointTaskType(), equalTo(org.elasticsearch.inference.TaskType.TEXT_EMBEDDING));
     }
 
     private org.elasticsearch.inference.DataType randomInputType() {

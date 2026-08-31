@@ -25,9 +25,9 @@ import org.elasticsearch.xpack.esql.plan.logical.SurrogateLogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> extends UnaryPlan
     implements
@@ -109,9 +109,13 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
     /**
      * The inference endpoint task types this plan can run against. Analysis rejects an endpoint whose task type is not in this set.
      * Defaults to the single {@link #taskType()}; plans that accept more than one task type override this.
+     * <p>
+     * Returns an {@link EnumSet} so that iteration follows declaration order: the set is rendered into a user-facing error
+     * message, which would otherwise list the types differently from one JVM to the next.
+     * </p>
      */
-    public Set<TaskType> acceptedTaskTypes() {
-        return Set.of(taskType());
+    public EnumSet<TaskType> acceptedTaskTypes() {
+        return EnumSet.of(taskType());
     }
 
     public abstract PlanType withInferenceId(Expression newInferenceId);

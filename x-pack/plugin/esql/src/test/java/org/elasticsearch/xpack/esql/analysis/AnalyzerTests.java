@@ -4679,11 +4679,18 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
+    /**
+     * The default {@code text} modality is the only case accepting more than one task type, so this is also where the
+     * rendered order of that list is pinned.
+     */
     public void testDenseVectorRejectsCompletionEndpoint() {
         assumeDenseVectorCommandEnabled();
         books().error(
             "FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"completion-inference-id\" }",
-            containsString("cannot use inference endpoint [completion-inference-id] with task type [completion] within a DENSE_VECTOR")
+            containsString(
+                "cannot use inference endpoint [completion-inference-id] with task type [completion] within a DENSE_VECTOR "
+                    + "command. Only inference endpoints with the task type [text_embedding, embedding] are supported"
+            )
         );
     }
 

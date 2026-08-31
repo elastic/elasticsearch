@@ -164,6 +164,9 @@ tests:
 - class: org.elasticsearch.search.ActiveReadersTests
   method: testAddAndGetReader
   issue: https://github.com/elastic/elasticsearch/issues/158107
+- class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
+  method: testSearchWithRandomDisconnects
+  issue: https://github.com/elastic/elasticsearch/issues/157466
 
 # Examples:
 #

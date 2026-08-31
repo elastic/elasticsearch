@@ -9,7 +9,7 @@
 
 package org.elasticsearch.benchmark.xcontent;
 
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.escf.EscfBatch;
@@ -86,7 +86,7 @@ public class SimdJsonParserBenchmark {
 
     @Setup
     public void setUp() {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
         long threadSeed = seed + Thread.currentThread().threadId();
         Random random = new Random(threadSeed);
         docs = new BytesReference[docCount];

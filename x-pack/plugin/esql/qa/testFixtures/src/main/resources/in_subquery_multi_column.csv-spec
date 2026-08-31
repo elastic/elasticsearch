@@ -1641,3 +1641,243 @@ max_bytes:long | cluster:keyword | pod:keyword | is_match:boolean
 7403           | staging         | three       | false
 5187           | staging         | two         | false
 ;
+
+multiColumnInSubqueryInStatsWhereRowSource
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_row
+required_capability: stats_where_in_subquery
+
+FROM employees
+| STATS c = COUNT(*) WHERE (emp_no, salary) IN (ROW a = 10001, b = 10002 | KEEP a, b)
+;
+
+c:long
+0
+;
+
+multiColumnInSubqueryInStatsWhereRowSourceMatch
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_row
+required_capability: stats_where_in_subquery
+
+FROM employees
+| STATS c = COUNT(*) WHERE (emp_no, salary) IN (ROW a = 10001, b = 57305 | KEEP a, b)
+;
+
+c:long
+1
+;
+
+multiColumnInSubqueryInStatsWhereTsSource
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_ts
+required_capability: ts_command_v0
+required_capability: stats_where_in_subquery
+
+FROM employees
+| EVAL cluster = CASE(gender == "M", "prod", "qa")
+| STATS c = COUNT(*) WHERE (cluster, emp_no) IN (TS k8s
+                                                 | STATS m = max(rate(network.total_bytes_in)) BY cluster
+                                                 | EVAL emp = 10001
+                                                 | KEEP cluster, emp)
+;
+
+c:long
+1
+;
+
+multiColumnInSubqueryInStatsWhereNested
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_row
+required_capability: stats_where_in_subquery
+
+FROM employees
+| STATS c1 = COUNT(*) WHERE COALESCE((emp_no, salary) IN (ROW a = 10001, b = 57305 | KEEP a, b), false),
+        c2 = COUNT(*) WHERE CASE((emp_no, salary) IN (ROW a = 99999, b = 0 | KEEP a, b), true, false),
+        c3 = COUNT(*) WHERE ((emp_no, salary) IN (ROW a = 10001, b = 57305 | KEEP a, b)) IS NOT NULL
+;
+
+c1:long | c2:long | c3:long
+1       | 0       | 100
+;
+
+multiColumnInSubqueryTsMainRowSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_row
+required_capability: stats_where_in_subquery
+required_capability: ts_command_v0
+
+TS k8s
+| STATS m = MAX(network.total_bytes_in) WHERE (cluster, pod) IN (ROW c = "staging", p = "two" | KEEP c, p) BY cluster
+| SORT cluster
+| KEEP m, cluster
+;
+
+m:long | cluster:keyword
+null   | prod
+null   | qa
+5187   | staging
+;
+
+multiColumnInSubqueryRowMainTsSubquery
+skip_flattened_rewrite: keyword_from_row_command
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_row
+required_capability: stats_where_in_subquery
+required_capability: where_in_subquery_with_ts
+required_capability: ts_command_v0
+
+ROW cluster = "prod", emp_no = 10001
+| STATS c = COUNT(*) WHERE (cluster, emp_no) IN (TS k8s
+                                                 | STATS m = max(rate(network.total_bytes_in)) BY cluster
+                                                 | EVAL emp = 10001
+                                                 | KEEP cluster, emp)
+;
+
+c:long
+1
+;
+
+// ======== multi-column IN subqueries in INLINE STATS WHERE filters ========
+
+inlineStatsWhereMultiColumnInSubqueryWithRow
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_row
+required_capability: inline_stats_where_in_subquery
+
+FROM employees
+| INLINE STATS c = COUNT(*) WHERE (emp_no, salary) IN (ROW x = 10001, y = 57305)
+| WHERE emp_no == 10001
+| KEEP emp_no, c
+;
+
+emp_no:integer | c:long
+10001          | 1
+;
+
+inlineStatsWhereMultiColumnInSubqueryWithTs
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: inline_stats_where_in_subquery
+
+TS k8s
+| STATS mb = max(to_long(network.total_bytes_in)) BY cluster, pod
+| INLINE STATS c = COUNT(*) WHERE (cluster, pod) IN (TS k8s 
+                                                     | STATS mb = max(to_long(network.total_bytes_in)) BY cluster, pod
+                                                     | WHERE mb > 10500
+                                                     | KEEP cluster, pod)
+| SORT cluster, pod
+| KEEP cluster, pod, c
+;
+
+cluster:keyword | pod:keyword | c:long
+prod            | one         | 1
+prod            | three       | 1
+prod            | two         | 1
+qa              | one         | 1
+qa              | three       | 1
+qa              | two         | 1
+staging         | one         | 1
+staging         | three       | 1
+staging         | two         | 1
+;
+
+inlineStatsWhereCaseMultiColumnInSubqueryWithRow
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_row
+required_capability: inline_stats_where_in_subquery
+
+FROM employees
+| INLINE STATS c = COUNT(*) WHERE CASE((emp_no, salary) IN (ROW x = 10001, y = 57305), true, false)
+| WHERE emp_no == 10001
+| KEEP emp_no, c
+;
+
+emp_no:integer | c:long
+10001          | 1
+;
+
+inlineStatsWhereCoalesceMultiColumnInSubqueryWithTs
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: inline_stats_where_in_subquery
+
+TS k8s
+| STATS mb = max(to_long(network.total_bytes_in)) BY cluster, pod
+| INLINE STATS c = COUNT(*) WHERE COALESCE((cluster, pod) IN (TS k8s
+                                                              | STATS r = max(avg_over_time(network.cost)) BY cluster, pod
+                                                              | WHERE r > 5
+                                                              | KEEP cluster, pod),
+                                           false)
+| SORT cluster, pod
+| KEEP cluster, pod, c
+;
+
+cluster:keyword | pod:keyword | c:long
+prod            | one         | 8
+prod            | three       | 8
+prod            | two         | 8
+qa              | one         | 8
+qa              | three       | 8
+qa              | two         | 8
+staging         | one         | 8
+staging         | three       | 8
+staging         | two         | 8
+;
+
+inlineStatsWhereIsNullMultiColumnInSubqueryWithRow
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_row
+required_capability: inline_stats_where_in_subquery
+
+FROM employees
+| INLINE STATS c = COUNT(*) WHERE ((emp_no, salary) IN (ROW x = null::integer, y = null::integer)) IS NULL
+| STATS c1 = MAX(c)
+;
+
+c1:long
+100
+;
+
+inlineStatsWhereIsNotNullMultiColumnInSubqueryWithTs
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: inline_stats_where_in_subquery
+
+TS k8s
+| STATS mb = max(to_long(network.total_bytes_in)) BY cluster, pod
+| INLINE STATS c = COUNT(*) WHERE ((cluster, pod) IN (TS k8s
+                                                      | STATS r = max(rate(network.total_bytes_in)) BY cluster, pod
+                                                      | WHERE r > 10
+                                                      | KEEP cluster, pod)
+                                  ) IS NOT NULL
+| SORT cluster, pod
+| KEEP cluster, pod, c
+;
+
+cluster:keyword | pod:keyword | c:long
+prod            | one         | 9
+prod            | three       | 9
+prod            | two         | 9
+qa              | one         | 9
+qa              | three       | 9
+qa              | two         | 9
+staging         | one         | 9
+staging         | three       | 9
+staging         | two         | 9
+;

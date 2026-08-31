@@ -80,9 +80,9 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsF
  * of known behavioral differences between {@code standard} and {@code columnar} mode that informed
  * {@link #EXCLUDED_DATASETS} and {@link #ALLOWED_MODE_DIFFERENCES}.
  */
-public abstract class CrossIndexModeGenerativeRestTest extends GenerativeRestTest {
+public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestTest {
 
-    private static final Logger logger = LogManager.getLogger(CrossIndexModeGenerativeRestTest.class);
+    private static final Logger logger = LogManager.getLogger(CrossIndexModeGenerativeRestRunner.class);
 
     /** Name prefix for reference-side indices (plain {@code standard} mode by default). */
     public static final String REF_PREFIX = "ref_";
@@ -120,14 +120,15 @@ public abstract class CrossIndexModeGenerativeRestTest extends GenerativeRestTes
         // "POINT (116.072 5.975)" on columnar — a known encoding precision difference.
         "airports",
         "airports_web",
-        // Mapping designed to be type-incompatible with the standard employees dataset; its CSV
-        // data contains deliberate duplicates in boolean MV fields (e.g. [false,true,true]).
-        // SortedSetDocValues deduplicates those in standard mode while columnar may preserve them,
-        // producing spurious divergences that are not meaningful correctness signals.
+        // Mapping designed to be type-incompatible with the standard employees dataset; combining
+        // ref_employees_incompatible (with its altered field types) and ref_employees under a wildcard
+        // pattern produces type conflicts that cause schema divergences between the two modes.
         "employees_incompatible",
         // Multi-value double fields (rows carry [1.1], [1.1,2.2], …, [1.1,…,5.5]) cause COUNT to
         // diverge: standard mode counts individual MV values whereas columnar mode counts documents.
-        // Excluded until the COUNT-on-MV behaviour is reconciled between the two modes.
+        // Root cause: columnar mode disables point indexing for numeric fields, so
+        // SearchContextStats#detectSingleValue mis-detects them as single-valued and PushStatsToSource
+        // pushes COUNT down to a Lucene document count instead of a per-value count.
         "all_types_mv",
         // The all_types family uses mapping-all-types.json which contains `semantic_text` and
         // `dense_vector` field types. These types appear in field_caps for standard mode but are
@@ -176,7 +177,8 @@ public abstract class CrossIndexModeGenerativeRestTest extends GenerativeRestTes
         "voyager",
         // Multi-value date fields (rows carry [1952,1962] and [2003,1998]) cause COUNT to diverge:
         // standard mode counts individual MV values while columnar mode counts documents. Same root
-        // cause as all_types_mv. Excluded until COUNT-on-MV behaviour is reconciled.
+        // cause as all_types_mv (SearchContextStats#detectSingleValue + PushStatsToSource push
+        // COUNT down to a document count for point-index-disabled fields).
         "mv_decades",
         // Cartesian multi-polygon shape data fails to bulk-index in columnar mode (the cartesian_shape
         // field cannot be stored via doc_values for synthetic source), leaving cand_cartesian_multipolygons
@@ -334,7 +336,7 @@ public abstract class CrossIndexModeGenerativeRestTest extends GenerativeRestTes
      */
     @Before
     public void setupCrossModeIndices() throws IOException {
-        synchronized (CrossIndexModeGenerativeRestTest.class) {
+        synchronized (CrossIndexModeGenerativeRestRunner.class) {
             if (crossModeSetupDone) {
                 return;
             }
@@ -566,11 +568,13 @@ public abstract class CrossIndexModeGenerativeRestTest extends GenerativeRestTes
             || cmdText.contains(": \"")) {
             return false;
         }
-        // Order-sensitive MV functions: standard mode returns multi-value fields in original
-        // insertion order; columnar mode (synthetic source from doc values) returns them in sorted
-        // order. These functions either select, slice, concatenate, or compute differences between
-        // consecutive elements in field order — all produce different output when the input ordering
-        // differs.
+        // Order-sensitive MV functions: columnar mode preserves the original source-insertion order
+        // of multi-value fields (via the array-order block loader), while standard mode returns them
+        // in ascending doc-values order (SortedNumericDocValues / SortedSetDocValues). These
+        // functions either select, slice, concatenate, or compute differences between consecutive
+        // elements in field order — all produce different output when the input ordering differs.
+        // See also: ints.csv-spec:795+, string.csv-spec:696+, mv_expand.csv-spec:104+
+        // (skip_columnar markers that document the same ordering divergence for each function).
         if (cmdText.contains("MV_SLICE(")
             || cmdText.contains("MV_FIRST(")
             || cmdText.contains("MV_LAST(")
@@ -584,27 +588,15 @@ public abstract class CrossIndexModeGenerativeRestTest extends GenerativeRestTes
         if (cmdText.contains("LEAST(") || cmdText.contains("GREATEST(")) {
             return false;
         }
-        // FIRST() / LAST() aggregation functions pick a value from the row with the minimum or
-        // maximum sort-column value. They can be non-deterministic when there are ties in the sort
-        // column. Additionally, columnar mode has a known issue where FIRST() returns null for
-        // boolean MV fields instead of the correct multi-value boolean.
+        // FIRST() aggregation function picks a value from the row with the minimum sort-column
+        // value. It can be non-deterministic when there are ties. Additionally, columnar mode has a
+        // known issue where FIRST() returns null for boolean MV fields instead of the correct
+        // multi-value boolean. Note: contains("FIRST(") also matches MV_FIRST(, and
+        // contains("LAST(") matches MV_LAST(; both are correctly gated since the aggregate and the
+        // scalar function share the same ordering-sensitivity rationale.
+        // (The generator never emits a bare last(...) aggregate; LAST( here catches only MV_LAST(.)
         // TODO: remove once the columnar FIRST/LAST boolean bug is fixed.
         if (cmdText.contains("FIRST(") || cmdText.contains("LAST(")) {
-            return false;
-        }
-        // VARIANCE / STD_DEV are computed with Welford's algorithm, whose parallel-merge step
-        // (WelfordAlgorithm#add(mean, m2, count)) is not associative in floating point: it
-        // recombines the mean as (mean*count + meanValue*countValue)/(count+countValue), which
-        // rounds for non-power-of-two partial counts and leaves a residual delta. The streaming
-        // add(double) is exact for a constant column, so the result depends on how a group's rows
-        // are split across partial states and on the order those partials are merged — and that
-        // order is page arrival order out of ExchangeBuffer (a ConcurrentLinkedQueue), which is
-        // not pinned by the data. For a group whose values are all equal the true result is 0,
-        // but one side can return 0.0 while the other returns ~1e-32 — a difference that the
-        // 6-significant-figure rounding in canonicalValue cannot absorb, because relative rounding
-        // is meaningless at zero.
-        // See: https://github.com/elastic/elasticsearch/issues/156988
-        if (cmdText.contains("VARIANCE(") || cmdText.contains("STD_DEV(")) {
             return false;
         }
         // DISSECT and GROK applied to multi-value string fields: standard mode expands each element
@@ -629,19 +621,19 @@ public abstract class CrossIndexModeGenerativeRestTest extends GenerativeRestTes
             || (("inline_stats".equals(cmdName) || "stats".equals(cmdName)) && cmdText.contains(" BY ") == false)) {
             return false;
         }
-        // DEDUP deduplicates rows by all column values. Multi-value fields are returned in
-        // insertion order in standard mode but in sorted order in columnar mode (synthetic source
-        // from doc values). Two rows that appear identical in columnar (both MV cells normalised
-        // to sorted order) may differ in standard (one cell [a,b], another [b,a]), so DEDUP can
-        // remove a different number of rows in each mode. Close the gate once DEDUP appears to
-        // prevent false-positive row-count divergences.
+        // DEDUP deduplicates rows by all column values. Columnar mode preserves MV fields in
+        // source-insertion order, while standard mode returns them in ascending doc-values order.
+        // Two rows that appear identical under standard-mode ordering (both MV cells sorted) may
+        // differ in columnar (one cell [a,b], another [b,a]), so DEDUP can remove a different
+        // number of rows in each mode. Close the gate once DEDUP appears to prevent false-positive
+        // row-count divergences.
         if ("dedup".equals(cmdName)) {
             return false;
         }
         // HIGHLIGHT returns a highlighted snippet from stored source (standard mode) versus
         // synthetic source / doc-values (columnar mode). For MV fields the highlighted value
-        // is selected by position — insertion order in standard, sorted order in columnar —
-        // so the returned snippet can legitimately differ between the two modes.
+        // is selected by position — doc-values order (sorted) in standard, source-insertion order
+        // in columnar — so the returned snippet can legitimately differ between the two modes.
         if ("highlight".equals(cmdName)) {
             return false;
         }
@@ -851,27 +843,52 @@ public abstract class CrossIndexModeGenerativeRestTest extends GenerativeRestTes
      *       that no fixed significant-figure rounding can reconcile without becoming too coarse to
      *       catch real bugs.</li>
      *   <li>{@code flattened}: object values contain nested arrays (e.g. {@code host.ip}) whose
-     *       element order differs between stored source (original insertion order) and synthetic
-     *       source (doc-values order). Skipping prevents false-positive failures while schema
-     *       divergence (missing or renamed column) is still caught by the schema check.</li>
+     *       element order differs between columnar mode (source-insertion order, via the array-order
+     *       block loader) and standard mode (ascending doc-values order). Skipping prevents
+     *       false-positive failures while schema divergence (missing or renamed column) is still
+     *       caught by the schema check.</li>
      * </ul>
      */
     private static final Set<String> SKIP_VALUE_COLUMN_TYPES = Set.of("geo_point", "cartesian_point", "flattened");
 
     /**
+     * Column types backed by {@code SortedSetDocValues} in standard mode: ES|QL loads these via
+     * an ordinality-based block loader that returns values in ascending sorted order and drops
+     * duplicates. In columnar mode the array-order block loader is used instead, returning values
+     * in source-insertion order with duplicates preserved.
+     *
+     * <p>When comparing MV cells of these types the two sides can therefore differ in both ordering
+     * and cardinality: a keyword field stored as {@code ["b","a","a"]} yields {@code ["a","b"]} in
+     * standard mode but {@code ["b","a","a"]} in columnar mode. The canonical form renders such
+     * cells as a sorted, distinct (set-like) list so both representations compare equal.
+     *
+     * <p>Numeric and boolean types use {@code SortedNumericDocValues}, which sorts but does
+     * <em>not</em> deduplicate — the two sides differ only in ordering, which is already absorbed
+     * by the element-sort in {@link #toCanonical}. Those types are therefore <em>not</em> listed
+     * here; collapsing their duplicates would mask a real data-loss bug.
+     *
+     * <p>References: {@code keyword.md:137} ("may sort keyword fields and remove duplicates"),
+     * {@code ip.md:130}, {@code version.md:51}, and
+     * {@link org.elasticsearch.index.mapper.KeywordFieldMapper} {@code preservesArrayOrder()}.
+     */
+    static final Set<String> SORTED_SET_BACKED_TYPES = Set.of("keyword", "text", "ip", "version", "wildcard");
+
+    /**
      * Converts a result set to a list of canonical row strings for order-insensitive comparison.
      *
      * <p>Each cell is rendered by {@link #canonicalValue}. List-valued cells (multi-value fields)
-     * have their elements sorted before rendering to absorb ordering differences between stored and
-     * synthetic source — e.g. a keyword MV stored as {@code ["b","a"]} in the standard index and
-     * returned as {@code ["a","b"]} in the columnar (synthetic-source) index will compare equal.
+     * have their elements sorted before rendering to absorb the ordering difference: columnar mode
+     * returns MV fields in source-insertion order while standard mode returns them in ascending
+     * doc-values order. For types in {@link #SORTED_SET_BACKED_TYPES} (e.g. {@code keyword}),
+     * standard mode also deduplicates; cells of those types are additionally deduplicated here so
+     * that e.g. columnar's {@code ["b","a","a"]} and standard's {@code ["a","b"]} compare equal.
      *
      * <p>Columns whose type is in {@link #SKIP_VALUE_COLUMN_TYPES} are replaced by a constant
      * placeholder so that inherent precision differences (stored vs synthetic source coordinate
      * encoding) do not produce false-positive failures.
      */
     @SuppressWarnings("unchecked")
-    private static List<String> toCanonical(List<List<Object>> rows, List<Column> schema) {
+    static List<String> toCanonical(List<List<Object>> rows, List<Column> schema) {
         List<String> result = new ArrayList<>(rows.size());
         for (List<Object> row : rows) {
             StringBuilder sb = new StringBuilder();
@@ -891,6 +908,12 @@ public abstract class CrossIndexModeGenerativeRestTest extends GenerativeRestTes
                         strs.add(canonicalValue(v));
                     }
                     Collections.sort(strs);
+                    if (SORTED_SET_BACKED_TYPES.contains(colType)) {
+                        // Deduplicate after sorting: standard mode's SortedSetDocValues removes
+                        // duplicates, while columnar mode preserves them. Collapsing them here lets
+                        // ["a","b"] (standard) == ["b","a","a"] (columnar) after sort+dedup.
+                        strs = strs.stream().distinct().toList();
+                    }
                     sb.append(strs);
                 } else {
                     sb.append(canonicalValue(val));
@@ -905,7 +928,13 @@ public abstract class CrossIndexModeGenerativeRestTest extends GenerativeRestTes
      * Renders a single cell value as a canonical string.
      *
      * <p>Doubles are rounded to 6 significant figures to absorb tiny floating-point differences
-     * that arise when re-encoding values through doc values in columnar mode.
+     * that arise when re-encoding values through doc values in columnar mode. Additionally, values
+     * whose absolute magnitude is below {@code 1e-9} are snapped to {@code 0.0} to absorb the
+     * Welford parallel-merge residual that can leave one side at {@code 0.0} and the other at
+     * {@code ~1e-32} when the true result is zero (see
+     * <a href="https://github.com/elastic/elasticsearch/issues/156988">#156988</a>). The threshold
+     * is many orders of magnitude above the residual ({@code ~1e-32}) and many orders of magnitude
+     * below any meaningful small result in the CSV test datasets.
      *
      * <p>Strings that look like WKT geometry ({@code POINT (…)}, {@code POLYGON (…)}, etc.) have
      * their coordinate numbers rounded to the same 6 significant figures. Doc-values-based
@@ -913,10 +942,14 @@ public abstract class CrossIndexModeGenerativeRestTest extends GenerativeRestTes
      * example a stored {@code POINT (5.0 5.0)} can come back as
      * {@code POINT (4.999999953433871 4.999999995343387)} in columnar mode.
      */
-    private static String canonicalValue(Object val) {
+    static String canonicalValue(Object val) {
         if (val instanceof Double d) {
             if (Double.isNaN(d) || Double.isInfinite(d)) {
                 return String.valueOf(d);
+            }
+            // Snap near-zero values before relative rounding, which is meaningless at zero.
+            if (Math.abs(d) < 1e-9) {
+                return "0.0";
             }
             return String.valueOf(new BigDecimal(d).round(new MathContext(6, RoundingMode.HALF_DOWN)).doubleValue());
         }

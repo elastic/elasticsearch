@@ -182,6 +182,8 @@ PUT my-index-000001
 1. The `status_code` field rejects any document that contains more than one value.
 2. The `tags` field accepts documents that contain multiple values. Only the first value is searchable; the remaining values are kept so that `_source` can still return the original array.
 
+The index-level setting `index.mapping.doc_values.on_failure` controls the default for all fields in the index. It defaults to `fail`. A field-level value overrides the index setting. Neither can be changed after index creation.
+
 ### `on_failure: fail` (default) [doc-values-on-failure-fail]
 
 The whole indexing request for that document is rejected with an error:
@@ -200,6 +202,31 @@ The document is accepted. The behavior depends on which constraint was violated:
 Redirected values are visible in [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) only. The failure column is **not** searchable, not returned by the `fields` API, and not visible to aggregations or ES|QL — the field continues to present itself as single-valued to all of those paths. Only the first value per document participates in search, aggregation, and ES|QL queries.
 ::::
 
+The following example demonstrates the single-field round-trip. Indexing `["val1","val2","val3"]` into a field mapped with `multi_value: false, on_failure: ignore` keeps `val1` as the queryable doc value and redirects `val2` and `val3` to the sidecar. The `_source` reconstruction returns all three values in their original order; `_ignored` records the field name; and a `term` query on the redirected values finds no documents:
+
+```console
+PUT my-on-failure-index
+{
+  "settings": { "mode": "columnar" },
+  "mappings": {
+    "properties": {
+      "kw": {
+        "type": "keyword",
+        "doc_values": { "multi_value": false, "on_failure": "ignore" }
+      }
+    }
+  }
+}
+
+PUT my-on-failure-index/_doc/1
+{ "kw": ["val1", "val2", "val3"] }
+
+GET my-on-failure-index/_doc/1?stored_fields=_ignored
+```
+% TEST[skip:requires the doc_values_on_failure feature flag]
+
+The response returns `_source.kw: ["val1","val2","val3"]` and `_ignored: ["kw"]`. A `term` query on `val2` or `val3` returns zero hits.
+
 ### Interaction with multi-fields [doc-values-on-failure-multi-fields]
 
 [Multi-fields](/reference/elasticsearch/mapping-reference/multi-fields.md) are always parsed independently of their parent field. A `multi_value: false` or `nullability: false` violation on the parent does **not** propagate to its sub-fields — every value that the parent rejected is still passed to each multi-field, which then applies its own `doc_values` configuration. This is consistent with the general rule that [a multi-field inherits no mapping options from its parent](/reference/elasticsearch/mapping-reference/multi-fields.md), and with how `ignore_above` and `ignore_malformed` already behave.
@@ -208,7 +235,7 @@ As a consequence, parent and multi-field can legitimately hold **different** val
 
 To give a sub-field the same single-value semantics, configure `doc_values: { multi_value: false }` on the sub-field itself. It then enforces the constraint independently and redirects its own duplicate to a separate `<field>.<sub>._on_failure` column.
 
-The index-level settings `index.mapping.doc_values.multi_value` and `index.mapping.doc_values.on_failure` apply to **all** fields in the index, multi-fields included — this is the one path through which a sub-field inherits the constraint without naming it explicitly in the mapping.
+The index-level defaults ([`index.mapping.doc_values.multi_value`](#doc-values-multi-value), [`index.mapping.doc_values.nullability`](#doc-values-nullability), and [`index.mapping.doc_values.on_failure`](#doc-values-on-failure)) apply to every field in the index, multi-fields included. That is the only path by which a sub-field picks up a constraint it does not name in its own mapping.
 
 ::::{important}
 A sub-field that has `multi_value: false` at the default `on_failure: fail` will **reject the whole document** even when its parent is configured to `ignore` the violation, because each field's `on_failure` setting is evaluated independently.
@@ -244,33 +271,6 @@ GET my-on-failure-multifield-index/_search
 % TEST[skip:requires the doc_values_on_failure feature flag]
 
 After indexing, a `term` query on `kw: "val2"` returns zero hits, but a `term` query on `kw.raw: "val2"` returns one hit. The document's `_ignored` field contains `"kw"` (the parent) but not `"kw.raw"` (the multi-field).
-
-The following example demonstrates the single-field round-trip. Indexing `["val1","val2","val3"]` into a field mapped with `multi_value: false, on_failure: ignore` keeps `val1` as the queryable doc value and redirects `val2` and `val3` to the sidecar. The `_source` reconstruction returns all three values in their original order; `_ignored` records the field name; and a `term` query on the redirected values finds no documents:
-
-```console
-PUT my-on-failure-index
-{
-  "settings": { "mode": "columnar" },
-  "mappings": {
-    "properties": {
-      "kw": {
-        "type": "keyword",
-        "doc_values": { "multi_value": false, "on_failure": "ignore" }
-      }
-    }
-  }
-}
-
-PUT my-on-failure-index/_doc/1
-{ "kw": ["val1", "val2", "val3"] }
-
-GET my-on-failure-index/_doc/1?stored_fields=_ignored
-```
-% TEST[skip:requires the doc_values_on_failure feature flag]
-
-The response returns `_source.kw: ["val1","val2","val3"]` and `_ignored: ["kw"]`. A `term` query on `val2` or `val3` returns zero hits.
-
-The index-level setting `index.mapping.doc_values.on_failure` controls the default for all fields in the index. It defaults to `fail`. A field-level value overrides the index setting. Neither can be changed after index creation.
 
 ## Multi-valued doc values ordering
 

@@ -44,10 +44,16 @@ public class GeometrySourceBlockLoader extends BlockDocValuesReader.DocValuesBlo
     }
 
     private static class GeometrySourceReader implements BlockLoader.ColumnAtATimeReader {
+        /**
+         * Forward-only iterator, so it is what makes this reader unable to revisit a document. See {@link #canReuse}.
+         */
         private final BinaryDocValues docValues;
+        private final Thread creationThread;
+        private int docId = -1;
 
         GeometrySourceReader(BinaryDocValues docValues) {
             this.docValues = docValues;
+            this.creationThread = Thread.currentThread();
         }
 
         @Override
@@ -62,6 +68,8 @@ public class GeometrySourceBlockLoader extends BlockDocValuesReader.DocValuesBlo
         }
 
         private void read(int doc, BlockLoader.BytesRefBuilder builder) throws IOException {
+            assert doc >= docId : "docs must be read in order, got [" + doc + "] after [" + docId + "]";
+            docId = doc;
             if (docValues.advanceExact(doc) == false) {
                 builder.appendNull();
                 return;
@@ -80,7 +88,7 @@ public class GeometrySourceBlockLoader extends BlockDocValuesReader.DocValuesBlo
 
         @Override
         public boolean canReuse(int startingDocID) {
-            return true;
+            return creationThread == Thread.currentThread() && docId <= startingDocID;
         }
 
         @Override

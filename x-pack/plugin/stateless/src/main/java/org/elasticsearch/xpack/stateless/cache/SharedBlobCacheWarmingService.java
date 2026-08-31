@@ -1225,6 +1225,10 @@ public class SharedBlobCacheWarmingService {
         // Data-volume-proportional heuristic: scale remaining time by the fraction of the warming cache this shard occupies.
         final long totalBytesToWarm = endTargetsToWarm.values().stream().mapToLong(WarmTarget::endOffset).sum();
         final long warmingCacheBytes = Math.round(cacheService.getCacheSize() * searchRecoveryWarmingCacheRatio);
+        // TODO
+        // We're looking at the "remaining" time, but not at the "remaining" bytes to populate.
+        // Instead, this uses the same fixed baseline (which itself is of dubious inspiration).
+        // But it's hard to do the accounting of the bytes warmed for shards for all the relocations of a given node shutting down.
         final double dataVolumeMs = warmingCacheBytes > 0 ? ((double) totalBytesToWarm / warmingCacheBytes) * remaining : 0;
         int ongoingRelocations = countOngoingRelocationsBetween(state, sourceNodeId, targetNodeId);
         // The current shard is itself one such relocation; floor at 1 in case it is not yet visible on the source's RoutingNode.

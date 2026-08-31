@@ -19,6 +19,8 @@
 # release build silently disables it -- the pipeline would go green having executed nothing,
 # which is the one outcome worse than red.
 #
+# The task is vectorSpecTests, NOT csvSpecTests: the vector suites were split off the `check`
+# path so a 75-minute crossing does not land on every PR. csvSpecTests keeps the legacy suites.
 # csv carries both the csv and tsv vector suites (there is no :esql-datasource-tsv project) and
 # is by far the largest: measured 19,531 cases at ~95ms, about 31 minutes. The 300-minute ceiling
 # is headroom for the seams still to land -- schema_mode alone roughly triples the vector count.
@@ -26,7 +28,7 @@ steps:
   - group: esql-datasource-vectors
     steps:
       - label: "{{matrix.module}} / vector crossing"
-        command: .ci/scripts/run-gradle.sh :x-pack:plugin:{{matrix.module}}:qa:csvSpecTests --tests '*VectorSpecIT*'
+        command: .ci/scripts/run-gradle.sh :x-pack:plugin:{{matrix.module}}:qa:vectorSpecTests
         timeout_in_minutes: 300
         matrix:
           setup:

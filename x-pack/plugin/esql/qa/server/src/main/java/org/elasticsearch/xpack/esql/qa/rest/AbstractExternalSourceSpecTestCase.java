@@ -27,6 +27,8 @@ import org.elasticsearch.xpack.esql.datasources.GcsFixtureUtils.DataSourcesGcsHt
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.S3RequestLog;
+import org.elasticsearch.xpack.esql.datasources.fixtures.CsvFixtureParser;
+import org.elasticsearch.xpack.esql.datasources.fixtures.DeclaredSchemas;
 import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureDimensions;
 import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureExclusions;
 import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureMatrix;
@@ -280,6 +282,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         List<Object[]> out = new ArrayList<>();
         int pinned = 0;
         int unrepresentable = 0;
+        int codecLayout = 0;
         for (Object[] baseTest : baseTests) {
             for (Map<String, String> vector : vectors) {
                 if (directivePins(baseTest, dimensions.directiveSettings(vector))) {
@@ -290,20 +293,65 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                     unrepresentable++;
                     continue;
                 }
+                if (closedSchemaCannotDeclare(baseTest, vector)) {
+                    unrepresentable++;
+                    continue;
+                }
+                if (codecCannotCarry(dimensions, baseTest, vector)) {
+                    codecLayout++;
+                    continue;
+                }
                 out.add(appendVectorAndBackend(dimensions, baseTest, vector));
             }
         }
         // Counted and logged, never silent: a filtered pair is a combination deliberately not run, and
         // the number is the only way to tell that from a combination nobody thought of.
-        if (pinned > 0) {
+        // Guarded on ALL the counters, not just `pinned`: a crossing that filtered only for
+        // unrepresentable dialects used to log nothing at all, so the one number that distinguishes a
+        // deliberate omission from an unnoticed one was hidden exactly when it was the only omission.
+        if (pinned > 0 || unrepresentable > 0 || codecLayout > 0) {
             logger.info(
-                "vector crossing: {} registered, {} filtered as directive-pinned, {} as dialect-unrepresentable",
+                "vector crossing: {} registered, {} filtered as directive-pinned, {} as dialect-unrepresentable, "
+                    + "{} as non-standalone layout under a codec vector",
                 out.size(),
                 pinned,
-                unrepresentable
+                unrepresentable,
+                codecLayout
             );
         }
         return out;
+    }
+
+    /**
+     * Whether closed-schema mode cannot express this case's data.
+     *
+     * <p>{@code dynamic: false} requires EVERY column declared, and the corpus uses six types the
+     * validator does not admit -- byte, short, float, half_float, scaled_float, version. Measured, only
+     * 4 of 10 datasets are fully declarable. Registering the rest would fail on the declaration rather
+     * than on anything about the reader, which is noise that looks like signal.
+     *
+     * <p>Open mode has no such limit: it declares what it can and lets the reader infer the rest.
+     */
+    private static boolean closedSchemaCannotDeclare(Object[] baseTest, Map<String, String> vector) {
+        if ("declared_closed".equals(vector.get("schema_mode")) == false) {
+            return false;
+        }
+        CsvTestCase testCase = (CsvTestCase) baseTest[4];
+        for (DatasetSource source : testCase.datasetSources) {
+            String template = templateNameIn(source.resource());
+            String dataset = template == null ? null : MATRIX.datasetForTemplate(template);
+            if (dataset == null) {
+                continue;
+            }
+            List<CsvFixtureParser.ColumnSpec> schema = DeclaredSchemas.headerSchema(
+                AbstractExternalSourceSpecTestCase.class.getClassLoader(),
+                dataset
+            );
+            if (schema != null && DeclaredSchemas.fullyDeclarable(schema) == false) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -317,6 +365,34 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * <p>Counted rather than silent: a combination that cannot exist has to be distinguishable from one
      * nobody thought of.
      */
+    /**
+     * Whether a parquet codec vector can carry this case at all.
+     *
+     * <p>Only STANDALONE is redirected to the codec tree, so a case reading any other layout would read
+     * the UNCOMPRESSED bytes while its name announces a codec. For a dialect that self-corrects -- the
+     * reader rejects bytes written in another dialect. A parquet file is self-describing, so the codec
+     * lives in the file's own metadata and the reader decodes whatever it finds: the case would PASS,
+     * under a name claiming a codec it never touched. A silent pass is worse than a failure, because
+     * nothing downstream can tell it from real coverage.
+     */
+    private static boolean codecCannotCarry(FixtureDimensions dimensions, Object[] baseTest, Map<String, String> vector) {
+        String codec = vector.get("parquet_codec");
+        if (codec == null || codec.equals(dimensions.defaultValue("parquet_codec", vector.get("format")))) {
+            return false;
+        }
+        CsvTestCase testCase = (CsvTestCase) baseTest[4];
+        for (DatasetSource source : testCase.datasetSources) {
+            String template = templateNameIn(source.resource());
+            if (template == null) {
+                continue;
+            }
+            if (MATRIX.layoutFor(template).isStandalone() == false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static boolean dialectCannotCarry(FixtureDimensions dimensions, Object[] baseTest, Map<String, String> vector) {
         String textMode = vector.get("text_mode");
         // The vector carries its own format, and the effective default differs per format -- asking about
@@ -1022,6 +1098,18 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         Map<String, String> pinned = new LinkedHashMap<>();
         FixtureDimensions dimensions = FixtureDimensions.get();
         String baseFormat = FixtureMatrix.baseFormat(format);
+
+        // A parquet codec is not a dialect: the bytes are not re-rendered per vector, they are written
+        // once by compressed-parquet-fixtures.gradle into a `standalone-<codec>` tree that has existed
+        // all along and that ParquetCompressedFormatSpecIT already reads. This branch is selection, not
+        // generation -- the absence it closes was generated-then-never-read, the one shape an empty
+        // directory cannot reveal. The path form is taken from that suite rather than invented, so both
+        // ways of reaching the same bytes stay one convention.
+        String codec = vector().get("parquet_codec");
+        if (codec != null && codec.equals(dimensions.defaultValue("parquet_codec", baseFormat)) == false) {
+            return "standalone-" + codec;
+        }
+
         for (String slot : List.of("text_mode", "header_row", "mv_syntax")) {
             String value = vector().get(slot);
             if (value != null && value.equals(dimensions.defaultValue(slot, baseFormat)) == false) {
@@ -1070,6 +1158,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                 .entrySet()) {
                 json = injectSetting(json, setting.getKey(), setting.getValue());
             }
+            json = injectDeclaredSchema(json, s);
             return json;
         });
     }
@@ -1118,6 +1207,82 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         String head = withJson.substring(0, close).trim();
         String separator = head.endsWith("{") ? "" : ", ";
         return head + separator + entry + withJson.substring(close);
+    }
+
+    /**
+     * Adds the declared schema a {@code schema_mode} vector asks for, derived from the dataset itself.
+     *
+     * <p>The only dimension whose value cannot be a constant in the contract: a declared schema IS the
+     * dataset's columns, so it is built from the same canonical CSV the fixtures are generated from --
+     * one source, so the declaration cannot drift from the bytes it describes.
+     *
+     * <p>A directive that already declares {@code mappings} is left alone. Those cases exist to test a
+     * SPECIFIC declaration (renamed columns, deliberate type choices), and overwriting it would run
+     * something other than the case that was written.
+     */
+    private String injectDeclaredSchema(String withJson, DatasetSource source) {
+        String mode = vector().get("schema_mode");
+        // declaresMappings, not declaresSetting: `mappings` is the reserved schema key and is lifted OUT
+        // of settings, so the settings map structurally cannot contain it and the guard never fired --
+        // every case that already declared a schema got a second one and failed on a duplicate field.
+        if (mode == null || mode.startsWith("declared") == false || DatasetRegistry.declaresMappings(withJson)) {
+            return withJson;
+        }
+        String template = templateNameIn(source.resource());
+        String dataset = template == null ? null : MATRIX.datasetForTemplate(template);
+        if (dataset == null) {
+            return withJson;
+        }
+        List<CsvFixtureParser.ColumnSpec> schema = DeclaredSchemas.headerSchema(getClass().getClassLoader(), dataset);
+        if (schema == null) {
+            return withJson;
+        }
+        String mappings = DeclaredSchemas.mappingsJson(schema, "declared_open".equals(mode));
+        return mappings == null ? withJson : injectRawSetting(withJson, "mappings", mappings);
+    }
+
+    /**
+     * Like {@link #injectSetting} but for a value that is itself a JSON object rather than a string.
+     *
+     * <p>Separate because the quoting differs and getting it wrong produces a directive that parses as a
+     * string where an object was meant -- the reader then rejects it in a way that reads like a schema
+     * defect rather than a quoting one.
+     */
+    static String injectRawSetting(String withJson, String key, String rawJsonValue) {
+        String entry = "\"" + key + "\": " + rawJsonValue;
+        if (withJson == null) {
+            return "{" + entry + "}";
+        }
+        int close = withJson.lastIndexOf('}');
+        String head = withJson.substring(0, close).trim();
+        return head + (head.endsWith("{") ? "" : ", ") + entry + withJson.substring(close);
+    }
+
+    /**
+     * The filename a standalone template resolves to, shaped by the vector's {@code path_shape}.
+     *
+     * <p>{@code exact} names the file. {@code glob} asks for it by pattern instead -- the same single
+     * file, reached through the resolver's listing path rather than a direct get. That distinction is the
+     * point: listing and direct-get are different code, and #1791 (a whole file dropped during split
+     * discovery) lived in the discovery half.
+     *
+     * <p>{@code comma_list} is NOT shaped here. A one-element comma list is indistinguishable from
+     * exact, so on a standalone template it would test nothing; it is meaningful only where a template
+     * names several files, which is the multifile layouts' territory rather than this branch.
+     */
+    private String pathShaped(String templateName, String extension) {
+        if ("glob".equals(vector().get("path_shape")) == false) {
+            return templateName + "." + extension;
+        }
+        // A single-character wildcard INSIDE the name, with the extension kept literal. The two obvious
+        // shapes both over-match, and each was measured rather than reasoned about:
+        // `employees*` also matches employees_no_mv -- a COUNT returned 321 where 221 was expected,
+        // because the glob pulled in a sibling dataset.
+        // `employees.*` also matches employees.csv.gz and .zst and .bz2, because generateCompressedFixtures
+        // writes every compressed variant into this same directory.
+        // `employee?.csv` reaches exactly one file, through the resolver's LISTING path rather than a
+        // direct get -- which is the whole point of this dimension, since listing is where #1791 lived.
+        return templateName.substring(0, templateName.length() - 1) + "?." + extension;
     }
 
     /** The {@code {{template}}} a dataset directive's resource names, or null when it names none. */
@@ -1288,7 +1453,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             // against the declaration rather than at resolve time, because the template alone does not
             // say which format is reading it.
             requireDeclaredCell(templateName);
-            relativePath = fixturesBase() + "/" + templateName + "." + format;
+            relativePath = fixturesBase() + "/" + pathShaped(templateName, format);
         } else {
             // Subclasses testing codec-compressed multi-file fixtures override multifileSplitDir()
             // to route to codec-specific directories (e.g. "multifile_split-gzip").

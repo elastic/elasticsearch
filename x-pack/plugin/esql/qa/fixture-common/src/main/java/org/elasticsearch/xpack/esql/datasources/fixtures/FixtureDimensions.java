@@ -292,6 +292,13 @@ public final class FixtureDimensions {
             if (key == null || slot.getValue().equals(defaultValue(dimension))) {
                 continue;
             }
+            // A derived dimension has a key but no constant VALUE: schema_mode rides `mappings`, and its
+            // content is the dataset's schema. Emitting the slot value here put the literal string
+            // "declared_open" under mappings, which the reader rejects -- and because the key was then
+            // present, the code that builds the real schema skipped it as already declared.
+            if (derivedByName.containsKey(dimension)) {
+                continue;
+            }
             out.put(key, directiveValue(dimension, slot.getValue()));
         }
         return out;
@@ -474,9 +481,10 @@ public final class FixtureDimensions {
                     "directive-bound dimension [" + name + "] declares neither a key nor derived -- nothing can express its value"
                 );
             }
-            if (hasKey && isDerived) {
-                throw new IllegalStateException("dimension [" + name + "] declares both a key and derived; they are alternatives");
-            }
+            // NOT alternatives, which is what this rule used to say. `key` names WHERE the value travels;
+            // `derived` names WHERE THE VALUE COMES FROM. schema_mode needs both: it rides the mappings
+            // key, and its content is the dataset's own schema, which no constant in this file can hold.
+            // Treating them as exclusive made the most brittle dimension in the contract inexpressible.
             if (isDirective == false && (hasKey || isDerived)) {
                 throw new IllegalStateException(
                     "dimension [" + name + "] binds as [" + binds.get(name) + "] but declares a directive key or derived"
@@ -975,7 +983,10 @@ public final class FixtureDimensions {
             case "pragma" -> seams.contains(Seam.PRAGMA) && pragmaKeyByName.containsKey(dimension);
             // The remaining seams reject until their own wiring lands; the contract already carries a
             // typed reason for every cell they would otherwise have to serve.
-            case "resolver", "backend", "cluster" -> false;
+            // The resolver seam is wired for the shapes a standalone template can express; a value with
+            // no shaping is licensed by a rule rather than served here.
+            case "resolver" -> seams.contains(Seam.RESOLVER) && FixtureCapabilities.resolverServes(dimension, value);
+            case "backend", "cluster" -> false;
             default -> throw new IllegalStateException("unhandled binds [" + binds(dimension) + "]");
         };
     }

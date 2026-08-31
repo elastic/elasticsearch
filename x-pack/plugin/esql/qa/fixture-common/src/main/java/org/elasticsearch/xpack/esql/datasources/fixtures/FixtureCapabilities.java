@@ -52,13 +52,46 @@ public final class FixtureCapabilities {
         "text_codec=bzip2@tsv",
         "text_codec=bzip2@ndjson",
         // Dialect trees rendered by <Format>FixtureGenerator --vector-variants into vector/<slug>/, and
-        // selected by AbstractExternalSourceSpecTestCase.fixturesBase. csv only for now: tsv's generator
-        // has no vector mode yet, and a row claiming otherwise would mark cells reachable that no suite
-        // can read -- which is the ORC mistake this table exists to avoid making again.
+        // selected by AbstractExternalSourceSpecTestCase.fixturesBase. Both text generators now have a
+        // vector mode and both are wired in esql-datasource-csv/qa, which hosts the Csv and Tsv suites
+        // alike. The rows differ per format because the DEFAULT differs: csv defaults to quoted, so its
+        // off-default dialects are escaped and plain; tsv defaults to plain, so its off-default dialects
+        // are quoted and escaped. A row for a format's own default would claim a cell that no vector
+        // carries, since a vector never pins a slot at its default.
         "text_mode=escaped@csv",
         "text_mode=plain@csv",
-        "mv_syntax=brackets@csv"
+        "mv_syntax=brackets@csv",
+        "text_mode=quoted@tsv",
+        "text_mode=escaped@tsv",
+        "mv_syntax=brackets@tsv",
+        // Codec-specific parquet trees written by compressed-parquet-fixtures.gradle into
+        // standalone-<codec>/. These bytes predate the vector regime -- ParquetCompressedFormatSpecIT has
+        // read them all along -- so no generator work earned these rows either, only the selection added
+        // to vectorFixturesBase. lz4_legacy has no row because no generator writes that codec anywhere,
+        // which is a different absence and stays declared as a gap.
+        "parquet_codec=snappy@parquet",
+        "parquet_codec=gzip@parquet",
+        "parquet_codec=zstd@parquet",
+        "parquet_codec=lz4_raw@parquet"
     );
+
+    /**
+     * Resolver-bound values a suite can actually ask for.
+     *
+     * <p>Here rather than in the audit or the selection, because both must answer this the same way and
+     * they have now disagreed twice -- once on fixture cells, once on these. One source is the only
+     * arrangement where they cannot drift.
+     *
+     * <p>{@code glob} is served: a standalone template resolves to a prefix pattern instead of a name,
+     * which reaches the file through the resolver's LISTING path rather than a direct get. {@code
+     * comma_list} is not, and its rule says why: one element is indistinguishable from exact.
+     */
+    private static final Set<String> RESOLVER_SERVED = Set.of("path_shape=glob");
+
+    /** Whether a suite can ask for this resolver-bound value. */
+    public static boolean resolverServes(String dimension, String value) {
+        return RESOLVER_SERVED.contains(dimension + "=" + value);
+    }
 
     /** Whether a generator writes this cell's bytes and a suite can select them. */
     public static boolean renders(String dimension, String value, String format) {

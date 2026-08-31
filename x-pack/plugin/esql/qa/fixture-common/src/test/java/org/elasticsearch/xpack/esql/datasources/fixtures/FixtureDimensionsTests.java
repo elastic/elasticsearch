@@ -11,6 +11,7 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -228,11 +229,27 @@ public class FixtureDimensionsTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("neither a key nor derived"));
     }
 
-    /** A key and derived are alternatives; declaring both leaves it ambiguous which one applies. */
-    public void testBothAKeyAndDerivedIsRejected() {
-        String[] lines = ArrayUtils.append(wellFormed(), "dimension.error_mode.derived = dataset_schema");
-        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
-        assertThat(e.getMessage(), containsString("alternatives"));
+    /**
+     * A key and derived are ORTHOGONAL, not alternatives: the key says WHERE the value travels, derived
+     * says the value is not a constant. schema_mode needs both -- it rides `mappings`, and its content is
+     * the dataset's schema.
+     *
+     * <p>The invariant that matters is the consequence: directiveSettings must NOT emit a derived slot.
+     * When it did, the literal string "declared_open" went under mappings, the reader rejected it, and
+     * the code that builds the real schema then skipped the slot as already declared -- 7,416 failures
+     * from one missing exclusion.
+     */
+    public void testDirectiveSettingsNeverEmitsADerivedSlot() {
+        FixtureDimensions d = FixtureDimensions.get();
+        assertThat("schema_mode declares both", d.directiveKey("schema_mode"), equalTo("mappings"));
+        assertThat(d.derivedFrom("schema_mode"), equalTo("dataset_schema"));
+
+        Map<String, String> varied = new LinkedHashMap<>();
+        for (String name : d.names()) {
+            varied.put(name, d.defaultValue(name));
+        }
+        varied.put("schema_mode", "declared_open");
+        assertThat("its value is not a constant, so nothing may inject it", d.directiveSettings(varied), equalTo(Map.of()));
     }
 
     /** A fixture-bound dimension with a directive key is a mis-declaration: no injector would read it. */
@@ -407,10 +424,10 @@ public class FixtureDimensionsTests extends ESTestCase {
      */
     public void testDirectiveExpressibleCountsPerFormat() {
         FixtureDimensions d = FixtureDimensions.get();
-        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(87));
-        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(27));
-        assertThat(d.directiveExpressibleVectors("ndjson").size(), equalTo(27));
-        assertThat(d.directiveExpressibleVectors("parquet").size(), equalTo(9));
+        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(225));
+        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(207));
+        assertThat(d.directiveExpressibleVectors("ndjson").size(), equalTo(81));
+        assertThat(d.directiveExpressibleVectors("parquet").size(), equalTo(31));
     }
 
     /**
@@ -463,15 +480,18 @@ public class FixtureDimensionsTests extends ESTestCase {
     }
 
     /**
-     * The disjoint removal must not touch what any suite runs. Every one of the 688 is unconstructible,
-     * so a moved count would mean the declaration had caught something expressible and was wrong.
+     * The disjoint removal must not touch what any suite runs: every declared disjoint pair is
+     * unconstructible, so a moved count would mean the declaration had caught something expressible and
+     * was wrong. The counts are duplicated from testDirectiveExpressibleCountsPerFormat deliberately --
+     * there they record what the crossing yields, here they pin that the disjoint declaration did not
+     * change it, and a single assertion could not fail for both reasons.
      */
     public void testDisjointRemovalLeavesEveryFormatsSelectionUntouched() {
         FixtureDimensions d = FixtureDimensions.get();
-        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(87));
-        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(27));
-        assertThat(d.directiveExpressibleVectors("ndjson").size(), equalTo(27));
-        assertThat(d.directiveExpressibleVectors("parquet").size(), equalTo(9));
+        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(225));
+        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(207));
+        assertThat(d.directiveExpressibleVectors("ndjson").size(), equalTo(81));
+        assertThat(d.directiveExpressibleVectors("parquet").size(), equalTo(31));
     }
 
     /** A hole nobody explained is indistinguishable from a forgotten line. */
@@ -586,19 +606,26 @@ public class FixtureDimensionsTests extends ESTestCase {
         FixtureDimensions d = FixtureDimensions.get();
         Set<FixtureDimensions.Seam> directiveOnly = Set.of(FixtureDimensions.Seam.DIRECTIVE);
         Set<FixtureDimensions.Seam> both = Set.of(FixtureDimensions.Seam.DIRECTIVE, FixtureDimensions.Seam.FIXTURE);
+        // csv and tsv now match at 153: both text generators render the same dialect set on top of the
+        // same three codecs, so the symmetry is the claim. They differ only in WHICH values are off
+        // default (csv defaults to quoted, tsv to plain), never in how many. ndjson has the codecs and
+        // no dialects, which is the 27.
+        Map<String, Integer> expectedGap = Map.of("csv", 153, "tsv", 153, "ndjson", 27);
         for (String format : List.of("csv", "tsv", "ndjson")) {
-            // csv gained dialect trees on top of the three codecs, so its gap is larger. The number is
-            // not the point -- that withdrawing FIXTURE withdraws exactly the cells a generator renders is.
             assertThat(
                 "the fixture seam is load-bearing on " + format,
                 d.expressibleVectors(format, both).size() - d.expressibleVectors(format, directiveOnly).size(),
-                equalTo(format.equals("csv") ? 63 : 9)
+                equalTo(expectedGap.get(format))
             );
         }
+        // parquet has no text codec and no dialect, so this gap was zero for as long as every parquet
+        // codec was a gap. It is four because the four codecs whose bytes compressed-parquet-fixtures
+        // .gradle already wrote became selectable -- the seam measures reachability, not generation, and
+        // those bytes were generated all along while nothing could ask for them.
         assertThat(
-            "parquet has no text codec, so the seam adds nothing there",
-            d.expressibleVectors("parquet", both).size(),
-            equalTo(d.expressibleVectors("parquet", directiveOnly).size())
+            "the four selectable parquet codecs are fixture-seam cells",
+            d.expressibleVectors("parquet", both).size() - d.expressibleVectors("parquet", directiveOnly).size(),
+            equalTo(4)
         );
     }
 
@@ -606,7 +633,38 @@ public class FixtureDimensionsTests extends ESTestCase {
     public void testTheDefaultFormatNeedsNoCapabilityRow() {
         FixtureDimensions d = FixtureDimensions.get();
         assertThat(FixtureCapabilities.renders("format", "csv", "csv"), equalTo(false));
-        assertThat(d.expressibleVectors("csv", Set.of(FixtureDimensions.Seam.DIRECTIVE)).size(), equalTo(24));
+        assertThat(d.expressibleVectors("csv", Set.of(FixtureDimensions.Seam.DIRECTIVE)).size(), equalTo(72));
+    }
+
+    /**
+     * The glob shape must reach exactly ONE dataset.
+     *
+     * <p>Both obvious patterns over-match, and both were found by a run rather than by reading:
+     * {@code employees*} also matches employees_no_mv (a COUNT returned 321 where 221 was expected), and
+     * {@code employees.*} also matches the compressed variants that generateCompressedFixtures writes
+     * into the same directory. The shape in use is {@code employee?.csv} -- one wildcard inside the name,
+     * extension literal.
+     *
+     * <p>Asserted here because it is a property of the DATASET NAMES, so it holds today and could stop
+     * holding the moment someone adds a dataset one character from an existing one. A silent over-match
+     * reads as a wrong answer, not as an error.
+     */
+    public void testTheGlobShapeIsUnambiguousForEveryStandaloneDataset() {
+        FixtureMatrix matrix = FixtureMatrix.get();
+        Set<String> datasets = new LinkedHashSet<>();
+        for (String format : matrix.formats()) {
+            datasets.addAll(matrix.datasetsFor(format));
+        }
+        for (String dataset : datasets) {
+            String pattern = dataset.substring(0, dataset.length() - 1) + "?";
+            for (String other : datasets) {
+                if (other.equals(dataset) || other.length() != dataset.length()) {
+                    continue;
+                }
+                boolean collides = other.substring(0, other.length() - 1).equals(pattern.substring(0, pattern.length() - 1));
+                assertThat("glob for [" + dataset + "] would also match [" + other + "]", collides, equalTo(false));
+            }
+        }
     }
 
     /** Renders the derived set so a reader can see what the declaration produces without running it. */

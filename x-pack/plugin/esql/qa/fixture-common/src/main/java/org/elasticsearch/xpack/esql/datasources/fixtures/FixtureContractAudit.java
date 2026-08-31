@@ -40,13 +40,6 @@ import java.util.Set;
  */
 public final class FixtureContractAudit {
 
-    /** Values of a resolver-bound dimension the suites can currently ask for. None until that seam lands. */
-    private static final Set<String> RESOLVER_CAPABILITIES = Set.of();
-
-    private static boolean resolverServes(String dimension, String value, String format) {
-        return RESOLVER_CAPABILITIES.contains(dimension + "=" + value + "@" + format);
-    }
-
     /**
      * Whether the pragma seam is wired. A declared pragma key alone never made a value runnable; what
      * makes it runnable is EsqlSpecTestCase.addSuitePragmas carrying it onto the query, which
@@ -203,7 +196,7 @@ public final class FixtureContractAudit {
             case "backend" -> dimensions.backendFor(dimension, value) != null
                 ? "BACKEND(" + dimensions.backendFor(dimension, value) + ")"
                 : null;
-            case "resolver" -> resolverServes(dimension, value, format) ? "RESOLVER" : null;
+            case "resolver" -> FixtureCapabilities.resolverServes(dimension, value) ? "RESOLVER" : null;
             // read_key presence is NOT enough: it describes how bytes would announce themselves, not
             // whether anything writes them.
             case "fixture" -> FixtureCapabilities.renders(dimension, value, format) ? "FIXTURE" : null;

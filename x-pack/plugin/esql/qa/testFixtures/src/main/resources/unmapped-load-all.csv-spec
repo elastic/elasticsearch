@@ -562,7 +562,6 @@ c:long
 loadAllSyntheticSourceObjectUnmappedFieldIsNull
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM synthetic_source_partial_mapping
 | KEEP @timestamp, unmapped, unmapped.nested
@@ -578,7 +577,6 @@ FROM synthetic_source_partial_mapping
 
 loadAllSyntheticSourceObjectFieldMultiParentIsNull
 required_capability: optional_fields_load_all_v2
-
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM k8s_unmapped
@@ -616,7 +614,6 @@ id:keyword | tags:keyword | n:integer
 arrayOfObjectsFlattensToDottedLeafMultivalue
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_array_data
 | KEEP id, samples*
@@ -631,7 +628,6 @@ id:keyword | samples.nested:keyword
 
 leafOnlyWildcardShipsArrayOfObjects
 required_capability: optional_fields_load_all_v2
-
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_array_data
@@ -648,7 +644,6 @@ id:keyword | samples.nested:keyword
 escapedWildcardKeepNameIsExplicitNotPattern
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_array_data
 | KEEP id, `samples*`, tags*
@@ -664,7 +659,6 @@ id:keyword | samples*:keyword | tags:keyword
 escapedWildcardKeepNameIsExplicitNotPattern_CombinedWith_WildcardedPatterns
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_array_data
 | KEEP `samples*`, samples*, samples.*, samples.nest*, id, *
@@ -679,7 +673,6 @@ null             | null                   | 3          | web
 
 unescapedWildcardKeepNameMatchesLeaves
 required_capability: optional_fields_load_all_v2
-
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_array_data
@@ -698,7 +691,6 @@ id:keyword | samples.nested:keyword | tags:keyword
 // and an "extra.baz" column appear.
 objectFieldFlattensToLeafColumns
 required_capability: optional_fields_load_all_v2
-
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_object_data
@@ -736,7 +728,6 @@ FROM synthetic_source_partial_mapping
 multiIndexDivergentUnmappedFieldShapes
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthetic, unmapped_multi_stored_mixed
 | SORT id
@@ -755,7 +746,6 @@ id:keyword | unmapped:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keywor
 // same query as above but eliminate the only value that makes "unmapped" column "visible"
 multiIndexDivergentUnmappedFieldShapes_NoNullObjectTypedColumn
 required_capability: optional_fields_load_all_v2
-
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthetic, unmapped_multi_stored_mixed
@@ -776,7 +766,6 @@ id:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keyword | unmapped.foo:ke
 multiIndexDivergentUnmappedFieldShapes_NullObjectTypedColumn_ForcedBackIn
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthetic, unmapped_multi_stored_mixed
 | SORT id
@@ -795,7 +784,6 @@ id:keyword  | unmapped:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keywo
 
 multiIndexReferencedUnmappedObjectStillExpandsLeaves
 required_capability: optional_fields_load_all_v2
-
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthetic, unmapped_multi_stored_mixed
@@ -816,7 +804,6 @@ id:keyword | unmapped:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keywor
 multiIndexKeepObjectChildWildcardExpandsLeaves
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthetic, unmapped_multi_stored_mixed
 | SORT id
@@ -835,7 +822,6 @@ id:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keyword | unmapped.foo:ke
 
 multiIndexDropNestedObjectWildcardHidesSyntheticLeaf
 required_capability: optional_fields_load_all_v2
-
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthetic, unmapped_multi_stored_mixed
@@ -856,7 +842,6 @@ id:keyword | unmapped:keyword | unmapped.bar:keyword | unmapped.foo:keyword
 multiIndexDropFixedSuffixWildcardKeepsUnmatchedSyntheticLeaf
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthetic, unmapped_multi_stored_mixed
 | SORT id
@@ -875,7 +860,6 @@ id:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keyword | unmapped.foo:ke
 
 multiIndexKeepOrdersExpandedLeavesStarFirst
 required_capability: optional_fields_load_all_v2
-
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthetic, unmapped_multi_stored_mixed
@@ -916,7 +900,6 @@ bar7                 | null                       | null                 | null 
 multiIndexMappedFieldLoadsBothLegs
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_*, -unmapped_multi_mapped_mixed
 | KEEP id, unmapped.foo
@@ -939,7 +922,6 @@ id:keyword | unmapped.foo:keyword
 // carry their mapped values and ids 1-7 the values (if any) loaded from the siblings' _source, one column per leaf.
 multiIndexMappedFieldsAllDottedLeaves
 required_capability: optional_fields_load_all_v2
-
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_*, -unmapped_multi_mapped_mixed
@@ -964,7 +946,6 @@ id:keyword | unmapped.foo:keyword | unmapped.bar:keyword | unmapped.deep.leaf:ke
 multiIndexMappedDottedAndUnmappedScalarCoexist
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_*, -unmapped_multi_mapped_mixed
 | KEEP id, unmapped, unmapped.foo
@@ -987,7 +968,6 @@ id:keyword | unmapped:keyword | unmapped.foo:keyword
 // legs merged), the bare scalar unmapped is a fully unmapped expansion, and id is mapped everywhere.
 multiIndexMappedAndUnmappedNoProjection
 required_capability: optional_fields_load_all_v2
-
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_*, -unmapped_multi_mapped_mixed
@@ -1012,7 +992,6 @@ id:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keyword | unmapped.foo:ke
 multiIndexWhereMatchesEitherLegOfPartialField
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_*, -unmapped_multi_mapped_mixed
 | WHERE unmapped.foo == "mfoo8" OR unmapped.foo == "foo1"
@@ -1029,7 +1008,6 @@ id:keyword | unmapped.foo:keyword
 
 multiIndexKeepOrdersRealColumnAfterExpandedLeaves_WithMultiWildcardNested
 required_capability: optional_fields_load_all_v2
-
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthetic, unmapped_multi_stored_mixed
@@ -1050,7 +1028,6 @@ null                      |null              |7           |bar7                 
 multiIndexKeepOrdersRealColumnAfterExpandedLeaves_WithMultiWildcardNested_AndMetadataIndex
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_mapped, unmapped_multi_synthetic METADATA _index
 | KEEP id, _inde*, unmapped, unmapped.foo, *
@@ -1067,7 +1044,6 @@ FROM unmapped_multi_mapped, unmapped_multi_synthetic METADATA _index
 
 multiIndexKeepOrdersRealColumnAfterExpandedLeaves_WithMultiWildcardNested_AndActualMappedFields
 required_capability: optional_fields_load_all_v2
-
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_* METADATA _index
@@ -1096,7 +1072,6 @@ FROM unmapped_multi_* METADATA _index
 multiIndexTypeConflictSingleLeafIsUnsupportedAndNull
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_*
 | KEEP id, unmapped.foo
@@ -1122,7 +1097,6 @@ id:keyword | unmapped.foo:unsupported
 // unmapped.deep.leaf keyword vs ip - so every one is an unsupported type conflict and stays null regardless of the values in the _source legs.
 multiIndexTypeConflictAllLeavesAreUnsupportedAndNull
 required_capability: optional_fields_load_all_v2
-
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_*
@@ -1150,7 +1124,6 @@ id:keyword | unmapped.foo:unsupported | unmapped.bar:unsupported | unmapped.deep
 multiIndexTypeConflictScalarUnmappedCoexistsWithConflict
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_*
 | KEEP id, unmapped, unmapped.foo
@@ -1177,7 +1150,6 @@ id:keyword | unmapped:keyword | unmapped.foo:unsupported
 multiIndexTypeConflictResolvedByExplicitCast
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_*
 | EVAL foo = unmapped.foo::keyword
@@ -1203,7 +1175,6 @@ id:keyword | foo:keyword
 // WHERE on the cast-resolved union column filters the computed keyword value (not pushed to Lucene), keeping only ids with a value.
 multiIndexTypeConflictCastThenFilteredByWhere
 required_capability: optional_fields_load_all_v2
-
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_*

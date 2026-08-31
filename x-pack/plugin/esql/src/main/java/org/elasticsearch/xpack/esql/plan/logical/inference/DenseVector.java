@@ -383,14 +383,21 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
     }
 
     /**
-     * Lists every candidate in {@link #DEFAULT_INFERENCE_ID_CANDIDATES} while the endpoint is an unresolved fallback for a
-     * {@code text} input, so analysis can select whichever candidate this deployment has.
+     * Whether the endpoint is still to be chosen from {@link #DEFAULT_INFERENCE_ID_CANDIDATES}. Holds while the endpoint is a
+     * fallback and the input is text; the candidates are text embedding endpoints, so an {@code image} input keeps the endpoint
+     * the node already carries.
+     */
+    public boolean selectsDefaultInferenceId() {
+        return inferenceIdIsFallback && inputType == org.elasticsearch.inference.DataType.TEXT;
+    }
+
+    /**
+     * Lists every candidate in {@link #DEFAULT_INFERENCE_ID_CANDIDATES} while one of them is still to be chosen, so analysis can
+     * select whichever candidate this deployment has.
      */
     @Override
     public List<String> candidateInferenceIds() {
-        return inferenceIdIsFallback && inputType == org.elasticsearch.inference.DataType.TEXT
-            ? DEFAULT_INFERENCE_ID_CANDIDATES
-            : super.candidateInferenceIds();
+        return selectsDefaultInferenceId() ? DEFAULT_INFERENCE_ID_CANDIDATES : super.candidateInferenceIds();
     }
 
     /**

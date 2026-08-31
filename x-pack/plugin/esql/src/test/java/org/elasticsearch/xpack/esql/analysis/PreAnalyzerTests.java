@@ -131,7 +131,8 @@ public class PreAnalyzerTests extends ESTestCase {
     }
 
     /**
-     * The candidates are text embedding endpoints, so an {@code image} input resolves only the endpoint the plan carries.
+     * The candidates are text embedding endpoints, so an {@code image} input resolves only the endpoint it names. Such a query
+     * has to name one, so no fallback reaches pre-analysis - the parser rejects it first.
      */
     public void testCollectInferenceIdsForDenseVectorImageInput() {
         assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
@@ -139,8 +140,8 @@ public class PreAnalyzerTests extends ESTestCase {
 
         assertCollectInferenceIds(
             preAnalyzer,
-            "FROM books | DENSE_VECTOR title WITH { \"type\": \"image\" }",
-            List.of(DenseVector.DEFAULT_INFERENCE_ID)
+            "FROM books | DENSE_VECTOR title WITH { \"type\": \"image\", \"inference_id\": \"embedding-inference-id\" }",
+            List.of("embedding-inference-id")
         );
     }
 

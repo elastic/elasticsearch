@@ -4568,6 +4568,34 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(plan.inputType(), equalTo(org.elasticsearch.inference.DataType.TEXT));
     }
 
+    /**
+     * The fallback endpoints embed text, so an image input has nothing to fall back to and must name an endpoint.
+     */
+    public void testDenseVectorImageRequiresInferenceId() {
+        assumeDenseVectorCommandEnabled();
+        expectError(
+            "FROM books | DENSE_VECTOR title WITH { \"type\" : \"image\" }",
+            "Option [type] with value [image] in DENSE_VECTOR requires option [inference_id]"
+        );
+    }
+
+    /**
+     * A cluster-level default is an administrator naming an endpoint, so it satisfies an image input the same way {@code WITH}
+     * does. Whether that endpoint is multimodal is checked during analysis.
+     */
+    public void testDenseVectorImageAcceptsClusterDefaultInferenceId() {
+        assumeDenseVectorCommandEnabled();
+        Settings settings = Settings.builder()
+            .put(InferenceSettings.DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING.getKey(), "cluster-default-id")
+            .build();
+        var plan = as(
+            processingCommand("DENSE_VECTOR title WITH { \"type\" : \"image\" }", new QueryParams(), settings),
+            DenseVector.class
+        );
+        assertThat(plan.inferenceId(), equalTo(literalString("cluster-default-id")));
+        assertThat(plan.inputType(), equalTo(org.elasticsearch.inference.DataType.IMAGE));
+    }
+
     public void testDenseVectorInvalidType() {
         assumeDenseVectorCommandEnabled();
         expectError(

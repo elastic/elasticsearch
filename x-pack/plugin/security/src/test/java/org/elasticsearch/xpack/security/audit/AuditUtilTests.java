@@ -18,10 +18,13 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 
@@ -29,8 +32,6 @@ import static org.hamcrest.Matchers.is;
  * Unit tests for the audit utils class
  */
 public class AuditUtilTests extends ESTestCase {
-
-    // ── restRequestContent with JSON-length size limit ────────────────────────
 
     public void testRestRequestContentExceedsLimitThrows() {
         String json = "{\"key\":\"value\"}";
@@ -63,7 +64,66 @@ public class AuditUtilTests extends ESTestCase {
         assertEquals(json, AuditUtil.restRequestContent(request, 0, null));
     }
 
-    // ── indices ───────────────────────────────────────────────────────────────
+    public void testHasProtobufContent() {
+        assertTrue(AuditUtil.hasProtobufContent(protobufRequest(randomByteArrayOfLength(randomIntBetween(1, 32)))));
+
+        RestRequest jsonRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
+            new BytesArray("{}".getBytes(StandardCharsets.UTF_8)),
+            XContentType.JSON
+        ).build();
+        assertFalse(AuditUtil.hasProtobufContent(jsonRequest));
+
+        RestRequest noContentTypeRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
+            new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 32))),
+            null
+        ).build();
+        assertFalse(AuditUtil.hasProtobufContent(noContentTypeRequest));
+
+        RestRequest noContentRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+            Map.of("Content-Type", List.of("application/x-protobuf"))
+        ).build();
+        assertFalse(AuditUtil.hasProtobufContent(noContentRequest));
+    }
+
+    public void testRestRequestRawContentReturnsBase64() {
+        byte[] body = randomByteArrayOfLength(randomIntBetween(1, 64));
+        String encoded = AuditUtil.restRequestRawContent(protobufRequest(body), 0, null);
+        assertArrayEquals(body, Base64.getDecoder().decode(encoded));
+
+        assertEquals("", AuditUtil.restRequestRawContent(new FakeRestRequest.Builder(xContentRegistry()).build(), 0, null));
+    }
+
+    public void testRestRequestRawContentExceedsLimitThrows() {
+        byte[] body = randomByteArrayOfLength(randomIntBetween(9, 64));
+        int encodedLength = Math.toIntExact(AuditUtil.base64EncodedLength(body.length));
+        ElasticsearchStatusException ex = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> AuditUtil.restRequestRawContent(
+                protobufRequest(body),
+                encodedLength - 1,
+                "xpack.security.audit.logfile.events.max_request_body_size"
+            )
+        );
+        assertThat(ex.status(), is(RestStatus.REQUEST_ENTITY_TOO_LARGE));
+        assertThat(ex.getMessage(), containsString("xpack.security.audit.logfile.events.max_request_body_size"));
+    }
+
+    public void testRestRequestRawContentWithinLimit() {
+        byte[] body = randomByteArrayOfLength(randomIntBetween(1, 64));
+        int encodedLength = Math.toIntExact(AuditUtil.base64EncodedLength(body.length));
+        assertEquals(
+            Base64.getEncoder().encodeToString(body),
+            AuditUtil.restRequestRawContent(protobufRequest(body), encodedLength, "setting.key")
+        );
+    }
+
+    private RestRequest protobufRequest(byte[] body) {
+        // media type matching must ignore case and parameters
+        String contentType = randomFrom("application/x-protobuf", "Application/X-Protobuf", "application/x-protobuf; charset=UTF-8");
+        return new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(body), null)
+            .withHeaders(Map.of("Content-Type", List.of(contentType)))
+            .build();
+    }
 
     public void testIndicesRequest() {
         assertNull(AuditUtil.indices(new MockIndicesRequest(null, (String[]) null)));

@@ -532,11 +532,11 @@ public class TopSnippets extends EsqlScalarFunction
         if (queryString == null) {
             throw new IllegalArgumentException("single-value function encountered multi-value");
         }
-        int valueCount = field.getValueCount(position);
-        if (valueCount == 0) {
+        if (field.isNull(position)) {
             builder.appendNull();
             return;
         }
+        int valueCount = field.getValueCount(position);
         BytesRef scratch = new BytesRef();
         int firstValueIndex = field.getFirstValueIndex(position);
 
@@ -614,6 +614,7 @@ public class TopSnippets extends EsqlScalarFunction
         return new CustomUnifiedHighlighter(
             builder,
             UnifiedHighlighter.OffsetSource.POSTINGS,
+            false,
             null,
             "",
             MemoryIndexChunkScorer.CONTENT_FIELD,

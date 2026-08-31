@@ -29,7 +29,7 @@ public class Clusters {
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("path.repo", csvDataPath::toString)
-            .setting("esql.datasource.local_allowed_paths", csvDataPath::toString)
+            .setting("esql.external.local_allowed_paths", csvDataPath::toString)
             // Federation is only on by default in snapshot builds; the EXTERNAL and dataset specs run here need it on.
             .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
             .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))

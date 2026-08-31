@@ -602,8 +602,6 @@ tasks.register("checkBuildLogic").configure {
     ':x-pack:plugin:esql-datasource-ndjson:qa',
     ':x-pack:plugin:esql-datasource-orc:qa',
     ':x-pack:plugin:esql-datasource-parquet',
-    ':x-pack:plugin:esql-datasource-parquet-rs',
-    ':x-pack:plugin:esql-datasource-parquet-rs:qa',
     ':x-pack:plugin:esql-datasource-parquet:qa',
     ':x-pack:plugin:esql-datasource-snappy',
     ':x-pack:plugin:esql-datasource-zstd',

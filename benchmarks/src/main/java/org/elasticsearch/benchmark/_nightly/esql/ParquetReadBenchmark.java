@@ -20,6 +20,7 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
@@ -53,8 +54,8 @@ import java.util.concurrent.TimeUnit;
  * to keep codec init out of the measured signal.
  */
 @Fork(1)
-@Warmup(iterations = 3)
-@Measurement(iterations = 5)
+@Warmup(iterations = 3, time = 1, timeUnit = TimeUnit.SECONDS)
+@Measurement(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Thread)
@@ -83,7 +84,7 @@ public class ParquetReadBenchmark {
 
     @Setup(Level.Trial)
     public void setup() throws IOException {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
         blockFactory = DatasourceBenchmarks.newBlockFactory();
         byte[] parquetBytes = generateParquetFixture(rowCount);
         fixtureBytes = parquetBytes.length;

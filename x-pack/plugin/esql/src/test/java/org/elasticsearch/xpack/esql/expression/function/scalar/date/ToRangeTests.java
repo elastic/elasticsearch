@@ -16,12 +16,15 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -72,7 +75,7 @@ public class ToRangeTests extends AbstractScalarFunctionTestCase {
                 );
             }));
         }
-
+        FunctionAppliesTo doubleRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
         suppliers.add(new TestCaseSupplier("double range", List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
             double from = randomDoubleBetween(-1000.0, 0.0, true);
             double to = randomDoubleBetween(0.0, 1000.0, true);
@@ -80,8 +83,8 @@ public class ToRangeTests extends AbstractScalarFunctionTestCase {
 
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(from, DataType.DOUBLE, "from"),
-                    new TestCaseSupplier.TypedData(to, DataType.DOUBLE, "to")
+                    new TestCaseSupplier.TypedData(from, DataType.DOUBLE, "from").withAppliesTo(doubleRangeAppliesTo),
+                    new TestCaseSupplier.TypedData(to, DataType.DOUBLE, "to").withAppliesTo(doubleRangeAppliesTo)
                 ),
                 "ToRangeDoubleEvaluator[from=" + read0 + ", to=" + read1 + "]",
                 DataType.DOUBLE_RANGE,
@@ -93,8 +96,8 @@ public class ToRangeTests extends AbstractScalarFunctionTestCase {
             var expected = new DoubleRangeBlockBuilder.DoubleRange(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(Double.NEGATIVE_INFINITY, DataType.DOUBLE, "from"),
-                    new TestCaseSupplier.TypedData(Double.POSITIVE_INFINITY, DataType.DOUBLE, "to")
+                    new TestCaseSupplier.TypedData(Double.NEGATIVE_INFINITY, DataType.DOUBLE, "from").withAppliesTo(doubleRangeAppliesTo),
+                    new TestCaseSupplier.TypedData(Double.POSITIVE_INFINITY, DataType.DOUBLE, "to").withAppliesTo(doubleRangeAppliesTo)
                 ),
                 "ToRangeDoubleEvaluator[from=" + read0 + ", to=" + read1 + "]",
                 DataType.DOUBLE_RANGE,
@@ -109,13 +112,14 @@ public class ToRangeTests extends AbstractScalarFunctionTestCase {
     }
 
     private static TestCaseSupplier invalidDoubleRange(String name, double from, double to) {
+        FunctionAppliesTo doubleRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
         return new TestCaseSupplier(
             name,
             List.of(DataType.DOUBLE, DataType.DOUBLE),
             () -> new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(from, DataType.DOUBLE, "from"),
-                    new TestCaseSupplier.TypedData(to, DataType.DOUBLE, "to")
+                    new TestCaseSupplier.TypedData(from, DataType.DOUBLE, "from").withAppliesTo(doubleRangeAppliesTo),
+                    new TestCaseSupplier.TypedData(to, DataType.DOUBLE, "to").withAppliesTo(doubleRangeAppliesTo)
                 ),
                 "ToRangeDoubleEvaluator[from=Attribute[channel=0], to=Attribute[channel=1]]",
                 DataType.DOUBLE_RANGE,

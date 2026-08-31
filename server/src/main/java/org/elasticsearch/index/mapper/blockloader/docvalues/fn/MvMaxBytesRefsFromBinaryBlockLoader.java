@@ -12,11 +12,11 @@ package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractBytesRefsFromBinaryReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader.ArrayOrderSource;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueArrayOrderInlineNullBinaryDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.BinaryAndCounts;
@@ -29,15 +29,11 @@ import java.util.Objects;
 public class MvMaxBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
 
     private final String fieldName;
-    private final ArrayOrderSource arrayOrderSource;
+    private final BinaryDocValuesFormat binaryFormat;
 
-    public MvMaxBytesRefsFromBinaryBlockLoader(String fieldName) {
-        this(fieldName, ArrayOrderSource.NONE);
-    }
-
-    public MvMaxBytesRefsFromBinaryBlockLoader(String fieldName, ArrayOrderSource arrayOrderSource) {
+    public MvMaxBytesRefsFromBinaryBlockLoader(String fieldName, BinaryDocValuesFormat binaryFormat) {
         this.fieldName = fieldName;
-        this.arrayOrderSource = arrayOrderSource;
+        this.binaryFormat = binaryFormat;
     }
 
     @Override
@@ -49,7 +45,7 @@ public class MvMaxBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.Do
         if (bc.counts() == null) {
             return new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(bc.binary());
         }
-        if (arrayOrderSource == ArrayOrderSource.INLINE) {
+        if (binaryFormat == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL) {
             return new MvMaxBytesRefsFromArrayOrderInlineNull(bc.binary(), bc.counts());
         }
         return new MvMaxBytesRefsFromBinarySeparateCount(bc.binary(), bc.counts());

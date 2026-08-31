@@ -59,7 +59,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
     );
 
-    public static final String SCHEMA_SAMPLE_SIZE_SETTING = "esql.datasource.ndjson.schema_sample_size";
+    public static final String SCHEMA_SAMPLE_SIZE_SETTING = "esql.external.ndjson.schema_sample_size";
     public static final int DEFAULT_SCHEMA_SAMPLE_SIZE = 20_000;
 
     /**
@@ -67,7 +67,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
      * Java/Jackson per-segment setup cost; smaller segments enable parallelism on smaller files.
      * Also overridable per dataset via the {@code segment_size} setting.
      */
-    public static final String SEGMENT_SIZE_SETTING = "esql.datasource.ndjson.segment_size";
+    public static final String SEGMENT_SIZE_SETTING = "esql.external.ndjson.segment_size";
 
     /**
      * 4 MiB, larger than the SPI's 1 MiB. Each NDJSON segment pays a fixed Java/Jackson setup cost
@@ -112,12 +112,25 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
      * contribution matches the coordinator's cache entry across JVMs. Empty until {@link #withConfig}.
      */
     private final String canonicalConfig;
+    /**
+     * Identity of how the file currently being read is interpreted (see {@code ReadConfigFingerprint}), or empty when
+     * the producing path had no coordinator-minted read schema. Per FILE, so it is set at the per-file seam via
+     * {@link #withReadConfig}, not at config time like {@link #canonicalConfig}. Opaque here: carried onto harvested
+     * contributions, never interpreted.
+     */
+    private final String readConfig;
     // Mutable reader-level counters surfaced as a Map<String, Object> via {@link #statusSnapshot()};
     // shared across the parallel {@link NdJsonPageDecoder} segments spawned by {@link #read}.
-    private final NdJsonReaderCounters counters = new NdJsonReaderCounters();
+    //
+    // Sharing these across a wither is scoped deliberately, because the chain's root is the node-lifetime
+    // singleton {@link org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry} hands out per format.
+    // Every wither ABOVE the per-query snapshot reader takes fresh counters ({@code null} here), or all concurrent
+    // queries on this node would accumulate into one set. Only {@link #withReadConfig}, which runs per file BELOW
+    // the reader the status envelope snapshots, shares its parent's.
+    private final NdJsonReaderCounters counters;
 
     public NdJsonFormatReader(Settings settings, BlockFactory blockFactory, List<Attribute> resolvedSchema) {
-        this(settings, blockFactory, resolvedSchema, schemaSampleSize(settings), segmentSize(settings), null, "", Map.of());
+        this(settings, blockFactory, resolvedSchema, schemaSampleSize(settings), segmentSize(settings), null, "", Map.of(), "", null);
     }
 
     NdJsonFormatReader(Settings settings, BlockFactory blockFactory) {
@@ -132,7 +145,9 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         long segmentSizeBytes,
         DateFormatter datetimeFormatter,
         String canonicalConfig,
-        Map<String, String> declaredDateFormats
+        Map<String, String> declaredDateFormats,
+        String readConfig,
+        NdJsonReaderCounters sharedCounters
     ) {
         this.blockFactory = blockFactory;
         this.settings = settings == null ? Settings.EMPTY : settings;
@@ -142,6 +157,8 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         this.datetimeFormatter = datetimeFormatter;
         this.canonicalConfig = canonicalConfig;
         this.declaredDateFormats = declaredDateFormats != null ? Map.copyOf(declaredDateFormats) : Map.of();
+        this.readConfig = readConfig == null ? "" : readConfig;
+        this.counters = sharedCounters != null ? sharedCounters : new NdJsonReaderCounters();
     }
 
     @Override
@@ -154,7 +171,31 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             segmentSizeBytes,
             datetimeFormatter,
             canonicalConfig,
-            declaredDateFormats
+            declaredDateFormats,
+            readConfig,
+            null
+        );
+    }
+
+    @Override
+    public NdJsonFormatReader withReadConfig(String newReadConfig) {
+        if (newReadConfig == null || newReadConfig.equals(readConfig)) {
+            return this;
+        }
+        return new NdJsonFormatReader(
+            settings,
+            blockFactory,
+            resolvedSchema,
+            schemaSampleSize,
+            segmentSizeBytes,
+            datetimeFormatter,
+            canonicalConfig,
+            declaredDateFormats,
+            newReadConfig,
+            // The one wither that shares (see the field): this runs at the per-file seam, so a copy with fresh
+            // counters would accumulate where nobody reads. The CSV twin had that defect and it surfaced as a
+            // zero read time in query metrics.
+            counters
         );
     }
 
@@ -171,7 +212,9 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             segmentSizeBytes,
             datetimeFormatter,
             canonicalConfig,
-            physicalNameToPattern
+            physicalNameToPattern,
+            readConfig,
+            null
         );
     }
 
@@ -196,7 +239,9 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             newSegmentSize,
             newDatetimeFormatter,
             canon,
-            declaredDateFormats
+            declaredDateFormats,
+            readConfig,
+            null
         );
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }
@@ -530,6 +575,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             pinnedMtimeMillis,
             // The fingerprint is the node-stable canonical config; the iterator's schema arg is ignored.
             cacheable ? ignoredSchema -> computeConfigFingerprint() : null,
+            readConfig,
             chunkMode,
             counters,
             context.splitStartByte(),
@@ -551,6 +597,11 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     @Override
     public NdJsonReaderStatus statusSnapshot() {
         return counters.snapshot();
+    }
+
+    @Override
+    public void acceptReadCpuNanos(long nanos) {
+        counters.addReadCpuNanos(nanos);
     }
 
     @Override

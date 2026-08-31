@@ -33,7 +33,7 @@ import java.util.Objects;
  * and delegates to the PromqlFunctionRegistry for validation and ESQL function construction.
  */
 public abstract sealed class PromqlFunctionCall extends UnaryPlan implements PromqlPlan permits AcrossSeriesAggregate,
-    AcrossSeriesReduction, HistogramQuantile, ScalarConversionFunction, WithinSeriesAggregate, ValueTransformationFunction,
+    AcrossSeriesReduction, HistogramFunctionCall, ScalarConversionFunction, WithinSeriesAggregate, ValueTransformationFunction,
     VectorConversionFunction {
     // implements TelemetryAware {
 

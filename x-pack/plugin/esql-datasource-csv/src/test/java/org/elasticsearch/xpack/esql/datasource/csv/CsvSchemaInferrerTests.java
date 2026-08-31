@@ -209,6 +209,92 @@ public class CsvSchemaInferrerTests extends ESTestCase {
         }
     }
 
+    // widenSchema tests
+
+    public void testWideningFromKeywordConflict() {
+        String[] cols = { "id" };
+        List<String[]> sampleRows = List.of(new String[] { "1" }, new String[] { "2" }, new String[] { "3" });
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, sampleRows, null);
+        assertEquals(DataType.INTEGER, schema.get(0).dataType());
+
+        List<String[]> additionalRows = List.<String[]>of(new String[] { "hello" });
+        List<Attribute> widened = CsvSchemaInferrer.widenSchema(schema, additionalRows, null);
+        assertEquals(DataType.KEYWORD, widened.get(0).dataType());
+    }
+
+    public void testWideningPreservesTypeWhenNoConflict() {
+        String[] cols = { "id" };
+        List<String[]> sampleRows = List.of(new String[] { "1" }, new String[] { "2" });
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, sampleRows, null);
+
+        List<String[]> additionalRows = List.of(new String[] { "3" }, new String[] { "4" });
+        List<Attribute> result = CsvSchemaInferrer.widenSchema(schema, additionalRows, null);
+        assertSame(schema, result);
+    }
+
+    public void testWideningDoesNotJumpPastIntermediate() {
+        String[] cols = { "value" };
+        List<String[]> sampleRows = List.of(new String[] { "42" }, new String[] { "100" });
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, sampleRows, null);
+        assertEquals(DataType.INTEGER, schema.get(0).dataType());
+
+        // A value that fits LONG but not INTEGER should widen to LONG, not skip straight to KEYWORD.
+        List<String[]> additionalRows = List.<String[]>of(new String[] { "9999999999" });
+        List<Attribute> widened = CsvSchemaInferrer.widenSchema(schema, additionalRows, null);
+        assertEquals(DataType.LONG, widened.get(0).dataType());
+    }
+
+    public void testWideningBooleanJumpsToKeyword() {
+        String[] cols = { "flag" };
+        List<String[]> sampleRows = List.of(new String[] { "true" }, new String[] { "false" });
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, sampleRows, null);
+        assertEquals(DataType.BOOLEAN, schema.get(0).dataType());
+
+        // Confirmed BOOLEAN hit with a non-boolean value skips directly to KEYWORD.
+        List<String[]> additionalRows = List.<String[]>of(new String[] { "42" });
+        List<Attribute> widened = CsvSchemaInferrer.widenSchema(schema, additionalRows, null);
+        assertEquals(DataType.KEYWORD, widened.get(0).dataType());
+    }
+
+    public void testWideningAllKeywordSchemaReturnsIdentical() {
+        // A schema where every column is already KEYWORD (e.g. all-null sample) should be returned
+        // unchanged by widenSchema — no object allocation, assertSame passes.
+        String[] cols = { "a", "b" };
+        List<String[]> sampleRows = List.<String[]>of(new String[] { null, null });
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, sampleRows, null);
+        assertEquals(DataType.KEYWORD, schema.get(0).dataType());
+        assertEquals(DataType.KEYWORD, schema.get(1).dataType());
+
+        List<String[]> additionalRows = List.<String[]>of(new String[] { "hello", "world" });
+        List<Attribute> result = CsvSchemaInferrer.widenSchema(schema, additionalRows, null);
+        assertSame(schema, result);
+    }
+
+    public void testWideningPartialColumns() {
+        // Only the conflicting column widens; the non-conflicting one keeps its original Attribute object.
+        String[] cols = { "id", "score" };
+        List<String[]> sampleRows = List.of(new String[] { "1", "9.5" }, new String[] { "2", "8.0" });
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, sampleRows, null);
+        assertEquals(DataType.INTEGER, schema.get(0).dataType());
+        assertEquals(DataType.DOUBLE, schema.get(1).dataType());
+
+        // "id" becomes KEYWORD; "score" stays DOUBLE.
+        List<String[]> additionalRows = List.<String[]>of(new String[] { "hello", "7.2" });
+        List<Attribute> widened = CsvSchemaInferrer.widenSchema(schema, additionalRows, null);
+        assertEquals(DataType.KEYWORD, widened.get(0).dataType());
+        assertEquals(DataType.DOUBLE, widened.get(1).dataType());
+        assertSame(schema.get(1), widened.get(1)); // non-widened column keeps original Attribute
+    }
+
+    public void testWideningEmptyAdditionalRows() {
+        String[] cols = { "id" };
+        List<String[]> sampleRows = List.<String[]>of(new String[] { "1" });
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, sampleRows, null);
+
+        List<Attribute> result = CsvSchemaInferrer.widenSchema(schema, List.of(), null);
+        assertSame(schema, result);
+    }
+
     public void testSynthesizeColumnNames() {
         String[] names = CsvFormatReader.synthesizeColumnNames(4, "col");
         assertArrayEquals(new String[] { "col0", "col1", "col2", "col3" }, names);

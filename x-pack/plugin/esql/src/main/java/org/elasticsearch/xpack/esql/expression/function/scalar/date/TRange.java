@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
@@ -94,6 +95,12 @@ public class TRange extends EsqlConfigurationFunction
 
     @FunctionInfo(
         returnType = "boolean",
+        signatures = {
+            @Signature(params = { "date_period|time_duration" }, returnType = "boolean"),
+            @Signature(params = { "date", "date" }, returnType = "boolean"),
+            @Signature(params = { "date_nanos", "date_nanos" }, returnType = "boolean"),
+            @Signature(params = { "keyword", "keyword" }, returnType = "boolean"),
+            @Signature(params = { "long", "long" }, returnType = "boolean") },
         briefSummary = "Filters data for a given time range using the @timestamp attribute.",
         description = "Filters data for the given time range using the @timestamp attribute.",
         examples = {

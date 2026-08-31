@@ -105,6 +105,58 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertNoUnmappedFieldsAttribute("FROM test | KEEP salary | DROP salary");
     }
 
+    public void testStatsOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | STATS c = COUNT(*)");
+    }
+
+    public void testStatsByMappedFieldOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | STATS c = COUNT(*) BY languages");
+    }
+
+    public void testStatsByUnmappedFieldOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | STATS c = COUNT(*) BY unmapped_extra");
+    }
+
+    public void testKeepWildcardThenStatsOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | KEEP first_name* | STATS c = COUNT(*)");
+    }
+
+    public void testEvalThenStatsOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | EVAL z = salary + 1 | STATS c = COUNT(*) BY z");
+    }
+
+    public void testDropWildcardThenStatsOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | DROP first_name* | STATS c = COUNT(*)");
+    }
+
+    public void testStatsThenKeepStarOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | STATS c = COUNT(*) | KEEP *");
+    }
+
+    public void testStatsThenEvalOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | STATS c = COUNT(*) | EVAL z = c + 1");
+    }
+
+    /**
+     * A wildcard {@code DROP} or {@code KEEP} contributes a pattern of its own, so these check that a projection downstream of
+     * {@code STATS} cannot re-open what the aggregate already closed.
+     */
+    public void testStatsThenDropWildcardOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | STATS c = COUNT(*) BY languages | DROP lang*");
+    }
+
+    public void testInlineStatsThenStatsOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | INLINE STATS c = COUNT(*) | STATS s = SUM(c)");
+    }
+
+    public void testStatsThenInlineStatsOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | STATS c = COUNT(*) | INLINE STATS m = MAX(c)");
+    }
+
+    public void testDropWildcardThenStatsThenKeepWildcardOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | DROP first_name* | STATS c = COUNT(*) BY languages | KEEP lang*");
+    }
+
     public void testKeepWildcardIgnoresMappedExactNameInSameCommand() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | KEEP first_name*, salary");
         assertKept(pattern, "first_name_suffix");
@@ -200,6 +252,54 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertKept(pattern, "first_name_suffix");
         assertNotKept(pattern, excl("first_name_x"));
         assertNotKept(pattern, "unmapped_extra");
+    }
+
+    public void testInlineStatsExcludesAggregateAlias() {
+        UnmappedFieldsPattern pattern = patternFor("FROM test | INLINE STATS c = COUNT(c2) BY languages");
+        assertNotKept(pattern, excl("c", "c2", "languages"));
+        assertKept(pattern, "unmapped_extra", "first_name_suffix");
+    }
+
+    public void testInlineStatsPrunedStillDropsMentionedFields() {
+        UnmappedFieldsPattern pattern = patternFor("FROM test | INLINE STATS c = COUNT(c2) BY languages | DROP c");
+        assertNotKept(pattern, excl("c", "c2", "languages"));
+        assertKept(pattern, "unmapped_extra", "first_name_suffix");
+    }
+
+    public void testInlineStatsPrunedByKeepPatternStillDropsMentionedFields() {
+        UnmappedFieldsPattern pattern = patternFor("FROM test | INLINE STATS c = COUNT(c2) BY languages | KEEP first*");
+        assertNotKept(pattern, excl("c", "c2", "c3", "languages"));
+        assertKept(pattern, "first_name_suffix");
+    }
+
+    public void testInlineStatsExcludesUnmappedByAlias() {
+        UnmappedFieldsPattern pattern = patternFor("FROM test | INLINE STATS c = COUNT(c2) BY x = unmapped_extra");
+        assertNotKept(pattern, excl("c", "c2", "x", "unmapped_extra"));
+        assertKept(pattern, "first_name_suffix");
+    }
+
+    public void testMultipleInlineStatsCommandsExcludesBothAliases() {
+        UnmappedFieldsPattern pattern = patternFor("FROM test | INLINE STATS c = COUNT(c2) | INLINE STATS m = MAX(salary) BY languages");
+        assertNotKept(pattern, excl("c", "c2", "m", "languages"));
+        assertKept(pattern, "unmapped_extra", "first_name_suffix");
+    }
+
+    public void testMultipleInlineStatsExpressionsExcludesBothAliases() {
+        UnmappedFieldsPattern pattern = patternFor("FROM test | INLINE STATS c = COUNT(c2), m = MAX(salary) BY languages");
+        assertNotKept(pattern, excl("c", "c2", "m", "languages"));
+        assertKept(pattern, "unmapped_extra", "first_name_suffix");
+    }
+
+    public void testInlineStatsThenDropAggKeepsUnmapped() {
+        UnmappedFieldsPattern pattern = patternFor("FROM test | INLINE STATS c = COUNT(*) | DROP c");
+        assertNotKept(pattern, excl("c"));
+        assertKept(pattern, "unmapped_extra", "first_name_suffix");
+    }
+
+    public void testInlineStatsThenKeepWildcardStillExpands() {
+        UnmappedFieldsPattern pattern = patternFor("FROM test | INLINE STATS c = COUNT(*) | KEEP first_name*");
+        assertKept(pattern, "first_name_suffix");
+        assertNotKept(pattern, excl("c", "unmapped_extra"));
     }
 
     public void testRenameThenEval() {

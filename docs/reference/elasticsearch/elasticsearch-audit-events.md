@@ -534,7 +534,7 @@ $$$event-put-user$$$
 
 $$$event-put-user-managed-service-account$$$
 
-`put_user_managed_service_account`
+`put_user_managed_service_account` {applies_to}`stack: ga 9.6+`
 :   Logged when the create or update user-managed service account API is invoked to create or update a user-managed service account at `/_security/service/{namespace}/{service}`.
 
     You must include the `security_config_change` event type to audit the related event action.

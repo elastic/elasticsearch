@@ -186,6 +186,85 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertThat(result.unifiedSchema().size(), equalTo(1));
     }
 
+    public void testStrictNdJsonPermutedColumnsMappedByName() {
+        List<Attribute> dense = List.of(
+            attr("ts", DataType.DATETIME),
+            attr("error_code", DataType.INTEGER),
+            attr("level", DataType.KEYWORD)
+        );
+        List<Attribute> sparse = List.of(
+            attr("ts", DataType.DATETIME),
+            attr("level", DataType.KEYWORD),
+            attr("error_code", DataType.INTEGER)
+        );
+        StoragePath f1 = path("s3://logs/day=1/app.ndjson");
+        StoragePath f2 = path("s3://logs/day=2/app.ndjson");
+
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(dense, "ndjson"), f2, meta(sparse, "ndjson"));
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileStrict(f1, metadata);
+
+        assertThat(result.unifiedSchema().attributes(), equalTo(dense));
+        assertThat(result.perFileInfo().get(f1).mapping(), equalTo(new ColumnMapping(new int[] { 0, 1, 2 }, null)));
+        assertThat(result.perFileInfo().get(f2).mapping(), equalTo(new ColumnMapping(new int[] { 0, 2, 1 }, null)));
+    }
+
+    public void testStrictNdJsonTypeMismatchRejectedByName() {
+        List<Attribute> dense = List.of(
+            attr("ts", DataType.DATETIME),
+            attr("error_code", DataType.INTEGER),
+            attr("level", DataType.KEYWORD)
+        );
+        List<Attribute> sparse = List.of(attr("level", DataType.KEYWORD), attr("ts", DataType.DATETIME), attr("error_code", DataType.LONG));
+        StoragePath f1 = path("s3://logs/day=1/app.ndjson");
+        StoragePath f2 = path("s3://logs/day=2/app.ndjson");
+
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(dense, "ndjson"), f2, meta(sparse, "ndjson"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SchemaReconciliation.reconcileStrict(f1, metadata));
+
+        assertThat(e.getMessage(), containsString("column [error_code]"));
+        assertThat(e.getMessage(), containsString("long"));
+        assertThat(e.getMessage(), containsString("integer"));
+    }
+
+    public void testStrictNdJsonDifferentNameSetRejected() {
+        List<Attribute> schema1 = List.of(attr("id", DataType.INTEGER), attr("level", DataType.KEYWORD));
+        List<Attribute> schema2 = List.of(attr("id", DataType.INTEGER), attr("message", DataType.KEYWORD));
+        StoragePath f1 = path("s3://logs/day=1/app.ndjson");
+        StoragePath f2 = path("s3://logs/day=2/app.ndjson");
+
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1, "ndjson"), f2, meta(schema2, "ndjson"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SchemaReconciliation.reconcileStrict(f1, metadata));
+
+        assertThat(e.getMessage(), containsString("column [level]"));
+        assertThat(e.getMessage(), containsString("is missing"));
+    }
+
+    public void testStrictNdJsonColumnCountMismatchRejected() {
+        List<Attribute> schema1 = List.of(attr("id", DataType.INTEGER), attr("level", DataType.KEYWORD));
+        List<Attribute> schema2 = List.of(attr("id", DataType.INTEGER));
+        StoragePath f1 = path("s3://logs/day=1/app.ndjson");
+        StoragePath f2 = path("s3://logs/day=2/app.ndjson");
+
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1, "ndjson"), f2, meta(schema2, "ndjson"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SchemaReconciliation.reconcileStrict(f1, metadata));
+
+        assertThat(e.getMessage(), containsString("expected 2 columns"));
+        assertThat(e.getMessage(), containsString("found 1 columns"));
+    }
+
+    public void testStrictOrderedFormatRejectsPermutedColumns() {
+        List<Attribute> schema1 = List.of(attr("id", DataType.INTEGER), attr("level", DataType.KEYWORD));
+        List<Attribute> schema2 = List.of(attr("level", DataType.KEYWORD), attr("id", DataType.INTEGER));
+        StoragePath f1 = path("s3://logs/day=1/app.csv");
+        StoragePath f2 = path("s3://logs/day=2/app.csv");
+
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1, "csv"), f2, meta(schema2, "csv"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SchemaReconciliation.reconcileStrict(f1, metadata));
+
+        assertThat(e.getMessage(), containsString("column 0 is [level]"));
+        assertThat(e.getMessage(), containsString("has [id]"));
+    }
+
     // === UNION_BY_NAME reconciliation tests ===
 
     public void testUnionByNameIdenticalSchemas() {

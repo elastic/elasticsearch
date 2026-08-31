@@ -1550,6 +1550,13 @@ public class EsqlCapabilities {
         EVAL_IN_SUBQUERY,
 
         /**
+         * Support IN non-correlated subqueries inside the STATS command's per-aggregate WHERE filter, e.g.
+         * {@code STATS c = COUNT(*) WHERE id IN (FROM other | KEEP id) BY dept}, including filters that wrap the IN subquery in
+         * {@code CASE}, {@code COALESCE}, and {@code IS [NOT] NULL}. INLINE STATS remains unsupported.
+         */
+        STATS_WHERE_IN_SUBQUERY,
+
+        /**
          * Support for views in cluster state (and REST API).
          */
         VIEWS_IN_CLUSTER_STATE,
@@ -3769,6 +3776,11 @@ public class EsqlCapabilities {
          * because they are efficiently pushed down to Lucene.
          */
         APPROXIMATION_FIX_COUNT_HISTOGRAM,
+
+        /**
+         * Report in the response whether query approximation was applied.
+         */
+        APPROXIMATION_APPLIED_RESPONSE,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

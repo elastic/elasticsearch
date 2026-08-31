@@ -21,8 +21,6 @@
           settings:
             index:
               mode: logsdb
-              number_of_shards: 1
-              number_of_replicas: 0
               sort.field: [ "host.name", "@timestamp" ]
               sort.order: [ "asc", "desc" ]
           mappings:

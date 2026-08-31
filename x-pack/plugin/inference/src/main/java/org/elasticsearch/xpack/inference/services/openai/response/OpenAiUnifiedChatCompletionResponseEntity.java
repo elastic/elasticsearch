@@ -66,7 +66,7 @@ public class OpenAiUnifiedChatCompletionResponseEntity {
         return fromResponse(response.body());
     }
 
-    public static ChatCompletionChunkResponse fromResponse(byte[] body) throws IOException {
+    static ChatCompletionChunkResponse fromResponse(byte[] body) throws IOException {
         try (var p = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, body)) {
             return OpenAiUnifiedChatCompletionParser.parseNonStreamingResponse(p);
         }

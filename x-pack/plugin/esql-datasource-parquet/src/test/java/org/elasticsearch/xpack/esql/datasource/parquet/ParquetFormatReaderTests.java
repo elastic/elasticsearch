@@ -102,6 +102,7 @@ import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashSet;
@@ -118,6 +119,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
@@ -134,6 +136,14 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 public class ParquetFormatReaderTests extends ESTestCase {
+
+    static final byte[] ARROW_GH_45185 = Base64.getDecoder()
+        .decode(
+            "UEFSMRUAFWoVaiwVFBUAFQYVBhwAAAADAAAABVUBAgAAABQBAAAAAAEAAAACAAAAAwAAAAQAAAAFAAAABgAAAAcAAAAIAAAACQAAABUEGUw1"
+                + "ABgEcm9vdBUCADUAGAF4FQIVBkw8AAAANQQYBGxpc3QVAgAVAiUAGAdlbGVtZW50JSJMrBMgEQAAABYKGRwZHCYAHBUCGSUGABk4AXgEb"
+                + "GlzdAdlbGVtZW50FQAWFBaQARaQASYISRwVABUAFQIAAAAWkAEWCiYIFpABFAAAKClwYXJxdWV0LWNwcC1hcnJvdyB2ZXJzaW9uIDE5Lj"
+                + "AuMC1TTkFQU0hPVBkcHAAAALQAAABQQVIx"
+        );
 
     @BeforeClass
     public static void assertUninitializedArraysFastPath() {
@@ -2778,6 +2788,182 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     // --- LIST tests ---
+
+    public void testMalformedListLeadingContinuationFailsStrictReaders() throws Exception {
+        for (ParquetFormatReader reader : List.of(
+            new ParquetFormatReader(blockFactory),
+            new ParquetFormatReader(blockFactory).withBaselinePath()
+        )) {
+            StorageObject storageObject = createStorageObject(ARROW_GH_45185, "memory://ARROW-GH-45185.parquet");
+            try (CloseableIterator<Page> iterator = reader.read(storageObject, List.of("x"), 2)) {
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, iterator::next);
+                assertThat(e.getMessage(), allOf(containsString("ARROW-GH-45185.parquet"), containsString("column [x]")));
+                assertThat(e.getMessage(), containsString("row group [1]"));
+                assertThat(e.getMessage(), containsString("repetition level [1]"));
+            }
+        }
+    }
+
+    public void testMalformedListLeadingContinuationRecoversInLenientModes() throws Exception {
+        for (ErrorPolicy.Mode mode : List.of(ErrorPolicy.Mode.SKIP_ROW, ErrorPolicy.Mode.NULL_FIELD)) {
+            for (ParquetFormatReader reader : List.of(
+                new ParquetFormatReader(blockFactory),
+                new ParquetFormatReader(blockFactory).withBaselinePath()
+            )) {
+                List<String> warnings = new ArrayList<>();
+                StorageObject storageObject = createStorageObject(ARROW_GH_45185, "memory://ARROW-GH-45185.parquet");
+                List<Attribute> attributes = reader.metadata(storageObject).schema();
+                ErrorPolicy policy = new ErrorPolicy(mode, Long.MAX_VALUE, 0.0, false);
+                int expectedRow = 0;
+                try (
+                    CloseableIterator<Page> iterator = reader.readRange(
+                        storageObject,
+                        new RangeReadContext(List.of("x"), 2, 0, ARROW_GH_45185.length, attributes, policy, warnings::add)
+                    )
+                ) {
+                    while (iterator.hasNext()) {
+                        Page page = iterator.next();
+                        IntBlock block = (IntBlock) page.getBlock(0);
+                        for (int position = 0; position < page.getPositionCount(); position++) {
+                            int first = block.getFirstValueIndex(position);
+                            if (expectedRow < 4) {
+                                assertEquals(2, block.getValueCount(position));
+                                assertEquals(expectedRow * 2 + 1, block.getInt(first));
+                                assertEquals(expectedRow * 2 + 2, block.getInt(first + 1));
+                            } else {
+                                assertEquals(1, block.getValueCount(position));
+                                assertEquals(9, block.getInt(first));
+                            }
+                            expectedRow++;
+                        }
+                        page.releaseBlocks();
+                    }
+                }
+                assertEquals(5, expectedRow);
+                assertThat(warnings, hasItem(containsString("invalid fragments were skipped")));
+                assertThat(warnings, hasItem(allOf(containsString("column [x]"), containsString("discarded [1] orphan values"))));
+            }
+        }
+    }
+
+    public void testMalformedListRecoveryHonorsMaxErrors() throws Exception {
+        ErrorPolicy noErrors = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 0, 0.0, false);
+        for (ParquetFormatReader reader : List.of(
+            new ParquetFormatReader(blockFactory),
+            new ParquetFormatReader(blockFactory).withBaselinePath()
+        )) {
+            StorageObject storageObject = createStorageObject(ARROW_GH_45185, "memory://ARROW-GH-45185.parquet");
+            List<Attribute> attributes = reader.metadata(storageObject).schema();
+            try (
+                CloseableIterator<Page> iterator = reader.readRange(
+                    storageObject,
+                    new RangeReadContext(List.of("x"), 10, 0, ARROW_GH_45185.length, attributes, noErrors)
+                )
+            ) {
+                ParsingException e = expectThrows(ParsingException.class, iterator::next);
+                assertThat(e.getMessage(), allOf(containsString("structural errors"), containsString("maximum allowed is [0]")));
+            }
+        }
+    }
+
+    public void testMalformedListPartialLimitDoesNotRequireRowGroupExhaustion() throws Exception {
+        for (ParquetFormatReader reader : List.of(
+            new ParquetFormatReader(blockFactory),
+            new ParquetFormatReader(blockFactory).withBaselinePath()
+        )) {
+            List<String> warnings = new ArrayList<>();
+            StorageObject storageObject = createStorageObject(ARROW_GH_45185, "memory://ARROW-GH-45185.parquet");
+            List<Attribute> attributes = reader.metadata(storageObject).schema();
+            FormatReadContext context = FormatReadContext.builder()
+                .projectedColumns(List.of("x"))
+                .batchSize(2)
+                .rowLimit(2)
+                .errorPolicy(ErrorPolicy.PERMISSIVE)
+                .readSchema(attributes)
+                .informationalWarningSink(warnings::add)
+                .build();
+            try (CloseableIterator<Page> iterator = reader.read(storageObject, context)) {
+                Page page = iterator.next();
+                IntBlock block = (IntBlock) page.getBlock(0);
+                assertEquals(2, page.getPositionCount());
+                assertEquals(1, block.getInt(block.getFirstValueIndex(0)));
+                assertEquals(2, block.getInt(block.getFirstValueIndex(0) + 1));
+                assertEquals(3, block.getInt(block.getFirstValueIndex(1)));
+                assertEquals(4, block.getInt(block.getFirstValueIndex(1) + 1));
+                page.releaseBlocks();
+                assertFalse(iterator.hasNext());
+            }
+            assertThat(warnings, hasItem(containsString("discarded [1] orphan values")));
+        }
+    }
+
+    public void testLegacyNestedListFixtureIsUnsupported() throws Exception {
+        byte[] parquetData;
+        // Apache parquet-testing, data/old_list_structure.parquet at fa255dfacf58c8bab428b5d0117d188acc8ad03f.
+        try (InputStream in = getDataInputStream("old_list_structure.parquet.base64")) {
+            parquetData = Base64.getMimeDecoder().decode(in.readAllBytes());
+        }
+        assertEquals(539, parquetData.length);
+
+        SourceMetadata metadata = new ParquetFormatReader(blockFactory).metadata(createStorageObject(parquetData));
+        assertEquals(1, metadata.schema().size());
+        assertEquals("a", metadata.schema().get(0).name());
+        assertEquals(DataType.UNSUPPORTED, metadata.schema().get(0).dataType());
+    }
+
+    public void testListElementCompatibilityRules() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message test_schema {
+              optional group repeated_primitive (LIST) {
+                repeated int32 element;
+              }
+              optional group multi_field (LIST) {
+                repeated group entries {
+                  optional int32 x;
+                  optional int32 y;
+                }
+              }
+              optional group repeated_child (LIST) {
+                repeated group entries {
+                  repeated int32 value;
+                }
+              }
+              optional group named_array (LIST) {
+                repeated group array {
+                  optional int32 value;
+                }
+              }
+              optional group named_tuple (LIST) {
+                repeated group named_tuple_tuple {
+                  optional int32 value;
+                }
+              }
+              optional group required_element (LIST) {
+                repeated group list {
+                  required int32 element;
+                }
+              }
+              optional group optional_element (LIST) {
+                repeated group list {
+                  optional int32 element;
+                }
+              }
+            }
+            """);
+        byte[] parquetData = createParquetFile(schema, factory -> List.of(factory.newGroup()));
+
+        Map<String, DataType> types = new ParquetFormatReader(blockFactory).metadata(createStorageObject(parquetData))
+            .schema()
+            .stream()
+            .collect(Collectors.toMap(Attribute::name, Attribute::dataType));
+        assertEquals(DataType.INTEGER, types.get("repeated_primitive"));
+        assertEquals(DataType.UNSUPPORTED, types.get("multi_field"));
+        assertEquals(DataType.UNSUPPORTED, types.get("repeated_child"));
+        assertEquals(DataType.UNSUPPORTED, types.get("named_array"));
+        assertEquals(DataType.UNSUPPORTED, types.get("named_tuple"));
+        assertEquals(DataType.INTEGER, types.get("required_element"));
+        assertEquals(DataType.INTEGER, types.get("optional_element"));
+    }
 
     public void testReadListOfIntegersColumn() throws Exception {
         Type listType = Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT32).named("numbers");

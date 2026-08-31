@@ -22,6 +22,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.IndexShardCacheWarmer;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.utils.StatelessCommitServiceProvider;
 import org.elasticsearch.xpack.stateless.utils.StatelessPrimaryRelocationMetricsCollectorProvider;
@@ -137,6 +138,20 @@ public class StatelessPrimaryRelocationTargetService {
                 recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
                 recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
                 indexShard.openEngineAndSkipTranslogRecovery();
+
+                // Synthetic id's do not use inverted indices and prewarming them is not necessary
+                if (request.hasRecentIdLookup() && indexShard.indexSettings().useTimeSeriesSyntheticId() == false) {
+                    try {
+                        indexShard.withEngine(engine -> {
+                            if (engine instanceof IndexEngine indexEngine) {
+                                indexEngine.prewarmIdLookups();
+                            }
+                            return null;
+                        });
+                    } catch (Exception e) {
+                        logger.debug("id lookup prewarm for shard " + indexShard.shardId() + " failed", e);
+                    }
+                }
 
                 // Should not actually have recovered anything from the translog, so the MSN and LCP should remain equal and unchanged
                 // from the ones we received in the primary context handoff.

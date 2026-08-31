@@ -36,8 +36,16 @@ public class EmbeddingOutputBuilder implements OutputBuilder {
 
     private final BlockFactory blockFactory;
 
-    public EmbeddingOutputBuilder(BlockFactory blockFactory) {
+    /**
+     * Whether a missing embedding for a position that had input is acceptable. It is when the operator tolerates per-row
+     * inference failures, since a tolerated failure completes the request with a null response on purpose. When failures are
+     * not tolerated the same situation can only be a bug, so it is reported rather than silently turned into a null.
+     */
+    private final boolean tolerateFailures;
+
+    public EmbeddingOutputBuilder(BlockFactory blockFactory, boolean tolerateFailures) {
         this.blockFactory = blockFactory;
+        this.tolerateFailures = tolerateFailures;
     }
 
     /**
@@ -93,13 +101,15 @@ public class EmbeddingOutputBuilder implements OutputBuilder {
      * <p>
      * The response's position value counts determine how embeddings are distributed:
      * <ul>
-     *   <li>For each position with value count 0: appends a null embedding</li>
-     *   <li>For each position with value count 1: appends the corresponding embedding vector</li>
+     *   <li>For each position with value count 0: appends a null embedding (e.g. a null input)</li>
+     *   <li>For each position with value count 1: appends the corresponding embedding vector, or a null embedding when the
+     *       response is null because the request failed and the operator tolerated the failure</li>
      * </ul>
      *
      * @param builder  The block builder to append to
      * @param response The inference response item containing the embedding results
-     * @throws IllegalStateException if the number of embeddings doesn't match the sum of position value counts
+     * @throws IllegalStateException if a non-null response's embedding count doesn't match the sum of position value counts, or
+     *                               if the response is null for a position that had input while failures are not tolerated
      */
     private void appendResponseToBlock(FloatBlock.Builder builder, BulkInferenceResponseItem response) {
         // Handle null responses or null position value counts
@@ -133,14 +143,18 @@ public class EmbeddingOutputBuilder implements OutputBuilder {
 
         for (int valueCount : response.positionValueCounts()) {
             if (valueCount == 0) {
-                // No embedding for this position, append a null value to the block
+                // No embedding for this position (e.g. a null input), append a null value to the block
+                builder.appendNull();
+            } else if (embeddings == null) {
+                // The response is null even though the input had a value. Under tolerated failures that is the expected shape
+                // of a failed request: emit a null embedding so the operator can warn and continue. Otherwise it means a
+                // response went missing without anyone deciding to swallow it, which is a bug worth surfacing.
+                if (tolerateFailures == false) {
+                    throw new IllegalStateException("Expected embeddings but response was null");
+                }
                 builder.appendNull();
             } else {
                 // Append the embedding vector as a multi-valued position
-                if (embeddings == null) {
-                    throw new IllegalStateException("Expected embeddings but response was null");
-                }
-
                 float[] embeddingArray = embeddings[currentEmbeddingIndex++];
 
                 builder.beginPositionEntry();

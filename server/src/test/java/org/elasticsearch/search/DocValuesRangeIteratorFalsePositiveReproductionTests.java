@@ -73,8 +73,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
  *       {@code _routing.doc_values: true} (→ {@code BulkSortedRangeIterator}, the only ES path to
  *       the single-valued variant); {@code rangeQuery} on an {@code index=false} numeric field in a
  *       standard index with {@code USE_DOC_VALUES_SKIPPER} enabled (→ {@code BulkSortedNumericRangeIterator},
- *       reached when neither the primary-sort nor TSDB-bitmask optimisation applies in
- *       {@code SortedNumericDocValuesRangeQuery}).</li>
+ *       reached via {@code SortedNumericDocValuesField#newSlowRangeQuery}).</li>
  * </ul>
  */
 public class DocValuesRangeIteratorFalsePositiveReproductionTests extends ESSingleNodeTestCase {

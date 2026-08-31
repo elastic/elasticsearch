@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
@@ -635,7 +636,7 @@ public class S3StorageProvider implements StorageProvider {
                         + "Verify that the configured credentials have s3:ListBucket permission on this bucket, "
                         + "or use exact file paths instead of glob patterns."
                     : "Failed to list objects in bucket [" + bucket + "] with prefix [" + prefix + "]";
-                throw new RuntimeException(msg + ": " + S3FailureDetail.of(e), e);
+                throw new UncheckedIOException(new IOException(msg + ": " + S3FailureDetail.of(e), e));
             }
         }
     }

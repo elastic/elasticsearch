@@ -69,6 +69,8 @@ import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.indices.recovery.RecoveryGateMonitor.ENABLE_RECOVERY_GATES_SETTING;
+import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SEND;
+import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SILENT;
 import static org.elasticsearch.indices.recovery.ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING;
 import static org.elasticsearch.indices.recovery.ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RELOCATION_RECOVERIES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
@@ -153,7 +155,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                 assertThat(threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), equalTo(projectId2.id()));
             }
 
@@ -847,7 +849,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 // simulates cancellation of started recovery
                 taskQueue.scheduleAt(
                     taskQueue.getCurrentTimeMillis() + 100,
-                    () -> listener.onRecoveryFailure(new RecoveryCancelledException(shardId1, null, null), true)
+                    () -> listener.onRecoveryFailure(new RecoveryCancelledException(shardId1, null, null), FAIL_SEND)
                 );
             }
         );
@@ -947,7 +949,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 // occupies the sole concurrency slot
                 taskQueue.scheduleAt(
                     taskQueue.getCurrentTimeMillis() + 100,
-                    () -> listener.onRecoveryFailure(new RecoveryCancelledException(blockerShardId, null, null), true)
+                    () -> listener.onRecoveryFailure(new RecoveryCancelledException(blockerShardId, null, null), FAIL_SEND)
                 );
             }
         );
@@ -1051,7 +1053,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                 completed.incrementAndGet();
             }
 
@@ -1114,7 +1116,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                                                 null,
                                                 new RuntimeException("test recovery task injected failure")
                                             ),
-                                            false
+                                            FAIL_SILENT
                                         );
                                     }
                                 }
@@ -1179,7 +1181,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                 runningOrPending.decrementAndGet();
                 tasksCompleted.incrementAndGet();
                 refCounted.decRef();
@@ -1267,7 +1269,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 } else {
                     schedulingListener.onRecoveryFailure(
                         new RecoveryFailedException(recoveryState, null, new RuntimeException("test recovery task injected failure")),
-                        randomBoolean()
+                        randomBoolean() ? FAIL_SEND : FAIL_SILENT
                     );
                 }
             }
@@ -1310,12 +1312,12 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         }
 
         @Override
-        public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+        public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
             assert super.isDone() == false;
             switch (expectedOutcome) {
                 case FAILED -> super.onResponse(null);
                 case CANCELLED_IN_QUEUE, CANCELLED_STARTED -> {
-                    assert expectedOutcome == ExpectedRecoveryOutcome.CANCELLED_IN_QUEUE || sendShardFailure
+                    assert expectedOutcome == ExpectedRecoveryOutcome.CANCELLED_IN_QUEUE || failureStrategy.notifyMaster()
                         : "should notify the master solely when cancelling started recoveries";
                     if (e instanceof RecoveryCancelledException == false) {
                         throw new AssertionError("unexpected failure type", e);
@@ -1348,7 +1350,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var taskQueue = new DeterministicTaskQueue();
         // A blocking gate holds every recovery back until it flips to run.
         final var gateDecision = new AtomicReference<>(RecoveryGate.Decision.block(randomIdentifier(), randomAlphaOfLengthBetween(5, 30)));
-        final RecoveryGate gate = gateDecision::get;
+        final var gateEvaluations = new AtomicInteger();
+        final RecoveryGate gate = () -> {
+            gateEvaluations.incrementAndGet();
+            return gateDecision.get();
+        };
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool(),
             DefaultProjectResolver.INSTANCE,
@@ -1359,31 +1365,43 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         service.start();
 
         final var started = new AtomicInteger();
-        final int count = between(2, 5);
-        for (int i = 0; i < count; i++) {
-            service.enqueue(
-                ProjectId.DEFAULT,
-                RecoveryListener.NOOP,
-                newRecoveryState(),
-                newIndexMetadata(),
-                UUIDs.randomBase64UUID(),
-                stats,
-                listener -> {
-                    started.incrementAndGet();
-                    listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
-                }
-            );
+        final Runnable enqueueRecovery = () -> service.enqueue(
+            ProjectId.DEFAULT,
+            RecoveryListener.NOOP,
+            newRecoveryState(),
+            newIndexMetadata(),
+            UUIDs.randomBase64UUID(),
+            stats,
+            listener -> {
+                started.incrementAndGet();
+                listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+            }
+        );
+        final int initialCount = between(2, 5);
+        for (int i = 0; i < initialCount; i++) {
+            enqueueRecovery.run();
         }
 
         taskQueue.runAllRunnableTasks();
         assertThat("gate should hold every recovery back", started.get(), equalTo(0));
-        assertThat(service.currentQueueSize(), equalTo(count));
+        assertThat(service.currentQueueSize(), equalTo(initialCount));
+        assertThat(gateEvaluations.get(), equalTo(2));
+
+        final int blockedCount = between(2, 5);
+        for (int i = 0; i < blockedCount; i++) {
+            enqueueRecovery.run();
+        }
+        assertFalse(taskQueue.hasRunnableTasks());
+        assertThat(gateEvaluations.get(), equalTo(2));
+
+        final int totalCount = initialCount + blockedCount;
+        assertThat(service.currentQueueSize(), equalTo(totalCount));
 
         // Conditions improve: the periodic recheck notices the gate now allows recoveries and wakes the scheduler.
         gateDecision.set(RecoveryGate.Decision.RUN);
         taskQueue.advanceTime();
         taskQueue.runAllRunnableTasks();
-        assertThat(started.get(), equalTo(count));
+        assertThat(started.get(), equalTo(totalCount));
         assertThat(service.currentQueueSize(), equalTo(0));
     }
 
@@ -1763,7 +1781,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                 fail(e, "unexpected recovery failure");
             }
 

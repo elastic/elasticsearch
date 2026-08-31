@@ -16,18 +16,28 @@ import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageBatch;
 import com.google.cloud.storage.StorageBatchResult;
 import com.google.cloud.storage.StorageException;
+import com.google.cloud.storage.multipartupload.model.AbortMultipartUploadRequest;
+import com.google.cloud.storage.multipartupload.model.AbortMultipartUploadResponse;
+import com.google.cloud.storage.multipartupload.model.CreateMultipartUploadResponse;
+import com.google.cloud.storage.multipartupload.model.UploadPartResponse;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.ArgumentCaptor;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.instanceOf;
@@ -38,6 +48,8 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
@@ -109,5 +121,141 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
             );
             assertThat(e.getCause(), instanceOf(StorageException.class));
         }
+    }
+
+    public void testConcurrentWriteBlobAtomicAborted() throws Exception {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final long partSize = GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE;
+        // 3 parts: ceil((2*partSize+1) / partSize) = 3
+        final long blobSize = partSize * 2 + 1;
+        final String uploadId = randomAlphaOfLength(25);
+
+        // stages: 0 = uploadPart throws, 1 = completeMultipartUpload throws, 2 = provider throws IOException
+        final int stage = randomInt(2);
+        final IOException providerException = (stage == 2) ? new IOException("provider failure") : null;
+
+        final MeteredStorage meteredStorage = mock(MeteredStorage.class);
+        when(meteredStorage.meteredCreateMultipartUpload(any(), any())).thenReturn(
+            CreateMultipartUploadResponse.builder().uploadId(uploadId).build()
+        );
+
+        if (stage == 0) {
+            when(meteredStorage.meteredUploadPart(any(), any(), any())).thenThrow(new IOException("upload part failed"));
+        } else if (stage == 1) {
+            when(meteredStorage.meteredUploadPart(any(), any(), any())).thenAnswer(
+                inv -> UploadPartResponse.builder().eTag(randomAlphaOfLength(20)).build()
+            );
+            doThrow(new IOException("complete failed")).when(meteredStorage).meteredCompleteMultipartUpload(any(), any());
+        }
+        // stage == 2: provider throws before uploadPart is ever called
+
+        when(meteredStorage.meteredAbortMultipartUpload(any(), any())).thenReturn(new AbortMultipartUploadResponse());
+
+        final BlobContainer.BlobMultiPartInputStreamProvider provider = (stage == 2)
+            ? (offset, length) -> { throw providerException; }
+            : (offset, length) -> new ByteArrayInputStream(new byte[0]);
+
+        try (GoogleCloudStorageBlobStore blobStore = buildBlobStore(bucketName, meteredStorage)) {
+            final IOException e = expectThrows(
+                IOException.class,
+                () -> blobStore.blobContainer(BlobPath.EMPTY)
+                    .writeBlobAtomic(randomPurpose(), blobName, blobSize, provider, false, Runnable::run)
+            );
+
+            if (stage == 0 || stage == 2) {
+                assertEquals("Failed to upload parts", e.getMessage());
+            }
+            if (stage == 2) {
+                assertSame(providerException, e.getCause());
+            }
+
+            verify(meteredStorage, times(1)).meteredCreateMultipartUpload(any(), any());
+
+            final ArgumentCaptor<AbortMultipartUploadRequest> abortCaptor = ArgumentCaptor.forClass(AbortMultipartUploadRequest.class);
+            verify(meteredStorage, times(1)).meteredAbortMultipartUpload(any(), abortCaptor.capture());
+
+            final AbortMultipartUploadRequest abortRequest = abortCaptor.getValue();
+            assertEquals(bucketName, abortRequest.bucket());
+            assertEquals(blobName, abortRequest.key());
+            assertEquals(uploadId, abortRequest.uploadId());
+        }
+    }
+
+    public void testConcurrentWriteBlobAtomicSingleThread() throws Exception {
+        testConcurrentWriteBlobAtomic(true);
+    }
+
+    public void testConcurrentWriteBlobAtomicMultipleThreads() throws Exception {
+        testConcurrentWriteBlobAtomic(false);
+    }
+
+    private void testConcurrentWriteBlobAtomic(boolean singleThread) throws Exception {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final int nbParts = randomIntBetween(2, 5);
+        final long partSize = GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE;
+        // nbParts = ceil(blobSize / partSize)
+        final long blobSize = randomLongBetween((nbParts - 1) * partSize + 1, nbParts * partSize);
+        assert nbParts == (blobSize + partSize - 1) / partSize;
+
+        final MeteredStorage meteredStorage = mock(MeteredStorage.class);
+        when(meteredStorage.meteredCreateMultipartUpload(any(), any())).thenReturn(
+            CreateMultipartUploadResponse.builder().uploadId(randomAlphaOfLength(25)).build()
+        );
+
+        final int numThreads = singleThread ? 1 : nbParts;
+        final CyclicBarrier barrier = new CyclicBarrier(numThreads);
+        when(meteredStorage.meteredUploadPart(any(), any(), any())).thenAnswer(inv -> {
+            safeAwait(barrier);
+            return UploadPartResponse.builder().eTag("test-etag").build();
+        });
+
+        final OperationPurpose purpose = randomPurpose();
+        try (GoogleCloudStorageBlobStore blobStore = buildBlobStore(bucketName, meteredStorage)) {
+            final ExecutorService executorService = Executors.newFixedThreadPool(numThreads);
+            try {
+                executorService.submit(() -> {
+                    blobStore.blobContainer(BlobPath.EMPTY)
+                        .writeBlobAtomic(
+                            purpose,
+                            blobName,
+                            blobSize,
+                            (offset, length) -> new ByteArrayInputStream(new byte[0]),
+                            false,
+                            executorService
+                        );
+                    return null;
+                }).get();
+            } finally {
+                terminate(executorService);
+            }
+
+            verify(meteredStorage, times(1)).meteredCreateMultipartUpload(any(), any());
+            verify(meteredStorage, times(nbParts)).meteredUploadPart(any(), any(), any());
+            verify(meteredStorage, times(1)).meteredCompleteMultipartUpload(any(), any());
+        }
+    }
+
+    private static GoogleCloudStorageBlobStore buildBlobStore(String bucketName, MeteredStorage meteredStorage) throws IOException {
+        final GoogleCloudStorageService storageService = mock(GoogleCloudStorageService.class);
+        when(storageService.client(any(), any(), any(), any())).thenReturn(meteredStorage);
+        final GoogleCloudStorageClientSettings clientSettings = mock(GoogleCloudStorageClientSettings.class);
+        when(clientSettings.getTenaciousRetriesEnabled()).thenReturn(false);
+        when(storageService.clientSettings(any(), any())).thenReturn(clientSettings);
+        return new GoogleCloudStorageBlobStore(
+            ProjectId.DEFAULT,
+            bucketName,
+            "test",
+            "repo",
+            storageService,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            randomIntBetween(1, 8) * 1024,
+            GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE,
+            BackoffPolicy.noBackoff(),
+            new GcsRepositoryStatsCollector(),
+            null,
+            null
+        );
     }
 }

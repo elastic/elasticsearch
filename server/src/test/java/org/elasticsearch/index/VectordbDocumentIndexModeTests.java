@@ -114,6 +114,7 @@ public class VectordbDocumentIndexModeTests extends ESTestCase {
             "test_index",
             null,
             null,
+            false,
             ProjectMetadata.builder(ProjectId.fromId("test_project")).build(),
             Instant.now(),
             userSettings,

@@ -182,6 +182,13 @@ class HardcodedEntitlements {
                     )
                 )
             ),
+            new Scope(
+                "org.elasticsearch.foreign",
+                List.of(
+                    new LoadNativeLibrariesEntitlement(),
+                    new FilesEntitlement(List.of(FilesEntitlement.FileData.ofBaseDirPath(LIB, READ)))
+                )
+            ),
             new Scope("org.elasticsearch.simdvec", List.of(new LoadNativeLibrariesEntitlement()))
         );
 

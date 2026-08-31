@@ -18,8 +18,14 @@ import java.util.Arrays;
 
 /**
  * Iterates the documents that have a value for a field, and for the current document exposes its
- * value ordinal via {@link #index()} — the 0-based position among all documents that have a value.
- * The value layer uses that ordinal to locate the document's bytes in the substrate.
+ * <b>rank</b> via {@link #rank()} — the 0-based position of that document among the documents that have a
+ * value. The value layer turns a rank into a value address to locate the document's bytes in the substrate.
+ *
+ * <p>A rank identifies a <em>document</em>, not a value: it is a position in the sequence of documents that
+ * have one. Two documents holding identical bytes have different ranks, and a rank says nothing about what its
+ * document's value is. That is why it is not a "value ordinal" — the substrate does not look at values at all.
+ * Secondarily, <em>ordinal</em> is already the term id a dictionary assigns, following Lucene, so a dictionary
+ * layout would otherwise put two unrelated numbers under one name.
  *
  * <p>This is a {@link DocIdSetIterator}, so range and dense-loading code paths (including
  * {@link #intoBitSet}) consume it directly. Concrete shapes are chosen by the reader from
@@ -30,11 +36,11 @@ public abstract class ColumnIterator extends DocIdSetIterator {
     /** Written by {@link #ranks} for a document that has no value. */
     public static final int NO_RANK = -1;
 
-    /** The current document's value ordinal. */
-    public abstract int index();
+    /** The current document's rank. */
+    public abstract int rank();
 
     /**
-     * Resolves {@code docs[offset..offset + count)} to their value ordinals, writing them to
+     * Resolves {@code docs[offset..offset + count)} to their ranks, writing them to
      * {@code ranks[0..count)}. Document ids must be ascending with no duplicates; a document with no
      * value gets {@link #NO_RANK}.
      *
@@ -44,12 +50,12 @@ public abstract class ColumnIterator extends DocIdSetIterator {
      */
     public void ranks(int[] docs, int offset, int count, int[] ranks) throws IOException {
         for (int i = 0; i < count; i++) {
-            ranks[i] = advanceExact(docs[offset + i]) ? index() : NO_RANK;
+            ranks[i] = advanceExact(docs[offset + i]) ? rank() : NO_RANK;
         }
     }
 
     /**
-     * Whether every document has a value, so a document id equals its own value ordinal. The
+     * Whether every document has a value, so a document id equals its own rank. The
      * vectorized range and bulk-read fast paths gate on this: only a dense column maps a value block
      * directly onto a contiguous doc-id window.
      */
@@ -80,7 +86,7 @@ public abstract class ColumnIterator extends DocIdSetIterator {
         private int doc = -1;
 
         @Override
-        public int index() {
+        public int rank() {
             return -1;
         }
 
@@ -116,7 +122,7 @@ public abstract class ColumnIterator extends DocIdSetIterator {
     }
 
     /**
-     * Every document has a value, so the document id is its own value ordinal and no per-document
+     * Every document has a value, so the document id is its own rank and no per-document
      * data is stored. {@link #intoBitSet} fills the requested range in one shot.
      */
     private static final class Dense extends ColumnIterator {
@@ -133,11 +139,11 @@ public abstract class ColumnIterator extends DocIdSetIterator {
         }
 
         @Override
-        public int index() {
+        public int rank() {
             return doc;
         }
 
-        /** A document id is its own ordinal, so the batch resolves with no I/O and no iterator state. */
+        /** A document id is its own rank, so the batch resolves with no I/O and no iterator state. */
         @Override
         public void ranks(int[] docs, int offset, int count, int[] ranks) {
             for (int i = 0; i < count; i++) {
@@ -199,13 +205,13 @@ public abstract class ColumnIterator extends DocIdSetIterator {
         }
 
         @Override
-        public int index() {
+        public int rank() {
             return disi.index();
         }
 
         /**
          * Resolves a run of documents per {@link IndexedDISI#advanceExact} rather than one each: every
-         * document in {@code [docID(), runEnd)} is present, so their ordinals are consecutive from the one
+         * document in {@code [docID(), runEnd)} is present, so their ranks are consecutive from the one
          * just read and follow by arithmetic.
          */
         @Override
@@ -219,7 +225,7 @@ public abstract class ColumnIterator extends DocIdSetIterator {
                 }
                 final int rank = disi.index();
                 ranks[i++] = rank;
-                // Documents up to runEnd are known present, so their ordinals need no further advancing.
+                // Documents up to runEnd are known present, so their ranks need no further advancing.
                 final int runEnd = disi.docIDRunEnd();
                 while (i < count && docs[offset + i] < runEnd) {
                     ranks[i] = rank + (docs[offset + i] - doc);

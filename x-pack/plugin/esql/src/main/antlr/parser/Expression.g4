@@ -51,18 +51,13 @@ primaryExpression
     ;
 
 functionExpression
-    : functionName LP (ASTERISK | (functionParam (COMMA functionParam)* (COMMA mapExpression)?))? RP
+    : functionName LP (ASTERISK | ((booleanExpression | lambda) (COMMA (booleanExpression | lambda))* (COMMA mapExpression)?))? RP
     ;
 
 functionName
     : identifierOrParameter
     | FIRST
     | LAST
-    ;
-
-functionParam
-    : booleanExpression
-    | lambda
     ;
 
 lambda

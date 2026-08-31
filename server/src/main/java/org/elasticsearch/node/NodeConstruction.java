@@ -254,6 +254,7 @@ import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.TelemetryLogResourceProvider;
 import org.elasticsearch.telemetry.TelemetryLoggingFilterProvider;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -540,7 +541,10 @@ class NodeConstruction {
 
     private TelemetryProvider createTelemetryProvider() {
         List<TelemetryLoggingFilterProvider> filterProviders = pluginsService.filterPlugins(TelemetryLoggingFilterProvider.class).toList();
-        return getSinglePlugin(TelemetryPlugin.class).map(p -> p.getTelemetryProvider(environment, filterProviders))
+        TelemetryLogResourceProvider logResourceProvider = getSinglePlugin(TelemetryLogResourceProvider.class).orElseGet(
+            TelemetryLogResourceProvider.Default::new
+        );
+        return getSinglePlugin(TelemetryPlugin.class).map(p -> p.getTelemetryProvider(environment, filterProviders, logResourceProvider))
             .orElse(TelemetryProvider.NOOP);
     }
 
@@ -1430,6 +1434,7 @@ class NodeConstruction {
 
             resourcesToClose.add(throttlingRecoveryService);
             resourcesToClose.add(peerRecovery);
+            resourcesToClose.add(recoveryMetricsCollector);
 
             b.bind(RecoveryMetricsCollector.class).toInstance(recoveryMetricsCollector);
             b.bind(CompositeRecoverySchedulingListener.class).toInstance(recoverySchedulingListeners);

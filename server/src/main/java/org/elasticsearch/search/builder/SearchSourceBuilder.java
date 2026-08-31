@@ -10,6 +10,7 @@
 package org.elasticsearch.search.builder;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.ParsingException;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
@@ -31,6 +33,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchService;
@@ -68,6 +71,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -133,6 +137,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField PROJECT_ROUTING = new ParseField("project_routing");
 
     private static final boolean RANK_SUPPORTED = Booleans.parseBoolean(System.getProperty("es.search.rank_supported"), true);
+
+    public static final TransportVersion SEARCH_SOURCE_EMBEDDINGS_FIELDS = TransportVersion.fromName("search_source_embeddings_fields");
 
     /**
      * A static factory method to construct a new search source.
@@ -213,6 +219,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     private Map<String, Object> runtimeMappings = emptyMap();
 
     private boolean skipInnerHits = false;
+
+    private Map<String, VectorType> fetchEmbeddingsFields = new LinkedHashMap<>();
 
     /** Circuit-breaker Releasables from parse-time query accounting; non-null only after {@link #parseXContent} is called. */
     private List<Releasable> queryParsingReleasables;
@@ -297,6 +305,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         knnSearch = in.readCollectionAsList(KnnSearchBuilder::new);
         rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
         skipInnerHits = in.readBoolean();
+        if (in.getTransportVersion().supports(SEARCH_SOURCE_EMBEDDINGS_FIELDS)) {
+            fetchEmbeddingsFields = new LinkedHashMap<>(
+                in.readOrderedMap(StreamInput::readString, i -> i.readOptionalEnum(VectorType.class))
+            );
+        }
     }
 
     @Override
@@ -304,6 +317,17 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (retrieverBuilder != null) {
             throw new IllegalStateException("SearchSourceBuilder should be rewritten first");
         }
+
+        List<FieldAndFormat> fetchFieldsToWrite = fetchFields;
+        if (out.getTransportVersion().supports(SEARCH_SOURCE_EMBEDDINGS_FIELDS) == false && fetchEmbeddingsFields.isEmpty() == false) {
+            // Write embeddings fields to fetch fields so we can attempt to get them, even if not in embeddings format. This is
+            // essentially a "best effort" BwC approach, as we cannot control the format the fetched fields will use.
+            fetchFieldsToWrite = fetchFields == null ? new ArrayList<>() : new ArrayList<>(fetchFields);
+            for (String embeddingsField : fetchEmbeddingsFields.keySet()) {
+                fetchFieldsToWrite.add(new FieldAndFormat(embeddingsField, null));
+            }
+        }
+
         out.writeOptionalWriteable(aggregations);
         out.writeOptionalBoolean(explain);
         out.writeOptionalWriteable(fetchSourceContext);
@@ -351,15 +375,18 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalWriteable(sliceBuilder);
         out.writeOptionalWriteable(collapse);
         out.writeOptionalInt(trackTotalHitsUpTo);
-        out.writeBoolean(fetchFields != null);
-        if (fetchFields != null) {
-            out.writeCollection(fetchFields);
+        out.writeBoolean(fetchFieldsToWrite != null);
+        if (fetchFieldsToWrite != null) {
+            out.writeCollection(fetchFieldsToWrite);
         }
         out.writeOptionalWriteable(pointInTimeBuilder);
         out.writeGenericMap(runtimeMappings);
         out.writeCollection(knnSearch);
         out.writeOptionalNamedWriteable(rankBuilder);
         out.writeBoolean(skipInnerHits);
+        if (out.getTransportVersion().supports(SEARCH_SOURCE_EMBEDDINGS_FIELDS)) {
+            out.writeMap(fetchEmbeddingsFields, StreamOutput::writeOptionalEnum);
+        }
     }
 
     /**
@@ -1026,6 +1053,33 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
+     * Adds a field whose embeddings should be returned as part of the search response. If the field has already been added, the vector
+     * type from this call replaces the previous one.
+     * <p>
+     * Embeddings fields cannot overlap with fields fetched via {@link fetchFields}. Any overlaps will be reported as errors in
+     * {@link validate(ActionRequestValidationException, boolean, boolean)}.
+     * </p>
+     * <p>
+     * NOTE: This functionality is intended for internal usage only. It should not be exposed to users.
+     * </p>
+     *
+     * @param field the embeddings field name
+     * @param vectorType the vector type the field is expected to produce, or {@code null} to accept whichever type it produces
+     */
+    public SearchSourceBuilder fetchEmbeddingsField(String field, @Nullable VectorType vectorType) {
+        fetchEmbeddingsFields.put(field, vectorType);
+        return this;
+    }
+
+    /**
+     * Gets the fields whose embeddings should be returned as part of the search response, mapped to the vector type each field is
+     * expected to produce. A {@code null} value means any vector type is accepted.
+     */
+    public Map<String, VectorType> fetchEmbeddingsFields() {
+        return Collections.unmodifiableMap(fetchEmbeddingsFields);
+    }
+
+    /**
      * Adds a script field under the given name with the provided script.
      *
      * @param name
@@ -1298,6 +1352,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.pointInTimeBuilder = pointInTimeBuilder;
         rewrittenBuilder.runtimeMappings = runtimeMappings;
         rewrittenBuilder.skipInnerHits = skipInnerHits;
+        rewrittenBuilder.fetchEmbeddingsFields = fetchEmbeddingsFields;
         return rewrittenBuilder;
     }
 
@@ -2184,7 +2239,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             trackTotalHitsUpTo,
             pointInTimeBuilder,
             runtimeMappings,
-            skipInnerHits
+            skipInnerHits,
+            fetchEmbeddingsFields
         );
     }
 
@@ -2230,7 +2286,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             && Objects.equals(trackTotalHitsUpTo, other.trackTotalHitsUpTo)
             && Objects.equals(pointInTimeBuilder, other.pointInTimeBuilder)
             && Objects.equals(runtimeMappings, other.runtimeMappings)
-            && Objects.equals(skipInnerHits, other.skipInnerHits);
+            && Objects.equals(skipInnerHits, other.skipInnerHits)
+            && Objects.equals(fetchEmbeddingsFields, other.fetchEmbeddingsFields);
     }
 
     @Override
@@ -2364,6 +2421,26 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         "[stored_fields] cannot be disabled when using the [fields] option",
                         validationException
                     );
+                }
+            }
+        }
+        if (fetchFields() != null && fetchEmbeddingsFields().isEmpty() == false) {
+            // Both requests are resolved into the same FetchFieldsContext, which is keyed on field name. An overlap means one of them
+            // would silently overwrite the other at fetch time.
+            for (FieldAndFormat fetchField : fetchFields()) {
+                for (String embeddingsField : fetchEmbeddingsFields().keySet()) {
+                    if (Regex.simpleMatch(fetchField.field, embeddingsField)) {
+                        validationException = addValidationError(
+                            "["
+                                + FETCH_FIELDS_FIELD.getPreferredName()
+                                + "] entry ["
+                                + fetchField.field
+                                + "] cannot overlap with the requested embeddings field ["
+                                + embeddingsField
+                                + "]",
+                            validationException
+                        );
+                    }
                 }
             }
         }

@@ -23,12 +23,15 @@ import org.reactivestreams.Subscription;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -194,39 +197,17 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
         assertSame(error, ex.getCause());
     }
 
-    public void testRetryAllocatesFreshDestination() throws Exception {
-        // The SDK invokes prepare() for every retry attempt; the result of the first attempt must
-        // not contaminate the second.
+    /**
+     * A transformer instance serves exactly one request attempt: a second {@code prepare()} is how
+     * the SDK signals an internal retry with the same transformer, which would resurrect the
+     * cross-attempt stale-{@code exceptionOccurred} race the single-use contract exists to prevent
+     * (see the class javadoc). It must fail loudly rather than silently share state across attempts.
+     */
+    public void testPrepareIsSingleUse() {
         KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(8, FACTORY);
-
-        CompletableFuture<DirectReadBuffer> firstAttempt = transformer.prepare();
-        transformer.onResponse(response(8));
-        transformer.onStream(new SdkPublisher<>() {
-            @Override
-            public void subscribe(Subscriber<? super ByteBuffer> s) {
-                s.onSubscribe(new TestSubscription());
-                s.onError(new RuntimeException("first attempt failed"));
-            }
-        });
-        expectThrows(ExecutionException.class, firstAttempt::get);
-
-        // Second attempt — must produce the new payload, untainted by the first attempt's state.
-        byte[] payload = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 };
-        CompletableFuture<DirectReadBuffer> secondAttempt = transformer.prepare();
-        transformer.onResponse(response(8));
-        transformer.onStream(new SdkPublisher<>() {
-            @Override
-            public void subscribe(Subscriber<? super ByteBuffer> s) {
-                s.onSubscribe(new TestSubscription());
-                s.onNext(ByteBuffer.wrap(payload));
-                s.onComplete();
-            }
-        });
-
-        try (DirectReadBuffer result = secondAttempt.get()) {
-            assertFalse(result.buffer().isDirect());
-            assertArrayEquals(payload, toByteArray(result.buffer()));
-        }
+        transformer.prepare();
+        IllegalStateException ex = expectThrows(IllegalStateException.class, transformer::prepare);
+        assertThat(ex.getMessage(), containsString("single-use"));
     }
 
     public void testOnCompleteReleasesBufferWhenItLosesTheCompletionRace() throws Exception {
@@ -261,10 +242,11 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
 
     /**
      * Verifies that {@code exceptionOccurred} is a no-op once the subscriber has already handled
-     * its own terminal signal (the future is done). This is the {@code isDone()} guard that
-     * prevents a stale-attempt {@code exceptionOccurred} from spuriously failing a future that
-     * the subscriber already completed, and from double-freeing a buffer already released by the
-     * subscriber's {@code onError}.
+     * its own terminal signal (the future is done). This is the {@code isDone()} guard that turns
+     * netty's late duplicate notifications — the response-handler {@code onError} that follows the
+     * subscriber's {@code onError} with the same throwable, and the channel-inactive teardown that
+     * follows with a fresh {@code IOException} — into no-ops instead of double-frees or spurious
+     * future completions.
      */
     public void testExceptionOccurredIsNoOpAfterSubscriberHandledError() throws Exception {
         CircuitBreaker breaker = new LimitedBreaker("test-breaker", ByteSizeValue.ofMb(16));
@@ -284,78 +266,98 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
         expectThrows(ExecutionException.class, future::get);
         assertEquals("subscriber should have released its buffer", 0L, breaker.getUsed());
 
-        // Stale exceptionOccurred (e.g. from a prior attempt's event loop) fires after the
-        // subscriber already completed the future — must be a no-op.
-        transformer.exceptionOccurred(new RuntimeException("stale"));
+        // Late duplicate #1: netty notifies the response handler with the throwable the subscriber
+        // already handled. Late duplicate #2: channel-inactive teardown delivers a fresh IOException.
+        // Both fire after the subscriber completed the future — each must be a no-op.
+        transformer.exceptionOccurred(subscriberError);
+        transformer.exceptionOccurred(new IOException("channel closed"));
 
         assertEquals("exceptionOccurred must not double-free", 0L, breaker.getUsed());
-        // The future should still hold the original subscriber error, not the stale one.
+        // The future should still hold the original subscriber error, not a stale one.
         ExecutionException ex = expectThrows(ExecutionException.class, future::get);
         assertSame(subscriberError, ex.getCause());
     }
 
     /**
-     * Verifies that a concurrent {@code exceptionOccurred} (which calls {@code releaseOnFailure})
-     * and {@code onNext} (which copies a chunk) are mutually exclusive: the copy completes fully
-     * before the buffer is freed, or the buffer is detected as freed and the copy is skipped — in
-     * either case no write-after-free occurs and no memory is leaked. Two threads interleave the
-     * operations via latches; correctness is checked by the memory accounting of the child allocator
-     * and by verifying no exception escapes either thread.
+     * Races {@code exceptionOccurred} (which calls {@code releaseOnFailure}) against a genuinely
+     * concurrent {@code onNext} copy, with both threads released from the same barrier so the
+     * subscriber lock is actually contended — no latch forces one side to finish first. The
+     * destination buffer's release hook poisons the backing array while still inside the subscriber
+     * lock, so the mutual-exclusion invariant becomes observable: after release has run, the array
+     * must be entirely poison. If the copy could still write into the released buffer (the
+     * use-after-free write this class guards against), payload bytes would overwrite the poison and
+     * fail the assertion. Also verifies the buffer is released exactly once (no leak, no
+     * double-free) and that the trailing subscriber {@code onError} after the race stays a no-op.
      */
-    public void testExceptionOccurredConcurrentWithOnNextDoesNotLeakBuffer() throws Exception {
-        CircuitBreaker breaker = new LimitedBreaker("test-breaker", ByteSizeValue.ofMb(16));
-        DirectBufferFactory factory = DirectBufferFactory.forBreaker(breaker);
-        int payloadSize = 4096;
-        byte[] payload = randomByteArrayOfLength(payloadSize);
+    public void testExceptionOccurredContendingWithOnNextNeverWritesAfterRelease() throws Exception {
+        final int size = 1024;
+        final byte payloadByte = 0x5A;
+        final byte poisonByte = (byte) 0xDE;
+        byte[] payload = new byte[size];
+        Arrays.fill(payload, payloadByte);
 
-        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(
-            payloadSize,
-            factory
-        );
-        CompletableFuture<DirectReadBuffer> future = transformer.prepare();
-        transformer.onResponse(response(payloadSize));
+        int iterations = scaledRandomIntBetween(100, 500);
+        for (int i = 0; i < iterations; i++) {
+            byte[] backing = new byte[size];
+            AtomicLong closeCount = new AtomicLong();
+            DirectBufferFactory factory = len -> new DirectReadBuffer(ByteBuffer.wrap(backing), () -> {
+                if (closeCount.incrementAndGet() == 1L) {
+                    // Runs inside releaseOnFailure's subscriber lock: poisoning here models the
+                    // allocator recycling the memory the instant it is freed.
+                    Arrays.fill(backing, poisonByte);
+                }
+            });
 
-        // subscriberReady: publisher thread signals after onSubscribe, just before delivering onNext.
-        // exceptionDone: exceptionOccurred thread signals after releaseOnFailure has run.
-        CountDownLatch subscriberReady = new CountDownLatch(1);
-        CountDownLatch exceptionDone = new CountDownLatch(1);
+            KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(size, factory);
+            CompletableFuture<DirectReadBuffer> future = transformer.prepare();
+            transformer.onResponse(response(size));
 
-        // The publisher callback blocks mid-delivery so that exceptionOccurred can race it.
-        // It must run on a separate thread because publisher.subscribe() is synchronous — if
-        // called on the test thread it would deadlock before the exception thread starts.
-        Thread publisherThread = new Thread(() -> {
+            AtomicReference<Subscriber<? super ByteBuffer>> subscriberRef = new AtomicReference<>();
             transformer.onStream(new SdkPublisher<>() {
                 @Override
                 public void subscribe(Subscriber<? super ByteBuffer> s) {
                     s.onSubscribe(new TestSubscription());
-                    // Signal: buffer is allocated, about to deliver chunks.
-                    subscriberReady.countDown();
-                    // Wait for exceptionOccurred to finish; then onNext runs into the freed-buffer
-                    // path or races with the synchronized release — either way must be safe.
-                    try {
-                        exceptionDone.await();
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new RuntimeException(e);
-                    }
-                    s.onNext(ByteBuffer.wrap(payload));
-                    s.onError(new RuntimeException("simulated stream error"));
+                    subscriberRef.set(s);
                 }
             });
-        });
-        publisherThread.start();
 
-        // Wait until the subscriber has a live buffer, then race exceptionOccurred with onNext.
-        subscriberReady.await();
-        transformer.exceptionOccurred(new RuntimeException("concurrent exceptionOccurred"));
-        exceptionDone.countDown();
+            CyclicBarrier barrier = new CyclicBarrier(2);
+            RuntimeException boom = new RuntimeException("concurrent exceptionOccurred");
+            Thread copyThread = new Thread(() -> {
+                await(barrier);
+                subscriberRef.get().onNext(ByteBuffer.wrap(payload));
+                // The stream error that would follow the abandoned publisher; must be a no-op
+                // once exceptionOccurred already completed the future.
+                subscriberRef.get().onError(new RuntimeException("stream error after race"));
+            });
+            Thread releaseThread = new Thread(() -> {
+                await(barrier);
+                transformer.exceptionOccurred(boom);
+            });
+            copyThread.start();
+            releaseThread.start();
+            copyThread.join();
+            releaseThread.join();
 
-        publisherThread.join();
+            // exceptionOccurred always completes the future here (onNext alone never completes it).
+            assertTrue(future.isCompletedExceptionally());
+            assertEquals("buffer must be released exactly once", 1L, closeCount.get());
+            // Mutual exclusion: the copy either fully preceded the release (poison overwrote it) or
+            // was skipped after it. Any payload byte means a write into the released buffer.
+            for (int b = 0; b < size; b++) {
+                if (backing[b] != poisonByte) {
+                    fail("write-after-free at offset " + b + " on iteration " + i + ": found " + backing[b]);
+                }
+            }
+        }
+    }
 
-        // The future must be completed (by exceptionOccurred, and the trailing onError is a no-op).
-        expectThrows(ExecutionException.class, future::get);
-        // No memory must remain allocated after both paths have run.
-        assertEquals("no buffer leak after concurrent release", 0L, breaker.getUsed());
+    private static void await(CyclicBarrier barrier) {
+        try {
+            barrier.await(10, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
     }
 
     public void testResponseObjectExposedViaGetter() throws Exception {

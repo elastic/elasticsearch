@@ -878,7 +878,7 @@ The object for an API key update will differ in that it will not include a `name
     % NOTCONSOLE
 
 
-`user_managed_service_account`
+`user_managed_service_account` {applies_to}`stack: ga 9.6+`
 :   An object like:
 
     ```js

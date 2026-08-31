@@ -102,6 +102,7 @@ import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashSet;
@@ -118,6 +119,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
@@ -2778,6 +2780,74 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     // --- LIST tests ---
+
+    public void testLegacyNestedListFixtureIsUnsupported() throws Exception {
+        byte[] parquetData;
+        // Apache parquet-testing, data/old_list_structure.parquet at fa255dfacf58c8bab428b5d0117d188acc8ad03f.
+        try (InputStream in = getDataInputStream("old_list_structure.parquet.base64")) {
+            parquetData = Base64.getMimeDecoder().decode(in.readAllBytes());
+        }
+        assertEquals(539, parquetData.length);
+
+        SourceMetadata metadata = new ParquetFormatReader(blockFactory).metadata(createStorageObject(parquetData));
+        assertEquals(1, metadata.schema().size());
+        assertEquals("a", metadata.schema().get(0).name());
+        assertEquals(DataType.UNSUPPORTED, metadata.schema().get(0).dataType());
+    }
+
+    public void testListElementCompatibilityRules() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message test_schema {
+              optional group repeated_primitive (LIST) {
+                repeated int32 element;
+              }
+              optional group multi_field (LIST) {
+                repeated group entries {
+                  optional int32 x;
+                  optional int32 y;
+                }
+              }
+              optional group repeated_child (LIST) {
+                repeated group entries {
+                  repeated int32 value;
+                }
+              }
+              optional group named_array (LIST) {
+                repeated group array {
+                  optional int32 value;
+                }
+              }
+              optional group named_tuple (LIST) {
+                repeated group named_tuple_tuple {
+                  optional int32 value;
+                }
+              }
+              optional group required_element (LIST) {
+                repeated group list {
+                  required int32 element;
+                }
+              }
+              optional group optional_element (LIST) {
+                repeated group list {
+                  optional int32 element;
+                }
+              }
+            }
+            """);
+        byte[] parquetData = createParquetFile(schema, factory -> List.of(factory.newGroup()));
+
+        Map<String, DataType> types = new ParquetFormatReader(blockFactory).metadata(createStorageObject(parquetData))
+            .schema()
+            .stream()
+            .collect(Collectors.toMap(Attribute::name, Attribute::dataType));
+        assertEquals(DataType.INTEGER, types.get("repeated_primitive"));
+        assertEquals(DataType.UNSUPPORTED, types.get("multi_field"));
+        assertEquals(DataType.UNSUPPORTED, types.get("repeated_child"));
+        assertEquals(DataType.UNSUPPORTED, types.get("named_array"));
+        assertEquals(DataType.UNSUPPORTED, types.get("named_tuple"));
+        assertEquals(DataType.INTEGER, types.get("required_element"));
+        assertEquals(DataType.INTEGER, types.get("optional_element"));
+    }
 
     public void testReadListOfIntegersColumn() throws Exception {
         Type listType = Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT32).named("numbers");

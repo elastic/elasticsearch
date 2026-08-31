@@ -478,7 +478,7 @@ public class FileSplitProvider implements SplitProvider {
                 // An unresolved or already-empty file list is not a prune (fileCount == 0). A skip that
                 // is not counted above leaves certifiedSkips < fileCount and falls back to a full read.
                 boolean exhaustivelyPruned = fileList.fileCount() > 0 && certifiedSkips == fileList.fileCount();
-                return new SplitDiscoveryResult(List.of(), 0, exhaustivelyPruned);
+                return new SplitDiscoveryResult(List.of(), 0, exhaustivelyPruned, 0L);
             }
 
             // Phase 2: I/O-bound split planning, parallelized across files when an executor is available. Files

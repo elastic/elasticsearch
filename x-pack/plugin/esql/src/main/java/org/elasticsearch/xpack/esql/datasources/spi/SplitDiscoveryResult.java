@@ -41,16 +41,6 @@ public record SplitDiscoveryResult(List<ExternalSplit> splits, int filesScanned,
         splits = List.copyOf(splits);
     }
 
-    /** Splits with the given {@code filesScanned}; not an exhaustive prune (there are splits to read). */
-    public SplitDiscoveryResult(List<ExternalSplit> splits, int filesScanned) {
-        this(splits, filesScanned, false);
-    }
-
-    /** Splits with the given {@code filesScanned} and exhaustive-prune flag; {@code cpuNanos} defaults to 0. */
-    public SplitDiscoveryResult(List<ExternalSplit> splits, int filesScanned, boolean exhaustivelyPruned) {
-        this(splits, filesScanned, exhaustivelyPruned, 0L);
-    }
-
     /**
      * Convenience for providers that have no file-level accounting: carries the splits with a
      * {@code filesScanned} of {@code 0}.

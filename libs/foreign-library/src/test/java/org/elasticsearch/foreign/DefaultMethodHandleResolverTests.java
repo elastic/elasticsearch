@@ -33,6 +33,7 @@ public class DefaultMethodHandleResolverTests extends TestCase {
      * Uses {@code getpid} on POSIX and {@code GetCurrentProcessId} on Windows — both take no
      * arguments and return a positive int, making them ideal for a self-contained native call.
      */
+    @SuppressWarnings("restricted") // SymbolLookup.libraryLookup is restricted on the JDK 25 baseline; safe in this test-only lookup
     public void testDefaultResolverBuildsWorkingMethodHandle() throws Throwable {
         Linker linker = Linker.nativeLinker();
         boolean isWindows = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows");

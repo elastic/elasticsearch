@@ -22,9 +22,9 @@ import static org.hamcrest.Matchers.containsString;
 /**
  * Tests for the {@link StructuralIndexer} Java API layer. Low-level native FFI
  * correctness (structurals, whitespace, escaping, error codes, guard pages, etc.) is
- * covered by {@link org.elasticsearch.simdjson.internal.SimdJsonLibraryTests SimdJsonLibraryTests}; these tests focus on the Java-level concerns:
- * the {@code byte[]}-based API, bounds checking, error wrapping, context reuse, and
- * {@link AutoCloseable} lifecycle.
+ * covered by {@link SimdJsonLibraryTests SimdJsonLibraryTests}; these tests focus on
+ * the Java-level concerns: the {@code byte[]}-based API, bounds checking, error
+ * wrapping, context reuse, and {@link AutoCloseable} lifecycle.
  */
 public class StructuralIndexerTests extends ESTestCase {
 

@@ -446,6 +446,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     if (s.evaluation() != null) {
                         // Only constant per-selector time shift is supported at the moment.
                         // TODO(sidosera): Support heterogeneous offset on binary operators.
+                        // https://github.com/elastic/elasticsearch/issues/158184
                         if (s.evaluation().at().value() != null) {
                             failures.add(fail(s, "@ modifiers are not supported at this time [{}]", s.sourceText()));
                         }
@@ -533,12 +534,16 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                         verifySetOperator(failures, setOp, topLevelUnions.contains(setOp));
                     }
                     if (usesWithoutGrouping(binaryOperator.left()) || usesWithoutGrouping(binaryOperator.right())) {
+                        // TODO: Support WITHOUT-grouped operands in binary expressions.
+                        // https://github.com/elastic/elasticsearch/issues/145308
                         failures.add(fail(lp, "binary expressions with WITHOUT are not supported at this time [{}]", lp.sourceText()));
                     }
                     if (hasSourceBackedExpression(binaryOperator.left())
                         && hasSourceBackedExpression(binaryOperator.right())
                         && (usesNestedAcrossSeriesAggregation(binaryOperator.left())
                             || usesNestedAcrossSeriesAggregation(binaryOperator.right()))) {
+                        // TODO: Support nested aggregations in binary operator operands.
+                        // https://github.com/elastic/elasticsearch/issues/158183
                         failures.add(
                             fail(lp, "binary expressions with nested aggregations are not supported at this time [{}]", lp.sourceText())
                         );
@@ -551,6 +556,8 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                         && hasSourceBackedExpression(binaryOperator.left())
                         && hasSourceBackedExpression(binaryOperator.right())
                         && collectAllOffsetsForBranch(binaryOperator).size() > 1) {
+                        // TODO: Support different offsets in binary operator operands.
+                        // https://github.com/elastic/elasticsearch/issues/158184
                         failures.add(
                             fail(lp, "binary expressions with different offsets are not supported at this time [{}]", lp.sourceText())
                         );
@@ -585,10 +592,14 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             return;
         }
         if (setOp.op() != VectorBinarySet.SetOp.UNION) {
+            // TODO: Support and/unless set operators.
+            // https://github.com/elastic/elasticsearch/issues/158179
             failures.add(fail(setOp, "set operator [{}] is not supported at this time [{}]", setOp.op().keyword(), setOp.sourceText()));
             return;
         }
         if (isTopLevelUnion == false) {
+            // TODO: Support or below the top level.
+            // https://github.com/elastic/elasticsearch/issues/158182
             failures.add(fail(setOp, "set operator [or] is only supported at the top-level at this time [{}]", setOp.sourceText()));
         }
     }

@@ -27,6 +27,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 
@@ -40,13 +41,13 @@ final class BinaryDocValuesLengthQuery extends Query {
 
     final String fieldName;
     final int length;
-    // See AbstractBinaryDocValuesQuery#arrayOrderInlineNull: selects the inline-null decoder for the multi-valued fallback path.
-    final boolean arrayOrderInlineNull;
+    // Selects the decoder for the multi-valued fallback path; see BinaryDocValuesFormat.
+    final BinaryDocValuesFormat binaryFormat;
 
-    BinaryDocValuesLengthQuery(String fieldName, int length, boolean arrayOrderInlineNull) {
+    BinaryDocValuesLengthQuery(String fieldName, int length, BinaryDocValuesFormat binaryFormat) {
         this.fieldName = Objects.requireNonNull(fieldName);
         this.length = length;
-        this.arrayOrderInlineNull = arrayOrderInlineNull;
+        this.binaryFormat = Objects.requireNonNull(binaryFormat);
     }
 
     @Override
@@ -89,7 +90,7 @@ final class BinaryDocValuesLengthQuery extends Query {
                             return direct.tryLengthIterator(length);
                         }
                         Predicate<BytesRef> lengthPredicate = bytes -> bytes.length == length;
-                        if (arrayOrderInlineNull) {
+                        if (binaryFormat == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL) {
                             return AbstractBinaryDocValuesQuery.arrayOrderInlineNullIterator(values, counts, lengthPredicate, matchCost);
                         } else if (countsSkipper != null) {
                             return AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, lengthPredicate, matchCost);
@@ -131,12 +132,12 @@ final class BinaryDocValuesLengthQuery extends Query {
             return false;
         }
         BinaryDocValuesLengthQuery that = (BinaryDocValuesLengthQuery) o;
-        return Objects.equals(fieldName, that.fieldName) && length == that.length;
+        return Objects.equals(fieldName, that.fieldName) && length == that.length && binaryFormat == that.binaryFormat;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), fieldName, length);
+        return Objects.hash(classHash(), fieldName, length, binaryFormat);
     }
 
 }

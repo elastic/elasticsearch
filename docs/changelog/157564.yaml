@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 157564
+summary: Upgrade httpclient5 to 5.6.4
+type: upgrade

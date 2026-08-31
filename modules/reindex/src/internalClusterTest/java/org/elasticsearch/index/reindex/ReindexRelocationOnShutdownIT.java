@@ -34,7 +34,6 @@ import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.reindex.management.ReindexManagementPlugin;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
@@ -145,14 +144,14 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
             updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true), SOURCE);
         }
 
-        // Heavily throttle the request so that it can't complete before we shut the node down
-        final ReindexRequest request = new ReindexRequest().setSourceIndices(SOURCE)
-            .setDestIndex(DEST)
-            .setRefresh(true)
-            .setShouldStoreResult(true)
-            .setEligibleForRelocationOnShutdown(true)
-            .setRequestsPerSecond(0.000001f);
-        request.getSearchRequest().source().size(1000);
+        final ReindexRequest request = configureIndexingBatchSizeAndRate(
+            new ReindexRequest().setSourceIndices(SOURCE)
+                .setDestIndex(DEST)
+                .setRefresh(true)
+                .setShouldStoreResult(true)
+                .setEligibleForRelocationOnShutdown(true),
+            numDocs
+        );
 
         // Start the reindexing task on the coordinating node
         final CountDownLatch listenerDone = new CountDownLatch(1);
@@ -182,13 +181,9 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         shutdownPrepareService.prepareForShutdown();
         // Therefore, we rethrottle the reindexing task to run unlimited requests per second, immediately triggering relocation
         rethrottleRunningRootReindex(numDocs);
-
-        // Wait for the client listener before stopping the node: the relocation is initiated but the listener may be not completed.
-        // Stopping the node concurrently can strand their response handlers in already-terminated thread pools, hanging the listener and
-        // leaking the stranded messages' network buffers
-        assertTrue("reindex listener should complete", listenerDone.await(30, TimeUnit.SECONDS));
-
         internalCluster().stopNode(coordNodeName);
+
+        assertTrue("reindex listener should complete", listenerDone.await(30, TimeUnit.SECONDS));
 
         // Assert that the reindexing task on the first node failed
         final Throwable error = failure.get();
@@ -272,7 +267,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO)
         ).get();
 
-        final int numDocs = randomIntBetween(10, 40);
+        final int numDocs = randomIntBetween(120, 200);
         indexRandom(
             true,
             false,
@@ -296,13 +291,14 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         );
         ensureGreen(TaskResultsService.TASK_INDEX);
 
-        final ReindexRequest request = new ReindexRequest().setSourceIndices(SOURCE)
-            .setDestIndex(DEST)
-            .setRefresh(true)
-            .setShouldStoreResult(true)
-            .setEligibleForRelocationOnShutdown(true)
-            .setRequestsPerSecond(0.000001f);
-        request.getSearchRequest().source().size(1);
+        final ReindexRequest request = configureIndexingBatchSizeAndRate(
+            new ReindexRequest().setSourceIndices(SOURCE)
+                .setDestIndex(DEST)
+                .setRefresh(true)
+                .setShouldStoreResult(true)
+                .setEligibleForRelocationOnShutdown(true),
+            numDocs
+        );
 
         final CountDownLatch listenerDone = new CountDownLatch(1);
         final AtomicReference<Throwable> failure = new AtomicReference<>();
@@ -393,11 +389,8 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
         ensureStableCluster(3);
 
-        final int numDocs = randomIntBetween(10, 40);
+        final int numDocs = randomIntBetween(120, 200);
         createIndex(SOURCE);
-        // Pre-create the destination before the data node is marked for shutdown removal. Otherwise the first bulk auto-creates
-        // it after the mark, its primary cannot be allocated to the (sole) shutting-down data node.
-        createIndex(DEST, indexSettings(1, 0).build());
         indexRandom(
             true,
             false,
@@ -408,12 +401,10 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         );
         assertHitCount(prepareSearch(SOURCE).setSize(0).setTrackTotalHits(true), numDocs);
 
-        final ReindexRequest request = new ReindexRequest().setSourceIndices(SOURCE)
-            .setDestIndex(DEST)
-            .setRefresh(true)
-            .setEligibleForRelocationOnShutdown(true)
-            .setRequestsPerSecond(0.000001f);
-        request.getSearchRequest().source().size(1);
+        final ReindexRequest request = configureIndexingBatchSizeAndRate(
+            new ReindexRequest().setSourceIndices(SOURCE).setDestIndex(DEST).setRefresh(true).setEligibleForRelocationOnShutdown(true),
+            numDocs
+        );
 
         // Start the reindexing task on the coordinating node
         final CountDownLatch listenerDone = new CountDownLatch(1);
@@ -441,21 +432,15 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         final ShutdownPrepareService shutdownPrepareService = internalCluster().getInstance(ShutdownPrepareService.class, coordNodeName);
         shutdownPrepareService.prepareForShutdown();
 
-        // Wait for the listener before stopping the node: prepareForShutdown() cancels the un-relocatable task but does not wait
-        // for the listener to complete. Stopping the node concurrently can strand that response handler in an already-terminated thread
-        // pool, hanging the listener and leaking the undelivered message's network buffer
-        assertTrue("reindex listener should complete", listenerDone.await(30, TimeUnit.SECONDS));
-
+        // Forcibly shutting the node before the reindexing task completes
         internalCluster().stopNode(coordNodeName);
+
+        assertTrue("reindex listener should complete", listenerDone.await(30, TimeUnit.SECONDS));
 
         final Throwable error = failure.get();
         final BulkByPaginatedSearchResponse response = success.get();
         assertTrue(
-            "reindex should surface coordinator shutdown as a transport failure or as bulk failures on the response, but got error=["
-                + error
-                + "], response=["
-                + response
-                + "]",
+            "reindex should surface coordinator shutdown as a transport failure or as bulk failures on the response",
             reindexClientIndicatesCoordinatingNodeClosed(error, response)
         );
 
@@ -481,7 +466,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
         ensureStableCluster(3);
 
-        final int numDocs = randomIntBetween(10, 40);
+        final int numDocs = randomIntBetween(120, 200);
         createIndex(SOURCE);
         createIndex(DEST, indexSettings(1, 0).build());
         indexRandom(
@@ -494,12 +479,10 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         );
         assertHitCount(prepareSearch(SOURCE).setSize(0).setTrackTotalHits(true), numDocs);
 
-        final ReindexRequest request = new ReindexRequest().setSourceIndices(SOURCE)
-            .setDestIndex(DEST)
-            .setRefresh(true)
-            .setEligibleForRelocationOnShutdown(true)
-            .setRequestsPerSecond(0.000001f);
-        request.getSearchRequest().source().size(1);
+        final ReindexRequest request = configureIndexingBatchSizeAndRate(
+            new ReindexRequest().setSourceIndices(SOURCE).setDestIndex(DEST).setRefresh(true).setEligibleForRelocationOnShutdown(true),
+            numDocs
+        );
 
         // Start the reindexing task
         final CountDownLatch listenerDone = new CountDownLatch(1);
@@ -544,33 +527,22 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
     }
 
     /**
-     * When the coordinating node shuts down mid-reindex, the client may see one of:
+     * When the coordinating node stops mid-reindex, the client may see one of:
      * <ul>
      *   <li>{@link ActionListener#onFailure} with {@link NodeClosedException} — transport closed before the task exited</li>
-     *   <li>{@link ActionListener#onFailure} with {@link TaskCancelledException} whose message contains
-     *       {@code "node shutting down"} — the shutdown hook cancelled the task while it was mid-flight (e.g. a search or bulk
-     *       in progress), so a subsequent child request was refused by the cancellation ban before the worker reached a
-     *       graceful-cancel checkpoint</li>
      *   <li>{@link ActionListener#onResponse} with {@link BulkByPaginatedSearchResponse} whose
      *       {@link BulkByPaginatedSearchResponse#getBulkFailures()} wrap {@link NodeClosedException} — bulk ops hit the closing node</li>
      *   <li>{@link ActionListener#onResponse} with {@link BulkByPaginatedSearchResponse} whose
      *       {@link BulkByPaginatedSearchResponse#getReasonCancelled()} is {@code "node shutting down"} — the task was cancelled by
-     *       the shutdown hook while parked in the throttle sleep and exited gracefully</li>
+     *       the shutdown hook and exited before the transport closed</li>
      * </ul>
      */
     private static boolean reindexClientIndicatesCoordinatingNodeClosed(
         final Throwable clientFailure,
         final BulkByPaginatedSearchResponse response
     ) {
-        if (clientFailure != null) {
-            final Throwable cause = ExceptionsHelper.unwrapCause(clientFailure);
-            if (cause instanceof NodeClosedException) {
-                return true;
-            }
-            if (cause instanceof TaskCancelledException
-                && cause.getMessage().contains(ShutdownPrepareService.CANNOT_RELOCATE_REINDEX_CANCEL_REASON)) {
-                return true;
-            }
+        if (clientFailure != null && ExceptionsHelper.unwrapCause(clientFailure) instanceof NodeClosedException) {
+            return true;
         }
         if (response != null) {
             for (BulkItemResponse.Failure bulkFailure : response.getBulkFailures()) {
@@ -715,21 +687,19 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
         ensureStableCluster(3);
 
-        final int numDocs = randomIntBetween(100, 120);
+        final int numDocs = randomIntBetween(120, 200);
         createIndex(SOURCE);
         indexRandom(true, SOURCE, numDocs);
         assertHitCount(prepareSearch(SOURCE).setSize(0).setTrackTotalHits(true), numDocs);
 
-        // Reindex should take 30s, doing about 3 docs/s
-        final float requestsPerSecond = numDocs / 30.0f;
-        final ReindexRequest request = new ReindexRequest().setSourceIndices(SOURCE)
-            .setDestIndex(DEST)
-            .setRefresh(true)
-            .setShouldStoreResult(true)
-            .setEligibleForRelocationOnShutdown(true)
-            .setRequestsPerSecond(requestsPerSecond);
-        // Batches of 1 should only delay ~300ms, meaning the relocation should start sooner
-        request.getSearchRequest().source().size(1);
+        final ReindexRequest request = configureIndexingBatchSizeAndRate(
+            new ReindexRequest().setSourceIndices(SOURCE)
+                .setDestIndex(DEST)
+                .setRefresh(true)
+                .setShouldStoreResult(true)
+                .setEligibleForRelocationOnShutdown(true),
+            numDocs
+        );
 
         final CountDownLatch listenerDone = new CountDownLatch(1);
         final AtomicReference<Throwable> failure = new AtomicReference<>();
@@ -882,5 +852,24 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
             }
             throw new AssertionError("no root reindex task found for rethrottle after relocation");
         }, 30, TimeUnit.SECONDS);
+    }
+
+    /// Configure a reindex request such that it sends regular small requests, but takes a long time
+    /// to complete. This ensures the task will be responsive to relocation requests, but will not
+    /// complete before timeouts expire.
+    ///
+    /// [ReindexRequest#setRequestsPerSecond(float)] actually refers to sub-requests, i.e., documents;
+    /// it's effectively how many documents we'll reindex per second.
+    ///
+    /// So if we configure a `numDocs / 60f` requests per second, we'll index all the documents in one minute
+    /// if we additionally configure the batch size to be `numDocs / 120`, we'll index all the documents in
+    /// one minute, sending a request every 500ms
+    private static ReindexRequest configureIndexingBatchSizeAndRate(ReindexRequest request, int numDocuments) {
+        assert numDocuments >= 120
+            : "We want to send a request every 500ms and we want the whole thing to take 60s, so we need at least 120 docs";
+        final float documentsPerSecond = numDocuments / 60f;
+        request.setRequestsPerSecond(documentsPerSecond);
+        request.getSearchRequest().source().size(Math.max(1, numDocuments / 120));
+        return request;
     }
 }

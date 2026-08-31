@@ -9,21 +9,27 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -93,6 +99,9 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
             task = invocation.getArgument(1, ClusterStateTaskListener.class);
             return null;
         }).when(queue).submitTask(any(), any(), any());
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(clusterService.threadPool()).thenReturn(threadPool);
+        when(threadPool.executor(ThreadPool.Names.MANAGEMENT)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         this.service = new SystemIndexMetadataUpgradeService(
             new SystemIndices(
@@ -300,6 +309,33 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
 
         assertThat(result.isSystem(), equalTo(false));
         assertThat(result.isHidden(), equalTo(true));
+    }
+
+    public void testNewMasterScansUnchangedIndicesForDemotion() {
+        IndexMetadata firstIndex = IndexMetadata.builder("user-index-1")
+            .system(true)
+            .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true))
+            .build();
+        IndexMetadata secondIndex = IndexMetadata.builder("user-index-2")
+            .system(true)
+            .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true))
+            .build();
+        Metadata metadata = Metadata.builder().put(IndexMetadata.builder(firstIndex)).put(IndexMetadata.builder(secondIndex)).build();
+        DiscoveryNode localNode = DiscoveryNodeUtils.create("local-node");
+        DiscoveryNodes previousNodes = DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build();
+        ClusterState previousState = ClusterState.builder(new ClusterName("system-index-metadata-upgrade-service-tests"))
+            .metadata(metadata)
+            .nodes(previousNodes)
+            .build();
+        ClusterState currentState = ClusterState.builder(previousState)
+            .nodes(DiscoveryNodes.builder(previousNodes).masterNodeId(localNode.getId()))
+            .build();
+
+        service.clusterChanged(new ClusterChangedEvent("local node elected master", currentState, previousState));
+        ClusterState result = executeTask(currentState);
+
+        assertThat(result.metadata().getProject().index(firstIndex.getIndex().getName()).isSystem(), equalTo(false));
+        assertThat(result.metadata().getProject().index(secondIndex.getIndex().getName()).isSystem(), equalTo(false));
     }
 
     public void testIsVisible() {

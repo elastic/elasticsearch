@@ -66,8 +66,9 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
         @FixForMultiProject
         ProjectMetadata currentMetadata = event.state().metadata().getProject();
         ProjectMetadata previousMetadata = event.previousState().metadata().getProject();
+        final boolean localNodeElectedMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false;
         if (event.localNodeMaster()
-            && (event.previousState().nodes().isLocalNodeElectedMaster() == false
+            && (localNodeElectedMaster
                 || currentMetadata.indices() != previousMetadata.indices()
                 || currentMetadata.dataStreams() != previousMetadata.dataStreams())) {
             final Map<String, IndexMetadata> indexMetadataMap = currentMetadata.indices();
@@ -83,7 +84,7 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
                     Set<Index> dataStreamIndices = new HashSet<>();
                     for (Map.Entry<String, DataStream> cursor : dataStreams.entrySet()) {
                         DataStream dataStream = cursor.getValue();
-                        if (dataStream != previousDataStreams.get(cursor.getKey())) {
+                        if (localNodeElectedMaster || dataStream != previousDataStreams.get(cursor.getKey())) {
                             if (requiresUpdate(dataStream)) {
                                 changedDataStreams.add(dataStream);
                             }
@@ -96,7 +97,8 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
                     for (Map.Entry<String, IndexMetadata> cursor : indexMetadataMap.entrySet()) {
                         IndexMetadata indexMetadata = cursor.getValue();
                         Index index = indexMetadata.getIndex();
-                        if (cursor.getValue() != previousIndices.get(cursor.getKey()) && dataStreamIndices.contains(index) == false) {
+                        if ((localNodeElectedMaster || cursor.getValue() != previousIndices.get(cursor.getKey()))
+                            && dataStreamIndices.contains(index) == false) {
                             if (requiresUpdate(indexMetadata)) {
                                 changedIndices.add(index);
                             }

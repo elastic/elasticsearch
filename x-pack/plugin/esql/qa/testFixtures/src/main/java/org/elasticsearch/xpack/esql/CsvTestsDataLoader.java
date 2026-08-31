@@ -431,7 +431,11 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_in_subquery_disjunction_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
         new ViewConfig("employees_in_subquery_nested_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
         new ViewConfig("view_partial_mapping_sample_data"),
-        new ViewConfig("view_sample_data")
+        new ViewConfig("view_sample_data"),
+        new ViewConfig(
+            "employees_stats_where_in_subquery_view",
+            List.of(WHERE_IN_SUBQUERY_WITH_VIEW, EsqlCapabilities.Cap.STATS_WHERE_IN_SUBQUERY)
+        )
     ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**
@@ -605,7 +609,7 @@ public class CsvTestsDataLoader {
         return (prop == null || prop.isBlank()) ? null : Set.of(prop.split(", *"));
     }
 
-    private static boolean isLookupDataset(TestDataset dataset) throws IOException {
+    static boolean isLookupDataset(TestDataset dataset) throws IOException {
         Settings settings = dataset.loadSettings();
         String mode = settings.get("index.mode");
         return (mode != null && mode.equalsIgnoreCase("lookup"));
@@ -620,7 +624,7 @@ public class CsvTestsDataLoader {
         return mappingNode.get("_source") != null;
     }
 
-    private static boolean isTimeSeries(TestDataset dataset) throws IOException {
+    static boolean isTimeSeries(TestDataset dataset) throws IOException {
         Settings settings = dataset.loadSettings();
         String mode = settings.get("index.mode");
         return (mode != null && mode.equalsIgnoreCase("time_series"));

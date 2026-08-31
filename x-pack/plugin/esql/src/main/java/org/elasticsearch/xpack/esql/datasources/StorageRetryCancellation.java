@@ -46,8 +46,7 @@ import java.util.function.BooleanSupplier;
  * discovery / resolution worker, and for the runtime open / drain steps that pull pages on the same thread the
  * scope wraps. It does NOT reach reads outside that synchronous Java retry layer: the bzip2 parallel
  * block-boundary scan and other parallel-parse workers run chunk reads on separate executor threads (the
- * thread-local does not propagate to those threads), and the parquet-rs reader performs footer I/O in a
- * native runtime that bypasses the Java retry layer entirely. Both fall back to their own, non-cancellable
+ * thread-local does not propagate to those threads). These fall back to their own, non-cancellable
  * backoff.
  *
  * <p><b>Degenerate-query cancellation (what the scope does NOT fix).</b> The scope only shortcuts the Java

@@ -26,6 +26,9 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.mapper.BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL;
+import static org.elasticsearch.index.mapper.BinaryDocValuesFormat.SEPARATE_COUNT;
+
 public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
 
     // =========================================================================
@@ -239,8 +242,13 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
             try (DirectoryReader reader = DirectoryReader.open(w)) {
                 LeafReader leaf = getOnlyLeafReader(reader);
                 for (boolean maxMode : new boolean[] { false, true }) {
-                    BinaryDocValues dvs = new MultiValuedBinaryDocValuesSortField("name", false, SortField.STRING_LAST, maxMode, true)
-                        .getSortKeyDocValues(leaf);
+                    BinaryDocValues dvs = new MultiValuedBinaryDocValuesSortField(
+                        "name",
+                        false,
+                        SortField.STRING_LAST,
+                        maxMode,
+                        ARRAY_ORDER_INLINE_NULL
+                    ).getSortKeyDocValues(leaf);
                     assertTrue(dvs.advanceExact(0));
                     assertEquals("maxMode=" + maxMode, new BytesRef("alice"), dvs.binaryValue());
                 }
@@ -260,8 +268,13 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
             w.addDocument(doc);
             try (DirectoryReader reader = DirectoryReader.open(w)) {
                 LeafReader leaf = getOnlyLeafReader(reader);
-                BinaryDocValues dvs = new MultiValuedBinaryDocValuesSortField("name", false, SortField.STRING_LAST, false, true)
-                    .getSortKeyDocValues(leaf);
+                BinaryDocValues dvs = new MultiValuedBinaryDocValuesSortField(
+                    "name",
+                    false,
+                    SortField.STRING_LAST,
+                    false,
+                    ARRAY_ORDER_INLINE_NULL
+                ).getSortKeyDocValues(leaf);
                 assertTrue(dvs.advanceExact(0));
                 assertEquals(new BytesRef("bob"), dvs.binaryValue());
             }
@@ -277,8 +290,13 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
             w.addDocument(doc);
             try (DirectoryReader reader = DirectoryReader.open(w)) {
                 LeafReader leaf = getOnlyLeafReader(reader);
-                BinaryDocValues dvs = new MultiValuedBinaryDocValuesSortField("name", false, SortField.STRING_LAST, true, true)
-                    .getSortKeyDocValues(leaf);
+                BinaryDocValues dvs = new MultiValuedBinaryDocValuesSortField(
+                    "name",
+                    false,
+                    SortField.STRING_LAST,
+                    true,
+                    ARRAY_ORDER_INLINE_NULL
+                ).getSortKeyDocValues(leaf);
                 assertTrue(dvs.advanceExact(0));
                 assertEquals(new BytesRef("zebra"), dvs.binaryValue());
             }
@@ -297,13 +315,23 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
             w.addDocument(doc);
             try (DirectoryReader reader = DirectoryReader.open(w)) {
                 LeafReader leaf = getOnlyLeafReader(reader);
-                BinaryDocValues minDvs = new MultiValuedBinaryDocValuesSortField("name", false, SortField.STRING_LAST, false, true)
-                    .getSortKeyDocValues(leaf);
+                BinaryDocValues minDvs = new MultiValuedBinaryDocValuesSortField(
+                    "name",
+                    false,
+                    SortField.STRING_LAST,
+                    false,
+                    ARRAY_ORDER_INLINE_NULL
+                ).getSortKeyDocValues(leaf);
                 assertTrue(minDvs.advanceExact(0));
                 assertEquals(new BytesRef("bob"), minDvs.binaryValue());
 
-                BinaryDocValues maxDvs = new MultiValuedBinaryDocValuesSortField("name", false, SortField.STRING_LAST, true, true)
-                    .getSortKeyDocValues(leaf);
+                BinaryDocValues maxDvs = new MultiValuedBinaryDocValuesSortField(
+                    "name",
+                    false,
+                    SortField.STRING_LAST,
+                    true,
+                    ARRAY_ORDER_INLINE_NULL
+                ).getSortKeyDocValues(leaf);
                 assertTrue(maxDvs.advanceExact(0));
                 assertEquals(new BytesRef("zebra"), maxDvs.binaryValue());
             }
@@ -334,8 +362,17 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
         assertRoundTrip(new MultiValuedBinaryDocValuesSortField("host.name", true, SortField.STRING_LAST, false));
     }
 
-    public void testProviderRoundTrip_arrayOrderTrue() throws IOException {
-        assertRoundTrip(new MultiValuedBinaryDocValuesSortField("host.name", false, SortField.STRING_LAST, true, true));
+    public void testProviderRoundTrip_arrayOrderInlineNull() throws IOException {
+        assertRoundTrip(new MultiValuedBinaryDocValuesSortField("host.name", false, SortField.STRING_LAST, true, ARRAY_ORDER_INLINE_NULL));
+    }
+
+    /**
+     * The format is written as an ordinal, and has to keep the {@code 0}/{@code 1} the boolean it replaced wrote, so
+     * that segments written before it was an enum still read back as themselves.
+     */
+    public void testProviderWireFormatIsStableForTheFormatsThatReplacedABoolean() {
+        assertEquals(0, SEPARATE_COUNT.ordinal());
+        assertEquals(1, ARRAY_ORDER_INLINE_NULL.ordinal());
     }
 
     private static void assertRoundTrip(MultiValuedBinaryDocValuesSortField original) throws IOException {
@@ -347,6 +384,6 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
         assertEquals(original.getReverse(), restored.getReverse());
         assertEquals(original.getMissingValue(), restored.getMissingValue());
         assertEquals(original.isMaxMode(), restored.isMaxMode());
-        assertEquals(original.isArrayOrder(), restored.isArrayOrder());
+        assertEquals(original.binaryFormat(), restored.binaryFormat());
     }
 }

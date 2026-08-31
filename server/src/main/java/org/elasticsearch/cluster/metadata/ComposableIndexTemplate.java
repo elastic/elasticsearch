@@ -51,6 +51,7 @@ import java.util.Optional;
 public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTemplate>, ToXContentObject {
 
     public static final ParseField REGISTRY_INSTALLED = new ParseField("registry_installed");
+    public static final String HIDE_REGISTRY_INSTALLED_PARAM = "hide_registry_installed";
     private static final ParseField INDEX_PATTERNS = new ParseField("index_patterns");
     private static final ParseField TEMPLATE = new ParseField("template");
     private static final ParseField PRIORITY = new ParseField("priority");
@@ -362,7 +363,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         if (this.deprecated != null) {
             builder.field(DEPRECATED.getPreferredName(), deprecated);
         }
-        if (this.registryInstalled) {
+        if (this.registryInstalled && params.paramAsBoolean(HIDE_REGISTRY_INSTALLED_PARAM, false) == false) {
             builder.field(REGISTRY_INSTALLED.getPreferredName(), true);
         }
         if (this.createdDateMillis != null) {

@@ -43,6 +43,9 @@ public final class MultiValueColumnarPayloadBinaryDocValuesReader {
     }
 
     /** Appends the non-null values in document order, or a null when the document has none. */
+    // TODO: fold the two passes into one. BytesRefsFromBinaryMultiSeparateCountBlockLoader.ArrayOrderInlineNull buffers each slot's
+    // offset and length into reusable int arrays as it decodes, so it learns the arity and the values in a single walk; this reads the
+    // lengths twice, once to count the nulls and once to emit.
     public void read(BytesRef bytes, BlockLoader.BytesRefBuilder builder) throws IOException {
         final int slots = decoder.reset(bytes);
         // The builder needs the arity up front to choose between a bare value and a position entry. Asking the

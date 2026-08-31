@@ -29,7 +29,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
@@ -93,8 +92,7 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
                         String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
                         return switch (binaryFormat) {
                             case COLUMNAR_PAYLOAD -> {
-                                assert ColumnarBinaryDocValuesField.isColumnarStringPayload(context.reader(), fieldName)
-                                    : "field [" + fieldName + "] is mapped as a columnar payload but this segment does not carry one";
+                                assert AbstractBinaryDocValuesQuery.assertColumnarPayload(context, fieldName);
                                 // The payload carries its own count, and its framing means the blob can never be scanned whole.
                                 yield AbstractBinaryDocValuesQuery.columnarPayloadIterator(values, predicate, matchCost());
                             }

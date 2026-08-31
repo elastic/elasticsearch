@@ -422,7 +422,9 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
             try (DirectoryReader reader = DirectoryReader.open(w)) {
                 LeafReader leaf = getOnlyLeafReader(reader);
                 for (boolean maxMode : new boolean[] { false, true }) {
-                    assertFalse("all-null, maxMode=" + maxMode, columnarSortKeys(leaf, maxMode).advanceExact(0));
+                    BinaryDocValues dvs = columnarSortKeys(leaf, maxMode);
+                    assertFalse("all-null, maxMode=" + maxMode, dvs.advanceExact(0));
+                    assertNull("no key to read after a document with no value", dvs.binaryValue());
                     assertFalse("empty array, maxMode=" + maxMode, columnarSortKeys(leaf, maxMode).advanceExact(1));
                 }
             }
@@ -457,6 +459,7 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
                 assertEquals("doc 1 holds only a null slot and doc 2 no field", 3, dvs.nextDoc());
                 assertEquals(new BytesRef("omega"), dvs.binaryValue());
                 assertEquals(DocIdSetIterator.NO_MORE_DOCS, dvs.nextDoc());
+                assertNull("no key to read once exhausted", dvs.binaryValue());
 
                 // advance() lands past a valueless doc the same way.
                 BinaryDocValues advanced = columnarSortKeys(leaf, false);

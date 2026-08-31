@@ -48,8 +48,14 @@ import java.util.Comparator;
 public class ColumnarBinaryDocValuesField extends MultiValuedBinaryDocValuesField {
 
     /**
-     * Carries the codec's field type, which is how {@code ColumnarFieldType.fromField} resolves the column,
-     * and marks the field as one whose blobs are payloads — the signal readers dispatch on.
+     * Declares the codec's field type on the field, which is what {@link #isColumnarStringPayload} reads back to
+     * recognise a payload in a segment. {@code PerFieldFormatSupplier} builds the codec with a constant type
+     * selector, so {@code ColumnarFieldType.fromField} never consults this — it is purely the reader-side marker,
+     * and readers cross-check it as an assert rather than dispatching on it.
+     *
+     * <p>Frozen but deliberately not run through {@link Mapper#freezeAndDeduplicateFieldType}, which declines to
+     * deduplicate a type carrying attributes: Lucene's {@code FieldType#equals} ignores them, so a shared pool
+     * would collapse this into the attribute-less binary type and lose the marker.
      */
     public static final FieldType TYPE;
     static {
@@ -94,6 +100,10 @@ public class ColumnarBinaryDocValuesField extends MultiValuedBinaryDocValuesFiel
         values.add(null);
     }
 
+    // TODO: cut the per-document allocation on the indexing path. This eagerly allocates its backing collection and
+    // encodes through a fresh builder and a copy, where ArrayOrderInlineNull holds a lone slot in a field and only
+    // promotes to a list on the second one. These are high-cardinality keyword fields, so the single-valued document
+    // is the common case and pays for all of it.
     @Override
     public BytesRef binaryValue() {
         if (ordering == ValueOrdering.SORTED && values instanceof ArrayList<BytesRef> list) {

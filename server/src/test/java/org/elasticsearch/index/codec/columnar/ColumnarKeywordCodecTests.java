@@ -27,7 +27,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -57,7 +57,7 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
         prepareIndex(INDEX).setSource("@timestamp", "2024-01-01T00:00:01Z", "kw", "world").get();
         indicesAdmin().prepareRefresh(INDEX).get();
 
-        assertKeywordFieldUsesColumnarFormat();
+        assertKeywordFieldUsesColumnarFormat(INDEX);
 
         assertHitCount(client().prepareSearch(INDEX).setSize(0), 2);
         assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.termQuery("kw", "hello")), 1);
@@ -72,7 +72,7 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
         prepareIndex(INDEX).setSource("@timestamp", "2024-01-01T00:00:00Z", "kw", List.of("red", "green", "blue")).get();
         indicesAdmin().prepareRefresh(INDEX).get();
 
-        assertKeywordFieldUsesColumnarFormat();
+        assertKeywordFieldUsesColumnarFormat(INDEX);
 
         assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.termQuery("kw", "red")), 1);
         assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.termQuery("kw", "green")), 1);
@@ -89,25 +89,26 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
 
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
         createIndex(INDEX, columnarSettings(mode), "@timestamp", "type=date", "kw", "type=keyword");
-        final List<String> arrays = List.of(
-            "[\"red\", null, \"blue\"]",
-            "[null, \"green\"]",
-            "[\"solo\"]",
-            "[\"\", null, \"\"]",
-            "[\"dup\", \"dup\"]"
+        // Each array as it goes in, beside what _source has to render it as; a lone value is not wrapped in a list.
+        final List<Map.Entry<String, Object>> cases = List.of(
+            Map.entry("[\"red\", null, \"blue\"]", Arrays.asList("red", null, "blue")),
+            Map.entry("[null, \"green\"]", Arrays.asList(null, "green")),
+            Map.entry("[\"solo\"]", "solo"),
+            Map.entry("[\"\", null, \"\"]", Arrays.asList("", null, "")),
+            Map.entry("[\"dup\", \"dup\"]", List.of("dup", "dup"))
         );
-        for (int i = 0; i < arrays.size(); i++) {
+        for (int i = 0; i < cases.size(); i++) {
             prepareIndex(INDEX).setId(Integer.toString(i))
-                .setSource("{\"@timestamp\":\"2024-01-01T00:00:0" + i + "Z\",\"kw\":" + arrays.get(i) + "}", XContentType.JSON)
+                .setSource("{\"@timestamp\":\"2024-01-01T00:00:0" + i + "Z\",\"kw\":" + cases.get(i).getKey() + "}", XContentType.JSON)
                 .get();
         }
         indicesAdmin().prepareRefresh(INDEX).get();
 
-        assertKeywordFieldUsesColumnarFormat();
+        assertKeywordFieldUsesColumnarFormat(INDEX);
 
-        for (int i = 0; i < arrays.size(); i++) {
+        for (int i = 0; i < cases.size(); i++) {
             final Map<String, Object> source = client().prepareGet(INDEX, Integer.toString(i)).get().getSourceAsMap();
-            assertEquals("doc " + i, expectedValues(arrays.get(i)), source.get("kw"));
+            assertEquals(cases.get(i).getKey(), cases.get(i).getValue(), source.get("kw"));
         }
     }
 
@@ -135,6 +136,10 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
             }
             indicesAdmin().prepareRefresh(index).get();
         }
+
+        // Without these the two indices agreeing would prove nothing if neither of them reached the codec.
+        assertKeywordFieldUsesColumnarFormat(withCodec);
+        assertKeywordFieldAvoidsColumnarFormat(withoutCodec);
 
         for (int i = 0; i < arrays.size(); i++) {
             final Map<String, Object> codec = client().prepareGet(withCodec, Integer.toString(i)).get().getSourceAsMap();
@@ -174,6 +179,10 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
             indicesAdmin().prepareRefresh(index).get();
         }
 
+        // Without these the two indices agreeing would prove nothing if neither of them reached the codec.
+        assertKeywordFieldUsesColumnarFormat(withCodec);
+        assertKeywordFieldAvoidsColumnarFormat(withoutCodec);
+
         for (int i = 0; i < values.size(); i++) {
             final Map<String, Object> codec = client().prepareGet(withCodec, Integer.toString(i)).get().getSourceAsMap();
             final Map<String, Object> plain = client().prepareGet(withoutCodec, Integer.toString(i)).get().getSourceAsMap();
@@ -203,7 +212,7 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
         }
         indicesAdmin().prepareRefresh(INDEX).get();
 
-        assertKeywordFieldUsesColumnarFormat();
+        assertKeywordFieldUsesColumnarFormat(INDEX);
 
         // A value in a multi-valued document, one in a single-valued document, and one that is not there at all.
         assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.termQuery("kw", "red")), 1);
@@ -217,16 +226,6 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
         assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.termQuery("kw", "")), 1);
     }
 
-    /** The values of {@code array}, as {@code _source} renders them: a lone value is not wrapped in a list. */
-    private static Object expectedValues(String array) {
-        final List<Object> values = new ArrayList<>();
-        for (String element : array.substring(1, array.length() - 1).split(",")) {
-            final String trimmed = element.trim();
-            values.add(trimmed.equals("null") ? null : trimmed.substring(1, trimmed.length() - 1));
-        }
-        return values.size() == 1 ? values.get(0) : values;
-    }
-
     private static Settings columnarSettings(IndexMode mode) {
         return columnarSettings(mode, true);
     }
@@ -238,18 +237,33 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
             .build();
     }
 
-    private void assertKeywordFieldUsesColumnarFormat() throws IOException {
-        final IndexShard shard = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(INDEX)).getShard(0);
+    private void assertKeywordFieldUsesColumnarFormat(String index) throws IOException {
+        assertEquals("doc-values format of [kw] in [" + index + "]", ColumnarFormat.NAME, keywordDocValuesFormat(index));
+    }
+
+    private void assertKeywordFieldAvoidsColumnarFormat(String index) throws IOException {
+        assertNotEquals("doc-values format of [kw] in [" + index + "]", ColumnarFormat.NAME, keywordDocValuesFormat(index));
+    }
+
+    /** The doc-values format the {@code kw} field's values were written with in {@code index}. */
+    private String keywordDocValuesFormat(String index) throws IOException {
+        final IndexShard shard = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(index)).getShard(0);
         try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-            boolean asserted = false;
+            String format = null;
+            boolean found = false;
             for (LeafReaderContext leaf : searcher.getLeafContexts()) {
                 final FieldInfo fieldInfo = leaf.reader().getFieldInfos().fieldInfo("kw");
                 if (fieldInfo != null && fieldInfo.getDocValuesType() != DocValuesType.NONE) {
-                    assertEquals(ColumnarFormat.NAME, fieldInfo.getAttribute("PerFieldDocValuesFormat.format"));
-                    asserted = true;
+                    final String leafFormat = fieldInfo.getAttribute("PerFieldDocValuesFormat.format");
+                    if (found) {
+                        assertEquals("leaves of [" + index + "] disagree on the doc-values format", format, leafFormat);
+                    }
+                    format = leafFormat;
+                    found = true;
                 }
             }
-            assertTrue("expected a keyword doc-values field to assert on", asserted);
+            assertTrue("expected a keyword doc-values field in [" + index + "] to assert on", found);
+            return format;
         }
     }
 }

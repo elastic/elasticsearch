@@ -29,7 +29,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
@@ -85,8 +84,7 @@ final class BinaryDocValuesLengthQuery extends Query {
                         String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
                         return switch (binaryFormat) {
                             case COLUMNAR_PAYLOAD -> {
-                                assert ColumnarBinaryDocValuesField.isColumnarStringPayload(context.reader(), fieldName)
-                                    : "field [" + fieldName + "] is mapped as a columnar payload but this segment does not carry one";
+                                assert AbstractBinaryDocValuesQuery.assertColumnarPayload(context, fieldName);
                                 // The payload carries its own count; its blob is never a bare value, so no fast path applies.
                                 yield AbstractBinaryDocValuesQuery.columnarPayloadIterator(values, lengthPredicate, matchCost);
                             }

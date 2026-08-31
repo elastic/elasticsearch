@@ -126,8 +126,10 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
      * the codec records on the field itself. The two are settled independently — the mapping decides what to write, the
      * {@code FieldInfo} attribute records what was written — so they can only disagree if a segment predates the mapping, and decoding
      * a bare value as a payload would silently return wrong hits rather than fail.
+     *
+     * <p>Always returns {@code true}, so every caller in this package invokes it as {@code assert assertColumnarPayload(...)}.
      */
-    private static boolean assertColumnarPayload(LeafReaderContext context, String fieldName) {
+    static boolean assertColumnarPayload(LeafReaderContext context, String fieldName) {
         assert ColumnarBinaryDocValuesField.isColumnarStringPayload(context.reader(), fieldName)
             : "field [" + fieldName + "] is mapped as a columnar payload but this segment does not carry one";
         return true;

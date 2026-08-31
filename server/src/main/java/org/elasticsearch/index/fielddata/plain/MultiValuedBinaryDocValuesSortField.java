@@ -182,32 +182,41 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
 
         @Override
         public int nextDoc() throws IOException {
-            for (int doc = in.nextDoc(); doc != NO_MORE_DOCS; doc = in.nextDoc()) {
-                if (decodeSortKey()) {
-                    return doc;
-                }
-            }
-            return NO_MORE_DOCS;
+            return skipToValued(in.nextDoc());
         }
 
         @Override
         public int advance(int target) throws IOException {
-            for (int doc = in.advance(target); doc != NO_MORE_DOCS; doc = in.nextDoc()) {
-                if (decodeSortKey()) {
-                    return doc;
-                }
-            }
-            return NO_MORE_DOCS;
+            return skipToValued(in.advance(target));
         }
 
         @Override
         public boolean advanceExact(int target) throws IOException {
-            return in.advanceExact(target) && decodeSortKey();
+            if (in.advanceExact(target) && decodeSortKey()) {
+                return true;
+            }
+            sortKey = null;
+            return false;
         }
 
+        /**
+         * The sort key of the document this is positioned on. Only meaningful once a positioning call has reported a value;
+         * {@code null} otherwise, rather than the previous document's key.
+         */
         @Override
         public BytesRef binaryValue() {
             return sortKey;
+        }
+
+        /** Steps forward from {@code doc} to the first document that has a sort key, decoding it on the way. */
+        private int skipToValued(int doc) throws IOException {
+            for (; doc != NO_MORE_DOCS; doc = in.nextDoc()) {
+                if (decodeSortKey()) {
+                    return doc;
+                }
+            }
+            sortKey = null;
+            return NO_MORE_DOCS;
         }
 
         /** Decodes the sort key of the document {@code in} is positioned on, reporting whether it has one at all. */

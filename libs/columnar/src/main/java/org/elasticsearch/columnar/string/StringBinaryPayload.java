@@ -43,7 +43,10 @@ public final class StringBinaryPayload {
     /** Added to a slot's length before it is written, leaving {@code 0} free to mean {@code null}. */
     public static final int SLOT_LENGTH_BIAS = 1;
 
-    /** The payload of a document holding no slots at all: a count of zero and nothing after it. */
+    /**
+     * The payload of a document holding no slots at all: a count of zero and nothing after it. Shared, so callers
+     * must read it rather than write through it.
+     */
     public static final BytesRef EMPTY = new BytesRef(new byte[] { 0 });
 
     private StringBinaryPayload() {}

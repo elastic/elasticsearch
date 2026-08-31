@@ -66,13 +66,14 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         if (context.unmappedResolution().loadsAllUnmappedFields() == false) {
             return plan;
         }
-        LogicalPlan annotated = annotate(plan, computeUnmappedFieldsToKeep(plan));
-        annotated = annotated.transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
-        annotated = annotated.transformUp(Fork.class, DetermineUnmappedFieldsToKeep::padForkChildren);
-        annotated = annotated.transformUp(Fork.class, DetermineUnmappedFieldsToKeep::refreshForkOutput);
-        // A second pass picks up $$unmapped_fields on Projects above the FORK, whose child output
-        // only includes the column after refreshForkOutput.
-        return annotated.transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
+        // Project pass before FORK finish keeps $$unmapped_fields on branch Projects. The pass after
+        // picks it up on Projects above the FORK, whose child output only includes the column after refresh.
+        return annotate(plan, computeUnmappedFieldsToKeep(plan)).transformUp(
+            Project.class,
+            DetermineUnmappedFieldsToKeep::passThroughUnmappedFields
+        )
+            .transformUp(Fork.class, DetermineUnmappedFieldsToKeep::finishForkUnmappedFields)
+            .transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
     }
 
     /**
@@ -109,11 +110,9 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      */
     private static LogicalPlan annotate(LogicalPlan plan, UnmappedFieldsPattern pattern) {
         if (plan instanceof Fork fork && (plan instanceof UnionAll) == false) {
-            List<LogicalPlan> newChildren = new ArrayList<>(fork.children().size());
-            for (LogicalPlan child : fork.children()) {
-                newChildren.add(annotate(child, computeUnmappedFieldsToKeep(child).intersect(pattern)));
-            }
-            return fork.replaceChildren(newChildren);
+            return fork.replaceChildren(
+                fork.children().stream().map(c -> annotate(c, computeUnmappedFieldsToKeep(c).intersect(pattern))).toList()
+            );
         }
         if (pattern.isNone()) {
             return plan;
@@ -121,17 +120,15 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         if (plan instanceof EsRelation esr) {
             return stamp(esr, pattern);
         }
-        if (plan.anyMatch(p -> p instanceof Fork && (p instanceof UnionAll) == false)) {
-            return plan.replaceChildren(plan.children().stream().map(c -> annotate(c, pattern)).toList());
-        }
-        return plan.transformUp(EsRelation.class, esr -> stamp(esr, pattern));
+        return plan.anyMatch(p -> p instanceof Fork && (p instanceof UnionAll) == false) == false
+            ? plan.transformUp(EsRelation.class, esr -> stamp(esr, pattern))
+            : plan.replaceChildren(plan.children().stream().map(c -> annotate(c, pattern)).toList());
     }
 
     private static EsRelation stamp(EsRelation esr, UnmappedFieldsPattern pattern) {
-        if (pattern.isNone() || esr.indexMode() == IndexMode.LOOKUP) {
-            return esr;
-        }
-        return esr.withAdditionalAttribute(new UnmappedFieldsAttribute(Source.EMPTY, pattern));
+        return pattern.isNone() || esr.indexMode() == IndexMode.LOOKUP
+            ? esr
+            : esr.withAdditionalAttribute(new UnmappedFieldsAttribute(Source.EMPTY, pattern));
     }
 
     /**
@@ -151,37 +148,27 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
                 missing.add(attr);
             }
         }
-        if (missing.isEmpty()) {
-            return project;
-        }
-        return project.withProjections(CollectionUtils.combine(project.projections(), missing));
+        return missing.isEmpty() ? project : project.withProjections(CollectionUtils.combine(project.projections(), missing));
     }
 
     /**
      * Branches whose pattern is {@link UnmappedFieldsPattern#NONE} never get {@code $$unmapped_fields}
-     * on the relation. If a sibling did, append a null column so FORK layouts match and the coordinator
-     * can expand extras from the branches that loaded them.
+     * on the relation. If a sibling did, append a null column so FORK layouts match, then refresh
+     * FORK output so the coordinator sees the {@link UnmappedFieldsAttribute} subtype.
      */
-    private static Fork padForkChildren(Fork fork) {
+    private static LogicalPlan finishForkUnmappedFields(Fork fork) {
         if (fork instanceof UnionAll) {
             return fork;
         }
         List<LogicalPlan> padded = padNullUnmappedFields(fork.children());
-        if (padded == fork.children()) {
-            return fork;
-        }
-        return (Fork) fork.replaceChildren(padded);
+        Fork withChildren = padded == fork.children() ? fork : fork.replaceSubPlans(padded);
+        return withChildren.children().stream().anyMatch(DetermineUnmappedFieldsToKeep::hasUnmappedFieldsAttribute)
+            ? withChildren.refreshOutput()
+            : withChildren;
     }
 
     private static List<LogicalPlan> padNullUnmappedFields(List<LogicalPlan> children) {
-        boolean anyUnmapped = false;
-        for (LogicalPlan child : children) {
-            if (CollectionUtils.collect(child.output(), UnmappedFieldsAttribute.class).isEmpty() == false) {
-                anyUnmapped = true;
-                break;
-            }
-        }
-        if (anyUnmapped == false) {
+        if (children.stream().anyMatch(DetermineUnmappedFieldsToKeep::hasUnmappedFieldsAttribute) == false) {
             return children;
         }
         List<LogicalPlan> padded = new ArrayList<>(children.size());
@@ -209,20 +196,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         return changed ? padded : children;
     }
 
-    private static Fork refreshForkOutput(Fork fork) {
-        if (fork instanceof UnionAll) {
-            return fork;
-        }
-        boolean anyUnmapped = false;
-        for (LogicalPlan child : fork.children()) {
-            if (CollectionUtils.collect(child.output(), UnmappedFieldsAttribute.class).isEmpty() == false) {
-                anyUnmapped = true;
-                break;
-            }
-        }
-        if (anyUnmapped == false) {
-            return fork;
-        }
-        return fork.refreshOutput();
+    private static boolean hasUnmappedFieldsAttribute(LogicalPlan plan) {
+        return CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class).isEmpty() == false;
     }
 }

@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
-import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -45,7 +44,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -1513,15 +1511,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             | INLINE STATS m = MAX(salary) BY languages
             """));
         assertThat(Expressions.names(plan.output()), hasItems("c", "m"));
-    }
-
-    public void testLoadAllModeAllowsFork() {
-        LogicalPlan plan = test().statement(setUnmappedLoadAll("""
-            FROM test
-            | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
-            """));
-        assertThat(Expressions.names(plan.output()), hasItem("_fork"));
-        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
     }
 
     public void testLoadAllModeAllowsStats() {

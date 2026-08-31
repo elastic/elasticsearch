@@ -505,9 +505,8 @@ public class HashAggregationOperator implements Operator {
 
     private void maybeReinitializeAfterPeriodicallyEmitted() {
         if (rowsReceived > 0 && rowsAddedInCurrentBatch == 0) {
-            blockHash.close();
-            blockHash = null;
-            blockHash = blockHashSupplier.get();
+            blockHash = blockHash.resetOrCreate();
+            // TODO: reuse aggregation states
             for (int i = 0; i < aggregators.size(); i++) {
                 Releasables.close(aggregators.set(i, aggregatorFactories.get(i).apply(driverContext)));
             }

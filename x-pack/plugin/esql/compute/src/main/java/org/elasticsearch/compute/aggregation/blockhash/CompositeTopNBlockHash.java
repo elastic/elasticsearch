@@ -51,6 +51,9 @@ final class CompositeTopNBlockHash extends BlockHash {
     private final boolean primaryAsc;
     private final int primaryGroupingIndex;
     private final int limit;
+    private final List<BlockHash.GroupSpec> groups;
+    private final BlockHash.TopNDef topNDef;
+    private final int emitBatchSize;
 
     /** Non-null when the primary sort key is {@link ElementType#LONG}. */
     private final LongTopNSet longTopValues;
@@ -59,6 +62,9 @@ final class CompositeTopNBlockHash extends BlockHash {
 
     CompositeTopNBlockHash(List<BlockHash.GroupSpec> groups, BlockHash.TopNDef topNDef, BlockFactory blockFactory, int emitBatchSize) {
         super(blockFactory);
+        this.groups = groups;
+        this.topNDef = topNDef;
+        this.emitBatchSize = emitBatchSize;
         this.limit = topNDef.limit();
         BlockHash.SortKey primary = topNDef.primaryKey();
         this.primaryGroupingIndex = primary.groupingIndex();
@@ -93,6 +99,13 @@ final class CompositeTopNBlockHash extends BlockHash {
                 close();
             }
         }
+    }
+
+    @Override
+    public BlockHash resetOrCreate() {
+        BlockHash next = new CompositeTopNBlockHash(groups, topNDef, blockFactory, emitBatchSize);
+        close();
+        return next;
     }
 
     @Override

@@ -47,6 +47,12 @@ final class LongLongBlockHash extends BlockHash {
     }
 
     @Override
+    public BlockHash resetOrCreate() {
+        hash.clear();
+        return this;
+    }
+
+    @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
         LongBlock block1 = page.getBlock(channel1);
         LongBlock block2 = page.getBlock(channel2);

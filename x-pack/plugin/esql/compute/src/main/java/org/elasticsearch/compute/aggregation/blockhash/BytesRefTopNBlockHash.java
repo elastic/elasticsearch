@@ -79,6 +79,13 @@ final class BytesRefTopNBlockHash extends BlockHash {
     }
 
     @Override
+    public BlockHash resetOrCreate() {
+        BlockHash next = new BytesRefTopNBlockHash(channel, asc, nullsFirst, limit, blockFactory);
+        close();
+        return next;
+    }
+
+    @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
         var block = page.getBlock(channel);
 

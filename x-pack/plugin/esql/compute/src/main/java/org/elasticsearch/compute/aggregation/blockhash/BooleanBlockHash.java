@@ -20,6 +20,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean;
 import org.elasticsearch.core.ReleasableIterator;
 
+import java.util.Arrays;
+
 import static org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean.FALSE_ORD;
 import static org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean.NULL_ORD;
 import static org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean.TRUE_ORD;
@@ -36,6 +38,12 @@ final class BooleanBlockHash extends BlockHash {
     BooleanBlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
+    }
+
+    @Override
+    public BlockHash resetOrCreate() {
+        Arrays.fill(everSeen, false);
+        return this;
     }
 
     @Override

@@ -229,6 +229,36 @@ public class LongSwissHashTests extends ESTestCase {
         }
     }
 
+    public void testClear() {
+        Set<Long> values = randomValues(count);
+        long[] v = values.stream().mapToLong(Long::longValue).toArray();
+        TestRecycler recycler = new TestRecycler();
+        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        try (LongSwissHash hash = new LongSwissHash(recycler, breaker)) {
+            for (int i = 0; i < v.length; i++) {
+                assertThat(hash.add(v[i]), equalTo((long) i));
+            }
+            int openPages = recycler.open.size();
+            hash.clear();
+            assertThat(hash.size(), equalTo(0L));
+            assertFalse(hash.iterator().next());
+            for (long value : v) {
+                assertThat(hash.find(value), equalTo(-1L));
+            }
+            for (int i = 0; i < v.length; i++) {
+                assertThat(hash.add(v[i]), equalTo((long) i));
+            }
+            assertThat(hash.size(), equalTo((long) v.length));
+            for (int i = 0; i < v.length; i++) {
+                assertThat(hash.find(v[i]), equalTo((long) i));
+                assertThat(hash.get(i), equalTo(v[i]));
+            }
+            assertThat("clear keeps allocated pages for reuse", recycler.open, hasSize(openPages));
+            assertStatus(hash);
+        }
+        assertThat(recycler.open, hasSize(0));
+    }
+
     // High-probability bucket collisions. You just need structural patterns that
     // tend to collide in the bucket selection logic.
 

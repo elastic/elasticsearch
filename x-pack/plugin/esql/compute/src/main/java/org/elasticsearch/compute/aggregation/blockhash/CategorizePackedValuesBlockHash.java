@@ -44,6 +44,8 @@ public class CategorizePackedValuesBlockHash extends BlockHash {
 
     private final List<GroupSpec> specs;
     private final AggregatorMode aggregatorMode;
+    private final AnalysisRegistry analysisRegistry;
+    private final int emitBatchSize;
     private final Block[] blocks;
     private final CategorizeBlockHash categorizeBlockHash;
     private final PackedValuesBlockHash packedValuesBlockHash;
@@ -60,6 +62,8 @@ public class CategorizePackedValuesBlockHash extends BlockHash {
 
         this.specs = specs;
         this.aggregatorMode = aggregatorMode;
+        this.analysisRegistry = analysisRegistry;
+        this.emitBatchSize = emitBatchSize;
         blocks = new Block[specs.size()];
 
         List<GroupSpec> delegateSpecs = new ArrayList<>();
@@ -84,6 +88,13 @@ public class CategorizePackedValuesBlockHash extends BlockHash {
                 close();
             }
         }
+    }
+
+    @Override
+    public BlockHash resetOrCreate() {
+        BlockHash next = new CategorizePackedValuesBlockHash(specs, blockFactory, aggregatorMode, analysisRegistry, emitBatchSize);
+        close();
+        return next;
     }
 
     @Override

@@ -33,6 +33,12 @@ final class NullBlockHash extends BlockHash {
     }
 
     @Override
+    public BlockHash resetOrCreate() {
+        seenNull = false;
+        return this;
+    }
+
+    @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
         var block = page.getBlock(channel);
         if (block.areAllValuesNull()) {

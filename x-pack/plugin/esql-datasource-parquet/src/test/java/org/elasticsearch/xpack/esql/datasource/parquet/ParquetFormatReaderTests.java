@@ -119,6 +119,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
@@ -1437,19 +1438,18 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * The optimized iterator is page-at-a-time and does not bulk-allocate row groups. The only
-     * tracked allocation that can trip the breaker mid-iteration is the per-row-group prefetch,
-     * whose bytes are accounted via the Arrow allocator on the REQUEST breaker. If the breaker
-     * trips during a prefetch, the future fails and {@code takePendingPrefetch} falls back to
-     * sync I/O for that row group (see {@code OptimizedParquetColumnIterator}).
+     * The optimized iterator accounts both asynchronous prefetch and its synchronous fallback
+     * through breaker-backed storage-read buffers. If an asynchronous prefetch trips, the iterator
+     * drains speculative reservations and retries the current row group synchronously; that retry
+     * can itself be refused if the row group's chunks do not fit.
      *
      * <p>This test verifies two related properties:
      * <ul>
      *   <li>A breaker too tight to accommodate the file footer trips on file-open and releases
      *       all reserved bytes.</li>
-     *   <li>A breaker tight enough that the per-row-group prefetch cannot fit, but large enough
-     *       for the footer and the sliding window, still produces correct results via the sync
-     *       fallback and releases all bytes on close.</li>
+     *   <li>This fixture's small row groups fit within modest headroom beyond the footer and
+     *       sliding window, whether read by prefetch or the accounted synchronous fallback, and
+     *       all bytes are released on close.</li>
      * </ul>
      */
     public void testCircuitBreakerTripsOnLargerRowGroup() throws Exception {
@@ -1498,11 +1498,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
 
         // 2. Breaker fits the footer and the sliding window but leaves only modest headroom.
-        // Per-row-group prefetches that exceed the headroom trip the Arrow allocator, fail their
-        // future, and trigger the sync-I/O fallback in {@code takePendingPrefetch}. The iteration
-        // still produces all rows and releases every byte on close. Exact prefetch-vs-fallback
-        // mix depends on row-group size and codec, which is fine — the regression we care about
-        // here is "no leaks and no errors under a tight allocator budget".
+        // These small row groups fit whether they arrive through prefetch or the breaker-accounted
+        // synchronous fallback. The iteration must produce every row and release every byte.
         {
             var smallBreaker = new LimitedBreaker(
                 "test",
@@ -2898,6 +2895,74 @@ public class ParquetFormatReaderTests extends ESTestCase {
             }
             assertThat(warnings, hasItem(containsString("discarded [1] orphan values")));
         }
+    }
+
+    public void testLegacyNestedListFixtureIsUnsupported() throws Exception {
+        byte[] parquetData;
+        // Apache parquet-testing, data/old_list_structure.parquet at fa255dfacf58c8bab428b5d0117d188acc8ad03f.
+        try (InputStream in = getDataInputStream("old_list_structure.parquet.base64")) {
+            parquetData = Base64.getMimeDecoder().decode(in.readAllBytes());
+        }
+        assertEquals(539, parquetData.length);
+
+        SourceMetadata metadata = new ParquetFormatReader(blockFactory).metadata(createStorageObject(parquetData));
+        assertEquals(1, metadata.schema().size());
+        assertEquals("a", metadata.schema().get(0).name());
+        assertEquals(DataType.UNSUPPORTED, metadata.schema().get(0).dataType());
+    }
+
+    public void testListElementCompatibilityRules() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message test_schema {
+              optional group repeated_primitive (LIST) {
+                repeated int32 element;
+              }
+              optional group multi_field (LIST) {
+                repeated group entries {
+                  optional int32 x;
+                  optional int32 y;
+                }
+              }
+              optional group repeated_child (LIST) {
+                repeated group entries {
+                  repeated int32 value;
+                }
+              }
+              optional group named_array (LIST) {
+                repeated group array {
+                  optional int32 value;
+                }
+              }
+              optional group named_tuple (LIST) {
+                repeated group named_tuple_tuple {
+                  optional int32 value;
+                }
+              }
+              optional group required_element (LIST) {
+                repeated group list {
+                  required int32 element;
+                }
+              }
+              optional group optional_element (LIST) {
+                repeated group list {
+                  optional int32 element;
+                }
+              }
+            }
+            """);
+        byte[] parquetData = createParquetFile(schema, factory -> List.of(factory.newGroup()));
+
+        Map<String, DataType> types = new ParquetFormatReader(blockFactory).metadata(createStorageObject(parquetData))
+            .schema()
+            .stream()
+            .collect(Collectors.toMap(Attribute::name, Attribute::dataType));
+        assertEquals(DataType.INTEGER, types.get("repeated_primitive"));
+        assertEquals(DataType.UNSUPPORTED, types.get("multi_field"));
+        assertEquals(DataType.UNSUPPORTED, types.get("repeated_child"));
+        assertEquals(DataType.UNSUPPORTED, types.get("named_array"));
+        assertEquals(DataType.UNSUPPORTED, types.get("named_tuple"));
+        assertEquals(DataType.INTEGER, types.get("required_element"));
+        assertEquals(DataType.INTEGER, types.get("optional_element"));
     }
 
     public void testReadListOfIntegersColumn() throws Exception {

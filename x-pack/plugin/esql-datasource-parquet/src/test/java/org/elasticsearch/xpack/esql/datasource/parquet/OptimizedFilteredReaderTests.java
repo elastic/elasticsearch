@@ -19,9 +19,11 @@ import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
+import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Types;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
@@ -39,6 +41,8 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -52,9 +56,12 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.DOUBLE;
@@ -180,6 +187,39 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
         assertEquals(baselineRows, optimizedRows);
         assertEquals(0, optimizedRows);
         assertEquals("No pages should be emitted when all rows eliminated", 0, optimizedPages.size());
+    }
+
+    public void testEmptyCurrentRowRangesPreservesLaterPrefetch() throws IOException {
+        byte[] parquetData = createEmptyThenMatchingLargeRowGroups();
+        CountingAsyncStorageObject storage = new CountingAsyncStorageObject(parquetData);
+        FilterPredicate filter = FilterApi.eq(FilterApi.intColumn("id"), 500);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(FilterCompat.get(filter));
+
+        try (CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(null, 1024))) {
+            OptimizedParquetColumnIterator optimized = (OptimizedParquetColumnIterator) iter;
+            // The fixture's first projected row group exceeds SHALLOW_PREFETCH_BYTES, so
+            // computePrefetchDepth deliberately seeds both ordinals before the first hasNext().
+            assertTrue("fixture must queue the empty and matching row groups together", optimized.prefetchDepth() > 1);
+            assertEquals(List.of(0, 1), optimized.pendingPrefetchOrdinals());
+            assertTrue("first row group must have empty page-index ranges", optimized.rowRanges(0).isEmpty());
+            assertFalse("later row group must retain matching page-index ranges", optimized.rowRanges(1).isEmpty());
+            assertEquals("matching row group must be prefetched once during queue seeding", 1, storage.largeAsyncReads.get());
+            assertEquals("queue seeding must not need a synchronous chunk read", 0, storage.largeSyncReads.get());
+
+            assertTrue(iter.hasNext());
+            assertEquals("empty current ranges must not drain and refetch the matching row group", 1, storage.largeAsyncReads.get());
+            assertEquals("empty current prefetch must not trigger synchronous fallback", 0, storage.largeSyncReads.get());
+            Page page = iter.next();
+            try {
+                assertEquals(2, page.getPositionCount());
+                IntBlock ids = (IntBlock) page.getBlock(0);
+                assertEquals(500, ids.getInt(ids.getFirstValueIndex(0)));
+                assertEquals(500, ids.getInt(ids.getFirstValueIndex(1)));
+            } finally {
+                page.releaseBlocks();
+            }
+            assertFalse(iter.hasNext());
+        }
     }
 
     /**
@@ -654,6 +694,41 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
         });
     }
 
+    private byte[] createEmptyThenMatchingLargeRowGroups() throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(INT32)
+            .named("id")
+            .required(BINARY)
+            .named("payload")
+            .named("empty_then_matching");
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(outputStream))
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withRowGroupSize(64 * 1024 * 1024L)
+                .withRowGroupRowCountLimit(2)
+                .withPageSize(5 * 1024 * 1024)
+                .withPageRowCountLimit(1)
+                .withMinRowCountForPageSizeCheck(1)
+                .withMaxRowCountForPageSizeCheck(1)
+                .withDictionaryEncoding(false)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (int id : new int[] { 0, 1_000, 500, 500 }) {
+                // Two values form each row group; together they cross SHALLOW_PREFETCH_BYTES so
+                // both groups are queued before the empty first group's ranges are consumed.
+                byte[] payload = new byte[4_250_000];
+                payload[0] = (byte) id;
+                writer.write(groupFactory.newGroup().append("id", id).append("payload", Binary.fromConstantByteArray(payload)));
+            }
+        }
+        return outputStream.toByteArray();
+    }
+
     @FunctionalInterface
     interface GroupCreator {
         List<Group> create(SimpleGroupFactory factory);
@@ -760,6 +835,90 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
                 ab.getBytesRef(ab.getFirstValueIndex(aPos), new BytesRef()),
                 equalTo(eb.getBytesRef(eb.getFirstValueIndex(ePos), new BytesRef()))
             );
+        }
+    }
+
+    private static final class CountingAsyncStorageObject implements StorageObject {
+        private static final long LARGE_ROW_GROUP_BYTES = 8_000_000L;
+
+        private final byte[] data;
+        private final AtomicInteger largeAsyncReads = new AtomicInteger();
+        private final AtomicInteger largeSyncReads = new AtomicInteger();
+
+        private CountingAsyncStorageObject(byte[] data) {
+            this.data = data;
+        }
+
+        @Override
+        public InputStream newStream() {
+            return new ByteArrayInputStream(data);
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            int offset = Math.toIntExact(position);
+            int bytes = Math.toIntExact(Math.min(length, data.length - position));
+            if (length > LARGE_ROW_GROUP_BYTES) {
+                largeSyncReads.incrementAndGet();
+            }
+            return new ByteArrayInputStream(data, offset, bytes);
+        }
+
+        @Override
+        public long length() {
+            return data.length;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return Instant.EPOCH;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return StoragePath.of("memory://empty-row-ranges-prefetch.parquet");
+        }
+
+        @Override
+        public boolean supportsNativeAsync() {
+            return true;
+        }
+
+        @Override
+        public void readBytesAsync(
+            long position,
+            long length,
+            DirectBufferFactory factory,
+            Executor executor,
+            ActionListener<DirectReadBuffer> listener
+        ) {
+            if (length > LARGE_ROW_GROUP_BYTES) {
+                largeAsyncReads.incrementAndGet();
+            }
+            executor.execute(() -> {
+                DirectReadBuffer allocated = null;
+                try {
+                    int offset = Math.toIntExact(position);
+                    int bytes = Math.toIntExact(Math.min(length, data.length - position));
+                    allocated = factory.allocate(bytes);
+                    ByteBuffer buffer = allocated.buffer();
+                    buffer.put(data, offset, bytes);
+                    buffer.flip();
+                    listener.onResponse(allocated);
+                    allocated = null;
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                } finally {
+                    if (allocated != null) {
+                        allocated.close();
+                    }
+                }
+            });
         }
     }
 

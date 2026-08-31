@@ -16,6 +16,10 @@ import java.io.Closeable;
  */
 public interface Releasable extends Closeable {
 
+    static Releasable noop() {
+        return Releasables.NOOP;
+    }
+
     @Override
     void close();
 

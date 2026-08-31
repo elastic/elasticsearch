@@ -581,13 +581,13 @@ public class UpdateRequest extends UntypedActionRequest
     }
 
     @Override
-    public @Nullable Releasable retainSourceRef() {
-        final Releasable docRef = doc == null ? null : doc.retainSourceRef();
-        final Releasable upsertRef = upsertRequest == null ? null : upsertRequest.retainSourceRef();
-        if (docRef == null) {
+    public Releasable retainSourceRef() {
+        final Releasable docRef = doc == null ? Releasable.noop() : doc.retainSourceRef();
+        final Releasable upsertRef = upsertRequest == null ? Releasable.noop() : upsertRequest.retainSourceRef();
+        if (docRef == Releasable.noop()) {
             return upsertRef;
         }
-        return upsertRef == null ? docRef : Releasables.wrap(docRef, upsertRef);
+        return upsertRef == Releasable.noop() ? docRef : Releasables.wrap(docRef, upsertRef);
     }
 
     private IndexRequest safeDoc() {

@@ -450,7 +450,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     @Override
-    public @Nullable Releasable retainSourceRef() {
+    public Releasable retainSourceRef() {
         return indexSource.retainSourceRef();
     }
 

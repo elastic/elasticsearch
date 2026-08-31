@@ -531,14 +531,14 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         List<Releasable> retained = null;
         for (final BulkItemRequest item : items) {
             final Releasable ref = item.request().retainSourceRef();
-            if (ref != null) {
+            if (ref != Releasable.noop()) {
                 if (retained == null) {
                     retained = new ArrayList<>(items.length);
                 }
                 retained.add(ref);
             }
         }
-        return retained == null ? () -> {} : Releasables.wrap(retained);
+        return retained == null ? Releasable.noop() : Releasables.wrap(retained);
     }
 
     private void executeBulkShardRequest(

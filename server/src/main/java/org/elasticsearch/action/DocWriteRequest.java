@@ -373,8 +373,8 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable, Releasa
     }
 
     /// If source is ref-counted and present: make sure it has references, increment ref-count, and return a releasable that decrements it.
-    /// If source is not ref-counted or not present, return `null`.
-    default @Nullable Releasable retainSourceRef() {
-        return null;
+    /// If source is not ref-counted or not present, return [Releasable#noop()].
+    default Releasable retainSourceRef() {
+        return Releasable.noop();
     }
 }

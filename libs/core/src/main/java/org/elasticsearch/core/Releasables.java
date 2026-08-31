@@ -17,6 +17,8 @@ import java.util.concurrent.atomic.AtomicReference;
 public enum Releasables {
     ;
 
+    public static final Releasable NOOP = () -> {};
+
     /** Release the provided {@link Releasable}s. */
     public static void close(Iterable<? extends Releasable> releasables) {
         RuntimeException firstException = null;

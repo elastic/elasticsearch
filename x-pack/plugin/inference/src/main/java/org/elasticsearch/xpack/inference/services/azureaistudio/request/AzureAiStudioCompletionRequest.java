@@ -22,12 +22,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
-public class AzureAiStudioChatCompletionRequest extends AzureAiStudioRequest implements OutboundCompletionRequest {
+public class AzureAiStudioCompletionRequest extends AzureAiStudioRequest implements OutboundCompletionRequest {
     private final List<String> input;
     private final AzureAiStudioChatCompletionModel completionModel;
     private final boolean stream;
 
-    public AzureAiStudioChatCompletionRequest(AzureAiStudioChatCompletionModel model, List<String> input, boolean stream) {
+    public AzureAiStudioCompletionRequest(AzureAiStudioChatCompletionModel model, List<String> input, boolean stream) {
         super(model);
         this.input = Objects.requireNonNull(input);
         this.completionModel = Objects.requireNonNull(model);

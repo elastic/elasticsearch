@@ -15,12 +15,12 @@ import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 import java.util.function.Function;
 
-public class OpenAiChatCompletionResponseHandler extends OpenAiResponseHandler {
-    public OpenAiChatCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
+public class OpenAiCompletionResponseHandler extends OpenAiResponseHandler {
+    public OpenAiCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, true);
     }
 
-    public OpenAiChatCompletionResponseHandler(
+    public OpenAiCompletionResponseHandler(
         String requestType,
         ResponseParser parseFunction,
         Function<HttpResult, ErrorResponse> errorParseFunction

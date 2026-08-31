@@ -10,6 +10,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -80,6 +81,17 @@ public class AuditRawRequestBodyLimitIT extends SecurityIntegTestCase {
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), is(413));
         assertThat(ex.getMessage(), containsString("audit body size limit"));
         assertThat(ex.getMessage(), containsString(LoggingAuditTrail.MAX_REQUEST_BODY_SIZE.getKey()));
+    }
+
+    public void testProtobufBodyWithinLimitReaches200Handler() throws Exception {
+        // base64 length of 1-6 source bytes is 4 or 8 chars, both within the 10b MAX_REQUEST_BODY_SIZE
+        final byte[] body = randomByteArrayOfLength(randomIntBetween(1, 6));
+        final Request request = new Request("POST", ROUTE);
+        request.setEntity(new ByteArrayEntity(body, ContentType.create(CONTENT_TYPE)));
+        request.setOptions(authOptions());
+
+        final Response response = getRestClient().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
     }
 
     private static RequestOptions authOptions() {

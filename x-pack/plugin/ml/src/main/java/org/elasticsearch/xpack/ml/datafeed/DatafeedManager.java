@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
@@ -45,6 +47,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
@@ -60,13 +63,16 @@ import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearningExtension;
+import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Date;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -102,6 +108,8 @@ public final class DatafeedManager {
     private final CredentialTransitions credentialTransitions;
     private final Supplier<CloudCredentialManager> credentialManagerSupplier;
     private final AnomalyDetectionAuditor auditor;
+    private final AnnotationPersister annotationPersister;
+    private final JobResultsProvider jobResultsProvider;
     private volatile boolean requireRollbackSnapshotBeforeScopeChange;
 
     public DatafeedManager(
@@ -112,7 +120,9 @@ public final class DatafeedManager {
         ClusterService clusterService,
         Client client,
         MachineLearningExtension mlExtension,
-        AnomalyDetectionAuditor auditor
+        AnomalyDetectionAuditor auditor,
+        AnnotationPersister annotationPersister,
+        JobResultsProvider jobResultsProvider
     ) {
         this.datafeedConfigProvider = datafeedConfigProvider;
         this.jobConfigProvider = jobConfigProvider;
@@ -122,6 +132,8 @@ public final class DatafeedManager {
         this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
         MachineLearningExtension extension = Objects.requireNonNull(mlExtension);
         this.auditor = Objects.requireNonNull(auditor);
+        this.annotationPersister = Objects.requireNonNull(annotationPersister);
+        this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
         this.credentialManagerSupplier = extension::getCloudCredentialManager;
         this.credentialTransitions = new CredentialTransitions(
             this.auditor,
@@ -295,11 +307,7 @@ public final class DatafeedManager {
             final boolean hasCpsCredential = hasCallerCloudCredential(credentialTransitions, threadPool, request.getCloudCredential());
 
             BiConsumer<DatafeedConfig, ActionListener<Boolean>> wrappedValidator = (updatedConfig, validatorListener) -> {
-                // Validate project_routing requires CPS to be enabled in the environment
-                if (updatedConfig.getProjectRouting() != null && DatafeedConfig.isCPSAllowed(crossProjectModeDecider) == false) {
-                    validatorListener.onFailure(DatafeedConfig.projectRoutingRequiresCpsException());
-                    return;
-                }
+                warnIfProjectRoutingIsInert(request.getUpdate().getProjectRouting());
                 jobConfigProvider.validateDatafeedJob(updatedConfig, validatorListener);
             };
 
@@ -323,8 +331,18 @@ public final class DatafeedManager {
                     UpdateDatafeedAction.Request effectiveRequest = maybeDefaultProjectRoutingForMigration(request, current, intent);
                     final boolean defaultedProjectRoutingForMigration = effectiveRequest != request;
                     final String defaultProjectRouting = ProjectRoutingResolver.LOCAL_ONLY;
-                    ActionListener<PutDatafeedAction.Response> updateListener = defaultedProjectRoutingForMigration
-                        ? ActionListener.wrap(response -> {
+                    // Signals cover the first-time null -> _alias:_origin pin even though isEffectiveScopeChange excludes it
+                    // from the rollback-snapshot gate: unset project_routing is not pinned to origin at query time.
+                    final boolean userInitiatedProjectRoutingChange = defaultedProjectRoutingForMigration == false
+                        && DatafeedUpdate.isUserInitiatedProjectRoutingChange(current, update);
+                    final boolean rollbackSnapshotRetained = requiresRollbackSnapshotBeforeScopeChange(
+                        defaultedProjectRoutingForMigration,
+                        current,
+                        update
+                    );
+                    ActionListener<PutDatafeedAction.Response> updateListener;
+                    if (defaultedProjectRoutingForMigration) {
+                        updateListener = ActionListener.wrap(response -> {
                             logger.info(
                                 "[{}] CPS migration: defaulting project_routing to [{}] to preserve local search scope",
                                 current.getId(),
@@ -338,8 +356,15 @@ public final class DatafeedManager {
                                 )
                             );
                             l.onResponse(response);
-                        }, l::onFailure)
-                        : l;
+                        }, l::onFailure);
+                    } else if (userInitiatedProjectRoutingChange) {
+                        updateListener = l.delegateFailureAndWrap((delegate, response) -> {
+                            delegate.onResponse(response);
+                            notifyUserInitiatedProjectRoutingChange(current, update, threadPool, rollbackSnapshotRetained);
+                        });
+                    } else {
+                        updateListener = l;
+                    }
                     // KEEP with an existing CPS envelope must not stamp caller security headers
                     // over the minted key's Authentication stored at mint time.
                     final Map<String, String> headersForUpdate = intent == CredentialTransitions.Intent.KEEP
@@ -355,7 +380,7 @@ public final class DatafeedManager {
                         wrappedValidator,
                         updateListener
                     );
-                    if (requiresRollbackSnapshotBeforeScopeChange(defaultedProjectRoutingForMigration, current, update)) {
+                    if (rollbackSnapshotRetained) {
                         retainRollbackSnapshotBeforeScopeChange(
                             current,
                             update,
@@ -503,6 +528,63 @@ public final class DatafeedManager {
         );
     }
 
+    private void notifyUserInitiatedProjectRoutingChange(
+        DatafeedConfig current,
+        DatafeedUpdate rawUpdate,
+        ThreadPool threadPool,
+        boolean rollbackSnapshotRetained
+    ) {
+        // Runs after the update response was already sent, so a failure here must never reach the API listener.
+        try {
+            String message = projectRoutingChangeMessage(
+                current.getProjectRouting(),
+                rawUpdate.getProjectRouting(),
+                rollbackSnapshotRetained
+            );
+            logger.info("[{}] {}", current.getId(), message);
+            auditor.info(current.getJobId(), message);
+            String jobId = current.getJobId();
+            String datafeedId = current.getId();
+            jobResultsProvider.dataCounts(
+                jobId,
+                dataCounts -> scheduleProjectRoutingChangeAnnotation(datafeedId, jobId, message, dataCounts, threadPool),
+                e -> {
+                    logger.warn(() -> "[" + datafeedId + "] failed to load data counts for project_routing change annotation", e);
+                    scheduleProjectRoutingChangeAnnotation(datafeedId, jobId, message, null, threadPool);
+                }
+            );
+        } catch (Exception e) {
+            logger.warn(() -> "[" + current.getId() + "] failed to emit project_routing change signals", e);
+        }
+    }
+
+    private void scheduleProjectRoutingChangeAnnotation(
+        String datafeedId,
+        String jobId,
+        String message,
+        @Nullable DataCounts dataCounts,
+        ThreadPool threadPool
+    ) {
+        Date now = new Date();
+        Date anchor = dataCounts != null && dataCounts.getLatestRecordTimeStamp() != null ? dataCounts.getLatestRecordTimeStamp() : now;
+        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+            try {
+                annotationPersister.persistAnnotation(null, Annotation.searchScopeChanged(jobId, message, anchor, now));
+            } catch (Exception e) {
+                logger.warn(() -> "[" + datafeedId + "] failed to persist project_routing change annotation", e);
+            }
+        });
+    }
+
+    private static String projectRoutingChangeMessage(@Nullable String oldRouting, String newRouting, boolean rollbackSnapshotRetained) {
+        String oldDisplay = oldRouting == null ? "(unset)" : oldRouting;
+        String base = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_PROJECT_ROUTING_CHANGED, oldDisplay, newRouting);
+        if (rollbackSnapshotRetained) {
+            return base + Messages.JOB_AUDIT_DATAFEED_PROJECT_ROUTING_CHANGED_SNAPSHOT_RETAINED;
+        }
+        return base + Messages.JOB_AUDIT_DATAFEED_PROJECT_ROUTING_CHANGED_NO_SNAPSHOT;
+    }
+
     public void deleteDatafeed(DeleteDatafeedAction.Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         if (getDatafeedTask(state, request.getDatafeedId()) != null) {
             listener.onFailure(
@@ -594,12 +676,7 @@ public final class DatafeedManager {
         ActionListener<PutDatafeedAction.Response> listener
     ) {
         DatafeedConfig.validateAggregations(request.getDatafeed().getParsedAggregations(xContentRegistry));
-
-        // Validate project_routing requires CPS to be enabled in the environment.
-        if (request.getDatafeed().getProjectRouting() != null && DatafeedConfig.isCPSAllowed(crossProjectModeDecider) == false) {
-            listener.onFailure(DatafeedConfig.projectRoutingRequiresCpsException());
-            return;
-        }
+        warnIfProjectRoutingIsInert(request.getDatafeed().getProjectRouting());
 
         CheckedConsumer<Boolean, Exception> mappingsUpdated = ok -> datafeedConfigProvider.putDatafeedConfig(
             request.getDatafeed(),
@@ -630,6 +707,12 @@ public final class DatafeedManager {
         );
 
         checkJobDoesNotHaveADatafeed(request.getDatafeed().getJobId(), ActionListener.wrap(jobOk, listener::onFailure));
+    }
+
+    private void warnIfProjectRoutingIsInert(@Nullable String projectRouting) {
+        if (projectRouting != null && DatafeedConfig.isCPSAllowed(crossProjectModeDecider) == false) {
+            HeaderWarning.addWarning(DatafeedConfig.PROJECT_ROUTING_INERT_WITHOUT_CPS_MESSAGE);
+        }
     }
 
     private void checkJobDoesNotHaveADatafeed(String jobId, ActionListener<Boolean> listener) {

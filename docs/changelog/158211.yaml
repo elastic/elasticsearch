@@ -1,0 +1,5 @@
+area: Analysis
+issues: []
+pr: 158211
+summary: Cap `min_hash` filter params
+type: bug

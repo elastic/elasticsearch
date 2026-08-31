@@ -1,4 +1,4 @@
-##########################################
+﻿##########################################
 # Baseline: all unmapped fields expanded #
 ##########################################
 
@@ -354,7 +354,6 @@ b2          | a2          | cross_mapping_b
 
 netZeroProjectionThenEval
 required_capability: optional_fields_load_all_v2
-required_capability: optional_fields_load_all_net_zero_projection
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -375,7 +374,6 @@ n:integer
 
 netZeroProjectionAfterWhereThenEval
 required_capability: optional_fields_load_all_v2
-required_capability: optional_fields_load_all_net_zero_projection
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -393,7 +391,6 @@ n:integer
 
 netZeroProjectionWithSortAndLimitThenEval
 required_capability: optional_fields_load_all_v2
-required_capability: optional_fields_load_all_net_zero_projection
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -411,7 +408,6 @@ n:integer
 
 netZeroProjectionAfterRenameThenEval
 required_capability: optional_fields_load_all_v2
-required_capability: optional_fields_load_all_net_zero_projection
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -433,7 +429,6 @@ n:integer
 
 netZeroProjectionMultiIndexThenEval
 required_capability: optional_fields_load_all_v2
-required_capability: optional_fields_load_all_net_zero_projection
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM cross_mapping_a, cross_mapping_b
@@ -449,7 +444,6 @@ n:integer
 
 dropAllMappedColumnsKeepsUnmappedExpansion
 required_capability: optional_fields_load_all_v2
-required_capability: optional_fields_load_all_net_zero_projection
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -469,7 +463,6 @@ a                       | 1756468                         | Disconnected from 10
 
 netZeroProjectionDropAllUnmappedThenEval
 required_capability: optional_fields_load_all_v2
-required_capability: optional_fields_load_all_net_zero_projection
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -492,7 +485,7 @@ n:integer
 ################
 
 inlineStatsByMappedFieldWithExpansion
-required_capability: optional_fields_load_all_inline_stats
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -508,7 +501,7 @@ FROM partial_mapping_sample_data
 ;
 
 inlineStatsNoGroupingWithExpansion
-required_capability: optional_fields_load_all_inline_stats
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -524,7 +517,7 @@ FROM partial_mapping_sample_data
 ;
 
 inlineStatsByUnmappedFieldExistsInSource
-required_capability: optional_fields_load_all_inline_stats
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -542,7 +535,7 @@ FROM partial_mapping_sample_data
 ;
 
 inlineStatsByUnmappedFieldWithExpansion
-required_capability: optional_fields_load_all_inline_stats
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -559,7 +552,7 @@ FROM partial_mapping_sample_data
 ;
 
 inlineStatsAggAliasShadowsUnmappedField
-required_capability: optional_fields_load_all_inline_stats
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -575,7 +568,7 @@ FROM partial_mapping_sample_data
 ;
 
 inlineStatsByAliasShadowsUnmappedField
-required_capability: optional_fields_load_all_inline_stats
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -591,7 +584,7 @@ FROM partial_mapping_sample_data
 ;
 
 twoInlineStats
-required_capability: optional_fields_load_all_inline_stats
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -608,7 +601,7 @@ FROM partial_mapping_sample_data
 ;
 
 inlineStatsDoubleShadowing
-required_capability: optional_fields_load_all_inline_stats
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -625,7 +618,7 @@ FROM partial_mapping_sample_data
 ;
 
 inlineStatsEvalShadowsAgg
-required_capability: optional_fields_load_all_inline_stats
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -642,7 +635,7 @@ FROM partial_mapping_sample_data
 ;
 
 inlineStatsDropAggKeepsExpansion
-required_capability: optional_fields_load_all_inline_stats
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -659,7 +652,7 @@ FROM partial_mapping_sample_data
 ;
 
 inlineStatsPrunedByLaterInlineStats
-required_capability: optional_fields_load_all_inline_stats
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -676,7 +669,7 @@ FROM partial_mapping_sample_data
 ;
 
 inlineStatsPrunedByKeepPattern
-required_capability: optional_fields_load_all_inline_stats
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -693,7 +686,7 @@ FROM partial_mapping_sample_data
 ;
 
 inlineStatsShadowAndPrunedByKeepPattern
-required_capability: optional_fields_load_all_inline_stats
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -710,7 +703,7 @@ FROM partial_mapping_sample_data
 ;
 
 inlineStatsByUnmappedAfterRenameOtherUnmapped
-required_capability: optional_fields_load_all_inline_stats
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -730,7 +723,7 @@ FROM partial_mapping_sample_data
 ;
 
 inlineStatsByRenamedUnmapped
-required_capability: optional_fields_load_all_inline_stats
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -750,7 +743,7 @@ FROM partial_mapping_sample_data
 ;
 
 inlineStatsAfterSortOnUnmapped
-required_capability: optional_fields_load_all_inline_stats
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -774,7 +767,7 @@ FROM partial_mapping_sample_data
 #########
 
 statsCountStar
-required_capability: optional_fields_load_all_stats
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -786,7 +779,7 @@ c:long
 ;
 
 statsByMappedField
-required_capability: optional_fields_load_all_stats
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -803,7 +796,7 @@ c:long | message:keyword
 ;
 
 statsByUnmappedField
-required_capability: optional_fields_load_all_stats
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -820,7 +813,7 @@ s:long       | c:long | unmapped_message:keyword
 ;
 
 statsAfterKeepWildcard
-required_capability: optional_fields_load_all_stats
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -833,7 +826,7 @@ c:long
 ;
 
 statsAfterWhereOnUnmappedField
-required_capability: optional_fields_load_all_stats
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -851,7 +844,6 @@ c:long
 loadAllSyntheticSourceObjectUnmappedFieldIsNull
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM synthetic_source_partial_mapping
 | KEEP @timestamp, unmapped, unmapped.nested
@@ -867,7 +859,6 @@ FROM synthetic_source_partial_mapping
 
 loadAllSyntheticSourceObjectFieldMultiParentIsNull
 required_capability: optional_fields_load_all_v2
-
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM k8s_unmapped
@@ -905,81 +896,108 @@ id:keyword | tags:keyword | n:integer
 arrayOfObjectsFlattensToDottedLeafMultivalue
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
-FROM unmapped_array_data
-| KEEP id, samples*
+FROM unmapped_array_data METADATA _source
+| KEEP id, samples*, _source
 | SORT id
 ;
 
-id:keyword | samples.nested:keyword
-1          | [x, y]
-2          | z
-3          | null
+id:keyword | samples.nested:keyword | _source:keyword
+1          | [x, y]                 | {"id":"1","tags":["web","api"],"samples":[{"nested":"x"},{"nested":"y"}]}
+2          | z                      | {"id":"2","tags":"web","samples":{"nested":"z"}}
+3          | null                   | {"id":"3","tags":"web"}
 ;
 
 leafOnlyWildcardShipsArrayOfObjects
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
-FROM unmapped_array_data
-| KEEP id, samples.*
+FROM unmapped_array_data METADATA _source
+| KEEP id, samples.*, _source
 | SORT id
 ;
 
-id:keyword | samples.nested:keyword
-1          | [x, y]
-2          | z
-3          | null
+id:keyword | samples.nested:keyword | _source:keyword
+1          | [x, y]                 | {"id":"1","tags":["web","api"],"samples":[{"nested":"x"},{"nested":"y"}]}
+2          | z                      | {"id":"2","tags":"web","samples":{"nested":"z"}}
+3          | null                   | {"id":"3","tags":"web"}
+;
+
+// A prefix wildcard that matches only a leaf (samples.nested) keeps that leaf column; no "samples" or "samples.*" ghost appears.
+leafOnlyWildcardWithPrefixMatchesLeaf
+required_capability: optional_fields_load_all_v2
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_array_data METADATA _source
+| KEEP id, samples.n*, _source
+| SORT id
+;
+
+id:keyword | samples.nested:keyword | _source:keyword
+1          | [x, y]                 | {"id":"1","tags":["web","api"],"samples":[{"nested":"x"},{"nested":"y"}]}
+2          | z                      | {"id":"2","tags":"web","samples":{"nested":"z"}}
+3          | null                   | {"id":"3","tags":"web"}
 ;
 
 escapedWildcardKeepNameIsExplicitNotPattern
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
-FROM unmapped_array_data
-| KEEP id, `samples*`, tags*
+FROM unmapped_array_data METADATA _source
+| KEEP id, `samples*`, tags*, _source
 | SORT id
 ;
 
-id:keyword | samples*:keyword | tags:keyword
-1          | null             | [web, api]
-2          | null             | web
-3          | null             | web
+id:keyword | samples*:keyword | tags:keyword | _source:keyword
+1          | null             | [web, api]   | {"id":"1","tags":["web","api"],"samples":[{"nested":"x"},{"nested":"y"}]}
+2          | null             | web          | {"id":"2","tags":"web","samples":{"nested":"z"}}
+3          | null             | web          | {"id":"3","tags":"web"}
 ;
 
 escapedWildcardKeepNameIsExplicitNotPattern_CombinedWith_WildcardedPatterns
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
-FROM unmapped_array_data
-| KEEP `samples*`, samples*, samples.*, samples.nest*, id, *
+FROM unmapped_array_data METADATA _source
+| KEEP `samples*`, samples*, samples.*, samples.nest*, id, *, _source
 | SORT id
 ;
 
-samples*:keyword | samples.nested:keyword | id:keyword | tags:keyword
-null             | [x, y]                 | 1          | [web, api]
-null             | z                      | 2          | web
-null             | null                   | 3          | web
+samples*:keyword | samples.nested:keyword | id:keyword | tags:keyword | _source:keyword
+null             | [x, y]                 | 1          | [web, api]   | {"id":"1","tags":["web","api"],"samples":[{"nested":"x"},{"nested":"y"}]}
+null             | z                      | 2          | web          | {"id":"2","tags":"web","samples":{"nested":"z"}}
+null             | null                   | 3          | web          | {"id":"3","tags":"web"}
 ;
 
 unescapedWildcardKeepNameMatchesLeaves
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
-FROM unmapped_array_data
-| KEEP id, samples*, tags*
+FROM unmapped_array_data METADATA _source
+| KEEP id, samples*, tags*, _source
 | SORT id
 ;
 
-id:keyword | samples.nested:keyword | tags:keyword
-1          | [x, y]                 | [web, api]
-2          | z                      | web
-3          | null                   | web
+id:keyword | samples.nested:keyword | tags:keyword | _source:keyword
+1          | [x, y]                 | [web, api]   | {"id":"1","tags":["web","api"],"samples":[{"nested":"x"},{"nested":"y"}]}
+2          | z                      | web          | {"id":"2","tags":"web","samples":{"nested":"z"}}
+3          | null                   | web          | {"id":"3","tags":"web"}
+;
+
+// Asking for the object field itself (not a wildcard) yields null — object values have no keyword representation.
+explicitObjectFieldIsNull
+required_capability: optional_fields_load_all_v2
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_array_data METADATA _source
+| KEEP id, samples, _source
+| SORT id
+;
+
+id:keyword | samples:keyword | _source:keyword
+1          | null            | {"id":"1","tags":["web","api"],"samples":[{"nested":"x"},{"nested":"y"}]}
+2          | null            | {"id":"2","tags":"web","samples":{"nested":"z"}}
+3          | null            | {"id":"3","tags":"web"}
 ;
 
 // An object-valued unmapped source field has no keyword representation of its own, so it contributes no "extra" value; its leaves
@@ -987,7 +1005,6 @@ id:keyword | samples.nested:keyword | tags:keyword
 // and an "extra.baz" column appear.
 objectFieldFlattensToLeafColumns
 required_capability: optional_fields_load_all_v2
-
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_object_data
@@ -1025,7 +1042,6 @@ FROM synthetic_source_partial_mapping
 multiIndexDivergentUnmappedFieldShapes
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthetic, unmapped_multi_stored_mixed
 | SORT id
@@ -1044,7 +1060,6 @@ id:keyword | unmapped:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keywor
 // same query as above but eliminate the only value that makes "unmapped" column "visible"
 multiIndexDivergentUnmappedFieldShapes_NoNullObjectTypedColumn
 required_capability: optional_fields_load_all_v2
-
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthetic, unmapped_multi_stored_mixed
@@ -1065,7 +1080,6 @@ id:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keyword | unmapped.foo:ke
 multiIndexDivergentUnmappedFieldShapes_NullObjectTypedColumn_ForcedBackIn
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthetic, unmapped_multi_stored_mixed
 | SORT id
@@ -1084,7 +1098,6 @@ id:keyword  | unmapped:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keywo
 
 multiIndexReferencedUnmappedObjectStillExpandsLeaves
 required_capability: optional_fields_load_all_v2
-
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthetic, unmapped_multi_stored_mixed
@@ -1105,7 +1118,6 @@ id:keyword | unmapped:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keywor
 multiIndexKeepObjectChildWildcardExpandsLeaves
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthetic, unmapped_multi_stored_mixed
 | SORT id
@@ -1124,7 +1136,6 @@ id:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keyword | unmapped.foo:ke
 
 multiIndexDropNestedObjectWildcardHidesSyntheticLeaf
 required_capability: optional_fields_load_all_v2
-
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthetic, unmapped_multi_stored_mixed
@@ -1145,7 +1156,6 @@ id:keyword | unmapped:keyword | unmapped.bar:keyword | unmapped.foo:keyword
 multiIndexDropFixedSuffixWildcardKeepsUnmatchedSyntheticLeaf
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthetic, unmapped_multi_stored_mixed
 | SORT id
@@ -1164,7 +1174,6 @@ id:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keyword | unmapped.foo:ke
 
 multiIndexKeepOrdersExpandedLeavesStarFirst
 required_capability: optional_fields_load_all_v2
-
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthetic, unmapped_multi_stored_mixed
@@ -1201,58 +1210,57 @@ null                 | deep6                      | null                 | null 
 bar7                 | null                       | null                 | null             | 7
 ;
 
-// unmapped.foo is keyword-mapped only in unmapped_multi_mapped and lives in _source in the other four indices
+// unmapped.foo is keyword-mapped only in unmapped_multi_mapped and lives in _source in the other four indices;
+// unmapped.*.leaf matches only unmapped.deep.leaf in this dataset.
 multiIndexMappedFieldLoadsBothLegs
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_*, -unmapped_multi_mapped_mixed
-| KEEP id, unmapped.foo
+| KEEP id, unmapped.foo, unmapped.*.leaf
 | SORT id
 ;
 
-id:keyword | unmapped.foo:keyword
-1          | foo1
-2          | null
-3          | foo3
-4          | null
-5          | [arr1, arr2]
-6          | null
-7          | null
-8          | mfoo8
-9          | [mfa, mfb]
+id:keyword | unmapped.foo:keyword | unmapped.deep.leaf:keyword
+1          | foo1                 | null
+2          | null                 | null
+3          | foo3                 | null
+4          | null                 | null
+5          | [arr1, arr2]         | null
+6          | null                 | deep6
+7          | null                 | null
+8          | mfoo8                | mleaf8
+9          | [mfa, mfb]           | null
 ;
 
 // All three dotted leaves are keyword-mapped in unmapped_multi_mapped and unmapped in the siblings; each is partially mapped, so ids 8 and 9
 // carry their mapped values and ids 1-7 the values (if any) loaded from the siblings' _source, one column per leaf.
+// The wildcard patterns unmapped* and unmapped.* produce alphabetical leaf ordering: unmapped, unmapped.bar, unmapped.deep.leaf, unmapped.foo.
 multiIndexMappedFieldsAllDottedLeaves
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_*, -unmapped_multi_mapped_mixed
-| KEEP id, unmapped.foo, unmapped.bar, unmapped.deep.leaf
+| KEEP id, unmapped*, unmapped.*
 | SORT id
 ;
 
-id:keyword | unmapped.foo:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keyword
-1          | foo1                 | null                 | null
-2          | null                 | bar2                 | null
-3          | foo3                 | null                 | null
-4          | null                 | null                 | null
-5          | [arr1, arr2]         | null                 | null
-6          | null                 | null                 | deep6
-7          | null                 | bar7                 | null
-8          | mfoo8                | mbar8                | mleaf8
-9          | [mfa, mfb]           | null                 | null
+id:keyword | unmapped:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keyword | unmapped.foo:keyword
+1          | null             | null                 | null                       | foo1
+2          | null             | bar2                 | null                       | null
+3          | null             | null                 | null                       | foo3
+4          | scalar4          | null                 | null                       | null
+5          | null             | null                 | null                       | [arr1, arr2]
+6          | null             | null                 | deep6                      | null
+7          | null             | bar7                 | null                       | null
+8          | null             | mbar8                | mleaf8                     | mfoo8
+9          | null             | null                 | null                       | [mfa, mfb]
 ;
 
 // The bare scalar unmapped is an object in unmapped_multi_mapped (its dotted leaves are mapped) and unmapped everywhere else, so it stays
 // fully unmapped and only its expansion surfaces it (scalar4 at id 4); the dotted unmapped.foo is partially mapped and merges its legs.
 multiIndexMappedDottedAndUnmappedScalarCoexist
 required_capability: optional_fields_load_all_v2
-
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_*, -unmapped_multi_mapped_mixed
@@ -1277,7 +1285,6 @@ id:keyword | unmapped:keyword | unmapped.foo:keyword
 multiIndexMappedAndUnmappedNoProjection
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_*, -unmapped_multi_mapped_mixed
 | SORT id
@@ -1301,7 +1308,6 @@ id:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keyword | unmapped.foo:ke
 multiIndexWhereMatchesEitherLegOfPartialField
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_*, -unmapped_multi_mapped_mixed
 | WHERE unmapped.foo == "mfoo8" OR unmapped.foo == "foo1"
@@ -1318,7 +1324,6 @@ id:keyword | unmapped.foo:keyword
 
 multiIndexKeepOrdersRealColumnAfterExpandedLeaves_WithMultiWildcardNested
 required_capability: optional_fields_load_all_v2
-
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthetic, unmapped_multi_stored_mixed
@@ -1339,7 +1344,6 @@ null                      |null              |7           |bar7                 
 multiIndexKeepOrdersRealColumnAfterExpandedLeaves_WithMultiWildcardNested_AndMetadataIndex
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_mapped, unmapped_multi_synthetic METADATA _index
 | KEEP id, _inde*, unmapped, unmapped.foo, *
@@ -1356,7 +1360,6 @@ FROM unmapped_multi_mapped, unmapped_multi_synthetic METADATA _index
 
 multiIndexKeepOrdersRealColumnAfterExpandedLeaves_WithMultiWildcardNested_AndActualMappedFields
 required_capability: optional_fields_load_all_v2
-
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_* METADATA _index
@@ -1385,7 +1388,6 @@ FROM unmapped_multi_* METADATA _index
 multiIndexTypeConflictSingleLeafIsUnsupportedAndNull
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_*
 | KEEP id, unmapped.foo
@@ -1411,7 +1413,6 @@ id:keyword | unmapped.foo:unsupported
 // unmapped.deep.leaf keyword vs ip - so every one is an unsupported type conflict and stays null regardless of the values in the _source legs.
 multiIndexTypeConflictAllLeavesAreUnsupportedAndNull
 required_capability: optional_fields_load_all_v2
-
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_*
@@ -1439,7 +1440,6 @@ id:keyword | unmapped.foo:unsupported | unmapped.bar:unsupported | unmapped.deep
 multiIndexTypeConflictScalarUnmappedCoexistsWithConflict
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_*
 | KEEP id, unmapped, unmapped.foo
@@ -1466,7 +1466,6 @@ id:keyword | unmapped:keyword | unmapped.foo:unsupported
 multiIndexTypeConflictResolvedByExplicitCast
 required_capability: optional_fields_load_all_v2
 
-
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_*
 | EVAL foo = unmapped.foo::keyword
@@ -1492,7 +1491,6 @@ id:keyword | foo:keyword
 // WHERE on the cast-resolved union column filters the computed keyword value (not pushed to Lucene), keeping only ids with a value.
 multiIndexTypeConflictCastThenFilteredByWhere
 required_capability: optional_fields_load_all_v2
-
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_*

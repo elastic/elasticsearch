@@ -667,7 +667,10 @@ The following list shows attributes that are common to all audit event types:
 `event.action`
 :   The type of event that occurred: `anonymous_access_denied`, `authentication_failed`, `authentication_success`, `realm_authentication_failed`, `access_denied`, `access_granted`, `connection_denied`, `connection_granted`, `tampered_request`, `run_as_denied`, or `run_as_granted`.
 
-    In addition, if `event.type` equals [`security_config_change`](#security-config-change), the `event.action` attribute takes one of the following values: `put_user`, `change_password`, `put_role`, `put_role_mapping`, `change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `create_service_token`, `put_user_managed_service_account`, `delete_user`, `delete_role`, `delete_role_mapping`, `delete_service_token`, `delete_user_managed_service_account`, `invalidate_apikeys`, `delete_privileges`, `change_apikey`, or `change_apikeys`.
+    In addition, if `event.type` equals [`security_config_change`](#security-config-change), the `event.action` attribute takes one of the following values: 
+    
+    * {applies_to}`stack: ga 9.0+` `put_user`, `change_password`, `put_role`, `put_role_mapping`, `change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `create_service_token`, `delete_user`, `delete_role`, `delete_role_mapping`, `delete_service_token`, `invalidate_apikeys`, `delete_privileges`, `change_apikey`, `change_apikeys`
+    * {applies_to}`stack: ga 9.6+` `put_user_managed_service_account`, `delete_user_managed_service_account`
 
 
 `request.id`

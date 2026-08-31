@@ -103,19 +103,6 @@ public final class ExternalSourceCacheSettings {
     );
 
     /**
-     * Deprecated former key for {@link #STRIPE_SIZE}. See {@link #CACHE_SIZE_OLD} for why it stays
-     * registered.
-     */
-    public static final Setting<ByteSizeValue> STRIPE_SIZE_OLD = Setting.byteSizeSetting(
-        "esql.source.cache.stripe.size",
-        ByteSizeValue.ofMb(8),
-        ByteSizeValue.ofKb(64),
-        ByteSizeValue.ofGb(1),
-        Setting.Property.DeprecatedWarning,
-        Setting.Property.NodeScope
-    );
-
-    /**
      * Canonical stripe size for row-format external-source statistics, in file/decompressed-stream
      * bytes. A stripe is a pure ADDRESSING grid over file content: the reader attributes each record to
      * stripe {@code floor(recordStartOffset / B)} as it parses, and stats are captured, deduplicated,
@@ -132,23 +119,11 @@ public final class ExternalSourceCacheSettings {
      * larger grids (≥32 MB) coarsen a representative shard to &lt;60 stripes, blunting per-stripe min/max
      * pruning. 8 MB is the knee.
      */
-    public static final Setting<ByteSizeValue> STRIPE_SIZE = new Setting<>(
+    public static final Setting<ByteSizeValue> STRIPE_SIZE = Setting.byteSizeSetting(
         "esql.external.cache.stripe.size",
-        STRIPE_SIZE_OLD,
-        s -> Setting.parseByteSize(s, ByteSizeValue.ofKb(64), ByteSizeValue.ofGb(1), "esql.external.cache.stripe.size"),
-        v -> {},
-        Setting.Property.NodeScope
-    );
-
-    /**
-     * Deprecated former key for {@link #STRIPE_COLUMNS}. See {@link #CACHE_SIZE_OLD} for why it stays
-     * registered.
-     */
-    public static final Setting<StripeColumnScope> STRIPE_COLUMNS_OLD = Setting.enumSetting(
-        StripeColumnScope.class,
-        "esql.source.cache.stripe.columns",
-        StripeColumnScope.PROJECTED,
-        Setting.Property.DeprecatedWarning,
+        ByteSizeValue.ofMb(8),
+        ByteSizeValue.ofKb(64),
+        ByteSizeValue.ofGb(1),
         Setting.Property.NodeScope
     );
 
@@ -177,8 +152,7 @@ public final class ExternalSourceCacheSettings {
     public static final Setting<StripeColumnScope> STRIPE_COLUMNS = Setting.enumSetting(
         StripeColumnScope.class,
         "esql.external.cache.stripe.columns",
-        STRIPE_COLUMNS_OLD,
-        v -> {},
+        StripeColumnScope.PROJECTED,
         Setting.Property.NodeScope
     );
 
@@ -274,9 +248,7 @@ public final class ExternalSourceCacheSettings {
             LISTING_TTL,
             LISTING_TTL_OLD,
             STRIPE_SIZE,
-            STRIPE_SIZE_OLD,
             STRIPE_COLUMNS,
-            STRIPE_COLUMNS_OLD,
             FOOTER_CACHE_SIZE,
             FOOTER_PARSED_CACHE_SIZE,
             FOOTER_CACHE_TTL

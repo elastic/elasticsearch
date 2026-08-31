@@ -145,12 +145,6 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
      */
     private final FooterByteCache footerBytes;
 
-    /** Clears both footer caches. Intended for test isolation only. */
-    void clearFooterCachesForTests() {
-        parsedFooters.invalidateAll();
-        footerBytes.invalidateAll();
-    }
-
     /**
      * Estimates the retained heap weight of a parsed ORC tail for the byte-weighted
      * {@link ParsedFooterCache}: the serialized tail buffer the {@link OrcTail} holds onto, plus a

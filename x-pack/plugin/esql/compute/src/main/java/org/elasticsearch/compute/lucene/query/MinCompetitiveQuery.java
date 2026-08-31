@@ -112,16 +112,27 @@ public class MinCompetitiveQuery implements Releasable {
 
     @Override
     public void close() {
+        if (perIndex != null) {
+            perIndex.close();
+        }
         minCompetitive.decRef();
     }
 
-    private class PerIndex {
+    private class PerIndex implements Releasable {
         private final ShardContext ctx;
         private long cachedGeneration = -1;
         private PerMinValue perMinValue;
 
         private PerIndex(ShardContext ctx) {
             this.ctx = ctx;
+        }
+
+        @Override
+        public void close() {
+            if (perMinValue != null) {
+                perMinValue.close();
+                perMinValue = null;
+            }
         }
 
         private void updatePerMinValue(Page value, long generation) throws IOException {

@@ -272,7 +272,7 @@ public class FileSplitProvider implements SplitProvider {
     private final Settings settings;
     @Nullable
     private final Executor executor;
-    private final AtomicLong splitDiscoveryCpuAccum = new AtomicLong();
+    private final AtomicLong splitDiscoveryCpuNanos = new AtomicLong();
 
     public FileSplitProvider() {
         this(DEFAULT_TARGET_SPLIT_SIZE, null, null, null, Settings.EMPTY, null);
@@ -501,7 +501,8 @@ public class FileSplitProvider implements SplitProvider {
                     CONFIG_MAX_SPLIT_PROBES
                 );
             }
-            splitDiscoveryCpuAccum.set(0L);
+            // Only single split discovery is performed on each FileSplitProvider at a time
+            splitDiscoveryCpuNanos.set(0L);
             List<PlanResult> planResults;
             try {
                 if (executor != null && tasks.size() > 1) {
@@ -517,8 +518,6 @@ public class FileSplitProvider implements SplitProvider {
                         planResults.add(processFileForSplits(task, hoistedProvider, strideBytes, isCancelled));
                     }
                 }
-            } catch (IOException e) {
-                throw new RuntimeException("Failed to discover splits", e);
             } catch (RuntimeException e) {
                 throw e;
             } catch (Exception e) {
@@ -541,7 +540,7 @@ public class FileSplitProvider implements SplitProvider {
 
             // Each surviving task produces at least one split, so the task count is the number of
             // distinct files that are actually scanned after coordinator-side pruning.
-            return new SplitDiscoveryResult(splits, tasks.size(), false, splitDiscoveryCpuAccum.get());
+            return new SplitDiscoveryResult(splits, tasks.size(), false, splitDiscoveryCpuNanos.get());
         } finally {
             StorageProviderCache.closeLease(sharedProvider);
         }
@@ -1080,7 +1079,7 @@ public class FileSplitProvider implements SplitProvider {
                 () -> computeFileSplits(task, hoistedProvider, strideBytes, isCancelled)
             );
         } finally {
-            if (cpuStart >= 0) splitDiscoveryCpuAccum.addAndGet(ThreadCpuTimer.elapsedNanos(cpuStart));
+            if (cpuStart >= 0) splitDiscoveryCpuNanos.addAndGet(ThreadCpuTimer.elapsedNanos(cpuStart));
         }
     }
 
@@ -1347,7 +1346,7 @@ public class FileSplitProvider implements SplitProvider {
             StorageProvider provider = resolveProvider(filePath, config, hoistedProvider);
             StorageObject object = provider.newObject(filePath, fileLength);
             long[] boundaries = splittableCodec.findBlockBoundaries(object, 0, fileLength);
-            splitDiscoveryCpuAccum.addAndGet(splittableCodec.asyncCpuNanos());
+            splitDiscoveryCpuNanos.addAndGet(splittableCodec.asyncCpuNanos());
 
             if (boundaries.length == 0) {
                 splits.add(wholeFileSplit(filePath, fileLength, format, config, partitionValues, columnMapping, readSchema));

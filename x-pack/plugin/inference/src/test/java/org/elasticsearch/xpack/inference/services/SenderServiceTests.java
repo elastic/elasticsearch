@@ -308,7 +308,7 @@ public class SenderServiceTests extends ESTestCase {
                 null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.unifiedCompletionInfer(mock(Model.class), request, TIMEOUT, listener);
+            service.unifiedCompletionInfer(mock(Model.class), request, true, TIMEOUT, listener);
 
             var exception = assertThrows(UnsupportedOperationException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(exception.getMessage(), is("The test service service does not support unified completion with cache control"));
@@ -353,7 +353,7 @@ public class SenderServiceTests extends ESTestCase {
                 null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.unifiedCompletionInfer(mock(Model.class), request, TIMEOUT, listener);
+            service.unifiedCompletionInfer(mock(Model.class), request, true, TIMEOUT, listener);
 
             assertNotNull(listener.actionGet(TIMEOUT));
         }
@@ -368,7 +368,7 @@ public class SenderServiceTests extends ESTestCase {
             var messages = List.of(new Message(new ContentString("test"), "user", null, null));
             var request = new UnifiedCompletionRequest(messages, null, null, null, null, null, null, null, null, null, "test-session");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.unifiedCompletionInfer(mock(Model.class), request, TIMEOUT, listener);
+            service.unifiedCompletionInfer(mock(Model.class), request, true, TIMEOUT, listener);
 
             var exception = assertThrows(UnsupportedOperationException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(exception.getMessage(), is("The test service service does not support unified completion with session id"));
@@ -401,7 +401,7 @@ public class SenderServiceTests extends ESTestCase {
             var messages = List.of(new Message(new ContentString("test"), "user", null, null));
             var request = new UnifiedCompletionRequest(messages, null, null, null, null, null, null, null, null, null, "test-session");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.unifiedCompletionInfer(mock(Model.class), request, TIMEOUT, listener);
+            service.unifiedCompletionInfer(mock(Model.class), request, true, TIMEOUT, listener);
 
             assertNotNull(listener.actionGet(TIMEOUT));
         }

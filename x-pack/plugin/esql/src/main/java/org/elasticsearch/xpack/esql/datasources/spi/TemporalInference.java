@@ -57,8 +57,8 @@ import java.time.temporal.TemporalQueries;
  * <p>Nor does it check that the string would survive the {@code date_nanos} <i>decode</i> rail. The CSV
  * rail's datetime parser accepts dialects {@code strict_date_optional_time_nanos} rejects &mdash; the
  * whitespace-separated form, times without seconds, and years that are signed or longer than four
- * digits, among others. That set is not worth enumerating here: three attempts to state it by shape
- * were each wrong, so the CSV inferrer asks that rail directly before acting on this class's answer.
+ * digits, among others. That set is not worth enumerating here: two attempts to state it by shape
+ * missed three dialects between them, so the CSV inferrer asks that rail directly before acting on this class's answer.
  */
 public final class TemporalInference {
 

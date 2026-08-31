@@ -265,7 +265,7 @@ public class CsvSchemaInferrer {
      * done there, and only for files mixing two dialects in one column.
      * <p>
      * Applied at resolution rather than during the walk, so the answer does not depend on whether the
-     * space-form row came before or after the one that forced the flip.
+     * row carrying that dialect came before or after the one that forced the flip.
      */
     private static DataType demoteIfDialectCannotDecode(DataType resolved, boolean sawUndecodableTemporal) {
         return resolved == DataType.DATE_NANOS && sawUndecodableTemporal ? DataType.DATETIME : resolved;
@@ -442,12 +442,13 @@ public class CsvSchemaInferrer {
     }
 
     /**
-     * Classifies a value as not-a-timestamp, a timestamp {@code datetime} reads losslessly, or one
-     * that only {@code date_nanos} reads losslessly.
+     * Classifies a value four ways: not a timestamp, one {@code datetime} reads losslessly, one only
+     * {@code date_nanos} reads losslessly, and one the {@code date_nanos} rail cannot parse at all.
      * <p>
-     * Which values are <em>accepted</em> as timestamps is unchanged: the parse below is the same one
+     * Which values are <em>accepted</em> as timestamps is unchanged: the first parse below is the one
      * this method has always done, and its result — previously discarded — is what decides the
-     * precision. So the extra rung costs no extra parse.
+     * precision. Deciding the fourth case does cost a second parse, against the rail's own formatter;
+     * see {@link #NANOS_RAIL_FORMAT} for why that is worth paying and what it replaced.
      * <p>
      * A declared {@code datetime_format} never yields DATE_NANOS. The user has said how their
      * timestamps are written, declaring the schema is the way to ask for nanoseconds, and we would

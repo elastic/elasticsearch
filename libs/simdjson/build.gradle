@@ -58,3 +58,9 @@ tasks.named('test').configure {
   jvmArgs '--add-modules=jdk.incubator.vector'
   jvmArgs '--enable-native-access=ALL-UNNAMED'
 }
+
+// Vendored simdjson C++ amalgamation notices (not tied to a jar dependency).
+tasks.named('dependencyLicenses').configure {
+  ignoreFile 'simdjson-LICENSE.txt'
+  ignoreFile 'simdjson-NOTICE.txt'
+}

@@ -1,4 +1,4 @@
-area: "Infra/Core, CRUD"
+area: Columnar
 issues: []
 pr: 157986
 summary: Add simdjson-backed JSON parsing for ESCF bulk encoding

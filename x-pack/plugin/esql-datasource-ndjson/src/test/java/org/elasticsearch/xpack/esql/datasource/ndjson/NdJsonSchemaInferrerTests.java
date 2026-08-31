@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.EnumSet;
 import java.util.List;
 
 public class NdJsonSchemaInferrerTests extends ESTestCase {
@@ -37,6 +39,17 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
             {"name": "John", "age": 30}
             {"name": "Jane", "age": 25}
             """, field("name", DataType.KEYWORD), field("age", DataType.INTEGER));
+    }
+
+    public void testInferredOrderFollowsFirstAppearance() throws IOException {
+        check("""
+            {"ts": "2026-01-01T00:00:00Z", "error_code": 7, "level": "INFO"}
+            {"ts": "2026-01-01T00:00:01Z", "error_code": 3, "level": "WARN"}
+            """, field("ts", DataType.DATETIME), field("error_code", DataType.INTEGER), field("level", DataType.KEYWORD));
+        check("""
+            {"ts": "2026-01-01T00:00:02Z", "level": "INFO"}
+            {"ts": "2026-01-01T00:00:03Z", "error_code": 5, "level": "ERROR"}
+            """, field("ts", DataType.DATETIME), field("level", DataType.KEYWORD), field("error_code", DataType.INTEGER, true));
     }
 
     /**
@@ -210,6 +223,273 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
         // The bad line contributes no field at all before throwing, so both columns are unseen for that round
         // and come back nullable — again the pre-existing partially-consumed-line behavior, not a new effect.
         check(ndjson, field("name", DataType.KEYWORD, true), field("age", DataType.INTEGER, true));
+    }
+
+    public void testNanosecondTimestampInfersDateNanos() throws IOException {
+        check("""
+            {"ts": "2023-10-23T12:15:03.360103847Z"}
+            """, field("ts", DataType.DATE_NANOS));
+    }
+
+    public void testMixedPrecisionWidensToDateNanos() throws IOException {
+        // Either order: the field accumulates both types and resolution widens to the one that can
+        // hold both. Reading a millisecond string on the nanos rail is lossless.
+        check("""
+            {"ts": "2023-10-23T12:15:03.360Z"}
+            {"ts": "2023-10-23T12:15:03.360103847Z"}
+            """, field("ts", DataType.DATE_NANOS));
+        check("""
+            {"ts": "2023-10-23T12:15:03.360103847Z"}
+            {"ts": "2023-10-23T12:15:03.360Z"}
+            """, field("ts", DataType.DATE_NANOS));
+    }
+
+    public void testTrailingZeroFractionStaysDatetime() throws IOException {
+        // Nine digits of text, but millisecond-exact as a value: datetime reads it without loss, so
+        // there is no reason to retype the column.
+        check("""
+            {"ts": "2023-10-23T12:15:03.360000000Z"}
+            """, field("ts", DataType.DATETIME));
+    }
+
+    public void testPreEpochNanosecondStaysDatetime() throws IOException {
+        // date_nanos cannot represent anything before the epoch at all.
+        check("""
+            {"ts": "1969-12-31T23:59:59.999999999Z"}
+            """, field("ts", DataType.DATETIME));
+    }
+
+    public void testPostWindowNanosecondStaysDatetime() throws IOException {
+        check("""
+            {"ts": "2263-01-01T00:00:00.123456789Z"}
+            """, field("ts", DataType.DATETIME));
+    }
+
+    public void testNanosMixedWithNonTemporalStringResolvesKeyword() throws IOException {
+        check("""
+            {"ts": "2023-10-23T12:15:03.360103847Z"}
+            {"ts": "not a date"}
+            """, field("ts", DataType.KEYWORD));
+    }
+
+    public void testCustomDatetimeFormatNeverInfersDateNanos() throws IOException {
+        // The pattern below happily parses the nanosecond fraction, so this is not about parse
+        // failure: a declared dialect means the user has said how their timestamps are written, and
+        // declaring the schema is the way to ask for nanoseconds.
+        DateFormatter custom = DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss.SSSSSSSSS");
+        String ndjson = """
+            {"ts": "2023-10-23 12:15:03.360103847"}
+            """;
+        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8))) {
+            List<Attribute> result = NdJsonSchemaInferrer.inferSchema(inputStream, 100, custom);
+            assertEquals(1, result.size());
+            assertEquals(DataType.DATETIME, result.get(0).dataType());
+        }
+    }
+
+    public void testFourDigitStringIsNotADatetime() throws IOException {
+        // strict_date_optional_time accepts a bare 4-digit year, which would make any all-4-digit
+        // string column look temporal. The filter that prevents that lives on the same path the
+        // nanosecond discriminator now sits on, so it is pinned here too.
+        check("""
+            {"code": "5327"}
+            {"code": "4536"}
+            """, field("code", DataType.KEYWORD));
+    }
+
+    public void testBooleanDetection() throws IOException {
+        check("""
+            {"active": true}
+            {"active": false}
+            """, field("active", DataType.BOOLEAN));
+    }
+
+    public void testNullMarksFieldNullableWithoutContributingAType() throws IOException {
+        check("""
+            {"v": 1}
+            {"v": null}
+            """, field("v", DataType.INTEGER, true));
+    }
+
+    public void testIntegerTooLargeForLongFallsBackToDouble() throws IOException {
+        check("""
+            {"v": 99999999999999999999999999}
+            """, field("v", DataType.DOUBLE));
+    }
+
+    public void testNonObjectLineIsSkipped() throws IOException {
+        // A line that is not a JSON object is a whole-line scanner failure: inference skips it and
+        // leaves the decision to the read's error policy, rather than failing the whole plan.
+        check("""
+            {"v": 1}
+            [1, 2]
+            {"v": 2}
+            """, field("v", DataType.INTEGER, true));
+    }
+
+    /**
+     * Every type set this rail can produce, resolved by the lattice fold, must land exactly where the
+     * hand-written rules landed it. The old rules are reproduced verbatim below rather than described,
+     * so this compares implementations instead of comparing an implementation to a summary of itself.
+     * <p>
+     * All 127 non-empty subsets of the seven types the inferrer can observe, not a sample: the whole
+     * point of moving the rule is that no set quietly changes answer.
+     */
+    public void testLatticeFoldMatchesTheReplacedRulesOnEverySubset() {
+        DataType[] observable = {
+            DataType.KEYWORD,
+            DataType.INTEGER,
+            DataType.LONG,
+            DataType.DOUBLE,
+            DataType.BOOLEAN,
+            DataType.DATETIME,
+            DataType.DATE_NANOS };
+        int checked = 0;
+        for (int mask = 1; mask < (1 << observable.length); mask++) {
+            EnumSet<DataType> set = EnumSet.noneOf(DataType.class);
+            for (int bit = 0; bit < observable.length; bit++) {
+                if ((mask & (1 << bit)) != 0) {
+                    set.add(observable[bit]);
+                }
+            }
+            assertEquals(set.toString(), replacedRules(set), NdJsonSchemaInferrer.resolveObservedTypes(set));
+            checked++;
+        }
+        assertEquals("every non-empty subset of the observable types", 127, checked);
+    }
+
+    public void testEmptyObservedSetIsNotAScalarColumn() {
+        // A field only ever seen as an object or an always-empty array. The lattice has no bottom, so
+        // this answer belongs to the caller and is asserted here rather than assumed.
+        assertEquals(DataType.UNSUPPORTED, NdJsonSchemaInferrer.resolveObservedTypes(EnumSet.noneOf(DataType.class)));
+    }
+
+    /**
+     * Verbatim copy of {@code FieldInfo.resolveType} as it stood immediately before the lattice
+     * migration &mdash; that is, main's rules plus this branch's earlier DATETIME/DATE_NANOS clause,
+     * not main's alone. The point of this test is to compare two implementations rather than an
+     * implementation against a description of itself, so which state it copies matters.
+     */
+    private static DataType replacedRules(EnumSet<DataType> types) {
+        if (types.isEmpty()) {
+            return DataType.UNSUPPORTED;
+        }
+        if (types.size() == 1) {
+            return types.iterator().next();
+        }
+        if (types.contains(DataType.KEYWORD)) {
+            return DataType.KEYWORD;
+        }
+        if (hasOnly(types, EnumSet.of(DataType.DATETIME, DataType.DATE_NANOS))) {
+            return DataType.DATE_NANOS;
+        }
+        if (hasOnly(types, EnumSet.of(DataType.DOUBLE, DataType.LONG, DataType.INTEGER))) {
+            if (types.contains(DataType.DOUBLE)) {
+                return DataType.DOUBLE;
+            }
+            if (types.contains(DataType.LONG)) {
+                return DataType.LONG;
+            }
+            if (types.contains(DataType.INTEGER)) {
+                return DataType.INTEGER;
+            }
+        }
+        return DataType.KEYWORD;
+    }
+
+    private static boolean hasOnly(EnumSet<DataType> values, EnumSet<DataType> from) {
+        if (values.isEmpty()) {
+            return false;
+        }
+        EnumSet<DataType> copy = EnumSet.copyOf(values);
+        copy.removeAll(from);
+        return copy.isEmpty();
+    }
+
+    public void testLongValuedFieldInfersLong() throws IOException {
+        check("""
+            {"v": 9999999999}
+            """, field("v", DataType.LONG));
+    }
+
+    /**
+     * Every sampled line malformed: no field was ever observed, so there is no scalar column to
+     * describe and the schema is empty rather than a guess.
+     */
+    public void testFileOfEntirelyMalformedLinesYieldsNoColumns() throws IOException {
+        check("""
+            [1, 2]
+            [3, 4]
+            """);
+    }
+
+    /**
+     * A field seen first as a scalar and later as an object keeps the scalar shape, and the object's
+     * children are not emitted alongside it. The contract being asserted is not "whatever the walk
+     * happens to produce" — it is that exactly one shape reaches the schema, because emitting both a
+     * scalar {@code a} and a nested {@code a.b} for one name is elastic/esql-planning#1028. The
+     * conflicting value is the decoder's problem at read time, under the error policy.
+     * <p>
+     * The field is nullable even though it appears in every record, and that is right rather than an
+     * artefact: the ignored shape cannot produce a scalar for this column, so under a lenient error
+     * policy that row is null (under the default it fails the read). "May be null" is a true statement
+     * about the column, so the expectation says so.
+     */
+    public void testFieldSeenAsScalarThenObjectKeepsTheScalarAndEmitsNoChildren() throws IOException {
+        check("""
+            {"a": 1}
+            {"a": {"b": 2}}
+            """, field("a", DataType.INTEGER, true));
+    }
+
+    /** The mirror: object first wins, and no scalar attribute appears for the parent name. */
+    public void testFieldSeenAsObjectThenScalarKeepsTheObjectAndEmitsNoScalar() throws IOException {
+        check("""
+            {"a": {"b": 2}}
+            {"a": 1}
+            """, field("a.b", DataType.INTEGER, true));
+    }
+
+    /**
+     * Inference reads a bounded sample, so a value past that bound cannot change the answer. Asserted
+     * because it is a real limit users hit — a conflicting value deep in a large file leaves the column
+     * typed from the sample alone — not because the loop happens to stop there.
+     */
+    public void testValuesBeyondTheSampleBoundDoNotChangeTheType() throws IOException {
+        StringBuilder ndjson = new StringBuilder();
+        for (int i = 0; i < 100; i++) {
+            ndjson.append("{\"v\": ").append(i).append("}\n");
+        }
+        ndjson.append("{\"v\": \"past the sample\"}\n");
+        check(ndjson.toString(), field("v", DataType.INTEGER));
+    }
+
+    /** Within the sample, the same conflict does resolve to KEYWORD — so the bound above is the reason. */
+    public void testTheSameConflictWithinTheSampleDoesChangeTheType() throws IOException {
+        check("""
+            {"v": 1}
+            {"v": "not a number"}
+            """, field("v", DataType.KEYWORD));
+    }
+
+    /**
+     * First-writer-wins has to hold for every scalar kind, not just the ones that happened to get a
+     * test. An object seen first keeps its children whether the conflicting scalar is a float or a
+     * boolean, and neither emits a scalar attribute for the parent name alongside them
+     * (elastic/esql-planning#1028).
+     */
+    public void testObjectShapeWinsOverALaterFloat() throws IOException {
+        check("""
+            {"a": {"b": 2}}
+            {"a": 1.5}
+            """, field("a.b", DataType.INTEGER, true));
+    }
+
+    public void testObjectShapeWinsOverALaterBoolean() throws IOException {
+        check("""
+            {"a": {"b": 2}}
+            {"a": true}
+            """, field("a.b", DataType.INTEGER, true));
     }
 
     private void check(String ndjson, Attribute... expected) throws IOException {

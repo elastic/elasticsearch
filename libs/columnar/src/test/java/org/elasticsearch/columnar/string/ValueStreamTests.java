@@ -129,6 +129,11 @@ public class ValueStreamTests extends ESTestCase {
                 }
             }
             assertEquals(label + " numValues", values.size(), metadata.numValues());
+            long valueBytes = 0;
+            for (BytesRef value : values) {
+                valueBytes += value.length;
+            }
+            assertEquals(label + " valueBytes", valueBytes, metadata.valueBytes());
 
             try (IndexInput in = dir.openInput(FILE, IOContext.DEFAULT)) {
                 final ValueStream.Reader reader = metadata.open(in);

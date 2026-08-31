@@ -1873,7 +1873,14 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         // retainValues=false: every value is consumed within one loop iteration, before the cursor advances.
         final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
-        EscfColumnBuilder values = source.leafValueKind() != EscfColumnKind.STRING && (emitTerms || emitDvs) ? mergeStringColumn() : null;
+        // A columnar field's doc values are a payload even when the document holds a single value, so they are the one
+        // output here that is not the value's own bytes and cannot share the terms column's serialization; they get a
+        // column of their own. See ColumnarBinaryDocValuesField for why the count travels in the blob.
+        final boolean columnar = fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.BINARY_COLUMNAR_PAYLOAD;
+        final boolean emitSharedColumn = emitTerms || (emitDvs && columnar == false);
+        EscfColumnBuilder values = source.leafValueKind() != EscfColumnKind.STRING && emitSharedColumn ? mergeStringColumn() : null;
+        final EscfColumnBuilder payloadDvs = emitDvs && columnar ? mergeStringColumn() : null;
+        final StringBinaryPayload.Builder payload = payloadDvs != null ? new StringBinaryPayload.Builder() : null;
         final EscfColumnBuilder fallback = emitFallback ? mergeStringColumn() : null;
         final BytesRef nullValueBytes = fieldType().nullUtf8Value;
 
@@ -1912,7 +1919,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 // Deoptimize: we were planning to zero-copy the source column, but now we must
                 // exclude this doc's value from the output. Lazily create the builder and backfill
                 // all accepted values from before this doc, then continue building per-value.
-                if (values == null && (emitTerms || emitDvs)) {
+                if (values == null && emitSharedColumn) {
                     values = mergeStringColumn();
                     EscfColumnTransforms.backfillUtf8Before(values, source, currentDoc);
                 }
@@ -1929,18 +1936,33 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (values != null) {
                 values.setString(currentDoc, binaryValue);
             }
+            if (payloadDvs != null) {
+                // One slot, and the count in front of it, so the blob is the same payload the row path writes.
+                payload.reset();
+                payload.appendSlot(binaryValue);
+                final BytesRef blob = payload.build();
+                payloadDvs.setString(currentDoc, blob.bytes, blob.offset, blob.length);
+            }
         }
 
         // Emit one term column (frozen fieldType, DocValuesType=NONE for HIGH cardinality) and one
         // plain binary DV column (BinaryDocValuesField.TYPE, omitNorms=false) — no .counts sidecar.
-        // Both columns share the same finished EscfColumnData (one serialization, two field-type wrappers).
+        // Both are the value's own bytes, so they share one finished EscfColumnData: one serialization,
+        // two field-type wrappers. A columnar field's doc values are framed and so cannot join them.
         if (valuesProduced) {
-            final EscfColumnData data = values != null ? values.finish(docCount) : source.columnData();
-            if (emitTerms) {
-                ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), fieldType));
+            if (emitSharedColumn) {
+                final EscfColumnData data = values != null ? values.finish(docCount) : source.columnData();
+                if (emitTerms) {
+                    ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), fieldType));
+                }
+                if (emitDvs && columnar == false) {
+                    ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), BinaryDocValuesField.TYPE));
+                }
             }
-            if (emitDvs) {
-                ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), BinaryDocValuesField.TYPE));
+            // A columnar field's doc values are framed, so they are a column of their own rather than a second wrapper
+            // over the terms serialization.
+            if (payloadDvs != null) {
+                ctx.addColumn(LuceneBinaryColumn.of(payloadDvs.finish(docCount), fieldType().name(), ColumnarBinaryDocValuesField.TYPE));
             }
         }
         // Synthetic-source fallback for ignore_above values: single BinaryDocValuesField (no counts),

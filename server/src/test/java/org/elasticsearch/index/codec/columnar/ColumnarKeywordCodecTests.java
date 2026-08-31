@@ -162,7 +162,6 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
         for (boolean codecEnabled : new boolean[] { true, false }) {
             final String index = codecEnabled ? withCodec : withoutCodec;
             indicesAdmin().prepareCreate(index).setSettings(columnarSettings(mode, codecEnabled)).setMapping(mapping).get();
-            // Indexed in bulk so the columnar batch-parse path gets a chance at these documents, not only the row path.
             final BulkRequestBuilder bulk = client().prepareBulk();
             for (int i = 0; i < values.size(); i++) {
                 bulk.add(

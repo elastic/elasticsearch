@@ -272,17 +272,9 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         assertSame("the resolved fileList must be preserved for the whole read", fileList, ((ExternalSourceExec) result).fileList());
     }
 
-    /**
-     * A non-exhaustive empty result on a resolved, non-empty fileList means the provider dropped every file without
-     * certifying the prune as row-count-preserving, so the source falls through unchanged and the runtime reads the
-     * whole list. The scan accounting must describe that read (every file scanned, one split unit per file, the
-     * listed bytes) or the query profile reports a full-dataset read as zero files and zero bytes.
-     */
     public void testNonExhaustiveEmptyResultAccountsWholeRead() {
-        // createFileList sizes file i as 100*(i+1); three files => 100 + 200 + 300 bytes.
         FileList fileList = createFileList(3);
         ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
-        // Zero splits, but explicitly NOT an exhaustive prune: the read still happens.
         Map<String, ExternalSourceFactory> factories = Map.of(
             "parquet",
             testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, false)))
@@ -300,11 +292,6 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         assertEquals("the whole read scans the listed bytes", 600L, result.bytesScanned());
     }
 
-    /**
-     * A listed file with an unknown size (listed as 0, see FileSplitProvider's unlisted-length convention) still
-     * counts as a scanned file and split unit on the whole-read fall-through, but contributes nothing to the byte
-     * sum, mirroring the positive-size guard on the discovered-splits path.
-     */
     public void testNonExhaustiveEmptyResultSkipsUnknownSizes() {
         FileList fileList = GlobExpander.fileListOf(
             List.of(

@@ -15,7 +15,7 @@
  * simdjson auto-selects the best SIMD backend (AVX-512, AVX2, SSE4.2, NEON)
  * at runtime via its implementation-selection machinery.
  *
- * Pinned to simdjson v4.6.5 (amalgamated single-header distribution).
+ * Pinned to simdjson v4.6.9 (amalgamated single-header distribution).
  */
 
 #include "simdjson.h"

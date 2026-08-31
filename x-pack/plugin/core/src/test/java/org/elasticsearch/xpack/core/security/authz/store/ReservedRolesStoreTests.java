@@ -627,8 +627,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ".evaluation-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.CASES_ANALYTICS_INDEXES + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.CASES_ANALYTICS_ALIASES + randomAlphaOfLength(randomIntBetween(0, 13)),
-            ".workflows-executions" + randomAlphaOfLength(randomIntBetween(0, 13)),
-            ".workflows-step-executions" + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.ALERTS_LEGACY_INDEX + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.ALERTS_LEGACY_INDEX_REINDEXED_V8 + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.ALERTS_BACKING_INDEX + randomAlphaOfLength(randomIntBetween(0, 13)),

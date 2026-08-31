@@ -298,11 +298,6 @@ class KibanaOwnedReservedRoleDescriptors {
                 // "Cases as data" analytics indexes and aliases
                 RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.CASES_ANALYTICS_INDEXES).privileges("all").build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.CASES_ANALYTICS_ALIASES).privileges("all").build(),
-                // Workflow execution indices
-                RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".workflows-executions*", ".workflows-step-executions*")
-                    .privileges("all")
-                    .build(),
                 // "Alerting V2" indexes
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(ReservedRolesStore.ALERTING_V2_ALERT_INDEX_ALIAS)

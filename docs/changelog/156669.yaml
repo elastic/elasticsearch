@@ -1,0 +1,5 @@
+area: Distributed
+issues: []
+pr: 156669
+summary: "Workflow executions as queryable data: ES side"
+type: feature

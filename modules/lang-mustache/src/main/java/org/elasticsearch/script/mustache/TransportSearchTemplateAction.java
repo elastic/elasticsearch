@@ -138,21 +138,27 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         SearchRequest searchRequest = searchTemplateRequest.getRequest();
 
         SearchSourceBuilder builder = SearchSourceBuilder.searchSource();
-
-        XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
-            .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, source)) {
-            builder.parseXContent(parser, false, searchUsageHolder, clusterSupportsFeature);
+        boolean transferred = false;
+        try {
+            XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
+                .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+            try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, source)) {
+                builder.parseXContent(parser, false, searchUsageHolder, clusterSupportsFeature);
+            }
+            if (searchTemplateRequest.isSimulate()) {
+                return null;
+            }
+            builder.explain(searchTemplateRequest.isExplain());
+            builder.profile(searchTemplateRequest.isProfile());
+            checkRestTotalHitsAsInt(searchRequest, builder);
+            searchRequest.source(builder);
+            transferred = true;
+            return searchRequest;
+        } finally {
+            if (transferred == false) {
+                builder.close();
+            }
         }
-
-        if (searchTemplateRequest.isSimulate()) {
-            return null;
-        }
-        builder.explain(searchTemplateRequest.isExplain());
-        builder.profile(searchTemplateRequest.isProfile());
-        checkRestTotalHitsAsInt(searchRequest, builder);
-        searchRequest.source(builder);
-        return searchRequest;
     }
 
     private static void checkRestTotalHitsAsInt(SearchRequest searchRequest, SearchSourceBuilder searchSourceBuilder) {

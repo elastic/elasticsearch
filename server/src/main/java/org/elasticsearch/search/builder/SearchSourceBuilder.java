@@ -232,10 +232,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     /**
      * Releases the circuit-breaker charge held for query clauses parsed via {@link #parseXContent}.
-     * Safe to call multiple times; subsequent calls are no-ops.
+     * Safe to call multiple times and from concurrent threads; subsequent calls are no-ops.
      */
     @Override
-    public void close() {
+    public synchronized void close() {
         if (queryParsingReleasables != null) {
             Releasables.close(queryParsingReleasables);
             queryParsingReleasables = null;

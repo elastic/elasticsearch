@@ -1,5 +1,5 @@
 area: Search
 issues: []
 pr: 157305
-summary: Limit query clause count at parse time
+summary: Charge REQUEST circuit breaker per query clause during parse-time accounting
 type: feature

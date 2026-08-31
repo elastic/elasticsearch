@@ -15,12 +15,16 @@ import org.elasticsearch.action.admin.cluster.stats.ExtendedSearchUsageLongCount
 import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -1301,6 +1305,32 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                 () -> new SearchSourceBuilder().parseXContent(parser, true, new UsageService().getSearchUsageHolder(), nf -> false)
             );
             assertEquals(expectedErrorMessage, e.getMessage());
+        }
+    }
+
+    public void testQueryParsingBreakerHeldAfterParseReleasedOnClose() throws IOException {
+        int clauses = 3;
+        long perClause = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(clauses * perClause));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            BoolQueryBuilder query = new BoolQueryBuilder();
+            for (int i = 0; i < clauses; i++) {
+                query.should(new MatchAllQueryBuilder());
+            }
+            SearchSourceBuilder source = new SearchSourceBuilder().query(query);
+            BytesReference bytes = XContentHelper.toXContent(source, XContentType.JSON, false);
+            try (SearchSourceBuilder parsed = new SearchSourceBuilder()) {
+                try (XContentParser parser = createParser(XContentType.JSON.xContent(), bytes)) {
+                    parsed.parseXContent(parser, true, new UsageService().getSearchUsageHolder(), nf -> false);
+                }
+                // charge is held after parsing completes — breaker pool is full
+                assertEquals(clauses * perClause, breaker.getUsed());
+            }
+            // charge is released after close()
+            assertEquals(0L, breaker.getUsed());
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
         }
     }
 

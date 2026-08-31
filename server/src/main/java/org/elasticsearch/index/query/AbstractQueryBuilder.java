@@ -68,7 +68,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * Sized conservatively above the measured minimum (~132 B for a simple TermQueryBuilder) to cover
      * QueryBuilders with larger fields or nested structures.
      */
-    static final long QUERY_BUILDER_SIZE_ESTIMATE_BYTES = 256L;
+    public static final long QUERY_BUILDER_SIZE_ESTIMATE_BYTES = 256L;
 
     /**
      * Circuit breaker used to bound aggregate parse-time QueryBuilder heap consumption across concurrent

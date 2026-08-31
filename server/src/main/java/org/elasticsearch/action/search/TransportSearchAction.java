@@ -409,9 +409,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
+        // Capture source before rewrite; close() releases parse-time circuit-breaker charge when the request ends.
+        final var searchSource = searchRequest.source();
+        final ActionListener<SearchResponse> releaseListener = searchSource != null
+            ? ActionListener.runAfter(listener, searchSource::close)
+            : listener;
         SearchLogContextBuilder searchLogContextBuilder = new SearchLogContextBuilder(task, namedWriteableRegistry, searchRequest);
         activityLogger.wrapAndRun(
-            listener,
+            releaseListener,
             searchLogContextBuilder,
             l -> executeRequest((SearchTask) task, searchRequest, l, AsyncSearchActionProvider::new, true)
         );

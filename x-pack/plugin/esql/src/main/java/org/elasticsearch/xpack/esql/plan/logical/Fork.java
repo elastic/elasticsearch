@@ -153,13 +153,28 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
     protected List<Attribute> refreshedOutput() {
         List<Attribute> union = outputUnion(children());
         List<Attribute> converted = toReferenceAttributesPreservingIds(union, this.output());
-        for (int i = 0; i < union.size(); i++) {
-            if (union.get(i) instanceof UnmappedFieldsAttribute ufa) {
-                // Keep the subtype so coordinator expansion can find $$unmapped_fields after the FORK union.
-                converted.set(i, ufa.withId(converted.get(i).id()));
+        UnmappedFieldsAttribute ufa = unmappedFieldsAttributeFromChildren();
+        if (ufa != null) {
+            for (int i = 0; i < converted.size(); i++) {
+                if (converted.get(i).name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME)) {
+                    // Keep the subtype so coordinator expansion can find $$unmapped_fields after the FORK union.
+                    converted.set(i, ufa.withId(converted.get(i).id()));
+                    break;
+                }
             }
         }
         return converted;
+    }
+
+    private UnmappedFieldsAttribute unmappedFieldsAttributeFromChildren() {
+        for (LogicalPlan child : children()) {
+            for (Attribute attr : child.output()) {
+                if (attr instanceof UnmappedFieldsAttribute childUfa) {
+                    return childUfa;
+                }
+            }
+        }
+        return null;
     }
 
     @Override

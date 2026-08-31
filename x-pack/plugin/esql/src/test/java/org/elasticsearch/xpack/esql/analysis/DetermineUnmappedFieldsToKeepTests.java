@@ -392,6 +392,105 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         }
     }
 
+    public void testForkMentionExcludesNamedFieldFromBothBranches() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | FORK (WHERE unmapped_extra == \"x\") (WHERE emp_no > 0)"));
+        for (EsRelation relation : plan.collect(EsRelation.class)) {
+            UnmappedFieldsPattern pattern = EsqlTestUtils.singleValue(
+                CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)
+            ).pattern();
+            assertNotKept(pattern, "unmapped_extra");
+            assertKept(pattern, "first_name_suffix");
+        }
+    }
+
+    public void testForkDropInEveryBranchExcludesDroppedKeepsOthers() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | FORK (DROP unmapped_extra) (DROP unmapped_extra)"));
+        for (EsRelation relation : plan.collect(EsRelation.class)) {
+            UnmappedFieldsPattern pattern = EsqlTestUtils.singleValue(
+                CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)
+            ).pattern();
+            assertNotKept(pattern, "unmapped_extra");
+            assertKept(pattern, "first_name_suffix");
+        }
+    }
+
+    public void testForkDifferentFieldsMentionedExcludeBothKeepOthers() {
+        LogicalPlan plan = test().statement(
+            setUnmappedLoadAll("FROM test | FORK (WHERE unmapped_extra == \"x\") (WHERE first_name_suffix == \"y\")")
+        );
+        for (EsRelation relation : plan.collect(EsRelation.class)) {
+            UnmappedFieldsPattern pattern = EsqlTestUtils.singleValue(
+                CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)
+            ).pattern();
+            assertNotKept(pattern, "unmapped_extra", "first_name_suffix");
+            assertKept(pattern, "salary_bonus");
+        }
+    }
+
+    public void testForkKeepInOneBranchStillSurfacesUnmappedFieldsAttribute() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | FORK (KEEP emp_no, first_name) (WHERE emp_no > 0)"));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
+        int stamped = 0;
+        for (EsRelation relation : plan.collect(EsRelation.class)) {
+            List<UnmappedFieldsAttribute> attrs = CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class);
+            if (attrs.isEmpty() == false) {
+                stamped++;
+                assertKept(EsqlTestUtils.singleValue(attrs).pattern(), "unmapped_extra");
+            }
+        }
+        assertThat(stamped, is(1));
+    }
+
+    public void testForkStatsInOneBranchStillSurfacesUnmappedFieldsAttribute() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | FORK (STATS c = COUNT(*)) (WHERE emp_no > 0)"));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
+        int stamped = 0;
+        for (EsRelation relation : plan.collect(EsRelation.class)) {
+            List<UnmappedFieldsAttribute> attrs = CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class);
+            if (attrs.isEmpty() == false) {
+                stamped++;
+                assertKept(EsqlTestUtils.singleValue(attrs).pattern(), "unmapped_extra");
+            }
+        }
+        assertThat(stamped, is(1));
+    }
+
+    public void testForkKeepWildcardInOneBranchStampsBothBranchesWithDifferentPatterns() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | FORK (KEEP first_name*) (WHERE emp_no > 0)"));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
+        int keptExtra = 0;
+        int droppedExtra = 0;
+        for (EsRelation relation : plan.collect(EsRelation.class)) {
+            UnmappedFieldsPattern pattern = EsqlTestUtils.singleValue(
+                CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)
+            ).pattern();
+            assertKept(pattern, "first_name_suffix");
+            if (pattern.matches("unmapped_extra")) {
+                keptExtra++;
+            } else {
+                droppedExtra++;
+            }
+        }
+        assertThat(keptExtra, is(1));
+        assertThat(droppedExtra, is(1));
+    }
+
+    public void testInlineStatsThenForkStampsBothBranchesAndExcludesAggAlias() {
+        LogicalPlan plan = test().statement(
+            setUnmappedLoadAll("FROM test | INLINE STATS c = COUNT(*) | FORK (WHERE emp_no > 0) (WHERE emp_no > 0)")
+        );
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
+        List<EsRelation> relations = plan.collect(EsRelation.class);
+        assertThat(relations, hasSize(2));
+        for (EsRelation relation : relations) {
+            UnmappedFieldsPattern pattern = EsqlTestUtils.singleValue(
+                CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)
+            ).pattern();
+            assertKept(pattern, "unmapped_extra");
+            assertNotKept(pattern, "c");
+        }
+    }
+
     private static void assertKept(UnmappedFieldsPattern pattern, String... names) {
         for (String name : names) {
             assertThat("expected [" + name + "] to be kept", pattern.matches(name), is(true));

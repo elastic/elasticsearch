@@ -1,0 +1,91 @@
+singleViewOuterMetadataNullWhenNotDeclaredInBody
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_metadata_behavior_changes
+required_capability: outer_metadata_null_injection
+
+FROM view_languages METADATA _index
+| SORT language_code
+;
+
+language_code:integer | language_name:keyword | _index:keyword
+1                     | English               | null
+2                     | French                | null
+3                     | Spanish               | null
+4                     | German                | null
+;
+
+singleSubqueryOuterMetadataNullWhenNotDeclaredInBody
+required_capability: subquery_in_from_command
+required_capability: outer_metadata_null_injection
+
+FROM (FROM languages) METADATA _index
+| SORT language_code
+;
+
+language_code:integer | language_name:keyword | _index:keyword
+1                     | English               | null
+2                     | French                | null
+3                     | Spanish               | null
+4                     | German                | null
+;
+
+// Rule 1 + Rule 2: view_languages doesn't declare _index (null), view_languages_all_metadata does (passes through)
+
+twoViewsOneDeclaresMetadataOneDoesNot
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_metadata_behavior_changes
+required_capability: outer_metadata_null_injection
+
+FROM view_languages, view_languages_all_metadata METADATA _index
+| SORT language_code, _index NULLS LAST
+;
+
+language_code:integer | language_name:keyword | _index:keyword
+1                     | English               | languages
+1                     | English               | null
+2                     | French                | languages
+2                     | French                | null
+3                     | Spanish               | languages
+3                     | Spanish               | null
+4                     | German                | languages
+4                     | German                | null
+;
+
+twoSubqueriesOuterMetadataNull
+required_capability: subquery_in_from_command
+required_capability: outer_metadata_null_injection
+
+FROM (FROM languages | WHERE language_code == 1), (FROM languages | WHERE language_code == 2) METADATA _index
+| SORT language_code
+;
+
+language_code:integer | language_name:keyword | _index:keyword
+1                     | English               | null
+2                     | French                | null
+;
+
+// Rule 1 + Rule 2: view_languages_all_metadata declares _index (passes through), subquery doesn't (null)
+
+mixedViewDeclaresMetadataSubqueryDoesNot
+required_capability: subquery_in_from_command
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_metadata_behavior_changes
+required_capability: outer_metadata_null_injection
+
+FROM view_languages_all_metadata, (FROM languages) METADATA _index
+| SORT language_code, _index NULLS LAST
+;
+
+language_code:integer | language_name:keyword | _index:keyword
+1                     | English               | languages
+1                     | English               | null
+2                     | French                | languages
+2                     | French                | null
+3                     | Spanish               | languages
+3                     | Spanish               | null
+4                     | German                | languages
+4                     | German                | null
+;

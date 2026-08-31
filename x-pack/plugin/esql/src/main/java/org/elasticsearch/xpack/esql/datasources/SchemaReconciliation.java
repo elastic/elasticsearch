@@ -33,7 +33,7 @@ import java.util.Set;
  * Supports three strategies:
  * <ul>
  *   <li>{@code FIRST_FILE_WINS} — use the first file's schema (existing behavior, no reconciliation)</li>
- *   <li>{@code STRICT} — validate all files share the exact same schema</li>
+ *   <li>{@code STRICT} — validate all files share the exact same schema (NDJSON column order is ignored)</li>
  *   <li>{@code UNION_BY_NAME} — merge schemas by column name with safe type widening</li>
  * </ul>
  * <p>
@@ -74,7 +74,8 @@ import java.util.Set;
  *   <dt><b>Unified schema</b> (one for the whole table)</dt>
  *   <dd>The cross-file harmonized schema. Produced here as {@link Result#unifiedSchema()}:
  *       FFW takes the anchor file's schema, STRICT validates a common schema, UBN takes the
- *       column-name union with type widening. Becomes {@code ExternalSourceExec.attributes}
+ *       column-name union with type widening. NDJSON STRICT preserves the anchor's inferred
+ *       order while mapping other files' columns by name. Becomes {@code ExternalSourceExec.attributes}
  *       at first, before the optimizer's projection pruning rewrites that field.</dd>
  *
  *   <dt><b>Query schema</b> (unified shape; same for every file in the query)</dt>
@@ -84,8 +85,9 @@ import java.util.Set;
  *
  *   <dt><b>Per-file query schema</b> (per-file, file shape — what the reader actually produces)</dt>
  *   <dd>{@code Query schema} ∩ this file's columns, ordered to match the file's natural layout.
- *       Derived per file at split-construction time and at read time. Under FFW and STRICT it
- *       collapses to the Query schema because every file has every projected column.</dd>
+ *       Derived per file at split-construction time and at read time. Under FFW and ordered-format
+ *       STRICT it collapses to the Query schema because every file has every projected column;
+ *       NDJSON STRICT may retain a different inferred order and is mapped by name.</dd>
  * </dl>
  *
  * <h3>Worked example (UNION_BY_NAME)</h3>
@@ -208,7 +210,9 @@ public final class SchemaReconciliation {
 
     /**
      * STRICT reconciliation: validate all files share the exact same schema.
-     * Nullability differences are tolerated; all other differences produce an error.
+     * Nullability differences are tolerated. NDJSON column order is also ignored because its
+     * inferred order only records when each field first appeared in the sample; ordered formats
+     * retain positional schema identity.
      *
      * @param referenceFile path of the first (reference) file
      * @param fileMetadata ordered map of file path → metadata (first entry is the reference)
@@ -221,6 +225,7 @@ public final class SchemaReconciliation {
             throw new IllegalArgumentException("Reference file not found in metadata: " + referenceFile);
         }
         List<Attribute> refSchema = refMeta.schema();
+        boolean compareByName = fileMetadata.values().stream().allMatch(meta -> "ndjson".equals(meta.sourceType()));
 
         Map<StoragePath, FileSchemaInfo> perFileInfo = new LinkedHashMap<>();
 
@@ -233,14 +238,20 @@ public final class SchemaReconciliation {
             validateNoDuplicateColumns(filePath, fileSchema);
 
             if (filePath.equals(referenceFile) == false) {
-                validateStrictMatch(referenceFile, refSchema, filePath, fileSchema);
+                validateStrictMatch(referenceFile, refSchema, filePath, fileSchema, compareByName);
             }
 
-            int[] identity = new int[refSchema.size()];
-            for (int i = 0; i < identity.length; i++) {
-                identity[i] = i;
+            ColumnMapping mapping;
+            if (compareByName) {
+                mapping = computeMapping(refSchema, fileSchema);
+            } else {
+                int[] identity = new int[refSchema.size()];
+                for (int i = 0; i < identity.length; i++) {
+                    identity[i] = i;
+                }
+                mapping = new ColumnMapping(identity, null);
             }
-            perFileInfo.put(filePath, new FileSchemaInfo(new ExternalSchema(fileSchema), new ColumnMapping(identity, null), stats));
+            perFileInfo.put(filePath, new FileSchemaInfo(new ExternalSchema(fileSchema), mapping, stats));
         }
 
         return new Result(new ExternalSchema(refSchema), Map.copyOf(perFileInfo));
@@ -250,7 +261,8 @@ public final class SchemaReconciliation {
         StoragePath refPath,
         List<Attribute> refSchema,
         StoragePath filePath,
-        List<Attribute> fileSchema
+        List<Attribute> fileSchema,
+        boolean compareByName
     ) {
         if (refSchema.size() != fileSchema.size()) {
             throw new IllegalArgumentException(
@@ -265,6 +277,10 @@ public final class SchemaReconciliation {
                     + " columns."
                     + " Hint: use schema_resolution = \"union_by_name\" to automatically merge different schemas."
             );
+        }
+        if (compareByName) {
+            validateStrictMatchByName(refPath, refSchema, filePath, fileSchema);
+            return;
         }
         for (int i = 0; i < refSchema.size(); i++) {
             Attribute refAttr = refSchema.get(i);
@@ -285,22 +301,54 @@ public final class SchemaReconciliation {
                         + " Hint: use schema_resolution = \"union_by_name\" to automatically merge different schemas."
                 );
             }
-            if (refAttr.dataType() != fileAttr.dataType()) {
+            validateStrictTypeMatch(refPath, refAttr, filePath, fileAttr);
+        }
+    }
+
+    private static void validateStrictMatchByName(
+        StoragePath refPath,
+        List<Attribute> refSchema,
+        StoragePath filePath,
+        List<Attribute> fileSchema
+    ) {
+        Map<String, Attribute> fileAttributes = new HashMap<>();
+        for (Attribute fileAttr : fileSchema) {
+            fileAttributes.put(fileAttr.name(), fileAttr);
+        }
+        for (Attribute refAttr : refSchema) {
+            Attribute fileAttr = fileAttributes.get(refAttr.name());
+            if (fileAttr == null) {
                 throw new IllegalArgumentException(
                     "Schema mismatch in ["
                         + filePath
                         + "]: column ["
-                        + fileAttr.name()
-                        + "] has type ["
-                        + fileAttr.dataType().typeName()
-                        + "] but reference file ["
+                        + refAttr.name()
+                        + "] from reference file ["
                         + refPath
-                        + "] has type ["
-                        + refAttr.dataType().typeName()
-                        + "]."
+                        + "] is missing."
                         + " Hint: use schema_resolution = \"union_by_name\" to automatically merge different schemas."
                 );
             }
+            validateStrictTypeMatch(refPath, refAttr, filePath, fileAttr);
+        }
+    }
+
+    private static void validateStrictTypeMatch(StoragePath refPath, Attribute refAttr, StoragePath filePath, Attribute fileAttr) {
+        if (refAttr.dataType() != fileAttr.dataType()) {
+            throw new IllegalArgumentException(
+                "Schema mismatch in ["
+                    + filePath
+                    + "]: column ["
+                    + fileAttr.name()
+                    + "] has type ["
+                    + fileAttr.dataType().typeName()
+                    + "] but reference file ["
+                    + refPath
+                    + "] has type ["
+                    + refAttr.dataType().typeName()
+                    + "]."
+                    + " Hint: use schema_resolution = \"union_by_name\" to automatically merge different schemas."
+            );
         }
     }
 

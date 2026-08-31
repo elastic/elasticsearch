@@ -50,7 +50,8 @@ public class Round extends EsqlScalarFunction implements OptionalArgument, AnyNu
         .binary(Round::new)
         .capabilities(
             // Fixes on function {@code ROUND} that avoid it throwing exceptions on runtime for unsigned long cases.
-            "ul_fixes"
+            "ul_fixes",
+            "int_overflow_warns"
         )
         .name("round");
 
@@ -140,9 +141,9 @@ public class Round extends EsqlScalarFunction implements OptionalArgument, AnyNu
         return Maths.round(val, 0).doubleValue();
     }
 
-    @Evaluator(extraName = "Int")
+    @Evaluator(extraName = "Int", warnExceptions = ArithmeticException.class)
     static int process(int val, long decimals) {
-        return Maths.round(val, decimals).intValue();
+        return Math.toIntExact(Maths.round(val, decimals));
     }
 
     @Evaluator(extraName = "Long")

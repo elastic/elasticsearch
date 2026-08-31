@@ -903,20 +903,20 @@ required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_*, -unmapped_multi_mapped_mixed
-| KEEP id, unmapped.foo
+| KEEP id, unmapped.foo, unmapped.*.leaf
 | SORT id
 ;
 
-id:keyword | unmapped.foo:keyword
-1          | foo1
-2          | null
-3          | foo3
-4          | null
-5          | [arr1, arr2]
-6          | null
-7          | null
-8          | mfoo8
-9          | [mfa, mfb]
+id:keyword | unmapped.foo:keyword | unmapped.deep.leaf:keyword
+1          | foo1                 | null
+2          | null                 | null
+3          | foo3                 | null
+4          | null                 | null
+5          | [arr1, arr2]         | null
+6          | null                 | deep6
+7          | null                 | null
+8          | mfoo8                | mleaf8
+9          | [mfa, mfb]           | null
 ;
 
 // All three dotted leaves are keyword-mapped in unmapped_multi_mapped and unmapped in the siblings; each is partially mapped, so ids 8 and 9
@@ -926,20 +926,20 @@ required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_*, -unmapped_multi_mapped_mixed
-| KEEP id, unmapped.foo, unmapped.bar, unmapped.deep.leaf
+| KEEP id, unmapped*, unmapped.*
 | SORT id
 ;
 
-id:keyword | unmapped.foo:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keyword
-1          | foo1                 | null                 | null
-2          | null                 | bar2                 | null
-3          | foo3                 | null                 | null
-4          | null                 | null                 | null
-5          | [arr1, arr2]         | null                 | null
-6          | null                 | null                 | deep6
-7          | null                 | bar7                 | null
-8          | mfoo8                | mbar8                | mleaf8
-9          | [mfa, mfb]           | null                 | null
+id:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keyword | unmapped.foo:keyword | unmapped:keyword
+1          | null                 | null                       | foo1                 | null
+2          | bar2                 | null                       | null                 | null
+3          | null                 | null                       | foo3                 | null
+4          | null                 | null                       | null                 | scalar4
+5          | null                 | null                       | [arr1, arr2]         | null
+6          | null                 | deep6                      | null                 | null
+7          | bar7                 | null                       | null                 | null
+8          | mbar8                | mleaf8                     | mfoo8                | null
+9          | null                 | null                       | [mfa, mfb]           | null
 ;
 
 // The bare scalar unmapped is an object in unmapped_multi_mapped (its dotted leaves are mapped) and unmapped everywhere else, so it stays

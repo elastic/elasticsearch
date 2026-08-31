@@ -71,10 +71,10 @@ public class CsvSchemaInferrer {
         /** A timestamp the column reads as {@code datetime}. */
         DATETIME,
         /**
-         * A {@code datetime} written in the whitespace-separated dialect. Tracked apart because the
-         * {@code date_nanos} rail cannot decode it, so a column holding one must never end up there.
+         * A {@code datetime} the {@code date_nanos} rail cannot decode. Tracked apart because a column
+         * holding one must never end up on that rail, whatever some other value in it says.
          */
-        DATETIME_SPACE_FORM,
+        DATETIME_UNDECODABLE_AS_NANOS,
         /**
          * A timestamp that {@code datetime} cannot read without dropping digits, and that
          * {@code date_nanos} can both represent and decode &mdash; so it moves the column.
@@ -157,7 +157,16 @@ public class CsvSchemaInferrer {
                 break outer;
             }
         }
-        if (anyWidened == false) {
+        boolean anyDemotion = false;
+        for (int col = 0; col < numCols; col++) {
+            if (sawSpaceFormTemporal[col] && TYPE_CANDIDATES[candidateIdx[col]] == DataType.DATE_NANOS) {
+                anyDemotion = true;
+                break;
+            }
+        }
+        // Not just anyWidened: the window can contribute a dialect the nanos rail cannot decode without
+        // moving any rung, and returning the original schema there would leave the column on that rail.
+        if (anyWidened == false && anyDemotion == false) {
             return schema;
         }
         List<Attribute> widened = new ArrayList<>(numCols);
@@ -339,7 +348,7 @@ public class CsvSchemaInferrer {
             if (candidate == DataType.DATETIME || candidate == DataType.DATE_NANOS) {
                 if (temporal == null) {
                     temporal = classifyTemporal(value, datetimeFormatter);
-                    if (temporal == Temporal.DATETIME_SPACE_FORM) {
+                    if (temporal == Temporal.DATETIME_UNDECODABLE_AS_NANOS) {
                         sawSpaceFormTemporal[col] = true;
                     }
                 }
@@ -351,7 +360,7 @@ public class CsvSchemaInferrer {
                 // Such a cell then fails per-cell at decode, which is what a declared date_nanos
                 // schema does with the same file.
                 boolean fits = candidate == DataType.DATETIME
-                    ? (temporal == Temporal.DATETIME || temporal == Temporal.DATETIME_SPACE_FORM)
+                    ? (temporal == Temporal.DATETIME || temporal == Temporal.DATETIME_UNDECODABLE_AS_NANOS)
                     : temporal != Temporal.NOT_TEMPORAL;
                 if (fits) {
                     return idx;
@@ -407,6 +416,34 @@ public class CsvSchemaInferrer {
     }
 
     /**
+     * Whether the {@code date_nanos} decode rail can read this timestamp.
+     * <p>
+     * The CSV rail's parser accepts two dialects that {@code strict_date_optional_time_nanos} rejects:
+     * the whitespace-separated form, and a time without seconds. Both are recognised by shape here
+     * rather than by a second parse, because this runs per value on every date-shaped column. That
+     * makes it a restatement of someone else's grammar, so
+     * {@code CsvSchemaInferrerTests#testInferenceOnlyCommitsDateNanosForValuesTheNanosRailCanDecode}
+     * holds it to the real rail over a randomized corpus, including columns that mix dialects.
+     */
+    private static boolean nanosRailCanDecode(String value) {
+        int t = value.indexOf('T');
+        if (t < 0) {
+            // No time component at all is fine (a bare date decodes); the whitespace dialect is not.
+            return value.indexOf(' ') < 0;
+        }
+        int colons = 0;
+        for (int i = t + 1; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c == ':') {
+                colons++;
+            } else if (c == '+' || c == '-' || c == 'Z' || c == 'z') {
+                break; // into the zone/offset; any colon past here is not part of the time
+            }
+        }
+        return colons >= 2; // HH:MM:SS — seconds are mandatory on the nanos rail
+    }
+
+    /**
      * Classifies a value as not-a-timestamp, a timestamp {@code datetime} reads losslessly, or one
      * that only {@code date_nanos} reads losslessly.
      * <p>
@@ -428,11 +465,11 @@ public class CsvSchemaInferrer {
             // rail. Reported rather than merely screened: it must not be the value that flips a column
             // onto that rail, AND a column that holds one must not be flipped by some other value
             // either, or this cell turns from readable into a per-cell error.
-            boolean spaceForm = value.indexOf(' ') >= 0;
-            if (spaceForm == false && TemporalInference.forcesDateNanos(parsed)) {
+            boolean nanosRailCanDecode = nanosRailCanDecode(value);
+            if (nanosRailCanDecode && TemporalInference.forcesDateNanos(parsed)) {
                 return Temporal.NANOS_FORCED;
             }
-            return spaceForm ? Temporal.DATETIME_SPACE_FORM : Temporal.DATETIME;
+            return nanosRailCanDecode ? Temporal.DATETIME : Temporal.DATETIME_UNDECODABLE_AS_NANOS;
         } catch (DateTimeParseException e) {
             return Temporal.NOT_TEMPORAL;
         }

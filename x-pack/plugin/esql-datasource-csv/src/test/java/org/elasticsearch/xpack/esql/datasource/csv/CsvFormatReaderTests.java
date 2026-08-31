@@ -226,6 +226,22 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * A headerless file whose first row is narrower than a later one, read through the reader rather
+     * than through the inferrer directly. The headerless path sizes per-column state itself, and it
+     * has to size it from the widest row the way the schema is sized — otherwise this throws at
+     * planning before a value is ever typed.
+     */
+    public void testRaggedHeaderlessFileInfersFromTheWidestRow() throws Exception {
+        StorageObject object = createStorageObject("a\nb,c\n");
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+        List<Attribute> schema = reader.metadata(object).schema();
+        assertEquals("the widest row decides the column count", 2, schema.size());
+        for (Attribute a : schema) {
+            assertEquals(DataType.KEYWORD, a.dataType());
+        }
+    }
+
     public void testSchema() throws IOException {
         String csv = """
             id:long,name:keyword,age:integer,active:boolean

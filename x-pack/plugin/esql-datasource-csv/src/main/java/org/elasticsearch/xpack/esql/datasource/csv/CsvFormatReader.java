@@ -1313,7 +1313,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     throw new IOException("CSV file has no data rows");
                 }
                 maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
-                boolean[] sawSpaceFormTemporal = new boolean[sample.rows().isEmpty() ? 0 : sample.rows().get(0).length];
+                boolean[] sawSpaceFormTemporal = new boolean[syntheticColumnCount(sample.rows())];
                 List<Attribute> schema = inferSyntheticSchema(
                     sample.rows(),
                     options.columnPrefix(),
@@ -1389,6 +1389,21 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * user-facing "CSV file has no data rows" {@link IOException} themselves); the assertion is
      * just a programmer-error guard.
      */
+    /**
+     * A headerless sample has as many columns as its widest row, not as its first — rows are copied at
+     * their native width, so a ragged file has both. Anything sized per column must use this, or it is
+     * an {@code ArrayIndexOutOfBoundsException} at planning time on a file with a short first row.
+     */
+    static int syntheticColumnCount(List<String[]> sampleRows) {
+        int columnCount = 0;
+        for (String[] row : sampleRows) {
+            if (row.length > columnCount) {
+                columnCount = row.length;
+            }
+        }
+        return columnCount;
+    }
+
     static List<Attribute> inferSyntheticSchema(
         List<String[]> sampleRows,
         String prefix,
@@ -1396,12 +1411,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         boolean[] sawSpaceFormTemporal
     ) {
         assert sampleRows.isEmpty() == false : "sampleRows must be non-empty for synthetic schema inference";
-        int columnCount = 0;
-        for (String[] row : sampleRows) {
-            if (row.length > columnCount) {
-                columnCount = row.length;
-            }
-        }
+        int columnCount = syntheticColumnCount(sampleRows);
         String[] columnNames = synthesizeColumnNames(columnCount, prefix);
         return CsvSchemaInferrer.inferSchema(columnNames, sampleRows, datetimeFormatter, sawSpaceFormTemporal);
     }
@@ -4106,7 +4116,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             SchemaSample wideningWindow = collectWideningWindowAndPrefetch(sample);
             maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
-            boolean[] sawSpaceFormTemporal = new boolean[sample.rows().isEmpty() ? 0 : sample.rows().get(0).length];
+            boolean[] sawSpaceFormTemporal = new boolean[syntheticColumnCount(sample.rows())];
             List<Attribute> schema = inferSyntheticSchema(
                 sample.rows(),
                 options.columnPrefix(),

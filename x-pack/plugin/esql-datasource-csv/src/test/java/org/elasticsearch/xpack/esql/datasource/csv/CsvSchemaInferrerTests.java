@@ -630,6 +630,96 @@ public class CsvSchemaInferrerTests extends ESTestCase {
         assertEquals("a missing cell is absence, not evidence", DataType.INTEGER, schema.get(1).dataType());
     }
 
+    /**
+     * The single-value invariant above misses the case the demotion exists for: a column is only wrong
+     * when an undecodable dialect COEXISTS with a value that would flip the column. Every pair from the
+     * corpus, both orders — if the column lands on {@code date_nanos}, every one of its values must
+     * decode there.
+     */
+    private static final DateFormatter NANOS_RAIL_FORMAT = DateFormatter.forPattern("strict_date_optional_time_nanos");
+
+    public void testNoColumnLandsOnTheNanosRailHoldingAValueThatRailRejects() {
+        List<String> corpus = new ArrayList<>(
+            List.of(
+                "2023-10-23T12:15:03.360103847Z",
+                "2023-10-23 12:15:03.360103847",
+                "2023-10-23 12:15:03",
+                "2023-10-23T12:15Z",
+                "2023-10-23T12:15",
+                "2023-10-23T12:15:03.360Z",
+                "2023-10-23"
+            )
+        );
+        for (int i = 0; i < 60; i++) {
+            corpus.add(randomTimestampish());
+        }
+        for (String a : corpus) {
+            for (String b : corpus) {
+                if (inferOne(a, b) != DataType.DATE_NANOS) {
+                    continue;
+                }
+                for (String cell : List.of(a, b)) {
+                    // Two different failures hide behind "the rail rejected it". A DIALECT the rail
+                    // cannot parse must never coexist with date_nanos — that is what the demotion is
+                    // for, and it is decidable from shape whatever order the rows arrive in. A value
+                    // that parses but falls outside the representable window is a different thing: it
+                    // is deliberately kept, because demoting on it would make the column's type depend
+                    // on row order, and it fails per-cell exactly as a declared date_nanos schema makes
+                    // it fail. Only the first is asserted here.
+                    if (NANOS_RAIL_FORMAT.tryParse(cell) == null) {
+                        fail("column [" + a + "] + [" + b + "] inferred date_nanos but [" + cell + "] is a dialect that rail cannot parse");
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * A headerless sample is as wide as its widest row, not its first. Anything sized per column has to
+     * agree with that or a ragged file throws at planning before a single value is typed.
+     */
+    public void testRaggedHeaderlessSampleWithAShortFirstRow() {
+        List<String[]> rows = List.of(new String[] { "a" }, new String[] { "b", "c" });
+        List<Attribute> schema = CsvFormatReader.inferSyntheticSchema(
+            rows,
+            "col",
+            null,
+            new boolean[CsvFormatReader.syntheticColumnCount(rows)]
+        );
+        assertEquals("the widest row decides the column count", 2, schema.size());
+    }
+
+    /**
+     * The other direction across the seam: a dialect the nanos rail cannot decode appearing only in the
+     * widening window, with nothing else in that window moving a rung. The window walk sets the flag
+     * but widens nothing, so an early "nothing changed" return would hand back the sample's
+     * {@code date_nanos} schema and leave the cell to fail at read.
+     */
+    public void testDialectEvidenceFromTheWideningWindowAloneStillDemotes() {
+        boolean[] sawUndecodable = new boolean[1];
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(
+            new String[] { "ts" },
+            List.<String[]>of(new String[] { "2023-10-23T12:15:03.360103847Z" }),
+            null,
+            sawUndecodable
+        );
+        assertEquals(DataType.DATE_NANOS, schema.get(0).dataType());
+
+        List<Attribute> widened = CsvSchemaInferrer.widenSchema(
+            schema,
+            List.<String[]>of(new String[] { "2023-10-23 12:15:03" }),
+            null,
+            sawUndecodable
+        );
+        assertEquals(DataType.DATETIME, widened.get(0).dataType());
+    }
+
+    /** The same, for the seconds-less dialect — the sibling the first version of the screen missed. */
+    public void testSecondsLessDialectAlsoKeepsAColumnOffTheNanosRail() {
+        assertEquals(DataType.DATETIME, inferOne("2023-10-23T12:15:03.360103847Z", "2023-10-23T12:15Z"));
+        assertEquals(DataType.DATETIME, inferOne("2023-10-23T12:15Z", "2023-10-23T12:15:03.360103847Z"));
+    }
+
     public void testSynthesizeColumnNames() {
         String[] names = CsvFormatReader.synthesizeColumnNames(4, "col");
         assertArrayEquals(new String[] { "col0", "col1", "col2", "col3" }, names);

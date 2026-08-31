@@ -53,7 +53,7 @@ public class AuditUtil {
                     final var parsedContentType = request.getParsedContentType();
                     final String mediaType = parsedContentType != null
                         ? parsedContentType.mediaTypeWithoutParameters()
-                        : request.header("Content-Type");
+                        : "unknown";
                     return "Unrecognized content type [" + mediaType + "]";
                 }
                 String json = XContentHelper.convertToJson(content, false, false, xContentType);

@@ -164,5 +164,6 @@ public class SourceFilterDeterminizeLimitTests extends MapperServiceTestCase {
             Operations.concatenate(Automata.makeChar('.'), Automata.makeAnyString())
         );
         Operations.determinize(Operations.concatenate(Regex.simpleMatchToNonDeterminizedAutomaton(patterns), tail), 50_000);
+        new SourceFilter(patterns, null).filterMap(Source.empty(null));
     }
 }

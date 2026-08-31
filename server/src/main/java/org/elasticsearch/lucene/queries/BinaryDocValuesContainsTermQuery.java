@@ -61,7 +61,7 @@ public final class BinaryDocValuesContainsTermQuery extends AbstractBinaryDocVal
 
     @Override
     public String toString(String field) {
-        return "BinaryDocValuesContainsTermQuery(fieldName=" + field + ",containsTerm=" + containsTerm + ")";
+        return "BinaryDocValuesContainsTermQuery(fieldName=" + fieldName + ",containsTerm=" + containsTerm + ")";
     }
 
     @Override

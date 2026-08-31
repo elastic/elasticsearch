@@ -36,7 +36,9 @@ public class AuditUtil {
      * Renders the body of {@code request} as a JSON string for inclusion in audit log events.
      * <p>
      * If the request has no XContent type (e.g. a protobuf endpoint), a short diagnostic string is
-     * returned rather than throwing.
+     * returned rather than throwing. If {@code maxBytes > 0} and the rendered JSON length exceeds
+     * that limit, an {@link ElasticsearchStatusException} with status 413 is thrown so the caller
+     * can reject the request before it is written to the audit log.
      *
      * @param maxBytes   maximum allowed length of the rendered JSON string, in characters; {@code 0} = unlimited
      * @param settingKey the cluster setting key to include in the error message; may be {@code null}
@@ -48,7 +50,11 @@ public class AuditUtil {
             try {
                 final XContentType xContentType = request.getXContentType();
                 if (xContentType == null) {
-                    return "Unrecognized content type [" + request.getParsedContentType().mediaTypeWithoutParameters() + "]";
+                    final var parsedContentType = request.getParsedContentType();
+                    final String mediaType = parsedContentType != null
+                        ? parsedContentType.mediaTypeWithoutParameters()
+                        : request.header("Content-Type");
+                    return "Unrecognized content type [" + mediaType + "]";
                 }
                 String json = XContentHelper.convertToJson(content, false, false, xContentType);
                 if (maxBytes > 0 && json.length() > maxBytes) {

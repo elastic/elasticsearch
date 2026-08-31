@@ -742,7 +742,9 @@ The events with the `event.type` attribute equal to `security_config_change` hav
 These events also have **one** of the following extra attributes (in addition to the common ones), which is specific to the `event.type` attribute. The attribute’s value is a nested JSON object:
 
 `put`
-:   The object representation of the security config that is being created, or the overwrite of an existing config. It contains the config for a `user`, `role`, `role_mapping`, `user_managed_service_account`, or for application `privileges`.
+:   The object representation of the security config that is being created, or the overwrite of an existing config. It contains the following objects:
+    * {applies_to}`stack: ga 9.0+` `user`, `role`, `role_mapping`, or application `privileges`
+    * {applies_to}`stack: ga 9.6+` `user_managed_service_account`
 
 `delete`
 :   The object representation of the security config that is being deleted. It can be the config for a `user`, `role`, `role_mapping`, `user_managed_service_account`, or for application `privileges`.

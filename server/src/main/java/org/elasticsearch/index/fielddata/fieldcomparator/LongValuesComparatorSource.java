@@ -34,6 +34,7 @@ import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.plain.MultiValuedBinaryDocValuesSortField;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.lucene.comparators.XLongComparator;
 import org.elasticsearch.lucene.comparators.XNumericComparator;
@@ -297,9 +298,9 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
             int maxDoc = reader.maxDoc();
             int minValueDoc = sortField.getReverse() ? maxDoc - 1 : 0;
             int maxValueDoc = sortField.getReverse() ? 0 : maxDoc - 1;
-            boolean arrayOrder = binarySortField.isArrayOrder();
-            BytesRef min = decodeHostNameValueAt(reader, minValueDoc, false, arrayOrder);
-            BytesRef max = decodeHostNameValueAt(reader, maxValueDoc, true, arrayOrder);
+            BinaryDocValuesFormat binaryFormat = binarySortField.binaryFormat();
+            BytesRef min = decodeHostNameValueAt(reader, minValueDoc, false, binaryFormat);
+            BytesRef max = decodeHostNameValueAt(reader, maxValueDoc, true, binaryFormat);
             return min != null && min.equals(max);
         }
         // host.name has no doc values at all in this segment (e.g. the field is absent).
@@ -308,12 +309,13 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
 
     /**
      * Decodes the minimum ({@code maxMode=false}) or maximum ({@code maxMode=true}) {@code host.name} value stored at
-     * {@code doc}, reusing {@link MultiValuedBinaryDocValuesSortField#decodeExtreme} to extract sort keys from the
-     * {@code SeparateCount}/{@code ArrayOrderInlineNull} binary formats. Returns {@code null} if {@code doc} has no
-     * value (e.g. all-null or empty array).
+     * {@code doc}, reusing {@link MultiValuedBinaryDocValuesSortField#decodeExtreme} to extract sort keys from
+     * whichever binary format the field uses. Returns {@code null} if {@code doc} has no value (e.g. all-null or
+     * empty array).
      */
     @Nullable
-    private static BytesRef decodeHostNameValueAt(LeafReader reader, int doc, boolean maxMode, boolean arrayOrder) throws IOException {
+    private static BytesRef decodeHostNameValueAt(LeafReader reader, int doc, boolean maxMode, BinaryDocValuesFormat binaryFormat)
+        throws IOException {
         BinaryDocValues bdv = reader.getBinaryDocValues("host.name");
         if (bdv.advanceExact(doc) == false) {
             return null;
@@ -325,6 +327,6 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         if (counts != null && counts.advanceExact(doc)) {
             count = counts.longValue();
         }
-        return MultiValuedBinaryDocValuesSortField.decodeExtreme(bdv.binaryValue(), count, maxMode, arrayOrder);
+        return MultiValuedBinaryDocValuesSortField.decodeExtreme(bdv.binaryValue(), count, maxMode, binaryFormat);
     }
 }

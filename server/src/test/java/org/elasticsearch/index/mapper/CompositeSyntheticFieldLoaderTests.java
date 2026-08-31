@@ -11,11 +11,13 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -234,6 +236,27 @@ public class CompositeSyntheticFieldLoaderTests extends ESTestCase {
     public void testFieldName() {
         var sut = new CompositeSyntheticFieldLoader("foo", "bar.baz.foo");
         assertEquals("bar.baz.foo", sut.fieldName());
+    }
+
+    public void testAddFallbackLayersUsesIgnoreMalformedColumnForPreMergeStrictColumnarIndex() {
+        var premergeVersion = IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG;
+
+        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+        CompositeSyntheticFieldLoader.addFallbackLayers(
+            layers,
+            "field",
+            premergeVersion,
+            /* ignoreMalformed */ true,
+            /* onFailureEnabled */ false,
+            /* strictColumnar */ true
+        );
+
+        assertEquals("expected exactly one fallback layer for pre-merge strict-columnar index", 1, layers.size());
+        assertEquals(
+            "pre-merge strict-columnar index must read malformed values from ._ignore_malformed, not ._on_failure",
+            IgnoreMalformedStoredValues.name("field"),
+            layers.get(0).fieldName()
+        );
     }
 
     public void testMergeTwoFieldLoaders() throws IOException {

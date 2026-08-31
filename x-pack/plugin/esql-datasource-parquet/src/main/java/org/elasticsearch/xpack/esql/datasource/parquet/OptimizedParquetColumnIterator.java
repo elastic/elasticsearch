@@ -2041,10 +2041,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             for (int i = 0; i < columnInfos.length; i++) {
                 if (columnInfos[i] != null && columnInfos[i].isRowPosition() == false && columnInfos[i].maxRepLevel() > 0) {
                     columnReaders[i] = store.getColumnReader(columnInfos[i].descriptor());
-                    listColumnReaders[i] = new ParquetColumnDecoding.ListColumnReader(
+                    listColumnReaders[i] = ParquetColumnDecoding.ListColumnReader.bind(
                         columnReaders[i],
-                        columnInfos[i].maxDefLevel(),
-                        columnInfos[i].maxRepLevel(),
+                        columnInfos[i],
                         listCorruptionHandler,
                         attributes.get(i).name(),
                         fileLocation,
@@ -2421,6 +2420,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             Page result = useLateMaterialization
                 ? nextWithLateMaterialization(rowsToRead, firstRowOfBatchInRG)
                 : nextStandard(rowsToRead, firstRowOfBatchInRG);
+            int droppedRows = useLateMaterialization == false && rowDropHelper != null ? rowDropHelper.failedCount() : 0;
+            try {
+                listCorruptionHandler.completeBatch(rowsToRead, droppedRows, droppedRows > 0 ? coercionWarnings() : null);
+            } catch (RuntimeException e) {
+                result.releaseBlocks();
+                throw e;
+            }
 
             pageBatchIndexInRowGroup++;
             rowsRemainingInGroup -= rowsToRead;
@@ -2735,18 +2741,6 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     + fileLocation
                     + "]"
             );
-        }
-        // Budget accounting sits outside the try on purpose: checkBudget throws ParsingException to mark a
-        // client-data problem (HTTP 400), and routing it through ParquetReadFailures.wrap above would put it
-        // at the mercy of that mapping rather than stating the classification here. Mirrors OrcFormatReader.
-        if (rowDropHelper != null) {
-            rowDropHelper.addToTotals(rowsToRead, rowDropHelper.failedCount());
-            try {
-                rowDropHelper.checkBudget(coercionWarnings());
-            } catch (Exception e) {
-                Releasables.closeExpectNoException(blocks);
-                throw e;
-            }
         }
         counters.addRowsEmitted(producedRows);
         return new Page(blocks);

@@ -3215,10 +3215,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                             if (needColumnReader) {
                                 columnReaders[i] = store.getColumnReader(columnInfos[i].descriptor());
                                 if (columnInfos[i].maxRepLevel() > 0) {
-                                    listColumnReaders[i] = new ParquetColumnDecoding.ListColumnReader(
+                                    listColumnReaders[i] = ParquetColumnDecoding.ListColumnReader.bind(
                                         columnReaders[i],
-                                        columnInfos[i].maxDefLevel(),
-                                        columnInfos[i].maxRepLevel(),
+                                        columnInfos[i],
                                         listCorruptionHandler,
                                         attributes.get(i).name(),
                                         fileLocation,
@@ -3344,17 +3343,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                     );
                 }
 
-                // Budget accounting sits outside the try on purpose: checkBudget throws ParsingException to mark a
-                // client-data problem (HTTP 400), and routing it through ParquetReadFailures.wrap above would put it
-                // at the mercy of that mapping rather than stating the classification here. Mirrors OrcFormatReader.
-                if (rowDropHelper != null) {
-                    rowDropHelper.addToTotals(rowsToRead, rowDropHelper.failedCount());
-                    try {
-                        rowDropHelper.checkBudget(coercionWarnings());
-                    } catch (Exception e) {
-                        Releasables.closeExpectNoException(blocks);
-                        throw e;
-                    }
+                // Keep budget accounting outside the wrapping try: a budget failure is a client-data
+                // ParsingException (HTTP 400), not a Parquet read failure. LIST recoveries and row
+                // drops share this one counter for the iterator.
+                int droppedRows = rowDropHelper != null ? rowDropHelper.failedCount() : 0;
+                try {
+                    listCorruptionHandler.completeBatch(rowsToRead, droppedRows, droppedRows > 0 ? coercionWarnings() : null);
+                } catch (RuntimeException e) {
+                    Releasables.closeExpectNoException(blocks);
+                    throw e;
                 }
 
                 pageBatchIndexInRowGroup++;

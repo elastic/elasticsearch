@@ -22,6 +22,7 @@ import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -584,6 +585,42 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
         assertPagesEqual(baselinePages, pushedPages);
     }
 
+    public void testFilteredListProjectionSkipsPagesWithoutReportingCorruption() throws IOException {
+        byte[] parquetData = createListProjectionFile();
+        FilterPredicate filter = FilterApi.and(
+            FilterApi.gtEq(FilterApi.intColumn("id"), 500),
+            FilterApi.lt(FilterApi.intColumn("id"), 750)
+        );
+        assertLeadingRowsArePagePruned(parquetData, filter);
+
+        List<Page> baselinePages = readWithFilter(parquetData, filter, false);
+        List<Page> optimizedPages = readWithFilter(parquetData, filter, true);
+        try {
+            assertPagesEqual(baselinePages, optimizedPages);
+            assertTrue(optimizedPages.stream().mapToInt(Page::getPositionCount).sum() > 0);
+        } finally {
+            releasePages(baselinePages);
+            releasePages(optimizedPages);
+        }
+    }
+
+    public void testLateMaterializationSkipsAllFilteredListRows() throws IOException {
+        byte[] parquetData = createListProjectionFile();
+        ReferenceAttribute tag = new ReferenceAttribute(Source.EMPTY, "tag", DataType.KEYWORD);
+        Expression noMatch = new org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike(
+            Source.EMPTY,
+            tag,
+            new org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern("*missing*")
+        );
+
+        List<Page> pages = readWithPushedExpressions(parquetData, noMatch);
+        try {
+            assertEquals(0, pages.stream().mapToInt(Page::getPositionCount).sum());
+        } finally {
+            releasePages(pages);
+        }
+    }
+
     // --- Pre-warm dictionary-pages parity tests ---
 
     /**
@@ -694,6 +731,25 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
         });
     }
 
+    private byte[] createListProjectionFile() throws IOException {
+        Type id = Types.required(INT32).named("id");
+        Type tag = Types.required(BINARY).as(LogicalTypeAnnotation.stringType()).named("tag");
+        Type values = Types.optionalList().optionalElement(INT32).named("values");
+        MessageType schema = new MessageType("filtered_list_test", id, tag, values);
+        return createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < TOTAL_ROWS; i++) {
+                Group group = factory.newGroup().append("id", i).append("tag", "row_" + i);
+                Group list = group.addGroup("values");
+                for (int value = 0; value < 16; value++) {
+                    list.addGroup("list").append("element", i * 16 + value);
+                }
+                groups.add(group);
+            }
+            return groups;
+        });
+    }
+
     private byte[] createEmptyThenMatchingLargeRowGroups() throws IOException {
         MessageType schema = Types.buildMessage()
             .required(INT32)
@@ -771,6 +827,18 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
         }
     }
 
+    private void assertLeadingRowsArePagePruned(byte[] parquetData, FilterPredicate filter) throws IOException {
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(FilterCompat.get(filter));
+        StorageObject storageObject = createStorageObject(parquetData);
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, FormatReadContext.of(null, 1024))) {
+            OptimizedParquetColumnIterator optimized = (OptimizedParquetColumnIterator) iterator;
+            RowRanges ranges = optimized.rowRanges(0);
+            assertNotNull(ranges);
+            assertFalse(ranges.isAll());
+            assertTrue("fixture must skip leading pages", ranges.rangeStart(0) > 0);
+        }
+    }
+
     /**
      * Reads using the optimized path with a {@link ParquetPushedExpressions} filter.
      * This exercises the full RowRanges code path: resolveFilterPredicate → ColumnIndexRowRangesComputer
@@ -786,6 +854,12 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
                 pages.add(iter.next());
             }
             return pages;
+        }
+    }
+
+    private static void releasePages(List<Page> pages) {
+        for (Page page : pages) {
+            page.releaseBlocks();
         }
     }
 

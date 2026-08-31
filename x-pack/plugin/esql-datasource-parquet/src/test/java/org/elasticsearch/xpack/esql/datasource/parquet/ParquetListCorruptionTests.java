@@ -26,6 +26,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.util.ArrayList;
@@ -172,10 +173,9 @@ public class ParquetListCorruptionTests extends ESTestCase {
         String file = "memory://malformed-list.parquet";
         ParquetColumnDecoding.ListCorruptionHandler handler = new ParquetColumnDecoding.ListCorruptionHandler(policy, file, warnings::add);
         FakeColumnReader reader = new FakeColumnReader(new int[] { 1, 0 }, new int[] { 0, 7 });
-        ParquetColumnDecoding.ListColumnReader input = new ParquetColumnDecoding.ListColumnReader(
+        ParquetColumnDecoding.ListColumnReader input = ParquetColumnDecoding.ListColumnReader.bind(
             reader,
-            info.maxDefLevel(),
-            info.maxRepLevel(),
+            info,
             handler,
             "x",
             file,
@@ -206,6 +206,20 @@ public class ParquetListCorruptionTests extends ESTestCase {
 
         ParsingException e = expectThrows(ParsingException.class, () -> handler.recoveredOrphan("x", 0, 2, 2, 1));
         assertThat(e.getMessage(), containsString("[2] structural errors"));
+    }
+
+    public void testListRecoveryAndDroppedRowShareErrorBudget() {
+        ErrorPolicy policy = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 1, 0.0, false);
+        List<String> warnings = new ArrayList<>();
+        ParquetColumnDecoding.ListCorruptionHandler handler = new ParquetColumnDecoding.ListCorruptionHandler(
+            policy,
+            "memory://malformed-list.parquet",
+            warnings::add
+        );
+
+        handler.recoveredOrphan("x", 0, 1, 1, 1);
+        ParsingException e = expectThrows(ParsingException.class, () -> handler.completeBatch(2, 1, SkipWarnings.NOOP));
+        assertThat(e.getMessage(), containsString("[2] errors"));
     }
 
     public void testRecoveryLoggingFollowsErrorPolicy() {
@@ -281,7 +295,7 @@ public class ParquetListCorruptionTests extends ESTestCase {
     ) {
         String file = "memory://malformed-list.parquet";
         ParquetColumnDecoding.ListCorruptionHandler handler = new ParquetColumnDecoding.ListCorruptionHandler(policy, file, warnings::add);
-        return new ParquetColumnDecoding.ListColumnReader(reader, info.maxDefLevel(), info.maxRepLevel(), handler, "x", file, 0, 0);
+        return ParquetColumnDecoding.ListColumnReader.bind(reader, info, handler, "x", file, 0, 0);
     }
 
     /**

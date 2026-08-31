@@ -508,7 +508,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> extractor.extract("x", new long[] { 1 }, blockFactory)
             );
-            assertThat(e.getMessage(), allOf(containsString("column [x.list.element]"), containsString("row group [1]")));
+            assertThat(e.getMessage(), allOf(containsString("column [x]"), containsString("row group [1]")));
         }
     }
 

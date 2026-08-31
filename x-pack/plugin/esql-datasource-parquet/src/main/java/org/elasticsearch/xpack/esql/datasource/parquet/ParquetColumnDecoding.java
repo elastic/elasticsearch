@@ -570,7 +570,9 @@ final class ParquetColumnDecoding {
     /**
      * Shared policy, warning, and error-budget owner for malformed LIST repetition-level streams.
      * One instance is retained for the lifetime of an iterator or extractor so separate columns
-     * and row groups contribute to the same error count and warning cap.
+     * and row groups contribute to the same warning cap. Iterators also charge their dropped rows
+     * through {@link #completeBatch}; this keeps one error budget for every recoverable failure in
+     * a Parquet read.
      */
     static final class ListCorruptionHandler {
         private final ErrorPolicy errorPolicy;
@@ -579,6 +581,9 @@ final class ParquetColumnDecoding {
         @Nullable
         private final Set<RecoveryKey> recoveredEvents;
         private long errorCount;
+        private long recoveredListErrorCount;
+        private long droppedRowErrorCount;
+        private long completedRows;
         private long rowsSeen;
 
         ListCorruptionHandler(ErrorPolicy errorPolicy, String fileLocation, @Nullable Consumer<String> warningSink) {
@@ -610,6 +615,7 @@ final class ParquetColumnDecoding {
                 return;
             }
             errorCount++;
+            recoveredListErrorCount++;
             String detail = "Parquet column ["
                 + columnName
                 + "] in file ["
@@ -625,27 +631,72 @@ final class ParquetColumnDecoding {
             // Structural corruption is discovered while streaming. As with the text readers, a
             // ratio can trip before later good rows have a chance to dilute it.
             this.rowsSeen = Math.max(this.rowsSeen, Math.max(1L, rowsSeen));
-            if (errorPolicy.isBudgetExceeded(errorCount, this.rowsSeen)) {
-                warnings.add(
-                    "Parquet error budget exceeded in file ["
-                        + fileLocation
-                        + "]: ["
-                        + errorCount
-                        + "] structural errors by row ["
-                        + this.rowsSeen
-                        + "]"
-                );
-                throw new ParsingException(
-                    Source.EMPTY,
-                    "Error budget exceeded: [{}] structural errors by row [{}] in [{}]; " + "maximum allowed is [{}] errors or [{}] ratio",
-                    errorCount,
-                    this.rowsSeen,
-                    fileLocation,
-                    errorPolicy.maxErrors(),
-                    errorPolicy.maxErrorRatio()
-                );
-            }
+            checkBudget(warnings);
             logger.log(errorPolicy.logErrors() ? Level.INFO : Level.DEBUG, detail);
+        }
+
+        /**
+         * Completes one decoded batch and charges row drops to the same counter as recovered LIST fragments.
+         */
+        void completeBatch(int sourceRows, int droppedRows, @Nullable SkipWarnings droppedRowWarnings) {
+            completedRows += sourceRows;
+            rowsSeen = Math.max(rowsSeen, completedRows);
+            errorCount += droppedRows;
+            droppedRowErrorCount += droppedRows;
+            checkBudget(recoveredListErrorCount > 0 ? warnings : droppedRowWarnings);
+        }
+
+        private void checkBudget(@Nullable SkipWarnings budgetWarnings) {
+            if (errorPolicy.isBudgetExceeded(errorCount, rowsSeen) == false) {
+                return;
+            }
+            String errorKind;
+            if (droppedRowErrorCount == 0) {
+                errorKind = "structural errors";
+            } else if (recoveredListErrorCount == 0) {
+                errorKind = "dropped rows";
+            } else {
+                errorKind = "errors";
+            }
+            if (budgetWarnings != null) {
+                if (recoveredListErrorCount == 0) {
+                    budgetWarnings.add(
+                        "Columnar error budget exceeded at ["
+                            + fileLocation
+                            + "]: ["
+                            + errorCount
+                            + "] dropped rows in ["
+                            + rowsSeen
+                            + "] decoded rows, maximum ["
+                            + errorPolicy.maxErrors()
+                            + "] errors or ratio ["
+                            + errorPolicy.maxErrorRatio()
+                            + "]"
+                    );
+                } else {
+                    budgetWarnings.add(
+                        "Parquet error budget exceeded in file ["
+                            + fileLocation
+                            + "]: ["
+                            + errorCount
+                            + "] "
+                            + errorKind
+                            + " in ["
+                            + rowsSeen
+                            + "] decoded rows"
+                    );
+                }
+            }
+            throw new ParsingException(
+                Source.EMPTY,
+                "Error budget exceeded: [{}] {} in [{}] decoded rows in [{}]; maximum allowed is [{}] errors or [{}] ratio",
+                errorCount,
+                errorKind,
+                rowsSeen,
+                fileLocation,
+                errorPolicy.maxErrors(),
+                errorPolicy.maxErrorRatio()
+            );
         }
 
         private record RecoveryKey(String columnName, int rowGroupOrdinal, long rowOrdinal) {}
@@ -669,7 +720,28 @@ final class ParquetColumnDecoding {
         private long consumedValueCount;
         private long rowCount;
 
-        ListColumnReader(
+        static ListColumnReader bind(
+            ColumnReader reader,
+            ColumnInfo info,
+            ListCorruptionHandler corruptionHandler,
+            String columnName,
+            String fileLocation,
+            int rowGroupOrdinal,
+            long rowsBeforeGroup
+        ) {
+            return new ListColumnReader(
+                reader,
+                info.maxDefLevel(),
+                info.maxRepLevel(),
+                corruptionHandler,
+                columnName,
+                fileLocation,
+                rowGroupOrdinal,
+                rowsBeforeGroup
+            );
+        }
+
+        private ListColumnReader(
             ColumnReader reader,
             int maxDefLevel,
             int maxRepLevel,
@@ -716,6 +788,12 @@ final class ParquetColumnDecoding {
             return repetitionLevel;
         }
 
+        /**
+         * Positions the stream at the next logical row boundary. In non-strict modes, a leading
+         * continuation is stream resynchronization rather than a per-row policy action: the
+         * orphan cannot reliably be assigned to either adjacent row, so it consumes error budget
+         * but does not drop or null the valid row that follows it.
+         */
         void ensureRowStart() {
             int repetitionLevel = currentRepetitionLevel();
             if (repetitionLevel == 0) {
@@ -930,53 +1008,7 @@ final class ParquetColumnDecoding {
      * dropped element emits one {@code Warning} through {@code lossWarnings} naming the column. That notice is
      * unconditional — unlike {@code warnings} below it must not be policy-gated, since the drop happens under every
      * {@code error_mode}.
-     */
-    static Block readListColumn(ColumnReader cr, ColumnInfo info, int rows, BlockFactory blockFactory) {
-        return readListColumn(cr, info, rows, blockFactory, null, null, null, SkipWarnings.NOOP);
-    }
-
-    /**
-     * As {@link #readListColumn(ColumnReader, ColumnInfo, int, BlockFactory)}, coercing a
-     * declared element type beyond the fused pairs: the list decodes at the file's own element
-     * type, then {@link DeclaredTypeCoercions#castBlock} coerces each element to the declared
-     * type ({@code warnings} carries the per-value failure sink; {@code null} = strict).
-     */
-    static Block readListColumn(
-        ColumnReader cr,
-        ColumnInfo info,
-        int rows,
-        BlockFactory blockFactory,
-        @Nullable String columnName,
-        @Nullable SkipWarnings warnings
-    ) {
-        return readListColumn(cr, info, rows, blockFactory, columnName, warnings, null, SkipWarnings.NOOP);
-    }
-
-    static Block readListColumn(
-        ColumnReader cr,
-        ColumnInfo info,
-        int rows,
-        BlockFactory blockFactory,
-        @Nullable String columnName,
-        @Nullable SkipWarnings warnings,
-        @Nullable IntConsumer failedPositionSink,
-        SkipWarnings lossWarnings
-    ) {
-        ListCorruptionHandler handler = new ListCorruptionHandler(ErrorPolicy.STRICT, "<unknown>", null);
-        String column = columnName != null ? columnName : String.join(".", info.descriptor().getPath());
-        return readListColumn(
-            new ListColumnReader(cr, info.maxDefLevel(), info.maxRepLevel(), handler, column, "<unknown>", 0, 0),
-            info,
-            rows,
-            blockFactory,
-            columnName,
-            warnings,
-            failedPositionSink,
-            lossWarnings
-        );
-    }
-
-    /**
+     *
      * @param columnName the attribute name the query used for this column; names the column in both notices, so
      *                   unlike the coercion helpers downstream this one requires it
      * @param warnings   per-value declared-coercion failure sink, for a declared element type beyond the fused

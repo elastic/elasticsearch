@@ -640,8 +640,9 @@ final class ParquetColumnExtractor implements ColumnExtractor {
      * forced by the Block representation, so it happens under every {@code error_mode} and must be announced under
      * every {@code error_mode}. This keeps the deferred pass agreeing with the eager scan of the same file, which is
      * the invariant the whole extractor is built around — with one honest asymmetry: the notice caveats the rows this
-     * pass actually returned, and {@link #skipListRows} walks past the others without inspecting their definition
-     * levels, so a file whose null elements all sit in rows a TopN discarded warns on the eager scan and not here.
+     * pass actually returned, and {@link ParquetColumnDecoding#skipListValues} walks past the others without inspecting
+     * their definition levels, so a file whose null elements all sit in rows a TopN discarded warns on the eager scan
+     * and not here.
      */
     private SkipWarnings nullListElementWarnings() {
         if (nullListElementWarnings == null) {
@@ -790,7 +791,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
 
     /**
      * List-column sparse decode. parquet-mr's {@link ColumnReader} is repetition-aware so we
-     * walk the row-group rows in source order via {@link #skipListRows} and
+     * walk the row-group rows in source order via {@link ParquetColumnDecoding#skipListValues} and
      * {@link ParquetColumnDecoding#readListColumn}, alternating skip/read runs in lock-step
      * with the unique survivor positions. Same in-memory chunks as the flat path; we only swap
      * the decoder.
@@ -812,13 +813,11 @@ final class ParquetColumnExtractor implements ColumnExtractor {
             createdBy != null ? createdBy : ""
         );
         ColumnReader cr = crs.getColumnReader(info.descriptor());
-        String leafPath = String.join(".", info.descriptor().getPath());
-        ParquetColumnDecoding.ListColumnReader listReader = new ParquetColumnDecoding.ListColumnReader(
+        ParquetColumnDecoding.ListColumnReader listReader = ParquetColumnDecoding.ListColumnReader.bind(
             cr,
-            info.maxDefLevel(),
-            info.maxRepLevel(),
+            info,
             listCorruptionHandler,
-            leafPath,
+            columnName,
             storageObject.path().toString(),
             bucket.rowGroupIndex,
             rowGroupOffsets[bucket.rowGroupIndex]
@@ -838,7 +837,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 int p = positions[runStart];
                 int gap = p - cursor;
                 if (gap > 0) {
-                    skipListRows(listReader, gap);
+                    ParquetColumnDecoding.skipListValues(listReader, gap);
                     cursor += gap;
                 }
                 int runEnd = runStart + 1;
@@ -880,22 +879,6 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 Releasables.closeExpectNoException(c);
             }
             throw e;
-        }
-    }
-
-    /**
-     * Skip {@code rowsToSkip} entire list rows, advancing both the column reader's level cursor
-     * and its data cursor. The shared list state calls {@link ColumnReader#skip} for physically
-     * present values before consuming their levels, and validates every skipped row boundary.
-     */
-    private static void skipListRows(ParquetColumnDecoding.ListColumnReader input, int rowsToSkip) {
-        for (int row = 0; row < rowsToSkip; row++) {
-            input.ensureRowStart();
-            input.skipCurrentValue();
-            while (input.hasRemaining() && input.currentRepetitionLevel() > 0) {
-                input.skipCurrentValue();
-            }
-            input.rowCompleted();
         }
     }
 

@@ -491,10 +491,9 @@ public class CsvSchemaInferrerTests extends ESTestCase {
      * The invariant the whitespace screen exists to maintain: a column is inferred {@code date_nanos}
      * only when its value would actually decode on the {@code date_nanos} rail.
      * <p>
-     * The screen is a cheap stand-in for that — an {@code indexOf(' ')} rather than a second parse —
-     * and a cheap stand-in for a fact that lives in two other parsers is exactly the kind of thing that
-     * goes stale in silence. So production keeps the cheap check and this holds it to the expensive
-     * truth: for every value in the corpus, ask the nanos rail directly and require inference to agree.
+     * Production asks that rail directly now, after two cheap stand-ins for it missed three dialects
+     * between them. This is what caught the last of those and what stops the next: for every value in
+     * the corpus, ask the rail and require inference to agree.
      * If {@code DateUtils.asDateTime} gains a dialect the nanos rail rejects, or the rail drops one,
      * some value here starts disagreeing and this fails, whether or not anyone thought to enumerate
      * that dialect.
@@ -727,7 +726,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
      */
     public void testEveryUndecodableDialectKeepsAColumnOffTheNanosRail() {
         String nanos = "2023-10-23T12:15:03.360103847Z";
-        for (String undecodable : List.of("2023-10-23 12:15:03", "2023-10-23T12:15Z", "+12023-10-23T12:15:03Z")) {
+        for (String undecodable : List.of("2023-10-23 12:15:03", "2023-10-23T12:15Z", "+12023-10-23T12:15:03Z", "-12023-10-23T12:15:03Z")) {
             assertEquals(undecodable + " then nanos", DataType.DATETIME, inferOne(undecodable, nanos));
             assertEquals("nanos then " + undecodable, DataType.DATETIME, inferOne(nanos, undecodable));
         }

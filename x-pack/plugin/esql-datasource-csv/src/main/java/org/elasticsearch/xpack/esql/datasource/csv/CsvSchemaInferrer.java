@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.TemporalInference;
 import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
@@ -71,7 +72,7 @@ public class CsvSchemaInferrer {
         /** A timestamp the column reads as {@code datetime}. */
         DATETIME,
         /**
-         * A {@code datetime} the {@code date_nanos} rail cannot decode. Tracked apart because a column
+         * A {@code datetime} the {@code date_nanos} rail cannot parse. Tracked apart because a column
          * holding one must never end up on that rail, whatever some other value in it says.
          */
         DATETIME_UNDECODABLE_AS_NANOS,
@@ -420,18 +421,21 @@ public class CsvSchemaInferrer {
      * the CSV rail's own parser accepts dialects this one rejects, and a column holding one must never
      * be typed {@code date_nanos}.
      * <p>
-     * This replaced three successive attempts to restate that grammar by shape — first "has no space",
-     * then "has no space and has seconds", then also "has four unsigned year digits". Each was cheaper
-     * and each was wrong, because it is a restatement of someone else's parser and drifts the moment
-     * that parser accepts something new. The oracle costs a parse on values already known to be
-     * timestamps; the guesses cost correctness.
+     * This replaced two successive attempts to restate that grammar by shape — first "has no space",
+     * then "has no space and has seconds" — which between them missed three dialects: seconds-less
+     * times, then signed and over-long years. Each was cheaper and each was a restatement of someone
+     * else's parser, which drifts the moment that parser accepts something new. The oracle costs a
+     * parse on values already known to be timestamps; the guesses cost correctness.
+     * <p>
+     * Taken from {@code EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER} rather than re-declared
+     * from its pattern string, so no copy of it is left to drift.
      * <p>
      * Note it is the DIALECT being asked about, not the range: a value this parses but that falls
      * outside the representable window is deliberately kept (demoting on it would make a column's type
      * depend on row order) and fails per-cell at read, exactly as a declared {@code date_nanos} schema
      * makes it fail.
      */
-    private static final DateFormatter NANOS_RAIL_FORMAT = DateFormatter.forPattern("strict_date_optional_time_nanos");
+    private static final DateFormatter NANOS_RAIL_FORMAT = EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
 
     private static boolean nanosRailCanDecode(String value) {
         return NANOS_RAIL_FORMAT.tryParse(value) != null;
@@ -455,8 +459,8 @@ public class CsvSchemaInferrer {
         }
         try {
             ZonedDateTime parsed = DateUtils.asDateTime(value);
-            // The whitespace-separated dialect is accepted here but rejected by the date_nanos decode
-            // rail. Reported rather than merely screened: it must not be the value that flips a column
+            // Some dialects this parser accepts, the date_nanos rail cannot parse at all. Reported
+            // rather than merely screened: it must not be the value that flips a column
             // onto that rail, AND a column that holds one must not be flipped by some other value
             // either, or this cell turns from readable into a per-cell error.
             boolean nanosRailCanDecode = nanosRailCanDecode(value);

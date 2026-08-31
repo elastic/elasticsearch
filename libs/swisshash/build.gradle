@@ -21,16 +21,19 @@ dependencies {
   }
 }
 
-// A static reference to the Vector API would cause an unsuppressible warning
-// in downstream builds, so we add the required module read edge dynamically.
+// A static reference to the Vector API would cause an unsuppressible warning in downstream
+// builds, so we add the required module read edge dynamically. ElasticsearchJavaBasePlugin
+// pins compileJava to the minimum runtime JDK (21), where the incubating-module warning has
+// no named lint category. Use a JDK 25 compiler so -Xlint:-incubating works while --release
+// 21 (set globally) keeps Java 21 classfiles. Task-level configure runs after configureEach,
+// so this toolchain override wins over the JDK 21 pin in ElasticsearchJavaBasePlugin.
+def vectorCompileToolchain = JavaLanguageVersion.of(25)
+
 tasks.named('compileJava').configure {
+  javaCompiler = javaToolchains.compilerFor { languageVersion = vectorCompileToolchain }
   options.compilerArgs << '--add-modules=jdk.incubator.vector'
   options.compilerArgs << '--add-reads=org.elasticsearch.swisshash=jdk.incubator.vector'
-  // Suppress the "using incubating module(s)" mandatory warning that javac emits for
-  // jdk.incubator.vector. On JDK 21 this warning has no named lint category and cannot
-  // be individually suppressed. -nowarn is scoped to this submodule only.
-  // TODO: replace with -Xlint:-incubating when the compile toolchain moves to JDK 22+
-  options.compilerArgs << '-nowarn'
+  options.compilerArgs << '-Xlint:-incubating'
 }
 
 tasks.named('javadoc').configure {

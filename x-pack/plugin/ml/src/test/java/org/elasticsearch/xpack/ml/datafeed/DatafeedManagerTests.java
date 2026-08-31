@@ -2357,13 +2357,18 @@ public class DatafeedManagerTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
 
+        AnomalyDetectionAuditor auditor = mockAuditor();
+        AnnotationPersister annotationPersister = mock(AnnotationPersister.class);
         DatafeedManager manager = newDatafeedManager(
             datafeedConfigProvider,
             jobConfigProvider,
             settings,
             client,
             mlExtension,
-            mockAuditor()
+            auditor,
+            annotationPersister,
+            threadPool,
+            SCOPE_CHANGE_SIGNAL_DATA_ANCHOR
         );
 
         DatafeedConfig storedConfig = migratedCpsDatafeed("df-scope-nosnap", "job-scope-nosnap");
@@ -2388,6 +2393,14 @@ public class DatafeedManagerTests extends ESTestCase {
         assertThat(capturedUpdate.get(), notNullValue());
         assertThat(capturedUpdate.get().getProjectRouting(), equalTo("_alias:prod-*"));
         verify(client, never()).execute(same(UpdateModelSnapshotAction.INSTANCE), any(), any());
+        verifyProjectRoutingChangeSignals(
+            auditor,
+            annotationPersister,
+            "job-scope-nosnap",
+            ProjectRoutingResolver.LOCAL_ONLY,
+            "_alias:prod-*",
+            false
+        );
     }
 
     @SuppressWarnings("unchecked")

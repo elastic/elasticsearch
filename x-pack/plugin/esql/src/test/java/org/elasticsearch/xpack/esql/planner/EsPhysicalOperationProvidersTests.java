@@ -242,6 +242,51 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         );
     }
 
+    /**
+     * A mapped object field (ObjectMapper) has no scalar block loader. Under {@code unmapped_fields="LOAD_ALL"},
+     * explicitly KEEPing the parent object name must return {@link UnmappedKeywordBlockLoader} rather than
+     * {@link ConstantNull#INSTANCE} — which would also emit a spurious HeaderWarning.
+     */
+    public void testMappedObjectFieldUsesUnmappedKeywordBlockLoader() throws IOException {
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
+            createMapperService(
+                mapping(
+                    b -> b.startObject("network")
+                        .field("type", "object")
+                        .startObject("properties")
+                        .startObject("bytes_in")
+                        .field("type", "long")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+            ),
+            null
+        );
+        var defaultCtx = new EsPhysicalOperationProviders.DefaultShardContext(
+            0,
+            new NoOpReleasable(),
+            searchExecutionContext,
+            AliasFilter.EMPTY
+        );
+        var unmappedCtx = EsPhysicalOperationProviders.wrapWithUnmappedFieldContext(defaultCtx, "network");
+
+        BlockLoader blockLoader = unmappedCtx.blockLoader(
+            "network",
+            false,
+            MappedFieldType.FieldExtractPreference.NONE,
+            null,
+            null,
+            ByteSizeValue.ofKb(100),
+            ByteSizeValue.ofKb(300)
+        );
+        assertThat(
+            "Mapped object field must use UnmappedKeywordBlockLoader (returns null scalar) not ConstantNull (emits warning)",
+            blockLoader,
+            instanceOf(UnmappedKeywordBlockLoader.class)
+        );
+    }
+
     public void testTemporalityForMissingSetting() throws IOException {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
             createMapperService(mapping(b -> b.startObject("metric_temporality").field("type", "keyword").endObject())),

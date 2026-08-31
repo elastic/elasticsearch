@@ -845,9 +845,9 @@ c:long
 3
 ;
 
-####################################################################
-# Gap coverage: known-failing tests documenting intended behaviour #
-####################################################################
+######################################################################
+# Object parent field returns null keyword when explicitly referenced #
+######################################################################
 loadAllSyntheticSourceObjectUnmappedFieldIsNull
 required_capability: optional_fields_load_all_v2
 
@@ -2639,4 +2639,53 @@ foo:integer | id:keyword | unmapped:keyword | unmapped.bar:keyword | unmapped.de
 123         | 5          | null             | null                 | null                       | [arr1, arr2]         | abc
 123         | 6          | null             | null                 | deep6                      | null                 | abc
 123         | 7          | null             | bar7                 | null                       | null                 | abc
+;
+
+##############################################################################
+# Deep nesting and mixed scalar/object arrays (unmapped_edge_cases index)    #
+##############################################################################
+
+deepNestedObjectExpandsToThreeLevelDottedLeafViaExpansion
+required_capability: optional_fields_load_all_v2
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_edge_cases
+| SORT id
+| KEEP id, deep_nested*
+;
+
+id:keyword | deep_nested.outer.middle.inner:keyword
+1          | deepval
+2          | null
+3          | deepval2
+;
+
+deepNestedObjectExplicitKeepDemandLoaded
+required_capability: optional_fields_load_all_v2
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_edge_cases
+| SORT id
+| KEEP id, deep_nested.outer.middle.inner
+;
+
+id:keyword | deep_nested.outer.middle.inner:keyword
+1          | deepval
+2          | null
+3          | deepval2
+;
+
+mixedScalarObjectArrayExpandsBothScalarAndLeafColumns
+required_capability: optional_fields_load_all_v2
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_edge_cases
+| SORT id
+| KEEP id, mixed_arr*
+;
+
+id:keyword | mixed_arr:keyword | mixed_arr.sub:keyword
+1          | null              | null
+2          | scalar            | obj_val
+3          | scalar2           | leaf2
 ;

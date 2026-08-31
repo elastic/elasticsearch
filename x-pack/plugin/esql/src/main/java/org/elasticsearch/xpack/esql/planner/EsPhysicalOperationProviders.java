@@ -48,9 +48,11 @@ import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -493,8 +495,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             ByteSizeValue blockLoaderSizeOrdinals,
             ByteSizeValue blockLoaderSizeScript
         ) {
-            if (asUnsupportedSource == false && name.equals(fullFieldName) && super.fieldType(name) == null) {
-                return unmappedKeywordBlockLoader(name, this);
+            if (asUnsupportedSource == false && name.equals(fullFieldName)) {
+                Mapper mapper = mappingLookup().getMapper(name);
+                if (mapper == null || mapper instanceof ObjectMapper) {
+                    return unmappedKeywordBlockLoader(name, this);
+                }
             }
             return super.blockLoader(
                 name,
@@ -508,7 +513,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         /**
-         * Restrict the _source read to this field's own paths so a single unmapped reference does not force a full _source load
+         * Restrict the _source read to this field's own paths so a single unmapped reference does not force a full _source load.
+         * For object/nested fields ({@link ObjectMapper}), {@code sourcePath} may return an empty set, which falls back to
+         * {@link StoredFieldsSpec#NEEDS_SOURCE} (full source load). The value at that path is a Map, so
+         * {@link UnmappedKeywordValues#collect} discards it; the net result is a null keyword column.
          */
         static BlockLoader unmappedKeywordBlockLoader(String name, DefaultShardContext context) {
             Set<String> sourcePaths = context.ctx.isSourceEnabled() ? context.ctx.sourcePath(name) : Set.of();

@@ -317,6 +317,58 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         }
     }
 
+    public void testNullFieldValueProducesNullColumn() {
+        BlockFactory bf = blockFactory();
+        // A JSON null stored at a key contributes no keyword value, so the expanded column is null.
+        Result result = result(
+            List.of(intAttr(), unmappedAttr()),
+            List.of(page(bf, List.of(row(1, jsonObject("{'f':null,'other':'x'}")))))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "f", "other")));
+            assertThat(nonNullRows(expanded), contains(matchesMap().entry(INT_ATTR, 1).entry("other", "x")));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testNullInArrayProducesNullColumn() {
+        BlockFactory bf = blockFactory();
+        // An array [null] contains no non-null scalars or objects, so the expanded column is null.
+        Result result = result(
+            List.of(intAttr(), unmappedAttr()),
+            List.of(page(bf, List.of(row(1, jsonObject("{'f':[null],'other':'x'}")))))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "f", "other")));
+            assertThat(nonNullRows(expanded), contains(matchesMap().entry(INT_ATTR, 1).entry("other", "x")));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testEmptyArrayProducesNoLeaf() {
+        BlockFactory bf = blockFactory();
+        // An empty array [] contributes no leaf: the field name is not even discovered as a column.
+        Result result = result(
+            List.of(intAttr(), unmappedAttr()),
+            List.of(page(bf, List.of(row(1, jsonObject("{'empty':[],'other':'x'}")))))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            // "empty" never contributes any value, so it does not appear as a column at all.
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "other")));
+            assertThat(nonNullRows(expanded), contains(matchesMap().entry(INT_ATTR, 1).entry("other", "x")));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
     public void testArrayRecursionFlattensNestedArraysAndMixedScalarObjectElements() {
         BlockFactory bf = blockFactory();
         Result result = result(

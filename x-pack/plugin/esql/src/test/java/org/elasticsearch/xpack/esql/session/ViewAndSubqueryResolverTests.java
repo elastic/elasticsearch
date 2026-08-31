@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
@@ -51,6 +53,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Tests for the combined view + IN subquery resolution performed by {@code ViewResolver#replaceViews} followed by
@@ -652,6 +655,80 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         assertInSubqueryJoinKey(markJoin, "dept_id");
         assertUnresolvedRelation(markJoin.left(), "employees");
         assertUnresolvedRelation(as(markJoin.right(), Keep.class).child(), "departments");
+    }
+
+    /*
+     * Aggregate[cnt = COUNT(*) WHERE $$in_subquery_mark]
+     * \_MarkJoin[[?dept_id],[]]
+     *   |_UnresolvedRelation[employees]
+     *   \_Keep[[?dept_id]]
+     *     \_NamedSubquery[dept_view]
+     *       \_Keep[[?dept_id]]
+     *         \_UnresolvedRelation[departments]
+     */
+    public void testStatsWhereInSubqueryReferencingView() {
+        addView("dept_view", "FROM departments | KEEP dept_id");
+        ViewResolver.ViewResolutionResult result = resolve(
+            "FROM employees | STATS cnt = COUNT(*) WHERE dept_id IN (FROM dept_view | KEEP dept_id)"
+        );
+
+        assertTrue(result.hasInSubquery());
+        assertEquals(Set.of("dept_view"), result.viewQueries().keySet());
+
+        Aggregate aggregate = as(result.plan(), Aggregate.class);
+        MarkJoin markJoin = as(aggregate.child(), MarkJoin.class);
+        assertInSubqueryJoinKey(markJoin, "dept_id");
+        assertUnresolvedRelation(markJoin.left(), "employees");
+        Keep keep = as(markJoin.right(), Keep.class);
+        NamedSubquery namedSubquery = as(keep.child(), NamedSubquery.class);
+        keep = as(namedSubquery.child(), Keep.class);
+        assertUnresolvedRelation(keep.child(), "departments");
+    }
+
+    /*
+     * NamedSubquery[employee_counts]
+     * \_Aggregate[cnt = COUNT(*) WHERE $$in_subquery_mark]
+     *   \_MarkJoin[[?dept_id],[]]
+     *     |_UnresolvedRelation[employees]
+     *     \_Keep[[?dept_id]]
+     *       \_NamedSubquery[dept_view]
+     *         \_Keep[[?dept_id]]
+     *           \_UnresolvedRelation[departments]
+     */
+    public void testStatsWhereInSubqueryInsideViewDefinitionReferencingView() {
+        addView("dept_view", "FROM departments | KEEP dept_id");
+        addView("employee_counts", "FROM employees | STATS cnt = COUNT(*) WHERE dept_id IN (FROM dept_view | KEEP dept_id)");
+        ViewResolver.ViewResolutionResult result = resolve("FROM employee_counts");
+
+        assertTrue(result.hasInSubquery());
+        assertEquals(Set.of("dept_view", "employee_counts"), result.viewQueries().keySet());
+
+        NamedSubquery employeeCounts = as(result.plan(), NamedSubquery.class);
+        assertEquals("employee_counts", employeeCounts.name());
+        Aggregate aggregate = as(employeeCounts.child(), Aggregate.class);
+        MarkJoin markJoin = as(aggregate.child(), MarkJoin.class);
+        assertInSubqueryJoinKey(markJoin, "dept_id");
+        assertUnresolvedRelation(markJoin.left(), "employees");
+        Keep keep = as(markJoin.right(), Keep.class);
+        NamedSubquery deptView = as(keep.child(), NamedSubquery.class);
+        assertEquals("dept_view", deptView.name());
+        keep = as(deptView.child(), Keep.class);
+        assertUnresolvedRelation(keep.child(), "departments");
+    }
+
+    /**
+     * INLINE STATS aggregate filters must not be rewritten by the view/subquery resolution pass; the surviving InSubquery is rejected
+     * by {@code InSubqueryResolver#verify}, which {@link #resolve} runs after {@code replaceViews} like {@code EsqlSession} does.
+     */
+    public void testInlineStatsWhereInSubqueryIsRejected() {
+        var e = expectThrows(
+            VerificationException.class,
+            () -> resolve("FROM employees | INLINE STATS cnt = COUNT(*) WHERE emp_no IN (FROM departments | KEEP emp_no)")
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("IN subquery is not supported in [INLINE STATS cnt = COUNT(*) WHERE emp_no IN (FROM departments | KEEP emp_no)]")
+        );
     }
 
     // ---- helpers ----

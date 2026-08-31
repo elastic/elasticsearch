@@ -89,8 +89,11 @@ public class AuditUtilTests extends ESTestCase {
         byte[] body = randomByteArrayOfLength(randomIntBetween(1, 64));
         String encoded = AuditUtil.restRequestRawContent(protobufRequest(body), 0, null);
         assertArrayEquals(body, Base64.getDecoder().decode(encoded));
+    }
 
-        assertEquals("", AuditUtil.restRequestRawContent(new FakeRestRequest.Builder(xContentRegistry()).build(), 0, null));
+    public void testRestRequestRawContentAssertsContentPresent() {
+        RestRequest empty = new FakeRestRequest.Builder(xContentRegistry()).build();
+        expectThrows(AssertionError.class, () -> AuditUtil.restRequestRawContent(empty, 0, null));
     }
 
     public void testRestRequestRawContentExceedsLimitThrows() {

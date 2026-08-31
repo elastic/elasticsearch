@@ -73,15 +73,15 @@ public class AuditUtil {
      * Returns the body of {@code request} base64-encoded, for bodies that have no JSON representation (see {@link #hasProtobufContent}).
      * The bytes are encoded as received by the handler. Any compression that the HTTP layer does not decompress (for example snappy for
      * Prometheus remote-write) is preserved verbatim.
+     * <p>
+     * Callers must ensure the request has content. The sole production caller gates on {@link #hasProtobufContent} which requires it.
      *
      * @param maxBytes   maximum allowed length of the base64 string, in characters. {@code 0} means unlimited. The limit is checked
      *                   before encoding so an oversized body is rejected without the encoding allocation.
      * @param settingKey the cluster setting key to include in the error message. May be {@code null} when {@code maxBytes} is {@code 0}.
      */
     public static String restRequestRawContent(RestRequest request, int maxBytes, String settingKey) {
-        if (request.hasContent() == false) {
-            return "";
-        }
+        assert request.hasContent() : "restRequestRawContent requires a request with content";
         var content = request.content();
         long encodedLength = base64EncodedLength(content.length());
         if (maxBytes > 0 && encodedLength > maxBytes) {

@@ -123,6 +123,13 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         }
     }
 
+    /**
+     * Returns the raw timestamp channel for debugging group assignments.
+     */
+    public int timestampChannel() {
+        return channels.get(1);
+    }
+
     @Override
     public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
         // manage nulls via buffers/reducedStates arrays

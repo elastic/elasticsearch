@@ -1188,10 +1188,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             try {
                 drainEmptyTwoPhaseBatches();
             } finally {
-                counters.addTotalReadNanos(System.nanoTime() - startNanos);
                 if (startCpuNanos >= 0) {
                     counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
                 }
+                counters.addTotalReadNanos(System.nanoTime() - startNanos);
             }
             if (twoPhase != null && twoPhase.hasMoreBatches() == false) {
                 rowsRemainingInGroup = 0;
@@ -1414,10 +1414,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 }
             }
         } finally {
-            counters.addTotalReadNanos(System.nanoTime() - startNanos);
             if (startCpuNanos >= 0) {
                 counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
             }
+            counters.addTotalReadNanos(System.nanoTime() - startNanos);
         }
     }
 
@@ -2472,10 +2472,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             }
             return result;
         } finally {
-            counters.addTotalReadNanos(System.nanoTime() - startNanos);
             if (startCpuNanos >= 0) {
                 counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
             }
+            counters.addTotalReadNanos(System.nanoTime() - startNanos);
         }
     }
 

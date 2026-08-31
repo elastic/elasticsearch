@@ -1293,10 +1293,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             // next() time its row-group transitions and per-page decode separately (see
             // ParquetColumnIterator / OptimizedParquetColumnIterator), accumulating into the same
             // counter so read_nanos covers the reader's full producer-thread lifecycle.
-            counters.addTotalReadNanos(System.nanoTime() - startNanos);
             if (startCpuNanos >= 0) {
                 counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
             }
+            counters.addTotalReadNanos(System.nanoTime() - startNanos);
         }
     }
 
@@ -1663,10 +1663,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 context.informationalWarningSink()
             );
         } finally {
-            counters.addTotalReadNanos(System.nanoTime() - startNanos);
             if (startCpuNanos >= 0) {
                 counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
             }
+            counters.addTotalReadNanos(System.nanoTime() - startNanos);
         }
     }
 
@@ -3243,10 +3243,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 }
                 return rowsRemainingInGroup > 0;
             } finally {
-                counters.addTotalReadNanos(System.nanoTime() - startNanos);
                 if (startCpuNanos >= 0) {
                     counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
                 }
+                counters.addTotalReadNanos(System.nanoTime() - startNanos);
             }
         }
 
@@ -3375,10 +3375,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 emitAbsentColumnWarningsOnce();
                 return new Page(blocks);
             } finally {
-                counters.addTotalReadNanos(System.nanoTime() - startNanos);
                 if (startCpuNanos >= 0) {
                     counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
                 }
+                counters.addTotalReadNanos(System.nanoTime() - startNanos);
             }
         }
 

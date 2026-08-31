@@ -118,6 +118,9 @@ tests:
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=upgraded_cluster/90_ml_data_frame_analytics_crud/Get mixed cluster outlier_detection job}
   issue: https://github.com/elastic/elasticsearch/issues/158137
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/preview_datafeed/Test preview aggregation datafeed with doc_count}
+  issue: https://github.com/elastic/elasticsearch/issues/158138
 
 # Examples:
 #

@@ -167,6 +167,9 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/157466
+- class: org.elasticsearch.xpack.ccr.RestartIT
+  method: testRestart {targetCluster=FOLLOWER}
+  issue: https://github.com/elastic/elasticsearch/issues/155609
 
 # Examples:
 #

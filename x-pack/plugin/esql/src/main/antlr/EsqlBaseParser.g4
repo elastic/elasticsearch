@@ -78,10 +78,11 @@ processingCommand
     | tsCollapseCommand
     | ipLocationCommand
     | mmrCommand
+    | highlightCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | dedupCommand
-    | {this.isDevVersion()}? highlightCommand
+    | {this.isDevVersion()}? denseVectorCommand
     ;
 
 whereCommand
@@ -403,7 +404,7 @@ dedupCommand
     ;
 
 highlightCommand
-    : DEV_HIGHLIGHT (prefixKeyword=identifier ASSIGN prefix=string)? queryExpression=booleanExpression? (ON highlightFields=qualifiedNamePatterns)? commandNamedParameters
+    : HIGHLIGHT (prefixKeyword=identifier ASSIGN prefix=string)? queryExpression=booleanExpression? (ON highlightFields=qualifiedNamePatterns)? commandNamedParameters
     ;
 
 qualifiedNames
@@ -441,4 +442,8 @@ mmrCommand
 mmrQueryVectorParams
     : parameter                           # mmrQueryVectorParameter
     | primaryExpression                   # mmrQueryVectorExpression
+    ;
+
+denseVectorCommand
+    : DEV_DENSE_VECTOR qualifiedNames commandNamedParameters
     ;

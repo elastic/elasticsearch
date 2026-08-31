@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.DeferredRegexExpression;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
@@ -87,9 +88,9 @@ import java.util.TreeSet;
  *   <li>{@code ENRICH} and {@code LOOKUP JOIN ... ON ...} accept only bare attributes in their
  *       bodies; in-scope references there are recorded as {@link SkipEvent}s instead of being
  *       wrapped.</li>
- *   <li>The left-hand side of the match operator {@code :} ({@link MatchOperator}) accepts only a
- *       bare attribute; in-scope references there are recorded as
- *       {@link SkipSite#MATCH_OPERATOR_LHS} skip events.</li>
+ *   <li>The left-hand side of the match operator {@code :} ({@link MatchOperator}) is a
+ *       {@code primaryExpression}, so an in-scope keyword reference there is wrapped in
+ *       {@code field_extract(...)} in place, exactly like a {@code MATCH(field, "...")} argument.</li>
  *   <li>{@code field IN (subquery)} — including the multi-column tuple form
  *       {@code (f1, f2) IN (subquery)} — hoists a bare in-scope left-hand side into an
  *       {@code EVAL field = field_extract(field, "v")} inserted before the {@code WHERE} (the
@@ -146,8 +147,6 @@ public final class AstKeywordFieldRewriter {
         MV_EXPAND_ARG,
         /** Body of an {@code ENRICH <policy> [ON <field>] [WITH ...]} command (any sub-position). */
         ENRICH_BODY,
-        /** Identifier on the left-hand side of a single-colon match operator ({@code field : "value"}). */
-        MATCH_OPERATOR_LHS,
         /** Body of a {@code LOOKUP JOIN <index> ON <field>[, <field>]*} command. */
         LOOKUP_JOIN_ON,
         /** Identifier inside an ES|QL qualified-name reference of the form {@code [<index>].[<field>]}. */
@@ -664,21 +663,30 @@ public final class AstKeywordFieldRewriter {
          * rebound names for {@code INLINE STATS} (row preserved).
          */
         private Set<String> processAggregate(Aggregate aggregate, Set<String> scope, boolean preserveInput) {
+            Set<String> hoist = new HashSet<>();
+            for (NamedExpression ne : aggregate.aggregates()) {
+                if (ne instanceof Alias alias && alias.child() instanceof FilteredExpression fe) {
+                    hoist.addAll(collectInSubqueryLhsHoist(fe.filter(), scope));
+                }
+            }
+            hoistBeforeCommand(aggregate.source(), hoist);
+            Set<String> wrapScope = removeAll(scope, hoist);
+
             List<String> aliasedBy = new ArrayList<>();
             Set<String> shadowed = new HashSet<>();
             for (Expression grouping : aggregate.groupings()) {
-                classifyStatsPiece(grouping, scope, true, aliasedBy, shadowed);
+                classifyStatsPiece(grouping, wrapScope, true, aliasedBy, shadowed);
             }
             // The parser appends one attribute reference per grouping key to the end of the
             // aggregates list; only the leading user-written aggregates need processing.
             List<? extends NamedExpression> aggregates = aggregate.aggregates();
             int userAggCount = aggregates.size() - aggregate.groupings().size();
             for (int i = 0; i < userAggCount; i++) {
-                classifyStatsPiece(aggregates.get(i), scope, false, aliasedBy, shadowed);
+                classifyStatsPiece(aggregates.get(i), wrapScope, false, aliasedBy, shadowed);
             }
             insertStatsRenameBack(aggregate, aliasedBy, preserveInput);
             if (preserveInput) {
-                return removeAll(scope, shadowed);
+                return removeAll(wrapScope, shadowed);
             }
             return new HashSet<>();
         }
@@ -866,8 +874,9 @@ public final class AstKeywordFieldRewriter {
 
         /**
          * Recursively wraps in-scope references inside {@code expression}. Stops at attribute leaves
-         * (wrapping in-scope ones), protects the LHS of the match operator {@code :}, and recurses
-         * into {@code IN (subquery)} by wrapping the left-hand side and rewriting the subquery.
+         * (wrapping in-scope ones), wraps the LHS of the match operator {@code :} in place (its
+         * grammar slot is a {@code primaryExpression}), and recurses into {@code IN (subquery)} by
+         * wrapping the left-hand side and rewriting the subquery.
          *
          * @param trackingContext the tracking context for function arguments, or {@code null}
          *                        when the expression is not directly inside a function call
@@ -900,10 +909,16 @@ public final class AstKeywordFieldRewriter {
                 return;
             }
             if (expression instanceof MatchOperator matchOperator) {
-                // The match operator's left-hand side accepts only a bare attribute; record any
-                // in-scope reference there as a skip and leave the whole operator untouched (its
-                // right-hand side is a constant in every corpus case).
-                recordSkips(List.of(matchOperator), scope, SkipSite.MATCH_OPERATOR_LHS);
+                // The match operator's left-hand side is a primaryExpression (the grammar accepts a function
+                // there), so an in-scope keyword field is wrapped in field_extract(...) in place, exactly like a
+                // MATCH(field, "...") argument. MatchOperator (extends Match) runs the resulting synthetic field
+                // attribute through the runtime lexical search path, so flag it like a wrapped MATCH arg. The
+                // right-hand side is a constant in every corpus case and is left untouched.
+                Expression lhs = matchOperator.field();
+                if (lhs instanceof UnresolvedAttribute attr && scope.contains(attr.name()) && spanMatches(attr.source())) {
+                    wrappedMatchFunctionArg = true;
+                }
+                wrapExpression(lhs, scope, null);
                 return;
             }
 

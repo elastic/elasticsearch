@@ -58,7 +58,6 @@ import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.Text;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -267,7 +266,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
     private void registerLongGaugeMetric(String name, String unit, String description, LongSupplier valueSupplier) {
         @SuppressWarnings("resource")
-        final var longGauge = meterRegistry.registerLongGauge(
+        final var longGauge = meterRegistry.registerLongAsyncGauge(
             name,
             description,
             unit,
@@ -2018,7 +2017,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 return new PendingClusterTask(
                     entry.insertionIndex(),
                     perPriorityQueue.priority(),
-                    new Text(entry.source()),
+                    entry.source(),
                     // in case an element was added to the queue after we cached the current time, we count the wait time as 0
                     Math.max(0L, currentTimeMillis - entry.insertionTimeMillis()),
                     executing

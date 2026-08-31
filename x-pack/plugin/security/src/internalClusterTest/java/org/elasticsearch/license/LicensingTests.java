@@ -249,15 +249,16 @@ public class LicensingTests extends SecurityIntegTestCase {
             assertThat(afterWarningHeaders, Matchers.hasSize(0));
         }
         assertThat(headers, notNullValue());
-        assertThat(Strings.arrayToCommaDelimitedString(headers), headers, arrayWithSize(4));
+        assertThat(Strings.arrayToCommaDelimitedString(headers), headers, arrayWithSize(5));
 
         Arrays.sort(headers, Comparator.comparing((Header h) -> h.getName().toLowerCase(Locale.ROOT)).thenComparing(Header::getValue));
         assertThat(headers[0].getName(), equalToIgnoringCase("content-length"));
         assertThat(headers[1].getName(), equalToIgnoringCase("content-type"));
-        assertThat(headers[2].getName(), equalToIgnoringCase("WWW-Authenticate"));
-        assertThat(headers[2].getValue(), containsStringIgnoringCase("ApiKey"));
+        assertThat(headers[2].getName(), equalToIgnoringCase("date"));
         assertThat(headers[3].getName(), equalToIgnoringCase("WWW-Authenticate"));
-        assertThat(headers[3].getValue(), containsStringIgnoringCase("Basic"));
+        assertThat(headers[3].getValue(), containsStringIgnoringCase("ApiKey"));
+        assertThat(headers[4].getName(), equalToIgnoringCase("WWW-Authenticate"));
+        assertThat(headers[4].getValue(), containsStringIgnoringCase("Basic"));
     }
 
     private static void assertElasticsearchSecurityException(ThrowingRunnable runnable) {

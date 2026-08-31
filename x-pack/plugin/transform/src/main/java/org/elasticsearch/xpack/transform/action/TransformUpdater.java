@@ -536,7 +536,7 @@ public class TransformUpdater {
     ) {
         ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(
             config.getSource().getIndex(),
-            config.getSource().indicesOptions()
+            config.getScopedIndicesOptions()
         );
         ClientHelper.executeAsyncWithOrigin(
             client,

@@ -119,15 +119,16 @@ public interface StorageObject {
      * listener has {@code capacity() == length} (the requested length) and {@code remaining()}
      * equal to the number of bytes actually read. On a short read these differ — consumers must
      * use {@code remaining()} (or {@code limit() - position()}) to size their work, never
-     * {@code capacity()}. The buffer is direct.
+     * {@code capacity()}. The buffer is not required to be direct; production factories
+     * return a heap {@code byte[]} view.
      * <p>
      * On end-of-content at {@code position} the buffer is delivered with {@code remaining() == 0}.
      *
      * <p>
      * <b>Buffer ownership:</b> the storage object obtains exactly one {@link DirectReadBuffer} of
      * {@code length} bytes from {@code factory}. The caller must invoke {@link DirectReadBuffer#close()}
-     * once the bytes have been consumed; closing releases the buffer back to its underlying
-     * allocator. See {@link DirectReadBuffer} for the contract.
+     * once the bytes have been consumed; closing releases the buffer (breaker charge for heap,
+     * native memory for Arrow-backed factories). See {@link DirectReadBuffer} for the contract.
      *
      * <p>
      * <b>Implementation contract:</b> if the read fails, implementations must close the
@@ -158,9 +159,9 @@ public interface StorageObject {
             listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
             return;
         }
-        // Allocate on the calling thread so a direct-memory OOM (or breaker trip) surfaces
-        // synchronously via the listener instead of escaping the executor's Runnable as an Error
-        // and leaving the listener permanently uncompleted.
+        // Allocate on the calling thread so a breaker trip or OOM surfaces synchronously via
+        // the listener instead of escaping the executor's Runnable as an Error and leaving the
+        // listener permanently uncompleted.
         final DirectReadBuffer drb;
         boolean submitted = false;
         try {

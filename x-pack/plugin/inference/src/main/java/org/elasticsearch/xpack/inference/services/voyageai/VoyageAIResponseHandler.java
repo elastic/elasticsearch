@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.inference.services.voyageai.response.VoyageAIErro
  *
  */
 public class VoyageAIResponseHandler extends BaseResponseHandler {
-    static final String VALIDATION_ERROR_MESSAGE = "Received an input validation error response";
     static final String PAYMENT_ERROR_MESSAGE = "Payment required";
 
     public VoyageAIResponseHandler(String requestType, ResponseParser parseFunction) {
@@ -45,7 +44,7 @@ public class VoyageAIResponseHandler extends BaseResponseHandler {
         } else if (statusCode == 429) {
             return new RetryException(true, buildError(RATE_LIMIT, outboundRequest, result));
         } else if (statusCode == 400 || statusCode == 422) {
-            return new RetryException(false, buildError(VALIDATION_ERROR_MESSAGE, outboundRequest, result));
+            return new RetryException(false, buildError(VALIDATION_ERROR, outboundRequest, result));
         } else if (statusCode == 401) {
             return new RetryException(false, buildError(AUTHENTICATION, outboundRequest, result));
         } else if (statusCode == 402) {

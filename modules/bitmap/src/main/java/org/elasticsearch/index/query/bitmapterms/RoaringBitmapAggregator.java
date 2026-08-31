@@ -57,6 +57,7 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
     private final ValuesSource.Numeric valuesSource;
     private final InternalRoaringBitmap.BitmapFormat width;
     private final String termsField;
+    private final int termLength;
     private final Runnable cancellationCheck;
     private final LongObjectPagedHashMap<AccountedBitmap> bitmaps;
     private long accountedBitmapBytes;
@@ -76,6 +77,13 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
         this.valuesSource = valuesSource;
         this.width = width;
         this.termsField = termsFieldIfAvailable(config);
+        this.termLength = switch (width) {
+            case INT -> Integer.BYTES;
+            case LONG -> Long.BYTES;
+            // Never read: UNMAPPED implies a null values source, which termsFieldIfAvailable rejects,
+            // so the terms path -- the only caller of decodeTerm -- is unreachable for it.
+            case UNMAPPED -> -1;
+        };
         this.cancellationCheck = () -> {
             if (context.isCancelled()) {
                 throw new TaskCancelledException("cancelled");
@@ -174,16 +182,8 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
     }
 
     private long decodeTerm(BytesRef term) {
-        int expectedLength = switch (width) {
-            case INT -> Integer.BYTES;
-            case LONG -> Long.BYTES;
-            case UNMAPPED -> throw new IllegalStateException("cannot decode indexed terms for an unmapped field");
-        };
-        if (term.length != expectedLength) {
-            throw new IllegalStateException(
-                "[roaring_bitmap] aggregation expected indexed terms of length [" + expectedLength + "] but found [" + term.length + "]"
-            );
-        }
+        assert term.length == termLength
+            : "[roaring_bitmap] aggregation expected indexed terms of length [" + termLength + "] but found [" + term.length + "]";
         return switch (width) {
             case INT -> NumericUtils.sortableBytesToInt(term.bytes, term.offset);
             case LONG -> NumericUtils.sortableBytesToLong(term.bytes, term.offset);

@@ -15,6 +15,10 @@ Use this aggregation when you need the set of values itself, rather than only it
 Values must be non-negative: `0` to `2^31 - 1` for `integer` fields, and `0` to `2^63 - 1` for `long` fields.
 If a matching document contains a negative value, the search request fails.
 
+::::{tip}
+Mapping the field with [`index_terms: true`](/reference/elasticsearch/mapping-reference/number.md#index-terms-mapping-param) lets the aggregation read the distinct values directly from the inverted index, which is much faster on searches that match every document. See [Speed up collection with `index_terms`](#roaring-bitmap-aggregation-index-terms). The aggregation also works on the default BKD-indexed numeric fields.
+::::
+
 ## Example request [roaring-bitmap-aggregation-example]
 
 1. Create an index with a `long` product identifier.
@@ -152,6 +156,17 @@ bitmap.deserialize(ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN));
 ```
 
 See [Bitmap format](/reference/query-languages/query-dsl/query-dsl-bitmap-terms-query.md#bitmap-terms-format) for compatible libraries and serialization details.
+
+## Speed up collection with `index_terms` [roaring-bitmap-aggregation-index-terms]
+
+By default the aggregation reads the [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md) of every matching document, so its cost grows with the number of matching documents. When the field is mapped with [`index_terms: true`](/reference/elasticsearch/mapping-reference/number.md#index-terms-mapping-param), {{es}} can read the distinct values straight from the terms dictionary instead, where each value appears exactly once. The cost then grows with the number of distinct values rather than the number of documents, which is a large saving when many documents share a value.
+
+This optimization applies when:
+
+* The field is mapped with `index_terms: true`.
+* The search matches every document, either by omitting `query` or by using [`match_all`](/reference/query-languages/query-dsl/query-dsl-match-all-query.md). Any other query reads doc values, because the terms dictionary does not record which documents hold each value.
+* The aggregation is at the top level, not nested under a bucket aggregation.
+* The aggregation does not use the `missing` parameter, whose substituted value is not present in the index.
 
 ## Choosing an aggregation [roaring-bitmap-aggregation-choose]
 

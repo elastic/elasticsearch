@@ -921,7 +921,8 @@ reviewers and future readers. For example, include implementation trade-offs
 that were considered, unobvious interactions between components, testing notes. 
 Do not paste the output of LLM-based tools verbatim in a PR description. These 
 tools tend to be very verbose, use confusing jargon, and otherwise dilute the 
-attention of the readers.
+attention of the readers. Do not use LLM-based tools for communication with 
+maintainers.
 
 We sometimes reject contributions if we find ourselves performing many review
 iterations without making enough progress. Some iteration is expected,

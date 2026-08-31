@@ -169,11 +169,13 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         this.ownedFooter = Objects.requireNonNull(ownedFooter, "ownedFooter");
         this.errorPolicy = Objects.requireNonNull(errorPolicy, "errorPolicy");
         this.warningSink = warningSink;
+        // Deduplicate recoveries: consecutive extract calls re-walk the same row-group rows, so the
+        // same malformed row would otherwise be charged to the error budget once per pass over it.
         this.listCorruptionHandler = new ParquetColumnDecoding.ListCorruptionHandler(
             errorPolicy,
             storageObject.path().toString(),
             warningSink,
-            true
+            /* deduplicateRecoveries = */ true
         );
         List<BlockMetaData> blocks = ownedFooter.getBlocks();
         this.rowGroupOffsets = new long[blocks.size() + 1];

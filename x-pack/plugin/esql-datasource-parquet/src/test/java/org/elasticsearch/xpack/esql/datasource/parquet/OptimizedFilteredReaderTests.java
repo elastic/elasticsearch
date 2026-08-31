@@ -40,6 +40,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
@@ -47,6 +48,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -607,11 +609,7 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
     public void testLateMaterializationSkipsAllFilteredListRows() throws IOException {
         byte[] parquetData = createListProjectionFile();
         ReferenceAttribute tag = new ReferenceAttribute(Source.EMPTY, "tag", DataType.KEYWORD);
-        Expression noMatch = new org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike(
-            Source.EMPTY,
-            tag,
-            new org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern("*missing*")
-        );
+        Expression noMatch = new WildcardLike(Source.EMPTY, tag, new WildcardPattern("*missing*"));
 
         List<Page> pages = readWithPushedExpressions(parquetData, noMatch);
         try {

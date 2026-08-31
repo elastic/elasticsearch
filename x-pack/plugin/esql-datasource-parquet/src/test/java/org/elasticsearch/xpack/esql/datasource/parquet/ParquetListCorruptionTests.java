@@ -56,7 +56,7 @@ public class ParquetListCorruptionTests extends ESTestCase {
         List<String> warnings = new ArrayList<>();
         ParquetColumnDecoding.ListColumnReader input = input(reader, info, ErrorPolicy.PERMISSIVE, warnings);
 
-        try (Block block = ParquetColumnDecoding.readListColumn(input, info, 2, blockFactory)) {
+        try (Block block = readList(input, info, 2)) {
             LongBlock longs = (LongBlock) block;
             assertEquals(2, longs.getValueCount(0));
             int first = longs.getFirstValueIndex(0);
@@ -93,7 +93,7 @@ public class ParquetListCorruptionTests extends ESTestCase {
         List<String> warnings = new ArrayList<>();
         ParquetColumnDecoding.ListColumnReader input = input(reader, info, ErrorPolicy.PERMISSIVE, warnings);
 
-        try (Block block = ParquetColumnDecoding.readListColumn(input, info, 2, blockFactory)) {
+        try (Block block = readList(input, info, 2)) {
             LongBlock longs = (LongBlock) block;
             assertEquals(2, longs.getValueCount(0));
             assertEquals(946684800000L, longs.getLong(longs.getFirstValueIndex(0)));
@@ -122,7 +122,7 @@ public class ParquetListCorruptionTests extends ESTestCase {
         List<String> warnings = new ArrayList<>();
         ParquetColumnDecoding.ListColumnReader input = input(reader, info, ErrorPolicy.PERMISSIVE, warnings);
 
-        try (Block block = ParquetColumnDecoding.readListColumn(input, info, 2, blockFactory)) {
+        try (Block block = readList(input, info, 2)) {
             assertTrue(block.areAllValuesNull());
             assertEquals(2, block.getPositionCount());
         }
@@ -136,7 +136,7 @@ public class ParquetListCorruptionTests extends ESTestCase {
         for (ErrorPolicy policy : policies()) {
             FakeColumnReader reader = new FakeColumnReader(new int[] { 0, 0 }, new int[] { 1, 2 });
             ParquetColumnDecoding.ListColumnReader input = input(reader, info, policy, new ArrayList<>());
-            try (Block ignored = ParquetColumnDecoding.readListColumn(input, info, 1, blockFactory)) {
+            try (Block ignored = readList(input, info, 1)) {
                 IllegalArgumentException e = expectThrows(IllegalArgumentException.class, input::validateExhausted);
                 assertThat(e.getMessage(), containsString("[1] level values remain"));
             }
@@ -158,10 +158,7 @@ public class ParquetListCorruptionTests extends ESTestCase {
         for (ErrorPolicy policy : policies()) {
             FakeColumnReader reader = new FakeColumnReader(new int[] { 0 }, new int[] { 1 });
             ParquetColumnDecoding.ListColumnReader input = input(reader, info, policy, new ArrayList<>());
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> ParquetColumnDecoding.readListColumn(input, info, 2, blockFactory)
-            );
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> readList(input, info, 2));
             assertThat(e.getMessage(), containsString("footer row count exceeds"));
         }
     }
@@ -183,7 +180,7 @@ public class ParquetListCorruptionTests extends ESTestCase {
             1_000
         );
 
-        try (Block block = ParquetColumnDecoding.readListColumn(input, info, 1, blockFactory)) {
+        try (Block block = readList(input, info, 1)) {
             assertEquals(7, ((IntBlock) block).getInt(0));
         }
         input.validateExhausted();
@@ -250,10 +247,7 @@ public class ParquetListCorruptionTests extends ESTestCase {
             for (int invalidLevel : new int[] { -1, info.maxDefLevel() + 1 }) {
                 FakeColumnReader reader = new FakeColumnReader(new int[] { 0 }, new int[] { invalidLevel }, new int[] { 1 });
                 ParquetColumnDecoding.ListColumnReader input = input(reader, info, policy, new ArrayList<>());
-                IllegalArgumentException e = expectThrows(
-                    IllegalArgumentException.class,
-                    () -> ParquetColumnDecoding.readListColumn(input, info, 1, blockFactory)
-                );
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> readList(input, info, 1));
                 assertThat(e.getMessage(), containsString("definition level [" + invalidLevel + "] is outside"));
             }
         }
@@ -269,10 +263,7 @@ public class ParquetListCorruptionTests extends ESTestCase {
                     new int[] { 1 }
                 );
                 ParquetColumnDecoding.ListColumnReader input = input(reader, info, policy, new ArrayList<>());
-                IllegalArgumentException e = expectThrows(
-                    IllegalArgumentException.class,
-                    () -> ParquetColumnDecoding.readListColumn(input, info, 1, blockFactory)
-                );
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> readList(input, info, 1));
                 assertThat(e.getMessage(), containsString("repetition level [" + invalidLevel + "] is outside"));
             }
         }
@@ -296,6 +287,15 @@ public class ParquetListCorruptionTests extends ESTestCase {
         String file = "memory://malformed-list.parquet";
         ParquetColumnDecoding.ListCorruptionHandler handler = new ParquetColumnDecoding.ListCorruptionHandler(policy, file, warnings::add);
         return ParquetColumnDecoding.ListColumnReader.bind(reader, info, handler, "x", file, 0, 0);
+    }
+
+    /**
+     * Decodes with no coercion sink and no null-element collector: these tests assert on the
+     * repetition-level recovery, which the LIST corruption handler owns, not on the per-value
+     * notices the read paths pass in.
+     */
+    private Block readList(ParquetColumnDecoding.ListColumnReader input, ColumnInfo info, int rows) {
+        return ParquetColumnDecoding.readListColumn(input, info, rows, blockFactory, "x", null, null, SkipWarnings.NOOP);
     }
 
     /**

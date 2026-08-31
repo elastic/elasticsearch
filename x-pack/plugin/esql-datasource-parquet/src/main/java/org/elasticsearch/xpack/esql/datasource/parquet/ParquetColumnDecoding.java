@@ -32,6 +32,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
@@ -44,8 +45,8 @@ import java.nio.ByteOrder;
 import java.time.DateTimeException;
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 
@@ -578,8 +579,16 @@ final class ParquetColumnDecoding {
         private final ErrorPolicy errorPolicy;
         private final String fileLocation;
         private final SkipWarnings warnings;
+        /**
+         * Highest row ordinal already charged, per column and row group, or {@code null} when every
+         * event is charged. A high-water mark rather than the set of charged events: a decode pass
+         * walks a row group's rows in ascending order, so an orphan at or below the mark was seen
+         * (and charged) by the pass that reached the mark. That makes the mark exactly as precise as
+         * the event set, while bounding this map by the number of columns and row groups rather than
+         * by the number of malformed rows in the file.
+         */
         @Nullable
-        private final Set<RecoveryKey> recoveredEvents;
+        private final Map<RecoveryScope, Long> chargedRows;
         private long errorCount;
         private long recoveredListErrorCount;
         private long droppedRowErrorCount;
@@ -598,7 +607,7 @@ final class ParquetColumnDecoding {
         ) {
             this.errorPolicy = errorPolicy;
             this.fileLocation = fileLocation;
-            this.recoveredEvents = deduplicateRecoveries ? new HashSet<>() : null;
+            this.chargedRows = deduplicateRecoveries ? new HashMap<>() : null;
             this.warnings = SkipWarnings.of(
                 errorPolicy,
                 "Parquet file [" + fileLocation + "] has malformed LIST repetition levels; invalid fragments were skipped",
@@ -611,8 +620,13 @@ final class ParquetColumnDecoding {
         }
 
         void recoveredOrphan(String columnName, int rowGroupOrdinal, long rowOrdinal, long rowsSeen, long discardedValues) {
-            if (recoveredEvents != null && recoveredEvents.add(new RecoveryKey(columnName, rowGroupOrdinal, rowOrdinal)) == false) {
-                return;
+            if (chargedRows != null) {
+                RecoveryScope scope = new RecoveryScope(columnName, rowGroupOrdinal);
+                Long charged = chargedRows.get(scope);
+                if (charged != null && rowOrdinal <= charged) {
+                    return;
+                }
+                chargedRows.put(scope, rowOrdinal);
             }
             errorCount++;
             recoveredListErrorCount++;
@@ -659,33 +673,7 @@ final class ParquetColumnDecoding {
                 errorKind = "errors";
             }
             if (budgetWarnings != null) {
-                if (recoveredListErrorCount == 0) {
-                    budgetWarnings.add(
-                        "Columnar error budget exceeded at ["
-                            + fileLocation
-                            + "]: ["
-                            + errorCount
-                            + "] dropped rows in ["
-                            + rowsSeen
-                            + "] decoded rows, maximum ["
-                            + errorPolicy.maxErrors()
-                            + "] errors or ratio ["
-                            + errorPolicy.maxErrorRatio()
-                            + "]"
-                    );
-                } else {
-                    budgetWarnings.add(
-                        "Parquet error budget exceeded in file ["
-                            + fileLocation
-                            + "]: ["
-                            + errorCount
-                            + "] "
-                            + errorKind
-                            + " in ["
-                            + rowsSeen
-                            + "] decoded rows"
-                    );
-                }
+                budgetWarnings.add(ColumnarRowDropHelper.budgetExceededWarning(errorPolicy, fileLocation, errorCount, rowsSeen, errorKind));
             }
             throw new ParsingException(
                 Source.EMPTY,
@@ -699,7 +687,7 @@ final class ParquetColumnDecoding {
             );
         }
 
-        private record RecoveryKey(String columnName, int rowGroupOrdinal, long rowOrdinal) {}
+        private record RecoveryScope(String columnName, int rowGroupOrdinal) {}
     }
 
     /**
@@ -1023,7 +1011,7 @@ final class ParquetColumnDecoding {
         ColumnInfo info,
         int rows,
         BlockFactory blockFactory,
-        @Nullable String columnName,
+        String columnName,
         @Nullable SkipWarnings warnings,
         @Nullable IntConsumer failedPositionSink,
         SkipWarnings lossWarnings
@@ -1083,10 +1071,6 @@ final class ParquetColumnDecoding {
             lossWarnings.addOnce(nullListElementsMessage(columnName));
         }
         return block;
-    }
-
-    static Block readListColumn(ListColumnReader input, ColumnInfo info, int rows, BlockFactory blockFactory) {
-        return readListColumn(input, info, rows, blockFactory, null, null, null, SkipWarnings.NOOP);
     }
 
     /**

@@ -22,7 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.tencentcloud.request.TencentCloudUtils.decorateWithAuthHeader;
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.decorateWithAuthHeader;
 
 public class TencentCloudRerankRequest implements OutboundRerankRequest {
 

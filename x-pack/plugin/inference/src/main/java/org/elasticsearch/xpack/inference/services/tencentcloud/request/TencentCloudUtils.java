@@ -7,17 +7,11 @@
 
 package org.elasticsearch.xpack.inference.services.tencentcloud.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
-
-import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
 public final class TencentCloudUtils {
 
@@ -43,10 +37,5 @@ public final class TencentCloudUtils {
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException("Failed to build TencentCloud URI for region [" + region + "]", e);
         }
-    }
-
-    public static void decorateWithAuthHeader(HttpPost request, SecureString apiKey) {
-        request.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
-        request.setHeader(createAuthBearerHeader(apiKey));
     }
 }

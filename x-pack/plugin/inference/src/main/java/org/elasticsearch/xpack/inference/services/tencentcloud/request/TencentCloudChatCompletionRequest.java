@@ -13,14 +13,12 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.external.request.OutboundUnifiedCompletionRequest;
-import org.elasticsearch.xpack.inference.external.unified.UnifiedChatCompletionRequestEntity;
+import org.elasticsearch.xpack.inference.external.request.RequestUtils;
 import org.elasticsearch.xpack.inference.services.tencentcloud.completion.TencentCloudChatCompletionModel;
 
 import java.io.IOException;
@@ -30,7 +28,7 @@ import java.util.Objects;
 
 /**
  * Outbound request for TencentCloud AI Gateway {@code POST /v1/chat/completions}.
- * The Gateway is fully OpenAI-compatible so {@link UnifiedChatCompletionRequestEntity} is reused for the request body.
+ * The Gateway is fully OpenAI-compatible; the request body is produced by {@link TencentCloudChatCompletionRequestEntity}.
  */
 public class TencentCloudChatCompletionRequest implements OutboundUnifiedCompletionRequest {
 
@@ -47,21 +45,16 @@ public class TencentCloudChatCompletionRequest implements OutboundUnifiedComplet
         HttpPost httpPost = new HttpPost(model.uri());
         httpPost.setEntity(createEntity());
 
-        TencentCloudUtils.decorateWithAuthHeader(httpPost, model.getSecretSettings().apiKey());
+        RequestUtils.decorateWithAuthHeader(httpPost, model.getSecretSettings().apiKey());
 
         listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     private ByteArrayEntity createEntity() {
-        var modelId = Objects.requireNonNullElseGet(unifiedChatInput.getRequest().model(), model::model);
         try (var builder = JsonXContent.contentBuilder()) {
-            builder.startObject();
-            new UnifiedChatCompletionRequestEntity(unifiedChatInput).toXContent(
-                builder,
-                UnifiedCompletionRequest.withMaxTokens(modelId, ToXContent.EMPTY_PARAMS)
+            return new ByteArrayEntity(
+                Strings.toString(new TencentCloudChatCompletionRequestEntity(unifiedChatInput, model)).getBytes(StandardCharsets.UTF_8)
             );
-            builder.endObject();
-            return new ByteArrayEntity(Strings.toString(builder).getBytes(StandardCharsets.UTF_8));
         } catch (IOException e) {
             throw new ElasticsearchException("Failed to serialize TencentCloud chat completion request payload.", e);
         }

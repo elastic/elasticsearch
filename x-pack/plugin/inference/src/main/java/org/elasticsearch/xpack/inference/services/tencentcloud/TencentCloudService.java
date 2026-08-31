@@ -61,6 +61,7 @@ import static org.elasticsearch.xpack.inference.external.action.ActionUtils.cons
 import static org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs.fromRerankRequest;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedTaskTypeStatusException;
 
 /**
  * Inference service integration for the TencentCloud AI Gateway (OpenAI-compatible), supporting {@code text_embedding},
@@ -71,9 +72,7 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
     public static final String NAME = "tencentcloud";
     private static final String SERVICE_NAME = "TencentCloud AI Gateway";
 
-    public static final TransportVersion TENCENT_CLOUD_INFERENCE_SERVICE_ADDED = TransportVersion.fromName(
-        "ml_inference_tencentcloud_added"
-    );
+    public static final TransportVersion TENCENT_CLOUD_INFERENCE_SERVICE_ADDED = TransportVersion.fromName("inference_tencentcloud_added");
 
     // Batch limit for embedding chunking. TencentCloud AI Gateway does not document a hard cap; use a conservative value.
     private static final int EMBEDDING_MAX_BATCH_SIZE = 32;
@@ -85,6 +84,11 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
         TaskType.RERANK
     );
     private static final EnumSet<TaskType> SUPPORTED_STREAMING_TASKS = EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
+
+    /**
+     * The task types that the {@link org.elasticsearch.xpack.core.inference.action.InferenceAction.Request} can accept.
+     */
+    private static final EnumSet<TaskType> SUPPORTED_INFERENCE_ACTION_TASK_TYPES = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
 
     private static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new OpenAiUnifiedChatCompletionResponseHandler(
         "tencentcloud chat completion",
@@ -173,6 +177,11 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
+        if (SUPPORTED_INFERENCE_ACTION_TASK_TYPES.contains(model.getTaskType()) == false) {
+            listener.onFailure(createUnsupportedTaskTypeStatusException(model, SUPPORTED_INFERENCE_ACTION_TASK_TYPES));
+            return;
+        }
+
         if (model instanceof TencentCloudModel tencentCloudModel) {
             var actionCreator = new TencentCloudActionCreator(getSender(), getServiceComponents());
             var action = tencentCloudModel.accept(actionCreator, taskSettings);

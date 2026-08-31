@@ -83,6 +83,7 @@ public class TencentCloudActionCreator implements TencentCloudActionVisitor {
      */
     @Override
     public ExecutableAction create(TencentCloudEmbeddingsModel model, Map<String, Object> taskSettings) {
+        // TencentCloud embeddings define no task settings, so there is nothing to merge into the model here.
         var requestManager = new GenericRequestManager<>(
             serviceComponents.threadPool(),
             model,
@@ -129,6 +130,7 @@ public class TencentCloudActionCreator implements TencentCloudActionVisitor {
      */
     @Override
     public ExecutableAction create(TencentCloudChatCompletionModel model, Map<String, Object> taskSettings) {
+        // TencentCloud chat completion defines no task settings, so the request-level taskSettings are intentionally unused.
         var requestManager = new GenericRequestManager<>(
             serviceComponents.threadPool(),
             model,

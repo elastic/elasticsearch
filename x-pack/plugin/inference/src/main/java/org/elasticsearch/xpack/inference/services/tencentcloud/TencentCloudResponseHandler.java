@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.inference.services.tencentcloud;
 
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
-import org.elasticsearch.xpack.inference.services.tencentcloud.response.TencentCloudErrorResponseEntity;
 
 /**
  * Standard response handler for TencentCloud AI Gateway (embeddings and rerank).
@@ -24,7 +24,7 @@ public class TencentCloudResponseHandler extends BaseResponseHandler {
     static final String PERMISSION_ERROR_MESSAGE = "Permission denied";
 
     public TencentCloudResponseHandler(String requestType, ResponseParser parseFunction) {
-        super(requestType, parseFunction, TencentCloudErrorResponseEntity::fromResponse);
+        super(requestType, parseFunction, ErrorResponse::fromResponse);
     }
 
     @Override

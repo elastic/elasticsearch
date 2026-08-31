@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.tencentcloud.rerank;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -38,11 +39,10 @@ public class TencentCloudRerankModel extends TencentCloudModel {
      * @return a new TencentCloudRerankModel with overridden task settings, or the original model if no overrides apply
      */
     public static TencentCloudRerankModel of(TencentCloudRerankModel model, Map<String, Object> taskSettings) {
-        var requestTaskSettings = TencentCloudRerankTaskSettings.fromMap(taskSettings);
-        if (requestTaskSettings.isEmpty() || requestTaskSettings.equals(model.getTaskSettings())) {
+        if (taskSettings == null || taskSettings.isEmpty()) {
             return model;
         }
-        return new TencentCloudRerankModel(model, TencentCloudRerankTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
+        return new TencentCloudRerankModel(model, model.getTaskSettings().updatedTaskSettings(taskSettings));
     }
 
     /**
@@ -106,18 +106,8 @@ public class TencentCloudRerankModel extends TencentCloudModel {
      * @param model the base TencentCloudRerankModel to copy properties from
      * @param taskSettings the new task settings to apply
      */
-    private TencentCloudRerankModel(TencentCloudRerankModel model, TencentCloudRerankTaskSettings taskSettings) {
+    private TencentCloudRerankModel(TencentCloudRerankModel model, TaskSettings taskSettings) {
         super(model, taskSettings);
-    }
-
-    /**
-     * Constructor for creating a TencentCloudRerankModel by copying an existing model with new service settings.
-     *
-     * @param model the base TencentCloudRerankModel to copy properties from
-     * @param serviceSettings the new service settings to apply
-     */
-    public TencentCloudRerankModel(TencentCloudRerankModel model, TencentCloudRerankServiceSettings serviceSettings) {
-        super(model, serviceSettings);
     }
 
     /**
@@ -138,16 +128,6 @@ public class TencentCloudRerankModel extends TencentCloudModel {
     @Override
     public TencentCloudRerankTaskSettings getTaskSettings() {
         return (TencentCloudRerankTaskSettings) super.getTaskSettings();
-    }
-
-    /**
-     * Returns the secret settings for this model.
-     *
-     * @return the DefaultSecretSettings associated with this model
-     */
-    @Override
-    public DefaultSecretSettings getSecretSettings() {
-        return super.getSecretSettings();
     }
 
     /**

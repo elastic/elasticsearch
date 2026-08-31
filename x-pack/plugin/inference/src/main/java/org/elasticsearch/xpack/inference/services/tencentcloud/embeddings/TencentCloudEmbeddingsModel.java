@@ -127,16 +127,6 @@ public class TencentCloudEmbeddingsModel extends TencentCloudModel {
     }
 
     /**
-     * Returns the secret settings for this model.
-     *
-     * @return the DefaultSecretSettings associated with this model
-     */
-    @Override
-    public DefaultSecretSettings getSecretSettings() {
-        return super.getSecretSettings();
-    }
-
-    /**
      * Accepts a visitor that creates an executable action for this TencentCloud embeddings model.
      *
      * @param visitor the visitor that creates the executable action

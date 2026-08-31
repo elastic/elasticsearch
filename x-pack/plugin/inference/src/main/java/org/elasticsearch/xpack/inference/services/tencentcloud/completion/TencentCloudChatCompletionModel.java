@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.tencentcloud.completion;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -69,7 +68,13 @@ public class TencentCloudChatCompletionModel extends TencentCloudModel {
         @Nullable DefaultSecretSettings secretSettings
     ) {
         super(
-            new ModelConfigurations(inferenceId, taskType, TencentCloudService.NAME, serviceSettings, EmptyTaskSettings.INSTANCE),
+            new ModelConfigurations(
+                inferenceId,
+                taskType,
+                TencentCloudService.NAME,
+                serviceSettings,
+                TencentCloudChatCompletionTaskSettings.EMPTY_SETTINGS
+            ),
             new ModelSecrets(secretSettings),
             resolveUri(serviceSettings)
         );

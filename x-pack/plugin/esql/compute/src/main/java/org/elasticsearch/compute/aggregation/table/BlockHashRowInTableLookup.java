@@ -42,7 +42,7 @@ final class BlockHashRowInTableLookup extends RowInTableLookup {
                 private int lastOrd = -1;
 
                 @Override
-                public void add(int positionOffset, IntArrayBlock groupIds) {
+                public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
                     for (int p = 0; p < groupIds.getPositionCount(); p++) {
                         int first = groupIds.getFirstValueIndex(p);
                         int end = groupIds.getValueCount(p) + first;
@@ -58,7 +58,7 @@ final class BlockHashRowInTableLookup extends RowInTableLookup {
                 }
 
                 @Override
-                public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
                     for (int p = 0; p < groupIds.getPositionCount(); p++) {
                         int first = groupIds.getFirstValueIndex(p);
                         int end = groupIds.getValueCount(p) + first;
@@ -74,7 +74,7 @@ final class BlockHashRowInTableLookup extends RowInTableLookup {
                 }
 
                 @Override
-                public void add(int positionOffset, IntVector groupIds) {
+                public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
                     for (int p = 0; p < groupIds.getPositionCount(); p++) {
                         int ord = groupIds.getInt(p);
                         if (ord != lastOrd + 1) {

@@ -99,21 +99,21 @@ public record WindowGroupingAggregatorFunction(
 
     private record CombinedAddInput(AddInput nextAdd, AddInput partialAdd) implements AddInput {
         @Override
-        public void add(int positionOffset, IntArrayBlock groupIds) {
-            nextAdd.add(positionOffset, groupIds);
-            partialAdd.add(positionOffset, groupIds);
+        public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
+            nextAdd.add(positionOffset, groupIds, maxGroupId);
+            partialAdd.add(positionOffset, groupIds, maxGroupId);
         }
 
         @Override
-        public void add(int positionOffset, IntBigArrayBlock groupIds) {
-            nextAdd.add(positionOffset, groupIds);
-            partialAdd.add(positionOffset, groupIds);
+        public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
+            nextAdd.add(positionOffset, groupIds, maxGroupId);
+            partialAdd.add(positionOffset, groupIds, maxGroupId);
         }
 
         @Override
-        public void add(int positionOffset, IntVector groupIds) {
-            nextAdd.add(positionOffset, groupIds);
-            partialAdd.add(positionOffset, groupIds);
+        public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
+            nextAdd.add(positionOffset, groupIds, maxGroupId);
+            partialAdd.add(positionOffset, groupIds, maxGroupId);
         }
 
         @Override
@@ -131,26 +131,26 @@ public record WindowGroupingAggregatorFunction(
     }
 
     @Override
-    public void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, Page page) {
-        next.addIntermediateInput(positionOffset, groupIdVector, page);
+    public void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, int maxGroupId, Page page) {
+        next.addIntermediateInput(positionOffset, groupIdVector, maxGroupId, page);
         if (partialNext != null) {
-            partialNext.addIntermediateInput(positionOffset, groupIdVector, page);
+            partialNext.addIntermediateInput(positionOffset, groupIdVector, maxGroupId, page);
         }
     }
 
     @Override
-    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIdVector, Page page) {
-        next.addIntermediateInput(positionOffset, groupIdVector, page);
+    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIdVector, int maxGroupId, Page page) {
+        next.addIntermediateInput(positionOffset, groupIdVector, maxGroupId, page);
         if (partialNext != null) {
-            partialNext.addIntermediateInput(positionOffset, groupIdVector, page);
+            partialNext.addIntermediateInput(positionOffset, groupIdVector, maxGroupId, page);
         }
     }
 
     @Override
-    public void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page) {
-        next.addIntermediateInput(positionOffset, groupIdVector, page);
+    public void addIntermediateInput(int positionOffset, IntVector groupIdVector, int maxGroupId, Page page) {
+        next.addIntermediateInput(positionOffset, groupIdVector, maxGroupId, page);
         if (partialNext != null) {
-            partialNext.addIntermediateInput(positionOffset, groupIdVector, page);
+            partialNext.addIntermediateInput(positionOffset, groupIdVector, maxGroupId, page);
         }
     }
 
@@ -206,10 +206,12 @@ public record WindowGroupingAggregatorFunction(
             Block[] fullBlocks = new Block[blockCount];
             Block[] partialBlocks = partialNext == null ? null : new Block[partialNext.intermediateBlockCount()];
             int[] backwards = new int[selectedGroups.getPositionCount()];
+            int maxSelectedGroupId = -1;
             for (int i = 0; i < selectedGroups.getPositionCount(); i++) {
                 int gid = selectedGroups.getInt(i);
                 backwards = ArrayUtil.grow(backwards, gid + 1);
                 backwards[gid] = i;
+                maxSelectedGroupId = Math.max(maxSelectedGroupId, gid);
             }
             try {
                 // TODO slice into pages
@@ -229,7 +231,7 @@ public record WindowGroupingAggregatorFunction(
                 // and nothing in the merged range); track unseen groups so such a group evaluates to null, not to
                 // the aggregator's default value
                 finalAggFunction.selectedMayContainUnseenGroups(new SeenGroupIds.Empty());
-                finalAggFunction.addIntermediateInput(0, selectedGroups, fullPage);
+                finalAggFunction.addIntermediateInput(0, selectedGroups, maxSelectedGroupId, fullPage);
                 // the range covered by whole buckets; the remainder, if any, comes from the boundary bucket's
                 // partial state. It depends only on the window and the remainder, so it is the same for every group.
                 long fullSpan = partial == null ? window.toMillis() : window.toMillis() - partial.toMillis();
@@ -311,7 +313,7 @@ public record WindowGroupingAggregatorFunction(
             context.forEachGroupInRange(startingGroupId, end - fullSpan, end, g -> {
                 assert g != startingGroupId && g >= 0 && g < groupIdToPositions.length;
                 int position = groupIdToPositions[g];
-                fn.addIntermediateInput(position, oneGroup, fullPage);
+                fn.addIntermediateInput(position, oneGroup, startingGroupId, fullPage);
             });
             if (partialPage != null) {
                 // the boundary bucket is the one right before the full span; derive its width from the starting group
@@ -320,7 +322,7 @@ public record WindowGroupingAggregatorFunction(
                 context.forEachGroupInRange(startingGroupId, fullStart - bucketLength, fullStart, g -> {
                     assert g != startingGroupId && g >= 0 && g < groupIdToPositions.length;
                     int position = groupIdToPositions[g];
-                    fn.addIntermediateInput(position, oneGroup, partialPage);
+                    fn.addIntermediateInput(position, oneGroup, startingGroupId, partialPage);
                 });
             }
         }

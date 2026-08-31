@@ -108,7 +108,7 @@ public final class LongIntBlockHash extends BlockHash {
             }
             hash.bulkAdd(batchKeys1, batchKeys2, batchIds, batchSize);
             try (var groupIds = blockFactory.newIntArrayVector(batchIds, batchSize)) {
-                addInput.add(offset, groupIds);
+                addInput.add(offset, groupIds, Math.toIntExact(hash.size()) - 1);
             }
             offset += batchSize;
         }
@@ -128,7 +128,7 @@ public final class LongIntBlockHash extends BlockHash {
                     groupIdsBuilder.appendInt(i, Math.toIntExact(ord));
                 }
                 try (var groupIds = groupIdsBuilder.build()) {
-                    addInput.add(offset, groupIds);
+                    addInput.add(offset, groupIds, Math.toIntExact(hash.size()) - 1);
                 }
             }
             offset += batchSize;
@@ -150,7 +150,7 @@ public final class LongIntBlockHash extends BlockHash {
         final IntBlock intBlock;
 
         AddBlockWork(LongBlock longBlock, IntBlock intBlock, GroupingAggregatorFunction.AddInput addInput, int batchSize) {
-            super(blockFactory, batchSize, addInput);
+            super(blockFactory, () -> Math.toIntExact(hash.size()) - 1, batchSize, addInput);
             this.longBlock = longBlock;
             this.intBlock = intBlock;
         }

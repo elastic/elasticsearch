@@ -774,7 +774,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                         }
                         return new AddInput() {
 
-                            private void addBlock(int positionOffset, IntBlock groupIds) {
+                            private void addBlock(int positionOffset, IntBlock groupIds, int maxGroupId) {
                                 for (int offset = 0; offset < groupIds.getPositionCount(); offset += emitChunkSize) {
                                     try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(emitChunkSize)) {
                                         int endP = Math.min(groupIds.getPositionCount(), offset + emitChunkSize);
@@ -801,24 +801,24 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                                             }
                                         }
                                         try (IntBlock chunked = builder.build()) {
-                                            delegateAddInput.add(positionOffset + offset, chunked);
+                                            delegateAddInput.add(positionOffset + offset, chunked, maxGroupId);
                                         }
                                     }
                                 }
                             }
 
                             @Override
-                            public void add(int positionOffset, IntArrayBlock groupIds) {
-                                addBlock(positionOffset, groupIds);
+                            public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
+                                addBlock(positionOffset, groupIds, maxGroupId);
                             }
 
                             @Override
-                            public void add(int positionOffset, IntBigArrayBlock groupIds) {
-                                addBlock(positionOffset, groupIds);
+                            public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
+                                addBlock(positionOffset, groupIds, maxGroupId);
                             }
 
                             @Override
-                            public void add(int positionOffset, IntVector groupIds) {
+                            public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
                                 int[] chunk = new int[emitChunkSize];
                                 for (int offset = 0; offset < groupIds.getPositionCount(); offset += emitChunkSize) {
                                     int count = 0;
@@ -828,7 +828,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                                         chunk[count++] = group;
                                     }
                                     BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance(); // TODO: just for compile
-                                    delegateAddInput.add(positionOffset + offset, blockFactory.newIntArrayVector(chunk, count));
+                                    delegateAddInput.add(positionOffset + offset, blockFactory.newIntArrayVector(chunk, count), maxGroupId);
                                 }
                             }
 
@@ -850,21 +850,21 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                     }
 
                     @Override
-                    public void addIntermediateInput(int positionOffset, IntArrayBlock groupIds, Page page) {
-                        addIntermediateInputInternal(positionOffset, groupIds, page);
+                    public void addIntermediateInput(int positionOffset, IntArrayBlock groupIds, int maxGroupId, Page page) {
+                        addIntermediateInputInternal(positionOffset, groupIds, maxGroupId, page);
                     }
 
                     @Override
-                    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIds, Page page) {
-                        addIntermediateInputInternal(positionOffset, groupIds, page);
+                    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId, Page page) {
+                        addIntermediateInputInternal(positionOffset, groupIds, maxGroupId, page);
                     }
 
                     @Override
-                    public void addIntermediateInput(int positionOffset, IntVector groupIds, Page page) {
-                        addIntermediateInputInternal(positionOffset, groupIds.asBlock(), page);
+                    public void addIntermediateInput(int positionOffset, IntVector groupIds, int maxGroupId, Page page) {
+                        addIntermediateInputInternal(positionOffset, groupIds.asBlock(), maxGroupId, page);
                     }
 
-                    public void addIntermediateInputInternal(int positionOffset, IntBlock groupIds, Page page) {
+                    public void addIntermediateInputInternal(int positionOffset, IntBlock groupIds, int maxGroupId, Page page) {
                         BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
                         int[] chunk = new int[emitChunkSize];
                         int chunkPosition = 0;
@@ -883,6 +883,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                                 delegate.addIntermediateInput(
                                     positionOffset + offset,
                                     blockFactory.newIntArrayVector(chunk, chunkPosition),
+                                    maxGroupId,
                                     page
                                 );
                                 chunkPosition = 0;
@@ -893,6 +894,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                             delegate.addIntermediateInput(
                                 positionOffset + offset,
                                 blockFactory.newIntArrayVector(chunk, chunkPosition),
+                                maxGroupId,
                                 page
                             );
                         }
@@ -952,24 +954,24 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                 public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
                     blockHash.add(page, new GroupingAggregatorFunction.AddInput() {
                         @Override
-                        public void add(int positionOffset, IntBlock groupIds) {
+                        public void add(int positionOffset, IntBlock groupIds, int maxGroupId) {
                             IntBlock newGroupIds = BlockTypeRandomizer.randomizeBlockType(groupIds);
-                            addInput.add(positionOffset, newGroupIds);
+                            addInput.add(positionOffset, newGroupIds, maxGroupId);
                         }
 
                         @Override
-                        public void add(int positionOffset, IntArrayBlock groupIds) {
-                            add(positionOffset, (IntBlock) groupIds);
+                        public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
+                            add(positionOffset, (IntBlock) groupIds, maxGroupId);
                         }
 
                         @Override
-                        public void add(int positionOffset, IntBigArrayBlock groupIds) {
-                            add(positionOffset, (IntBlock) groupIds);
+                        public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
+                            add(positionOffset, (IntBlock) groupIds, maxGroupId);
                         }
 
                         @Override
-                        public void add(int positionOffset, IntVector groupIds) {
-                            add(positionOffset, groupIds.asBlock());
+                        public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
+                            add(positionOffset, groupIds.asBlock(), maxGroupId);
                         }
 
                         @Override

@@ -452,7 +452,9 @@ public class GroupingAggregatorImplementer {
 
         for (ClassName groupIdsType : GROUP_IDS_CLASSES) {
             MethodSpec.Builder builder = MethodSpec.methodBuilder("add").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
-            builder.addParameter(TypeName.INT, "positionOffset").addParameter(groupIdsType, "groupIds");
+            builder.addParameter(TypeName.INT, "positionOffset")
+                .addParameter(groupIdsType, "groupIds")
+                .addParameter(TypeName.INT, "maxGroupId");
 
             StringBuilder pattern = new StringBuilder("addRawInput(positionOffset, groupIds");
             List<Object> params = new ArrayList<>();
@@ -681,6 +683,7 @@ public class GroupingAggregatorImplementer {
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         builder.addParameter(TypeName.INT, "positionOffset");
         builder.addParameter(groupsType, "groups");
+        builder.addParameter(TypeName.INT, "maxGroupId");
         builder.addParameter(PAGE, "page");
 
         if (hasSeen() == false) {

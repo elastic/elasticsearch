@@ -1495,19 +1495,19 @@ public class BlockHashTests extends BlockHashTestCase {
         List<Integer> out = new ArrayList<>();
         hash.add(new Page(page), new GroupingAggregatorFunction.AddInput() {
             @Override
-            public void add(int positionOffset, IntVector groupIds) {
+            public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
                 for (int i = 0; i < groupIds.getPositionCount(); i++) {
                     out.add(groupIds.getInt(i));
                 }
             }
 
             @Override
-            public void add(int positionOffset, IntArrayBlock groupIds) {
+            public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
                 addBlock(groupIds);
             }
 
             @Override
-            public void add(int positionOffset, IntBigArrayBlock groupIds) {
+            public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
                 addBlock(groupIds);
             }
 
@@ -1535,19 +1535,19 @@ public class BlockHashTests extends BlockHashTestCase {
         List<List<Integer>> out = new ArrayList<>();
         hash.add(new Page(page), new GroupingAggregatorFunction.AddInput() {
             @Override
-            public void add(int positionOffset, IntVector groupIds) {
+            public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
                 for (int i = 0; i < groupIds.getPositionCount(); i++) {
                     out.add(List.of(groupIds.getInt(i)));
                 }
             }
 
             @Override
-            public void add(int positionOffset, IntArrayBlock groupIds) {
+            public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
                 addBlock(groupIds);
             }
 
             @Override
-            public void add(int positionOffset, IntBigArrayBlock groupIds) {
+            public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
                 addBlock(groupIds);
             }
 
@@ -1621,19 +1621,19 @@ public class BlockHashTests extends BlockHashTestCase {
         try (BlockHash hash1 = new BytesRef2BlockHash(blockFactory, 0, 1, totalPositions);) {
             hash1.add(page, new GroupingAggregatorFunction.AddInput() {
                 @Override
-                public void add(int positionOffset, IntArrayBlock groupIds) {
+                public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
                     groupIds.incRef();
                     output.add(new Output(positionOffset, groupIds, null));
                 }
 
                 @Override
-                public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
                     groupIds.incRef();
                     output.add(new Output(positionOffset, groupIds, null));
                 }
 
                 @Override
-                public void add(int positionOffset, IntVector groupIds) {
+                public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
                     groupIds.incRef();
                     output.add(new Output(positionOffset, null, groupIds));
                 }
@@ -1713,19 +1713,19 @@ public class BlockHashTests extends BlockHashTestCase {
         ) {
             hash1.add(page, new GroupingAggregatorFunction.AddInput() {
                 @Override
-                public void add(int positionOffset, IntArrayBlock groupIds) {
+                public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
                     groupIds.incRef();
                     output1.add(new Output(positionOffset, groupIds, null));
                 }
 
                 @Override
-                public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
                     groupIds.incRef();
                     output1.add(new Output(positionOffset, groupIds, null));
                 }
 
                 @Override
-                public void add(int positionOffset, IntVector groupIds) {
+                public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
                     groupIds.incRef();
                     output1.add(new Output(positionOffset, null, groupIds));
                 }
@@ -1737,19 +1737,19 @@ public class BlockHashTests extends BlockHashTestCase {
             });
             hash2.add(page, new GroupingAggregatorFunction.AddInput() {
                 @Override
-                public void add(int positionOffset, IntArrayBlock groupIds) {
+                public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
                     groupIds.incRef();
                     output2.add(new Output(positionOffset, groupIds, null));
                 }
 
                 @Override
-                public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
                     groupIds.incRef();
                     output2.add(new Output(positionOffset, groupIds, null));
                 }
 
                 @Override
-                public void add(int positionOffset, IntVector groupIds) {
+                public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
                     groupIds.incRef();
                     output2.add(new Output(positionOffset, null, groupIds));
                 }
@@ -1827,19 +1827,19 @@ public class BlockHashTests extends BlockHashTestCase {
         ) {
             hash1.add(page, new GroupingAggregatorFunction.AddInput() {
                 @Override
-                public void add(int positionOffset, IntArrayBlock groupIds) {
+                public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
                     groupIds.incRef();
                     output1.add(new Output(positionOffset, groupIds, null));
                 }
 
                 @Override
-                public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
                     groupIds.incRef();
                     output1.add(new Output(positionOffset, groupIds, null));
                 }
 
                 @Override
-                public void add(int positionOffset, IntVector groupIds) {
+                public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
                     groupIds.incRef();
                     output1.add(new Output(positionOffset, null, groupIds));
                 }
@@ -1851,19 +1851,19 @@ public class BlockHashTests extends BlockHashTestCase {
             });
             hash2.add(page, new GroupingAggregatorFunction.AddInput() {
                 @Override
-                public void add(int positionOffset, IntArrayBlock groupIds) {
+                public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
                     groupIds.incRef();
                     output2.add(new Output(positionOffset, groupIds, null));
                 }
 
                 @Override
-                public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
                     groupIds.incRef();
                     output2.add(new Output(positionOffset, groupIds, null));
                 }
 
                 @Override
-                public void add(int positionOffset, IntVector groupIds) {
+                public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
                     groupIds.incRef();
                     output2.add(new Output(positionOffset, null, groupIds));
                 }
@@ -1944,17 +1944,17 @@ public class BlockHashTests extends BlockHashTestCase {
                         IntVector[] ords1 = new IntVector[1];
                         hash1.add(page, new GroupingAggregatorFunction.AddInput() {
                             @Override
-                            public void add(int positionOffset, IntArrayBlock groupIds) {
+                            public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
                                 throw new AssertionError("time-series block hash should emit a vector");
                             }
 
                             @Override
-                            public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                            public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
                                 throw new AssertionError("time-series block hash should emit a vector");
                             }
 
                             @Override
-                            public void add(int positionOffset, IntVector groupIds) {
+                            public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
                                 groupIds.incRef();
                                 ords1[0] = groupIds;
                             }
@@ -1975,17 +1975,17 @@ public class BlockHashTests extends BlockHashTestCase {
                             }
 
                             @Override
-                            public void add(int positionOffset, IntArrayBlock groupIds) {
+                            public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
                                 addBlock(positionOffset, groupIds);
                             }
 
                             @Override
-                            public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                            public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
                                 addBlock(positionOffset, groupIds);
                             }
 
                             @Override
-                            public void add(int positionOffset, IntVector groupIds) {
+                            public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
                                 groupIds.incRef();
                                 ords2[0] = groupIds;
                             }
@@ -2062,17 +2062,17 @@ public class BlockHashTests extends BlockHashTestCase {
                         IntVector[] ords1 = new IntVector[1];
                         hash1.add(page, new GroupingAggregatorFunction.AddInput() {
                             @Override
-                            public void add(int positionOffset, IntArrayBlock groupIds) {
+                            public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
                                 throw new AssertionError("time-series block hash should emit a vector");
                             }
 
                             @Override
-                            public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                            public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
                                 throw new AssertionError("time-series block hash should emit a vector");
                             }
 
                             @Override
-                            public void add(int positionOffset, IntVector groupIds) {
+                            public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
                                 groupIds.incRef();
                                 ords1[0] = groupIds;
                             }
@@ -2085,17 +2085,17 @@ public class BlockHashTests extends BlockHashTestCase {
                         IntVector[] ords2 = new IntVector[1];
                         hash2.add(page, new GroupingAggregatorFunction.AddInput() {
                             @Override
-                            public void add(int positionOffset, IntArrayBlock groupIds) {
+                            public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
                                 throw new AssertionError("time-series block hash should emit a vector");
                             }
 
                             @Override
-                            public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                            public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
                                 throw new AssertionError("time-series block hash should emit a vector");
                             }
 
                             @Override
-                            public void add(int positionOffset, IntVector groupIds) {
+                            public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
                                 groupIds.incRef();
                                 ords2[0] = groupIds;
                             }
@@ -2220,13 +2220,13 @@ public class BlockHashTests extends BlockHashTestCase {
             try (var tsidBlock = tsidBuilder.build().asBlock(); var timestampBlock = timestampBuilder.build().asBlock()) {
                 hash.add(new Page(tsidBlock, timestampBlock), new GroupingAggregatorFunction.AddInput() {
                     @Override
-                    public void add(int positionOffset, IntArrayBlock groupIds) {}
+                    public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {}
 
                     @Override
-                    public void add(int positionOffset, IntBigArrayBlock groupIds) {}
+                    public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {}
 
                     @Override
-                    public void add(int positionOffset, IntVector groupIds) {}
+                    public void add(int positionOffset, IntVector groupIds, int maxGroupId) {}
 
                     @Override
                     public void close() {}
@@ -2337,17 +2337,17 @@ public class BlockHashTests extends BlockHashTestCase {
                 try (Page page = new Page(bytes, longs)) {
                     hash.add(page, new GroupingAggregatorFunction.AddInput() {
                         @Override
-                        public void add(int positionOffset, IntArrayBlock groupIds) {
+                        public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
                             fail("should not call IntArrayBlock");
                         }
 
                         @Override
-                        public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                        public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
                             fail("should not call IntBigArrayBlock");
                         }
 
                         @Override
-                        public void add(int positionOffset, IntVector groupIds) {
+                        public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
                             if (constantInput) {
                                 assertTrue(groupIds.isConstant());
                             }

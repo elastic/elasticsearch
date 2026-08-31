@@ -15,6 +15,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+import java.util.function.IntSupplier;
+
 /**
  * Helper for adding a {@link Page} worth of {@link Block}s to a {@link BlockHash}
  * while flushing the ordinals to the aggregations when we've accumulated
@@ -26,6 +28,7 @@ public class AddPage implements Releasable {
     private final BlockFactory blockFactory;
     private final long emitBatchSize;
     private final GroupingAggregatorFunction.AddInput addInput;
+    private final IntSupplier maxGroupId;
 
     private int positionOffset = 0;
     /**
@@ -54,8 +57,12 @@ public class AddPage implements Releasable {
      */
     private int firstOrd = -1;
 
-    public AddPage(BlockFactory blockFactory, int emitBatchSize, GroupingAggregatorFunction.AddInput addInput) {
+    /**
+     * @param maxGroupId returns the current inclusive upper bound of the group ids
+     */
+    public AddPage(BlockFactory blockFactory, IntSupplier maxGroupId, int emitBatchSize, GroupingAggregatorFunction.AddInput addInput) {
         this.blockFactory = blockFactory;
+        this.maxGroupId = maxGroupId;
         this.emitBatchSize = emitBatchSize;
         this.addInput = addInput;
 
@@ -72,6 +79,7 @@ public class AddPage implements Releasable {
      */
     protected final void appendOrdSv(int position, int ord) {
         assert firstOrd == -1 : "currently in a multivalue position";
+        assert ord <= maxGroupId.getAsInt() : ord + " > " + maxGroupId.getAsInt();
         ords.appendInt(ord);
         if (++added % emitBatchSize == 0L) {
             rollover(position + 1);
@@ -103,6 +111,7 @@ public class AddPage implements Releasable {
      * }</pre>
      */
     protected final void appendOrdInMv(int position, int ord) {
+        assert ord <= maxGroupId.getAsInt() : ord + " > " + maxGroupId.getAsInt();
         if (++added % emitBatchSize == 0L) {
             switch (firstOrd) {
                 case -1 -> ords.appendInt(ord);
@@ -159,7 +168,7 @@ public class AddPage implements Releasable {
 
     private void emitOrds() {
         try (IntBlock ordsBlock = ords.build()) {
-            addInput.add(positionOffset, ordsBlock);
+            addInput.add(positionOffset, ordsBlock, maxGroupId.getAsInt());
         }
     }
 

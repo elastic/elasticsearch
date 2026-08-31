@@ -74,17 +74,17 @@ public final class DeltaOnlyHistogramMergeOverTimeTDigestGroupingAggregatorFunct
     maybeEnableGroupIdTracking(seenGroupIds, valueBlock, temporalityBlock);
     return new GroupingAggregatorFunction.AddInput() {
       @Override
-      public void add(int positionOffset, IntArrayBlock groupIds) {
+      public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
         addRawInput(positionOffset, groupIds, valueBlock, temporalityBlock);
       }
 
       @Override
-      public void add(int positionOffset, IntBigArrayBlock groupIds) {
+      public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
         addRawInput(positionOffset, groupIds, valueBlock, temporalityBlock);
       }
 
       @Override
-      public void add(int positionOffset, IntVector groupIds) {
+      public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
         addRawInput(positionOffset, groupIds, valueBlock, temporalityBlock);
       }
 
@@ -120,7 +120,8 @@ public final class DeltaOnlyHistogramMergeOverTimeTDigestGroupingAggregatorFunct
   }
 
   @Override
-  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, int maxGroupId,
+      Page page) {
     assert channels.size() == intermediateBlockCount();
     Block valueUncast = page.getBlock(channels.get(0));
     TDigestBlock value = (TDigestBlock) valueUncast;
@@ -168,7 +169,8 @@ public final class DeltaOnlyHistogramMergeOverTimeTDigestGroupingAggregatorFunct
   }
 
   @Override
-  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, int maxGroupId,
+      Page page) {
     assert channels.size() == intermediateBlockCount();
     Block valueUncast = page.getBlock(channels.get(0));
     TDigestBlock value = (TDigestBlock) valueUncast;
@@ -209,7 +211,8 @@ public final class DeltaOnlyHistogramMergeOverTimeTDigestGroupingAggregatorFunct
   }
 
   @Override
-  public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
+  public void addIntermediateInput(int positionOffset, IntVector groups, int maxGroupId,
+      Page page) {
     assert channels.size() == intermediateBlockCount();
     Block valueUncast = page.getBlock(channels.get(0));
     TDigestBlock value = (TDigestBlock) valueUncast;

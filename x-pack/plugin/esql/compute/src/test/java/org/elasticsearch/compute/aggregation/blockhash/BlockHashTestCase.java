@@ -79,7 +79,7 @@ public abstract class BlockHashTestCase extends ESTestCase {
 
     protected static void hash(boolean collectKeys, BlockHash blockHash, Consumer<OrdsAndKeys> callback, Block... values) {
         blockHash.add(new Page(values), new GroupingAggregatorFunction.AddInput() {
-            private void addBlock(int positionOffset, IntBlock groupIds) {
+            private void addBlock(int positionOffset, IntBlock groupIds, int maxGroupId) {
                 IntVector nonEmpty = blockHash.nonEmpty();
                 OrdsAndKeys result = new OrdsAndKeys(
                     blockHash.toString(),
@@ -105,6 +105,9 @@ public abstract class BlockHashTestCase extends ESTestCase {
                             if (false == allowedOrds.contains(ord)) {
                                 fail("ord is not allowed " + ord);
                             }
+                            if (ord > maxGroupId) {
+                                fail("ord " + ord + " is larger than maxGroupId " + maxGroupId);
+                            }
                         }
                     }
                     callback.accept(result);
@@ -114,18 +117,18 @@ public abstract class BlockHashTestCase extends ESTestCase {
             }
 
             @Override
-            public void add(int positionOffset, IntArrayBlock groupIds) {
-                addBlock(positionOffset, groupIds);
+            public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
+                addBlock(positionOffset, groupIds, maxGroupId);
             }
 
             @Override
-            public void add(int positionOffset, IntBigArrayBlock groupIds) {
-                addBlock(positionOffset, groupIds);
+            public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
+                addBlock(positionOffset, groupIds, maxGroupId);
             }
 
             @Override
-            public void add(int positionOffset, IntVector groupIds) {
-                addBlock(positionOffset, groupIds.asBlock());
+            public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
+                addBlock(positionOffset, groupIds.asBlock(), maxGroupId);
             }
 
             @Override

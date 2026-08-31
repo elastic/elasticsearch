@@ -38,7 +38,7 @@ final class NullBlockHash extends BlockHash {
         if (block.areAllValuesNull()) {
             seenNull = true;
             try (IntVector groupIds = blockFactory.newConstantIntVector(0, block.getPositionCount())) {
-                addInput.add(0, groupIds);
+                addInput.add(0, groupIds, 0);
             }
         } else {
             throw new IllegalArgumentException("can't use NullBlockHash for non-null blocks");

@@ -72,17 +72,17 @@ public final class TopIntGroupingAggregatorFunction implements GroupingAggregato
       maybeEnableGroupIdTracking(seenGroupIds, vBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
-        public void add(int positionOffset, IntArrayBlock groupIds) {
+        public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
           addRawInput(positionOffset, groupIds, vBlock);
         }
 
         @Override
-        public void add(int positionOffset, IntBigArrayBlock groupIds) {
+        public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
           addRawInput(positionOffset, groupIds, vBlock);
         }
 
         @Override
-        public void add(int positionOffset, IntVector groupIds) {
+        public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
           addRawInput(positionOffset, groupIds, vBlock);
         }
 
@@ -93,17 +93,17 @@ public final class TopIntGroupingAggregatorFunction implements GroupingAggregato
     }
     return new GroupingAggregatorFunction.AddInput() {
       @Override
-      public void add(int positionOffset, IntArrayBlock groupIds) {
+      public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
         addRawInput(positionOffset, groupIds, vVector);
       }
 
       @Override
-      public void add(int positionOffset, IntBigArrayBlock groupIds) {
+      public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
         addRawInput(positionOffset, groupIds, vVector);
       }
 
       @Override
-      public void add(int positionOffset, IntVector groupIds) {
+      public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
         addRawInput(positionOffset, groupIds, vVector);
       }
 
@@ -153,7 +153,8 @@ public final class TopIntGroupingAggregatorFunction implements GroupingAggregato
   }
 
   @Override
-  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, int maxGroupId,
+      Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block topUncast = page.getBlock(channels.get(0));
@@ -224,7 +225,8 @@ public final class TopIntGroupingAggregatorFunction implements GroupingAggregato
   }
 
   @Override
-  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, int maxGroupId,
+      Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block topUncast = page.getBlock(channels.get(0));
@@ -281,7 +283,8 @@ public final class TopIntGroupingAggregatorFunction implements GroupingAggregato
   }
 
   @Override
-  public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
+  public void addIntermediateInput(int positionOffset, IntVector groups, int maxGroupId,
+      Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block topUncast = page.getBlock(channels.get(0));

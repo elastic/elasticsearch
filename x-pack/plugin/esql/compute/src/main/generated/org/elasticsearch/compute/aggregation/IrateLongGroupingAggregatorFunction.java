@@ -90,17 +90,17 @@ public final class IrateLongGroupingAggregatorFunction implements GroupingAggreg
       maybeEnableGroupIdTracking(seenGroupIds, valueBlock, timestampBlock, temporalityBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
-        public void add(int positionOffset, IntArrayBlock groupIds) {
+        public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
           addRawInput(positionOffset, groupIds, valueBlock, timestampBlock, temporalityBlock);
         }
 
         @Override
-        public void add(int positionOffset, IntBigArrayBlock groupIds) {
+        public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
           addRawInput(positionOffset, groupIds, valueBlock, timestampBlock, temporalityBlock);
         }
 
         @Override
-        public void add(int positionOffset, IntVector groupIds) {
+        public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
           addRawInput(positionOffset, groupIds, valueBlock, timestampBlock, temporalityBlock);
         }
 
@@ -114,17 +114,17 @@ public final class IrateLongGroupingAggregatorFunction implements GroupingAggreg
       maybeEnableGroupIdTracking(seenGroupIds, valueBlock, timestampBlock, temporalityBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
-        public void add(int positionOffset, IntArrayBlock groupIds) {
+        public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
           addRawInput(positionOffset, groupIds, valueBlock, timestampBlock, temporalityBlock);
         }
 
         @Override
-        public void add(int positionOffset, IntBigArrayBlock groupIds) {
+        public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
           addRawInput(positionOffset, groupIds, valueBlock, timestampBlock, temporalityBlock);
         }
 
         @Override
-        public void add(int positionOffset, IntVector groupIds) {
+        public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
           addRawInput(positionOffset, groupIds, valueBlock, timestampBlock, temporalityBlock);
         }
 
@@ -135,17 +135,17 @@ public final class IrateLongGroupingAggregatorFunction implements GroupingAggreg
     }
     return new GroupingAggregatorFunction.AddInput() {
       @Override
-      public void add(int positionOffset, IntArrayBlock groupIds) {
+      public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
         addRawInput(positionOffset, groupIds, valueVector, timestampVector, temporalityBlock);
       }
 
       @Override
-      public void add(int positionOffset, IntBigArrayBlock groupIds) {
+      public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
         addRawInput(positionOffset, groupIds, valueVector, timestampVector, temporalityBlock);
       }
 
       @Override
-      public void add(int positionOffset, IntVector groupIds) {
+      public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
         addRawInput(positionOffset, groupIds, valueVector, timestampVector, temporalityBlock);
       }
 
@@ -222,7 +222,8 @@ public final class IrateLongGroupingAggregatorFunction implements GroupingAggreg
   }
 
   @Override
-  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, int maxGroupId,
+      Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block timestampsUncast = page.getBlock(channels.get(0));
@@ -315,7 +316,8 @@ public final class IrateLongGroupingAggregatorFunction implements GroupingAggreg
   }
 
   @Override
-  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, int maxGroupId,
+      Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block timestampsUncast = page.getBlock(channels.get(0));
@@ -394,7 +396,8 @@ public final class IrateLongGroupingAggregatorFunction implements GroupingAggreg
   }
 
   @Override
-  public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
+  public void addIntermediateInput(int positionOffset, IntVector groups, int maxGroupId,
+      Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block timestampsUncast = page.getBlock(channels.get(0));

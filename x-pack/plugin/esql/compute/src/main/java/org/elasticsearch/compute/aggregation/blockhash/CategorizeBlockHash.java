@@ -109,7 +109,8 @@ public class CategorizeBlockHash extends BlockHash {
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
         try (IntBlock block = add(page)) {
-            addInput.add(0, block);
+            // Group ids are shifted by one to reserve 0 for null.
+            addInput.add(0, block, categorizer.getCategoryCount());
         }
     }
 

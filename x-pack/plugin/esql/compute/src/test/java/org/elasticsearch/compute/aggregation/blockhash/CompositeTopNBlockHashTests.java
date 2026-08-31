@@ -298,17 +298,17 @@ public class CompositeTopNBlockHashTests extends BlockHashTestCase {
                 }
 
                 @Override
-                public void add(int positionOffset, IntArrayBlock groupIds) {
+                public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
                     capture(groupIds);
                 }
 
                 @Override
-                public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
                     capture(groupIds);
                 }
 
                 @Override
-                public void add(int positionOffset, IntVector groupIds) {
+                public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
                     capture(groupIds.asBlock());
                 }
 
@@ -362,13 +362,13 @@ public class CompositeTopNBlockHashTests extends BlockHashTestCase {
             ) {
                 hash.add(new Page(primaryBlock, secondaryBlock), new GroupingAggregatorFunction.AddInput() {
                     @Override
-                    public void add(int positionOffset, IntArrayBlock groupIds) {}
+                    public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {}
 
                     @Override
-                    public void add(int positionOffset, IntBigArrayBlock groupIds) {}
+                    public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {}
 
                     @Override
-                    public void add(int positionOffset, IntVector groupIds) {}
+                    public void add(int positionOffset, IntVector groupIds, int maxGroupId) {}
 
                     @Override
                     public void close() {}

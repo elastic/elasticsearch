@@ -240,17 +240,17 @@ public class PackedValuesBlockHashVariableWidthTests extends ESTestCase {
         }
 
         @Override
-        public void add(int positionOffset, IntArrayBlock groupIds) {
+        public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
             copy(positionOffset, groupIds);
         }
 
         @Override
-        public void add(int positionOffset, IntBigArrayBlock groupIds) {
+        public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
             copy(positionOffset, groupIds);
         }
 
         @Override
-        public void add(int positionOffset, IntVector groupIds) {
+        public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
             copy(positionOffset, groupIds.asBlock());
         }
 
@@ -260,13 +260,13 @@ public class PackedValuesBlockHashVariableWidthTests extends ESTestCase {
 
     private static final class NoopAddInput implements GroupingAggregatorFunction.AddInput {
         @Override
-        public void add(int positionOffset, IntArrayBlock groupIds) {}
+        public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {}
 
         @Override
-        public void add(int positionOffset, IntBigArrayBlock groupIds) {}
+        public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {}
 
         @Override
-        public void add(int positionOffset, IntVector groupIds) {}
+        public void add(int positionOffset, IntVector groupIds, int maxGroupId) {}
 
         @Override
         public void close() {}

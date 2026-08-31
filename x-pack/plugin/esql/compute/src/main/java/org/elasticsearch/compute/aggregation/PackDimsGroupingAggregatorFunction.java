@@ -46,17 +46,17 @@ public final class PackDimsGroupingAggregatorFunction implements GroupingAggrega
         final var valuesBlock = DimsPacker.packMultiColumns(driverContext, inputBlocks).asBlock();
         return new AddInput() {
             @Override
-            public void add(int positionOffset, IntArrayBlock groupIds) {
+            public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
                 delegate.addInputValuesBlock(positionOffset, groupIds, valuesBlock);
             }
 
             @Override
-            public void add(int positionOffset, IntBigArrayBlock groupIds) {
+            public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
                 delegate.addInputValuesBlock(positionOffset, groupIds, valuesBlock);
             }
 
             @Override
-            public void add(int positionOffset, IntVector groupIds) {
+            public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
                 var valuesVector = valuesBlock.asVector();
                 if (valuesVector != null) {
                     delegate.addInputValuesVector(positionOffset, groupIds, valuesVector);
@@ -78,18 +78,18 @@ public final class PackDimsGroupingAggregatorFunction implements GroupingAggrega
     }
 
     @Override
-    public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
-        delegate.addIntermediateInput(positionOffset, groups, page);
+    public void addIntermediateInput(int positionOffset, IntArrayBlock groups, int maxGroupId, Page page) {
+        delegate.addIntermediateInput(positionOffset, groups, maxGroupId, page);
     }
 
     @Override
-    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
-        delegate.addIntermediateInput(positionOffset, groups, page);
+    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, int maxGroupId, Page page) {
+        delegate.addIntermediateInput(positionOffset, groups, maxGroupId, page);
     }
 
     @Override
-    public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
-        delegate.addIntermediateInput(positionOffset, groups, page);
+    public void addIntermediateInput(int positionOffset, IntVector groups, int maxGroupId, Page page) {
+        delegate.addIntermediateInput(positionOffset, groups, maxGroupId, page);
     }
 
     @Override

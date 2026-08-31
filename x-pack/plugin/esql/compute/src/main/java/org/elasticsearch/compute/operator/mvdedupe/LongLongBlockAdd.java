@@ -27,7 +27,7 @@ public class LongLongBlockAdd extends AddPage {
         LongBlock block1,
         LongBlock block2
     ) {
-        super(blockFactory, emitBatchSize, addInput);
+        super(blockFactory, () -> Math.toIntExact(hash.size()) - 1, emitBatchSize, addInput);
         this.hash = hash;
         this.block1 = new MultivalueDedupeLong(block1);
         this.block2 = new MultivalueDedupeLong(block2);

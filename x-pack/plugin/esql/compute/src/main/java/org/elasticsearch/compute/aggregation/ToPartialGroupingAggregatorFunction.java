@@ -73,18 +73,18 @@ public class ToPartialGroupingAggregatorFunction implements GroupingAggregatorFu
     }
 
     @Override
-    public void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, Page page) {
-        delegate.addIntermediateInput(positionOffset, groupIdVector, page);
+    public void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, int maxGroupId, Page page) {
+        delegate.addIntermediateInput(positionOffset, groupIdVector, maxGroupId, page);
     }
 
     @Override
-    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIdVector, Page page) {
-        delegate.addIntermediateInput(positionOffset, groupIdVector, page);
+    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIdVector, int maxGroupId, Page page) {
+        delegate.addIntermediateInput(positionOffset, groupIdVector, maxGroupId, page);
     }
 
     @Override
-    public void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page) {
-        delegate.addIntermediateInput(positionOffset, groupIdVector, page);
+    public void addIntermediateInput(int positionOffset, IntVector groupIdVector, int maxGroupId, Page page) {
+        delegate.addIntermediateInput(positionOffset, groupIdVector, maxGroupId, page);
     }
 
     @Override

@@ -67,13 +67,13 @@ public class PackedValuesBlockHashCircuitBreakerTests extends BlockHashTestCase 
                 CircuitBreakingException.class,
                 () -> blockHash.add(page, new GroupingAggregatorFunction.AddInput() {
                     @Override
-                    public void add(int positionOffset, IntArrayBlock groupIds) {}
+                    public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {}
 
                     @Override
-                    public void add(int positionOffset, IntBigArrayBlock groupIds) {}
+                    public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {}
 
                     @Override
-                    public void add(int positionOffset, IntVector groupIds) {}
+                    public void add(int positionOffset, IntVector groupIds, int maxGroupId) {}
 
                     @Override
                     public void close() {}

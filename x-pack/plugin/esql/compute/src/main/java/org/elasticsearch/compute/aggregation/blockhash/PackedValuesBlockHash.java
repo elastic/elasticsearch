@@ -199,7 +199,7 @@ final class PackedValuesBlockHash extends BlockHash {
         int position;
 
         AddWork(Page page, GroupingAggregatorFunction.AddInput addInput, int batchSize) {
-            super(blockFactory, emitBatchSize, addInput);
+            super(blockFactory, () -> Math.toIntExact(bytesRefHash.size()) - 1, emitBatchSize, addInput);
             this.groups = specs.stream().map(s -> new Group(s, page, batchSize)).toArray(Group[]::new);
             this.positionCount = page.getPositionCount();
         }
@@ -568,10 +568,11 @@ final class PackedValuesBlockHash extends BlockHash {
         GroupingAggregatorFunction.AddInput addInput,
         int[] groupIds,
         int positionOffset,
-        int emitSize
+        int emitSize,
+        int maxGroupId
     ) {
         try (var groupIdsVec = blockFactory.newIntArrayVector(groupIds, emitSize)) {
-            addInput.add(positionOffset, groupIdsVec);
+            addInput.add(positionOffset, groupIdsVec, maxGroupId);
         }
     }
 
@@ -669,7 +670,7 @@ final class PackedValuesBlockHash extends BlockHash {
                     }
                     batchOffset += chunkSize;
                 }
-                emitBatch(blockFactory, addInput, groupIds, positionOffset, emitSize);
+                emitBatch(blockFactory, addInput, groupIds, positionOffset, emitSize, Math.toIntExact(swiss.size()) - 1);
                 positionOffset += emitSize;
             }
             prefetchBarrier.consume(dummy);
@@ -965,7 +966,7 @@ final class PackedValuesBlockHash extends BlockHash {
                     }
                     batchOffset += chunkSize;
                 }
-                emitBatch(blockFactory, addInput, groupIds, positionOffset, emitSize);
+                emitBatch(blockFactory, addInput, groupIds, positionOffset, emitSize, Math.toIntExact(swiss.size()) - 1);
                 positionOffset += emitSize;
             }
             prefetchBarrier.consume(dummy);

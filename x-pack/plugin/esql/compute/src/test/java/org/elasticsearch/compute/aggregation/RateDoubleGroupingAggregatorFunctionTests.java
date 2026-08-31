@@ -137,7 +137,7 @@ public class RateDoubleGroupingAggregatorFunctionTests extends ComputeTestCase {
         try {
             var addInput = aggregator.prepareProcessRawInputPage(null, page);
             try (var groups = blockFactory.newConstantIntBlockWith(0, positions).asVector()) {
-                addInput.add(0, groups);
+                addInput.add(0, groups, 0);
             }
             addInput.close();
         } finally {

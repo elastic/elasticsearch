@@ -378,12 +378,13 @@ public class XContentHelper {
 
         void charge(long bytes) {
             if (breaker != null) {
-                // If the breaker throws, bytes charged so far are not released — caller must ensure close() is still called.
+                // addEstimateBytesAndMaybeBreak is atomic: on trip it does not leave `bytes` charged.
+                // Bytes charged by prior successful calls stay charged until close() releases them.
                 breaker.addEstimateBytesAndMaybeBreak(bytes, label);
             }
         }
 
-        void release(int bytes) {
+        void release(long bytes) {
             if (breaker != null && bytes > 0) {
                 breaker.addWithoutBreaking(-bytes);
             }
@@ -425,6 +426,7 @@ public class XContentHelper {
 
     private static final class LimitedOutputStream extends ByteArrayOutputStream {
         private final Budget budget;
+        private boolean released;
 
         LimitedOutputStream(Budget budget) {
             this.budget = budget;
@@ -444,9 +446,14 @@ public class XContentHelper {
             super.write(b);
         }
 
+        // Idempotent: Jackson's generator closes the underlying stream on its own close(),
+        // and the outer try-with-resources closes it again. Guard against double release.
         @Override
         public synchronized void close() {
-            budget.release(count);
+            if (released == false) {
+                released = true;
+                budget.release(count);
+            }
         }
     }
 

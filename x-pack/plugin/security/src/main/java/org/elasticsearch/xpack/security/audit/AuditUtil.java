@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.security.audit;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -43,13 +43,13 @@ public class AuditUtil {
                 );
             } catch (XContentHelper.TooLargeBodyException e) {
                 throw new ElasticsearchStatusException(
-                    "Request body rendering stopped after [{}] (audit size limit); "
+                    "Request body would exceed the audit size limit of [{}]; "
                         + "adjust [{}] to increase the limit or set it to 0 to disable",
                     RestStatus.REQUEST_ENTITY_TOO_LARGE,
                     ByteSizeValue.ofBytes(maxBytes),
                     settingKey
                 );
-            } catch (ElasticsearchException e) {
+            } catch (CircuitBreakingException e) {
                 throw e;
             } catch (Exception e) {
                 return "Invalid Format: " + content.utf8ToString();

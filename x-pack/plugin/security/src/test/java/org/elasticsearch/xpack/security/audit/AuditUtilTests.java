@@ -11,6 +11,7 @@ import org.elasticsearch.action.MockIndicesRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.rest.RestRequest;
@@ -26,6 +27,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
@@ -69,15 +71,10 @@ public class AuditUtilTests extends ESTestCase {
     }
 
     public void testRestRequestContentSmileLimitEnforcedDuringRendering() throws Exception {
-        XContentBuilder smileBuilder = XContentFactory.smileBuilder().startObject();
-        for (int i = 0; i < 50; i++) {
-            smileBuilder.field("longfieldname_" + i, "longvalue_" + i);
-        }
-        smileBuilder.endObject();
-        byte[] smileBytes = BytesReference.toBytes(BytesReference.bytes(smileBuilder));
-
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(smileBytes), XContentType.SMILE)
-            .build();
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
+            new BytesArray(buildSmileBytes(50, "longfieldname_", "longvalue_")),
+            XContentType.SMILE
+        ).build();
 
         ElasticsearchStatusException ex = expectThrows(
             ElasticsearchStatusException.class,
@@ -90,62 +87,81 @@ public class AuditUtilTests extends ESTestCase {
     }
 
     public void testRestRequestContentCircuitBreakerTripsOnRendering() throws Exception {
-        XContentBuilder smileBuilder = XContentFactory.smileBuilder().startObject();
-        for (int i = 0; i < 10; i++) {
-            smileBuilder.field("key_" + i, "value_" + i);
-        }
-        smileBuilder.endObject();
-        byte[] smileBytes = BytesReference.toBytes(BytesReference.bytes(smileBuilder));
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(smileBytes), XContentType.SMILE)
-            .build();
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
+            new BytesArray(buildSmileBytes(10, "key_", "value_")),
+            XContentType.SMILE
+        ).build();
 
-        CircuitBreaker trippingBreaker = new CircuitBreaker() {
-            @Override
-            public void circuitBreak(String fieldName, long bytesNeeded) {}
-
+        // NoopCircuitBreaker is a no-op for every method we don't override; only addEstimateBytesAndMaybeBreak needs a real behavior.
+        CircuitBreaker trippingBreaker = new NoopCircuitBreaker("test") {
             @Override
             public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
                 throw new CircuitBreakingException("test breaker tripped", Durability.TRANSIENT);
             }
-
-            @Override
-            public void addWithoutBreaking(long bytes) {}
-
-            @Override
-            public long getUsed() {
-                return 0;
-            }
-
-            @Override
-            public long getLimit() {
-                return 0;
-            }
-
-            @Override
-            public double getOverhead() {
-                return 1.0;
-            }
-
-            @Override
-            public long getTrippedCount() {
-                return 0;
-            }
-
-            @Override
-            public String getName() {
-                return "test";
-            }
-
-            @Override
-            public Durability getDurability() {
-                return Durability.TRANSIENT;
-            }
-
-            @Override
-            public void setLimitAndOverhead(long limit, double overhead) {}
         };
 
         expectThrows(CircuitBreakingException.class, () -> AuditUtil.restRequestContent(request, 0, trippingBreaker, null));
+    }
+
+    public void testRestRequestContentReleasesBreakerAfterSuccessfulRendering() throws Exception {
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
+            new BytesArray(buildSmileBytes(10, "field_", "value_")),
+            XContentType.SMILE
+        ).build();
+
+        AtomicLong used = new AtomicLong();
+        CircuitBreaker counting = new NoopCircuitBreaker("test") {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+                used.addAndGet(bytes);
+            }
+
+            @Override
+            public void addWithoutBreaking(long bytes) {
+                used.addAndGet(bytes);
+            }
+        };
+
+        String json = AuditUtil.restRequestContent(request, 0, counting, null);
+        assertTrue(json.contains("field_0"));
+        assertEquals("breaker must be balanced after successful rendering", 0L, used.get());
+    }
+
+    public void testRestRequestContentReleasesBreakerWhenLimitTrips() throws Exception {
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
+            new BytesArray(buildSmileBytes(50, "longfield_", "longvalue_")),
+            XContentType.SMILE
+        ).build();
+
+        AtomicLong used = new AtomicLong();
+        CircuitBreaker counting = new NoopCircuitBreaker("test") {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+                used.addAndGet(bytes);
+            }
+
+            @Override
+            public void addWithoutBreaking(long bytes) {
+                used.addAndGet(bytes);
+            }
+        };
+
+        expectThrows(
+            ElasticsearchStatusException.class,
+            () -> AuditUtil.restRequestContent(request, 10, counting, "xpack.security.audit.logfile.events.max_request_body_size")
+        );
+        assertEquals("breaker must be balanced even when the size limit trips", 0L, used.get());
+    }
+
+    private static byte[] buildSmileBytes(int fields, String keyPrefix, String valuePrefix) throws Exception {
+        try (XContentBuilder smileBuilder = XContentFactory.smileBuilder()) {
+            smileBuilder.startObject();
+            for (int i = 0; i < fields; i++) {
+                smileBuilder.field(keyPrefix + i, valuePrefix + i);
+            }
+            smileBuilder.endObject();
+            return BytesReference.toBytes(BytesReference.bytes(smileBuilder));
+        }
     }
 
     public void testIndicesRequest() {

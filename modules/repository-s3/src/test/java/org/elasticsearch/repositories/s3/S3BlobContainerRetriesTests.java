@@ -10,6 +10,9 @@ package org.elasticsearch.repositories.s3;
 
 import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpHandler;
+
+import org.elasticsearch.core.UpdateForV10;
+
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
@@ -173,6 +176,14 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         };
         service.start();
         recordingMeterRegistry = new RecordingMeterRegistry();
+    }
+
+    @Override
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // should no longer be needed in v10 as the deprecated settings are all gone
+    protected boolean enableWarningsCheck() {
+        // this test suite is about retries; it sometimes uses some deprecated settings causing warnings but these warnings are tested
+        // elsewhere so there's no need to check them here
+        return false;
     }
 
     @After

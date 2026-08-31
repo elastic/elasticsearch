@@ -151,7 +151,9 @@ public class RepositoryS3DeprecationsRestIT extends ESRestTestCase {
         "use_throttle_retries",
         "true",
         "signer_override",
-        "test_signer"
+        "test_signer",
+        "disable_chunked_encoding",
+        "true"
     );
 
     public void testUpgradeAssistantReportsDeprecatedClientSettings() throws IOException {

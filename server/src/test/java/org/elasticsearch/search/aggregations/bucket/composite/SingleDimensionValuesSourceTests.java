@@ -292,7 +292,6 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             false,
             null,
             null,
-            false,
             false
         );
         assertNull(longSource(skipperLong).createSortedDocsProducerOrNull(reader, null));

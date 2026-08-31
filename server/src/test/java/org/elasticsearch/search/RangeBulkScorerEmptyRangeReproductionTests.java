@@ -37,7 +37,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
  * <ul>
  *   <li>{@code index.sort.field} matches the filtered field so {@code termQuery} on an
  *       {@code index=false} keyword maps to {@code RangeBulkScorer} via
- *       {@link org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery}.</li>
+ *       {@link org.apache.lucene.document.SortedSetDocValuesField#newSlowExactQuery}.</li>
  *   <li>{@code index.mapping.use_doc_values_skipper=true} is required to write the doc-values
  *       skip index that enables the bulk scorer fast path.</li>
  *   <li>A boolean query with a dense FILTER and a high-exclusion MUST_NOT drives

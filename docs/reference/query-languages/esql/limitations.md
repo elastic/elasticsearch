@@ -188,9 +188,13 @@ supports targeting `text` and `keyword` expressions in the same way, with the sa
 
 {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 When searching expressions, [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)
-(match query options) are supported on `text` expressions; the `analyzer` option must name a
-registered analyzer (prebuilt or plugin-contributed), not a per-index custom analyzer. On other
-expression types options are not supported.
+(match query options) are supported on `text` expressions. As on an indexed field, the `analyzer`
+option applies to the query string only: how the expression's values are analyzed is declared where
+the column is created, through
+[`TO_TEXT`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_text.md)'s
+`analyzer` option, and the query analyzer defaults to that values analyzer (`standard` when none is
+declared). Analyzer names must name a registered analyzer (prebuilt or plugin-contributed), not a
+per-index custom analyzer. On other expression types options are not supported.
 
 {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 When using `METADATA _score`, `MATCH` on an expression contributes to the relevance score:

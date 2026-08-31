@@ -12,7 +12,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -51,7 +50,6 @@ import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader.ArrayOrderSource;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFromOrdsBlockLoader;
@@ -405,6 +403,11 @@ public class IpFieldMapper extends FieldMapper {
             return useArrayOrderBinaryDocValues;
         }
 
+        /** Which framing a reader of this field's binary doc values has to decode. */
+        private BinaryDocValuesFormat binaryFormat() {
+            return useArrayOrderBinaryDocValues ? BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL : BinaryDocValuesFormat.SEPARATE_COUNT;
+        }
+
         private static InetAddress parse(Object value) {
             if (value instanceof InetAddress) {
                 return (InetAddress) value;
@@ -491,7 +494,12 @@ public class IpFieldMapper extends FieldMapper {
             final BytesRef upper = new BytesRef(pointRangeQuery.getUpperPoint());
 
             if (usesBinaryDocValues) {
-                return new ScanningBinaryDocValuesRangeQuery(field, lower, upper, arrayOrderInlineNull);
+                return new ScanningBinaryDocValuesRangeQuery(
+                    field,
+                    lower,
+                    upper,
+                    arrayOrderInlineNull ? BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL : BinaryDocValuesFormat.SEPARATE_COUNT
+                );
             } else {
                 return XSortedSetDocValuesRangeQuery.newSlowRangeQuery(field, lower, upper, true, true);
             }
@@ -601,21 +609,18 @@ public class IpFieldMapper extends FieldMapper {
                             // Single-valued binary doc values are written as plain (no separate counts column), so read them as plain.
                             return new BytesRefsFromBinaryBlockLoader(name());
                         }
-                        return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(
-                            name(),
-                            useArrayOrderBinaryDocValues ? ArrayOrderSource.INLINE : ArrayOrderSource.NONE
-                        );
+                        return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name(), binaryFormat());
                     } else {
                         return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize(), readInArrayOrder);
                     }
                 }
-                ArrayOrderSource arrayOrderSource = useArrayOrderBinaryDocValues ? ArrayOrderSource.INLINE : ArrayOrderSource.NONE;
+                BinaryDocValuesFormat binaryFormat = binaryFormat();
                 return switch (cfg.function()) {
                     case MV_MAX -> usesBinaryDocValues
-                        ? new MvMaxBytesRefsFromBinaryBlockLoader(name(), arrayOrderSource)
+                        ? new MvMaxBytesRefsFromBinaryBlockLoader(name(), binaryFormat)
                         : new MvMaxBytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                     case MV_MIN -> usesBinaryDocValues
-                        ? new MvMinBytesRefsFromBinaryBlockLoader(name(), arrayOrderSource)
+                        ? new MvMinBytesRefsFromBinaryBlockLoader(name(), binaryFormat)
                         : new MvMinBytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                     default -> throw new UnsupportedOperationException("unknown fusion config [" + cfg.function() + "]");
                 };
@@ -684,7 +689,7 @@ public class IpFieldMapper extends FieldMapper {
                     CoreValuesSourceType.IP,
                     IpDocValuesField::new,
                     indexVersion,
-                    useArrayOrderBinaryDocValues
+                    binaryFormat()
                 );
             }
             return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.IP, IpDocValuesField::new);
@@ -964,14 +969,7 @@ public class IpFieldMapper extends FieldMapper {
             ctx.addColumn(LuceneBinaryColumn.of(binaryDvs.finish(docCount), fieldType().name(), CustomDocValuesField.TYPE));
         }
         if (dvCounts.isEmpty() == false) {
-            ctx.addColumn(
-                LuceneLongColumn.of(
-                    dvCounts.finish(docCount),
-                    fieldType().name() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX,
-                    MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_TYPE,
-                    LongColumn.NumericKind.LONG
-                )
-            );
+            ctx.addColumn(LuceneLongColumn.counts(dvCounts.finish(docCount), fieldType().name()));
         }
     }
 

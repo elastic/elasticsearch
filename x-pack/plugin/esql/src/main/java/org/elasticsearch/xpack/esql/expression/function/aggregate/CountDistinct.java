@@ -61,7 +61,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(CountDistinct.class)
         .binary(CountDistinct::new)
-        .capabilities("flattened", "precision_clamp")
+        .capabilities("flattened", "precision_clamp", "spatial_grid_types")
         .name("count_distinct");
 
     private static final Map<DataType, Function<Integer, AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
@@ -77,7 +77,11 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         Map.entry(DataType.VERSION, CountDistinctBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.TEXT, CountDistinctBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.TSID_DATA_TYPE, CountDistinctBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.FLATTENED, CountDistinctBytesRefAggregatorFunctionSupplier::new)
+        Map.entry(DataType.FLATTENED, CountDistinctBytesRefAggregatorFunctionSupplier::new),
+        // Geo-grid types are encoded as long values
+        Map.entry(DataType.GEOHASH, CountDistinctLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.GEOTILE, CountDistinctLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.GEOHEX, CountDistinctLongAggregatorFunctionSupplier::new)
     );
 
     private static final int DEFAULT_PRECISION = 3000;
@@ -138,6 +142,9 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
                 "date_nanos",
                 "double",
                 "flattened",
+                "geohash",
+                "geohex",
+                "geotile",
                 "integer",
                 "ip",
                 "keyword",

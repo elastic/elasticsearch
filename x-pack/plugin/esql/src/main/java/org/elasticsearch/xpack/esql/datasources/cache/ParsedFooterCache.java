@@ -21,7 +21,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.ToLongFunction;
 
 /**
- * Node-wide cache for parsed file metadata (e.g. Parquet {@code ParquetMetadata}, ORC
+ * Node-wide cache for parsed file metadata (e.g., Parquet {@code ParquetMetadata}, ORC
  * {@code OrcTail}). Sits at the same architectural layer as {@link FooterByteCache} but stores
  * the result of the format-specific footer parse rather than its raw bytes, so the (typically
  * Thrift/protobuf) deserialization runs at most once per {@code (path, fileLength)} key across:
@@ -46,20 +46,22 @@ import java.util.function.ToLongFunction;
  *
  * <h2>Lifecycle</h2>
  * <ul>
- *   <li>Created once per <em>root</em> format reader — the node-wide lazy singleton
- *       {@code FormatReaderRegistry} builds from node {@code Settings} — and shared by every
+ *   <li>Created once per <em>root</em> format reader (the node-wide lazy singleton
+ *       {@code FormatReaderRegistry} builds from node {@code Settings}) and shared by every
  *       derived reader via the reader copy constructors, exactly like the paired
  *       {@link FooterByteCache} (see its class Javadoc for why not per-query).</li>
- *   <li>Access-based TTL — constructed with the same value as the paired {@link FooterByteCache}
+ *   <li>Access-based TTL: constructed with the same value as the paired {@link FooterByteCache}
  *       so the two caches age out together; covers a single query's fan-out (where concurrent
  *       splits keep the entry alive) and bounds cross-query staleness: the key carries no
  *       modification time, so a same-length overwrite may be served until the TTL lapses.</li>
- *   <li>Byte-weighted LRU eviction — parsed metadata structures do not expose an exact byte
+ *   <li>Byte-weighted LRU eviction: parsed metadata structures do not expose an exact byte
  *       size, so each format supplies a structural estimator (row groups × columns for Parquet,
  *       the analogous stripe shape for ORC) against a heap-relative budget
  *       ({@link ExternalSourceCacheSettings#FOOTER_PARSED_CACHE_SIZE}). Estimator precision only
- *       affects budget utilization, never correctness. Note that the byte and parsed caches evict
- *       independently — TTL alignment keeps them timing-consistent but does not synchronize
+ *       affects budget utilization, never correctness. An entry whose estimate exceeds the whole
+ *       budget is refused rather than cached (see {@link #put}), because such an entry can only
+ *       displace the entire working set and then itself. Note that the byte and parsed caches
+ *       evict independently. TTL alignment keeps them timing-consistent but does not synchronize
  *       eviction events.</li>
  * </ul>
  *
@@ -76,14 +78,15 @@ public final class ParsedFooterCache<T> {
 
     /**
      * Pairs a parsed footer with its weight, computed once at insertion. The backing {@link Cache}
-     * re-invokes its weigher on every LRU link/unlink — including the relink performed on each
-     * cache <em>hit</em> — under the global LRU lock, so a weigher that walks the footer structure
+     * re-invokes its weigher on every LRU link/unlink (including the relink performed on each
+     * cache <em>hit</em>) under the global LRU lock, so a weigher that walks the footer structure
      * would run on every hot-path access. Storing the precomputed weight makes those calls O(1).
      */
     private record Weighted<T>(T value, long weight) {}
 
     private final Cache<FooterByteCache.Key, Weighted<T>> cache;
     private final ToLongFunction<T> weigher;
+    private final long maxWeightBytes;
 
     /**
      * Creates a cache sized from node settings
@@ -115,6 +118,7 @@ public final class ParsedFooterCache<T> {
             throw new IllegalArgumentException("maxWeightBytes must be positive, got [" + maxWeightBytes + "]");
         }
         this.weigher = weigher;
+        this.maxWeightBytes = maxWeightBytes;
         this.cache = CacheBuilder.<FooterByteCache.Key, Weighted<T>>builder()
             .setMaximumWeight(maxWeightBytes)
             .setExpireAfterAccess(expireAfterAccess)
@@ -128,6 +132,12 @@ public final class ParsedFooterCache<T> {
      * same key block until the first load completes and then receive its result. This is the
      * thundering-herd protection that lets a single producer parse the footer while N siblings
      * skip the parse entirely.
+     *
+     * <p>The oversized-entry ceiling {@link #put} applies cannot be enforced here: the weight is
+     * only known once the loader has run, by which point the backing {@link Cache} has already
+     * linked the entry and pruned to fit. A load heavier than the whole budget therefore drains
+     * the cache and then self-evicts, leaving no entry behind. Callers that already hold the
+     * parsed value should seed it through {@link #put}, which refuses it before any eviction.
      *
      * @throws ExecutionException if the loader throws an exception or returns null
      */
@@ -153,8 +163,9 @@ public final class ParsedFooterCache<T> {
      * Stores an already-parsed footer for {@code key}, e.g. after an opportunistic tail parse.
      * Prefer this over {@code getOrLoad(key, k -> value)} when the caller already holds the
      * object: it avoids a checked {@link ExecutionException} and reads as an intentional seed.
-     * Unlike {@link FooterByteCache#put}, insertion is not skipped by size; the byte-weighted LRU
-     * may evict later.
+     * A value whose weight exceeds the cache's whole byte budget is silently skipped, mirroring
+     * {@link FooterByteCache#put}'s per-entry ceiling; anything that fits is inserted and the
+     * byte-weighted LRU may evict it later.
      *
      * @throws IllegalArgumentException if {@code key} or {@code value} is null
      */
@@ -165,7 +176,15 @@ public final class ParsedFooterCache<T> {
         if (value == null) {
             throw new IllegalArgumentException("parsed footer value must not be null");
         }
-        cache.put(key, wrap(value));
+        Weighted<T> weighted = wrap(value);
+        // An entry heavier than the entire budget can never be retained: the backing Cache links it
+        // at the LRU head and then evicts from the tail while weight > maximumWeight, so it discards
+        // every other footer, including the tiny-file working set later phases were meant to reuse,
+        // before discarding itself and leaving the cache empty. Refuse it up front instead.
+        if (weighted.weight() > maxWeightBytes) {
+            return;
+        }
+        cache.put(key, weighted);
     }
 
     private Weighted<T> wrap(T value) {

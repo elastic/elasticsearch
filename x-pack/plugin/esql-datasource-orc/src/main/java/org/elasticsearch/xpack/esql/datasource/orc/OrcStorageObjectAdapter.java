@@ -47,7 +47,7 @@ public class OrcStorageObjectAdapter extends FileSystem {
      * Creates an adapter for the given StorageObject.
      *
      * @param storageObject the storage object to adapt
-     * @param footerBytes the footer byte cache to consult and seed on tail reads — the owning
+     * @param footerBytes the footer byte cache to consult and seed on tail reads. The owning
      *                    format reader passes its own instance so all adapters it creates share
      *                    one cache
      */

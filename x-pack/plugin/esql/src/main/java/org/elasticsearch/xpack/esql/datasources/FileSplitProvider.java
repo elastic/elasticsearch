@@ -1002,9 +1002,11 @@ public class FileSplitProvider implements SplitProvider {
         // PRE-overlay inferred file types (physical-keyed), or null when no declared overlay ran. The stats-type
         // authority for normalizing footer range stats — NOT the overlaid readSchema types.
         @Nullable Map<String, DataType> inferredFileTypes,
-        // File-level statistics harvested when THIS query's schema resolution parsed the file's footer, or null
-        // when resolution served the schema from cache or never saw the file (single-file and first-file-wins
-        // non-anchor paths). Non-null lets tryRangeAwareSplits skip re-fetching the footer for small files.
+        // File-level statistics resolution holds for this file, or null when it holds none. Non-null lets
+        // tryRangeAwareSplits skip re-fetching the footer for small files. Populated by the multi-file
+        // UNION_BY_NAME / STRICT reconciliation fan-out and by the inferred single-file path; null on the
+        // first-file-wins rail (which aggregates per-file stats away, see finishFirstFileWins) and on the
+        // declared-schema paths (which never harvest per-file stats).
         @Nullable SourceStatistics statistics
     ) {}
 
@@ -1459,11 +1461,11 @@ public class FileSplitProvider implements SplitProvider {
         }
         RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) reader;
 
-        // Small-file bypass: schema resolution already parsed this file's footer in this query and harvested its
-        // file-level statistics. For a file at or below the reader's opt-in threshold, discovery would fetch and
-        // parse that same footer again only to (almost always) return a single whole-file range, so skip the I/O
-        // and emit the stamped whole-file split directly, carrying the harvested stats through the same
-        // normalization the per-range path applies.
+        // Small-file bypass: resolution already holds this file's file-level statistics, so discovery would fetch and
+        // parse the same footer again only to (almost always) return a single whole-file range. Skip the I/O and emit
+        // the stamped whole-file split directly, carrying the stats through the same normalization the per-range path
+        // applies. Coarser than per-row-group ranges for a small multi-row-group file, which is the documented
+        // trade-off behind rangeDiscoveryBypassMaxBytes.
         if (fileLength > 0 && fileLength <= rangeReader.rangeDiscoveryBypassMaxBytes() && fileStatistics != null) {
             Map<String, Object> stats = normalizeSplitStats(
                 SourceStatisticsSerializer.embedStatistics(Map.of(), fileStatistics),

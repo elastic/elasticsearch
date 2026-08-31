@@ -43,8 +43,8 @@ import java.util.concurrent.ExecutionException;
  *       Without a shared object, each adapter would issue its own tail read — exactly the redundant
  *       I/O this cache exists to prevent.</li>
  * </ol>
- * Instead, the cache is created once per <em>root</em> format reader — the node-wide lazy
- * singleton {@code FormatReaderRegistry} builds from node {@code Settings} — and every derived
+ * Instead, the cache is created once per <em>root</em> format reader (the node-wide lazy
+ * singleton {@code FormatReaderRegistry} builds from node {@code Settings}), and every derived
  * reader ({@code withConfig}, {@code withPushedFilter}, ...) shares the root's instance via its
  * copy constructor, so all concurrent queries on a node coalesce on one cache. When a
  * query-scoped context is introduced into the format reader API, this cache should migrate to an
@@ -88,7 +88,7 @@ public class FooterByteCache {
     /**
      * Creates a cache sized from node settings ({@link ExternalSourceCacheSettings#FOOTER_CACHE_SIZE},
      * {@link ExternalSourceCacheSettings#FOOTER_CACHE_TTL}). This is the production entry point,
-     * invoked by the format modules from their reader root constructors — which is why it is
+     * invoked by the format modules from their reader root constructors, which is why it is
      * public while the sizing constructor stays package-private for tests.
      */
     public static FooterByteCache fromSettings(Settings settings) {
@@ -111,7 +111,7 @@ public class FooterByteCache {
 
     /**
      * The expire-after-access TTL this cache was built with. The paired {@link ParsedFooterCache}
-     * is constructed with the same value so the byte and parsed caches age out together — if the
+     * is constructed with the same value so the byte and parsed caches age out together. If the
      * bytes are stale, the parse derived from them is stale too.
      */
     public TimeValue expireAfterAccess() {

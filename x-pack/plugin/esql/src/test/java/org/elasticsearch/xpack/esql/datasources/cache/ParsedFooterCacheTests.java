@@ -213,6 +213,31 @@ public class ParsedFooterCacheTests extends ESTestCase {
         assertNotNull(weighted.get(alsoBig));
     }
 
+    /**
+     * A value weighing more than the entire budget must never be inserted: the backing Cache would
+     * link it at the LRU head and then prune from the tail until the weight fits, discarding the
+     * whole working set and finally the new entry itself, leaving an empty cache.
+     */
+    public void testPutSkipsEntryHeavierThanBudget() {
+        ParsedFooterCache<String> weighted = new ParsedFooterCache<>(1000, TTL, v -> v.length() * 100L);
+        FooterByteCache.Key small = key("small.parquet", 1);
+        FooterByteCache.Key oversized = key("wide.parquet", 2);
+
+        weighted.put(small, "abc"); // 300 bytes
+        weighted.put(oversized, "eleven chrs"); // 11 chars -> 1100 bytes, over the 1000 budget
+
+        assertNull("an entry heavier than the budget must not be cached", weighted.get(oversized));
+        assertEquals("the existing working set must survive the refused insert", "abc", weighted.get(small));
+    }
+
+    /** An entry weighing exactly the budget still fits: the Cache prunes only while weight > budget. */
+    public void testPutAdmitsEntryWeighingExactlyTheBudget() {
+        ParsedFooterCache<String> weighted = new ParsedFooterCache<>(1000, TTL, v -> v.length() * 100L);
+        FooterByteCache.Key exact = key("exact.parquet", 1);
+        weighted.put(exact, "ten chars!"); // 10 chars -> 1000 bytes
+        assertEquals("ten chars!", weighted.get(exact));
+    }
+
     public void testFromSettingsBuildsWorkingCache() throws ExecutionException {
         ParsedFooterCache<String> fromSettings = ParsedFooterCache.fromSettings(Settings.EMPTY, ignored -> ENTRY_WEIGHT);
         FooterByteCache.Key k = key("file.parquet", 1000);

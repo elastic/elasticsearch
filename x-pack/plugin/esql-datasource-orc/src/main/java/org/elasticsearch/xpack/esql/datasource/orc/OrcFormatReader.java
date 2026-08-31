@@ -670,7 +670,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         // 1. context.fileContext() — per-producer fast path, single-writer/single-reader, no map
         // lookup; carries the parsed tail across successive splits of the same file on one
         // thread.
-        // 2. parsedFooters — reader-shared cache keyed by (path, length); shared across producer
+        // 2. parsedFooters: reader-shared cache keyed by (path, length); shared across producer
         // threads and across queries within the access TTL.
         long footerStartNanos = System.nanoTime();
         OrcTail tail;

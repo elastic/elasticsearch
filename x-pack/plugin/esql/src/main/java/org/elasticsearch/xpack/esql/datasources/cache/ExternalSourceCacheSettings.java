@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
 import java.util.List;
@@ -102,7 +103,7 @@ public final class ExternalSourceCacheSettings {
     );
 
     /**
-     * Deprecated former key for {@link #STRIPE_SIZE} — see {@link #CACHE_SIZE_OLD} for why it stays
+     * Deprecated former key for {@link #STRIPE_SIZE}. See {@link #CACHE_SIZE_OLD} for why it stays
      * registered.
      */
     public static final Setting<ByteSizeValue> STRIPE_SIZE_OLD = Setting.byteSizeSetting(
@@ -140,7 +141,7 @@ public final class ExternalSourceCacheSettings {
     );
 
     /**
-     * Deprecated former key for {@link #STRIPE_COLUMNS} — see {@link #CACHE_SIZE_OLD} for why it stays
+     * Deprecated former key for {@link #STRIPE_COLUMNS}. See {@link #CACHE_SIZE_OLD} for why it stays
      * registered.
      */
     public static final Setting<StripeColumnScope> STRIPE_COLUMNS_OLD = Setting.enumSetting(
@@ -193,13 +194,19 @@ public final class ExternalSourceCacheSettings {
     };
 
     /**
-     * Byte budget for a columnar format reader's footer-byte cache ({@link FooterByteCache}) — raw
+     * Byte budget for a columnar format reader's footer-byte cache ({@link FooterByteCache}): raw
      * footer/tail bytes reused across the resolution, split-discovery, and execution phases of a
      * query, and across back-to-back queries within {@link #FOOTER_CACHE_TTL}. The budget is per
      * reader instance (the Parquet and ORC readers each own one cache), so the node-wide worst
-     * case is twice this value. The default fits the footer working set of thousands of tiny
-     * files on mid-size heaps (e.g. ~6,400 tiny-file footers ≈ 26 MiB ≈ 0.5% of an 8 GB heap);
-     * absolute values are accepted.
+     * case is twice this value; absolute values are accepted.
+     * <p>
+     * The default is sized so that a single query's whole file set fits: one query can discover at
+     * most {@link ExternalSourceSettings#MAX_DISCOVERED_FILES} files, and 0.5% of an 8 GB heap is
+     * ~41 MiB, which holds that many footers as long as they average under ~4 KiB.
+     * <p>
+     * Note that only files too large to be fetched whole reach this cache. A file that fits in the
+     * format reader's sliding window is filled by one whole-file read, which is deliberately not
+     * stored here so that file bodies cannot displace genuine footers.
      */
     public static final Setting<ByteSizeValue> FOOTER_CACHE_SIZE = new Setting<>(
         "esql.external.cache.footer.size",
@@ -210,10 +217,28 @@ public final class ExternalSourceCacheSettings {
     );
 
     /**
-     * Byte budget for a columnar format reader's parsed-footer cache ({@link ParsedFooterCache})
-     * — deserialized footer structures (Parquet {@code ParquetMetadata}, ORC {@code OrcTail}),
+     * Byte budget for a columnar format reader's parsed-footer cache ({@link ParsedFooterCache}):
+     * deserialized footer structures (Parquet {@code ParquetMetadata}, ORC {@code OrcTail}),
      * weighed by a per-format structural estimate. Like {@link #FOOTER_CACHE_SIZE} the budget is
      * per reader instance, so the node-wide worst case is twice this value.
+     * <p>
+     * A parsed footer costs several times its serialized form and scales with column count rather
+     * than file size (at Parquet's estimate a single-row-group file weighs ~13 KiB at 15 columns
+     * and ~55 KiB at 100), and files whose writer embeds a schema document in the footer's
+     * key-value metadata (Spark, Iceberg and pandas all do) weigh more again. Doubling
+     * {@link #FOOTER_CACHE_SIZE}'s ratio does not usually offset that, so for typical schemas this
+     * cache holds fewer entries than the byte cache and is the one that evicts first.
+     * <p>
+     * That ordering is worth having rather than a shortcoming, because it keeps the common failure
+     * mode cheap: when a footer is dropped here the raw bytes are often still cached, so the next
+     * phase pays a re-parse (CPU) instead of a fresh network round trip. It is a tendency, not a
+     * guarantee. Two cases invert it. A file small enough to be fetched whole (see the sliding
+     * window in the format reader's storage adapter) is never stored as a footer entry at all, so
+     * this cache is the only one holding anything for it. And a file carrying large per-column
+     * statistics can have a serialized footer bigger than the structural estimate charged here.
+     * In both, an eviction from this cache does cost a re-read. Deployments running wide schemas
+     * over large file sets can raise this to buy back the re-parse; the cost is heap held for the
+     * whole {@link #FOOTER_CACHE_TTL}.
      */
     public static final Setting<ByteSizeValue> FOOTER_PARSED_CACHE_SIZE = new Setting<>(
         "esql.external.cache.footer.parsed.size",
@@ -224,11 +249,11 @@ public final class ExternalSourceCacheSettings {
     );
 
     /**
-     * Expire-after-access TTL shared by both footer caches — if the bytes are stale, the parse
+     * Expire-after-access TTL shared by both footer caches. If the bytes are stale, the parse
      * derived from them is stale too. Must bridge the gaps between resolution, split discovery,
      * and execution of one query over a large file set, plus dashboard refresh intervals. The
      * trade-off: footer cache keys are {@code (path, fileLength)} without mtime (adding it would
-     * cost a HEAD request per range split — see {@link FooterByteCache}), so a file overwritten
+     * cost a HEAD request per range split; see {@link FooterByteCache}), so a file overwritten
      * in place with identical length can be served stale for up to this long. Object-store
      * analytics layouts treat data files as immutable, and this setting is the operator escape
      * hatch where they do not.

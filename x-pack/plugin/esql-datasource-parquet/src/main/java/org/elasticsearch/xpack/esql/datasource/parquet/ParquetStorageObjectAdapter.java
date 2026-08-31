@@ -75,7 +75,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
     /**
      * Creates an adapter with the default 4MB sliding window charged to the given circuit breaker.
      *
-     * @param footerBytes the footer byte cache to consult and seed on tail reads — the owning
+     * @param footerBytes the footer byte cache to consult and seed on tail reads. The owning
      *                    format reader passes its own instance so all adapters it creates (across
      *                    splits, streams, and derived readers) share one cache
      */

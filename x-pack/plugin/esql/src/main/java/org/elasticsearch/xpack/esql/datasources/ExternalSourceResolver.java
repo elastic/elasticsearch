@@ -677,6 +677,9 @@ public class ExternalSourceResolver {
 
             ExternalSourceMetadata extMetadata;
             StorageEntry storageEntry;
+            // Statistics this resolve actually harvested, for the small-file discovery bypass. Only the cold,
+            // non-cacheable branch below can supply them; see the assignment there and the else-branch note.
+            SourceStatistics harvestedStatistics = null;
             if (isCacheable(provider)) {
                 // Warm path is zero-I/O: the file-metadata cache holds {length, mtime} within the schema TTL, so a warm
                 // single-file resolve never touches a live object (fileMetadataOf). mtime is the cache key's version token;
@@ -688,10 +691,17 @@ public class ExternalSourceResolver {
                     return stampInferredReadConfig(SchemaCacheEntry.from(resolveSingleSource(path, config)));
                 });
                 List<Attribute> schema = schemaEntry.toAttributes();
+                // Leaves harvestedStatistics null even when this call computed the entry: a SchemaCacheEntry keeps
+                // only the flat _stats.* map, not a SourceStatistics, and buildMetadataFromCache keeps the bypass
+                // cold-resolve-only by construction. Supplying it here would mean threading the computed statistics
+                // out of the cache loader, as cachedResolveSingleSourceAsync does with its four-arg overload.
                 extMetadata = buildMetadataFromCache(schemaEntry, schema, config);
                 storageEntry = new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()));
             } else {
                 SourceMetadata metadata = resolveSingleSource(path, config);
+                // Read the statistics off the reader's metadata before wrapping: wrapAsExternalSourceMetadata folds
+                // them into sourceMetadata() but does not override statistics(), so they are unreachable afterwards.
+                harvestedStatistics = metadata.statistics().orElse(null);
                 extMetadata = wrapAsExternalSourceMetadata(metadata, config, declaredReadSpecOf(declaredMapping));
                 StorageObject object = provider.newObject(storagePath);
                 storageEntry = new StorageEntry(storagePath, object.length(), object.lastModified());
@@ -704,8 +714,14 @@ public class ExternalSourceResolver {
             List<Attribute> fileSchema = extMetadata.schema();
 
             FileList singletonList = GlobExpander.fileListOf(List.of(storageEntry), path);
-            // Single-file: degenerate case of the general flow — one-entry schemaMap, identity mapping.
-            Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, fileSchema);
+            // Single-file: degenerate case of the general flow — one-entry schemaMap, identity mapping. Carrying the
+            // harvested statistics lets split discovery take the small-file bypass instead of re-reading the footer
+            // this resolve just parsed.
+            Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(
+                storagePath,
+                fileSchema,
+                harvestedStatistics
+            );
             listener.onResponse(new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap));
         } finally {
             StorageProviderCache.closeLease(provider);
@@ -714,13 +730,14 @@ public class ExternalSourceResolver {
 
     private static Map<StoragePath, SchemaReconciliation.FileSchemaInfo> singleEntrySchemaMap(
         StoragePath path,
-        @Nullable List<Attribute> schema
+        @Nullable List<Attribute> schema,
+        @Nullable SourceStatistics statistics
     ) {
         if (schema == null || schema.isEmpty()) {
             return Map.of();
         }
         ColumnMapping identityMapping = new ColumnMapping(identityMapping(schema.size()), null);
-        return Map.of(path, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(schema), identityMapping, null));
+        return Map.of(path, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(schema), identityMapping, statistics));
     }
 
     private void resolveMultiFileSource(
@@ -1005,6 +1022,11 @@ public class ExternalSourceResolver {
                 ? new ColumnMapping(identityMapping(physicalSchema.size()), null)
                 : SchemaReconciliation.computeMapping(dataOnlySchema, physicalSchema);
             for (int i = 0; i < listing.fileCount(); i++) {
+                // No per-file statistics on this rail. Either the defer branch ran and no file's footer was read at
+                // all, or the eager gather ran and folded every file's stats into one dataset-level aggregate whose
+                // whole point is to skip split discovery outright; when that aggregation fails the survivors are
+                // marked partial and must not be stamped onto splits. So FFW never takes the small-file discovery
+                // bypass, and pays a footer re-read for the files split discovery does visit.
                 perFileInfo.put(listing.path(i), new SchemaReconciliation.FileSchemaInfo(fileSchema, mapping, null));
             }
             schemaMap = Collections.unmodifiableMap(perFileInfo);
@@ -2530,7 +2552,9 @@ public class ExternalSourceResolver {
             List.of(new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()))),
             path
         );
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, logicalSchema);
+        // Strict declares the whole schema, so no per-file footer statistics were harvested: null keeps this file
+        // out of the small-file discovery bypass, which requires stats resolution actually holds.
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, logicalSchema, null);
         return new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap);
     }
 
@@ -2765,7 +2789,9 @@ public class ExternalSourceResolver {
 
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = new HashMap<>();
         for (int i = 0; i < listing.fileCount(); i++) {
-            schemaMap.putAll(singleEntrySchemaMap(listing.path(i), logicalSchema));
+            // Strict reads only the anchor's footer (for the coercibility check), so no file here has harvested
+            // statistics — null, which keeps them out of the small-file discovery bypass.
+            schemaMap.putAll(singleEntrySchemaMap(listing.path(i), logicalSchema, null));
         }
         return new ExternalSourceResolution.ResolvedSource(extMetadata, listing, schemaMap);
     }

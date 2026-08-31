@@ -2892,10 +2892,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * Cold cacheable multi-file resolves must expose the just-harvested footer statistics on the
-     * returned metadata — {@code cachedResolveSingleSourceAsync} wraps the resolved metadata in a
-     * cache-shaped view, and an earlier version of that view silently dropped {@code statistics()},
-     * leaving {@code FileSchemaInfo.statistics()} null and disabling the small-file discovery
-     * bypass on the exact path it was built for. Warm serves must stay null: the bypass is
+     * returned metadata. {@code cachedResolveSingleSourceAsync} wraps the resolved metadata in a
+     * cache-shaped view that must forward {@code statistics()} on a cold resolve, or
+     * {@code FileSchemaInfo.statistics()} is null and the small-file discovery bypass does not
+     * fire on the path it was built for. Warm serves must stay null: the bypass is
      * cold-resolve-only by construction (the footer was parsed by THIS query).
      */
     public void testCacheableColdResolveCarriesHarvestedStatistics() throws Exception {

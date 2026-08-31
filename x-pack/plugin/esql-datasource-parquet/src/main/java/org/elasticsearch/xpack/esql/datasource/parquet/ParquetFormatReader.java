@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
@@ -132,7 +133,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      * Node-wide cache of parsed Parquet footers. One instance is created by the root reader (the
      * node-wide lazy singleton the {@code FormatReaderRegistry} builds from node {@code Settings})
      * and shared by reference with every derived reader (see the copy constructors), so producer
-     * threads spawned from different reader instances (e.g. across concurrent queries) still
+     * threads spawned from different reader instances (e.g., across concurrent queries) still
      * coalesce footer parses.
      */
     private final ParsedFooterCache<ParquetMetadata> parsedFooters;
@@ -198,18 +199,58 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
 
     /**
      * Estimated heap footprint of a parsed {@link ParquetMetadata}, used as the
-     * {@link ParsedFooterCache} weigher. A structural estimate: a fixed base for the schema and
-     * file-level metadata, plus a per-row-group base and a few hundred bytes per column chunk
-     * (a {@code ColumnChunkMetaData} with statistics is a few-hundred-byte object graph). Chosen
-     * to stay conservative (over-estimate) without pricing tiny-file footers out of the budget —
+     * {@link ParsedFooterCache} weigher. A structural estimate: a fixed base for the metadata
+     * shell, the measured size of the file-level key-value metadata, and a per-row-group base
+     * plus a few hundred bytes per column chunk (a {@code ColumnChunkMetaData} with statistics is
+     * a few-hundred-byte object graph). Chosen to stay conservative (over-estimate), since
      * precision only affects budget utilization, never correctness.
+     * <p>
+     * The per-column term dominates for typical files, so column count, not file size, decides
+     * how many footers fit. The parsed-cache default is sized against that and the target
+     * tiny-file working set (see {@link ExternalSourceCacheSettings#FOOTER_PARSED_CACHE_SIZE}),
+     * so the two must be revisited together: lowering the budget or raising this estimate shrinks
+     * how much of a dataset survives from resolution through to execution.
+     * <p>
+     * Key-value metadata is measured rather than assumed because it is the one component with no
+     * structural bound. Writers stash arbitrary payloads there (Spark, Iceberg and pandas all
+     * write full schema documents as JSON), {@link ParquetMetadata} retains them as Strings for
+     * the entry's whole lifetime, and a fixed base would let a single such footer occupy a large
+     * multiple of its estimate.
      */
     static long estimateFooterWeightBytes(ParquetMetadata footer) {
-        long weight = 4096;
-        for (BlockMetaData rowGroup : footer.getBlocks()) {
+        FileMetaData fileMetaData = footer.getFileMetaData();
+        long weight = 4096 + estimateKeyValueMetadataBytes(fileMetaData.getKeyValueMetaData());
+        List<BlockMetaData> rowGroups = footer.getBlocks();
+        if (rowGroups.isEmpty()) {
+            // A row-group-less footer (an empty file) still retains the full MessageType, and with no column
+            // chunks to charge for nothing else scales with schema width. The per-chunk term below is set high
+            // enough to absorb the schema for any file that has at least one row group; with none, price it here
+            // so a wide empty file cannot weigh the same as a narrow one.
+            weight += fileMetaData.getSchema().getColumns().size() * 512L;
+        }
+        for (BlockMetaData rowGroup : rowGroups) {
             weight += 1024 + rowGroup.getColumns().size() * 512L;
         }
         return weight;
+    }
+
+    /**
+     * Retained size of a footer's key-value metadata map. Counts two bytes per character (the
+     * UTF-16 worst case; compact Latin-1 strings cost half that) plus a per-entry allowance for
+     * the two String headers and the map node.
+     */
+    private static long estimateKeyValueMetadataBytes(Map<String, String> keyValueMetaData) {
+        long bytes = 0;
+        for (Map.Entry<String, String> entry : keyValueMetaData.entrySet()) {
+            bytes += 64;
+            if (entry.getKey() != null) {
+                bytes += 2L * entry.getKey().length();
+            }
+            if (entry.getValue() != null) {
+                bytes += 2L * entry.getValue().length();
+            }
+        }
+        return bytes;
     }
 
     /**
@@ -319,7 +360,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         );
     }
 
-    /** Test convenience: default-sized caches, private to this reader — automatic test isolation. */
+    /** Test convenience: default-sized caches, private to this reader, so tests get automatic isolation. */
     public ParquetFormatReader(BlockFactory blockFactory) {
         this(Settings.EMPTY, blockFactory);
     }
@@ -814,7 +855,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             return;
         }
 
-        // Warm parsed footer — even if the byte cache has since evicted the tail — needs no I/O at
+        // Warm parsed footer (even if the byte cache has since evicted the tail) needs no I/O at
         // all: build the metadata straight from it on the executor. Without this check a parsed-warm
         // byte-cold file would pay a fresh network tail read plus a full re-parse.
         ParquetMetadata warmFooter = parsedFooters.get(cacheKey);
@@ -1458,7 +1499,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      * statistics harvested during schema resolution (see {@code FileSplitProvider}). The threshold
      * is deliberately below {@code DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES}: files smaller than
      * the macro-split target coalesce into fewer than two ranges, and {@link #discoverSplitRanges}
-     * then returns per-row-group ranges only when there are multiple row groups — rare for files
+     * then returns per-row-group ranges only when there are multiple row groups, rare for files
      * this small, and the parallelism forfeited by reading such a file whole is negligible
      * compared to saving the footer fetch + parse.
      */
@@ -1472,34 +1513,36 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
     @Override
     public List<SplitRange> discoverSplitRanges(StorageObject object) throws IOException {
         ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object, footerBytes, blockFactory.breaker());
-        ParquetReadOptions options = readOptionsBuilder().build();
-        try (ParquetFileReader reader = openParquetFileCached(object, parquetInputFile, options)) {
-            List<BlockMetaData> rowGroups = reader.getRowGroups();
-            if (rowGroups.isEmpty()) {
-                return List.of();
-            }
-            MessageType parquetSchema = reader.getFooter().getFileMetaData().getSchema();
-            if (rowGroups.size() == 1) {
-                BlockMetaData block = rowGroups.getFirst();
-                Map<String, Object> stats = buildRowGroupStats(block, parquetSchema);
-                return List.of(new SplitRange(block.getStartingPos(), block.getCompressedSize(), stats));
-            }
-            List<SplitRange> ranges = new ArrayList<>(rowGroups.size());
-            for (BlockMetaData block : rowGroups) {
-                Map<String, Object> stats = buildRowGroupStats(block, parquetSchema);
-                // Use the compressed on-disk size for the SplitRange length: this value is fed to
-                // readRange() which builds a byte range end = startingPos + length for Parquet's
-                // withRange(rangeStart, rangeEnd) filter. That filter includes a row group when its
-                // starting position lies in the range, so the end must land at or before the next
-                // row group's starting position. getTotalByteSize() returns the uncompressed size
-                // (much larger than what is actually on disk), which would make adjacent ranges
-                // overlap in byte space and cause Parquet to select each row group from multiple
-                // splits, producing duplicate rows.
-                ranges.add(new SplitRange(block.getStartingPos(), block.getCompressedSize(), stats));
-            }
-            List<SplitRange> coalesced = coalesceRowGroupRanges(ranges, DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES);
-            return coalesced.size() < 2 ? ranges : coalesced;
+        // Take the parsed footer straight from the cache rather than opening a ParquetFileReader.
+        // This method reads no data bytes at all (only row-group metadata and the schema), but
+        // ParquetFileReader.open would allocate the adapter's sliding window and reserve it on the
+        // breaker up front, per file, purely to hand back the metadata the cache already holds.
+        ParquetMetadata footer = loadFooter(object, parquetInputFile);
+        List<BlockMetaData> rowGroups = footer.getBlocks();
+        if (rowGroups.isEmpty()) {
+            return List.of();
         }
+        MessageType parquetSchema = footer.getFileMetaData().getSchema();
+        if (rowGroups.size() == 1) {
+            BlockMetaData block = rowGroups.getFirst();
+            Map<String, Object> stats = buildRowGroupStats(block, parquetSchema);
+            return List.of(new SplitRange(block.getStartingPos(), block.getCompressedSize(), stats));
+        }
+        List<SplitRange> ranges = new ArrayList<>(rowGroups.size());
+        for (BlockMetaData block : rowGroups) {
+            Map<String, Object> stats = buildRowGroupStats(block, parquetSchema);
+            // Use the compressed on-disk size for the SplitRange length: this value is fed to
+            // readRange() which builds a byte range end = startingPos + length for Parquet's
+            // withRange(rangeStart, rangeEnd) filter. That filter includes a row group when its
+            // starting position lies in the range, so the end must land at or before the next
+            // row group's starting position. getTotalByteSize() returns the uncompressed size
+            // (much larger than what is actually on disk), which would make adjacent ranges
+            // overlap in byte space and cause Parquet to select each row group from multiple
+            // splits, producing duplicate rows.
+            ranges.add(new SplitRange(block.getStartingPos(), block.getCompressedSize(), stats));
+        }
+        List<SplitRange> coalesced = coalesceRowGroupRanges(ranges, DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES);
+        return coalesced.size() < 2 ? ranges : coalesced;
     }
 
     @SuppressWarnings("rawtypes")
@@ -1737,7 +1780,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             // Footer resolution order:
             // 1. context.fileContext() — per-producer fast path, single-writer/single-reader, no map
             // lookup; carries the footer across successive splits of the same file on one thread.
-            // 2. parsedFooters ({@link ParsedFooterCache}) — node-wide LRU keyed by (path, length);
+            // 2. parsedFooters ({@link ParsedFooterCache}): node-wide LRU keyed by (path, length);
             // shared across producer threads and across queries within the access TTL. The loader
             // explicitly uses unranged read options so the cached value is the full file footer (all
             // row groups) and is reusable by any split. The underlying FooterByteCache ensures the

@@ -70,7 +70,7 @@ public interface RangeAwareFormatReader extends FormatReader {
      * parsing the footer of a tiny file just to split it is wasted I/O: such files almost always
      * hold a single row group / stripe, so the discovery result is a single whole-file range
      * anyway. Formats opt in by returning a positive threshold; the default of {@code 0}
-     * disables the bypass so existing implementations keep their current behavior.
+     * disables the bypass: every file goes through {@link #discoverSplitRanges}.
      */
     default long rangeDiscoveryBypassMaxBytes() {
         return 0;

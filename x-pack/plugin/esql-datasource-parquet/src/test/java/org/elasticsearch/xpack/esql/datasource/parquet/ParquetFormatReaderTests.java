@@ -22,6 +22,7 @@ import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.hadoop.metadata.FileMetaData;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.io.LocalInputFile;
 import org.apache.parquet.io.LocalOutputFile;
@@ -757,7 +758,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
     /**
      * The {@code with*} copy constructors must thread the SAME cache instances into every derived
-     * reader — the registry hands out one root reader per format per node, and pushdown/overlay
+     * reader. The registry hands out one root reader per format per node, and pushdown/overlay
      * paths derive copies from it, so a copy that dropped the shared caches would silently
      * reintroduce the per-consumer footer re-parse these caches exist to prevent.
      */
@@ -784,7 +785,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * reuse the seeded parsed footer for every file that fits the cache's byte budget (the default
      * budget holds far more than these). Phase 2 runs on a cache-sharing copy, mirroring production
      * where the registry's root reader and its derived copies share one cache. Not a COUNT(*)
-     * skip-path test — skip-eligible aggregates never call {@code discoverSplitRanges}.
+     * skip-path test: skip-eligible aggregates never call {@code discoverSplitRanges}.
      */
     public void testAsyncFooterParseSeedsParsedCacheAcrossPhases() throws Exception {
         byte[] parquetData = createVpcFlowShapedParquet();
@@ -802,6 +803,54 @@ public class ParquetFormatReaderTests extends ESTestCase {
             assertEquals("Phase-2 must hit the Phase-1 seed for N=" + n, 0, phase2.statusSnapshot().footerCacheMisses());
             assertEquals("Phase-2 loadFooter must run for every file", n, phase2.statusSnapshot().footerCacheHits());
         }
+    }
+
+    /**
+     * Key-value metadata is retained by ParquetMetadata for the cache entry's whole lifetime and
+     * has no structural bound, so the weigher must measure it. Without that, a footer carrying a
+     * writer's embedded schema document weighs the same as one carrying nothing and can occupy
+     * many times its estimate, defeating both the budget and the per-entry admission ceiling.
+     */
+    public void testFooterWeightCountsKeyValueMetadata() {
+        MessageType schema = Types.buildMessage().optional(PrimitiveType.PrimitiveTypeName.INT64).named("a").named("m");
+        BlockMetaData rowGroup = new BlockMetaData();
+        String blob = "x".repeat(100_000);
+
+        long bare = ParquetFormatReader.estimateFooterWeightBytes(
+            new ParquetMetadata(new FileMetaData(schema, Map.of(), "test"), List.of(rowGroup))
+        );
+        long withBlob = ParquetFormatReader.estimateFooterWeightBytes(
+            new ParquetMetadata(
+                new FileMetaData(schema, Map.of("org.apache.spark.sql.parquet.row.metadata", blob), "test"),
+                List.of(rowGroup)
+            )
+        );
+
+        assertThat(
+            "embedded metadata must be priced at no less than its retained characters",
+            withBlob - bare,
+            greaterThanOrEqualTo(2L * blob.length())
+        );
+    }
+
+    /**
+     * A footer with no row groups still retains the full MessageType, and the per-column-chunk
+     * term that covers the schema for every other file contributes nothing here. Without a
+     * width-scaled term such a footer weighs a flat base regardless of schema, so an arbitrarily
+     * wide empty file is admitted and held at a fraction of its real cost.
+     */
+    public void testFooterWeightScalesWithSchemaWidthWhenThereAreNoRowGroups() {
+        long narrow = ParquetFormatReader.estimateFooterWeightBytes(emptyFooterWithColumns(1));
+        long wide = ParquetFormatReader.estimateFooterWeightBytes(emptyFooterWithColumns(2000));
+        assertThat("a wide row-group-less footer must not weigh the same as a narrow one", wide, greaterThan(narrow * 100));
+    }
+
+    private static ParquetMetadata emptyFooterWithColumns(int columns) {
+        Types.MessageTypeBuilder builder = Types.buildMessage();
+        for (int i = 0; i < columns; i++) {
+            builder.optional(PrimitiveType.PrimitiveTypeName.INT64).named("col_" + i);
+        }
+        return new ParquetMetadata(new FileMetaData(builder.named("empty"), Map.of(), "test"), List.of());
     }
 
     /**

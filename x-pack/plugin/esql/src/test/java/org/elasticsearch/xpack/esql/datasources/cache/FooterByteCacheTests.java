@@ -222,7 +222,7 @@ public class FooterByteCacheTests extends ESTestCase {
     }
 
     public void testEachConstructionIsIndependent() {
-        // Per-instance caches replaced the JVM-wide singleton: two caches must not share entries.
+        // Distinct cache instances must not share entries.
         FooterByteCache other = new FooterByteCache(1024 * 1024, 512 * 1024, TTL);
         FooterByteCache.Key key = new FooterByteCache.Key("file.parquet", 1000);
         cache.put(key, randomByteArrayOfLength(100));

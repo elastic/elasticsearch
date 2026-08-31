@@ -3524,8 +3524,8 @@ public class FileSplitProviderTests extends ESTestCase {
 
     /**
      * Without harvested statistics (schema served from cache, or single-file / first-file-wins paths
-     * that never parsed this footer) a small file must fall back to normal range discovery — the
-     * bypass would otherwise stamp a stats-less split where today's path provides range stats.
+     * that never parsed this footer) a small file must fall back to normal range discovery. The
+     * bypass would otherwise stamp a stats-less split; discovery stamps per-range stats.
      */
     public void testRangeAwareSmallFileWithoutHarvestedStatsFallsBackToDiscovery() {
         AtomicInteger discoverCalls = new AtomicInteger();
@@ -3652,7 +3652,7 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(99L, stats.get(SourceStatisticsSerializer.columnMaxKey("emp_id")));
         assertEquals(100L, stats.get(SourceStatisticsSerializer.columnValueCountKey("emp_id")));
         assertNull(stats.get(SourceStatisticsSerializer.columnMinKey("id")));
-        // re-type: price poisoned — extremum dropped + marker written, count stripped
+        // re-type: price poisoned: extremum dropped + marker written, count stripped
         assertNull(stats.get(SourceStatisticsSerializer.columnMinKey("price")));
         assertEquals(Boolean.TRUE, stats.get(SourceStatisticsSerializer.columnMinUnservableKey("price")));
         assertNull(stats.get(SourceStatisticsSerializer.columnValueCountKey("price")));

@@ -80,6 +80,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
@@ -788,6 +789,23 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         return new OrcFilterPushdownSupport();
     }
 
+    /**
+     * ORC keeps dropping rows for {@code skip_row} with a SearchArgument pushed into it, so it opts into the
+     * pushdown the SPI withholds by default.
+     * <p>
+     * Two properties earn that: the reader has a single decode path — {@code convertToPage} always runs
+     * {@code ColumnarRowDropHelper#filterBlocks} — and it never calls {@code OrcFile.ReaderOptions#setRowFilter},
+     * so a SearchArgument prunes whole stripes and row-index ranges but never individual rows inside a batch.
+     * Batch coordinates therefore stay intact and the positions the coercion reports still address the blocks
+     * the helper compacts. A future row-level ORC predicate path would break both and must revisit this
+     * answer; {@code OrcFormatReaderTests#testDropsRowsUnderPushedFilter} demonstrates the drop under a real
+     * pushed SearchArgument rather than leaving it asserted.
+     */
+    @Override
+    public boolean dropsRowsUnderPushedFilter() {
+        return true;
+    }
+
     @Override
     public AggregatePushdownSupport aggregatePushdownSupport() {
         return new OrcAggregatePushdownSupport();
@@ -1475,6 +1493,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 return true;
             }
             long startNanos = System.nanoTime();
+            long startCpuNanos = ThreadCpuTimer.currentNanos();
             try {
                 while (true) {
                     if (stripeSkipTable != null && stripeSkipTable.noFurtherCandidates()) {
@@ -1503,6 +1522,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 throw new IllegalArgumentException("Failed to read ORC batch", e);
             } finally {
                 counters.addReadNanos(System.nanoTime() - startNanos);
+                if (startCpuNanos >= 0) {
+                    counters.addReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
+                }
             }
         }
 

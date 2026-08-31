@@ -56,6 +56,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.StringBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BinaryDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
@@ -73,7 +74,6 @@ import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader.ArrayOrderSource;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.search.FuzzyQueries;
@@ -328,6 +328,11 @@ public class WildcardFieldMapper extends FieldMapper {
          */
         boolean usesArrayOrderBinaryDocValues() {
             return arrayOrderBinaryDocValues;
+        }
+
+        /** Which framing a reader of this field's binary doc values has to decode. */
+        private BinaryDocValuesFormat binaryFormat() {
+            return arrayOrderBinaryDocValues ? BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL : BinaryDocValuesFormat.SEPARATE_COUNT;
         }
 
         @Override
@@ -1040,10 +1045,7 @@ public class WildcardFieldMapper extends FieldMapper {
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues()) {
                 if (indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)) {
-                    return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(
-                        name(),
-                        arrayOrderBinaryDocValues ? ArrayOrderSource.INLINE : ArrayOrderSource.NONE
-                    );
+                    return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name(), binaryFormat());
                 }
                 return new BytesRefsFromCustomBinaryBlockLoader(name());
             }
@@ -1058,7 +1060,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 CoreValuesSourceType.KEYWORD,
                 WildcardDocValuesField::new,
                 indexVersion,
-                arrayOrderBinaryDocValues
+                binaryFormat()
             );
         }
 

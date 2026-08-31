@@ -36,9 +36,7 @@ public class ForkTestUtils {
     /**
      * Applies all assume conditions that rule out a csv-spec test case from being
      * run with an appended FORK suffix. Callers should invoke this from
-     * {@code shouldSkipTest} (to skip before the test starts) or inside a
-     * try/catch for {@link org.junit.AssumptionViolatedException} (to skip a
-     * sub-variant silently without failing the whole test).
+     * {@code shouldSkipTest} (to skip before the test starts).
      */
     public static void shouldSkipForkTest(CsvSpecReader.CsvTestCase testCase, RestClient adminClient) {
         assumeFalse(
@@ -50,6 +48,7 @@ public class ForkTestUtils {
             "LOAD_ALL doesn't currently support fork",
             testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_V2.capabilityName())
         );
+
         assumeFalse(
             "Tests using subqueries are skipped since nested fork/subquery is not supported yet",
             testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())

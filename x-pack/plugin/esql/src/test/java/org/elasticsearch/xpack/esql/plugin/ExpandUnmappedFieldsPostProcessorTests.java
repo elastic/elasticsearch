@@ -427,6 +427,43 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         }
     }
 
+    public void testPrefixConstrainedChildWildcardExpandsOnlyMatchingLeaves() {
+        BlockFactory bf = blockFactory();
+        // "samples.n*" should expand "samples.nested" but not "samples.value".
+        Result result = result(
+            List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.includes(List.of("samples.n*")))),
+            List.of(page(bf, List.of(row(1, jsonObject("{'samples':{'nested':'x','value':'y'}}")))))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "samples.nested")));
+            assertThat(nonNullRows(expanded), contains(matchesMap().entry(INT_ATTR, 1).entry("samples.nested", "x")));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testExactObjectFieldNameProducesNoColumn() {
+        BlockFactory bf = blockFactory();
+        // An exact name "samples" matches the object key in JSON, but objects have no direct keyword value and the
+        // pattern does not cover any leaf ("samples.nested" ≠ "samples"), so no column is emitted.
+        // The null-column behavior seen in KEEP queries is produced by the UnmappedFieldsOrdering path (end-to-end);
+        // in the no-ordering path the object simply disappears from the output schema.
+        Result result = result(
+            List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.includes(List.of("samples")))),
+            List.of(page(bf, List.of(row(1, jsonObject("{'samples':{'nested':'x'}}")))))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR)));
+            assertThat(nonNullRows(expanded), contains(matchesMap().entry(INT_ATTR, 1)));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
     public void testExpandReleasesInputPagesWhenExpansionFails() {
         BlockFactory bf = blockFactory();
         Block intBlock;

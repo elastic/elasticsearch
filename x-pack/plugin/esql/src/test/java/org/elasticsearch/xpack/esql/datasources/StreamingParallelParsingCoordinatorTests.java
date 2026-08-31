@@ -1798,12 +1798,6 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
-    /**
-     * Regression guard: when the executor rejects the segmentator task (e.g. pool shut down or
-     * saturated with no queue) {@link StreamingParallelParsingCoordinator.StreamingParallelIterator}
-     * must close the decompressed stream promptly via {@code onSegmentatorLaunchRejected}, not wait
-     * until the consumer calls {@link CloseableIterator#close()}.
-     */
     public void testAcceptReadCpuNanosCalledOnClose() throws Exception {
         int lineCount = 100;
         String content = buildContent(lineCount);
@@ -1840,6 +1834,12 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * Regression guard: when the executor rejects the segmentator task (e.g. pool shut down or
+     * saturated with no queue) {@link StreamingParallelParsingCoordinator.StreamingParallelIterator}
+     * must close the decompressed stream promptly via {@code onSegmentatorLaunchRejected}, not wait
+     * until the consumer calls {@link CloseableIterator#close()}.
+     */
     public void testSegmentatorRejectionClosesDecompressedStream() throws Exception {
         AtomicBoolean streamClosed = new AtomicBoolean(false);
         InputStream trackingStream = new InputStream() {

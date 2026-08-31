@@ -31,6 +31,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -201,10 +202,10 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
      * </ul>
      */
     public void testMetricsCompression() throws IOException {
-        for (var name : GA_TEXT_CODECS) {
-            // All release codecs should be present in the compression tests
-            assertTrue(name, COMPRESSION_TESTS.containsKey(name));
-        }
+        var codecNames = new HashSet<>(GA_TEXT_CODECS);
+        codecNames.removeAll(COMPRESSION_TESTS.keySet());
+        // All release codecs should be present in the compression tests
+        assertTrue("All release codecs should be present in the compression tests, missing: " + codecNames, codecNames.isEmpty());
         for (var testCase : COMPRESSION_TESTS.entrySet()) {
             assertCompressedDataset(testCase.getKey(), testCase.getValue().writer, testCase.getValue().splittable);
         }

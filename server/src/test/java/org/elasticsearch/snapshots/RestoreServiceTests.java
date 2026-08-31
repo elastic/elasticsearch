@@ -774,12 +774,13 @@ public class RestoreServiceTests extends ESTestCase {
                 randomProjectIdOrDefault(),
                 request,
                 SnapshotRecoverySource.NO_API_RESTORE_UUID,
-                ActionListener.noop()
+                ActionListener.noop(),
+                (clusterState, builder) -> {}
             )
         );
         expectThrows(
             NullPointerException.class,
-            () -> service.restoreSnapshot(randomProjectIdOrDefault(), request, null, ActionListener.noop())
+            () -> service.restoreSnapshot(randomProjectIdOrDefault(), request, null, ActionListener.noop(), (clusterState, builder) -> {})
         );
     }
 

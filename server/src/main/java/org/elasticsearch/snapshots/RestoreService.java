@@ -276,32 +276,6 @@ public final class RestoreService implements ClusterStateApplier {
     }
 
     /**
-     * Restores a snapshot using a caller-supplied restore UUID so the caller can correlate the restore
-     * with an external record (e.g. a persistent task). A UUID matching an existing
-     * {@link RestoreInProgress} entry is treated as an idempotent retry and applies nothing.
-     *
-     * @param projectId   project for the restore
-     * @param request     restore request
-     * @param restoreUUID caller-supplied UUID for the restore entry; must not be
-     *                    {@link SnapshotRecoverySource#NO_API_RESTORE_UUID}
-     * @param listener    restore listener
-     */
-    public void restoreSnapshot(
-        final ProjectId projectId,
-        final RestoreSnapshotRequest request,
-        final String restoreUUID,
-        final ActionListener<RestoreCompletionResponse> listener
-    ) {
-        Objects.requireNonNull(restoreUUID);
-        if (SnapshotRecoverySource.NO_API_RESTORE_UUID.equals(restoreUUID)) {
-            throw new IllegalArgumentException(
-                "restore UUID must not be the reserved value [" + SnapshotRecoverySource.NO_API_RESTORE_UUID + "]"
-            );
-        }
-        restoreSnapshot(projectId, request, restoreUUID, listener, (clusterState, builder) -> {});
-    }
-
-    /**
      * Restores snapshot specified in the restore request.
      *
      * @param projectId project for the restore
@@ -319,13 +293,32 @@ public final class RestoreService implements ClusterStateApplier {
         restoreSnapshot(projectId, request, UUIDs.randomBase64UUID(), listener, updater);
     }
 
-    private void restoreSnapshot(
+    /**
+     * Restores a snapshot using a caller-supplied restore UUID so the caller can correlate the restore
+     * with an external record (e.g. a persistent task). A UUID matching an existing
+     * {@link RestoreInProgress} entry is treated as an idempotent retry and applies nothing.
+     *
+     * @param projectId   project for the restore
+     * @param request     restore request
+     * @param restoreUUID caller-supplied UUID for the restore entry; must not be
+     *                    {@link SnapshotRecoverySource#NO_API_RESTORE_UUID}
+     * @param listener    restore listener
+     * @param updater     handler that allows callers to make modifications to {@link ProjectMetadata}
+     *                    in the same cluster state update as the restore operation
+     */
+    public void restoreSnapshot(
         final ProjectId projectId,
         final RestoreSnapshotRequest request,
         final String restoreUUID,
         final ActionListener<RestoreCompletionResponse> listener,
         final BiConsumer<ClusterState, ProjectMetadata.Builder> updater
     ) {
+        Objects.requireNonNull(restoreUUID);
+        if (SnapshotRecoverySource.NO_API_RESTORE_UUID.equals(restoreUUID)) {
+            throw new IllegalArgumentException(
+                "restore UUID must not be the reserved value [" + SnapshotRecoverySource.NO_API_RESTORE_UUID + "]"
+            );
+        }
         assert Repository.assertSnapshotMetaThread();
 
         if (clusterService.state().metadata().hasProject(projectId) == false) {

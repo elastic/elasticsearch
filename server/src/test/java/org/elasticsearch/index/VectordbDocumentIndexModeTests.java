@@ -103,11 +103,18 @@ public class VectordbDocumentIndexModeTests extends ESTestCase {
         );
     }
 
+    public void testProviderRejectsUnrecognizedIndexModeWithUserFriendlyError() {
+        Settings userSettings = Settings.builder().put(IndexSettings.MODE.getKey(), "vectordb").build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> runProvider(userSettings, Settings.builder()));
+        assertThat(e.getMessage(), containsString("[vectordb] is an invalid index mode"));
+    }
+
     private static void runProvider(Settings userSettings, Settings.Builder additional) {
         new IndexMode.IndexModeSettingsProvider().provideAdditionalSettings(
             "test_index",
             null,
             null,
+            false,
             ProjectMetadata.builder(ProjectId.fromId("test_project")).build(),
             Instant.now(),
             userSettings,

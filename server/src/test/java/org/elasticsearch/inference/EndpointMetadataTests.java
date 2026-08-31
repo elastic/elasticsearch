@@ -35,11 +35,11 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
         new EndpointMetadata.Heuristics(List.of("heuristic1", "heuristic2"), StatusHeuristic.BETA, "2025-01-01", "2025-12-31"),
         new EndpointMetadata.Internal("fingerprint", 1L),
         new EndpointMetadata.Display("name", "some_creator"),
-        List.of(new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us")),
+        List.of(new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us", "US East (N. Virginia)")),
         true
     );
 
-    private static final String NON_EMPTY_ENDPOINT_METADATA_JSON = """
+    static final String NON_EMPTY_ENDPOINT_METADATA_JSON = """
         {
           "heuristics": {
             "properties": ["heuristic1", "heuristic2"],
@@ -55,7 +55,7 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
             "name": "name",
             "model_creator": "some_creator"
           },
-          "regions": [{"csp": "aws", "region": "us-east-1", "geo": "us"}],
+          "regions": [{"csp": "aws", "region": "us-east-1", "geo": "us", "region_display_name": "US East (N. Virginia)"}],
           "denied_by_region_policy": true
         }
         """;
@@ -72,7 +72,7 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
             "name": "name",
             "model_creator": "some_creator"
           },
-          "regions": [{"csp": "aws", "region": "us-east-1", "geo": "us"}],
+          "regions": [{"csp": "aws", "region": "us-east-1", "geo": "us", "region_display_name": "US East (N. Virginia)"}],
           "denied_by_region_policy": true
         }
         """;
@@ -116,7 +116,8 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
         return new EndpointMetadata.EndpointRegion(
             randomBoolean() ? null : randomAlphaOfLengthBetween(2, 10),
             randomBoolean() ? null : randomAlphaOfLengthBetween(3, 15),
-            randomBoolean() ? null : randomAlphaOfLengthBetween(2, 5)
+            randomBoolean() ? null : randomAlphaOfLengthBetween(2, 5),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(5, 30)
         );
     }
 
@@ -243,17 +244,17 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
             false
         );
 
-        assertThat(endpointWithNullFingerprint1.fingerprintMatches(endpointWithNullFingerprint2), is(true));
-        assertThat(endpointWithNullFingerprint1.fingerprintMatches(endpointWithFingerprintAbc1), is(false));
-        assertThat(endpointWithNullFingerprint1.fingerprintMatches(endpointWithFingerprintXyz1), is(false));
+        assertTrue(fingerprintMatches(endpointWithNullFingerprint1, endpointWithNullFingerprint2));
+        assertFalse(fingerprintMatches(endpointWithNullFingerprint1, endpointWithFingerprintAbc1));
+        assertFalse(fingerprintMatches(endpointWithNullFingerprint1, endpointWithFingerprintXyz1));
 
-        assertThat(endpointWithFingerprintAbc1.fingerprintMatches(endpointWithFingerprintAbc2), is(true));
-        assertThat(endpointWithFingerprintXyz1.fingerprintMatches(endpointWithFingerprintXyz2), is(true));
+        assertTrue(fingerprintMatches(endpointWithFingerprintAbc1, endpointWithFingerprintAbc2));
+        assertTrue(fingerprintMatches(endpointWithFingerprintXyz1, endpointWithFingerprintXyz2));
 
-        assertThat(endpointWithFingerprintXyz1.fingerprintMatches(endpointWithFingerprintAbc1), is(false));
+        assertFalse(fingerprintMatches(endpointWithFingerprintXyz1, endpointWithFingerprintAbc1));
     }
 
-    public void testHasNewerVersionThan() {
+    public void testIsNewerThan() {
         EndpointMetadata endpointWithNullVersion1 = new EndpointMetadata(
             randomHeuristics(),
             new EndpointMetadata.Internal(null, null),
@@ -290,13 +291,21 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
             false
         );
 
-        assertThat(endpointWithNullVersion1.hasNewerVersionThan(endpointWithNullVersion2), is(false));
-        assertThat(endpointWithNullVersion1.hasNewerVersionThan(endpointWithVersionFour), is(false));
-        assertThat(endpointWithVersionFour.hasNewerVersionThan(endpointWithNullVersion1), is(true));
-        assertThat(endpointWithVersionFour.hasNewerVersionThan(anotherEndpointWithVersionFour), is(false));
-        assertThat(endpointWithVersionFour.hasNewerVersionThan(endpointWithVersionFive), is(false));
-        assertThat(endpointWithVersionFive.hasNewerVersionThan(endpointWithVersionFour), is(true));
-        assertThat(endpointWithVersionFive.hasNewerVersionThan(endpointWithNullVersion2), is(true));
+        assertFalse(isNewerThan(endpointWithNullVersion1, endpointWithNullVersion2));
+        assertFalse(isNewerThan(endpointWithNullVersion1, endpointWithVersionFour));
+        assertTrue(isNewerThan(endpointWithVersionFour, endpointWithNullVersion1));
+        assertFalse(isNewerThan(endpointWithVersionFour, anotherEndpointWithVersionFour));
+        assertFalse(isNewerThan(endpointWithVersionFour, endpointWithVersionFive));
+        assertTrue(isNewerThan(endpointWithVersionFive, endpointWithVersionFour));
+        assertTrue(isNewerThan(endpointWithVersionFive, endpointWithNullVersion2));
+    }
+
+    private static boolean fingerprintMatches(EndpointMetadata first, EndpointMetadata second) {
+        return first.internal().fingerprintMatches(second.internal());
+    }
+
+    private static boolean isNewerThan(EndpointMetadata first, EndpointMetadata second) {
+        return first.internal().isNewerThan(second.internal());
     }
 
     @Override
@@ -356,6 +365,10 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
         if (version.supports(EndpointMetadata.REGIONS_ADDED) == false) {
             regions = List.of();
             deniedByRegionPolicy = false;
+        } else if (version.supports(EndpointMetadata.EndpointRegion.REGION_DISPLAY_NAME_ADDED) == false) {
+            regions = regions.stream()
+                .map(r -> new EndpointMetadata.EndpointRegion(r.csp(), r.region(), r.geo(), null))
+                .collect(Collectors.toList());
         }
         return new EndpointMetadata(heuristics, internal, display, regions, deniedByRegionPolicy);
     }

@@ -141,7 +141,7 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
      */
     private static void checkNestedUnionAlls(LogicalPlan logicalPlan, Failures failures) {
         if (logicalPlan instanceof UnionAll unionAll) {
-            unionAll.forEachDown(Fork.class, nested -> {
+            Fork.forEachForkSkippingSubqueries(unionAll, nested -> {
                 if (unionAll == nested) {
                     return;
                 }

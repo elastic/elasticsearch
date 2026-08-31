@@ -65,47 +65,51 @@ public class DesiredBalanceMetricsTests extends ESTestCase {
         meterRegistry.getRecorder().collect();
         assertThat(
             meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_GAUGE, DesiredBalanceMetrics.UNDESIRED_ALLOCATION_COUNT_METRIC_NAME),
+                .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, DesiredBalanceMetrics.UNDESIRED_ALLOCATION_COUNT_METRIC_NAME),
             empty()
         );
         assertThat(
-            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, DesiredBalanceMetrics.TOTAL_SHARDS_METRIC_NAME),
-            empty()
-        );
-        assertThat(
-            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, DesiredBalanceMetrics.UNASSIGNED_SHARDS_METRIC_NAME),
+            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, DesiredBalanceMetrics.TOTAL_SHARDS_METRIC_NAME),
             empty()
         );
         assertThat(
             meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.DOUBLE_GAUGE, DesiredBalanceMetrics.UNDESIRED_ALLOCATION_RATIO_METRIC_NAME),
+                .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, DesiredBalanceMetrics.UNASSIGNED_SHARDS_METRIC_NAME),
             empty()
         );
         assertThat(
             meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_GAUGE, DesiredBalanceMetrics.COMPUTATIONS_SUBMITTED_METRIC_NAME),
-            empty()
-        );
-        assertThat(
-            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, DesiredBalanceMetrics.COMPUTATIONS_EXECUTED_METRIC_NAME),
+                .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, DesiredBalanceMetrics.UNDESIRED_ALLOCATION_RATIO_METRIC_NAME),
             empty()
         );
         assertThat(
             meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_GAUGE, DesiredBalanceMetrics.COMPUTATIONS_CONVERGED_METRIC_NAME),
+                .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, DesiredBalanceMetrics.COMPUTATIONS_SUBMITTED_METRIC_NAME),
             empty()
         );
         assertThat(
             meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_GAUGE, DesiredBalanceMetrics.COMPUTATIONS_ITERATIONS_METRIC_NAME),
+                .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, DesiredBalanceMetrics.COMPUTATIONS_EXECUTED_METRIC_NAME),
             empty()
         );
         assertThat(
-            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, DesiredBalanceMetrics.COMPUTATIONS_TIME_METRIC_NAME),
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, DesiredBalanceMetrics.COMPUTATIONS_CONVERGED_METRIC_NAME),
             empty()
         );
         assertThat(
-            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, DesiredBalanceMetrics.RECONCILIATIONS_TIME_METRIC_NAME),
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, DesiredBalanceMetrics.COMPUTATIONS_ITERATIONS_METRIC_NAME),
+            empty()
+        );
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, DesiredBalanceMetrics.COMPUTATIONS_TIME_METRIC_NAME),
+            empty()
+        );
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, DesiredBalanceMetrics.RECONCILIATIONS_TIME_METRIC_NAME),
             empty()
         );
 
@@ -114,20 +118,21 @@ public class DesiredBalanceMetricsTests extends ESTestCase {
         meterRegistry.getRecorder().collect();
         assertThat(
             meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_GAUGE, DesiredBalanceMetrics.UNDESIRED_ALLOCATION_COUNT_METRIC_NAME),
+                .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, DesiredBalanceMetrics.UNDESIRED_ALLOCATION_COUNT_METRIC_NAME),
             measures(undesiredAllocations)
         );
         assertThat(
-            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, DesiredBalanceMetrics.TOTAL_SHARDS_METRIC_NAME),
+            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, DesiredBalanceMetrics.TOTAL_SHARDS_METRIC_NAME),
             measures(totalAllocations)
         );
         assertThat(
-            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, DesiredBalanceMetrics.UNASSIGNED_SHARDS_METRIC_NAME),
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, DesiredBalanceMetrics.UNASSIGNED_SHARDS_METRIC_NAME),
             measures(unassignedShards)
         );
         assertThat(
             meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.DOUBLE_GAUGE, DesiredBalanceMetrics.UNDESIRED_ALLOCATION_RATIO_METRIC_NAME),
+                .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, DesiredBalanceMetrics.UNDESIRED_ALLOCATION_RATIO_METRIC_NAME),
             measures((double) undesiredAllocations / totalAllocations)
         );
         assertThat(
@@ -172,7 +177,7 @@ public class DesiredBalanceMetricsTests extends ESTestCase {
         meterRegistry.getRecorder().collect();
         assertThat(
             meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.DOUBLE_GAUGE, DesiredBalanceMetrics.UNDESIRED_ALLOCATION_RATIO_METRIC_NAME),
+                .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, DesiredBalanceMetrics.UNDESIRED_ALLOCATION_RATIO_METRIC_NAME),
             measures(0.0d)
         );
     }

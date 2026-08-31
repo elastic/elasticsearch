@@ -15,19 +15,19 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.ServiceSettingsOPBuilder;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
+import org.elasticsearch.xpack.inference.common.parser.UpdateServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -36,9 +36,13 @@ import java.net.URI;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 /**
  * Common service settings shared across all Cohere inference tasks.
@@ -77,28 +81,35 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
     public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
 
     /**
-     * Registers the common Cohere service-settings fields (model_id, url, api_version, rate_limit)
-     * onto the given parser. The deprecated {@code model} alias is also registered and emits a
-     * log warning when encountered in request context.
+     * Builds an {@link ObjectParser} for Cohere service settings, wiring the common fields (model_id, url, api_version),
+     * {@link #DEFAULT_RATE_LIMIT_SETTINGS}, and the {@code api_key} no-op. The deprecated {@code model} alias is also registered and
+     * emits a log warning when encountered in request context. {@code api_version} is only declared in
+     * {@link ConfigurationParseContext#PERSISTENT} context because incoming requests always use V2.
      */
-    public static <B extends Builder<? extends CohereServiceSettings>> void declareCommonFields(
-        AbstractObjectParser<B, ConfigurationParseContext> parser,
-        ConfigurationParseContext context
+    public static <B extends Builder<? extends CohereServiceSettings>> ObjectParser<B, ConfigurationParseContext> buildCommonParser(
+        boolean ignoreUnknownFields,
+        ConfigurationParseContext context,
+        Function<ConfigurationParseContext, B> builderFactory
     ) {
+        var parser = new ServiceSettingsOPBuilder<>(ignoreUnknownFields, () -> builderFactory.apply(context)).enableRateLimitSettings(
+            Builder::setRateLimitSettings,
+            DEFAULT_RATE_LIMIT_SETTINGS
+        ).allowApiKey().build();
         parser.declareString(Builder::setDeprecatedModelId, new ParseField(OLD_MODEL_ID_FIELD));
         parser.declareString(Builder::setModelId, new ParseField(ServiceFields.MODEL_ID));
         parser.declareString(Builder::setUrl, new ParseField(URL));
         if (context == ConfigurationParseContext.PERSISTENT) {
             parser.declareString(Builder::setApiVersion, new ParseField(API_VERSION));
         }
-        parser.declareObject(
-            Builder::setRateLimitSettings,
-            (p, c) -> RateLimitSettings.createParser(c == ConfigurationParseContext.PERSISTENT, DEFAULT_RATE_LIMIT_SETTINGS).apply(p, null),
-            new ParseField(RateLimitSettings.FIELD_NAME)
-        );
-        // api_key appears in the same JSON block as service settings in REST requests; DefaultSecretSettings extracts it separately.
-        // Declare it here as a no-op so the strict REQUEST parser does not reject it as an unknown field.
-        parser.declareString((b, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));
+        return parser;
+    }
+
+    /**
+     * Builds an {@link ObjectParser} for Cohere update requests, wiring {@link #DEFAULT_RATE_LIMIT_SETTINGS} and the {@code api_key}
+     * no-op.
+     */
+    public static <U extends CommonUpdate> ObjectParser<U, Void> buildCommonUpdateParser(Supplier<U> updateSupplier) {
+        return UpdateServiceSettingsOPBuilder.of(updateSupplier, CommonUpdate::setRateLimitSettings).build();
     }
 
     /**
@@ -166,7 +177,7 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
     }
 
     public CohereCommonServiceSettings update(CommonUpdate update) {
-        RateLimitSettings updatedRateLimitSettings = Objects.requireNonNullElse(update.rateLimitSettings, this.rateLimitSettings);
+        var updatedRateLimitSettings = applyUpdate(update.rateLimitSettings, this.rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
         return new CohereCommonServiceSettings(this.uri, this.modelId, updatedRateLimitSettings, this.apiVersion);
     }
 
@@ -288,23 +299,15 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
             return parser.apply(xParser, context).build();
         } catch (IOException e) {
-            throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.SERVICE_SETTINGS);
+            throw new ElasticsearchParseException("Failed to parse [{}]", e, SERVICE_SETTINGS);
         }
-    }
-
-    public static void declareCommonUpdatableFields(AbstractObjectParser<? extends CommonUpdate, Void> parser) {
-        parser.declareObject(
-            CommonUpdate::setRateLimitSettings,
-            (p, c) -> RateLimitSettings.createParser(false, null).apply(p, null),
-            new ParseField(RateLimitSettings.FIELD_NAME)
-        );
     }
 
     public static class CommonUpdate {
 
-        protected RateLimitSettings rateLimitSettings;
+        protected StatefulValue<RateLimitSettings> rateLimitSettings = StatefulValue.undefined();
 
-        private void setRateLimitSettings(RateLimitSettings rateLimitSettings) {
+        protected void setRateLimitSettings(StatefulValue<RateLimitSettings> rateLimitSettings) {
             this.rateLimitSettings = rateLimitSettings;
         }
     }

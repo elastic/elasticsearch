@@ -23,6 +23,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.StatusHeuristic;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
+import org.elasticsearch.inference.metadata.EndpointMetadataClusterState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -437,14 +438,8 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
         assertThat(capturedRequest.getModels(), containsInAnyOrder(expectedModels.toArray()));
     }
 
-    private static EndpointMetadata createEndpointMetadataWithInternal(EndpointMetadata.Internal internal) {
-        return new EndpointMetadata(
-            EndpointMetadata.Heuristics.EMPTY_INSTANCE,
-            internal,
-            EndpointMetadata.Display.EMPTY_INSTANCE,
-            List.of(),
-            false
-        );
+    private static EndpointMetadataClusterState createEndpointMetadataWithInternal(EndpointMetadata.Internal internal) {
+        return new EndpointMetadataClusterState(EndpointMetadata.Heuristics.EMPTY_INSTANCE, internal);
     }
 
     private static EndpointClusterState createEisSparseSettingsWithFingerprintAndVersion(

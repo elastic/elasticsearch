@@ -688,7 +688,11 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
     }
 
     public void testCacheIsWarmedBeforeSearchShardRecoveryWhenVBCCGetsUploaded() {
-        var nodeSettings = Settings.builder()
+        // When true, the VBCC is released immediately after upload (pre-recentlyUploadedVbccs behaviour): the first chunk
+        // request from the search node receives a ResourceAlreadyUploadedException and warming falls back to the object store.
+        // When false, the default timeout keeps the VBCC alive so chunk requests succeed and warming can use the indexing node.
+        final boolean immediateVbccRelease = randomBoolean();
+        var nodeSettingsBuilder = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
@@ -697,8 +701,14 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             // Match the VBCC transport chunk size with the pre-warm range so that each warming range is fetched with a single
             // transport request, reducing the interleaving window where a mid-range flush can surface RAUE on a sibling gap.
             .put(TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
-            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
-            .build();
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings());
+        if (immediateVbccRelease) {
+            nodeSettingsBuilder.put(
+                StatelessCommitService.STATELESS_UPLOAD_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT.getKey(),
+                TimeValue.ZERO
+            );
+        }
+        var nodeSettings = nodeSettingsBuilder.build();
         final var indexNode = startMasterAndIndexNode(nodeSettings);
 
         var searchNode = startSearchNode(nodeSettings);
@@ -758,8 +768,9 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 handler.messageReceived(alteredRequest, channel, task);
             });
 
-        // Upload VBCC on first message to get a chunk from the indexing node. This will return a ResourceAlreadyUploadedException and will
-        // make the warming service to fetch from the object store.
+        // Upload VBCC on first message to get a chunk from the indexing node. With immediateVbccRelease the VBCC is already gone
+        // by then and the handler returns ResourceAlreadyUploadedException, making the warming service fall back to the object store.
+        // With the default timeout the VBCC is still alive so the chunk request succeeds and warming can proceed via the indexing node.
         final var flushed = new AtomicBoolean(false);
         final var flushCountdown = new CountDownLatch(1);
         MockTransportService.getInstance(searchNode).addSendBehavior((connection, requestId, action, request, options) -> {
@@ -802,7 +813,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
                     @Override
                     public void sendResponse(TransportResponse response) {
-                        assert false : "unexpectedly trying to send response " + response;
+                        // With immediateVbccRelease the VBCC is gone before the first chunk request arrives, so the handler
+                        // must never reach a success response. With the default timeout the VBCC is still alive, so it can.
+                        assert immediateVbccRelease == false : "unexpectedly trying to send response " + response;
+                        channel.sendResponse(response);
                     }
                 }, task)
             );
@@ -967,11 +981,14 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         final var stoppedLatch = new CountDownLatch(1);
         final var restartLatch = new CountDownLatch(1);
+        // We want to stall the getConnection for GetVBCCChunk request which is right after registerCommitForRecovery
+        final AtomicBoolean shouldDelayGetConnection = new AtomicBoolean(false);
         final var restartIndexNodeThread = new Thread(() -> {
             try {
                 internalCluster().restartNode(indexNode, new InternalTestCluster.RestartCallback() {
                     @Override
                     public Settings onNodeStopped(String nodeName) throws Exception {
+                        shouldDelayGetConnection.set(false);
                         stoppedLatch.countDown();
                         // The node is stopped. Wait for the search shard warming to fail before restarting it. We don't want it
                         // to restart too soon which might interfere the failure path of the search shard recovery.
@@ -988,11 +1005,9 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             }
         });
 
-        // We want to stall the getConnection for GetVBCCChunk request which is right after registerCommitForRecovery
-        final AtomicBoolean shouldDelayGetConnection = new AtomicBoolean(false);
         final MockTransportService searchNodeTransportService = MockTransportService.getInstance(searchNode);
         searchNodeTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-            if (TransportRegisterCommitForRecoveryAction.NAME.equals(action)) {
+            if (TransportRegisterCommitForRecoveryAction.NAME.equals(action) && stoppedLatch.getCount() > 0) {
                 shouldDelayGetConnection.set(true);
             }
             connection.sendRequest(requestId, action, request, options);
@@ -1001,9 +1016,13 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         final AtomicBoolean restartOnce = new AtomicBoolean(false);
         final IndicesService searchNodeIndicesService = internalCluster().getInstance(IndicesService.class, searchNode);
         searchNodeTransportService.addGetConnectionBehavior((connectionManager, discoveryNode) -> {
-            if (indexNode.equals(discoveryNode.getName()) && shouldDelayGetConnection.get() && restartOnce.compareAndSet(false, true)) {
-                logger.info("--> stalling getConnection and restart");
-                restartIndexNodeThread.start();
+            if (indexNode.equals(discoveryNode.getName()) && shouldDelayGetConnection.get()) {
+                if (restartOnce.compareAndSet(false, true)) {
+                    logger.info("--> stalling getConnection and restart");
+                    restartIndexNodeThread.start();
+                }
+                // SearchEngine initialization can happen concurrently with warming and also call getConnection
+                // Since it can happen first and trigger the restart, wait here to ensure warming fails with NodeNotConnectedException
                 try {
                     // Wait for the search shard to be removed (due to primary failure) to ensure no retry
                     assertBusy(() -> {

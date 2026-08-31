@@ -300,7 +300,7 @@ final class StructImplWriter {
             case FLOAT -> code.fload(slot);
             case DOUBLE -> code.dload(slot);
             case ADDRESS -> code.aload(slot);
-            case VOID, STRING, ADDRESSABLE -> throw new AssertionError("unexpected scalar field type: " + type);
+            case VOID, STRING, ADDRESSABLE, UPCALL -> throw new AssertionError("unexpected scalar field type: " + type);
         }
     }
 
@@ -541,7 +541,7 @@ final class StructImplWriter {
             case FLOAT -> cb.freturn();
             case DOUBLE -> cb.dreturn();
             case ADDRESS -> cb.areturn();
-            case VOID, STRING, ADDRESSABLE -> throw new AssertionError("unexpected scalar field type: " + type);
+            case VOID, STRING, ADDRESSABLE, UPCALL -> throw new AssertionError("unexpected scalar field type: " + type);
         }
     }
 

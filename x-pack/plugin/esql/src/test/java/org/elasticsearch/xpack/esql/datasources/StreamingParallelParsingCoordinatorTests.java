@@ -12,9 +12,12 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -66,7 +69,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
@@ -1138,6 +1143,131 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * A rejected breaker charge in {@code takeOrAllocateBuffer} must not leave {@code buffersAllocated}
+     * inflated. If the counter exceeds the number of successful charges, {@code close()} refunds more
+     * than was taken — driving the breaker's {@code used} negative and removing protection for the
+     * next request. Fix: claim the slot atomically and roll it back on the exception path.
+     */
+    public void testBreakerChargeIsRefundedExactlyOnRejection() throws Exception {
+        int chunkSize = 64;
+        // Trip on the very first allocation so the rejection path is always exercised. The @After
+        // allBreakersMemoryReleased() assertion then verifies that close() leaves used == 0.
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(0));
+
+        // Enough content to trigger multiple buffer allocations from the segmentator.
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 30; i++) {
+            sb.append("line-").append(i).append('\n');
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            LineFormatReader reader = new LineFormatReader(chunkSize);
+            CloseableIterator<Page> it = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                new ByteArrayInputStream(bytes),
+                null,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                breaker
+            );
+            expectThrows(CircuitBreakingException.class, () -> {
+                while (it.hasNext()) {
+                    it.next().releaseBlocks();
+                }
+            });
+            it.close();
+        } finally {
+            executor.shutdownNow();
+        }
+        assertEquals("breaker net bytes must be 0 after close; a negative value means close() over-refunded", 0L, breaker.getUsed());
+    }
+
+    /**
+     * {@code close()} must be safe to call concurrently: no caller throws, and the breaker ends
+     * balanced rather than over-refunded.
+     * <p>
+     * Note this asserts the <em>property</em>, not the mechanism. The refund reads its tally with
+     * {@code buffersAllocated.getAndSet(0)}, so only one caller can ever observe a non-zero value —
+     * that alone makes a double refund impossible, and this test still passes if the {@code closed}
+     * CAS in {@code close()} is downgraded to a check-then-act (verified by reverting it). The CAS
+     * earns its keep by keeping the <em>rest</em> of the close body (queue drain, stream release,
+     * stats poisoning) single-shot; that is not what this test pins down.
+     */
+    public void testConcurrentCloseDoesNotDoubleRefund() throws Exception {
+        int chunkSize = 64;
+        // Generous enough never to trip: this test is about the refund path, not the charge path.
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+
+        String content = buildContent(10);
+        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            LineFormatReader reader = new LineFormatReader(chunkSize);
+            CloseableIterator<Page> it = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                new ByteArrayInputStream(bytes),
+                null,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                breaker
+            );
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+
+            CountDownLatch start = new CountDownLatch(1);
+            CountDownLatch done = new CountDownLatch(2);
+            List<Throwable> errors = new CopyOnWriteArrayList<>();
+            for (int i = 0; i < 2; i++) {
+                executor.execute(() -> {
+                    try {
+                        start.await();
+                        it.close();
+                    } catch (Throwable t) {
+                        // Throwable, not Exception: an over-refund makes LimitedBreaker's
+                        // addWithoutBreaking throw AssertionError, which must be reported here
+                        // rather than silently escaping to the executor's uncaught handler.
+                        errors.add(t);
+                    } finally {
+                        done.countDown();
+                    }
+                });
+            }
+            start.countDown();
+            assertTrue("concurrent closers did not finish in time", done.await(10, TimeUnit.SECONDS));
+            assertTrue("close() must not throw: " + errors, errors.isEmpty());
+        } finally {
+            executor.shutdownNow();
+        }
+        assertEquals("concurrent close must not double-refund the breaker", 0L, breaker.getUsed());
+    }
+
     private static String buildContent(int lineCount) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < lineCount; i++) {
@@ -1665,6 +1795,56 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    /**
+     * Regression guard: when the executor rejects the segmentator task (e.g. pool shut down or
+     * saturated with no queue) {@link StreamingParallelParsingCoordinator.StreamingParallelIterator}
+     * must close the decompressed stream promptly via {@code onSegmentatorLaunchRejected}, not wait
+     * until the consumer calls {@link CloseableIterator#close()}.
+     */
+    public void testSegmentatorRejectionClosesDecompressedStream() throws Exception {
+        AtomicBoolean streamClosed = new AtomicBoolean(false);
+        InputStream trackingStream = new InputStream() {
+            private final ByteArrayInputStream backing = new ByteArrayInputStream("line-0000\n".getBytes(StandardCharsets.UTF_8));
+
+            @Override
+            public int read() throws IOException {
+                return backing.read();
+            }
+
+            @Override
+            public void close() {
+                streamClosed.set(true);
+            }
+        };
+        LineFormatReader reader = new LineFormatReader(1024);
+        Executor rejectingExecutor = r -> { throw new RejectedExecutionException("pool is shut down"); };
+
+        StreamingParallelParsingCoordinator.StreamingParallelIterator iterator =
+            new StreamingParallelParsingCoordinator.StreamingParallelIterator(
+                reader,
+                trackingStream,
+                null,
+                List.of("line"),
+                50,
+                4,
+                rejectingExecutor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE
+            );
+        // The rejection is synchronous: onSegmentatorLaunchRejected fires during admission.submit()
+        // inside the constructor, so the stream is already closed before the constructor returns.
+        assertTrue("stream must be closed promptly on segmentator rejection", streamClosed.get());
+        // Calling close() after the fact must be safe (CAS no-op on the already-closed stream).
+        iterator.close();
+        assertTrue("stream must remain closed after iterator.close()", streamClosed.get());
     }
 
     private static RecordSplitter neverBoundarySplitter(int maxRecordBytes) {

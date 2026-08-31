@@ -507,7 +507,6 @@ public class SearchEngine extends Engine {
             notification.clusterStateVersion()
         );
         var ccTermAndGen = notification.compoundCommit().primaryTermAndGeneration();
-        searchDirectory.updateLatestUploadedBcc(notification.latestUploadedBatchedCompoundCommitTermAndGen());
         searchDirectory.updateLatestCommitInfo(ccTermAndGen, notification.nodeId());
 
         SubscribableListener
@@ -517,6 +516,11 @@ public class SearchEngine extends Engine {
             // cache space and requests.
             .<Void>newForked(l -> maybePreFetchLatestCommit(notification, l))
             .<Void>andThen(l -> {
+                // Update the tracker only after the foreground prefetch completes so that
+                // isUploaded=true is never observable before the shared blob cache is populated.
+                // For background prefetch this andThen fires almost immediately (the prefetch is
+                // async), so the window is negligible; for foreground prefetch it closes entirely.
+                searchDirectory.updateLatestUploadedBcc(notification.latestUploadedBatchedCompoundCommitTermAndGen());
                 if (addOrExecuteSegmentGenerationListener(ccTermAndGen, l.map(g -> null))) {
                     commitNotifications.add(notification);
                     if (pendingCommitNotifications.incrementAndGet() == 1) {
@@ -1046,6 +1050,16 @@ public class SearchEngine extends Engine {
         Function<Searcher, Searcher> searcherWrapper
     ) {
         return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, splitShardCountSummary, searcherWrapper), false);
+    }
+
+    @Override
+    public GetResult getForUpdate(
+        Get get,
+        MappingLookup mappingLookup,
+        DocumentParser documentParser,
+        Function<Searcher, Searcher> searcherWrapper
+    ) {
+        throw unsupportedException();
     }
 
     @Override

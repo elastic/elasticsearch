@@ -28,6 +28,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -91,6 +92,7 @@ public class BooleanFieldMapper extends FieldMapper {
     private static final IndexableFieldType SORTED_NUMERIC_DV_FIELD_TYPE = SortedNumericDocValuesField.TYPE;
     private static final IndexableFieldType SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE = SortedNumericDocValuesField.indexedField("_sentinel", 0L)
         .fieldType();
+    private static final IndexableFieldType BOOL_STORED_FIELD_TYPE = new StoredField("_sentinel", "").fieldType();
 
     private static BooleanFieldMapper toType(FieldMapper in) {
         return (BooleanFieldMapper) in;
@@ -336,14 +338,10 @@ public class BooleanFieldMapper extends FieldMapper {
                         return (Boolean) value;
                     } else {
                         String textValue = value.toString();
-                        return parseBoolean(textValue);
+                        return Booleans.parseBoolean(textValue, false);
                     }
                 }
             };
-        }
-
-        private static boolean parseBoolean(String text) {
-            return Booleans.parseBoolean(text, false);
         }
 
         @Override
@@ -426,7 +424,7 @@ public class BooleanFieldMapper extends FieldMapper {
                         } else {
                             String stringValue = value.toString();
                             // Matches logic in parser invoked by `parseCreateField`
-                            accumulator.add(parseBoolean(stringValue));
+                            accumulator.add(Booleans.parseBoolean(stringValue, false));
                         }
                     } catch (Exception e) {
                         // Malformed value, skip it
@@ -434,7 +432,7 @@ public class BooleanFieldMapper extends FieldMapper {
                 }
 
                 @Override
-                protected void parseNonNullValue(XContentParser parser, List<Boolean> accumulator) throws IOException {
+                protected void parseNonNullValue(XContentParser parser, List<Boolean> accumulator) {
                     // Aligned with implementation of `parseCreateField(XContentParser)`
                     try {
                         var value = parser.booleanValue();
@@ -585,7 +583,7 @@ public class BooleanFieldMapper extends FieldMapper {
         this.docValuesParameters = builder.docValuesParameters.getValue();
         this.dvFactory = new DocValuesFieldFactory(
             docValuesParameters.multiValue(),
-            ((BooleanFieldType) mappedFieldType).indexType.hasDocValuesSkipper(),
+            mappedFieldType.indexType.hasDocValuesSkipper(),
             builder.indexSettings.getIndexVersionCreated()
         );
         this.script = builder.script.get();
@@ -610,8 +608,8 @@ public class BooleanFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean isSingleValueEnforced() {
-        return docValuesParameters.multiValue() == false;
+    protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
+        return docValuesParameters.multiValue() == false && (token != XContentParser.Token.VALUE_NULL || nullValue != null);
     }
 
     @Override
@@ -632,18 +630,6 @@ public class BooleanFieldMapper extends FieldMapper {
     @Override
     public String getOffsetFieldName() {
         return offsetsFieldName;
-    }
-
-    @Override
-    public boolean supportsBatchIndexing() {
-        // Plain boolean mappers can be driven through parseCreateField by the bulk batch path.
-        // ignore_malformed is allowed — parseCreateField handles it via addIgnoredField, which
-        // BatchDocumentParserContext records. Dimensions, copy_to, multi-fields, and scripts pull
-        // in behavior that the batch path does not support.
-        return hasScript() == false
-            && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false
-            && fieldType().isDimension() == false;
     }
 
     @Override
@@ -752,12 +738,18 @@ public class BooleanFieldMapper extends FieldMapper {
             if (ignoreMalformed.value()) {
                 layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
             }
+            if (onFailureColumnEnabled()) {
+                layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
+            }
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         } else {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
             layers.add(new SortedNumericDocValuesSyntheticFieldLoaderLayer(fullPath(), (b, value) -> b.value(value == 1)));
             if (ignoreMalformed.value()) {
                 layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
+            }
+            if (onFailureColumnEnabled()) {
+                layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
             }
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         }
@@ -776,9 +768,8 @@ public class BooleanFieldMapper extends FieldMapper {
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
         // doc_values.multi_value and ignore_malformed are not implemented by mapColumnBatch
         // but are not rejected here — they fall back per document at parse time.
-        return indexSettings.getMode().isStrictColumnar()
+        return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
             && docValuesParameters.enabled()
-            && stored == false
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
             && multiFields().iterator().hasNext() == false
@@ -790,25 +781,31 @@ public class BooleanFieldMapper extends FieldMapper {
     public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         switch (source.kind()) {
             case EscfColumnKind.BOOL, EscfColumnKind.STRING -> {
-            }
+            } // handled below
             default -> throw new UnsupportedOperationException(
-                "mapColumnBatch: ESCF column kind ["
-                    + EscfColumnKind.name(source.kind())
-                    + "] is not yet supported for boolean field ["
-                    + fullPath()
-                    + "]"
+                Strings.format(
+                    "mapColumnBatch: ESCF column kind [%s] is not yet supported for boolean field [%s]",
+                    EscfColumnKind.name(source.kind()),
+                    fullPath()
+                )
             );
         }
-        EscfColumnData longData = booleansToLongs(source);
+        EscfColumnData outData = booleansToLongs(source);
         if (fieldType().indexType().hasDocValuesSkipper()) {
             ctx.addColumn(
-                LuceneLongColumn.of(longData, fieldType().name(), SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE, LongColumn.NumericKind.INT)
+                LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE, LongColumn.NumericKind.INT)
             );
-        } else if (indexed) {
-            ctx.addColumn(LuceneBinaryColumn.of(booleansToTerms(longData), fieldType().name(), StringField.TYPE_NOT_STORED));
-            ctx.addColumn(LuceneLongColumn.of(longData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, LongColumn.NumericKind.INT));
         } else {
-            ctx.addColumn(LuceneLongColumn.of(longData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, LongColumn.NumericKind.INT));
+            ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, LongColumn.NumericKind.INT));
+        }
+        if (indexed || stored) {
+            EscfColumnData termsData = booleansToTerms(outData);
+            if (indexed) {
+                ctx.addColumn(LuceneBinaryColumn.of(termsData, fieldType().name(), StringField.TYPE_NOT_STORED));
+            }
+            if (stored) {
+                ctx.addColumn(LuceneBinaryColumn.of(termsData, fieldType().name(), BOOL_STORED_FIELD_TYPE));
+            }
         }
     }
 
@@ -830,7 +827,7 @@ public class BooleanFieldMapper extends FieldMapper {
                         builder.setLong(doc, nullValue ? 1L : 0L);
                     }
                 } else {
-                    builder.setLong(doc, Booleans.parseBoolean(value.utf8ToString(), false) ? 1L : 0L);
+                    builder.setLong(doc, Booleans.parseBoolean(value.bytes, value.offset, value.length, false) ? 1L : 0L);
                 }
             }
         }

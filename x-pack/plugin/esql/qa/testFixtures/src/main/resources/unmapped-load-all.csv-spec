@@ -1,4 +1,4 @@
-##########################################
+﻿##########################################
 # Baseline: all unmapped fields expanded #
 ##########################################
 
@@ -354,7 +354,6 @@ b2          | a2          | cross_mapping_b
 
 netZeroProjectionThenEval
 required_capability: optional_fields_load_all_v2
-required_capability: optional_fields_load_all_net_zero_projection
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -375,7 +374,6 @@ n:integer
 
 netZeroProjectionAfterWhereThenEval
 required_capability: optional_fields_load_all_v2
-required_capability: optional_fields_load_all_net_zero_projection
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -393,7 +391,6 @@ n:integer
 
 netZeroProjectionWithSortAndLimitThenEval
 required_capability: optional_fields_load_all_v2
-required_capability: optional_fields_load_all_net_zero_projection
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -411,7 +408,6 @@ n:integer
 
 netZeroProjectionAfterRenameThenEval
 required_capability: optional_fields_load_all_v2
-required_capability: optional_fields_load_all_net_zero_projection
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -433,7 +429,6 @@ n:integer
 
 netZeroProjectionMultiIndexThenEval
 required_capability: optional_fields_load_all_v2
-required_capability: optional_fields_load_all_net_zero_projection
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM cross_mapping_a, cross_mapping_b
@@ -449,7 +444,6 @@ n:integer
 
 dropAllMappedColumnsKeepsUnmappedExpansion
 required_capability: optional_fields_load_all_v2
-required_capability: optional_fields_load_all_net_zero_projection
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -469,7 +463,6 @@ a                       | 1756468                         | Disconnected from 10
 
 netZeroProjectionDropAllUnmappedThenEval
 required_capability: optional_fields_load_all_v2
-required_capability: optional_fields_load_all_net_zero_projection
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -492,7 +485,7 @@ n:integer
 #########
 
 statsCountStar
-required_capability: optional_fields_load_all_stats
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -504,7 +497,7 @@ c:long
 ;
 
 statsByMappedField
-required_capability: optional_fields_load_all_stats
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -521,7 +514,7 @@ c:long | message:keyword
 ;
 
 statsByUnmappedField
-required_capability: optional_fields_load_all_stats
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -538,7 +531,7 @@ s:long       | c:long | unmapped_message:keyword
 ;
 
 statsAfterKeepWildcard
-required_capability: optional_fields_load_all_stats
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -551,7 +544,7 @@ c:long
 ;
 
 statsAfterWhereOnUnmappedField
-required_capability: optional_fields_load_all_stats
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data

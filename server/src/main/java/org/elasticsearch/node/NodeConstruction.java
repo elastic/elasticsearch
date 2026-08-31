@@ -140,6 +140,7 @@ import org.elasticsearch.index.mapper.DefaultRootObjectMapperNamespaceValidator;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.RootObjectMapperNamespaceValidator;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.indices.ExecutorSelector;
@@ -807,6 +808,7 @@ class NodeConstruction {
             settingsModule.getSettings(),
             settingsModule.getClusterSettings()
         );
+        AbstractQueryBuilder.setQueryParsingBreaker(circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
         PageCacheRecycler pageCacheRecycler = serviceProvider.newPageCacheRecycler(pluginsService, settings);
         BigArrays bigArrays = serviceProvider.newBigArrays(pluginsService, pageCacheRecycler, circuitBreakerService);
 

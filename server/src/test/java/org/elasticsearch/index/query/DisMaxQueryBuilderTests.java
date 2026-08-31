@@ -12,12 +12,14 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
-import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -29,8 +31,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static org.hamcrest.CoreMatchers.containsString;
 
 public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBuilder> {
     /**
@@ -140,11 +140,14 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
     }
 
     public void testTooManyClausesRejectedAtParseTime() throws IOException {
-        int origMax = IndexSearcher.getMaxClauseCount();
         int max = 5;
-        IndexSearcher.setMaxClauseCount(max);
+        LimitedBreaker limitedBreaker = new LimitedBreaker(
+            CircuitBreaker.REQUEST,
+            ByteSizeValue.ofBytes((long) max * AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES)
+        );
+        AbstractQueryBuilder.setQueryParsingBreaker(limitedBreaker);
         try {
-            // dis_max with max inner clauses: clauseCount reaches max (container is free) — must succeed
+            // dis_max with max inner clauses: circuit breaker charges exactly at the limit — must succeed
             DisMaxQueryBuilder okQuery = new DisMaxQueryBuilder();
             for (int i = 0; i < max; i++) {
                 okQuery.add(new MatchAllQueryBuilder());
@@ -156,7 +159,7 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
                 }
             }
 
-            // dis_max with max+1 inner clauses: clauseCount reaches max+1 — must be rejected at parse time
+            // dis_max with max+1 inner clauses: circuit breaker trips — must be rejected at parse time
             DisMaxQueryBuilder bigQuery = new DisMaxQueryBuilder();
             for (int i = 0; i < max + 1; i++) {
                 bigQuery.add(new MatchAllQueryBuilder());
@@ -164,12 +167,11 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
             for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
                 BytesReference bytes = XContentHelper.toXContent(bigQuery, type, false);
                 try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                    ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(parser));
-                    assertThat(e.getMessage(), containsString("too many clauses"));
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
                 }
             }
         } finally {
-            IndexSearcher.setMaxClauseCount(origMax);
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
         }
     }
 

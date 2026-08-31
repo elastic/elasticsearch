@@ -22,6 +22,8 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.features.NodeFeature;
@@ -87,7 +89,7 @@ import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_D
  *
  * @see SearchRequest#source(SearchSourceBuilder)
  */
-public final class SearchSourceBuilder implements Writeable, ToXContentObject, Rewriteable<SearchSourceBuilder> {
+public final class SearchSourceBuilder implements Writeable, ToXContentObject, Rewriteable<SearchSourceBuilder>, Releasable {
 
     public static final ParseField FROM_FIELD = new ParseField("from");
     public static final ParseField SIZE_FIELD = new ParseField("size");
@@ -212,10 +214,32 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private boolean skipInnerHits = false;
 
+    /** Circuit-breaker Releasables from parse-time query accounting; non-null only after {@link #parseXContent} is called. */
+    private List<Releasable> queryParsingReleasables;
+
     /**
      * Constructs a new search source builder.
      */
     public SearchSourceBuilder() {}
+
+    /**
+     * Releases the circuit-breaker charge held for query clauses parsed via {@link #parseXContent}.
+     * Safe to call multiple times; subsequent calls are no-ops.
+     */
+    @Override
+    public void close() {
+        if (queryParsingReleasables != null) {
+            Releasables.close(queryParsingReleasables);
+            queryParsingReleasables = null;
+        }
+    }
+
+    private List<Releasable> getQueryParsingReleasables() {
+        if (queryParsingReleasables == null) {
+            queryParsingReleasables = new ArrayList<>(2);
+        }
+        return queryParsingReleasables;
+    }
 
     /**
      * Read from a stream.
@@ -1450,11 +1474,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                             "cannot specify field [" + currentFieldName + "] and field [" + SUB_SEARCHES_FIELD.getPreferredName() + "]"
                         );
                     }
-                    QueryBuilder queryBuilder = parseTopLevelQuery(parser, searchUsage::trackQueryUsage);
+                    QueryBuilder queryBuilder = parseTopLevelQuery(parser, searchUsage::trackQueryUsage, getQueryParsingReleasables());
                     subSearchSourceBuilders.add(new SubSearchSourceBuilder(queryBuilder));
                     searchUsage.trackSectionUsage(QUERY_FIELD.getPreferredName());
                 } else if (POST_FILTER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    postQueryBuilder = parseTopLevelQuery(parser, searchUsage::trackQueryUsage);
+                    postQueryBuilder = parseTopLevelQuery(parser, searchUsage::trackQueryUsage, getQueryParsingReleasables());
                     searchUsage.trackSectionUsage(POST_FILTER_FIELD.getPreferredName());
                 } else if (KNN_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     knnBuilders = List.of(KnnSearchBuilder.fromXContent(parser));

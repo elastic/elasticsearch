@@ -19,11 +19,13 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.AbstractObjectParser;
@@ -60,6 +62,20 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     public static final ParseField BOOST_FIELD = new ParseField("boost");
     // We set the default value for tests that don't go through SearchModule
     private static int maxNestedDepth = INDICES_MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY);
+
+    /**
+     * Estimated bytes charged to the circuit breaker per QueryBuilder clause during parse-time accounting.
+     * Sized conservatively above the measured minimum (~132 B for a simple TermQueryBuilder) to cover
+     * QueryBuilders with larger fields or nested structures.
+     */
+    static final long QUERY_BUILDER_SIZE_ESTIMATE_BYTES = 256L;
+
+    /**
+     * Circuit breaker used to bound aggregate parse-time QueryBuilder heap consumption across concurrent
+     * requests. Null until set by the node during initialisation; tests that exercise the limit set this
+     * explicitly and restore null afterwards.
+     */
+    private static volatile CircuitBreaker queryParsingBreaker;
 
     protected String queryName;
     protected float boost = DEFAULT_BOOST;
@@ -413,11 +429,19 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     protected void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {}
 
     /**
+     * Sets the circuit breaker used to bound parse-time QueryBuilder heap consumption.
+     * Called once during node initialisation; may be set to {@code null} in test teardown.
+     */
+    public static void setQueryParsingBreaker(CircuitBreaker breaker) {
+        queryParsingBreaker = breaker;
+    }
+
+    /**
      * Parses and returns a query (excluding the query field that wraps it). To be called by API that support
      * user provided queries. Note that the returned query may hold inner queries, and so on. Calling this method
      * will initialize the tracking of nested depth to make sure that there's a limit to the number of queries
      * that can be nested within one another (see {@link org.elasticsearch.search.SearchModule#INDICES_MAX_NESTED_DEPTH_SETTING}),
-     * and the total clause count to ensure it does not exceed {@link org.apache.lucene.search.IndexSearcher#getMaxClauseCount()}.
+     * and charge the node-level parse-time circuit breaker for each sub-query parsed.
      * This variant of the method does not support collecting statistics about queries usage.
      */
     public static QueryBuilder parseTopLevelQuery(XContentParser parser) throws IOException {
@@ -429,16 +453,28 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * user provided queries. Note that the returned query may hold inner queries, and so on. Calling this method
      * will initialize the tracking of nested depth to make sure that there's a limit to the number of queries
      * that can be nested within one another (see {@link org.elasticsearch.search.SearchModule#INDICES_MAX_NESTED_DEPTH_SETTING}),
-     * and the total clause count to ensure it does not exceed {@link org.apache.lucene.search.IndexSearcher#getMaxClauseCount()}.
+     * and charge the node-level parse-time circuit breaker for each sub-query parsed. The circuit-breaker charge is
+     * released before this method returns.
      * The method accepts a string consumer that will be provided with each query type used in the parsed content, to be used
      * for instance to collect statistics about queries usage.
      */
     public static QueryBuilder parseTopLevelQuery(XContentParser parser, Consumer<String> queryNameConsumer) throws IOException {
+        return parseTopLevelQuery(parser, queryNameConsumer, null);
+    }
+
+    /**
+     * Like {@link #parseTopLevelQuery(XContentParser, Consumer)} but, when {@code trackTo} is non-null and parsing
+     * succeeds, defers the circuit-breaker release: instead of releasing before returning, a {@link Releasable} that
+     * will perform the release is added to {@code trackTo}. The caller must close every element added to
+     * {@code trackTo} once the parsed query tree is no longer needed (typically when the enclosing request ends).
+     * When {@code trackTo} is {@code null}, or when parsing fails, the charge is released before this method returns.
+     */
+    public static QueryBuilder parseTopLevelQuery(XContentParser parser, Consumer<String> queryNameConsumer, List<Releasable> trackTo)
+        throws IOException {
+        final CircuitBreaker breaker = queryParsingBreaker; // snapshot volatile once per call
+        final long[] totalCharged = { 0L };
         FilterXContentParser parserWrapper = new FilterXContentParserWrapper(parser) {
             int nestedDepth;
-            // Counts nested QueryBuilders.
-            int clauseCount;
-            final int maxClauses = IndexSearcher.getMaxClauseCount(); // snapshot; avoid concurrent mutation
 
             @Override
             public <T> T namedObject(Class<T> categoryClass, String name, Object context) throws IOException {
@@ -451,11 +487,9 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
                                 + "]"
                         );
                     }
-                    if (nestedDepth > 1 && (++clauseCount) > maxClauses) { // depth 1 == root, not a clause
-                        throw new ParsingException(
-                            getTokenLocation(),
-                            "query has too many clauses [" + clauseCount + "], max is [" + maxClauses + "]"
-                        );
+                    if (nestedDepth > 1 && breaker != null) { // depth 1 == root query, not a clause
+                        breaker.addEstimateBytesAndMaybeBreak(QUERY_BUILDER_SIZE_ESTIMATE_BYTES, "query-parsing");
+                        totalCharged[0] += QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
                     }
                 }
                 T namedObject = getXContentRegistry().parseNamedObject(categoryClass, name, this, context);
@@ -466,7 +500,20 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
                 return namedObject;
             }
         };
-        return parseInnerQueryBuilder(parserWrapper);
+        boolean success = false;
+        try {
+            QueryBuilder result = parseInnerQueryBuilder(parserWrapper);
+            success = true;
+            return result;
+        } finally {
+            if (breaker != null && totalCharged[0] > 0) {
+                if (success && trackTo != null) {
+                    trackTo.add(() -> breaker.addWithoutBreaking(-totalCharged[0]));
+                } else {
+                    breaker.addWithoutBreaking(-totalCharged[0]);
+                }
+            }
+        }
     }
 
     /**
@@ -571,6 +618,11 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     public static int getMaxNestedDepth() {
         return maxNestedDepth;
+    }
+
+    /** Returns the circuit breaker currently used for parse-time clause accounting, or {@code null} if none is set. */
+    public static CircuitBreaker getQueryParsingBreaker() {
+        return queryParsingBreaker;
     }
 
     @Override

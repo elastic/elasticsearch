@@ -6273,11 +6273,11 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     /**
-     * HIGHLIGHT is rejected outright below {@link Highlight#ESQL_HIGHLIGHT}, so its tests must pin a version that
-     * supports it rather than take the randomized default.
+     * Implicit HIGHLIGHT is rejected below {@link Highlight#ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS}, so these
+     * tests must pin a version that supports the derived query and field flags rather than take the randomized default.
      */
     private static TestAnalyzer supportsHighlight(TestAnalyzer analyzer) {
-        return analyzer.minimumTransportVersion(Highlight.ESQL_HIGHLIGHT);
+        return analyzer.minimumTransportVersion(Highlight.ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS);
     }
 
     private static TestAnalyzer basic() {

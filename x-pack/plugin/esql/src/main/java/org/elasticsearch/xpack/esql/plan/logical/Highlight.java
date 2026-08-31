@@ -60,6 +60,14 @@ public class Highlight extends UnaryPlan
     /** Minimum transport version that knows how to deserialize this plan node. */
     public static final TransportVersion ESQL_HIGHLIGHT = TransportVersion.fromName("esql_highlight");
 
+    /**
+     * Minimum transport version that serializes {@link #implicitQuery} and {@link #derivedFields}.
+     * Older peers only know the explicit {@code HIGHLIGHT <query> ON <fields>} shape.
+     */
+    public static final TransportVersion ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS = TransportVersion.fromName(
+        "esql_highlight_implicit_query_and_fields"
+    );
+
     public static final String DEFAULT_PREFIX = "highlight_";
 
     public static final String PRE_TAGS = "pre_tags";
@@ -128,8 +136,8 @@ public class Highlight extends UnaryPlan
             in.readNamedWriteable(LogicalPlan.class),
             in.readString(),
             in.readOptionalNamedWriteable(Expression.class),
-            in.readBoolean(),
-            in.readBoolean(),
+            in.getTransportVersion().supports(ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS) ? in.readBoolean() : false,
+            in.getTransportVersion().supports(ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS) ? in.readBoolean() : false,
             in.readNamedWriteableCollectionAsList(NamedExpression.class),
             // MapExpression is registered under the Expression category, not its own, so read it as an Expression.
             (MapExpression) in.readOptionalNamedWriteable(Expression.class),
@@ -143,8 +151,19 @@ public class Highlight extends UnaryPlan
         out.writeNamedWriteable(child());
         out.writeString(prefix);
         out.writeOptionalNamedWriteable(query);
-        out.writeBoolean(implicitQuery);
-        out.writeBoolean(derivedFields);
+        if (out.getTransportVersion().supports(ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS)) {
+            out.writeBoolean(implicitQuery);
+            out.writeBoolean(derivedFields);
+        } else if (implicitQuery || derivedFields) {
+            // Dropping the flags would make a derived query look explicit on the peer, changing ON-list verification.
+            throw new IllegalArgumentException(
+                "HIGHLIGHT with a derived query or field list is not supported in peer node's version ["
+                    + out.getTransportVersion()
+                    + "]. Upgrade to version ["
+                    + ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS
+                    + "] or newer."
+            );
+        }
         out.writeNamedWriteableCollection(fields);
         out.writeOptionalNamedWriteable(options);
         out.writeNamedWriteableCollection(generatedFields);

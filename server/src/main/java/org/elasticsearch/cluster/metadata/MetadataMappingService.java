@@ -148,6 +148,7 @@ public class MetadataMappingService {
                     final PutMappingClusterStateUpdateRequest request = task.request;
                     try (var ignored = taskContext.captureResponseHeaders()) {
                         for (Index index : request.indices()) {
+                            currentState.projectState(currentState.metadata().projectFor(index).id()).ensureProjectMetadataWritable();
                             final IndexMetadata indexMetadata = currentState.metadata().indexMetadata(index);
                             if (indexMapperServices.containsKey(indexMetadata.getIndex()) == false) {
                                 MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -32,7 +33,7 @@ import java.util.Set;
  * Supports three strategies:
  * <ul>
  *   <li>{@code FIRST_FILE_WINS} — use the first file's schema (existing behavior, no reconciliation)</li>
- *   <li>{@code STRICT} — validate all files share the exact same schema</li>
+ *   <li>{@code STRICT} — validate all files share the exact same schema (NDJSON column order is ignored)</li>
  *   <li>{@code UNION_BY_NAME} — merge schemas by column name with safe type widening</li>
  * </ul>
  * <p>
@@ -73,7 +74,8 @@ import java.util.Set;
  *   <dt><b>Unified schema</b> (one for the whole table)</dt>
  *   <dd>The cross-file harmonized schema. Produced here as {@link Result#unifiedSchema()}:
  *       FFW takes the anchor file's schema, STRICT validates a common schema, UBN takes the
- *       column-name union with type widening. Becomes {@code ExternalSourceExec.attributes}
+ *       column-name union with type widening. NDJSON STRICT preserves the anchor's inferred
+ *       order while mapping other files' columns by name. Becomes {@code ExternalSourceExec.attributes}
  *       at first, before the optimizer's projection pruning rewrites that field.</dd>
  *
  *   <dt><b>Query schema</b> (unified shape; same for every file in the query)</dt>
@@ -83,8 +85,9 @@ import java.util.Set;
  *
  *   <dt><b>Per-file query schema</b> (per-file, file shape — what the reader actually produces)</dt>
  *   <dd>{@code Query schema} ∩ this file's columns, ordered to match the file's natural layout.
- *       Derived per file at split-construction time and at read time. Under FFW and STRICT it
- *       collapses to the Query schema because every file has every projected column.</dd>
+ *       Derived per file at split-construction time and at read time. Under FFW and ordered-format
+ *       STRICT it collapses to the Query schema because every file has every projected column;
+ *       NDJSON STRICT may retain a different inferred order and is mapped by name.</dd>
  * </dl>
  *
  * <h3>Worked example (UNION_BY_NAME)</h3>
@@ -144,69 +147,43 @@ public final class SchemaReconciliation {
     }
 
     /**
-     * Safe type widening for schema reconciliation.
-     * Only lossless promotions are allowed; returns {@code null} if no safe supertype exists.
+     * Safe type widening for schema reconciliation: the common supertype when one exists without
+     * loss, else {@code null}.
      * <p>
-     * Widening rules:
-     * <ul>
-     *   <li>INTEGER + LONG → LONG (lossless: int32 ⊆ int64)</li>
-     *   <li>INTEGER + DOUBLE → DOUBLE (lossless: int32 ≤ 2^31 &lt; 2^53)</li>
-     *   <li>DATETIME + DATE_NANOS → DATE_NANOS (more precise type wins)</li>
-     * </ul>
-     * All other cross-type pairs return null (no lossless supertype). UBN reconciliation
-     * additionally falls back to {@link DataType#KEYWORD} for those — see
-     * {@link #widenToCommonOrKeyword} and {@link #reconcileUnionByName}. LONG + DOUBLE
-     * deliberately stays out of this table (precision loss above 2^53) and is therefore one of
-     * the pairs that goes to {@code KEYWORD} under UBN.
+     * The rules themselves live in {@link TypeWidening}, which is also what the text inferrers fold
+     * with, so "which type represents these two" has one answer across the subsystem rather than one
+     * per call site. {@link TypeWidening.Policy#RECONCILIATION} is the cross-file reading of that
+     * lattice; it differs from the inference reading on exactly one pair, and {@code TypeWidening}'s
+     * javadoc says why and where that is tracked.
      *
      * @return the widened type, or null if no safe supertype exists
      */
     @Nullable
     public static DataType schemaWiden(DataType a, DataType b) {
-        if (a == b) {
-            return a;
-        }
-        DataType wider = widenOrdered(a, b);
-        if (wider != null) {
-            return wider;
-        }
-        return widenOrdered(b, a);
-    }
-
-    @Nullable
-    private static DataType widenOrdered(DataType left, DataType right) {
-        if (left == DataType.INTEGER && right == DataType.LONG) {
-            return DataType.LONG;
-        }
-        if (left == DataType.INTEGER && right == DataType.DOUBLE) {
-            return DataType.DOUBLE;
-        }
-        if (left == DataType.DATETIME && right == DataType.DATE_NANOS) {
-            return DataType.DATE_NANOS;
-        }
-        return null;
+        return TypeWidening.widenLossless(a, b);
     }
 
     /**
-     * UNION_BY_NAME widening: returns {@link #schemaWiden}'s result when one exists, otherwise
-     * falls back to {@link DataType#KEYWORD} as the cross-type join (lossy for numerics — but
-     * the lossy path is the one that triggers a response {@code Warning} so users see when
-     * stringification happened). Never returns null: every cross-type pair has a defined UBN
-     * answer.
+     * UNION_BY_NAME widening: the total form, where {@link DataType#KEYWORD} is the answer for any
+     * pair with no closer supertype (lossy for numerics — but the lossy path is the one that triggers
+     * a response {@code Warning} so users see when stringification happened).
      * <p>
-     * This is the UBN-specific entry point; {@link #schemaWiden} is intentionally kept as a
-     * separate {@code @Nullable}-returning method so callers that want the strict lossless-only
-     * semantic still have it. The two stay aligned by construction — the KEYWORD branch here
-     * fires only on inputs where {@code schemaWiden} would have returned null.
+     * The keyword fallback is the lattice's own top rather than a local default here. That matters:
+     * a call site that invents its own "and otherwise, keyword" is how the subsystem ended up with
+     * four different answers to the same question. {@link #schemaWiden} stays as the separate
+     * {@code @Nullable} entry point for callers that need to tell "no lossless supertype" apart from
+     * "the answer is keyword"; the two agree wherever the strict one answers, which
+     * {@code TypeWideningTests} asserts rather than leaving to construction.
      */
     private static DataType widenToCommonOrKeyword(DataType a, DataType b) {
-        DataType widened = schemaWiden(a, b);
-        return widened != null ? widened : DataType.KEYWORD;
+        return TypeWidening.join(a, b, TypeWidening.Policy.RECONCILIATION);
     }
 
     /**
      * STRICT reconciliation: validate all files share the exact same schema.
-     * Nullability differences are tolerated; all other differences produce an error.
+     * Nullability differences are tolerated. NDJSON column order is also ignored because its
+     * inferred order only records when each field first appeared in the sample; ordered formats
+     * retain positional schema identity.
      *
      * @param referenceFile path of the first (reference) file
      * @param fileMetadata ordered map of file path → metadata (first entry is the reference)
@@ -219,6 +196,7 @@ public final class SchemaReconciliation {
             throw new IllegalArgumentException("Reference file not found in metadata: " + referenceFile);
         }
         List<Attribute> refSchema = refMeta.schema();
+        boolean compareByName = fileMetadata.values().stream().allMatch(meta -> "ndjson".equals(meta.sourceType()));
 
         Map<StoragePath, FileSchemaInfo> perFileInfo = new LinkedHashMap<>();
 
@@ -231,14 +209,20 @@ public final class SchemaReconciliation {
             validateNoDuplicateColumns(filePath, fileSchema);
 
             if (filePath.equals(referenceFile) == false) {
-                validateStrictMatch(referenceFile, refSchema, filePath, fileSchema);
+                validateStrictMatch(referenceFile, refSchema, filePath, fileSchema, compareByName);
             }
 
-            int[] identity = new int[refSchema.size()];
-            for (int i = 0; i < identity.length; i++) {
-                identity[i] = i;
+            ColumnMapping mapping;
+            if (compareByName) {
+                mapping = computeMapping(refSchema, fileSchema);
+            } else {
+                int[] identity = new int[refSchema.size()];
+                for (int i = 0; i < identity.length; i++) {
+                    identity[i] = i;
+                }
+                mapping = new ColumnMapping(identity, null);
             }
-            perFileInfo.put(filePath, new FileSchemaInfo(new ExternalSchema(fileSchema), new ColumnMapping(identity, null), stats));
+            perFileInfo.put(filePath, new FileSchemaInfo(new ExternalSchema(fileSchema), mapping, stats));
         }
 
         return new Result(new ExternalSchema(refSchema), Map.copyOf(perFileInfo));
@@ -248,7 +232,8 @@ public final class SchemaReconciliation {
         StoragePath refPath,
         List<Attribute> refSchema,
         StoragePath filePath,
-        List<Attribute> fileSchema
+        List<Attribute> fileSchema,
+        boolean compareByName
     ) {
         if (refSchema.size() != fileSchema.size()) {
             throw new IllegalArgumentException(
@@ -263,6 +248,10 @@ public final class SchemaReconciliation {
                     + " columns."
                     + " Hint: use schema_resolution = \"union_by_name\" to automatically merge different schemas."
             );
+        }
+        if (compareByName) {
+            validateStrictMatchByName(refPath, refSchema, filePath, fileSchema);
+            return;
         }
         for (int i = 0; i < refSchema.size(); i++) {
             Attribute refAttr = refSchema.get(i);
@@ -283,22 +272,54 @@ public final class SchemaReconciliation {
                         + " Hint: use schema_resolution = \"union_by_name\" to automatically merge different schemas."
                 );
             }
-            if (refAttr.dataType() != fileAttr.dataType()) {
+            validateStrictTypeMatch(refPath, refAttr, filePath, fileAttr);
+        }
+    }
+
+    private static void validateStrictMatchByName(
+        StoragePath refPath,
+        List<Attribute> refSchema,
+        StoragePath filePath,
+        List<Attribute> fileSchema
+    ) {
+        Map<String, Attribute> fileAttributes = new HashMap<>();
+        for (Attribute fileAttr : fileSchema) {
+            fileAttributes.put(fileAttr.name(), fileAttr);
+        }
+        for (Attribute refAttr : refSchema) {
+            Attribute fileAttr = fileAttributes.get(refAttr.name());
+            if (fileAttr == null) {
                 throw new IllegalArgumentException(
                     "Schema mismatch in ["
                         + filePath
                         + "]: column ["
-                        + fileAttr.name()
-                        + "] has type ["
-                        + fileAttr.dataType().typeName()
-                        + "] but reference file ["
+                        + refAttr.name()
+                        + "] from reference file ["
                         + refPath
-                        + "] has type ["
-                        + refAttr.dataType().typeName()
-                        + "]."
+                        + "] is missing."
                         + " Hint: use schema_resolution = \"union_by_name\" to automatically merge different schemas."
                 );
             }
+            validateStrictTypeMatch(refPath, refAttr, filePath, fileAttr);
+        }
+    }
+
+    private static void validateStrictTypeMatch(StoragePath refPath, Attribute refAttr, StoragePath filePath, Attribute fileAttr) {
+        if (refAttr.dataType() != fileAttr.dataType()) {
+            throw new IllegalArgumentException(
+                "Schema mismatch in ["
+                    + filePath
+                    + "]: column ["
+                    + fileAttr.name()
+                    + "] has type ["
+                    + fileAttr.dataType().typeName()
+                    + "] but reference file ["
+                    + refPath
+                    + "] has type ["
+                    + refAttr.dataType().typeName()
+                    + "]."
+                    + " Hint: use schema_resolution = \"union_by_name\" to automatically merge different schemas."
+            );
         }
     }
 
@@ -510,9 +531,9 @@ public final class SchemaReconciliation {
      * </ul>
      * DATE_NANOS is deliberately excluded: a text reader parsing an epoch number at DATE_NANOS reads
      * it as epoch-nanos, not the epoch-millis a DATETIME column holds, so a DATETIME to DATE_NANOS
-     * widening stays on the post-read cast that rescales the unit rather than a raw parse. Text
-     * inference produces only BOOLEAN, INTEGER, LONG, DOUBLE, DATETIME, and KEYWORD, so DATE_NANOS as
-     * a reconciled type reaches this predicate only from a declared schema.
+     * widening stays on the post-read cast that rescales the unit rather than a raw parse. That holds
+     * whatever the reconciled type's origin — a declared schema, or, since text inference learned to
+     * produce DATE_NANOS for sub-millisecond timestamps, an inferred one.
      */
     private static boolean shouldPinAtReconciledType(DataType inferred, DataType reconciled) {
         if (inferred == reconciled) {

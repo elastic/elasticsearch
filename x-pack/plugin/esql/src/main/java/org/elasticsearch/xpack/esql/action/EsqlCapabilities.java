@@ -1325,6 +1325,11 @@ public class EsqlCapabilities {
          */
         DENSE_VECTOR_COMMAND(Build.current().isSnapshot()),
         /**
+         * Adds the {@code type} option (text|image) and endpoint-driven multimodal routing to the DENSE_VECTOR command.
+         * Dev/snapshot-only, like {@link #DENSE_VECTOR_COMMAND}.
+         */
+        DENSE_VECTOR_COMMAND_V2(Build.current().isSnapshot()),
+        /**
          * Allow mixed numeric types in conditional functions - case, greatest and least
          */
         MIXED_NUMERIC_TYPES_IN_CASE_GREATEST_LEAST,
@@ -1548,6 +1553,13 @@ public class EsqlCapabilities {
          * Support non-correlated IN subqueries in the {@code EVAL} command.
          */
         EVAL_IN_SUBQUERY,
+
+        /**
+         * Support IN non-correlated subqueries inside the STATS command's per-aggregate WHERE filter, e.g.
+         * {@code STATS c = COUNT(*) WHERE id IN (FROM other | KEEP id) BY dept}, including filters that wrap the IN subquery in
+         * {@code CASE}, {@code COALESCE}, and {@code IS [NOT] NULL}. INLINE STATS remains unsupported.
+         */
+        STATS_WHERE_IN_SUBQUERY,
 
         /**
          * Support for views in cluster state (and REST API).

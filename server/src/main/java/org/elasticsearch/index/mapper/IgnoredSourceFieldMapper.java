@@ -395,7 +395,11 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     ) throws IOException {
         NameValue nameValue = SingularIgnoredSourceEncoding.decode(value);
         if (nameValue.hasValue() == false) {
-            return null;
+            // A void placeholder (written by DocumentParserContext#createCopyToContext) carries no user data; its sole purpose is to
+            // suppress the field's doc-values loader during synthetic source reconstruction so that copy_to-copied values do not appear
+            // in _source. Dropping it would remove the suppression and let the destination field be rebuilt from doc values, leaking the
+            // copied value. The placeholder is always safe to keep: it contains nothing that FLS should hide.
+            return value;
         }
 
         if (XContentDataHelper.isEncodedObject(nameValue.value()) == false) {

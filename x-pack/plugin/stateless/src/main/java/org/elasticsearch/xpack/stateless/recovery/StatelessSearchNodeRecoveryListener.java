@@ -92,56 +92,6 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
         }
     }
 
-    @Override
-    public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
-        assert indexShard.routingEntry().isSearchable();
-        afterSearchShardRecovery(indexShard, listener);
-    }
-
-    private static void afterSearchShardRecovery(final IndexShard indexShard, final ActionListener<Void> listener) {
-        ActionListener.run(listener, l -> indexShard.withEngineException(engine -> {
-            switch (engine) {
-                case SearchEngine searchEngine -> {
-                    /*
-                     * The shard can be closed underneath us, so we assert that we're either
-                     * recovering or closed at this point
-                     */
-                    assert indexShard.state() == IndexShardState.RECOVERING || indexShard.state() == IndexShardState.CLOSED
-                        : "expected index in recovering shard state but is: " + indexShard.state();
-                    assert indexShard.routingEntry().state() == ShardRoutingState.INITIALIZING
-                        : "expected initializing shard routing state but is: " + indexShard.state();
-                    indexShard.updateGlobalCheckpointOnReplica(searchEngine.getLastSyncedGlobalCheckpoint(), "search shard recovery");
-                    searchEngine.afterRecovery();
-                    l.onResponse(null);
-                }
-                case NoOpEngine ignored -> l.onResponse(null);
-                default -> throw new AssertionError("unexpected engine type: " + engine);
-            }
-            return null;
-        }));
-    }
-
-    private static void logBootstrappingFromIndexingShard(
-        IndexShard indexShard,
-        StatelessCompoundCommit latestCommit,
-        PrimaryTermAndGeneration latestUploaded
-    ) {
-        assert indexShard.routingEntry().isPromotableToPrimary() == false;
-        assert latestCommit != null;
-        boolean uploaded = latestCommit.getContainingBccBlobFile().termAndGeneration().onOrBefore(latestUploaded);
-        logger.info(
-            "{} with UUID [{}] bootstrapping [{}] shard on primary term [{}] with {} ({}) and latest uploaded {} from indexing shard ({})",
-            indexShard.shardId(),
-            indexShard.shardId().getIndex().getUUID(),
-            indexShard.routingEntry().role(),
-            indexShard.getOperationPrimaryTerm(),
-            latestCommit.toShortDescription(),
-            uploaded ? "uploaded" : "pending upload",
-            latestUploaded,
-            describe(indexShard.recoveryState())
-        );
-    }
-
     private void beforeRecoveryOnSearchShard(IndexShard indexShard, BlobContainer blobContainer, ActionListener<Void> listener)
         throws IOException {
         assert indexShard.store().refCount() > 0 : indexShard.shardId();
@@ -286,6 +236,56 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
                     );
                 }));
             })
+        );
+    }
+
+    @Override
+    public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
+        assert indexShard.routingEntry().isSearchable();
+        afterSearchShardRecovery(indexShard, listener);
+    }
+
+    private static void afterSearchShardRecovery(final IndexShard indexShard, final ActionListener<Void> listener) {
+        ActionListener.run(listener, l -> indexShard.withEngineException(engine -> {
+            switch (engine) {
+                case SearchEngine searchEngine -> {
+                    /*
+                     * The shard can be closed underneath us, so we assert that we're either
+                     * recovering or closed at this point
+                     */
+                    assert indexShard.state() == IndexShardState.RECOVERING || indexShard.state() == IndexShardState.CLOSED
+                        : "expected index in recovering shard state but is: " + indexShard.state();
+                    assert indexShard.routingEntry().state() == ShardRoutingState.INITIALIZING
+                        : "expected initializing shard routing state but is: " + indexShard.state();
+                    indexShard.updateGlobalCheckpointOnReplica(searchEngine.getLastSyncedGlobalCheckpoint(), "search shard recovery");
+                    searchEngine.afterRecovery();
+                    l.onResponse(null);
+                }
+                case NoOpEngine ignored -> l.onResponse(null);
+                default -> throw new AssertionError("unexpected engine type: " + engine);
+            }
+            return null;
+        }));
+    }
+
+    private static void logBootstrappingFromIndexingShard(
+        IndexShard indexShard,
+        StatelessCompoundCommit latestCommit,
+        PrimaryTermAndGeneration latestUploaded
+    ) {
+        assert indexShard.routingEntry().isPromotableToPrimary() == false;
+        assert latestCommit != null;
+        boolean uploaded = latestCommit.getContainingBccBlobFile().termAndGeneration().onOrBefore(latestUploaded);
+        logger.info(
+            "{} with UUID [{}] bootstrapping [{}] shard on primary term [{}] with {} ({}) and latest uploaded {} from indexing shard ({})",
+            indexShard.shardId(),
+            indexShard.shardId().getIndex().getUUID(),
+            indexShard.routingEntry().role(),
+            indexShard.getOperationPrimaryTerm(),
+            latestCommit.toShortDescription(),
+            uploaded ? "uploaded" : "pending upload",
+            latestUploaded,
+            describe(indexShard.recoveryState())
         );
     }
 

@@ -20,9 +20,12 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.TemporalInference;
+import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.EnumSet;
@@ -36,7 +39,10 @@ import java.util.Map;
  * - Detects arrays as multi-value fields
  * - Marks fields as nullable when null or missing values are encountered
  *
- * Types: KEYWORD, INTEGER, LONG, DOUBLE, BOOLEAN, DATETIME.
+ * Types: KEYWORD, INTEGER, LONG, DOUBLE, BOOLEAN, DATETIME, DATE_NANOS.
+ *
+ * <p>A timestamp is inferred DATE_NANOS only when it carries a non-zero sub-millisecond component,
+ * which DATETIME would silently drop; see {@link TemporalInference}.
  */
 public class NdJsonSchemaInferrer {
 
@@ -54,8 +60,6 @@ public class NdJsonSchemaInferrer {
     public static final DateFormatter STRICT_DATE_OPTIONAL_TIME = DateFormatter.forPattern("strict_date_optional_time");
 
     private static final Logger logger = LogManager.getLogger(NdJsonSchemaInferrer.class);
-
-    private static final EnumSet<DataType> NUMBER_TYPES = EnumSet.of(DataType.DOUBLE, DataType.LONG, DataType.INTEGER);
 
     // Fields that we've actually seen in the current json document
     private final BitSet fieldsSeen = new BitSet();
@@ -167,12 +171,7 @@ public class NdJsonSchemaInferrer {
             }
             case VALUE_STRING -> {
                 if (field.children == null) {
-                    String text = parser.getText();
-                    if (field.types.contains(DataType.KEYWORD) == false && isDateTimeString(text)) {
-                        field.addType(DataType.DATETIME);
-                    } else {
-                        field.addType(DataType.KEYWORD);
-                    }
+                    inferStringType(field, parser.getText());
                 }
             }
             case VALUE_NUMBER_INT -> {
@@ -279,59 +278,80 @@ public class NdJsonSchemaInferrer {
         }
 
         DataType resolveType() {
-            if (types.isEmpty()) {
-                // Can happen with parent and always-empty array
-                return DataType.UNSUPPORTED;
-            }
-
-            // Note: DATETIME and BOOLEAN will only be selected if they're the only type
-            if (types.size() == 1) {
-                return types.iterator().next();
-            }
-
-            // Multiple types - use the widest type
-            // Nullability is handled separately and not part of type resolution
-            if (types.contains(DataType.KEYWORD)) {
-                return DataType.KEYWORD;
-            }
-
-            if (hasOnly(types, NUMBER_TYPES)) {
-                if (types.contains(DataType.DOUBLE)) {
-                    return DataType.DOUBLE;
-                }
-                if (types.contains(DataType.LONG)) {
-                    return DataType.LONG;
-                }
-                if (types.contains(DataType.INTEGER)) {
-                    return DataType.INTEGER;
-                }
-            }
-
-            // Widest type
-            return DataType.KEYWORD;
+            return resolveObservedTypes(types);
         }
-    }
-
-    private static <E extends Enum<E>> boolean hasOnly(EnumSet<E> values, EnumSet<E> from) {
-        if (values.isEmpty()) {
-            return false;
-        }
-        var copy = EnumSet.copyOf(values);
-        copy.removeAll(from);
-        return copy.isEmpty();
     }
 
     /**
-     * Check if a string parses as a datetime. We filter out 4-digit years accepted by strict_date_optional_time
+     * The single type that represents everything observed for one field.
+     * <p>
+     * The rule is {@link TypeWidening}'s, folded over the observed set: this rail decides which types
+     * it saw, not what they combine to, and the combining is the same question reconciliation answers
+     * when two files disagree. Folding in any order is safe because the lattice is a join-semilattice,
+     * which matters here — a JSON field's types arrive in whatever order the file happens to list them.
+     * <p>
+     * An empty set means the field was only ever an object or an always-empty array, which is not a
+     * scalar column at all; that is this method's answer to give because the lattice has no bottom
+     * element to represent "nothing observed".
+     */
+    static DataType resolveObservedTypes(EnumSet<DataType> observed) {
+        if (observed.isEmpty()) {
+            // Can happen with parent and always-empty array
+            return DataType.UNSUPPORTED;
+        }
+        DataType resolved = null;
+        for (DataType type : observed) {
+            resolved = resolved == null ? type : TypeWidening.join(resolved, type, TypeWidening.Policy.INFERENCE);
+        }
+        return resolved;
+    }
+
+    /**
+     * Types one string value.
+     * <p>
+     * Kept out of {@link #inferValueSchema} deliberately. That method carries the per-value token
+     * switch for every field of every sampled line, and it is small enough for the JIT to inline;
+     * growing it with this body measurably slowed the whole switch, including the string field that
+     * never reaches the date parse at all.
+     * <p>
+     * The KEYWORD short-circuit is what keeps a string field cheap: once a field is known to hold
+     * strings, no later value pays a date parse. Without it every sampled value of a keyword column
+     * would be parsed as a date and the result thrown away.
+     */
+    private void inferStringType(FieldInfo field, String text) {
+        if (field.types.contains(DataType.KEYWORD)) {
+            field.addType(DataType.KEYWORD);
+            return;
+        }
+        TemporalAccessor parsed = tryParseDateTime(text);
+        field.addType(parsed == null ? DataType.KEYWORD : forcesDateNanos(parsed) ? DataType.DATE_NANOS : DataType.DATETIME);
+    }
+
+    /**
+     * Parses a string as a datetime, returning the parse result so the caller can tell millisecond
+     * timestamps from nanosecond ones without paying a second parse. Returns null when the string is
+     * not a datetime at all. We filter out 4-digit years accepted by strict_date_optional_time
      * and other Iso8601 parsers where {@code MONTH_OF_YEAR} is optional. These are the only 4-digit values they
      * accept, and we don't want to treat an all-4-digit column as DATETIME.
      */
-    private boolean isDateTimeString(String text) {
+    private TemporalAccessor tryParseDateTime(String text) {
         if (dateFormatter == STRICT_DATE_OPTIONAL_TIME) {
             if (text.length() == 4 && text.chars().allMatch(Character::isDigit)) {
-                return false;
+                return null;
             }
         }
-        return dateFormatter.tryParse(text) != null;
+        return dateFormatter.tryParse(text);
+    }
+
+    /**
+     * Whether a parsed timestamp must be read as {@code date_nanos} to survive intact.
+     * <p>
+     * Only asked on the default ISO rail, mirroring the 4-digit-year filter above: when the file
+     * declares its own {@code datetime_format} the user has expressed intent about how their
+     * timestamps are written, and declaring the schema is the way to ask for nanoseconds. It also
+     * keeps us from flipping a column onto a decode rail that the custom pattern may not parse.
+     */
+    private boolean forcesDateNanos(TemporalAccessor parsed) {
+        return dateFormatter == STRICT_DATE_OPTIONAL_TIME && TemporalInference.forcesDateNanos(parsed);
     }
 }

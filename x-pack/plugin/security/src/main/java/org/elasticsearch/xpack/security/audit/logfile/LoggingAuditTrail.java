@@ -1805,6 +1805,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
         static void addAuthenticationFieldsToLogEntry(StringMapMessage logEntry, Authentication authentication) {
             assert false == authentication.isCloudApiKey() : "audit logging for Cloud API keys is not supported";
+            assert false == authentication.isCloudServiceAccount() : "audit logging for Cloud service accounts is not supported";
             final User effectiveUser = authentication.getEffectiveSubject().getUser();
             logEntry.with(PRINCIPAL_FIELD_NAME, effectiveUser.principal());
             addUserFullNameAndEmail(logEntry, effectiveUser);

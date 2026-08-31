@@ -34,9 +34,11 @@ import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
@@ -67,10 +69,8 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
 
 /**
  * Resolves view references in a logical plan by expanding each view into the plan parsed from its definition. As part of the same
- * traversal it also rewrites {@code InSubquery} expressions (in {@link Filter} conditions and
- * {@link org.elasticsearch.xpack.esql.plan.logical.Eval Eval} field definitions) into {@code SemiJoin}/{@code AntiJoin}/{@code MarkJoin}
- * nodes, so a single pass fully expands the plan — including views referenced from inside IN subqueries and IN subqueries nested in view
- * bodies.
+ * traversal it also rewrites {@code InSubquery} expressions into {@code SemiJoin}/{@code AntiJoin}/{@code MarkJoin} nodes, so a single
+ * pass fully expands the plan — including views referenced from inside IN subqueries and IN subqueries nested in view bodies.
  * <p>
  * Resolution (see {@link #replaceViews}) is a depth-first, top-down (pre-order) traversal of the plan tree. During traversal it
  * intercepts specific node types:
@@ -82,8 +82,11 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
  *   <li>{@link AbstractSubqueryJoin}: Recursively processes the left and right sides</li>
  *   <li>{@link Filter}: Calls {@link InSubqueryResolver} to expand any {@code InSubquery} into a {@code SemiJoin}/{@code AntiJoin}/
  *       {@code MarkJoin}, then recurses into the newly created subquery plans to resolve view references nested there</li>
- *   <li>{@link org.elasticsearch.xpack.esql.plan.logical.Eval Eval}: Calls {@link InSubqueryResolver} to expand any {@code InSubquery}
- *       in field definitions into a {@code MarkJoin}, then recurses into the newly created subquery plans</li>
+ *   <li>{@link Eval}: Calls {@link InSubqueryResolver} to expand any {@code InSubquery} in field definitions into a {@code MarkJoin}
+ *       , then recurses into the newly created subquery plans</li>
+ *   <li>{@link Aggregate}: Calls {@link InSubqueryResolver} to expand any {@code InSubquery} inside a per-aggregate {@code WHERE}
+ *       filter into a {@code MarkJoin} below the aggregate, then recurses like the {@link Filter} case. Aggregates owned by an
+ *       {@link InlineStats} are skipped — INLINE STATS does not support IN subqueries</li>
  *   <li>{@link ViewUnionAll}: Skipped (already the result of view resolution)</li>
  * </ul>
  * <p>
@@ -239,6 +242,11 @@ public class ViewResolver {
         // in view subqueries to be re-resolved against sibling view names, producing false circular
         // reference errors and deeply nested duplicate resolution.
         Set<LogicalPlan> resolvedPlans = Collections.newSetFromMap(new IdentityHashMap<>());
+        // Aggregates owned by an InlineStats must not have their inline agg filters rewritten (INLINE STATS does not support IN
+        // subqueries yet; InSubqueryResolver#verify rejects them). Identity-based tracking is safe here: transformDown is pre-order, so
+        // the InlineStats is visited (and its aggregate registered) before the aggregate itself, and returning a node unchanged makes
+        // transformDown recurse into the same child instances (see Node#transformDown).
+        Set<Aggregate> inlineStatsAggregates = Collections.newSetFromMap(new IdentityHashMap<>());
 
         plan.transformDown((p, planListener) -> {
             if (resolvedPlans.contains(p)) {
@@ -298,6 +306,39 @@ public class ViewResolver {
                     } else {
                         // InSubquery rewritten to MarkJoin — record it for telemetry, then resolve any view
                         // references introduced in the new subquery plans.
+                        hasInSubquery.set(true);
+                        replaceViews(
+                            resolved,
+                            projectRouting,
+                            parser,
+                            seenInner,
+                            viewQueries,
+                            hasInSubquery,
+                            depth,
+                            planListener.delegateFailureAndWrap((l, result) -> {
+                                result.forEachDown(resolvedPlans::add);
+                                l.onResponse(result);
+                            })
+                        );
+                    }
+                }
+                case InlineStats inlineStats -> {
+                    // Register the owned aggregate so the Aggregate case below skips it; INLINE STATS does not support IN subqueries
+                    // and InSubqueryResolver#verify rejects them. Children (including the owned aggregate's subtree) are still
+                    // traversed normally so views and Filter-level IN subqueries below it keep resolving.
+                    inlineStatsAggregates.add(inlineStats.aggregate());
+                    planListener.onResponse(inlineStats);
+                }
+                case Aggregate aggregate -> {
+                    LogicalPlan resolved = inlineStatsAggregates.contains(aggregate)
+                        ? aggregate
+                        : InSubqueryResolver.resolveInSubqueryInAggregate(aggregate);
+                    if (resolved == aggregate) {
+                        // No InSubquery in the aggregate filters — let transformDown process its children normally.
+                        planListener.onResponse(aggregate);
+                    } else {
+                        // InSubquery rewritten to MarkJoin(s) below the aggregate — record it for telemetry, then resolve any view
+                        // references introduced in the subquery plans.
                         hasInSubquery.set(true);
                         replaceViews(
                             resolved,

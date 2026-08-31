@@ -1,9 +1,8 @@
 area: Snapshot/Restore
 deprecation:
   area: Snapshot/Restore
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  details: The `disable_chunked_encoding` S3 setting was introduced as a temporary workaround and is no longer required.
+  impact: Stop using the `disable_chunked_encoding` S3 setting before the next major release.
   title: Mark `disable_chunked_encoding` S3 setting deprecated
 issues: []
 pr: 158189

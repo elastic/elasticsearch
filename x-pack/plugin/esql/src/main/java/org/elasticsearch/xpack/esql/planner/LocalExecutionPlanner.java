@@ -613,7 +613,15 @@ public class LocalExecutionPlanner {
             );
             Layout outputLayout = operation.layout.builder().append(generatedFields.get(i)).build();
             operation = operation.with(
-                new TextEmbeddingOperator.Factory(inferenceService, inferenceId, inputEvaluatorFactory, denseVector.timeout()),
+                new TextEmbeddingOperator.Factory(
+                    inferenceService,
+                    inferenceId,
+                    inputEvaluatorFactory,
+                    denseVector.timeout(),
+                    denseVector.source(),
+                    // The DENSE_VECTOR command tolerates per-row inference failures: warn, null the row, and continue.
+                    true
+                ),
                 outputLayout
             );
         }
@@ -2073,6 +2081,9 @@ public class LocalExecutionPlanner {
             .path(path)
             .projectedColumns(projectedColumns)
             .attributes(externalSource.output())
+            // Projection-independent, unlike attributes(): a read-configuration identity must not vary with what the query
+            // selects, or a coordinator and a data node would derive different identities for the same read.
+            .unifiedSchema(externalSource.unifiedSchema())
             .batchSize(pageSize)
             .maxBufferSize(effectiveBufferSize)
             .rowLimit(pushedLimit)

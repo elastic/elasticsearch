@@ -31,6 +31,7 @@ public final class UnifiedCompletionUtils {
     public static final String CONTENT_FIELD = "content";
     public static final String CHOICES_FIELD = "choices";
     public static final String DELTA_FIELD = "delta";
+    public static final String MESSAGE_FIELD = "message";
     public static final String REFUSAL_FIELD = "refusal";
 
     public static final String TOOL_CALL_ID_FIELD = "tool_call_id";

@@ -58,7 +58,7 @@ public class BucketErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                     return typeErrorMessage(signature, 3, "datetime, date_nanos or string");
                 }
             }
-        } else if (field.isNumeric()) {
+        } else if (field.isNumeric() || isSupportedHistogramType(field)) {
             if (isSupportedBucketsNumeric(buckets) == false && buckets != DataType.NULL) {
                 return typeErrorMessage(signature, 1, "integer, long or double");
             }
@@ -113,6 +113,10 @@ public class BucketErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     private static boolean isSupportedBucketsNumeric(DataType dt) {
         return dt.isNumeric() && dt != DataType.UNSIGNED_LONG;
+    }
+
+    private static boolean isSupportedHistogramType(DataType field) {
+        return field == DataType.TDIGEST || field == DataType.EXPONENTIAL_HISTOGRAM;
     }
 
     private static boolean isNumericOrNull(DataType dt) {

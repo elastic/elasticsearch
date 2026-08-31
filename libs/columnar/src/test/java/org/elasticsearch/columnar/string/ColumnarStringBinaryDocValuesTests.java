@@ -16,6 +16,9 @@ import org.apache.lucene.util.FixedBitSet;
 
 import java.io.IOException;
 
+import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
+import static org.hamcrest.Matchers.greaterThan;
+
 /**
  * The {@code BinaryDocValues} surface of a string column, beyond the {@code nextDoc} + {@code binaryValue} scan
  * the round-trip tests cover. The positioning methods delegate to {@code ColumnIterator}, whose own behaviour is
@@ -24,6 +27,8 @@ import java.io.IOException;
  * that could be wrong without any of the delegation being wrong.
  */
 public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
+
+    private static final DictionaryPolicy ROOMY = new DictionaryPolicy(512 * 1024, 0.5, 0.2);
 
     public void testAdvanceExactOnDenseColumn() throws IOException {
         final BytesRef[] docValues = dense(between(50, 500));
@@ -170,7 +175,8 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
         for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
             assertEquals("docID follows the field", doc, cursor.docID());
             assertEquals("one value per document", 1, cursor.valueCount());
-            assertEquals("value at doc " + doc, docValues[doc], cursor.nextValue());
+            cursor.nextValue();
+            assertEquals("value at doc " + doc, docValues[doc], cursor.value());
             seen++;
         }
         assertEquals("documents with a value", present(docValues), seen);
@@ -192,7 +198,8 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
                 break;
             }
             assertEquals("advance(" + target + ")", expected, landed);
-            assertEquals("value at doc " + landed, docValues[landed], cursor.nextValue());
+            cursor.nextValue();
+            assertEquals("value at doc " + landed, docValues[landed], cursor.value());
             target = landed + 1;
         }
         assertEquals("past the end", DocIdSetIterator.NO_MORE_DOCS, cursor.advance(docValues.length));
@@ -216,7 +223,8 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
                 }
                 assertEquals("advance(" + target + ")", expected, landed);
                 assertEquals("value count", 1, cursor.valueCount());
-                assertEquals("value at doc " + landed, docValues[landed], cursor.nextValue());
+                cursor.nextValue();
+                assertEquals("value at doc " + landed, docValues[landed], cursor.value());
                 target = landed + 1;
             }
         });
@@ -275,6 +283,52 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
                 return present(docValues);
             }
         };
+    }
+
+    /**
+     * The cursor a merge reads a dictionary column through. Moving and reading are separate, so walking it
+     * has to land on every value exactly once: each value the dictionary holds answers with its ordinal
+     * carried through the map, and one that escaped answers with its bytes instead.
+     */
+    public void testMergeCursorWalksEveryValueOnce() throws IOException {
+        final String[] terms = { "alpha", "bravo", "charlie" };
+        final BytesRef[] docValues = new BytesRef[between(400, 1200)];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = d % 9 == 4 ? new BytesRef("escaped-" + d) : new BytesRef(terms[d % terms.length]);
+        }
+        withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            assertTrue("expected a dictionary", reader.hasDictionary());
+            // A map that renames every ordinal, so a carried ordinal cannot pass by accident.
+            final int[] ordinalMap = new int[reader.dictionarySize()];
+            for (int ordinal = 0; ordinal < ordinalMap.length; ordinal++) {
+                ordinalMap[ordinal] = ordinal + 100;
+            }
+            final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator());
+            final StringColumnValues cursor = dv.directValues(ordinalMap);
+            final BytesRef term = new BytesRef();
+
+            long seen = 0;
+            long escaped = 0;
+            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                for (int i = 0, count = cursor.valueCount(); i < count; i++) {
+                    cursor.nextValue();
+                    final int ordinal = cursor.ordinal();
+                    if (ordinal < 0) {
+                        escaped++;
+                        assertEquals("escaped value at doc " + doc, docValues[doc], cursor.value());
+                    } else {
+                        reader.termAt(ordinal - 100, term);
+                        assertEquals("ordinal names the value at doc " + doc, docValues[doc], term);
+                        // Reading again does not move the cursor.
+                        assertEquals("ordinal is stable until the cursor moves", ordinal, cursor.ordinal());
+                        assertEquals("value is stable until the cursor moves", docValues[doc], cursor.value());
+                    }
+                    seen++;
+                }
+            }
+            assertEquals("every value walked exactly once", metadata.numValues(), seen);
+            assertThat("some values escaped", escaped, greaterThan(0L));
+        });
     }
 
     /** Writes {@code docValues} as a column, opens it at the binary surface, and runs {@code check} over it. */

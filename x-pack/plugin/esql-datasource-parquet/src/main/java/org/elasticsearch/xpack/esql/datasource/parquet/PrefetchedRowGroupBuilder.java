@@ -170,7 +170,7 @@ final class PrefetchedRowGroupBuilder {
                     throw t;
                 }
             }
-            PrefetchedPageReadStore store = new PrefetchedPageReadStore(readers, block.getRowCount());
+            PrefetchedPageReadStore store = new PrefetchedPageReadStore(readers, block.getRowCount(), rowRanges);
             success = true;
             return store;
         } finally {

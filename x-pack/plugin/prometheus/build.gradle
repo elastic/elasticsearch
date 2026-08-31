@@ -88,6 +88,12 @@ tasks.named("licenseHeaders").configure {
   excludes << 'org/elasticsearch/xpack/prometheus/proto/**/*'
 }
 
+// grpc-api (pulled transitively via esql-datasource-gcs) supersedes grpc-context, which
+// google-cloud-storage pulls in transitively. Both contain io.grpc.Context and trigger JarHell.
+configurations.internalClusterTestRuntimeClasspath {
+  exclude group: 'io.grpc', module: 'grpc-context'
+}
+
 tasks.named('yamlRestTest') {
   usesDefaultDistribution("Requires a bunch of xpack plugins")
 }

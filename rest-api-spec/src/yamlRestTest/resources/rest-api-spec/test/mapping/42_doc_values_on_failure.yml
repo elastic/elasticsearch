@@ -5,7 +5,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -94,7 +94,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -181,7 +181,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into columnar_stored source reconstruction"
 
@@ -268,7 +268,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into columnar_stored source reconstruction"
 
@@ -353,7 +353,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -400,7 +400,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -446,7 +446,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -518,7 +518,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -588,7 +588,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -690,7 +690,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -790,7 +790,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -822,7 +822,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -854,7 +854,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -931,7 +931,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -1006,7 +1006,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -1110,7 +1110,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -1214,7 +1214,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -1277,7 +1277,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -1335,7 +1335,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 

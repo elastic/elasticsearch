@@ -417,23 +417,25 @@ public class CsvSchemaInferrerTests extends ESTestCase {
     }
 
     public void testWideningSkipsNullEmptyAndShortRows() {
-        // Widening must treat a missing cell, an empty cell and the literal "null" as carrying no
-        // type evidence, exactly as the initial inference pass does — otherwise a ragged file would
-        // widen columns to KEYWORD on absence alone.
+        // Widening must treat a missing cell, an empty cell and the literal "null" as carrying no type
+        // evidence, exactly as the initial pass does — otherwise a ragged file would widen columns to
+        // KEYWORD on absence alone. Both columns stay numeric on purpose: a column already resolved to
+        // KEYWORD is skipped before its cell is read, so it would never exercise the missing-cell path.
         List<Attribute> schema = CsvSchemaInferrer.inferSchema(
-            new String[] { "id", "note" },
-            List.of(new String[] { "1", "alpha" }, new String[] { "2", "beta" }),
+            new String[] { "id", "score" },
+            List.of(new String[] { "1", "10" }, new String[] { "2", "20" }),
             null
         );
         assertEquals(DataType.INTEGER, schema.get(0).dataType());
+        assertEquals(DataType.INTEGER, schema.get(1).dataType());
 
         List<Attribute> widened = CsvSchemaInferrer.widenSchema(
             schema,
             List.of(
-                new String[] { "3" },               // short row: "note" cell absent entirely
-                new String[] { "", "gamma" },       // empty cell
-                new String[] { "null", "delta" },   // the literal null marker
-                new String[] { null, "epsilon" }    // an actual null cell
+                new String[] { "3" },            // short row: "score" cell absent entirely
+                new String[] { "4", "" },        // empty cell
+                new String[] { "5", "null" },    // the literal null marker
+                new String[] { "6", null }       // an actual null cell
             ),
             null
         );
@@ -570,6 +572,62 @@ public class CsvSchemaInferrerTests extends ESTestCase {
         String separator = randomBoolean() ? "T" : " ";
         String zone = randomFrom("", "Z", "+01:00", "-05:00");
         return date + separator + time + zone;
+    }
+
+    /**
+     * The regression review asked about: a column flipped by a well-formed {@code T}-form nanosecond
+     * value while also holding whitespace-separated cells. Screening the forcing value alone left those
+     * cells to fail per-cell at read, so a file that reads today would stop reading. The column stays
+     * {@code datetime} instead, in either row order.
+     */
+    public void testColumnHoldingASpaceFormTimestampNeverFlipsToDateNanos() {
+        assertEquals(DataType.DATETIME, inferOne("2023-10-23 12:15:03", "2023-10-23T12:15:03.360103847Z"));
+        assertEquals(DataType.DATETIME, inferOne("2023-10-23T12:15:03.360103847Z", "2023-10-23 12:15:03"));
+    }
+
+    /** A column with no space-form cell is unaffected — the demotion is not a blanket retreat. */
+    public void testAllTFormNanosecondColumnStillFlips() {
+        assertEquals(DataType.DATE_NANOS, inferOne("2023-10-23T12:15:03.360103847Z", "2023-10-23T12:15:04.000000001Z"));
+    }
+
+    /**
+     * The evidence has to survive the seam between the sample and the widening window: a column the
+     * sample demoted must not be promoted again by a nanosecond value that only appears in the window.
+     */
+    public void testSpaceFormEvidenceFromTheSampleSurvivesWidening() {
+        boolean[] sawSpaceForm = new boolean[1];
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(
+            new String[] { "ts" },
+            List.<String[]>of(new String[] { "2023-10-23 12:15:03" }),
+            null,
+            sawSpaceForm
+        );
+        assertEquals(DataType.DATETIME, schema.get(0).dataType());
+        assertTrue("the sample's space-form evidence must be reported", sawSpaceForm[0]);
+
+        List<Attribute> widened = CsvSchemaInferrer.widenSchema(
+            schema,
+            List.<String[]>of(new String[] { "2023-10-23T12:15:03.360103847Z" }),
+            null,
+            sawSpaceForm
+        );
+        assertEquals("a nanosecond value in the widening window must not undo the demotion", DataType.DATETIME, widened.get(0).dataType());
+    }
+
+    /**
+     * A ragged sample: a row shorter than the header leaves later columns with no cell at all, which
+     * carries no type evidence and must not be mistaken for one.
+     */
+    public void testShortRowsInTheSampleCarryNoEvidence() {
+        // The second column stays numeric on purpose: a column already resolved to KEYWORD is skipped
+        // before its cell is even read, so it would never exercise the missing-cell path.
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(
+            new String[] { "id", "score" },
+            List.of(new String[] { "1", "10" }, new String[] { "2" }, new String[] { "3", "30" }),
+            null
+        );
+        assertEquals(DataType.INTEGER, schema.get(0).dataType());
+        assertEquals("a missing cell is absence, not evidence", DataType.INTEGER, schema.get(1).dataType());
     }
 
     public void testSynthesizeColumnNames() {

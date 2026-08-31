@@ -395,6 +395,92 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
         return copy.isEmpty();
     }
 
+    public void testLongValuedFieldInfersLong() throws IOException {
+        check("""
+            {"v": 9999999999}
+            """, field("v", DataType.LONG));
+    }
+
+    /**
+     * Every sampled line malformed: no field was ever observed, so there is no scalar column to
+     * describe and the schema is empty rather than a guess.
+     */
+    public void testFileOfEntirelyMalformedLinesYieldsNoColumns() throws IOException {
+        check("""
+            [1, 2]
+            [3, 4]
+            """);
+    }
+
+    /**
+     * A field seen first as a scalar and later as an object keeps the scalar shape, and the object's
+     * children are not emitted alongside it. The contract being asserted is not "whatever the walk
+     * happens to produce" — it is that exactly one shape reaches the schema, because emitting both a
+     * scalar {@code a} and a nested {@code a.b} for one name is elastic/esql-planning#1028. The
+     * conflicting value is the decoder's problem at read time, under the error policy.
+     * <p>
+     * The field is nullable even though it appears in every record, and that is right rather than an
+     * artefact: the ignored shape cannot produce a scalar for this column, so under a lenient error
+     * policy that row is null (under the default it fails the read). "May be null" is a true statement
+     * about the column, so the expectation says so.
+     */
+    public void testFieldSeenAsScalarThenObjectKeepsTheScalarAndEmitsNoChildren() throws IOException {
+        check("""
+            {"a": 1}
+            {"a": {"b": 2}}
+            """, field("a", DataType.INTEGER, true));
+    }
+
+    /** The mirror: object first wins, and no scalar attribute appears for the parent name. */
+    public void testFieldSeenAsObjectThenScalarKeepsTheObjectAndEmitsNoScalar() throws IOException {
+        check("""
+            {"a": {"b": 2}}
+            {"a": 1}
+            """, field("a.b", DataType.INTEGER, true));
+    }
+
+    /**
+     * Inference reads a bounded sample, so a value past that bound cannot change the answer. Asserted
+     * because it is a real limit users hit — a conflicting value deep in a large file leaves the column
+     * typed from the sample alone — not because the loop happens to stop there.
+     */
+    public void testValuesBeyondTheSampleBoundDoNotChangeTheType() throws IOException {
+        StringBuilder ndjson = new StringBuilder();
+        for (int i = 0; i < 100; i++) {
+            ndjson.append("{\"v\": ").append(i).append("}\n");
+        }
+        ndjson.append("{\"v\": \"past the sample\"}\n");
+        check(ndjson.toString(), field("v", DataType.INTEGER));
+    }
+
+    /** Within the sample, the same conflict does resolve to KEYWORD — so the bound above is the reason. */
+    public void testTheSameConflictWithinTheSampleDoesChangeTheType() throws IOException {
+        check("""
+            {"v": 1}
+            {"v": "not a number"}
+            """, field("v", DataType.KEYWORD));
+    }
+
+    /**
+     * First-writer-wins has to hold for every scalar kind, not just the ones that happened to get a
+     * test. An object seen first keeps its children whether the conflicting scalar is a float or a
+     * boolean, and neither emits a scalar attribute for the parent name alongside them
+     * (elastic/esql-planning#1028).
+     */
+    public void testObjectShapeWinsOverALaterFloat() throws IOException {
+        check("""
+            {"a": {"b": 2}}
+            {"a": 1.5}
+            """, field("a.b", DataType.INTEGER, true));
+    }
+
+    public void testObjectShapeWinsOverALaterBoolean() throws IOException {
+        check("""
+            {"a": {"b": 2}}
+            {"a": true}
+            """, field("a.b", DataType.INTEGER, true));
+    }
+
     private void check(String ndjson, Attribute... expected) throws IOException {
         try (ByteArrayInputStream inputStream = new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8))) {
             List<Attribute> result = NdJsonSchemaInferrer.inferSchema(inputStream, 100, null);

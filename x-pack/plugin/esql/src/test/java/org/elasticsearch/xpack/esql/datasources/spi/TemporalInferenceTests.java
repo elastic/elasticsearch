@@ -11,6 +11,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
@@ -143,6 +144,17 @@ public class TemporalInferenceTests extends ESTestCase {
         assertTrue("precondition: the fraction is visible", parsed.isSupported(ChronoField.NANO_OF_SECOND));
         assertFalse("precondition: it cannot be placed on the timeline", parsed.isSupported(ChronoField.INSTANT_SECONDS));
         assertFalse(TemporalInference.forcesDateNanos(parsed));
+    }
+
+    /**
+     * An accessor carrying a time but no date at all. Neither production parser can produce one, but
+     * this method is public and takes any accessor, and reading YEAR off it would throw into planning.
+     */
+    public void testAccessorWithoutAYearDoesNotForce() {
+        TemporalAccessor timeOnly = LocalTime.of(12, 15, 3, 360103847);
+        assertTrue("precondition: the fraction is visible", timeOnly.isSupported(ChronoField.NANO_OF_SECOND));
+        assertFalse("precondition: it carries no year", timeOnly.isSupported(ChronoField.YEAR));
+        assertFalse(TemporalInference.forcesDateNanos(timeOnly));
     }
 
     private static TemporalAccessor ndjsonParse(String value) {

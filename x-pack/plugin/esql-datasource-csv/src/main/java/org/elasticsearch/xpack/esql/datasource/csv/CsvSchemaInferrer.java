@@ -71,6 +71,11 @@ public class CsvSchemaInferrer {
         /** A timestamp the column reads as {@code datetime}. */
         DATETIME,
         /**
+         * A {@code datetime} written in the whitespace-separated dialect. Tracked apart because the
+         * {@code date_nanos} rail cannot decode it, so a column holding one must never end up there.
+         */
+        DATETIME_SPACE_FORM,
+        /**
          * A timestamp that {@code datetime} cannot read without dropping digits, and that
          * {@code date_nanos} can both represent and decode &mdash; so it moves the column.
          */
@@ -94,6 +99,16 @@ public class CsvSchemaInferrer {
      * @param datetimeFormatter the same formatter used for the initial inference
      */
     static List<Attribute> widenSchema(List<Attribute> schema, List<String[]> additionalRows, @Nullable DateFormatter datetimeFormatter) {
+        return widenSchema(schema, additionalRows, datetimeFormatter, new boolean[schema.size()]);
+    }
+
+    /** As above, carrying the sample's whitespace-dialect evidence forward. */
+    static List<Attribute> widenSchema(
+        List<Attribute> schema,
+        List<String[]> additionalRows,
+        @Nullable DateFormatter datetimeFormatter,
+        boolean[] sawSpaceFormTemporal
+    ) {
         if (additionalRows.isEmpty()) {
             return schema;
         }
@@ -129,7 +144,7 @@ public class CsvSchemaInferrer {
                     continue;
                 }
                 // All columns are confirmed by the initial sample (confirmed=true).
-                int newIdx = narrowCandidate(candidateIdx[col], true, value, datetimeFormatter);
+                int newIdx = narrowCandidate(candidateIdx[col], true, value, datetimeFormatter, sawSpaceFormTemporal, col);
                 if (newIdx != candidateIdx[col]) {
                     candidateIdx[col] = newIdx;
                     anyWidened = true;
@@ -148,7 +163,7 @@ public class CsvSchemaInferrer {
         List<Attribute> widened = new ArrayList<>(numCols);
         for (int col = 0; col < numCols; col++) {
             Attribute original = schema.get(col);
-            DataType newType = TYPE_CANDIDATES[candidateIdx[col]];
+            DataType newType = demoteIfDialectCannotDecode(TYPE_CANDIDATES[candidateIdx[col]], sawSpaceFormTemporal[col]);
             if (newType != original.dataType()) {
                 widened.add(new ReferenceAttribute(Source.EMPTY, null, original.name(), newType, Nullability.TRUE, null, false));
             } else {
@@ -170,6 +185,22 @@ public class CsvSchemaInferrer {
      * @return list of attributes with inferred types
      */
     static List<Attribute> inferSchema(String[] columnNames, List<String[]> sampleRows, @Nullable DateFormatter datetimeFormatter) {
+        return inferSchema(columnNames, sampleRows, datetimeFormatter, new boolean[columnNames.length]);
+    }
+
+    /**
+     * As above, reporting per column whether the sample held a whitespace-separated timestamp.
+     * <p>
+     * A caller that goes on to widen against a second window must pass the same array back, or a
+     * column demoted here could be promoted again by a nanosecond value in that window with the
+     * sample's evidence forgotten.
+     */
+    static List<Attribute> inferSchema(
+        String[] columnNames,
+        List<String[]> sampleRows,
+        @Nullable DateFormatter datetimeFormatter,
+        boolean[] sawSpaceFormTemporal
+    ) {
         int numCols = columnNames.length;
         int[] candidateIdx = new int[numCols];
         // Whether the column's current candidate type was confirmed by at least one matching value
@@ -190,7 +221,14 @@ public class CsvSchemaInferrer {
                     continue;
                 }
                 seenValue[col] = true;
-                candidateIdx[col] = narrowCandidate(candidateIdx[col], typeConfirmed[col], value, datetimeFormatter);
+                candidateIdx[col] = narrowCandidate(
+                    candidateIdx[col],
+                    typeConfirmed[col],
+                    value,
+                    datetimeFormatter,
+                    sawSpaceFormTemporal,
+                    col
+                );
                 typeConfirmed[col] = true;
             }
         }
@@ -199,9 +237,28 @@ public class CsvSchemaInferrer {
         for (int col = 0; col < numCols; col++) {
             String name = columnNames[col].trim();
             DataType type = seenValue[col] ? TYPE_CANDIDATES[candidateIdx[col]] : DataType.KEYWORD;
+            type = demoteIfDialectCannotDecode(type, sawSpaceFormTemporal[col]);
             attributes.add(new ReferenceAttribute(Source.EMPTY, null, name, type, Nullability.TRUE, null, false));
         }
         return attributes;
+    }
+
+    /**
+     * Keeps a column off the {@code date_nanos} rail when its own sample held a timestamp that rail
+     * cannot decode.
+     * <p>
+     * Screening the forcing value alone is not enough: a column can be flipped by a well-formed
+     * {@code T}-form nanosecond value and still hold whitespace-separated cells elsewhere, which then
+     * fail per-cell at read under the default FAIL_FAST policy — a file that reads today would stop
+     * reading. Demoting to {@code datetime} keeps exactly the behaviour such a file has now. It costs
+     * the sub-millisecond digits on that column, which is the same thing {@code datetime} has always
+     * done there, and only for files mixing two dialects in one column.
+     * <p>
+     * Applied at resolution rather than during the walk, so the answer does not depend on whether the
+     * space-form row came before or after the one that forced the flip.
+     */
+    private static DataType demoteIfDialectCannotDecode(DataType resolved, boolean sawSpaceFormTemporal) {
+        return resolved == DataType.DATE_NANOS && sawSpaceFormTemporal ? DataType.DATETIME : resolved;
     }
 
     /**
@@ -224,8 +281,15 @@ public class CsvSchemaInferrer {
      * @param currentIdx the candidate the column has committed to so far
      * @param confirmed  whether any value has confirmed that candidate
      */
-    private static int narrowCandidate(int currentIdx, boolean confirmed, String value, @Nullable DateFormatter datetimeFormatter) {
-        int evidenceIdx = recognise(currentIdx, value, datetimeFormatter);
+    private static int narrowCandidate(
+        int currentIdx,
+        boolean confirmed,
+        String value,
+        @Nullable DateFormatter datetimeFormatter,
+        boolean[] sawSpaceFormTemporal,
+        int col
+    ) {
+        int evidenceIdx = recognise(currentIdx, value, datetimeFormatter, sawSpaceFormTemporal, col);
         if (confirmed == false) {
             return evidenceIdx;
         }
@@ -238,16 +302,11 @@ public class CsvSchemaInferrer {
         DataType accepted = TYPE_CANDIDATES[currentIdx];
         DataType evidence = TYPE_CANDIDATES[evidenceIdx];
         DataType committed = TypeWidening.join(accepted, evidence, TypeWidening.Policy.INFERENCE);
-        // The join never invents a third type, so the answer is one of these three rungs and there is
-        // no rung to search for. A test in the lattice's own suite pins that property exhaustively,
-        // rather than it being merely true today.
-        if (committed == accepted) {
-            return currentIdx;
-        }
-        if (committed == evidence) {
-            return evidenceIdx;
-        }
-        return TYPE_CANDIDATES.length - 1; // KEYWORD, the lattice's top and the ladder's last rung
+        // The join never invents a third type — a test in the lattice's own suite pins that
+        // exhaustively — so the answer is either the evidence or the top, and there is no rung to
+        // search for. It cannot be the accepted type: the identity case returned above, and
+        // recognition starts at the accepted rung, so any evidence that gets here is strictly wider.
+        return committed == evidence ? evidenceIdx : TYPE_CANDIDATES.length - 1;
     }
 
     /**
@@ -267,13 +326,22 @@ public class CsvSchemaInferrer {
      * The value is classified as temporal at most once, however many rungs are walked, so the two
      * temporal rungs share one parse.
      */
-    private static int recognise(int fromIdx, String value, @Nullable DateFormatter datetimeFormatter) {
+    private static int recognise(
+        int fromIdx,
+        String value,
+        @Nullable DateFormatter datetimeFormatter,
+        boolean[] sawSpaceFormTemporal,
+        int col
+    ) {
         Temporal temporal = null; // computed on demand, and only if a temporal rung is reached
         for (int idx = fromIdx; idx < TYPE_CANDIDATES.length - 1; idx++) {
             DataType candidate = TYPE_CANDIDATES[idx];
             if (candidate == DataType.DATETIME || candidate == DataType.DATE_NANOS) {
                 if (temporal == null) {
                     temporal = classifyTemporal(value, datetimeFormatter);
+                    if (temporal == Temporal.DATETIME_SPACE_FORM) {
+                        sawSpaceFormTemporal[col] = true;
+                    }
                 }
                 // DATETIME accepts the timestamps it reads without dropping digits; DATE_NANOS accepts
                 // any timestamp at all, including ones outside its own window. That second half is a
@@ -282,7 +350,9 @@ public class CsvSchemaInferrer {
                 // string: the value is recognised at the DATE_NANOS rung, so the column stays put.
                 // Such a cell then fails per-cell at decode, which is what a declared date_nanos
                 // schema does with the same file.
-                boolean fits = candidate == DataType.DATETIME ? temporal == Temporal.DATETIME : temporal != Temporal.NOT_TEMPORAL;
+                boolean fits = candidate == DataType.DATETIME
+                    ? (temporal == Temporal.DATETIME || temporal == Temporal.DATETIME_SPACE_FORM)
+                    : temporal != Temporal.NOT_TEMPORAL;
                 if (fits) {
                     return idx;
                 }
@@ -355,13 +425,14 @@ public class CsvSchemaInferrer {
         try {
             ZonedDateTime parsed = DateUtils.asDateTime(value);
             // The whitespace-separated dialect is accepted here but rejected by the date_nanos decode
-            // rail, so such a value must not be what flips a column onto that rail — it would turn a
-            // readable cell into a per-cell error. Checked only for values already carrying
-            // sub-millisecond digits, so ordinary timestamps never pay for it.
-            if (TemporalInference.forcesDateNanos(parsed) && value.indexOf(' ') < 0) {
+            // rail. Reported rather than merely screened: it must not be the value that flips a column
+            // onto that rail, AND a column that holds one must not be flipped by some other value
+            // either, or this cell turns from readable into a per-cell error.
+            boolean spaceForm = value.indexOf(' ') >= 0;
+            if (spaceForm == false && TemporalInference.forcesDateNanos(parsed)) {
                 return Temporal.NANOS_FORCED;
             }
-            return Temporal.DATETIME;
+            return spaceForm ? Temporal.DATETIME_SPACE_FORM : Temporal.DATETIME;
         } catch (DateTimeParseException e) {
             return Temporal.NOT_TEMPORAL;
         }

@@ -97,6 +97,10 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertNoUnmappedFieldsAttribute("FROM test | KEEP salary");
     }
 
+    public void testEvalUnmappedThenKeepExactNameOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | EVAL z = unmapped_extra::keyword | KEEP emp_no, z");
+    }
+
     public void testKeepExactNameBeforePatternOmitsUnmappedFieldsAttribute() {
         assertNoUnmappedFieldsAttribute("FROM test | KEEP salary | KEEP sal*");
     }
@@ -369,6 +373,96 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         UnmappedFieldsPattern pattern = patternFor("FROM test | DROP _unmapped_fields");
         assertKept(pattern, "unmapped_extra");
         assertNotKept(pattern, excl("_unmapped_fields"));
+    }
+
+    public void testSubqueryKeepExactNameOmitsUnmappedFieldsAttribute() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assertNoUnmappedFieldsAttribute("""
+            FROM (FROM test | KEEP salary), (FROM test | KEEP emp_no)
+            | KEEP salary, emp_no
+            """);
+    }
+
+    public void testSubqueryEvalThenKeepExactNameOmitsUnmappedFieldsAttribute() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assertNoUnmappedFieldsAttribute("""
+            FROM (FROM test | WHERE emp_no == 10001), (FROM test | WHERE emp_no == 10002)
+            | EVAL z = salary + 1
+            | KEEP emp_no, z
+            | SORT emp_no
+            """);
+    }
+
+    public void testSubqueryEvalUnmappedThenKeepExactNameOmitsUnmappedFieldsAttribute() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assertNoUnmappedFieldsAttribute("""
+            FROM (FROM test), (FROM test)
+            | EVAL z = unmapped_extra::keyword
+            | KEEP emp_no, z
+            | SORT emp_no
+            """);
+    }
+
+    public void testSubqueryNoKeepAnnotatesBothRelations() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM (FROM test), (FROM test)"));
+        List<EsRelation> relations = plan.collect(EsRelation.class);
+        assertThat(relations, hasSize(2));
+        for (EsRelation relation : relations) {
+            UnmappedFieldsPattern pattern = EsqlTestUtils.singleValue(
+                CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)
+            ).pattern();
+            assertKept(pattern, "unmapped_extra");
+            assertNotKept(pattern, excl());
+        }
+    }
+
+    public void testSubqueryKeepStarAnnotatesBothRelations() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM (FROM test), (FROM test) | KEEP *"));
+        List<EsRelation> relations = plan.collect(EsRelation.class);
+        assertThat(relations, hasSize(2));
+        for (EsRelation relation : relations) {
+            UnmappedFieldsPattern pattern = EsqlTestUtils.singleValue(
+                CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)
+            ).pattern();
+            assertKept(pattern, "unmapped_extra");
+            assertNotKept(pattern, excl());
+        }
+    }
+
+    public void testSubqueryKeepInOneBranchOmitsThatBranch() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        LogicalPlan plan = test().addLanguages().statement(setUnmappedLoadAll("""
+            FROM (FROM test | KEEP emp_no), (FROM languages)
+            """));
+        for (EsRelation relation : plan.collect(EsRelation.class)) {
+            List<UnmappedFieldsAttribute> attrs = CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class);
+            if (relation.indexPattern().equals("test")) {
+                assertThat(attrs, empty());
+            } else {
+                assertThat(attrs, hasSize(1));
+                assertKept(attrs.getFirst().pattern(), "unmapped_extra");
+            }
+        }
+    }
+
+    public void testSubqueryStatsInOneBranchOmitsThatBranch() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("""
+            FROM (FROM test), (FROM test | STATS c = COUNT(*))
+            """));
+        int withAttribute = 0;
+        int withoutAttribute = 0;
+        for (EsRelation relation : plan.collect(EsRelation.class)) {
+            if (CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class).isEmpty()) {
+                withoutAttribute++;
+            } else {
+                withAttribute++;
+            }
+        }
+        assertThat(withAttribute, is(1));
+        assertThat(withoutAttribute, is(1));
     }
 
     public void testRenameUnmappedFieldsIsAnOrdinarySourceField() {

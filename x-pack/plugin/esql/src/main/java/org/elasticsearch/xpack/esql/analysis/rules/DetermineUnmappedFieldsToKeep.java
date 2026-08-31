@@ -21,11 +21,11 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -50,14 +50,14 @@ import java.util.stream.Collectors;
  * that can never let an unmapped source field through—the rule leaves the plan untouched, so data nodes
  * never load {@code _source} for expansion.
  *
- * <p>{@code FORK} is n-ary: each branch is stamped with its own pattern. Named unmapped mentions are aligned
+ * <p>{@link UnionPlan} is n-ary: each branch is stamped with its own pattern. Named unmapped mentions are aligned
  * like {@code LOAD}: a mention in one branch is materialized in every sibling that can surface it, so that
  * name is excluded from {@code $$unmapped_fields}. Extra fields that a branch does not keep (literal
  * {@code KEEP}, {@code STATS}) are not loaded there; a null {@code $$unmapped_fields} is appended so the
  * coordinator can still expand extras from siblings.
  *
  * <p>Alignment {@link Project}s created during analysis snapshot their projections before this rule runs, so
- * the attribute is re-appended there and {@link Fork#refreshOutput()} unions it for the coordinator.
+ * the attribute is re-appended there and {@link UnionPlan#refreshOutput()} unions it for the coordinator.
  *
  * <p>The rule runs in the Finish Analysis batch <em>before</em> {@link ResolvedProjects}, so
  * {@link ResolvingProject} nodes — which carry the original wildcard patterns — are still present.
@@ -76,13 +76,13 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         if (context.unmappedResolution().loadsAllUnmappedFields() == false) {
             return plan;
         }
-        boolean hasFork = plan.anyMatch(p -> p instanceof Fork);
-        LogicalPlan annotated = hasFork ? annotate(plan, computeUnmappedFieldsToKeep(plan)) : stampAll(plan);
+        boolean hasUnion = plan.anyMatch(p -> p instanceof UnionPlan);
+        LogicalPlan annotated = hasUnion ? annotate(plan, computeUnmappedFieldsToKeep(plan)) : stampAll(plan);
         LogicalPlan withUnmappedOnProjects = annotated.transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
-        LogicalPlan result = hasFork
-            // Project pass before FORK finish keeps $$unmapped_fields on branch Projects. The pass after
-            // picks it up on Projects above the FORK, whose child output only includes the column after refresh.
-            ? withUnmappedOnProjects.transformUp(Fork.class, DetermineUnmappedFieldsToKeep::finishForkUnmappedFields)
+        LogicalPlan result = hasUnion
+            // Project pass before union finish keeps $$unmapped_fields on branch Projects. The pass after
+            // picks it up on Projects above the union, whose child output only includes the column after refresh.
+            ? withUnmappedOnProjects.transformUp(UnionPlan.class, DetermineUnmappedFieldsToKeep::finishUnionUnmappedFields)
                 .transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields)
             : withUnmappedOnProjects;
         if (carriesUnmappedFieldsAttribute(result)) {
@@ -95,8 +95,8 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      * The plan with {@code leaves} standing in for the synthetic column, so asking it for its output re-runs every projection
      * against a relation shaped exactly as it would have been had those fields been mapped: {@code ResolvingProject#replaceChild}
      * re-invokes the real KEEP/DROP/RENAME resolvers, and EVAL and friends recompute their output on top.
-     * {@link Fork} snapshots its output, so the leaves are spliced into that list in place of {@code $$unmapped_fields}.
-     * {@link Fork#refreshOutput()} cannot do this: it mints new {@link org.elasticsearch.xpack.esql.core.expression.NameId}s,
+     * {@link UnionPlan} snapshots its output, so the leaves are spliced into that list in place of {@code $$unmapped_fields}.
+     * {@link UnionPlan#refreshOutput()} cannot do this: it mints new {@link org.elasticsearch.xpack.esql.core.expression.NameId}s,
      * and expansion matches discovered fields by id.
      */
     private static LogicalPlan withLeavesInPlaceOfSyntheticColumn(LogicalPlan annotated, List<Attribute> leaves) {
@@ -111,17 +111,17 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
                 }
             }
             return carriesSyntheticColumn ? esr.withAttributes(realAttributes).withAdditionalAttributes(leaves) : esr;
-        }).transformUp(Fork.class, fork -> replaceSyntheticColumnInForkOutput(fork, leaves));
+        }).transformUp(UnionPlan.class, union -> replaceSyntheticColumnInUnionOutput(union, leaves));
     }
 
-    private static Fork replaceSyntheticColumnInForkOutput(Fork fork, List<Attribute> leaves) {
-        List<Attribute> newOutput = new ArrayList<>(fork.output().size() + leaves.size());
+    private static UnionPlan replaceSyntheticColumnInUnionOutput(UnionPlan union, List<Attribute> leaves) {
+        List<Attribute> newOutput = new ArrayList<>(union.output().size() + leaves.size());
         boolean replaced = false;
-        for (Attribute attr : fork.output()) {
+        for (Attribute attr : union.output()) {
             if (attr instanceof UnmappedFieldsAttribute || attr.name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME)) {
                 if (replaced) {
                     throw new IllegalStateException(
-                        "expected at most one " + UnmappedFieldsAttribute.ATTRIBUTE_NAME + " in FORK output, got " + fork.output()
+                        "expected at most one " + UnmappedFieldsAttribute.ATTRIBUTE_NAME + " in union output, got " + union.output()
                     );
                 }
                 newOutput.addAll(leaves);
@@ -130,7 +130,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
                 newOutput.add(attr);
             }
         }
-        return replaced ? fork.replaceSubPlansAndOutput(fork.children(), newOutput) : fork;
+        return replaced ? union.replaceSubPlansAndOutput(union.children(), newOutput) : union;
     }
 
     private static boolean carriesUnmappedFieldsAttribute(LogicalPlan plan) {
@@ -148,7 +148,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      * RENAME's targets, ENRICH/LOOKUP JOIN fields) are all already columns of their own, so expanding a
      * source field of that name would collide with them.
      * <p>
-     * For {@link Join}, only the left side is recursed into. {@link Fork} is treated as transparent (no include restriction beyond
+     * For {@link Join}, only the left side is recursed into. {@link UnionPlan} is treated as transparent (no include restriction beyond
      * excluding its output names); branch-local {@code KEEP}/{@code DROP} patterns are applied in {@link #annotate} by recomputing
      * this for each child. Other non-unary plans fall back to {@link UnmappedFieldsPattern#ALL}; those queries are rejected by the
      * {@code Verifier}'s {@code LOAD_ALL} command allow-list.
@@ -175,7 +175,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
     }
 
     /**
-     * No {@link Fork} in the plan: one pattern for the whole query, stamped onto every non-LOOKUP
+     * No {@link UnionPlan} in the plan: one pattern for the whole query, stamped onto every non-LOOKUP
      * {@link EsRelation} in a single {@code transformUp}.
      */
     private static LogicalPlan stampAll(LogicalPlan plan) {
@@ -184,14 +184,14 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
     }
 
     /**
-     * Stamps {@link UnmappedFieldsAttribute} onto non-LOOKUP {@link EsRelation}s. {@link Fork} is the
+     * Stamps {@link UnmappedFieldsAttribute} onto non-LOOKUP {@link EsRelation}s. {@link UnionPlan} is the
      * other special case: each branch is annotated with its own pattern. Every other node is only
-     * walked to reach those two; recursion stops at a Fork so a parent pattern cannot stamp through it.
+     * walked to reach those two; recursion stops at a union so a parent pattern cannot stamp through it.
      */
     private static LogicalPlan annotate(LogicalPlan plan, UnmappedFieldsPattern pattern) {
-        if (plan instanceof Fork fork) {
-            return fork.replaceChildren(
-                fork.children().stream().map(c -> annotate(c, computeUnmappedFieldsToKeep(c).intersect(pattern))).toList()
+        if (plan instanceof UnionPlan union) {
+            return union.replaceChildren(
+                union.children().stream().map(c -> annotate(c, computeUnmappedFieldsToKeep(c).intersect(pattern))).toList()
             );
         }
         if (pattern.isNone()) {
@@ -199,6 +199,9 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         }
         if (plan instanceof EsRelation esr) {
             return stamp(esr, pattern);
+        }
+        if (plan.noneMatch(p -> p instanceof UnionPlan)) {
+            return plan.transformUp(EsRelation.class, esr -> stamp(esr, pattern));
         }
         return plan.replaceChildren(plan.children().stream().map(c -> annotate(c, pattern)).toList());
     }
@@ -210,7 +213,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
     }
 
     /**
-     * FORK alignment {@link Project}s snapshot their projections before this rule adds
+     * Union alignment {@link Project}s snapshot their projections before this rule adds
      * {@code $$unmapped_fields}. {@link ResolvingProject} already re-appends it; other Projects
      * would otherwise drop the column before the coordinator can expand it.
      */
@@ -228,11 +231,11 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
 
     /**
      * Branches whose pattern is {@link UnmappedFieldsPattern#NONE} never get {@code $$unmapped_fields} on the relation. If a sibling did,
-     * append a null column so FORK layouts match, then refresh FORK output so the coordinator sees the {@link UnmappedFieldsAttribute}
+     * append a null column so union layouts match, then refresh union output so the coordinator sees the {@link UnmappedFieldsAttribute}
      * subtype. In other words, we only pad if at least one child has the attribute and at least one does not.
      */
-    private static LogicalPlan finishForkUnmappedFields(Fork fork) {
-        List<LogicalPlan> children = fork.children();
+    private static LogicalPlan finishUnionUnmappedFields(UnionPlan union) {
+        List<LogicalPlan> children = union.children();
         List<LogicalPlan> newChildren = new ArrayList<>(children.size());
         boolean hasChildWithUnmappedFields = false;
         boolean hasChildWithoutUnmappedFields = false;
@@ -242,7 +245,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             hasChildWithoutUnmappedFields |= hasUnmappedField == false;
             newChildren.add(hasUnmappedField ? child : padNullUnmappedFields(child));
         }
-        Fork result = hasChildWithoutUnmappedFields && hasChildWithUnmappedFields ? fork.replaceSubPlans(newChildren) : fork;
+        UnionPlan result = hasChildWithoutUnmappedFields && hasChildWithUnmappedFields ? union.replaceSubPlans(newChildren) : union;
         return hasChildWithUnmappedFields ? result.refreshOutput() : result;
     }
 

@@ -1689,6 +1689,344 @@ FROM partial_mapping_sample_data
 2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43                         | 2          | French
 ;
 
+#############
+# SUBQUERIES #
+#############
+
+loadAllUnmappedFieldInOneSubqueryBranch
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP @timestamp, unmapped_message),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!" | KEEP @timestamp)
+| KEEP @timestamp, unmapped_message
+| SORT @timestamp
+;
+
+@timestamp:datetime          | unmapped_message:keyword
+2024-10-23T13:33:34.937Z | 43
+2024-10-23T13:55:01.543Z | null
+;
+
+loadAllUnmappedFieldReferencedOnlyAboveSubqueries
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| KEEP @timestamp, message, unmapped_message
+| SORT @timestamp
+;
+
+@timestamp:datetime          | message:keyword        | unmapped_message:keyword
+2024-10-23T13:33:34.937Z | 42                     | 43
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
+loadAllUnmappedFieldInOneSubqueryBranchNoOuterKeep
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP @timestamp, unmapped_message), (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| SORT @timestamp
+;
+
+@timestamp:datetime          | unmapped_message:keyword | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
+2024-10-23T13:33:34.937Z | 43                       | null         | null                | null                   | null                  | null                    | null
+2024-10-23T13:55:01.543Z | null                     | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468
+;
+
+loadAllUnmappedFieldReferencedOnlyAboveIndexAndRowUnion
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: subquery_with_row
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42"), (ROW synthetic = 99)
+| KEEP message, unmapped_message, synthetic
+| SORT synthetic NULLS LAST, message
+;
+
+message:keyword | unmapped_message:keyword | synthetic:integer
+null            | null                     | 99
+42              | 43                       | null
+;
+
+loadAllUnmappedFieldAsInSubqueryLeftKey
+required_capability: optional_fields_load_all_subqueries
+required_capability: where_in_subquery_without_view
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| WHERE unmapped_message IN (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP unmapped_message)
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword | unmapped_message:keyword
+42              | 43
+;
+
+loadAllUnmappedFieldAsInSubqueryLeftKeyNonAlignedNames
+required_capability: optional_fields_load_all_subqueries
+required_capability: where_in_subquery_without_view
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| WHERE unmapped_message IN (FROM partial_mapping_sample_data | WHERE message == "42" | RENAME unmapped_message AS other | KEEP other)
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword | unmapped_message:keyword
+42              | 43
+;
+
+loadAllUnmappedFieldAsInSubqueryLeftKeyWithSubqueryUnionRhs
+required_capability: optional_fields_load_all_subqueries
+required_capability: where_in_subquery_without_view
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| WHERE unmapped_message IN
+    (FROM (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP unmapped_message),
+          (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.3!" | KEEP unmapped_message)
+     | KEEP unmapped_message)
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | 43
+Connected to 10.1.0.3! | Disconnected from 10.1.0.3
+;
+
+loadAllUnmappedFieldTypeConflictAcrossSubqueriesIsUnsupported
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: inline_stats
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM languages | EVAL does_not_exist1 = does_not_exist1::LONG), (FROM sample_data | EVAL does_not_exist1 = does_not_exist1::DOUBLE)
+| KEEP does_not_exist1
+| INLINE STATS c = COUNT(*)
+;
+
+does_not_exist1:unsupported | c:long
+null                        | 11
+null                        | 11
+null                        | 11
+null                        | 11
+null                        | 11
+null                        | 11
+null                        | 11
+null                        | 11
+null                        | 11
+null                        | 11
+null                        | 11
+;
+
+loadAllSubqueryOuterEvalFunctionMaterializesAllBranches
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| EVAL upper = TO_UPPER(unmapped_message)
+| KEEP messag*, unmapped_mess*, upper
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword   | upper:keyword
+42                     | 43                         | 43
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | DISCONNECTED FROM 10.1.0.1
+;
+
+loadAllSubqueryOuterWhereMaterializesAllBranches
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connection error?")
+| WHERE unmapped_message == "Disconnection error"
+| KEEP messag*, unmapped_mess*
+| SORT message
+;
+
+message:keyword   | unmapped_message:keyword
+Connection error? | Disconnection error
+Connection error? | Disconnection error
+Connection error? | Disconnection error
+;
+
+loadAllSubqueryOuterStatsByMaterializesAllBranches
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| STATS c = COUNT(*) BY unmapped_message
+| SORT unmapped_message
+;
+
+c:long | unmapped_message:keyword
+1      | 43
+1      | Disconnected from 10.1.0.1
+;
+
+loadAllSubqueryOuterSortDescMaterializesThreeBranches
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.2!")
+| SORT unmapped_message DESC
+| KEEP messag*, unmapped_mess*
+;
+
+message:keyword        | unmapped_message:keyword
+Connected to 10.1.0.2! | Disconnected from 10.1.0.2
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+42                     | 43
+;
+
+loadAllSubqueryOuterCastEvalMaterializesAllBranches
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| EVAL dur = unmapped_event_duration::long
+| KEEP message, dur
+| SORT message
+;
+
+message:keyword        | dur:long
+42                     | 1232383
+Connected to 10.1.0.1! | 1756468
+;
+
+loadAllSubqueryDropInOneBranchOuterKeepLoadsNonDroppedBranch
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42" | DROP unmapped_message),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | null
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
+loadAllSubqueryKeepInOneBranchScopesFieldToBranch
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP message, unmapped_message),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!" | KEEP message)
+| EVAL has = unmapped_message IS NOT NULL
+| KEEP message, unmapped_message, has
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword | has:boolean
+42                     | 43                       | true
+Connected to 10.1.0.1! | null                     | false
+;
+
+loadAllSubqueryEvalInOneBranchScopesFieldToBranch
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42" | EVAL tag = unmapped_message),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, tag
+| SORT message
+;
+
+message:keyword        | tag:keyword
+42                     | 43
+Connected to 10.1.0.1! | null
+;
+
+loadAllSubqueryRenameInOneBranchOuterReferencesNewName
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42" | RENAME unmapped_message AS renamed),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, renamed
+| SORT message
+;
+
+message:keyword        | renamed:keyword
+42                     | 43
+Connected to 10.1.0.1! | null
+;
+
+loadAllSubqueryStatsInOneBranchNullFillsOuterReference
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!" | STATS rows = COUNT(*))
+| KEEP message, unmapped_message, rows
+| SORT message NULLS LAST
+;
+
+message:keyword | unmapped_message:keyword | rows:long
+42              | 43                       | null
+null            | null                     | 1
+;
+
+loadAllSubqueryCastInSubquery
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | EVAL dur_plus = unmapped_event_duration::LONG + 1 | WHERE message == "42" OR message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_event_duration, dur_plus
+| SORT message
+;
+
+message:keyword        | unmapped_event_duration:keyword | dur_plus:long
+42                     | 1232383                         | 1232384
+Connected to 10.1.0.1! | 1756468                         | 1756469
+;
+
+loadAllSubqueryNoKeepExpandsUnmappedFields
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| SORT @timestamp
+;
+
+@timestamp:datetime          | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+;
+
 ###########################################################
 # Object and array expansion: flatten to leaf columns     #
 ###########################################################

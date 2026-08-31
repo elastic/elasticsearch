@@ -1480,7 +1480,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
                 containsString(
                     "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH and FORK commands; ["
+                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ["
                         + commandAndLabel.v2()
                         + "] is not supported yet"
                 )
@@ -1532,6 +1532,65 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         test().statementError(setUnmappedLoad(query), containsString("No matches found for pattern [_inde*]"));
     }
 
+    public void testLoadAllModeAllowsSingleSubqueryInFrom() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        test().statement(setUnmappedLoadAll("FROM (FROM test)"));
+    }
+
+    public void testLoadAllModeAllowsMainIndexPlusSubquery() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        test().addLanguages().statement(setUnmappedLoadAll("FROM test, (FROM languages | WHERE language_code > 1)"));
+    }
+
+    public void testLoadAllModeAllowsTwoSubqueriesWithoutMainIndex() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        test().statement(setUnmappedLoadAll("FROM (FROM test),(FROM test)"));
+    }
+
+    public void testLoadAllModeAllowsThreeSubqueries() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        test().statement(setUnmappedLoadAll("FROM (FROM test),(FROM test),(FROM test)"));
+    }
+
+    public void testLoadAllModeAllowsSubqueryWithRow() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue("Requires ROW source subqueries", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
+        test().statement(setUnmappedLoadAll("FROM test, (ROW synthetic = 1) | KEEP emp_no, synthetic, does_not_exist"));
+    }
+
+    public void testLoadAllSubqueryEvalThenKeepExactNamesDoesNotExpand() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        LogicalPlan plan = partialMappingTest().statement(setUnmappedLoadAll("""
+            FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
+                 (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+            | EVAL dur = unmapped_event_duration::long
+            | KEEP message, dur
+            | SORT message
+            """));
+        assertThat(Expressions.names(plan.output()), equalTo(List.of("message", "dur")));
+    }
+
+    public void testLoadAllModeAllowsInSubquery() {
+        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        LogicalPlan plan = partialMappingTest().statement(setUnmappedLoadAll("""
+            FROM partial_mapping_sample_data
+            | WHERE unmapped_message IN (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP unmapped_message)
+            | KEEP message, unmapped_message
+            """));
+        assertThat(plan.resolved(), is(true));
+        assertThat(Expressions.names(plan.output()), hasItem("unmapped_message"));
+    }
+
+    public void testLoadAllModeAllowsSubqueryWithLookupJoin() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        test().addLanguagesLookup().statement(setUnmappedLoadAll("""
+            FROM test,
+                (FROM test
+                | EVAL language_code = languages
+                | LOOKUP JOIN languages_lookup ON language_code)
+            """));
+    }
+
     /**
      * The {@code TS} command creates an {@link EsRelation} with {@link IndexMode#TIME_SERIES}, which is rejected by the allow-list.
      * The error names the source command ({@code TS}), not the internal node type. Tested both with and without a downstream STATS.
@@ -1542,7 +1601,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 setUnmappedLoadAll("TS test | STATS MAX(RATE(network.bytes_in)) BY host"),
                 containsString(
                     "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH and FORK commands; [TS] is not supported yet"
+                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; [TS] is not supported yet"
                 )
             );
         test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
@@ -1550,7 +1609,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 setUnmappedLoadAll("TS test | SORT @timestamp | LIMIT 10"),
                 containsString(
                     "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH and FORK commands; [TS] is not supported yet"
+                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; [TS] is not supported yet"
                 )
             );
     }

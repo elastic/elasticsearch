@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -36,18 +37,21 @@ public final class KnnRuntimeScoreEvaluator implements ExpressionEvaluator {
 
   private final float boost;
 
+  private final float[] scratchVector;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public KnnRuntimeScoreEvaluator(Source source, ExpressionEvaluator fieldBlock,
       float[] queryVector, DenseVectorFieldMapper.SimilarityFunction similarityFunction,
-      float boost, DriverContext driverContext) {
+      float boost, float[] scratchVector, DriverContext driverContext) {
     this.source = source;
     this.fieldBlock = fieldBlock;
     this.queryVector = queryVector;
     this.similarityFunction = similarityFunction;
     this.boost = boost;
+    this.scratchVector = scratchVector;
     this.driverContext = driverContext;
   }
 
@@ -69,7 +73,7 @@ public final class KnnRuntimeScoreEvaluator implements ExpressionEvaluator {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendDouble(Knn.runtimeScore(p, fieldBlockBlock, this.queryVector, this.similarityFunction, this.boost));
+          result.appendDouble(Knn.runtimeScore(p, fieldBlockBlock, this.queryVector, this.similarityFunction, this.boost, this.scratchVector));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -107,18 +111,22 @@ public final class KnnRuntimeScoreEvaluator implements ExpressionEvaluator {
 
     private final float boost;
 
+    private final Function<DriverContext, float[]> scratchVector;
+
     public Factory(Source source, ExpressionEvaluator.Factory fieldBlock, float[] queryVector,
-        DenseVectorFieldMapper.SimilarityFunction similarityFunction, float boost) {
+        DenseVectorFieldMapper.SimilarityFunction similarityFunction, float boost,
+        Function<DriverContext, float[]> scratchVector) {
       this.source = source;
       this.fieldBlock = fieldBlock;
       this.queryVector = queryVector;
       this.similarityFunction = similarityFunction;
       this.boost = boost;
+      this.scratchVector = scratchVector;
     }
 
     @Override
     public KnnRuntimeScoreEvaluator get(DriverContext context) {
-      return new KnnRuntimeScoreEvaluator(source, fieldBlock.get(context), queryVector, similarityFunction, boost, context);
+      return new KnnRuntimeScoreEvaluator(source, fieldBlock.get(context), queryVector, similarityFunction, boost, scratchVector.apply(context), context);
     }
 
     @Override

@@ -296,7 +296,7 @@ public class Knn extends SingleFieldFullTextFunction
             return;
         }
 
-        if (field.dataType() != DENSE_VECTOR) {
+        if (false == getRuntimeFieldDataTypes().contains(field.dataType())) {
             failures.add(
                 Failure.fail(
                     query(),
@@ -320,6 +320,26 @@ public class Knn extends SingleFieldFullTextFunction
                     )
                 );
             }
+            validateQueryVector(failures);
+        }
+    }
+
+    private void validateQueryVector(Failures failures) {
+        float[] vector = queryAsFloats();
+        float squaredMagnitude = VectorUtil.dotProduct(vector, vector);
+        if (Float.isNaN(squaredMagnitude) || Float.isInfinite(squaredMagnitude)) {
+            failures.add(
+                Failure.fail(query(), "[KNN] cannot operate on [{}]; query vector values are two large or too small.", query().sourceText())
+            );
+        }
+        if (Math.sqrt(squaredMagnitude) == 0.0f) {
+            failures.add(
+                Failure.fail(
+                    query(),
+                    "[KNN] cannot operate on [{}]; Cosine similarity does not support (query) vectors with zero magnitude.",
+                    query().sourceText()
+                )
+            );
         }
     }
 
@@ -345,7 +365,8 @@ public class Knn extends SingleFieldFullTextFunction
             toEvaluator.apply(field()),
             queryVector,
             CosineSimilarity.SIMILARITY_FUNCTION,
-            similarityThreshold
+            similarityThreshold,
+            context -> similarityThreshold == null ? null : new float[queryVector.length]
         );
     }
 
@@ -366,7 +387,8 @@ public class Knn extends SingleFieldFullTextFunction
             toScorer.toEvaluator().apply(field()),
             queryVector,
             CosineSimilarity.SIMILARITY_FUNCTION,
-            boost
+            boost,
+            context -> new float[queryVector.length]
         );
     }
 
@@ -520,8 +542,17 @@ public class Knn extends SingleFieldFullTextFunction
 
     @Override
     protected Set<DataType> getFieldDataTypes() {
-        // Knn accepts DENSE_VECTOR or TEXT (for semantic_text), plus NULL for missing fields
-        return Set.of(DENSE_VECTOR, TEXT, NULL);
+        if (false == isRuntimeSearch()) {
+            // Knn accepts DENSE_VECTOR or TEXT (for semantic_text), plus NULL for missing fields
+            return Set.of(DENSE_VECTOR, TEXT, NULL);
+        } else {
+            return getRuntimeFieldDataTypes();
+        }
+    }
+
+    private Set<DataType> getRuntimeFieldDataTypes() {
+        // Knn on runtime field accepts DENSE_VECTOR or NULL
+        return Set.of(DENSE_VECTOR, NULL);
     }
 
     @Override
@@ -559,7 +590,8 @@ public class Knn extends SingleFieldFullTextFunction
         FloatBlock fieldBlock,
         @Fixed float[] queryVector,
         @Fixed DenseVectorFieldMapper.SimilarityFunction similarityFunction,
-        @Fixed @Nullable Float similarityThreshold
+        @Fixed @Nullable Float similarityThreshold,
+        @Fixed(includeInToString = false, scope = Fixed.Scope.THREAD_LOCAL) float[] scratchVector
     ) {
         if (fieldBlock.isNull(position)) {
             return false;
@@ -572,11 +604,10 @@ public class Knn extends SingleFieldFullTextFunction
             return true;
         }
         int first = fieldBlock.getFirstValueIndex(position);
-        float[] vector = new float[dimensions];
         for (int i = 0; i < dimensions; i++) {
-            vector[i] = fieldBlock.getFloat(first + i);
+            scratchVector[i] = fieldBlock.getFloat(first + i);
         }
-        return similarityFunction.calculateSimilarity(vector, queryVector) >= similarityThreshold;
+        return similarityFunction.calculateSimilarity(scratchVector, queryVector) >= similarityThreshold;
     }
 
     /**
@@ -589,7 +620,8 @@ public class Knn extends SingleFieldFullTextFunction
         FloatBlock fieldBlock,
         @Fixed float[] queryVector,
         @Fixed DenseVectorFieldMapper.SimilarityFunction similarityFunction,
-        @Fixed float boost
+        @Fixed float boost,
+        @Fixed(includeInToString = false, scope = Fixed.Scope.THREAD_LOCAL) float[] scratchVector
     ) {
         if (fieldBlock.isNull(position)) {
             return 0.0;
@@ -600,10 +632,9 @@ public class Knn extends SingleFieldFullTextFunction
         }
 
         int first = fieldBlock.getFirstValueIndex(position);
-        float[] vector = new float[dimensions];
         for (int i = 0; i < dimensions; i++) {
-            vector[i] = fieldBlock.getFloat(first + i);
+            scratchVector[i] = fieldBlock.getFloat(first + i);
         }
-        return VectorUtil.normalizeToUnitInterval(similarityFunction.calculateSimilarity(vector, queryVector)) * boost;
+        return VectorUtil.normalizeToUnitInterval(similarityFunction.calculateSimilarity(scratchVector, queryVector)) * boost;
     }
 }

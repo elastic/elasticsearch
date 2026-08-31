@@ -8,6 +8,7 @@ import java.lang.Float;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -37,18 +38,21 @@ public final class KnnRuntimeFilterEvaluator implements ExpressionEvaluator {
 
   private final Float similarityThreshold;
 
+  private final float[] scratchVector;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public KnnRuntimeFilterEvaluator(Source source, ExpressionEvaluator fieldBlock,
       float[] queryVector, DenseVectorFieldMapper.SimilarityFunction similarityFunction,
-      Float similarityThreshold, DriverContext driverContext) {
+      Float similarityThreshold, float[] scratchVector, DriverContext driverContext) {
     this.source = source;
     this.fieldBlock = fieldBlock;
     this.queryVector = queryVector;
     this.similarityFunction = similarityFunction;
     this.similarityThreshold = similarityThreshold;
+    this.scratchVector = scratchVector;
     this.driverContext = driverContext;
   }
 
@@ -70,7 +74,7 @@ public final class KnnRuntimeFilterEvaluator implements ExpressionEvaluator {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBoolean(Knn.runtimeFilter(p, fieldBlockBlock, this.queryVector, this.similarityFunction, this.similarityThreshold));
+          result.appendBoolean(Knn.runtimeFilter(p, fieldBlockBlock, this.queryVector, this.similarityFunction, this.similarityThreshold, this.scratchVector));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -108,18 +112,22 @@ public final class KnnRuntimeFilterEvaluator implements ExpressionEvaluator {
 
     private final Float similarityThreshold;
 
+    private final Function<DriverContext, float[]> scratchVector;
+
     public Factory(Source source, ExpressionEvaluator.Factory fieldBlock, float[] queryVector,
-        DenseVectorFieldMapper.SimilarityFunction similarityFunction, Float similarityThreshold) {
+        DenseVectorFieldMapper.SimilarityFunction similarityFunction, Float similarityThreshold,
+        Function<DriverContext, float[]> scratchVector) {
       this.source = source;
       this.fieldBlock = fieldBlock;
       this.queryVector = queryVector;
       this.similarityFunction = similarityFunction;
       this.similarityThreshold = similarityThreshold;
+      this.scratchVector = scratchVector;
     }
 
     @Override
     public KnnRuntimeFilterEvaluator get(DriverContext context) {
-      return new KnnRuntimeFilterEvaluator(source, fieldBlock.get(context), queryVector, similarityFunction, similarityThreshold, context);
+      return new KnnRuntimeFilterEvaluator(source, fieldBlock.get(context), queryVector, similarityFunction, similarityThreshold, scratchVector.apply(context), context);
     }
 
     @Override

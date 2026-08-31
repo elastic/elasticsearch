@@ -11,8 +11,8 @@ import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.foreign-api'
 apply plugin: 'elasticsearch.foreign-library'
+apply plugin: 'elasticsearch.foreign-api'
 
 dependencies {
   api project(':libs:foreign-library')
@@ -25,9 +25,9 @@ dependencies {
   }
 }
 
-tasks.withType(JavaCompile).configureEach {
-  options.compilerArgs.addAll(['--add-modules=jdk.incubator.vector',
-                               '--add-reads=org.elasticsearch.simdjson=jdk.incubator.vector'])
+tasks.named('compileJava').configure {
+  options.compilerArgs << '--add-modules=jdk.incubator.vector'
+  options.compilerArgs << '--add-reads=org.elasticsearch.simdjson=jdk.incubator.vector'
   // Suppress the "using incubating module(s)" mandatory warning that javac emits for
   // jdk.incubator.vector. On JDK 21 this warning has no named lint category and cannot
   // be individually suppressed. -nowarn is scoped to this submodule only.
@@ -35,13 +35,14 @@ tasks.withType(JavaCompile).configureEach {
   options.compilerArgs << '-nowarn'
 }
 
-// The annotation processor tasks inherit -Werror from ElasticsearchJavaBasePlugin, but
-// -Werror treats the mandated jdk.incubator.vector warning as a fatal error even when
-// -nowarn is present. Remove -Werror for annotation-processing-only tasks.
-['processForeignAnnotations', 'processTestForeignAnnotations'].each { taskName ->
-  tasks.named(taskName).configure {
-    options.compilerArgs.remove('-Werror')
-  }
+// The foreign-library annotation processor task is a separate JavaCompile that parses the
+// whole main source set with -proc:only. StringParser imports jdk.incubator.vector, so the
+// module must be visible here too. Unlike compileJava this task runs on the JDK 25 toolchain
+// fixed by the foreign-library plugin, where we can already use -Xlint:-incubating
+tasks.named('processForeignAnnotations').configure {
+  options.compilerArgs << '--add-modules=jdk.incubator.vector'
+  options.compilerArgs << '--add-reads=org.elasticsearch.simdjson=jdk.incubator.vector'
+  options.compilerArgs << '-Xlint:-incubating'
 }
 
 tasks.named('javadoc').configure {
@@ -51,12 +52,10 @@ tasks.named('javadoc').configure {
 
 tasks.withType(CheckForbiddenApisTask).configureEach {
   ignoreMissingClasses = true
-  replaceSignatureFiles 'jdk-signatures'
 }
 
-tasks.named('test').configure {
-  jvmArgs '--add-modules=jdk.incubator.vector'
-  jvmArgs '--enable-native-access=ALL-UNNAMED'
+tasks.withType(CheckForbiddenApisTask).configureEach {
+  replaceSignatureFiles 'jdk-signatures'
 }
 
 // Vendored simdjson C++ amalgamation notices (not tied to a jar dependency).

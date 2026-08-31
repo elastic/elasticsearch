@@ -11,7 +11,8 @@ package org.elasticsearch.simdjson.internal.fieldnames;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
-import java.nio.ByteOrder;
+
+import static java.nio.ByteOrder.LITTLE_ENDIAN;
 
 /**
  * Wyhash-based hash functions for JSON field names. These are shared across all
@@ -23,8 +24,8 @@ import java.nio.ByteOrder;
  */
 public final class FieldNameHash {
 
-    private static final VarHandle INT_LE = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
-    private static final VarHandle LONG_LE = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
+    private static final VarHandle INT_LE = MethodHandles.byteArrayViewVarHandle(int[].class, LITTLE_ENDIAN);
+    private static final VarHandle LONG_LE = MethodHandles.byteArrayViewVarHandle(long[].class, LITTLE_ENDIAN);
 
     private static final long WY_SECRET0 = 0xa0761d6478bd642fL;
     private static final long WY_SECRET1 = 0xe7037ed1a0b428dbL;
@@ -180,14 +181,6 @@ public final class FieldNameHash {
             }
             pos++;
         }
-    }
-
-    /**
-     * Provides access to the little-endian int VarHandle for implementations that need to
-     * compare inline quads against buffer contents.
-     */
-    static VarHandle intHandle() {
-        return INT_LE;
     }
 
     private static long wymix(long a, long b) {

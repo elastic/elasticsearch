@@ -11,10 +11,11 @@ package org.elasticsearch.simdjson.internal.fieldnames;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
-import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static java.nio.ByteOrder.LITTLE_ENDIAN;
 
 /**
  * Optimized field name table that freezes after the first document into a compact
@@ -33,7 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public final class FrozenFieldNameTable {
 
-    private static final VarHandle LONG_LE = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
+    private static final VarHandle LONG_LE = MethodHandles.byteArrayViewVarHandle(long[].class, LITTLE_ENDIAN);
 
     private final AtomicReference<Frozen> shared = new AtomicReference<>();
 

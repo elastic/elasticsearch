@@ -6,7 +6,7 @@
   # field, so both of these fall back to a SortedDocsProducer, which reads the absent points index or terms
   # dictionary and silently collects nothing.
   - requires:
-      test_runner_features: [capabilities, cluster_features]
+      test_runner_features: [capabilities]
       cluster_features: ["search.aggs.composite.doc_values_skipper_fix"]
       capabilities:
         - method: PUT

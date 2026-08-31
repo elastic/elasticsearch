@@ -362,3 +362,94 @@
 
   # portable 32-bit Roaring serialization of the distinct set {5, 15}
   - match: { aggregations.ids.value: "OjAAAAEAAAAAAAEAEAAAAAUADwA=" }
+
+---
+"roaring_bitmap aggregation is rejected inside a multi-bucket aggregation":
+  - do:
+      indices.create:
+        index: test_roaring_bitmap_aggregation_multi_bucket_parent
+        body:
+          mappings:
+            properties:
+              id:
+                type: integer
+              category:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_roaring_bitmap_aggregation_multi_bucket_parent
+        body:
+          - '{"index": {}}'
+          - '{"id": 5, "category": "odd"}'
+          - '{"index": {}}'
+          - '{"id": 10, "category": "even"}'
+
+  - do:
+      catch: bad_request
+      search:
+        index: test_roaring_bitmap_aggregation_multi_bucket_parent
+        body:
+          size: 0
+          aggs:
+            categories:
+              terms:
+                field: category
+              aggs:
+                ids:
+                  roaring_bitmap:
+                    field: id
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+
+---
+"roaring_bitmap aggregation is allowed inside a filter aggregation":
+  - requires:
+      test_runner_features: headers
+
+  - do:
+      indices.create:
+        index: test_roaring_bitmap_aggregation_filter_parent
+        body:
+          mappings:
+            properties:
+              id:
+                type: integer
+              category:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_roaring_bitmap_aggregation_filter_parent
+        body:
+          - '{"index": {}}'
+          - '{"id": 5, "category": "odd"}'
+          - '{"index": {}}'
+          - '{"id": 10, "category": "even"}'
+          - '{"index": {}}'
+          - '{"id": 15, "category": "odd"}'
+
+  - do:
+      headers:
+        Content-Type: application/json
+        Accept: application/json
+      search:
+        index: test_roaring_bitmap_aggregation_filter_parent
+        body:
+          size: 0
+          aggs:
+            odd:
+              filter:
+                term:
+                  category: "odd"
+              aggs:
+                ids:
+                  roaring_bitmap:
+                    field: id
+
+  - match: { aggregations.odd.doc_count: 2 }
+  # a single-bucket parent yields the same distinct set {5, 15} as the equivalent top-level query
+  - match: { aggregations.odd.ids.value: "OjAAAAEAAAAAAAEAEAAAAAUADwA=" }

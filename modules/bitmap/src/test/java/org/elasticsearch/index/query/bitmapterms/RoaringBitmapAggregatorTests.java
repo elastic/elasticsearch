@@ -13,6 +13,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
@@ -45,6 +46,7 @@ import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.tasks.TaskCancelledException;
 
@@ -91,6 +93,38 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
 
         assertThat(result.width(), equalTo(InternalRoaringBitmap.BitmapFormat.LONG));
         assertThat(drain(LongBitmap.deserializePortable(result.bitmap())), equalTo(List.of(1L, aboveIntRange, Long.MAX_VALUE)));
+    }
+
+    public void testMappedFieldWithoutValuesReturnsEmptyBitmap() throws Exception {
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(FIELD, NumberFieldMapper.NumberType.INTEGER);
+        try (Directory directory = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), directory)) {
+            // A document carrying no value for the field, so collection runs but never creates a bitmap.
+            writer.addDocument(new Document());
+
+            try (IndexReader reader = writer.getReader()) {
+                InternalRoaringBitmap result = searchAndReduce(
+                    reader,
+                    new AggTestConfig(new RoaringBitmapAggregationBuilder("ids").field(FIELD), fieldType)
+                );
+                assertThat(result.width(), equalTo(InternalRoaringBitmap.BitmapFormat.INT));
+                assertThat(drain(IntBitmap.deserialize(result.bitmap())), equalTo(List.of()));
+            }
+        }
+    }
+
+    public void testUnmappedFieldReturnsUnmappedBitmap() throws Exception {
+        try (Directory directory = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), directory)) {
+            writer.addDocument(new Document());
+
+            try (IndexReader reader = writer.getReader()) {
+                InternalRoaringBitmap result = searchAndReduce(
+                    reader,
+                    new AggTestConfig(new RoaringBitmapAggregationBuilder("ids").field("missing_field"))
+                );
+                assertThat(result.width(), equalTo(InternalRoaringBitmap.BitmapFormat.UNMAPPED));
+                assertThat(result.bitmap().length, equalTo(0));
+            }
+        }
     }
 
     public void testTermsIndexFastPathMatchesDocValues() throws Exception {
@@ -226,12 +260,42 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
             writer.addDocument(termsDocument(type, 5, 10));
 
             try (IndexReader reader = writer.getReader()) {
+                // A filter is single-bucket, so it passes CardinalityUpperBound.ONE through and remains a
+                // legal parent even though it disables the terms-index fast path.
                 AggregationBuilder parent = new FilterAggregationBuilder("parent", new MatchAllQueryBuilder()).subAggregation(
                     new RoaringBitmapAggregationBuilder("ids").field(FIELD)
                 );
                 InternalFilter result = searchAndReduce(reader, new AggTestConfig(parent, fieldType));
                 InternalRoaringBitmap bitmap = result.getAggregations().get("ids");
                 assertThat(drain(LongBitmap.deserializePortable(bitmap.bitmap())), equalTo(List.of(5L, 10L)));
+            }
+        }
+    }
+
+    public void testRejectsMultiBucketParentAggregation() throws Exception {
+        NumberFieldMapper.NumberType type = NumberFieldMapper.NumberType.LONG;
+        MappedFieldType fieldType = indexTermsFieldType(type);
+        try (Directory directory = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), directory)) {
+            // More than one distinct term, otherwise the terms aggregation collapses into a single
+            // filter and legitimately passes CardinalityUpperBound.ONE through to its children.
+            for (String category : List.of("books", "music")) {
+                Document document = termsDocument(type, 5);
+                document.add(new StringField(CATEGORY, category, Field.Store.NO));
+                document.add(new SortedSetDocValuesField(CATEGORY, new BytesRef(category)));
+                writer.addDocument(document);
+            }
+
+            try (IndexReader reader = writer.getReader()) {
+                AggregationBuilder parent = new TermsAggregationBuilder("parent").field(CATEGORY)
+                    .subAggregation(new RoaringBitmapAggregationBuilder("ids").field(FIELD));
+                IllegalArgumentException exception = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> searchAndReduce(reader, new AggTestConfig(parent, fieldType, keywordField(CATEGORY)))
+                );
+                assertThat(
+                    exception.getMessage(),
+                    containsString("cannot be nested inside an aggregation that collects more than a single bucket")
+                );
             }
         }
     }
@@ -375,7 +439,9 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
                 );
                 assertThat(
                     exception.getBytesWanted(),
-                    equalTo((long) RoaringBitmapAggregator.BREAKER_RESERVATION_VALUES * RoaringBitmapAggregator.LONG_BYTES_PER_VALUE)
+                    equalTo(
+                        (long) RoaringBitmapAggregator.BREAKER_RESERVATION_VALUES * InternalRoaringBitmap.LONG_ESTIMATED_BYTES_PER_VALUE
+                    )
                 );
             }
         }
@@ -429,16 +495,8 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
     // #ramBytesUsed, calibrated against JVM heap measurements from code review, which this in-JVM test
     // has no portable way to re-verify independently.
     public void testBreakerReservationsCoverWorstCaseContainerGrowth() {
-        assertReservationCoversReportedGrowth(
-            InternalRoaringBitmap.BitmapFormat.INT,
-            RoaringBitmapAggregator.INT_BYTES_PER_VALUE,
-            value -> value << 16
-        );
-        assertReservationCoversReportedGrowth(
-            InternalRoaringBitmap.BitmapFormat.LONG,
-            RoaringBitmapAggregator.LONG_BYTES_PER_VALUE,
-            value -> value << 32
-        );
+        assertReservationCoversReportedGrowth(InternalRoaringBitmap.BitmapFormat.INT, value -> value << 16);
+        assertReservationCoversReportedGrowth(InternalRoaringBitmap.BitmapFormat.LONG, value -> value << 32);
     }
 
     public void testReducerRejectsWidthMismatch() throws Exception {
@@ -650,19 +708,14 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
         return bitmap.ramBytesUsed();
     }
 
-    private static void assertReservationCoversReportedGrowth(
-        InternalRoaringBitmap.BitmapFormat width,
-        long estimatedBytesPerValue,
-        LongUnaryOperator value
-    ) {
+    private static void assertReservationCoversReportedGrowth(InternalRoaringBitmap.BitmapFormat width, LongUnaryOperator value) {
         InternalRoaringBitmap.MutableBitmap bitmap = InternalRoaringBitmap.mutable(width);
         long initialBytes = bitmap.ramBytesUsed();
         for (int i = 0; i < RoaringBitmapAggregator.BREAKER_RESERVATION_VALUES; i++) {
             bitmap.add(value.applyAsLong(i));
         }
         long reportedGrowth = bitmap.ramBytesUsed() - initialBytes;
-        long reservedBytes = estimatedBytesPerValue * RoaringBitmapAggregator.BREAKER_RESERVATION_VALUES;
-        assertThat(reportedGrowth, lessThanOrEqualTo(reservedBytes));
+        assertThat(reportedGrowth, lessThanOrEqualTo(bitmap.estimateGrowthBytes(RoaringBitmapAggregator.BREAKER_RESERVATION_VALUES)));
     }
 
     private static List<Long> drain(BitmapValues values) throws IOException {

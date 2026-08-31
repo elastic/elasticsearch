@@ -47,6 +47,15 @@ final class RoaringBitmapAggregatorFactory extends ValuesSourceAggregatorFactory
     @Override
     protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
+        // A bitmap holds the whole value set, so one per bucket would multiply memory use by the bucket
+        // count. Restricting to a single owning bucket ord also keeps the terms-index fast path viable.
+        if (cardinality != CardinalityUpperBound.ONE) {
+            throw new IllegalArgumentException(
+                "["
+                    + RoaringBitmapAggregationBuilder.NAME
+                    + "] aggregation cannot be nested inside an aggregation that collects more than a single bucket."
+            );
+        }
         if (config.getValuesSource() instanceof ValuesSource.Numeric == false) {
             throw new IllegalArgumentException("[roaring_bitmap] aggregation requires a numeric field");
         }

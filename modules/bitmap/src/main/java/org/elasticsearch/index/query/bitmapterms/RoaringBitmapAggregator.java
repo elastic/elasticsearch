@@ -15,7 +15,6 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -33,36 +32,43 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import java.io.IOException;
 import java.util.Map;
 
-/** Collects exact numeric values into one Roaring bitmap per owning bucket. */
+/**
+ * Collects exact numeric values into a single Roaring bitmap.
+ * <p>
+ * {@link RoaringBitmapAggregatorFactory} rejects a {@link org.elasticsearch.search.aggregations.CardinalityUpperBound}
+ * above one, so this aggregator is only ever asked to collect and build owning bucket ord 0 and holds one bitmap
+ * rather than one per bucket.
+ */
 final class RoaringBitmapAggregator extends MetricsAggregator {
 
-    // Roaring's size calculation walks every container, so doing it for every insertion makes sparse
-    // 64-bit collection quadratic. Reserve a conservative per-value estimate in small O(1) batches
-    // between reconciliations, then reconcile the whole running total against ramBytesUsed() (which
-    // itself corrects for JVM object/array overhead Roaring's own estimate excludes -- see
-    // InternalRoaringBitmap's IntMutableBitmap/LongMutableBitmap#ramBytesUsed). Reconciliation
-    // recomputes the estimate from scratch each time, so its accuracy tracks how closely
-    // ramBytesUsed() approximates real heap use, not the reconciliation interval.
+    // Circuit breaker accounting runs in two tiers because MutableBitmap#ramBytesUsed() is expensive,
+    // so measuring on every insertion would make collection quadratic. Both tiers go through the
+    // MutableBitmap API: what a value costs in bytes is that class's concern, not this one's.
+    //
+    // 1. Estimate, every BREAKER_RESERVATION_VALUES values: reserve
+    // MutableBitmap#estimateGrowthBytes for the batch. That is O(1), so it can run often, and it
+    // bounds how much unreserved growth can pile up -- a runaway aggregation trips the breaker
+    // during a batch rather than after it has already allocated.
+    // 2. Measure, every VALUES_PER_MEASUREMENT values: replace every estimate made so far with
+    // MutableBitmap#ramBytesUsed(). The estimate is a worst case, so without this correction a
+    // bitmap that compresses well would trip the breaker on reservations it never needed.
+    //
+    // reservedBytes is the single source of truth: it always holds what has been handed to the
+    // breaker, estimated or measured, so a measurement only has to release the difference.
+    //
+    // TODO drop the estimate tier once ramBytesUsed() is cheap; measuring the real delta per value
+    // would then replace the rate, the batching and the interval.
     static final int BREAKER_RESERVATION_VALUES = 1 << 10;
-    private static final int MEMORY_RECONCILIATION_INTERVAL = 1 << 18;
-    // A new sparse container/high-word entry's corrected ramBytesUsed() growth (Roaring's own reported
-    // growth times InternalRoaringBitmap's overhead-correction factor) is roughly 56 bytes/value for
-    // INT and 288 bytes/value for LONG in the worst case. These reservation rates keep comfortable
-    // headroom above that so a small change in Roaring's container internals doesn't require also
-    // shrinking the safety margin to zero.
-    static final long INT_BYTES_PER_VALUE = 80;
-    static final long LONG_BYTES_PER_VALUE = 384;
-    private static final int CANCELLATION_CHECK_INTERVAL = 1 << 11;
+    private static final int VALUES_PER_MEASUREMENT = 1 << 18;
 
     private final ValuesSource.Numeric valuesSource;
     private final InternalRoaringBitmap.BitmapFormat width;
     private final String termsField;
     private final int termLength;
-    private final Runnable cancellationCheck;
-    private final LongObjectPagedHashMap<AccountedBitmap> bitmaps;
-    private long accountedBitmapBytes;
-    private int valuesUntilNextBreakerReservation;
-    private int valuesSinceMemoryReconciliation;
+    private InternalRoaringBitmap.MutableBitmap bitmap;
+    private long reservedBytes;
+    private int valuesUntilNextEstimate;
+    private int valuesUntilNextMeasurement = VALUES_PER_MEASUREMENT;
 
     RoaringBitmapAggregator(
         String name,
@@ -84,15 +90,15 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
             // so the terms path -- the only caller of decodeTerm -- is unreachable for it.
             case UNMAPPED -> -1;
         };
-        this.cancellationCheck = () -> {
-            if (context.isCancelled()) {
-                throw new TaskCancelledException("cancelled");
-            }
-            if (context.searcher() instanceof ContextIndexSearcher searcher) {
-                searcher.checkCancelled();
-            }
-        };
-        this.bitmaps = new LongObjectPagedHashMap<>(1, bigArrays());
+    }
+
+    private void checkCancelled() {
+        if (context.isCancelled()) {
+            throw new TaskCancelledException("cancelled");
+        }
+        if (context.searcher() instanceof ContextIndexSearcher searcher) {
+            searcher.checkCancelled();
+        }
     }
 
     @Override
@@ -109,21 +115,19 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
+                assert owningBucketOrd == 0 : "cardinality is restricted to one, but collected ord [" + owningBucketOrd + "]";
                 if (values.advanceExact(doc) == false) {
                     return;
                 }
-                AccountedBitmap accountedBitmap = getOrCreateBitmap(owningBucketOrd);
+                InternalRoaringBitmap.MutableBitmap target = getOrCreateBitmap();
                 int valueCount = values.docValueCount();
                 for (int i = 0; i < valueCount; i++) {
                     long value = values.nextValue();
                     if (value < 0) {
                         throw negativeValue(value);
                     }
-                    reserveBreakerBytes();
-                    accountedBitmap.bitmap.add(value);
-                    if (++valuesSinceMemoryReconciliation == MEMORY_RECONCILIATION_INTERVAL) {
-                        accountBitmapMemory();
-                    }
+                    accountForValue();
+                    target.add(value);
                 }
             }
         };
@@ -150,7 +154,7 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
         if (terms == null) {
             return;
         }
-        cancellationCheck.run();
+        checkCancelled();
         BytesRef min = terms.getMin();
         if (min == null) {
             return;
@@ -160,25 +164,14 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
             throw negativeValue(minValue);
         }
 
-        AccountedBitmap accountedBitmap = getOrCreateBitmap(0);
-        long termCount = terms.size();
-        if (termCount >= 0) {
-            reserveBreakerBytes(termCount);
-        }
+        InternalRoaringBitmap.MutableBitmap target = getOrCreateBitmap();
         TermsEnum termsEnum = terms.iterator();
         BytesRef term;
-        int termsUntilNextCancellationCheck = CANCELLATION_CHECK_INTERVAL;
         while ((term = termsEnum.next()) != null) {
-            if (--termsUntilNextCancellationCheck == 0) {
-                cancellationCheck.run();
-                termsUntilNextCancellationCheck = CANCELLATION_CHECK_INTERVAL;
-            }
-            if (termCount < 0) {
-                reserveBreakerBytes();
-            }
-            accountedBitmap.bitmap.add(decodeTerm(term));
+            accountForValue();
+            target.add(decodeTerm(term));
         }
-        accountBitmapMemory();
+        measureBitmap();
     }
 
     private long decodeTerm(BytesRef term) {
@@ -191,16 +184,14 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
         };
     }
 
-    private AccountedBitmap getOrCreateBitmap(long owningBucketOrd) {
-        AccountedBitmap accountedBitmap = bitmaps.get(owningBucketOrd);
-        if (accountedBitmap == null) {
-            InternalRoaringBitmap.MutableBitmap bitmap = InternalRoaringBitmap.mutable(width);
-            accountedBitmap = new AccountedBitmap(bitmap, bitmap.ramBytesUsed());
-            bitmaps.put(owningBucketOrd, accountedBitmap);
-            addRequestCircuitBreakerBytes(accountedBitmap.accountedBytes);
-            accountedBitmapBytes += accountedBitmap.accountedBytes;
+    private InternalRoaringBitmap.MutableBitmap getOrCreateBitmap() {
+        if (bitmap == null) {
+            bitmap = InternalRoaringBitmap.mutable(width);
+            long initialBytes = bitmap.ramBytesUsed();
+            addRequestCircuitBreakerBytes(initialBytes);
+            reservedBytes += initialBytes;
         }
-        return accountedBitmap;
+        return bitmap;
     }
 
     private static IllegalArgumentException negativeValue(long value) {
@@ -211,32 +202,29 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrd) throws IOException {
-        if (width == InternalRoaringBitmap.BitmapFormat.UNMAPPED) {
-            return InternalRoaringBitmap.unmapped(name, metadata());
+        assert owningBucketOrd == 0 : "cardinality is restricted to one, but built ord [" + owningBucketOrd + "]";
+        if (width == InternalRoaringBitmap.BitmapFormat.UNMAPPED || bitmap == null) {
+            return buildEmptyAggregation();
         }
-        AccountedBitmap accountedBitmap = bitmaps.get(owningBucketOrd);
-        if (accountedBitmap == null) {
-            return InternalRoaringBitmap.empty(name, width, metadata());
-        }
-        cancellationCheck.run();
-        accountBitmapMemory(accountedBitmap);
-        accountedBitmap.bitmap.optimize();
-        accountBitmapMemory(accountedBitmap);
-        cancellationCheck.run();
+        checkCancelled();
+        // Measure before reading reservedBytes below, and again after optimize() so the reservation
+        // follows the bitmap shrinking as array containers become run containers.
+        measureBitmap();
+        bitmap.optimize();
+        measureBitmap();
+        checkCancelled();
 
         // ByteArrayOutputStream and toByteArray temporarily coexist with the live bitmap. Reserve
         // room for both copies before serializing, then release the temporary reservation.
-        long serializationBytes = 2L * accountedBitmap.accountedBytes;
+        long serializationBytes = 2L * reservedBytes;
         addRequestCircuitBreakerBytes(serializationBytes);
         byte[] serialized;
         try {
-            serialized = accountedBitmap.bitmap.serialize();
+            serialized = bitmap.serialize();
         } finally {
             addRequestCircuitBreakerBytes(-serializationBytes);
         }
-        // Reserve the retained array's length. MetricsAggregator#buildAggregations calls this once per
-        // owning bucket ord and close() only runs once the whole tree is built, so under a parent
-        // `terms` aggregation these reservations accumulate across buckets for the whole build.
+        // Reserve the retained array's length.
         //
         // This does NOT cover the array's full lifetime: AggregatorCollector calls
         // releaseAggregations() immediately after buildTopLevel(), and AggregatorBase#close() then
@@ -257,78 +245,48 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
 
     @Override
     protected void doPostCollection() {
-        accountBitmapMemory();
+        measureBitmap();
     }
 
-    private void reserveBreakerBytes() {
-        if (valuesUntilNextBreakerReservation == 0) {
-            cancellationCheck.run();
-            reserveBreakerBytes(BREAKER_RESERVATION_VALUES);
-            valuesUntilNextBreakerReservation = BREAKER_RESERVATION_VALUES;
+    /**
+     * Accounts for one value about to be added: reserves the pessimistic estimate in batches, and
+     * periodically replaces the accumulated estimates with a measurement of the real bitmap.
+     */
+    private void accountForValue() {
+        if (--valuesUntilNextEstimate <= 0) {
+            // Cancellation rides along with the batch because both want the same cheap periodic hook.
+            checkCancelled();
+            reserveEstimateFor(BREAKER_RESERVATION_VALUES);
+            valuesUntilNextEstimate = BREAKER_RESERVATION_VALUES;
         }
-        valuesUntilNextBreakerReservation--;
+        if (--valuesUntilNextMeasurement <= 0) {
+            measureBitmap();
+        }
     }
 
-    private void reserveBreakerBytes(long valueCount) {
-        long reservation = Math.multiplyExact(valueCount, bytesPerValue());
+    /** Reserves the bitmap's own worst-case estimate for {@code valueCount} values, without measuring it. */
+    private void reserveEstimateFor(long valueCount) {
+        long reservation = getOrCreateBitmap().estimateGrowthBytes(valueCount);
         addRequestCircuitBreakerBytes(reservation);
-        accountedBitmapBytes += reservation;
+        reservedBytes += reservation;
     }
 
-    private long bytesPerValue() {
-        return switch (width) {
-            case INT -> INT_BYTES_PER_VALUE;
-            case LONG -> LONG_BYTES_PER_VALUE;
-            case UNMAPPED -> throw new IllegalStateException("cannot reserve bitmap memory for an unmapped field");
-        };
-    }
-
-    private void accountBitmapMemory() {
-        long currentBytes = 0;
-        for (LongObjectPagedHashMap.Cursor<AccountedBitmap> cursor : bitmaps) {
-            cursor.value.updateAccountedBytes();
-            currentBytes += cursor.value.accountedBytes;
+    /**
+     * Replaces every reservation made so far -- estimated or measured -- with the bitmap's real size,
+     * releasing the difference. No estimate is left standing afterwards, so the next value starts a
+     * fresh batch.
+     */
+    private void measureBitmap() {
+        if (bitmap == null) {
+            return;
         }
-        long growth = currentBytes - accountedBitmapBytes;
-        if (growth != 0) {
-            addRequestCircuitBreakerBytes(growth);
+        long measuredBytes = bitmap.ramBytesUsed();
+        long difference = measuredBytes - reservedBytes;
+        if (difference != 0) {
+            addRequestCircuitBreakerBytes(difference);
         }
-        accountedBitmapBytes = currentBytes;
-        valuesUntilNextBreakerReservation = 0;
-        valuesSinceMemoryReconciliation = 0;
-    }
-
-    private void accountBitmapMemory(AccountedBitmap bitmap) {
-        long growth = bitmap.updateAccountedBytes();
-        if (growth != 0) {
-            addRequestCircuitBreakerBytes(growth);
-            accountedBitmapBytes += growth;
-        }
-    }
-
-    @Override
-    protected void doClose() {
-        // AggregatorBase registers this instance as releasable before this constructor allocates the
-        // map. A cranky breaker may fail that allocation and still close the partially built instance.
-        if (bitmaps != null) {
-            bitmaps.close();
-        }
-    }
-
-    private static final class AccountedBitmap {
-        private final InternalRoaringBitmap.MutableBitmap bitmap;
-        private long accountedBytes;
-
-        private AccountedBitmap(InternalRoaringBitmap.MutableBitmap bitmap, long accountedBytes) {
-            this.bitmap = bitmap;
-            this.accountedBytes = accountedBytes;
-        }
-
-        private long updateAccountedBytes() {
-            long currentBytes = bitmap.ramBytesUsed();
-            long growth = currentBytes - accountedBytes;
-            accountedBytes = currentBytes;
-            return growth;
-        }
+        reservedBytes = measuredBytes;
+        valuesUntilNextEstimate = 0;
+        valuesUntilNextMeasurement = VALUES_PER_MEASUREMENT;
     }
 }

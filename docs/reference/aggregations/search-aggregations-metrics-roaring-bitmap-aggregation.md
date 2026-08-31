@@ -112,7 +112,31 @@ In JSON responses, the `value` field is the base64 encoding of the serialized bi
 
 If the field is mapped but no matching document has a value, `value` contains an empty bitmap. If the field is unmapped, `value` is `null`.
 
-When the aggregation is nested under a bucket aggregation, each bucket receives its own bitmap. Sampling is not supported because a bitmap produced from a sample cannot be scaled into the complete set of values.
+Sampling is not supported because a bitmap produced from a sample cannot be scaled into the complete set of values.
+
+## Placement in the aggregation tree [roaring-bitmap-aggregation-placement]
+
+A bitmap holds a complete value set, so one bitmap per bucket would multiply memory use by the number of buckets. The aggregation therefore rejects placement inside an aggregation that produces more than one bucket, such as [`terms`](/reference/aggregations/search-aggregations-bucket-terms-aggregation.md) or [`histogram`](/reference/aggregations/search-aggregations-bucket-histogram-aggregation.md), and returns an error instead.
+
+Single-bucket parents are allowed. Wrapping the aggregation in a [`filter`](/reference/aggregations/search-aggregations-bucket-filter-aggregation.md) aggregation is the usual way to restrict a bitmap to a subset of documents, and several sibling filters give one bitmap per subset in a single request:
+
+```json
+{
+  "size": 0,
+  "aggs": {
+    "featured": {
+      "filter": { "term": { "featured": true } },
+      "aggs": { "ids": { "roaring_bitmap": { "field": "product_id" } } }
+    },
+    "not_featured": {
+      "filter": { "term": { "featured": false } },
+      "aggs": { "ids": { "roaring_bitmap": { "field": "product_id" } } }
+    }
+  }
+}
+```
+
+A search-level `query` also restricts the bitmap, as in the [example request](#roaring-bitmap-aggregation-example) above.
 
 ### Use the result with `bitmap_terms` [roaring-bitmap-aggregation-use-result]
 
@@ -165,14 +189,14 @@ This optimization applies when:
 
 * The field is mapped with `index_terms: true`.
 * The search matches every document, either by omitting `query` or by using [`match_all`](/reference/query-languages/query-dsl/query-dsl-match-all-query.md). Any other query reads doc values, because the terms dictionary does not record which documents hold each value.
-* The aggregation is at the top level, not nested under a bucket aggregation.
+* The aggregation is at the top level. A single-bucket parent such as `filter` is permitted but reads doc values, because the terms dictionary does not record which documents the parent passed through.
 * The aggregation does not use the `missing` parameter, whose substituted value is not present in the index.
 
 ## Choosing an aggregation [roaring-bitmap-aggregation-choose]
 
 Use `roaring_bitmap` when you need the exact distinct set of numeric values. Its memory use depends on the number and distribution of values; dense or run-like sets usually compress more efficiently than sparse 64-bit sets.
 
-Memory use and response size depend on the distinct values, not the number of matching documents. Very large exact sets can trip the request circuit breaker and return a `circuit_breaking_exception`. When this aggregation is nested under a bucket aggregation, each bucket has its own bitmap, multiplying the total memory use. Set the search request's `timeout` when it might scan a very large match set.
+Memory use and response size depend on the distinct values, not the number of matching documents. Very large exact sets can trip the request circuit breaker and return a `circuit_breaking_exception`. Set the search request's `timeout` when it might scan a very large match set.
 
 If you only need a count:
 

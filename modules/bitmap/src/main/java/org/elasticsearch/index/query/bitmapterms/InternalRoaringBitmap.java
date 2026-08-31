@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.query.bitmapterms;
 
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -55,7 +56,7 @@ public final class InternalRoaringBitmap extends InternalAggregation {
         }
     }
 
-    interface MutableBitmap {
+    interface MutableBitmap extends Accountable {
         void add(long value);
 
         void or(MutableBitmap other);
@@ -64,11 +65,18 @@ public final class InternalRoaringBitmap extends InternalAggregation {
 
         byte[] serialize() throws IOException;
 
-        long ramBytesUsed();
+        /**
+         * Conservative upper bound on the heap growth from adding {@code valueCount} more values, for
+         * reserving circuit breaker memory without paying for a {@link #ramBytesUsed()} measurement.
+         */
+        long estimateGrowthBytes(long valueCount);
 
         BitmapFormat width();
     }
 
+    // TODO delete the constants below once Roaring reports its heap use both cheaply and accurately;
+    // getLongSizeInBytes() walks every container and, by its own javadoc, can under-report by ~10x.
+    //
     // Roaring's own size accounting (getLongSizeInBytes()) is a payload-only estimate: it excludes
     // object headers, array headers, the Container[] reference array, and char[] slack. Measured heap
     // use exceeded it by up to ~6.9x for sparse INT bitmaps and ~3.7x for sparse LONG bitmaps on
@@ -79,6 +87,14 @@ public final class InternalRoaringBitmap extends InternalAggregation {
     // in Roaring or a different object layout could move the real ratio.
     private static final long INT_RAM_OVERHEAD_FACTOR = 7;
     private static final long LONG_RAM_OVERHEAD_FACTOR = 4;
+
+    // Worst-case corrected ramBytesUsed() growth per added value: the case where every value lands in
+    // its own new container (INT) or its own new high-word entry (LONG), which is Roaring's own reported
+    // growth times the overhead factors above. That measures roughly 56 bytes/value for INT and 288 for
+    // LONG, and these rates keep headroom above it so a change in Roaring's container internals does not
+    // also require shrinking the safety margin to zero.
+    static final long INT_ESTIMATED_BYTES_PER_VALUE = 80;
+    static final long LONG_ESTIMATED_BYTES_PER_VALUE = 384;
 
     // Deserializing a portable Roaring bitmap expands well past its serialized size (7-9x from
     // serialized bytes to heap in the same measurements). Reserve against that estimate before
@@ -356,6 +372,11 @@ public final class InternalRoaringBitmap extends InternalAggregation {
         }
 
         @Override
+        public long estimateGrowthBytes(long valueCount) {
+            return Math.multiplyExact(valueCount, INT_ESTIMATED_BYTES_PER_VALUE);
+        }
+
+        @Override
         public BitmapFormat width() {
             return BitmapFormat.INT;
         }
@@ -395,6 +416,11 @@ public final class InternalRoaringBitmap extends InternalAggregation {
         @Override
         public long ramBytesUsed() {
             return bitmap.getLongSizeInBytes() * LONG_RAM_OVERHEAD_FACTOR;
+        }
+
+        @Override
+        public long estimateGrowthBytes(long valueCount) {
+            return Math.multiplyExact(valueCount, LONG_ESTIMATED_BYTES_PER_VALUE);
         }
 
         @Override

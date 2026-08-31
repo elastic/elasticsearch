@@ -140,7 +140,7 @@ class AbstractRateGroupingFunction {
             long bucketEnd = context.rangeEndInMillis(groupId) * timestampUnitsPerMillis;
             for (int position = start; position < end; position++) {
                 long timestamp = rawBuffer.timestamps.get(position);
-                assert timestamp >= bucketStart && timestamp < bucketEnd
+                assert timestamp >= bucketStart && timestamp <= bucketEnd
                     : "raw timestamp "
                         + timestamp
                         + " at buffer position "
@@ -153,7 +153,7 @@ class AbstractRateGroupingFunction {
                         + bucketStart
                         + ", "
                         + bucketEnd
-                        + ")";
+                        + "]";
             }
         }
         return true;

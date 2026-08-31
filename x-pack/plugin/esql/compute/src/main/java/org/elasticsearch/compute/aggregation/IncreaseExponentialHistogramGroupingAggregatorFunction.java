@@ -755,12 +755,12 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
                         + bucketStart
                         + ", "
                         + bucketEnd
-                        + "), intervalId="
+                        + "], intervalId="
                         + intervalId;
-                assert lastTs < bucketEnd
+                assert lastTs <= bucketEnd
                     : "lastTs "
                         + lastTs
-                        + " is at or after bucket end "
+                        + " is after bucket end "
                         + bucketEnd
                         + " for group "
                         + groupId
@@ -768,7 +768,7 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
                         + bucketStart
                         + ", "
                         + bucketEnd
-                        + "), intervalId="
+                        + "], intervalId="
                         + intervalId;
             }
         }

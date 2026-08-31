@@ -291,7 +291,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 long bucketStart = timeResolution.convert(timeBucket.roundingFloor(groupTimestampInMillis));
                 long bucketEnd = timeResolution.convert(timeBucket.roundingCeiling(groupTimestampInMillis));
                 long timestamp = timestamps.getLong(positionOffset + p);
-                assert timestamp >= bucketStart && timestamp < bucketEnd
+                assert timestamp >= bucketStart && timestamp <= bucketEnd
                     : "timestamp "
                         + timestamp
                         + " at position "
@@ -302,7 +302,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                         + bucketStart
                         + ", "
                         + bucketEnd
-                        + ")";
+                        + "]";
             }
         }
         return true;

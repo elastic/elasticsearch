@@ -165,7 +165,7 @@ public class RateDoubleGroupingAggregatorFunctionTests extends ComputeTestCase {
             .groupingAggregator(driverContext, List.of(0, 1, 2, 3, 4));
         Page page = new Page(
             blockFactory.newConstantDoubleBlockWith(10.0, 1),
-            blockFactory.newConstantLongBlockWith(200, 1),
+            blockFactory.newConstantLongBlockWith(201, 1),
             blockFactory.newConstantNullBlock(1),
             blockFactory.newConstantIntBlockWith(0, 1),
             blockFactory.newConstantLongBlockWith(Long.MAX_VALUE, 1)
@@ -178,8 +178,8 @@ public class RateDoubleGroupingAggregatorFunctionTests extends ComputeTestCase {
                 addInput.add(0, groupIds);
             }
             AssertionError error = expectThrows(AssertionError.class, () -> aggregator.prepareEvaluateIntermediate(groupIds, context));
-            assertThat(error.getMessage(), containsString("raw timestamp 200"));
-            assertThat(error.getMessage(), containsString("was assigned to group 0 outside bucket [100, 200)"));
+            assertThat(error.getMessage(), containsString("raw timestamp 201"));
+            assertThat(error.getMessage(), containsString("was assigned to group 0 outside bucket [100, 200]"));
         } finally {
             aggregator.close();
             page.releaseBlocks();
@@ -195,7 +195,7 @@ public class RateDoubleGroupingAggregatorFunctionTests extends ComputeTestCase {
         final Page page;
         try (var timestamps = blockFactory.newLongBlockBuilder(2); var values = blockFactory.newDoubleBlockBuilder(2)) {
             timestamps.beginPositionEntry();
-            timestamps.appendLong(200);
+            timestamps.appendLong(201);
             timestamps.appendLong(150);
             timestamps.endPositionEntry();
             values.beginPositionEntry();
@@ -215,7 +215,7 @@ public class RateDoubleGroupingAggregatorFunctionTests extends ComputeTestCase {
         ) {
             aggregator.addIntermediateInput(0, groupIds, page);
             AssertionError error = expectThrows(AssertionError.class, () -> aggregator.prepareEvaluateIntermediate(groupIds, context));
-            assertThat(error.getMessage(), containsString("lastTs 200 is at or after bucket end"));
+            assertThat(error.getMessage(), containsString("lastTs 201 is after bucket end"));
         } finally {
             aggregator.close();
             page.releaseBlocks();

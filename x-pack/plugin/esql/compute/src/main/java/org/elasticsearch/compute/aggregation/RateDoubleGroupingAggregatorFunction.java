@@ -782,8 +782,8 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
                 long lastTs = intervalBuffer.lastTs(intervalId);
                 assert firstTs >= bucketStart
                     : describeMisbucketedGroup("firstTs " + firstTs + " is before bucket start", group, state, bucketStart, bucketEnd);
-                assert lastTs < bucketEnd
-                    : describeMisbucketedGroup("lastTs " + lastTs + " is at or after bucket end", group, state, bucketStart, bucketEnd);
+                assert lastTs <= bucketEnd
+                    : describeMisbucketedGroup("lastTs " + lastTs + " is after bucket end", group, state, bucketStart, bucketEnd);
             }
         }
         return true;
@@ -798,7 +798,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
     private String describeMisbucketedGroup(String problem, int group, ReducedState state, long bucketStart, long bucketEnd) {
         StringBuilder sb = new StringBuilder(problem);
         sb.append(" for group ").append(group);
-        sb.append("; bucket=[").append(bucketStart).append(", ").append(bucketEnd).append(')');
+        sb.append("; bucket=[").append(bucketStart).append(", ").append(bucketEnd).append(']');
         sb.append(", bucketWidth=").append(bucketEnd - bucketStart);
         sb.append(", samples=").append(state.samples);
         sb.append(", resets=").append(state.resets);
@@ -815,7 +815,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
             sb.append("{id=").append(intervalId);
             sb.append(", firstTs=").append(firstTs).append(", firstValue=").append(intervalBuffer.firstValue(intervalId));
             sb.append(", lastTs=").append(lastTs).append(", lastValue=").append(intervalBuffer.lastValue(intervalId));
-            // offsets are relative to bucketStart, so an in-bucket interval has 0 <= firstTsOffset <= lastTsOffset < bucketWidth
+            // offsets are relative to bucketStart, so an in-bucket interval has 0 <= firstTsOffset <= lastTsOffset <= bucketWidth
             sb.append(", firstTsOffset=").append(firstTs - bucketStart).append(", lastTsOffset=").append(lastTs - bucketStart);
             sb.append('}');
         }

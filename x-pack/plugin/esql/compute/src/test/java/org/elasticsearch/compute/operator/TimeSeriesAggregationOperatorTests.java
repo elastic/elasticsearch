@@ -101,7 +101,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             AssertionError error = expectThrows(AssertionError.class, () -> operator.addInput(page));
             assertThat(
                 error.getMessage(),
-                containsString("timestamp 120000 at position 0 was assigned to group 0 outside bucket [0, 60000)")
+                containsString("timestamp 120000 at position 0 was assigned to group 0 outside bucket [0, 60000]")
             );
         } finally {
             driverContext.finish();

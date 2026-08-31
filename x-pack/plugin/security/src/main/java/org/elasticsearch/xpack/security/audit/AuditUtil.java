@@ -35,18 +35,7 @@ public class AuditUtil {
     // We need to expose this to allow-list as a header passed for cross cluster requests; see `CrossClusterAccessServerTransportFilter`
     public static final String AUDIT_REQUEST_ID = "_xpack_audit_request_id";
 
-    /**
-     * Renders the body of {@code request} as a JSON string for inclusion in audit log events.
-     * <p>
-     * If {@code maxBytes > 0} and the rendered JSON length exceeds that limit, an
-     * {@link ElasticsearchStatusException} with status 413 is thrown so the caller can reject
-     * the request before it is written to the audit log.
-     *
-     * @param maxBytes   maximum allowed length of the rendered JSON string, in characters; {@code 0} = unlimited
-     * @param settingKey the cluster setting key to include in the error message; may be {@code null}
-     *                   when {@code maxBytes} is {@code 0}
-     */
-    public static String restRequestContent(RestRequest request, int maxBytes, String settingKey) {
+    public static String restRequestContent(RestRequest request, int maxBytes, @Nullable CircuitBreaker circuitBreaker, String settingKey) {
         if (request.hasContent()) {
             var content = request.content();
             final XContentType xContentType = request.getXContentType();

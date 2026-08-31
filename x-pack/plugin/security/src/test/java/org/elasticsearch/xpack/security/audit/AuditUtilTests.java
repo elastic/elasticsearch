@@ -160,7 +160,7 @@ public class AuditUtilTests extends ESTestCase {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(new byte[] { 0x0A, 0x02 }), null)
             .withHeaders(Map.of("Content-Type", List.of("application/x-protobuf")))
             .build();
-        assertThat(AuditUtil.restRequestContent(request, 0, null), containsString("Unrecognized content type"));
+        assertThat(AuditUtil.restRequestContent(request, 0, null, null), containsString("Unrecognized content type"));
     }
 
     public void testRestRequestContentInvalidBodyReturnsInvalidFormat() {
@@ -169,7 +169,7 @@ public class AuditUtilTests extends ESTestCase {
             new BytesArray("key: [unclosed".getBytes(StandardCharsets.UTF_8)),
             XContentType.YAML
         ).build();
-        assertThat(AuditUtil.restRequestContent(request, 0, null), containsString("Invalid Format"));
+        assertThat(AuditUtil.restRequestContent(request, 0, null, null), containsString("Invalid Format"));
     }
 
     // ── indices ───────────────────────────────────────────────────────────────

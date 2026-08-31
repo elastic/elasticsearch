@@ -139,8 +139,9 @@ public class PreAnalyzer {
 
         List<String> inferenceIds = new ArrayList<>();
         // Inference commands require a literal inference_id at parse time, unlike
-        // UnresolvedFunction calls where the ID may be dynamic.
-        plan.forEachUp(InferencePlan.class, inferencePlan -> inferenceIds.add(inferenceId(inferencePlan)));
+        // UnresolvedFunction calls where the ID may be dynamic. A command that has yet to settle on an endpoint contributes
+        // every candidate it may end up using, so all of them are resolved in the single pass that follows.
+        plan.forEachUp(InferencePlan.class, inferencePlan -> inferenceIds.addAll(candidateInferenceIds(inferencePlan)));
 
         /*
          * Enable aggregate_metric_double and dense_vector when we see certain functions
@@ -209,8 +210,9 @@ public class PreAnalyzer {
         );
     }
 
-    private static String inferenceId(InferencePlan<?> plan) {
-        return BytesRefs.toString(plan.inferenceId().fold(FoldContext.small()));
+    /** Binds the wildcard so the ids stay typed: {@code forEachUp} hands back a raw {@link InferencePlan}. */
+    private static List<String> candidateInferenceIds(InferencePlan<?> plan) {
+        return plan.candidateInferenceIds();
     }
 
     private static FunctionDefinition inferenceFunctionDefinition(String name) {

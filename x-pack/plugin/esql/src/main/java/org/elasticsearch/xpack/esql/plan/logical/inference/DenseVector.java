@@ -70,6 +70,20 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
      */
     public static final String DEFAULT_INFERENCE_ID = ".multilingual-e5-small-elasticsearch";
 
+    /**
+     * Preconfigured endpoint served by the Elastic Inference Service, available on deployments that reach it — including
+     * serverless, which runs no ML nodes. Mirrors the endpoint {@code semantic_text} prefers for dense text
+     * ({@code SemanticTextFieldMapper.DEFAULT_EIS_JINA_V5_INFERENCE_ID}); the literal is repeated here because the inference
+     * plugin is not on this module's compile classpath.
+     */
+    public static final String EIS_JINA_V5_INFERENCE_ID = ".jina-embeddings-v5-text-small";
+
+    /**
+     * Endpoints tried in order when {@link #inferenceIdIsFallback()} holds, to pick one that exists on this deployment. Both are
+     * dense text embedding endpoints, so either can serve a {@code text} input.
+     */
+    public static final List<String> DEFAULT_INFERENCE_ID_CANDIDATES = List.of(EIS_JINA_V5_INFERENCE_ID, DEFAULT_INFERENCE_ID);
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "DenseVector",
@@ -95,6 +109,13 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
      */
     private final List<Attribute> generatedFields;
 
+    /**
+     * Whether {@link #inferenceId()} holds {@link #DEFAULT_INFERENCE_ID} because neither the query nor the cluster setting named
+     * an endpoint, as opposed to a query naming that same endpoint explicitly. The id alone cannot tell the two apart, since
+     * {@link Literal#equals} ignores source.
+     */
+    private final boolean inferenceIdIsFallback;
+
     private List<Attribute> lazyOutput;
 
     public DenseVector(Source source, LogicalPlan child, Expression rowLimit, List<NamedExpression> fields) {
@@ -107,7 +128,8 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
             List.of(),
             null,
             DEFAULT_INPUT_TYPE,
-            null
+            null,
+            true
         );
     }
 
@@ -120,13 +142,15 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
         List<Attribute> generatedFields,
         TimeValue timeout,
         org.elasticsearch.inference.DataType inputType,
-        TaskType endpointTaskType
+        TaskType endpointTaskType,
+        boolean inferenceIdIsFallback
     ) {
         super(source, child, inferenceId, rowLimit, timeout);
         this.fields = fields;
         this.generatedFields = generatedFields;
         this.inputType = inputType;
         this.endpointTaskType = endpointTaskType;
+        this.inferenceIdIsFallback = inferenceIdIsFallback;
     }
 
     public DenseVector(StreamInput in) throws IOException {
@@ -143,7 +167,10 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
                 : DEFAULT_INPUT_TYPE,
             // Nodes without the type option have no multimodal support, so their plans only ever describe text embedding
             // requests.
-            in.getTransportVersion().supports(ESQL_DENSE_VECTOR_TYPE_OPTION) ? in.readOptionalEnum(TaskType.class) : TaskType.TEXT_EMBEDDING
+            in.getTransportVersion().supports(ESQL_DENSE_VECTOR_TYPE_OPTION)
+                ? in.readOptionalEnum(TaskType.class)
+                : TaskType.TEXT_EMBEDDING,
+            in.getTransportVersion().supports(ESQL_DENSE_VECTOR_FALLBACK_INFERENCE_ID) && in.readBoolean()
         );
     }
 
@@ -158,6 +185,9 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
         if (out.getTransportVersion().supports(ESQL_DENSE_VECTOR_TYPE_OPTION)) {
             out.writeString(inputType.name());
             out.writeOptionalEnum(endpointTaskType);
+        }
+        if (out.getTransportVersion().supports(ESQL_DENSE_VECTOR_FALLBACK_INFERENCE_ID)) {
+            out.writeBoolean(inferenceIdIsFallback);
         }
     }
 
@@ -190,9 +220,14 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
             .toList();
     }
 
+    /**
+     * Returns a copy using {@code newInferenceId}, which is by definition not a fallback: the caller named this endpoint. The
+     * fallback state is part of the identity check because a query may name {@link #DEFAULT_INFERENCE_ID} itself, in which case
+     * the id is unchanged but the node is not.
+     */
     @Override
     public DenseVector withInferenceId(Expression newInferenceId) {
-        if (inferenceId().equals(newInferenceId)) {
+        if (inferenceIdIsFallback == false && inferenceId().equals(newInferenceId)) {
             return this;
         }
         return new DenseVector(
@@ -204,7 +239,8 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
             generatedFields,
             timeout(),
             inputType,
-            endpointTaskType
+            endpointTaskType,
+            false
         );
     }
 
@@ -222,7 +258,8 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
             generatedFields,
             newTimeout,
             inputType,
-            endpointTaskType
+            endpointTaskType,
+            inferenceIdIsFallback
         );
     }
 
@@ -244,8 +281,17 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
             generatedFields,
             timeout(),
             newInputType,
-            endpointTaskType
+            endpointTaskType,
+            inferenceIdIsFallback
         );
+    }
+
+    /**
+     * Whether {@link #inferenceId()} is the built-in {@link #DEFAULT_INFERENCE_ID} fallback rather than an endpoint named by the
+     * query or the cluster setting.
+     */
+    public boolean inferenceIdIsFallback() {
+        return inferenceIdIsFallback;
     }
 
     /** Task type of the resolved inference endpoint, or {@code null} before analysis resolves it. */
@@ -266,7 +312,8 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
             generatedFields,
             timeout(),
             inputType,
-            newEndpointTaskType
+            newEndpointTaskType,
+            inferenceIdIsFallback
         );
     }
 
@@ -281,7 +328,8 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
             generatedFields,
             timeout(),
             inputType,
-            endpointTaskType
+            endpointTaskType,
+            inferenceIdIsFallback
         );
     }
 
@@ -299,7 +347,8 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
             resolvedGeneratedFields,
             timeout(),
             inputType,
-            endpointTaskType
+            endpointTaskType,
+            inferenceIdIsFallback
         );
     }
 
@@ -318,7 +367,8 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
             prunedGeneratedFields,
             timeout(),
             inputType,
-            endpointTaskType
+            endpointTaskType,
+            inferenceIdIsFallback
         );
     }
 
@@ -330,6 +380,17 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
     @Override
     public TaskType taskType() {
         return TaskType.TEXT_EMBEDDING;
+    }
+
+    /**
+     * Lists every candidate in {@link #DEFAULT_INFERENCE_ID_CANDIDATES} while the endpoint is an unresolved fallback for a
+     * {@code text} input, so analysis can select whichever candidate this deployment has.
+     */
+    @Override
+    public List<String> candidateInferenceIds() {
+        return inferenceIdIsFallback && inputType == org.elasticsearch.inference.DataType.TEXT
+            ? DEFAULT_INFERENCE_ID_CANDIDATES
+            : super.candidateInferenceIds();
     }
 
     /**
@@ -365,7 +426,18 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
             String newName = newNames.get(i);
             renamed.add(newName.equals(attr.name()) ? attr : attr.withName(newName).withId(new NameId()));
         }
-        return new DenseVector(source(), child(), inferenceId(), rowLimit(), fields, renamed, timeout(), inputType, endpointTaskType);
+        return new DenseVector(
+            source(),
+            child(),
+            inferenceId(),
+            rowLimit(),
+            fields,
+            renamed,
+            timeout(),
+            inputType,
+            endpointTaskType,
+            inferenceIdIsFallback
+        );
     }
 
     @Override
@@ -422,7 +494,8 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
             generatedFields,
             timeout(),
             inputType,
-            endpointTaskType
+            endpointTaskType,
+            inferenceIdIsFallback
         );
     }
 
@@ -435,12 +508,13 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
         return Objects.equals(fields, other.fields)
             && Objects.equals(generatedFields, other.generatedFields)
             && inputType == other.inputType
-            && endpointTaskType == other.endpointTaskType;
+            && endpointTaskType == other.endpointTaskType
+            && inferenceIdIsFallback == other.inferenceIdIsFallback;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), fields, generatedFields, inputType, endpointTaskType);
+        return Objects.hash(super.hashCode(), fields, generatedFields, inputType, endpointTaskType, inferenceIdIsFallback);
     }
 
     @Override

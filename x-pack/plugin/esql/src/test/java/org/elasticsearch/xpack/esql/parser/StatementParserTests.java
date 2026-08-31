@@ -4593,6 +4593,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         // No WITH: falls through to the built-in default endpoint.
         var plan = as(processingCommand("DENSE_VECTOR title"), DenseVector.class);
         assertThat(plan.inferenceId(), equalTo(literalString(".multilingual-e5-small-elasticsearch")));
+        assertTrue(plan.inferenceIdIsFallback());
     }
 
     public void testDenseVectorEmptyOptionsUsesDefaultInferenceId() {
@@ -4600,6 +4601,21 @@ public class StatementParserTests extends AbstractStatementParserTests {
         // Empty WITH: still falls through to the built-in default endpoint.
         var plan = as(processingCommand("DENSE_VECTOR title WITH { }"), DenseVector.class);
         assertThat(plan.inferenceId(), equalTo(literalString(".multilingual-e5-small-elasticsearch")));
+        assertTrue(plan.inferenceIdIsFallback());
+    }
+
+    /**
+     * Naming the built-in default endpoint explicitly yields the same {@code inferenceId} as omitting the option, so the id alone
+     * cannot distinguish the two; only {@code inferenceIdIsFallback} does.
+     */
+    public void testDenseVectorExplicitBuiltInInferenceIdIsNotFallback() {
+        assumeDenseVectorCommandEnabled();
+        var plan = as(
+            processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \".multilingual-e5-small-elasticsearch\" }"),
+            DenseVector.class
+        );
+        assertThat(plan.inferenceId(), equalTo(literalString(".multilingual-e5-small-elasticsearch")));
+        assertFalse(plan.inferenceIdIsFallback());
     }
 
     public void testDenseVectorClusterDefaultInferenceId() {
@@ -4610,6 +4626,21 @@ public class StatementParserTests extends AbstractStatementParserTests {
             .build();
         var plan = as(processingCommand("DENSE_VECTOR title", new QueryParams(), settings), DenseVector.class);
         assertThat(plan.inferenceId(), equalTo(literalString("cluster-default-id")));
+        assertFalse(plan.inferenceIdIsFallback());
+    }
+
+    /**
+     * A cluster-level default that happens to name the built-in default endpoint is still an administrator's choice, not a
+     * fallback.
+     */
+    public void testDenseVectorClusterDefaultNamingBuiltInIsNotFallback() {
+        assumeDenseVectorCommandEnabled();
+        Settings settings = Settings.builder()
+            .put(InferenceSettings.DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING.getKey(), ".multilingual-e5-small-elasticsearch")
+            .build();
+        var plan = as(processingCommand("DENSE_VECTOR title", new QueryParams(), settings), DenseVector.class);
+        assertThat(plan.inferenceId(), equalTo(literalString(".multilingual-e5-small-elasticsearch")));
+        assertFalse(plan.inferenceIdIsFallback());
     }
 
     public void testDenseVectorBlankClusterDefaultInferenceIdIsRejected() {
@@ -4639,6 +4670,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             DenseVector.class
         );
         assertThat(plan.inferenceId(), equalTo(literalString("with-id")));
+        assertFalse(plan.inferenceIdIsFallback());
     }
 
     public void testDenseVectorRowLimitOverride() {

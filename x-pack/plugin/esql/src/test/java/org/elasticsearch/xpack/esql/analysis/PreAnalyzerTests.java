@@ -8,9 +8,12 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -85,6 +88,59 @@ public class PreAnalyzerTests extends ESTestCase {
             preAnalyzer,
             "FROM books | EVAL x = LENGTH(CONCAT(TO_LOWER(title), \"!\")) | WHERE x > ABS(-1)",
             List.of()
+        );
+    }
+
+    /**
+     * A {@code DENSE_VECTOR} that names no endpoint contributes every candidate it may settle on, so that the single inference
+     * resolution pass validates all of them and analysis can then choose one.
+     */
+    public void testCollectInferenceIdsForDenseVectorFallback() {
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+        PreAnalyzer preAnalyzer = new PreAnalyzer();
+
+        assertCollectInferenceIds(preAnalyzer, "FROM books | DENSE_VECTOR title", DenseVector.DEFAULT_INFERENCE_ID_CANDIDATES);
+        assertCollectInferenceIds(preAnalyzer, "FROM books | DENSE_VECTOR title WITH { }", DenseVector.DEFAULT_INFERENCE_ID_CANDIDATES);
+
+        // Chained clauses each contribute the candidates; resolution de-duplicates them.
+        List<String> candidatesTwice = new ArrayList<>(DenseVector.DEFAULT_INFERENCE_ID_CANDIDATES);
+        candidatesTwice.addAll(DenseVector.DEFAULT_INFERENCE_ID_CANDIDATES);
+        assertCollectInferenceIds(preAnalyzer, "FROM books | DENSE_VECTOR title | DENSE_VECTOR author", candidatesTwice);
+    }
+
+    /**
+     * An endpoint the query named is resolved on its own. This holds even when the query names
+     * {@link DenseVector#DEFAULT_INFERENCE_ID}, which is also the last candidate: the choice must not be widened into the
+     * candidate list, or a user pinned to that endpoint could be moved off it.
+     */
+    public void testCollectInferenceIdsForDenseVectorExplicitEndpoint() {
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+        PreAnalyzer preAnalyzer = new PreAnalyzer();
+
+        assertCollectInferenceIds(
+            preAnalyzer,
+            "FROM books | DENSE_VECTOR title WITH { \"inference_id\": \"dense-vector-inference-id\" }",
+            List.of("dense-vector-inference-id")
+        );
+
+        assertCollectInferenceIds(
+            preAnalyzer,
+            "FROM books | DENSE_VECTOR title WITH { \"inference_id\": \"" + DenseVector.DEFAULT_INFERENCE_ID + "\" }",
+            List.of(DenseVector.DEFAULT_INFERENCE_ID)
+        );
+    }
+
+    /**
+     * The candidates are text embedding endpoints, so an {@code image} input resolves only the endpoint the plan carries.
+     */
+    public void testCollectInferenceIdsForDenseVectorImageInput() {
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+        PreAnalyzer preAnalyzer = new PreAnalyzer();
+
+        assertCollectInferenceIds(
+            preAnalyzer,
+            "FROM books | DENSE_VECTOR title WITH { \"type\": \"image\" }",
+            List.of(DenseVector.DEFAULT_INFERENCE_ID)
         );
     }
 

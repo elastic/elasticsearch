@@ -1247,7 +1247,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightOnFields() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title, body");
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.prefix(), equalTo("highlight_"));
@@ -1262,7 +1261,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRequiresQueryAndOnClause() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         // Query and ON are currently required by grammar.
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT"));
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\""));
@@ -1270,7 +1268,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightCustomPrefix() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query("FROM foo | HIGHLIGHT prefix = \"h_\" MATCH(title, \"x\") ON title, body");
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.prefix(), equalTo("h_"));
@@ -1280,7 +1277,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightEmptyPrefixParses() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         // Empty prefix overwrites the source column name.
         LogicalPlan plan = query("FROM foo | HIGHLIGHT prefix = \"\" \"elasticsearch\" ON content");
         Highlight highlight = as(plan, Highlight.class);
@@ -1290,7 +1286,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightFieldNamedPrefix() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query("FROM foo | HIGHLIGHT \"elasticsearch\" ON prefix");
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.prefix(), equalTo("highlight_"));
@@ -1308,7 +1303,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRejectsUnknownModifier() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("Invalid modifier [bogus] in HIGHLIGHT, expected [prefix]"),
@@ -1317,7 +1311,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightWithOptions() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query(
             "FROM foo | HIGHLIGHT \"elasticsearch\" ON title WITH { \"fragment_size\": 150, \"number_of_fragments\": 2 }"
         );
@@ -1327,7 +1320,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightAcceptsAllOptions() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query("""
             FROM foo | HIGHLIGHT "elasticsearch" ON title WITH {
               "pre_tags": ["<b>"], "post_tags": ["</b>"], "encoder": "html",
@@ -1339,7 +1331,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRejectsUnknownOption() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("Invalid option [bogus] in HIGHLIGHT"),
@@ -1348,7 +1339,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRejectsMapOptionValue() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("Invalid value for option [pre_tags] in HIGHLIGHT, expected a constant, found [{ \"tag\": \"<b>\" }]"),
@@ -1357,7 +1347,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightAcceptsFunctionQuery() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query("FROM foo | HIGHLIGHT MATCH(title, \"x\") ON title");
         Highlight highlight = as(plan, Highlight.class);
         UnresolvedFunction match = as(highlight.query(), UnresolvedFunction.class);
@@ -1367,7 +1356,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightTerminatesInsideFork() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query("""
             FROM foo
             | FORK ( HIGHLIGHT MATCH(title, "x") ON title )
@@ -1381,17 +1369,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRejectsWildcardFields() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON *"));
-    }
-
-    public void testHighlightNotInReleaseBuild() {
-        assumeFalse("only runs on release build", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
-        expectThrows(
-            ParsingException.class,
-            containsString("mismatched input 'HIGHLIGHT'"),
-            () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title")
-        );
     }
 
     public void testBasicSortCommand() {
@@ -4460,7 +4438,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var plan = as(processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\"}"), DenseVector.class);
         assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"))));
         assertThat(plan.inferenceId(), equalTo(literalString("my-id")));
-        assertThat(plan.rowLimit(), equalTo(integer(100)));
+        assertThat(plan.rowLimit(), equalTo(integer(1000)));
     }
 
     public void testDenseVectorMultipleFields() {
@@ -4468,7 +4446,64 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var plan = as(processingCommand("DENSE_VECTOR title, author WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
         assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"), attribute("author"))));
         assertThat(plan.inferenceId(), equalTo(literalString("my-id")));
-        assertThat(plan.rowLimit(), equalTo(integer(100)));
+        assertThat(plan.rowLimit(), equalTo(integer(1000)));
+    }
+
+    public void testDenseVectorChainedClausesWithPerClauseEndpoints() {
+        assumeDenseVectorCommandEnabled();
+        // Each chained clause carries its own inference endpoint (per-field endpoints).
+        var outer = as(
+            processingCommand(
+                "DENSE_VECTOR title WITH { \"inference_id\" : \"endpoint-a\" } "
+                    + "| DENSE_VECTOR author WITH { \"inference_id\" : \"endpoint-b\" }"
+            ),
+            DenseVector.class
+        );
+        assertThat(outer.fields(), equalToIgnoringIds(List.of(attribute("author"))));
+        assertThat(outer.inferenceId(), equalTo(literalString("endpoint-b")));
+
+        var inner = as(outer.child(), DenseVector.class);
+        assertThat(inner.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(inner.inferenceId(), equalTo(literalString("endpoint-a")));
+    }
+
+    public void testDenseVectorChainedClausesMixClusterDefaultAndExplicitEndpoint() {
+        assumeDenseVectorCommandEnabled();
+        // Endpoint resolution is per clause: the cluster default must land on the clause that omitted WITH and must not
+        // overwrite the one that supplied an id.
+        Settings settings = Settings.builder()
+            .put(InferenceSettings.DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING.getKey(), "cluster-default-id")
+            .build();
+        var outer = as(
+            processingCommand(
+                "DENSE_VECTOR title | DENSE_VECTOR author WITH { \"inference_id\" : \"endpoint-b\" }",
+                new QueryParams(),
+                settings
+            ),
+            DenseVector.class
+        );
+        assertThat(outer.fields(), equalToIgnoringIds(List.of(attribute("author"))));
+        assertThat(outer.inferenceId(), equalTo(literalString("endpoint-b")));
+
+        var inner = as(outer.child(), DenseVector.class);
+        assertThat(inner.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(inner.inferenceId(), equalTo(literalString("cluster-default-id")));
+    }
+
+    public void testDenseVectorChainedClausesMixBuiltInDefaultAndExplicitEndpoint() {
+        assumeDenseVectorCommandEnabled();
+        // The same mix without a cluster default, and with the clause that omits WITH last rather than first, so the built-in
+        // default has to land on the outer node.
+        var outer = as(
+            processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"endpoint-a\" } | DENSE_VECTOR author"),
+            DenseVector.class
+        );
+        assertThat(outer.fields(), equalToIgnoringIds(List.of(attribute("author"))));
+        assertThat(outer.inferenceId(), equalTo(literalString(".multilingual-e5-small-elasticsearch")));
+
+        var inner = as(outer.child(), DenseVector.class);
+        assertThat(inner.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(inner.inferenceId(), equalTo(literalString("endpoint-a")));
     }
 
     public void testDenseVectorQualifiedName() {
@@ -4501,14 +4536,86 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(plan.timeout(), equalTo(TimeValue.timeValueSeconds(30)));
     }
 
-    public void testDenseVectorMissingInferenceId() {
+    public void testDenseVectorDefaultTimeout() {
         assumeDenseVectorCommandEnabled();
-        expectError("FROM foo* | DENSE_VECTOR title", "Missing mandatory option [inference_id] in DENSE_VECTOR");
+        // When no timeout option is given, the plan carries a null timeout; the inference layer then applies its
+        // per-task default (30s for text_embedding).
+        var plan = as(processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.timeout(), nullValue());
     }
 
-    public void testDenseVectorEmptyOptions() {
+    public void testDenseVectorDefaultInferenceId() {
         assumeDenseVectorCommandEnabled();
-        expectError("FROM foo* | DENSE_VECTOR title WITH { }", "Missing mandatory option [inference_id] in DENSE_VECTOR");
+        // No WITH: falls through to the built-in default endpoint.
+        var plan = as(processingCommand("DENSE_VECTOR title"), DenseVector.class);
+        assertThat(plan.inferenceId(), equalTo(literalString(".multilingual-e5-small-elasticsearch")));
+    }
+
+    public void testDenseVectorEmptyOptionsUsesDefaultInferenceId() {
+        assumeDenseVectorCommandEnabled();
+        // Empty WITH: still falls through to the built-in default endpoint.
+        var plan = as(processingCommand("DENSE_VECTOR title WITH { }"), DenseVector.class);
+        assertThat(plan.inferenceId(), equalTo(literalString(".multilingual-e5-small-elasticsearch")));
+    }
+
+    public void testDenseVectorClusterDefaultInferenceId() {
+        assumeDenseVectorCommandEnabled();
+        // Cluster-level default overrides the built-in default when no WITH id is given.
+        Settings settings = Settings.builder()
+            .put(InferenceSettings.DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING.getKey(), "cluster-default-id")
+            .build();
+        var plan = as(processingCommand("DENSE_VECTOR title", new QueryParams(), settings), DenseVector.class);
+        assertThat(plan.inferenceId(), equalTo(literalString("cluster-default-id")));
+    }
+
+    public void testDenseVectorBlankClusterDefaultInferenceIdIsRejected() {
+        assumeDenseVectorCommandEnabled();
+        // A blank but non-empty value would otherwise be taken for an endpoint id and only surface as an unknown-endpoint
+        // failure later on. Empty stays valid: it is the "not set" marker that falls through to the built-in default.
+        Settings blank = Settings.builder().put(InferenceSettings.DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING.getKey(), "   ").build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> processingCommand("DENSE_VECTOR title", new QueryParams(), blank)
+        );
+        assertThat(e.getMessage(), containsString("[esql.command.dense_vector.default_inference_id] must not be blank"));
+
+        Settings empty = Settings.builder().put(InferenceSettings.DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING.getKey(), "").build();
+        var plan = as(processingCommand("DENSE_VECTOR title", new QueryParams(), empty), DenseVector.class);
+        assertThat(plan.inferenceId(), equalTo(literalString(".multilingual-e5-small-elasticsearch")));
+    }
+
+    public void testDenseVectorWithOptionOverridesClusterDefault() {
+        assumeDenseVectorCommandEnabled();
+        // WITH { inference_id } takes precedence over the cluster-level default.
+        Settings settings = Settings.builder()
+            .put(InferenceSettings.DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING.getKey(), "cluster-default-id")
+            .build();
+        var plan = as(
+            processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"with-id\" }", new QueryParams(), settings),
+            DenseVector.class
+        );
+        assertThat(plan.inferenceId(), equalTo(literalString("with-id")));
+    }
+
+    public void testDenseVectorRowLimitOverride() {
+        assumeDenseVectorCommandEnabled();
+        int customRowLimit = between(1, 10_000);
+        Settings settings = Settings.builder().put(InferenceSettings.DENSE_VECTOR_ROW_LIMIT_SETTING.getKey(), customRowLimit).build();
+        var plan = as(
+            processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\" }", new QueryParams(), settings),
+            DenseVector.class
+        );
+        assertThat(plan.rowLimit(), equalTo(integer(customRowLimit)));
+    }
+
+    public void testDenseVectorCommandDisabled() {
+        assumeDenseVectorCommandEnabled();
+        Settings settings = Settings.builder().put(InferenceSettings.DENSE_VECTOR_ENABLED_SETTING.getKey(), false).build();
+        ParsingException pe = expectThrows(
+            ParsingException.class,
+            () -> processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\" }", new QueryParams(), settings)
+        );
+        assertThat(pe.getMessage(), containsString("DENSE_VECTOR command is disabled"));
     }
 
     public void testDenseVectorUnknownOption() {

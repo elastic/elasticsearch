@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -933,6 +934,208 @@ public class DatafeedManagerTests extends ESTestCase {
         assertThat(response.get().getResponse().getCloudInternalCredential(), equalTo(null));
         verify(apiKeyService, never()).grantCloudAuthentication(any(), anyString(), any());
         verify(auditor, never()).info(anyString(), anyString());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPutDatafeed_WithProjectRouting_SucceedsWhenMlFlagOff() {
+        assumeFalse("Run with -Des.ml_cross_project_feature_flag_enabled=false", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+
+        Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
+
+        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
+        MachineLearningExtension mlExtension = mockMlExtension(credentialManager, apiKeyService);
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+
+        DatafeedManager manager = newDatafeedManager(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            settings,
+            client,
+            mlExtension,
+            mockAuditor()
+        );
+
+        when(credentialManager.hasCloudManagedCredential(any())).thenReturn(false);
+
+        doAnswer(invocation -> {
+            ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
+            listener.onResponse(Collections.emptySet());
+            return null;
+        }).when(datafeedConfigProvider).findDatafeedIdsForJobIds(any(), any());
+
+        doAnswer(invocation -> {
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
+            listener.onResponse(Boolean.TRUE);
+            return null;
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+
+        doAnswer(invocation -> {
+            ActionListener<Tuple<DatafeedConfig, DocWriteResponse>> listener = (ActionListener<
+                Tuple<DatafeedConfig, DocWriteResponse>>) invocation.getArguments()[2];
+            DatafeedConfig cfg = invocation.getArgument(0);
+            listener.onResponse(Tuple.tuple(cfg, mock(DocWriteResponse.class)));
+            return null;
+        }).when(datafeedConfigProvider).putDatafeedConfig(any(), any(), any());
+
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
+        builder.setIndices(List.of("logs-*"));
+        builder.setProjectRouting("_alias:prod-*");
+        PutDatafeedAction.Request request = new PutDatafeedAction.Request(builder.build());
+
+        AtomicReference<PutDatafeedAction.Response> response = new AtomicReference<>();
+        manager.putDatafeed(
+            request,
+            mockClusterStateWithNoTasks(),
+            null,
+            threadPool,
+            ActionListener.wrap(response::set, e -> fail("unexpected failure: " + e))
+        );
+
+        assertThat(response.get(), notNullValue());
+        assertThat(response.get().getResponse().getProjectRouting(), equalTo("_alias:prod-*"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPutDatafeed_WithProjectRouting_ShouldWarnWhenCpsNotAllowed() {
+        Settings settings = Settings.builder().put("serverless.cross_project.enabled", false).put("xpack.security.enabled", false).build();
+
+        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
+        MachineLearningExtension mlExtension = mockMlExtension(credentialManager, apiKeyService);
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+
+        DatafeedManager manager = newDatafeedManager(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            settings,
+            client,
+            mlExtension,
+            mockAuditor()
+        );
+
+        when(credentialManager.hasCloudManagedCredential(any())).thenReturn(false);
+
+        doAnswer(invocation -> {
+            ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
+            listener.onResponse(Collections.emptySet());
+            return null;
+        }).when(datafeedConfigProvider).findDatafeedIdsForJobIds(any(), any());
+
+        doAnswer(invocation -> {
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
+            listener.onResponse(Boolean.TRUE);
+            return null;
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+
+        doAnswer(invocation -> {
+            ActionListener<Tuple<DatafeedConfig, DocWriteResponse>> listener = (ActionListener<
+                Tuple<DatafeedConfig, DocWriteResponse>>) invocation.getArguments()[2];
+            DatafeedConfig cfg = invocation.getArgument(0);
+            listener.onResponse(Tuple.tuple(cfg, mock(DocWriteResponse.class)));
+            return null;
+        }).when(datafeedConfigProvider).putDatafeedConfig(any(), any(), any());
+
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
+        builder.setIndices(List.of("logs-*"));
+        builder.setProjectRouting("_alias:prod-*");
+        PutDatafeedAction.Request request = new PutDatafeedAction.Request(builder.build());
+
+        AtomicReference<PutDatafeedAction.Response> response = new AtomicReference<>();
+        HeaderWarning.setThreadContext(threadContext);
+        try {
+            manager.putDatafeed(
+                request,
+                mockClusterStateWithNoTasks(),
+                null,
+                threadPool,
+                ActionListener.wrap(response::set, e -> fail("unexpected failure: " + e))
+            );
+            assertThat(response.get(), notNullValue());
+            assertWarnings(DatafeedConfig.PROJECT_ROUTING_INERT_WITHOUT_CPS_MESSAGE);
+        } finally {
+            HeaderWarning.removeThreadContext(threadContext);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testUpdateDatafeed_WithProjectRouting_SucceedsWhenMlFlagOff() {
+        assumeFalse("Run with -Des.ml_cross_project_feature_flag_enabled=false", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+
+        Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
+
+        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
+        MachineLearningExtension mlExtension = mockMlExtension(credentialManager, apiKeyService);
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+
+        DatafeedManager manager = newDatafeedManager(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            settings,
+            client,
+            mlExtension,
+            mockAuditor()
+        );
+
+        when(credentialManager.hasCloudManagedCredential(any())).thenReturn(true);
+
+        PersistedCloudCredential existingCred = randomPersistedCloudCredential("existing-key-id");
+        DatafeedConfig.Builder existingBuilder = new DatafeedConfig.Builder("test-datafeed", "test-job");
+        existingBuilder.setIndices(List.of("logs-*"));
+        existingBuilder.setCloudInternalCredential(existingCred);
+        DatafeedConfig existingConfig = existingBuilder.build();
+        stubGetDatafeedConfig(datafeedConfigProvider, existingConfig);
+
+        DatafeedConfig.Builder updatedBuilder = new DatafeedConfig.Builder("test-datafeed", "test-job");
+        updatedBuilder.setIndices(List.of("logs-*"));
+        updatedBuilder.setProjectRouting("_alias:staging-*");
+        updatedBuilder.setCloudInternalCredential(existingCred);
+        DatafeedConfig updatedConfig = updatedBuilder.build();
+
+        doAnswer(invocation -> {
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
+            listener.onResponse(Boolean.TRUE);
+            return null;
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<DatafeedConfig> listener = invocation.getArgument(4);
+            listener.onResponse(updatedConfig);
+            return null;
+        }).when(datafeedConfigProvider).updateDatefeedConfig(anyString(), any(), any(), any(), any());
+
+        UpdateDatafeedAction.Request request = new UpdateDatafeedAction.Request(
+            new DatafeedUpdate.Builder("test-datafeed").setProjectRouting("_alias:staging-*").build()
+        );
+
+        AtomicReference<PutDatafeedAction.Response> response = new AtomicReference<>();
+        manager.updateDatafeed(
+            request,
+            mockClusterStateForUpdate(),
+            null,
+            threadPool,
+            ActionListener.wrap(response::set, e -> fail("unexpected failure: " + e))
+        );
+
+        assertThat(response.get(), notNullValue());
+        assertThat(response.get().getResponse().getProjectRouting(), equalTo("_alias:staging-*"));
+        assertThat(response.get().getResponse().getCloudInternalCredential(), equalTo(existingCred));
+        verify(apiKeyService, never()).grantCloudAuthentication(any(), anyString(), any());
     }
 
     @SuppressWarnings("unchecked")

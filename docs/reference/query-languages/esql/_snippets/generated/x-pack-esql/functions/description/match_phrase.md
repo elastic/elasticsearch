@@ -27,11 +27,13 @@ score: a matching row scores the `boost` option (1.0 by default). Unlike indexed
 expressions are not scored with BM25, as there are no index statistics for an expression.
 
 When searching `text` expressions, [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)
-(match_phrase query options) are supported. The `analyzer` option must name a registered
-analyzer (prebuilt or plugin-contributed); per-index custom analyzers cannot be used because
-the expression is not backed by an index. Unlike on an indexed field, the analyzer is applied
-to both the query and the expression values; when no analyzer is specified, the `standard`
-analyzer is used. On `keyword` expressions options are not supported.
+(match_phrase query options) are supported. As on an indexed field, the `analyzer` option
+applies to the query string only: how the expression's values are analyzed is declared where
+the column is created, through `TO_TEXT`'s `analyzer` option, and the query analyzer defaults
+to that values analyzer (`standard` when none is declared). Analyzer names must name a
+registered analyzer (prebuilt or plugin-contributed); per-index custom analyzers cannot be
+used because the expression is not backed by an index. On `keyword` expressions options are
+not supported.
 
 :::{tip}
 Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).

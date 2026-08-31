@@ -981,11 +981,14 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         final var stoppedLatch = new CountDownLatch(1);
         final var restartLatch = new CountDownLatch(1);
+        // We want to stall the getConnection for GetVBCCChunk request which is right after registerCommitForRecovery
+        final AtomicBoolean shouldDelayGetConnection = new AtomicBoolean(false);
         final var restartIndexNodeThread = new Thread(() -> {
             try {
                 internalCluster().restartNode(indexNode, new InternalTestCluster.RestartCallback() {
                     @Override
                     public Settings onNodeStopped(String nodeName) throws Exception {
+                        shouldDelayGetConnection.set(false);
                         stoppedLatch.countDown();
                         // The node is stopped. Wait for the search shard warming to fail before restarting it. We don't want it
                         // to restart too soon which might interfere the failure path of the search shard recovery.
@@ -1002,11 +1005,9 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             }
         });
 
-        // We want to stall the getConnection for GetVBCCChunk request which is right after registerCommitForRecovery
-        final AtomicBoolean shouldDelayGetConnection = new AtomicBoolean(false);
         final MockTransportService searchNodeTransportService = MockTransportService.getInstance(searchNode);
         searchNodeTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-            if (TransportRegisterCommitForRecoveryAction.NAME.equals(action)) {
+            if (TransportRegisterCommitForRecoveryAction.NAME.equals(action) && stoppedLatch.getCount() > 0) {
                 shouldDelayGetConnection.set(true);
             }
             connection.sendRequest(requestId, action, request, options);
@@ -1015,9 +1016,13 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         final AtomicBoolean restartOnce = new AtomicBoolean(false);
         final IndicesService searchNodeIndicesService = internalCluster().getInstance(IndicesService.class, searchNode);
         searchNodeTransportService.addGetConnectionBehavior((connectionManager, discoveryNode) -> {
-            if (indexNode.equals(discoveryNode.getName()) && shouldDelayGetConnection.get() && restartOnce.compareAndSet(false, true)) {
-                logger.info("--> stalling getConnection and restart");
-                restartIndexNodeThread.start();
+            if (indexNode.equals(discoveryNode.getName()) && shouldDelayGetConnection.get()) {
+                if (restartOnce.compareAndSet(false, true)) {
+                    logger.info("--> stalling getConnection and restart");
+                    restartIndexNodeThread.start();
+                }
+                // SearchEngine initialization can happen concurrently with warming and also call getConnection
+                // Since it can happen first and trigger the restart, wait here to ensure warming fails with NodeNotConnectedException
                 try {
                     // Wait for the search shard to be removed (due to primary failure) to ensure no retry
                     assertBusy(() -> {

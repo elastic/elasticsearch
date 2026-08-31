@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.datasources.utils.BoundedParallelGather;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -69,6 +70,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 
@@ -270,6 +272,7 @@ public class FileSplitProvider implements SplitProvider {
     private final Settings settings;
     @Nullable
     private final Executor executor;
+    private final AtomicLong splitDiscoveryCpuAccum = new AtomicLong();
 
     public FileSplitProvider() {
         this(DEFAULT_TARGET_SPLIT_SIZE, null, null, null, Settings.EMPTY, null);
@@ -498,6 +501,7 @@ public class FileSplitProvider implements SplitProvider {
                     CONFIG_MAX_SPLIT_PROBES
                 );
             }
+            splitDiscoveryCpuAccum.set(0L);
             List<PlanResult> planResults;
             try {
                 if (executor != null && tasks.size() > 1) {
@@ -537,7 +541,7 @@ public class FileSplitProvider implements SplitProvider {
 
             // Each surviving task produces at least one split, so the task count is the number of
             // distinct files that are actually scanned after coordinator-side pruning.
-            return new SplitDiscoveryResult(splits, tasks.size());
+            return new SplitDiscoveryResult(splits, tasks.size(), false, splitDiscoveryCpuAccum.get());
         } finally {
             StorageProviderCache.closeLease(sharedProvider);
         }
@@ -1069,10 +1073,15 @@ public class FileSplitProvider implements SplitProvider {
         }
         // Carry the cancellation signal as ambient thread-local state so the synchronous retry/throttle
         // backoff inside the footer reads below can abort a parked sleep on cancel.
-        return StorageRetryCancellation.callWithCancellation(
-            isCancelled,
-            () -> computeFileSplits(task, hoistedProvider, strideBytes, isCancelled)
-        );
+        long cpuStart = ThreadCpuTimer.currentNanos();
+        try {
+            return StorageRetryCancellation.callWithCancellation(
+                isCancelled,
+                () -> computeFileSplits(task, hoistedProvider, strideBytes, isCancelled)
+            );
+        } finally {
+            if (cpuStart >= 0) splitDiscoveryCpuAccum.addAndGet(ThreadCpuTimer.elapsedNanos(cpuStart));
+        }
     }
 
     private PlanResult computeFileSplits(
@@ -1338,6 +1347,7 @@ public class FileSplitProvider implements SplitProvider {
             StorageProvider provider = resolveProvider(filePath, config, hoistedProvider);
             StorageObject object = provider.newObject(filePath, fileLength);
             long[] boundaries = splittableCodec.findBlockBoundaries(object, 0, fileLength);
+            splitDiscoveryCpuAccum.addAndGet(splittableCodec.asyncCpuNanos());
 
             if (boundaries.length == 0) {
                 splits.add(wholeFileSplit(filePath, fileLength, format, config, partitionValues, columnMapping, readSchema));

@@ -38,6 +38,13 @@ public interface SplittableDecompressionCodec extends DecompressionCodec {
     long[] findBlockBoundaries(StorageObject object, long start, long end) throws IOException;
 
     /**
+     * Returns CPU nanos accumulated on background threads during the last
+     * {@link #findBlockBoundaries} call. Default 0 for implementations that do not
+     * dispatch background threads.
+     */
+    long asyncCpuNanos();
+
+    /**
      * Decompresses a range of compressed blocks. The returned stream yields decompressed
      * bytes for blocks starting at {@code blockStart} up to (but not including) the block
      * at {@code nextBlockStart}.

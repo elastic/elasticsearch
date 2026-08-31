@@ -4396,6 +4396,11 @@ public class FileSplitProviderTests extends ESTestCase {
         }
 
         @Override
+        public long asyncCpuNanos() {
+            return 0L;
+        }
+
+        @Override
         public InputStream decompressRange(StorageObject object, long blockStart, long nextBlockStart) {
             return new ByteArrayInputStream(new byte[0]);
         }

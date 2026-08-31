@@ -47,11 +47,12 @@ import java.util.concurrent.TimeUnit;
  * The {@code column} parameter names the shape of the sampled timestamp column, which is what decides
  * how much of the classification path runs:
  * <ul>
- *   <li>{@code keyword} — the control that matters most. A string column must cost one failed date
- *       parse for its first value and nothing thereafter; if the short-circuit that guarantees that
- *       is ever lost, this cell is where it shows up.</li>
+ *   <li>{@code keyword} — the control that matters most, and the cell that must not move: a string
+ *       column costs one failed date parse for its first value and nothing thereafter. If the
+ *       short-circuit that guarantees that is ever lost, this is where it shows up.</li>
  *   <li>{@code millis} — timestamps that stay {@code datetime}. The common temporal case, and the one
- *       that must not pay for the new capability.</li>
+ *       that shows what deciding a temporal type costs: it pays the precision check, and on CSV also a
+ *       parse against the {@code date_nanos} formatter to see whether that rail could read it.</li>
  *   <li>{@code nanos} — timestamps that become {@code date_nanos}: the new behavior's own cost.</li>
  *   <li>{@code mixed} — alternating precisions. It settles at the first nanosecond value and costs the
  *       same per value as {@code nanos} thereafter; it is here because it is the cell that would

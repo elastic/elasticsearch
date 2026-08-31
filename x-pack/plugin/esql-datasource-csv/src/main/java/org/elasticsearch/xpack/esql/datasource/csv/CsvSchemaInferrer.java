@@ -42,12 +42,13 @@ import java.util.Locale;
  *   <li>{@code KEYWORD} — universal fallback (everything is a string)</li>
  * </ol>
  * Null and empty values are compatible with every type. Columns with only null/empty values
- * default to KEYWORD. When a value doesn't fit the current candidate, the column widens to the
- * next candidate. What a column becomes when a value does not fit its current type is not decided
- * here at all: the ladder recognises which type accepts the value, and
- * {@link org.elasticsearch.xpack.esql.datasources.spi.TypeWidening} says what the accepted type and
- * that evidence combine to. So a column with "true" and "42" resolves KEYWORD, and one with
- * millisecond and nanosecond timestamps resolves DATE_NANOS, without either being written here.
+ * default to KEYWORD. When a value doesn't fit the current candidate, an unconfirmed column takes
+ * the narrowest candidate that does fit. For a confirmed column the ladder only recognises which type
+ * accepts the value; {@link org.elasticsearch.xpack.esql.datasources.spi.TypeWidening} then says what
+ * that evidence and the accepted type combine to, which is often neither of them. So a column with
+ * "true" and "42" resolves KEYWORD, a numeric column meeting a timestamp resolves KEYWORD rather than
+ * the next rung down, and one holding millisecond and nanosecond timestamps resolves DATE_NANOS
+ * &mdash; none of which is written here.
  * <p>
  * For files smaller than the sample size, all rows are used. The inference runs in a single
  * sequential pass over the sample.
@@ -89,10 +90,15 @@ public class CsvSchemaInferrer {
      * Widens an already-inferred schema against additional rows that were not part of the initial
      * sample. Uses the same {@link #narrowCandidate} logic as {@link #inferSchema}, starting from
      * the already-confirmed candidate types (every column is treated as confirmed, since the initial
-     * sample already committed to its type). Any column whose inferred type cannot parse a value in
-     * {@code additionalRows} is advanced through {@link #TYPE_CANDIDATES} toward KEYWORD.
+     * sample already committed to its type). A column whose type cannot represent a value in
+     * {@code additionalRows} moves to whatever type represents both, which for a confirmed column is
+     * usually {@code KEYWORD}.
      * <p>
-     * Returns the same {@code schema} reference when no widening is needed (including when
+     * A column can also move the other way. If these rows show a dialect the {@code date_nanos} rail
+     * cannot parse, a column sitting on that rail is demoted to {@code datetime} even though nothing
+     * widened &mdash; so "nothing widened" is not the same as "nothing changed".
+     * <p>
+     * Returns the same {@code schema} reference only when neither happens (including when
      * {@code additionalRows} is empty), and a new list otherwise.
      *
      * @param schema         the schema returned by a prior {@link #inferSchema} call

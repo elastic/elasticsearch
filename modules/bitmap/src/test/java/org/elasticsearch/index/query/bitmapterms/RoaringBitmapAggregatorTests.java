@@ -46,11 +46,13 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongUnaryOperator;
 
 import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
@@ -59,6 +61,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
 
@@ -340,6 +344,79 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
         assertThat(breaker.getUsed(), equalTo(baseline));
     }
 
+    public void testCollectionTripsBreakerBeforeBitmapGrowth() throws Exception {
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(FIELD, NumberFieldMapper.NumberType.LONG);
+        CircuitBreakerService breakerService = LimitedBreaker.service(CircuitBreaker.REQUEST, ByteSizeValue.ofKb(128));
+        CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+        long baseline = breaker.getUsed();
+        try (Directory directory = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), directory)) {
+            Document document = new Document();
+            document.add(new SortedNumericDocValuesField(FIELD, 1L << 32));
+            writer.addDocument(document);
+            try (
+                IndexReader reader = writer.getReader();
+                AggregationContext context = createAggregationContext(
+                    reader,
+                    createIndexSettings(),
+                    Queries.ALL_DOCS_INSTANCE,
+                    breakerService,
+                    0,
+                    DEFAULT_MAX_BUCKETS,
+                    false,
+                    false,
+                    fieldType
+                )
+            ) {
+                Aggregator aggregator = createAggregator(new RoaringBitmapAggregationBuilder("ids").field(FIELD), context);
+                aggregator.preCollection();
+                CircuitBreakingException exception = expectThrows(
+                    CircuitBreakingException.class,
+                    () -> context.searcher().search(context.query(), aggregator.asCollector())
+                );
+                assertThat(
+                    exception.getBytesWanted(),
+                    equalTo((long) RoaringBitmapAggregator.BREAKER_RESERVATION_VALUES * RoaringBitmapAggregator.LONG_BYTES_PER_VALUE)
+                );
+            }
+        }
+        assertThat(breaker.getUsed(), equalTo(baseline));
+    }
+
+    public void testTermsIndexChecksCancellation() throws Exception {
+        NumberFieldMapper.NumberType type = NumberFieldMapper.NumberType.LONG;
+        MappedFieldType fieldType = indexTermsFieldType(type);
+        CircuitBreakerService breakerService = LimitedBreaker.service(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(64));
+        CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+        long baseline = breaker.getUsed();
+        try (Directory directory = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), directory)) {
+            writer.addDocument(termsDocument(type, 1));
+            try (
+                IndexReader reader = writer.getReader();
+                AggregationContext realContext = createAggregationContext(
+                    reader,
+                    createIndexSettings(),
+                    Queries.ALL_DOCS_INSTANCE,
+                    breakerService,
+                    0,
+                    DEFAULT_MAX_BUCKETS,
+                    false,
+                    false,
+                    fieldType
+                )
+            ) {
+                // AggregatorTestCase does not expose a cancellation supplier, so spy on an otherwise
+                // real aggregation context to exercise the production cancellation path.
+                AggregationContext context = spy(realContext);
+                when(context.isCancelled()).thenReturn(true);
+                Aggregator aggregator = createAggregator(new RoaringBitmapAggregationBuilder("ids").field(FIELD), context);
+                assertTrue(((RoaringBitmapAggregator) aggregator).usesTermsIndex());
+                aggregator.preCollection();
+                expectThrows(TaskCancelledException.class, () -> context.searcher().search(context.query(), aggregator.asCollector()));
+            }
+        }
+        assertThat(breaker.getUsed(), equalTo(baseline));
+    }
+
     public void testIntegerBitmapRejectsValuesAboveIntegerRange() {
         InternalRoaringBitmap.MutableBitmap bitmap = InternalRoaringBitmap.mutable(InternalRoaringBitmap.BitmapFormat.INT);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> bitmap.add(1L + Integer.MAX_VALUE));
@@ -381,6 +458,33 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
             IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> reducer.accept(longResult));
             assertThat(exception.getMessage(), containsString("cannot reduce [integer] and [long] field results together"));
         }
+    }
+
+    public void testReduceChecksCancellationAndReleasesBreaker() throws Exception {
+        InternalRoaringBitmap result = result(InternalRoaringBitmap.BitmapFormat.LONG, 1L << 32);
+        AtomicBoolean cancelled = new AtomicBoolean(true);
+        CircuitBreakerService breakerService = LimitedBreaker.service(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(64));
+        AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
+            new BigArrays(null, breakerService, CircuitBreaker.REQUEST),
+            null,
+            cancelled::get,
+            AggregatorFactories.builder(),
+            ignored -> {},
+            null
+        );
+
+        try (AggregatorReducer reducer = result.getReducer(reduceContext, 1)) {
+            expectThrows(TaskCancelledException.class, () -> reducer.accept(result));
+        }
+        assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+
+        cancelled.set(false);
+        try (AggregatorReducer reducer = result.getReducer(reduceContext, 1)) {
+            reducer.accept(result);
+            cancelled.set(true);
+            expectThrows(TaskCancelledException.class, reducer::get);
+        }
+        assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
     }
 
     // The reduce path must reserve before deserializing, not after, so a bitmap too large for the

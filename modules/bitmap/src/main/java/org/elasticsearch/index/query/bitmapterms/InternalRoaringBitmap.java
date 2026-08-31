@@ -16,6 +16,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.roaringbitmap.RoaringBitmap;
 import org.roaringbitmap.longlong.Roaring64NavigableMap;
@@ -163,6 +164,7 @@ public final class InternalRoaringBitmap extends InternalAggregation {
 
             @Override
             public void accept(InternalAggregation aggregation) {
+                checkCancelled();
                 InternalRoaringBitmap next = (InternalRoaringBitmap) aggregation;
                 if (next.width == BitmapFormat.UNMAPPED) {
                     return;
@@ -196,6 +198,7 @@ public final class InternalRoaringBitmap extends InternalAggregation {
                     boolean unionReservationAdded = false;
                     boolean unionReservationReconciled = false;
                     try {
+                        checkCancelled();
                         adjustBreaker(unionReservation);
                         unionReservationAdded = true;
                         long before = reduced.ramBytesUsed();
@@ -208,6 +211,12 @@ public final class InternalRoaringBitmap extends InternalAggregation {
                             adjustBreaker(-unionReservation);
                         }
                     }
+                }
+            }
+
+            private void checkCancelled() {
+                if (reduceContext.isCanceled().get()) {
+                    throw new TaskCancelledException("cancelled");
                 }
             }
 
@@ -230,9 +239,11 @@ public final class InternalRoaringBitmap extends InternalAggregation {
                 if (reduced == null) {
                     return unmapped(name, getMetadata());
                 }
+                checkCancelled();
                 long before = reduced.ramBytesUsed();
                 reduced.optimize();
                 adjustBreaker(reduced.ramBytesUsed() - before);
+                checkCancelled();
                 long serializationBytes = 2L * reduced.ramBytesUsed();
                 adjustBreaker(serializationBytes);
                 try {

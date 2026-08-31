@@ -27,6 +27,8 @@ import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
 import java.util.Map;
@@ -50,10 +52,12 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
     // shrinking the safety margin to zero.
     static final long INT_BYTES_PER_VALUE = 80;
     static final long LONG_BYTES_PER_VALUE = 384;
+    private static final int CANCELLATION_CHECK_INTERVAL = 1 << 11;
 
     private final ValuesSource.Numeric valuesSource;
     private final InternalRoaringBitmap.BitmapFormat width;
     private final String termsField;
+    private final Runnable cancellationCheck;
     private final LongObjectPagedHashMap<AccountedBitmap> bitmaps;
     private long accountedBitmapBytes;
     private int valuesUntilNextBreakerReservation;
@@ -72,6 +76,14 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
         this.valuesSource = valuesSource;
         this.width = width;
         this.termsField = termsFieldIfAvailable(config);
+        this.cancellationCheck = () -> {
+            if (context.isCancelled()) {
+                throw new TaskCancelledException("cancelled");
+            }
+            if (context.searcher() instanceof ContextIndexSearcher searcher) {
+                searcher.checkCancelled();
+            }
+        };
         this.bitmaps = new LongObjectPagedHashMap<>(1, bigArrays());
     }
 
@@ -130,6 +142,7 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
         if (terms == null) {
             return;
         }
+        cancellationCheck.run();
         BytesRef min = terms.getMin();
         if (min == null) {
             return;
@@ -146,7 +159,12 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
         }
         TermsEnum termsEnum = terms.iterator();
         BytesRef term;
+        int termsUntilNextCancellationCheck = CANCELLATION_CHECK_INTERVAL;
         while ((term = termsEnum.next()) != null) {
+            if (--termsUntilNextCancellationCheck == 0) {
+                cancellationCheck.run();
+                termsUntilNextCancellationCheck = CANCELLATION_CHECK_INTERVAL;
+            }
             if (termCount < 0) {
                 reserveBreakerBytes();
             }
@@ -200,9 +218,11 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
         if (accountedBitmap == null) {
             return InternalRoaringBitmap.empty(name, width, metadata());
         }
+        cancellationCheck.run();
         accountBitmapMemory(accountedBitmap);
         accountedBitmap.bitmap.optimize();
         accountBitmapMemory(accountedBitmap);
+        cancellationCheck.run();
 
         // ByteArrayOutputStream and toByteArray temporarily coexist with the live bitmap. Reserve
         // room for both copies before serializing, then release the temporary reservation.
@@ -242,6 +262,7 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
 
     private void reserveBreakerBytes() {
         if (valuesUntilNextBreakerReservation == 0) {
+            cancellationCheck.run();
             reserveBreakerBytes(BREAKER_RESERVATION_VALUES);
             valuesUntilNextBreakerReservation = BREAKER_RESERVATION_VALUES;
         }

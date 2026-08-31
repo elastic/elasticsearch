@@ -13,6 +13,7 @@ The `roaring_bitmap` metrics aggregation returns the exact distinct values of an
 Use this aggregation when you need the set of values itself, rather than only its size. The result uses the same portable format accepted by the [`bitmap_terms` query](/reference/query-languages/query-dsl/query-dsl-bitmap-terms-query.md), so you can pass the result directly into a later search or consume it with a compatible roaring bitmap library.
 
 Values must be non-negative: `0` to `2^31 - 1` for `integer` fields, and `0` to `2^63 - 1` for `long` fields.
+If a matching document contains a negative value, the search request fails.
 
 ## Example request [roaring-bitmap-aggregation-example]
 
@@ -155,6 +156,8 @@ See [Bitmap format](/reference/query-languages/query-dsl/query-dsl-bitmap-terms-
 ## Choosing an aggregation [roaring-bitmap-aggregation-choose]
 
 Use `roaring_bitmap` when you need the exact distinct set of numeric values. Its memory use depends on the number and distribution of values; dense or run-like sets usually compress more efficiently than sparse 64-bit sets.
+
+Memory use and response size depend on the distinct values, not the number of matching documents. Very large exact sets can trip the request circuit breaker and return a `circuit_breaking_exception`. When this aggregation is nested under a bucket aggregation, each bucket has its own bitmap, multiplying the total memory use. Set the search request's `timeout` when it might scan a very large match set.
 
 If you only need a count:
 

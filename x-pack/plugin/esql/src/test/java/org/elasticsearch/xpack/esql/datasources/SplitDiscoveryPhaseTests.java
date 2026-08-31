@@ -273,6 +273,65 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
     }
 
     /**
+     * A non-exhaustive empty result on a resolved, non-empty fileList means the provider dropped every file without
+     * certifying the prune as row-count-preserving, so the source falls through unchanged and the runtime reads the
+     * whole list. The scan accounting must describe that read (every file scanned, one split unit per file, the
+     * listed bytes) or the query profile reports a full-dataset read as zero files and zero bytes.
+     */
+    public void testNonExhaustiveEmptyResultAccountsWholeRead() {
+        // createFileList sizes file i as 100*(i+1); three files => 100 + 200 + 300 bytes.
+        FileList fileList = createFileList(3);
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
+        // Zero splits, but explicitly NOT an exhaustive prune: the read still happens.
+        Map<String, ExternalSourceFactory> factories = Map.of(
+            "parquet",
+            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, false)))
+        );
+
+        SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+
+        assertSame("a non-exhaustive empty result must fall through unchanged, not be swapped to EMPTY", exec, result.plan());
+        assertEquals("the whole read that follows scans every file in the resolved list", 3, result.filesScanned());
+        assertEquals("the whole read processes each file as one unit", 3, result.splitsScanned());
+        assertEquals("the whole read scans the listed bytes", 600L, result.bytesScanned());
+    }
+
+    /**
+     * A listed file with an unknown size (listed as 0, see FileSplitProvider's unlisted-length convention) still
+     * counts as a scanned file and split unit on the whole-read fall-through, but contributes nothing to the byte
+     * sum, mirroring the positive-size guard on the discovered-splits path.
+     */
+    public void testNonExhaustiveEmptyResultSkipsUnknownSizes() {
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(
+                new StorageEntry(StoragePath.of("s3://bucket/data/a.parquet"), 100, Instant.EPOCH),
+                new StorageEntry(StoragePath.of("s3://bucket/data/b.parquet"), 0, Instant.EPOCH)
+            ),
+            "s3://bucket/data/*.parquet"
+        );
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
+        Map<String, ExternalSourceFactory> factories = Map.of(
+            "parquet",
+            testFactory(new FixedSplitProvider(new SplitDiscoveryResult(List.of(), 0, false)))
+        );
+
+        SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+
+        assertSame(exec, result.plan());
+        assertEquals(2, result.filesScanned());
+        assertEquals(2, result.splitsScanned());
+        assertEquals("only the known size contributes to the byte sum", 100L, result.bytesScanned());
+    }
+
+    /**
      * An unresolved fileList (glob not yet expanded — resolved and read at runtime) must NOT be swapped when discovery
      * returns no splits: there is nothing to prune yet, and swapping to EMPTY would make the source read nothing at
      * all. It falls through unchanged to the runtime whole-fileList read.
@@ -308,9 +367,16 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         ExternalSourceExec exec = createExternalSourceExec(FileList.EMPTY, "parquet");
         Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(new RecordingSplitProvider()));
 
-        PhysicalPlan result = SplitDiscoveryPhase.resolveExternalSplits(exec, factories);
+        SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
 
-        assertSame("an already-empty glob needs no swap", exec, result);
+        assertSame("an already-empty glob needs no swap", exec, result.plan());
+        assertEquals("an already-empty glob reads nothing", 0, result.filesScanned());
+        assertEquals(0, result.splitsScanned());
+        assertEquals(0L, result.bytesScanned());
     }
 
     /** {@link ExternalRelation#withFileList} swaps only the fileList, preserving the rest of the relation. */

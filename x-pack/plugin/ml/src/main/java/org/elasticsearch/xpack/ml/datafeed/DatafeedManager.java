@@ -492,11 +492,9 @@ public final class DatafeedManager {
             Job job = jobBuilder.build();
             String snapshotId = job.getModelSnapshotId();
             if (snapshotId == null || snapshotId.isEmpty()) {
-                delegate.onFailure(
-                    ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.DATAFEED_SCOPE_CHANGE_REQUIRES_SNAPSHOT, current.getId(), current.getJobId())
-                    )
-                );
+                // Closed job with no model snapshot has never produced trained state,
+                // so there is no rollback point to retain; allow the scope change.
+                delegate.onResponse(null);
                 return;
             }
 

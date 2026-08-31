@@ -2344,7 +2344,7 @@ public class DatafeedManagerTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testUpdateDatafeedUserInitiatedScopeChangeWithClosedJobAndNoSnapshotShouldReject() {
+    public void testUpdateDatafeedUserInitiatedScopeChangeWithClosedJobAndNoSnapshotShouldProceedWithoutRetainingSnapshot() {
         assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
 
@@ -2380,25 +2380,14 @@ public class DatafeedManagerTests extends ESTestCase {
         );
         mockGetJobWithSnapshot(jobConfigProvider, "job-scope-nosnap", null);
 
-        AtomicReference<Exception> failure = new AtomicReference<>();
         UpdateDatafeedAction.Request request = new UpdateDatafeedAction.Request(
             new DatafeedUpdate.Builder("df-scope-nosnap").setProjectRouting("_alias:prod-*").build()
         );
-        manager.updateDatafeed(
-            request,
-            mockClusterStateForUpdate(),
-            null,
-            threadPool,
-            ActionListener.wrap(r -> fail("expected failure"), failure::set)
-        );
+        manager.updateDatafeed(request, mockClusterStateForUpdate(), null, threadPool, ActionTestUtils.assertNoFailureListener(r -> {}));
 
-        assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
-        assertThat(((ElasticsearchStatusException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(
-            failure.get().getMessage(),
-            containsString(Messages.getMessage(Messages.DATAFEED_SCOPE_CHANGE_REQUIRES_SNAPSHOT, "df-scope-nosnap", "job-scope-nosnap"))
-        );
-        assertThat(capturedUpdate.get(), nullValue());
+        assertThat(capturedUpdate.get(), notNullValue());
+        assertThat(capturedUpdate.get().getProjectRouting(), equalTo("_alias:prod-*"));
+        verify(client, never()).execute(same(UpdateModelSnapshotAction.INSTANCE), any(), any());
     }
 
     @SuppressWarnings("unchecked")

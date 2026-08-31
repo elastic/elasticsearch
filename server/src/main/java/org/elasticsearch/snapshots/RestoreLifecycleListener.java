@@ -13,10 +13,7 @@ import org.elasticsearch.cluster.RestoreInProgress;
 
 /**
  * Callbacks for restore initialization and completion, invoked by {@link RestoreService} inside
- * master-service cluster-state updates. Each method returns the cluster state to publish;
- * returning the input unchanged is always safe. A restore that installs no
- * {@link RestoreInProgress} entry produces no events, so every initialized restore receives
- * exactly one completion.
+ * master-service cluster-state updates.
  */
 public interface RestoreLifecycleListener {
 

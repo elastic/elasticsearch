@@ -383,7 +383,7 @@ public class StatelessPlugin extends Plugin
             translogCoreThreads = 2;
             translogMaxThreads = Math.min(processors * 2, 8);
             shardWriteCoreThreads = 2;
-            shardWriteMaxThreads = Math.min(processors * 4, 16);
+            shardWriteMaxThreads = Math.min(processors * 4, 32);
             clusterStateReadWriteCoreThreads = 2;
             clusterStateReadWriteMaxThreads = 4;
             getVirtualBatchedCompoundCommitChunkCoreThreads = 1;
@@ -396,7 +396,7 @@ public class StatelessPlugin extends Plugin
             // we use the same amount of max threads as the shard write pool.
             // these threads use a sizeable thread-local direct buffer which might take a while to GC, so we prefer to keep some idle
             // threads around to reduce churn and re-use the existing buffers more
-            uploadPrewarmMaxThreads = Math.min(processors * 4, 16);
+            uploadPrewarmMaxThreads = Math.min(processors * 4, 32);
             uploadPrewarmCoreThreads = uploadPrewarmMaxThreads / 2;
             blobCopyCoreThreads = 0;
             blobCopyMaxThreads = 4;

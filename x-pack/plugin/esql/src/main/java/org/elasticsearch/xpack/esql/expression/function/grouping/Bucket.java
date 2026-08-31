@@ -106,7 +106,11 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Bucket", Bucket::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Bucket.class)
         .quinaryConfigWithOptions(Bucket::new)
-        .capabilities("histogram_types")
+        .capabilities(
+            "histogram_types",
+            // date/date_nanos from/to, 4-arg period+range, and decoded unsigned_long bounds
+            "from_to_types"
+        )
         .name("bucket", "bin");
     public static final TransportVersion ESQL_BUCKET_OFFSET = TransportVersion.fromName("esql_bucket_offset");
     public static final TransportVersion ESQL_SUPPORT_EXPLICIT_BUCKET_ROUNDING_CONFIGURATION = TransportVersion.fromName(

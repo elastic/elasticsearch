@@ -3772,14 +3772,6 @@ public class EsqlCapabilities {
         PER_AGGREGATE_WINDOWS,
 
         /**
-         * Fix {@code BUCKET} folding {@code unsigned_long} {@code from}/{@code to} bounds through their
-         * sortable-encoded representation with a signed {@code doubleValue()}, which produced wrong bucket
-         * widths (and wrong ranges with {@code include_empty_buckets}). Bounds are now decoded, and when both
-         * bounds are unsigned_long the range is computed exactly before converting to double.
-         */
-        FIX_BUCKET_UNSIGNED_LONG_BOUNDS,
-
-        /**
          * Don't approximate queries of the form {@code STATS COUNT() BY BUCKET(date, ...)},
          * because they are efficiently pushed down to Lucene.
          */

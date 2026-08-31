@@ -455,7 +455,7 @@ FROM employees
 ;
 
 bucketWithUnsignedLong
-required_capability: fix_bucket_unsigned_long_bounds
+required_capability: fn_bucket_from_to_types
 
 FROM ul_logs
 | WHERE @timestamp >= "2017-11-10T20:30:00Z" AND @timestamp < "2017-11-10T20:35:00Z"
@@ -1135,6 +1135,8 @@ FROM employees
 ;
 
 bucketDateNanosBounds
+required_capability: fn_bucket_from_to_types
+
 ROW date=TO_DATETIME("1985-07-09T00:00:00.000Z")
 | STATS date=VALUES(date) BY bucket=BUCKET(date, 20, TO_DATE_NANOS("1985-01-01T00:00:00Z"), TO_DATE_NANOS("1986-01-01T00:00:00Z"))
 ;
@@ -1144,6 +1146,8 @@ ROW date=TO_DATETIME("1985-07-09T00:00:00.000Z")
 ;
 
 bucketDatePeriodWithRange
+required_capability: fn_bucket_from_to_types
+
 ROW date=TO_DATETIME("1985-07-09T00:00:00.000Z")
 | STATS date=VALUES(date) BY bucket=BUCKET(date, 1 month, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
 ;
@@ -1162,7 +1166,7 @@ c:long | b:double
 ;
 
 bucketUnsignedLongToBound
-required_capability: fix_bucket_unsigned_long_bounds
+required_capability: fn_bucket_from_to_types
 
 ROW x = 100.0
 | STATS c = COUNT(*) BY b = BUCKET(x, 20, 0, 1000::unsigned_long)
@@ -1173,7 +1177,7 @@ c:long | b:double
 ;
 
 bucketUnsignedLongFromBound
-required_capability: fix_bucket_unsigned_long_bounds
+required_capability: fn_bucket_from_to_types
 
 ROW x = 100.0
 | STATS c = COUNT(*) BY b = BUCKET(x, 20, 0::unsigned_long, 1000)
@@ -1184,7 +1188,7 @@ c:long | b:double
 ;
 
 bucketUnsignedLongBounds
-required_capability: fix_bucket_unsigned_long_bounds
+required_capability: fn_bucket_from_to_types
 
 ROW x = 100::unsigned_long
 | STATS c = COUNT(*) BY b = BUCKET(x, 20, 0::unsigned_long, 100::unsigned_long)
@@ -1195,7 +1199,7 @@ c:long | b:double
 ;
 
 bucketUnsignedLongFullRange20
-required_capability: fix_bucket_unsigned_long_bounds
+required_capability: fn_bucket_from_to_types
 
 FROM ul_logs
 | WHERE id IN (70, 65, 58, 10, 60, 24, 50)
@@ -1213,7 +1217,7 @@ c:long | b:double
 ;
 
 bucketUnsignedLongFullRange4
-required_capability: fix_bucket_unsigned_long_bounds
+required_capability: fn_bucket_from_to_types
 
 FROM ul_logs
 | WHERE id IN (70, 65, 58, 10, 60, 24, 50)

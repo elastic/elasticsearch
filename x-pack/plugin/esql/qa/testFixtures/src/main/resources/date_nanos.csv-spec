@@ -1886,6 +1886,7 @@ nanos:date_nanos
 Bucket Date nanos with date_nanos bounds
 required_capability: date_trunc_date_nanos
 required_capability: date_nanos_bucket
+required_capability: fn_bucket_from_to_types
 
 FROM date_nanos
 | WHERE millis > "2020-01-01"

@@ -729,7 +729,8 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().error(
             "from test | stats max(emp_no) by bucket(emp_no, 1 week, \"2000-01-01\")",
             containsString(
-                "second argument of [bucket(emp_no, 1 week, \"2000-01-01\")] must be [integer, long or double], found value [1 week] type [date_period]"
+                "second argument of [bucket(emp_no, 1 week, \"2000-01-01\")] must be [integer, long or double], "
+                    + "found value [1 week] type [date_period]"
             )
         );
 

@@ -4637,6 +4637,15 @@ public class FileSplitProviderTests extends ESTestCase {
 
     // -- helpers --
 
+    public void testCpuNanosNonNegative() {
+        StorageEntry e1 = new StorageEntry(StoragePath.of("s3://b/a.parquet"), 100, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(e1), "s3://b/*.parquet");
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
+        SplitDiscoveryResult result = provider.discoverSplits(ctx);
+        assertThat("filesScanned must be >0", result.filesScanned(), greaterThan(0));
+        assertThat("cpuNanos must be >0", result.cpuNanos(), greaterThan(0L));
+    }
+
     private static final Source SRC = Source.EMPTY;
 
     private static FieldAttribute fieldAttr(String name) {

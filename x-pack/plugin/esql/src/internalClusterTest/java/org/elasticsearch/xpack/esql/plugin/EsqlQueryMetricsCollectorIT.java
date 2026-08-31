@@ -112,9 +112,9 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         }
 
         assertReadCpuNanos("csv");
+        assertSplitDiscoveryCpuNanos("csv");
         assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
         assertThat(lastMetrics.get(QueryMetricsListener.CPU_NANOS), greaterThan(0L));
-        assertThat(lastMetrics.get(QueryMetricsListener.SPLIT_DISCOVERY_NANOS), greaterThan(0L));
         // TODO: does not work for CVS for now: assertThat(lastMetrics.get(QueryMetricsListener.BYTES_READ), greaterThan(0L));
     }
 
@@ -129,6 +129,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         try (var ignored = run(syncEsqlQueryRequest("FROM metrics_ndjson_ds | LIMIT 10"), TIMEOUT)) {}
 
         assertReadCpuNanos("ndjson");
+        assertSplitDiscoveryCpuNanos("ndjson");
     }
 
     /**
@@ -156,6 +157,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
             assertThat(name + "-csv: metrics must be set", lastMetrics, notNullValue());
             assertThat(name + "-csv: read_cpu_nanos > 0", lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS), greaterThan(0L));
         }
+        assertSplitDiscoveryCpuNanos(name + "-csv");
 
         lastMetrics = null;
         // NDJSON
@@ -172,6 +174,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
             assertThat(name + "-ndjson: metrics must be set", lastMetrics, notNullValue());
             assertThat(name + "-ndjson: read_cpu_nanos > 0", lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS), greaterThan(0L));
         }
+        assertSplitDiscoveryCpuNanos(name + "-ndjson");
     }
 
     record CompressionTestCase(CheckedBiConsumer<Path, String, IOException> writer, boolean splittable) {}
@@ -235,6 +238,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
 
         assertThat("brackets-csv: metrics must be set", lastMetrics, notNullValue());
         assertThat("brackets-csv: read_cpu_nanos > 0", lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS), greaterThan(0L));
+        assertSplitDiscoveryCpuNanos("brackets-csv");
     }
 
     private static String createNdjson(int x) {
@@ -263,6 +267,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         try (var ignored = run(syncEsqlQueryRequest("FROM metrics_parquet_ds | LIMIT 200"), TIMEOUT)) {}
 
         assertReadCpuNanos("parquet");
+        assertSplitDiscoveryCpuNanos("parquet");
     }
 
     public void testNoCollectionWithoutExternalData() throws Exception {
@@ -303,6 +308,22 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         lastMetrics = null;
         try (var ignored = run(syncEsqlQueryRequest("FROM " + ds + " | STATS COUNT(*)"), TIMEOUT)) {}
         assertThat("warm COUNT(*) over external source must be metered", lastMetrics, notNullValue());
+    }
+
+    /** Asserts that {@code split_discovery_cpu_nanos} is populated and does not exceed {@code split_discovery_nanos}. */
+    private void assertSplitDiscoveryCpuNanos(String format) {
+        assertThat(format + ": metrics must be set", lastMetrics, notNullValue());
+        assertThat(format + ": split_discovery_nanos > 0", lastMetrics.get(QueryMetricsListener.SPLIT_DISCOVERY_NANOS), greaterThan(0L));
+        assertThat(
+            format + ": split_discovery_cpu_nanos > 0",
+            lastMetrics.get(QueryMetricsListener.SPLIT_DISCOVERY_CPU_NANOS),
+            greaterThan(0L)
+        );
+        assertThat(
+            format + ": split_discovery_cpu_nanos <= split_discovery_nanos",
+            lastMetrics.get(QueryMetricsListener.SPLIT_DISCOVERY_NANOS),
+            greaterThanOrEqualTo(lastMetrics.get(QueryMetricsListener.SPLIT_DISCOVERY_CPU_NANOS))
+        );
     }
 
     /** Asserts that {@code read_cpu_nanos} is populated and does not exceed {@code read_nanos}. */

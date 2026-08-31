@@ -85,19 +85,13 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
     /**
      * Matches workflows-related system <strong>indices</strong> under {@code .workflows-}, but not the log
      * {@linkplain SystemDataStreamDescriptor system data streams} registered in {@link #getSystemDataStreamDescriptors()}
-     * ({@value #WORKFLOWS_EVENTS_DATA_STREAM_NAME} and {@value #WORKFLOWS_EXECUTION_LOGS_DATA_STREAM_NAME}), and not the
-     * queryable execution indices ({@code .workflows-executions*} and {@code .workflows-step-executions*}) that ordinary
-     * users may access via the {@code KibanaWorkflowsImplicitPrivilegesProvider}.
+     * ({@value #WORKFLOWS_EVENTS_DATA_STREAM_NAME} and {@value #WORKFLOWS_EXECUTION_LOGS_DATA_STREAM_NAME}) or the
+     * queryable workflow execution indices.
      * <p>
      * A plain {@code .workflows-*} pattern is invalid here: it matches those data stream names, and
      * {@link org.elasticsearch.indices.SystemIndices} forbids overlap between a {@link SystemIndexDescriptor} pattern and
      * a {@link SystemDataStreamDescriptor} (see {@code checkForOverlappingPatterns}). Uses the same complement style as Fleet's
      * {@code .fleet-actions~(-results*)}; see {@link SystemIndexDescriptor} for pattern syntax.
-     * <p>
-     * The two execution-index alternatives are both required: the complement alternation is prefix-anchored against the
-     * <em>tail</em> of the index name (the part after {@code .workflows}), so {@code -executions*} is matched against
-     * {@code -step-executions}'s tail from position 0 and does not match — omitting either alternative would leave that
-     * index as a system index and break the implicit-privileges grant.
      */
     public static final String WORKFLOWS_SYSTEM_INDEX_PATTERN =
         ".workflows~(-events*|-execution-data-stream-logs*|-executions*|-step-executions*)";

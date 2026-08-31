@@ -26,6 +26,7 @@ import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 
 import java.io.IOException;
 import java.util.Set;
@@ -35,6 +36,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.randomRegionTimestampMillis;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCachePeriodicMetrics.METRICS_INTERVAL_SETTING;
 import static org.hamcrest.Matchers.equalTo;
@@ -77,29 +79,29 @@ public class StatelessSharedBlobCachePeriodicMetricsTests extends ESTestCase {
             taskQueue.runTasksUpToTimeInOrder(taskQueue.getCurrentTimeMillis() + interval.millis());
             recording.getRecorder().collect();
             final var firstFilled = recording.getRecorder()
-                .getMeasurements(InstrumentType.LONG_GAUGE, StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_FILLED)
+                .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_FILLED)
                 .getLast();
             assertThat(firstFilled.getLong(), equalTo(0L));
             assertThat(firstFilled.attributes().isEmpty(), equalTo(true));
             final var firstTotal = recording.getRecorder()
-                .getMeasurements(InstrumentType.LONG_GAUGE, StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_TOTAL)
+                .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_TOTAL)
                 .getLast();
             assertThat(firstTotal.getLong(), equalTo((long) numRegions));
 
             for (int i = 0; i < numRegions; i++) {
                 final var cacheKey = new TestCacheKey(new ShardId("index", randomUUID(), 0), "file-" + i);
-                SharedBlobCacheServiceTestUtils.cacheRegion(cacheService, cacheKey, regionSize - 1, 0);
+                SharedBlobCacheServiceTestUtils.cacheRegion(cacheService, cacheKey, regionSize - 1, 0, randomRegionTimestampMillis());
             }
 
             taskQueue.runTasksUpToTimeInOrder(taskQueue.getCurrentTimeMillis() + interval.millis());
             recording.getRecorder().collect();
             final var lastFilled = recording.getRecorder()
-                .getMeasurements(InstrumentType.LONG_GAUGE, StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_FILLED)
+                .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_FILLED)
                 .getLast();
             assertThat(lastFilled.getLong(), equalTo((long) numRegions));
             assertThat(lastFilled.attributes().isEmpty(), equalTo(true));
             final var lastTotal = recording.getRecorder()
-                .getMeasurements(InstrumentType.LONG_GAUGE, StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_TOTAL)
+                .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_TOTAL)
                 .getLast();
             assertThat(lastTotal.getLong(), equalTo((long) numRegions));
         }
@@ -184,7 +186,8 @@ public class StatelessSharedBlobCachePeriodicMetricsTests extends ESTestCase {
                 cacheService,
                 new TestCacheKey(new ShardId("index", randomUUID(), 0), "file"),
                 regionSize - 1,
-                0
+                0,
+                randomRegionTimestampMillis()
             );
 
             metrics.start();
@@ -269,7 +272,8 @@ public class StatelessSharedBlobCachePeriodicMetricsTests extends ESTestCase {
                 cacheService,
                 new TestCacheKey(new ShardId("index", randomUUID(), 0), "file"),
                 regionSize - 1,
-                0
+                0,
+                randomRegionTimestampMillis()
             );
 
             metrics.start();
@@ -399,7 +403,7 @@ public class StatelessSharedBlobCachePeriodicMetricsTests extends ESTestCase {
     }
 
     public void testSamplePublishesProtectionGaugesViaIsProtected() throws IOException {
-        final int numRegions = randomIntBetween(4, 10);
+        final int numRegions = randomIntBetween(5, 10);
         final long regionSize = SharedBytes.PAGE_SIZE * 10L;
         final TimeValue interval = TimeValue.timeValueMinutes(1);
         final Settings settings = Settings.builder()
@@ -468,23 +472,31 @@ public class StatelessSharedBlobCachePeriodicMetricsTests extends ESTestCase {
                 0,
                 SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP
             );
+            SharedBlobCacheServiceTestUtils.cacheRegion(
+                cacheService,
+                new TestCacheKey(shardId, "pre_timestamp_field"),
+                regionSize - 1,
+                0,
+                SearchDirectory.PRE_TIMESTAMP_FIELD_FALLBACK_MILLIS
+            );
 
             metrics.start();
             taskQueue.runTasksUpToTimeInOrder(taskQueue.getCurrentTimeMillis() + interval.millis());
             recording.getRecorder().collect();
-            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_FILLED, 4L);
-            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PROTECTED_METRIC, 4L);
+            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_FILLED, 5L);
+            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PROTECTED_METRIC, 5L);
             // Fresh LFU entries start at frequency 1, so all protected regions land in the positive-freq bucket.
             assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PROTECTED_FREQ_0_METRIC, 0L);
-            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PROTECTED_FREQ_POSITIVE_METRIC, 4L);
+            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PROTECTED_FREQ_POSITIVE_METRIC, 5L);
             assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.UNKNOWN_METRIC, 1L);
             assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.BACKFILL_METRIC, 1L);
             assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.MINIMAL_METRIC, 1L);
+            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PRE_TIMESTAMP_FIELD_METRIC, 1L);
 
             protectAll.set(false);
             taskQueue.runTasksUpToTimeInOrder(taskQueue.getCurrentTimeMillis() + interval.millis());
             recording.getRecorder().collect();
-            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_FILLED, 4L);
+            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_FILLED, 5L);
             assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PROTECTED_METRIC, 0L);
             assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PROTECTED_FREQ_0_METRIC, 0L);
             assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PROTECTED_FREQ_POSITIVE_METRIC, 0L);
@@ -492,11 +504,12 @@ public class StatelessSharedBlobCachePeriodicMetricsTests extends ESTestCase {
             assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.UNKNOWN_METRIC, 1L);
             assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.BACKFILL_METRIC, 1L);
             assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.MINIMAL_METRIC, 1L);
+            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PRE_TIMESTAMP_FIELD_METRIC, 1L);
         }
     }
 
     private static void assertGauge(RecordingMeterRegistry recording, String name, long expected) {
-        final var measurement = recording.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, name).getLast();
+        final var measurement = recording.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, name).getLast();
         assertThat(measurement.getLong(), equalTo(expected));
         assertThat(measurement.attributes().isEmpty(), equalTo(true));
     }

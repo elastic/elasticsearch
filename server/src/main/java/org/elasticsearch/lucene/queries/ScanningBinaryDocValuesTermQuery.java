@@ -16,6 +16,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
@@ -39,15 +40,15 @@ public class ScanningBinaryDocValuesTermQuery extends AbstractBinaryDocValuesQue
 
     private final BytesRef term;
 
-    public ScanningBinaryDocValuesTermQuery(String fieldName, BytesRef term, boolean arrayOrderInlineNull) {
-        super(fieldName, term::equals, arrayOrderInlineNull);
+    public ScanningBinaryDocValuesTermQuery(String fieldName, BytesRef term, BinaryDocValuesFormat binaryFormat) {
+        super(fieldName, term::equals, binaryFormat);
         this.term = Objects.requireNonNull(term);
     }
 
     @Override
     public Query rewrite(IndexSearcher searcher) throws IOException {
         if (term.length == 0) {
-            return new BinaryDocValuesLengthQuery(fieldName, 0, arrayOrderInlineNull);
+            return new BinaryDocValuesLengthQuery(fieldName, 0, binaryFormat);
         }
         return this;
     }
@@ -92,11 +93,11 @@ public class ScanningBinaryDocValuesTermQuery extends AbstractBinaryDocValuesQue
             return false;
         }
         ScanningBinaryDocValuesTermQuery that = (ScanningBinaryDocValuesTermQuery) o;
-        return Objects.equals(fieldName, that.fieldName) && Objects.equals(term, that.term);
+        return Objects.equals(fieldName, that.fieldName) && Objects.equals(term, that.term) && binaryFormat == that.binaryFormat;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), fieldName, term);
+        return Objects.hash(classHash(), fieldName, term, binaryFormat);
     }
 }

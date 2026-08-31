@@ -29,6 +29,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermInSetQuery;
@@ -58,11 +59,11 @@ import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRangeQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesWildcardQuery;
-import org.elasticsearch.lucene.queries.SortedSetDocValuesRangeQuery;
-import org.elasticsearch.lucene.search.XDocValuesRewriteMethod;
+import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.script.ScriptCompiler;
 
 import java.io.IOException;
@@ -71,6 +72,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.mapper.BinaryDocValuesFormat.SEPARATE_COUNT;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -100,7 +102,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(new TermQuery(new Term("field", "foo")), ft.termQuery("foo", MOCK_CONTEXT));
 
         MappedFieldType ft2 = new KeywordFieldType("field", false, true, Map.of());
-        assertEquals(SortedSetDocValuesRangeQuery.newSlowExactQuery("field", new BytesRef("foo")), ft2.termQuery("foo", MOCK_CONTEXT));
+        assertEquals(XSortedSetDocValuesRangeQuery.newSlowExactQuery("field", new BytesRef("foo")), ft2.termQuery("foo", MOCK_CONTEXT));
 
         MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("bar", MOCK_CONTEXT));
@@ -143,7 +145,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             builder,
             true
         );
-        assertEquals(new ScanningBinaryDocValuesTermQuery("field", new BytesRef("foo"), false), ft.termQuery("foo", MOCK_CONTEXT));
+        assertEquals(new ScanningBinaryDocValuesTermQuery("field", new BytesRef("foo"), SEPARATE_COUNT), ft.termQuery("foo", MOCK_CONTEXT));
     }
 
     public void testTermQueryWithNormalizer() {
@@ -311,7 +313,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         MappedFieldType ft2 = new KeywordFieldType("field", false, true, Map.of());
         assertEquals(
-            SortedSetDocValuesRangeQuery.newSlowRangeQuery("field", BytesRefs.toBytesRef("foo"), BytesRefs.toBytesRef("bar"), true, false),
+            XSortedSetDocValuesRangeQuery.newSlowRangeQuery("field", BytesRefs.toBytesRef("foo"), BytesRefs.toBytesRef("bar"), true, false),
             ft2.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_CONTEXT)
         );
 
@@ -322,6 +324,30 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(
             "[range] queries on [text] or [keyword] fields cannot be executed when " + "'search.allow_expensive_queries' is set to false.",
             ee.getMessage()
+        );
+    }
+
+    public void testRangeQueryUsesBinaryDocValuesQuery() {
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", defaultIndexSettings());
+        builder.docValues(FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);
+        MappedFieldType ft = new KeywordFieldType(
+            "field",
+            IndexType.docValuesOnly(),
+            TextSearchInfo.SIMPLE_MATCH_ONLY,
+            null,
+            builder,
+            true
+        );
+        assertEquals(
+            new ScanningBinaryDocValuesRangeQuery(
+                "field",
+                BytesRefs.toBytesRef("bar"),
+                BytesRefs.toBytesRef("foo"),
+                true,
+                false,
+                SEPARATE_COUNT
+            ),
+            ft.rangeQuery("bar", "foo", true, false, null, null, null, MOCK_CONTEXT)
         );
     }
 
@@ -337,10 +363,13 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             true
         );
         assertEquals(
-            new ScanningBinaryDocValuesPrefixQuery("field", "foo", false, false),
+            new ScanningBinaryDocValuesPrefixQuery("field", "foo", false, SEPARATE_COUNT),
             ft.prefixQuery("foo", null, false, MOCK_CONTEXT)
         );
-        assertEquals(new ScanningBinaryDocValuesPrefixQuery("field", "foo", true, false), ft.prefixQuery("foo", null, true, MOCK_CONTEXT));
+        assertEquals(
+            new ScanningBinaryDocValuesPrefixQuery("field", "foo", true, SEPARATE_COUNT),
+            ft.prefixQuery("foo", null, true, MOCK_CONTEXT)
+        );
     }
 
     public void testWildcardQueryHighCardinality() {
@@ -354,7 +383,10 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             builder,
             true
         );
-        assertEquals(new ScanningBinaryDocValuesWildcardQuery("field", "foo*", false, false), ft.wildcardQuery("foo*", null, MOCK_CONTEXT));
+        assertEquals(
+            new ScanningBinaryDocValuesWildcardQuery("field", "foo*", false, SEPARATE_COUNT),
+            ft.wildcardQuery("foo*", null, MOCK_CONTEXT)
+        );
     }
 
     public void testRegexpQueryHighCardinality() {
@@ -369,7 +401,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             true
         );
         assertEquals(
-            new ScanningBinaryDocValuesRegexpQuery("field", "foo.*", 0, 0, 10, false, null),
+            new ScanningBinaryDocValuesRegexpQuery("field", "foo.*", 0, 0, 10, SEPARATE_COUNT, null),
             ft.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT)
         );
     }
@@ -396,7 +428,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         // The normalizer must lowercase the pattern before building the regexp query
         assertEquals(
-            new ScanningBinaryDocValuesRegexpQuery("field", "foo.*", 0, 0, 10, false, null),
+            new ScanningBinaryDocValuesRegexpQuery("field", "foo.*", 0, 0, 10, SEPARATE_COUNT, null),
             ft.regexpQuery("FOO.*", 0, 0, 10, null, MOCK_CONTEXT)
         );
     }
@@ -424,12 +456,15 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = new KeywordFieldType("field", false, true, Map.of());
         Query q = ft.regexpQuery("foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, null, MOCK_CONTEXT);
         assertThat(q, instanceOf(RegexpQuery.class));
-        assertEquals(XDocValuesRewriteMethod.DOC_VALUES_REWRITE, ((RegexpQuery) q).getRewriteMethod());
+        assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, ((RegexpQuery) q).getRewriteMethod());
 
         // Binary DV → ScanningBinaryDocValuesRegexpQuery, which handles matchFlags via RegExp(pattern, syntaxFlags, matchFlags)
         MappedFieldType binaryFt = new KeywordFieldType("field", false, true, true, Map.of());
         q = binaryFt.regexpQuery("foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, null, MOCK_CONTEXT);
-        assertEquals(new ScanningBinaryDocValuesRegexpQuery("field", "foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, false, null), q);
+        assertEquals(
+            new ScanningBinaryDocValuesRegexpQuery("field", "foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, SEPARATE_COUNT, null),
+            q
+        );
     }
 
     public void testFuzzyQuery() {
@@ -511,6 +546,26 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             .build(MapperBuilderContext.root(false, false))
             .fieldType();
         assertEquals(List.of("NULL"), fetchSourceValue(nullValueMapper, null));
+    }
+
+    public void testGetTermsHighCardinalityDocValuesOnly() throws IOException {
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", defaultIndexSettings());
+        builder.docValues(FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);
+        MappedFieldType ft = new KeywordFieldType(
+            "field",
+            IndexType.docValuesOnly(),
+            TextSearchInfo.SIMPLE_MATCH_ONLY,
+            null,
+            builder,
+            true
+        );
+        try (Directory dir = newDirectory()) {
+            RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
+            IndexReader reader = writer.getReader();
+            writer.close();
+            expectThrows(IllegalArgumentException.class, () -> ft.getTerms(reader, "", randomBoolean(), null));
+            reader.close();
+        }
     }
 
     public void testGetTerms() throws IOException {

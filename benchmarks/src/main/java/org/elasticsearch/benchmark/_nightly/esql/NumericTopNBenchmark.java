@@ -52,8 +52,8 @@ import java.util.concurrent.TimeUnit;
  * self-test domain pure: this class's parameter combinations are all valid for both operators,
  * so the mandatory self-test exercises every cell without skips.
  */
-@Warmup(iterations = 5)
-@Measurement(iterations = 7)
+@Warmup(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
+@Measurement(iterations = 7, time = 1, timeUnit = TimeUnit.SECONDS)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Thread)

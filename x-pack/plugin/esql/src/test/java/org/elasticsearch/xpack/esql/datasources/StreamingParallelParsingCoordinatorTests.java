@@ -12,9 +12,12 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -66,7 +69,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
@@ -292,7 +297,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * {@link ExternalClientException} (HTTP 400) — including the coordinator's "Streaming parallel parsing
      * failed" prefix — rather than a status-neutral {@link RuntimeException} that would later be
      * misclassified as 500. The injected "injected failure" mirrors the path real failures take (e.g. a
-     * record exceeding {@code max_record_size}).
+     * record exceeding {@code external_max_record_size}).
      */
     public void testParserIoFailureSurfacesAsExternalClientException() throws Exception {
         String content = buildContent(100);
@@ -571,7 +576,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * publishes the first chunk or reaches EOF. This is the core consumer-yield contract that lets the
      * producer-loop release its executor slot back to the pool while parser/segmenter sub-tasks run.
      * Without it, the producer-loop would spin inside {@code hasNext()} holding the slot, deadlocking
-     * the pool on multi-file gzip globs with default {@code parsing_parallelism = cores}.
+     * the pool on multi-file gzip globs with default {@code external_parsing_parallelism = cores}.
      */
     public void testWaitForReadyParksUntilFirstChunkOrEof() throws Exception {
         // Synthesize a stream the segmenter cannot yet make progress on by gating it behind a latch
@@ -691,7 +696,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * Regression test for the producer-loop pool-exhaustion deadlock: verifies that many file
      * readers can drain against a tiny shared executor pool without one iterator's producer-loop
      * blocking the sub-tasks that another iterator (or its own) needs to make progress. Pre-fix,
-     * {@code F} file readers with {@code parsing_parallelism = N} submitted {@code F × (1 + N)}
+     * {@code F} file readers with {@code external_parsing_parallelism = N} submitted {@code F × (1 + N)}
      * sub-tasks plus {@code F} producer-loop drivers — a pool of {@code F × (2 + N)} threads.
      * With a smaller pool, producer-loops blocked inside {@code hasNext()} occupy slots that their
      * sub-tasks need; post-fix, producer-loops yield via {@link CloseableIterator#waitForReady()}
@@ -1138,6 +1143,131 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * A rejected breaker charge in {@code takeOrAllocateBuffer} must not leave {@code buffersAllocated}
+     * inflated. If the counter exceeds the number of successful charges, {@code close()} refunds more
+     * than was taken — driving the breaker's {@code used} negative and removing protection for the
+     * next request. Fix: claim the slot atomically and roll it back on the exception path.
+     */
+    public void testBreakerChargeIsRefundedExactlyOnRejection() throws Exception {
+        int chunkSize = 64;
+        // Trip on the very first allocation so the rejection path is always exercised. The @After
+        // allBreakersMemoryReleased() assertion then verifies that close() leaves used == 0.
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(0));
+
+        // Enough content to trigger multiple buffer allocations from the segmentator.
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 30; i++) {
+            sb.append("line-").append(i).append('\n');
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            LineFormatReader reader = new LineFormatReader(chunkSize);
+            CloseableIterator<Page> it = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                new ByteArrayInputStream(bytes),
+                null,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                breaker
+            );
+            expectThrows(CircuitBreakingException.class, () -> {
+                while (it.hasNext()) {
+                    it.next().releaseBlocks();
+                }
+            });
+            it.close();
+        } finally {
+            executor.shutdownNow();
+        }
+        assertEquals("breaker net bytes must be 0 after close; a negative value means close() over-refunded", 0L, breaker.getUsed());
+    }
+
+    /**
+     * {@code close()} must be safe to call concurrently: no caller throws, and the breaker ends
+     * balanced rather than over-refunded.
+     * <p>
+     * Note this asserts the <em>property</em>, not the mechanism. The refund reads its tally with
+     * {@code buffersAllocated.getAndSet(0)}, so only one caller can ever observe a non-zero value —
+     * that alone makes a double refund impossible, and this test still passes if the {@code closed}
+     * CAS in {@code close()} is downgraded to a check-then-act (verified by reverting it). The CAS
+     * earns its keep by keeping the <em>rest</em> of the close body (queue drain, stream release,
+     * stats poisoning) single-shot; that is not what this test pins down.
+     */
+    public void testConcurrentCloseDoesNotDoubleRefund() throws Exception {
+        int chunkSize = 64;
+        // Generous enough never to trip: this test is about the refund path, not the charge path.
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+
+        String content = buildContent(10);
+        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            LineFormatReader reader = new LineFormatReader(chunkSize);
+            CloseableIterator<Page> it = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                new ByteArrayInputStream(bytes),
+                null,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                breaker
+            );
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+
+            CountDownLatch start = new CountDownLatch(1);
+            CountDownLatch done = new CountDownLatch(2);
+            List<Throwable> errors = new CopyOnWriteArrayList<>();
+            for (int i = 0; i < 2; i++) {
+                executor.execute(() -> {
+                    try {
+                        start.await();
+                        it.close();
+                    } catch (Throwable t) {
+                        // Throwable, not Exception: an over-refund makes LimitedBreaker's
+                        // addWithoutBreaking throw AssertionError, which must be reported here
+                        // rather than silently escaping to the executor's uncaught handler.
+                        errors.add(t);
+                    } finally {
+                        done.countDown();
+                    }
+                });
+            }
+            start.countDown();
+            assertTrue("concurrent closers did not finish in time", done.await(10, TimeUnit.SECONDS));
+            assertTrue("close() must not throw: " + errors, errors.isEmpty());
+        } finally {
+            executor.shutdownNow();
+        }
+        assertEquals("concurrent close must not double-refund the breaker", 0L, breaker.getUsed());
+    }
+
     private static String buildContent(int lineCount) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < lineCount; i++) {
@@ -1311,14 +1441,14 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             );
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(iterator));
             String chain = ex.toString() + (ex.getCause() != null ? " | cause: " + ex.getCause() : "");
-            assertTrue("expected a bounded grow-loop failure, got: " + chain, chain.contains("record exceeded max_record_size"));
+            assertTrue("expected a bounded grow-loop failure, got: " + chain, chain.contains("record exceeded external_max_record_size"));
         } finally {
             executor.shutdownNow();
         }
     }
 
     /**
-     * A {@code max_record_size} cap-hit must honor the read {@link ErrorPolicy}: a strict policy keeps
+     * A {@code external_max_record_size} cap-hit must honor the read {@link ErrorPolicy}: a strict policy keeps
      * hard-failing (as before), while a non-strict policy degrades gracefully — it truncates the read
      * at the undelimitable record and returns the records parsed before it (truncate-at-failure, since
      * an unclosed record has no resumption point). The fixture is a handful of clean records followed
@@ -1362,7 +1492,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             String chain = ex.toString() + (ex.getCause() != null ? " | cause: " + ex.getCause() : "");
             assertTrue(
                 "strict policy must still hard-fail on the cap-hit, got: " + chain,
-                chain.contains("record exceeded max_record_size")
+                chain.contains("record exceeded external_max_record_size")
             );
         } finally {
             strictExecutor.shutdownNow();
@@ -1448,7 +1578,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             "expected a partial-results truncation warning, got: " + sink,
             sink.get(0).contains("results are partial")
                 && sink.get(0).contains("truncated at byte")
-                && sink.get(0).contains("record exceeded max_record_size")
+                && sink.get(0).contains("record exceeded external_max_record_size")
         );
     }
 
@@ -1492,7 +1622,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         List<String> warnings = drainWarnings();
         assertTrue(
             "expected a client-visible partial-results warning, got: " + warnings,
-            warnings.stream().anyMatch(w -> w.contains("results are partial") && w.contains("record exceeded max_record_size"))
+            warnings.stream().anyMatch(w -> w.contains("results are partial") && w.contains("record exceeded external_max_record_size"))
         );
     }
 
@@ -1665,6 +1795,56 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    /**
+     * Regression guard: when the executor rejects the segmentator task (e.g. pool shut down or
+     * saturated with no queue) {@link StreamingParallelParsingCoordinator.StreamingParallelIterator}
+     * must close the decompressed stream promptly via {@code onSegmentatorLaunchRejected}, not wait
+     * until the consumer calls {@link CloseableIterator#close()}.
+     */
+    public void testSegmentatorRejectionClosesDecompressedStream() throws Exception {
+        AtomicBoolean streamClosed = new AtomicBoolean(false);
+        InputStream trackingStream = new InputStream() {
+            private final ByteArrayInputStream backing = new ByteArrayInputStream("line-0000\n".getBytes(StandardCharsets.UTF_8));
+
+            @Override
+            public int read() throws IOException {
+                return backing.read();
+            }
+
+            @Override
+            public void close() {
+                streamClosed.set(true);
+            }
+        };
+        LineFormatReader reader = new LineFormatReader(1024);
+        Executor rejectingExecutor = r -> { throw new RejectedExecutionException("pool is shut down"); };
+
+        StreamingParallelParsingCoordinator.StreamingParallelIterator iterator =
+            new StreamingParallelParsingCoordinator.StreamingParallelIterator(
+                reader,
+                trackingStream,
+                null,
+                List.of("line"),
+                50,
+                4,
+                rejectingExecutor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE
+            );
+        // The rejection is synchronous: onSegmentatorLaunchRejected fires during admission.submit()
+        // inside the constructor, so the stream is already closed before the constructor returns.
+        assertTrue("stream must be closed promptly on segmentator rejection", streamClosed.get());
+        // Calling close() after the fact must be safe (CAS no-op on the already-closed stream).
+        iterator.close();
+        assertTrue("stream must remain closed after iterator.close()", streamClosed.get());
     }
 
     private static RecordSplitter neverBoundarySplitter(int maxRecordBytes) {

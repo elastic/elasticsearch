@@ -284,6 +284,24 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
         assertThat(service.requiresUpdate(correctlyNonSystem), equalTo(false));
     }
 
+    public void testDemoteIndexThatNoLongerMatchesSystemDescriptor() {
+        IndexMetadata indexMetadata = IndexMetadata.builder("user-index")
+            .system(true)
+            .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true))
+            .build();
+        Metadata metadata = Metadata.builder().put(IndexMetadata.builder(indexMetadata)).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("system-index-metadata-upgrade-service-tests"))
+            .metadata(metadata)
+            .customs(Map.of())
+            .build();
+
+        service.submitUpdateTask(List.of(indexMetadata.getIndex()), List.of());
+        IndexMetadata result = executeTask(clusterState).metadata().getProject().index(indexMetadata.getIndex().getName());
+
+        assertThat(result.isSystem(), equalTo(false));
+        assertThat(result.isHidden(), equalTo(true));
+    }
+
     public void testIsVisible() {
         IndexMetadata nonSystemHiddenIndex = IndexMetadata.builder("user-index")
             .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, "true"))

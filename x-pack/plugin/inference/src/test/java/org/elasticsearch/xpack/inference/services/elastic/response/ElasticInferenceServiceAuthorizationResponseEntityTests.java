@@ -1279,7 +1279,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                     {
                       "csp": "aws",
                       "region": "us-east-1",
-                      "geo": "us"
+                      "geo": "us",
+                      "region_display_name": "US East (N. Virginia)"
                     },
                     {
                       "csp": "gcp",
@@ -1299,8 +1300,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             endpoint.regions(),
             is(
                 List.of(
-                    new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us"),
-                    new EndpointMetadata.EndpointRegion("gcp", "europe-west1", "eu")
+                    new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us", "US East (N. Virginia)"),
+                    new EndpointMetadata.EndpointRegion("gcp", "europe-west1", "eu", null)
                 )
             )
         );

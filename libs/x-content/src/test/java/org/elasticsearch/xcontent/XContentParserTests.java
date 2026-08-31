@@ -12,10 +12,8 @@ package org.elasticsearch.xcontent;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xcontent.support.AbstractXContentParser;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -35,7 +33,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.internal.matchers.ThrowableMessageMatcher.hasMessage;
@@ -44,147 +41,6 @@ public class XContentParserTests extends ESTestCase {
 
     protected XContentParser decorateParser(XContentParser parser) {
         return parser;
-    }
-
-    public void testFloat() throws IOException {
-        final XContentType xContentType = randomFrom(XContentType.values());
-
-        final String field = randomAlphaOfLengthBetween(1, 5);
-        final Float value = randomFloat();
-
-        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
-            builder.startObject();
-            if (randomBoolean()) {
-                builder.field(field, value);
-            } else {
-                builder.field(field).value(value);
-            }
-            builder.endObject();
-
-            final Number number;
-            BytesReference data = BytesReference.bytes(builder);
-            try (XContentParser parser = decorateParser(createParser(xContentType.xContent(), data))) {
-                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-                assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-                assertEquals(field, parser.currentName());
-                assertEquals(XContentParser.Token.VALUE_NUMBER, parser.nextToken());
-
-                number = parser.numberValue();
-
-                assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-                assertNull(parser.nextToken());
-            }
-
-            assertEquals(value, number.floatValue(), 0.0f);
-
-            switch (xContentType) {
-                case VND_CBOR, VND_SMILE, CBOR, SMILE -> assertThat(number, instanceOf(Float.class));
-                case VND_JSON, VND_YAML, JSON, YAML -> assertThat(number, instanceOf(Double.class));
-                default -> throw new AssertionError("unexpected x-content type [" + xContentType + "]");
-            }
-        }
-    }
-
-    public void testLongCoercion() throws IOException {
-        XContentType xContentType = randomFrom(XContentType.values());
-
-        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
-            builder.startObject();
-
-            builder.field("five", "5.5");
-            builder.field("minusFive", "-5.5");
-
-            builder.field("minNegative", "-9.2233720368547758089999e18");
-            builder.field("tooNegative", "-9.223372036854775809e18");
-            builder.field("maxPositive", "9.2233720368547758079999e18");
-            builder.field("tooPositive", "9.223372036854775808e18");
-
-            builder.field("expTooBig", "2e100");
-            builder.field("minusExpTooBig", "-2e100");
-            builder.field("maxPositiveExp", "1e2147483647");
-            builder.field("tooPositiveExp", "1e2147483648");
-
-            builder.field("expTooSmall", "2e-100");
-            builder.field("minusExpTooSmall", "-2e-100");
-            builder.field("maxNegativeExp", "1e-2147483647");
-
-            builder.field("tooNegativeExp", "1e-2147483648");
-
-            builder.endObject();
-
-            BytesReference data = BytesReference.bytes(builder);
-            try (XContentParser parser = decorateParser(createParser(xContentType.xContent(), data))) {
-                assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
-
-                assertFieldWithValue("five", 5L, parser);
-                assertFieldWithValue("minusFive", -5L, parser); // Rounds toward zero
-
-                assertFieldWithValue("minNegative", Long.MIN_VALUE, parser);
-                assertFieldWithInvalidLongValue("tooNegative", parser);
-                assertFieldWithValue("maxPositive", Long.MAX_VALUE, parser);
-                assertFieldWithInvalidLongValue("tooPositive", parser);
-
-                assertFieldWithInvalidLongValue("expTooBig", parser);
-                assertFieldWithInvalidLongValue("minusExpTooBig", parser);
-                assertFieldWithInvalidLongValue("maxPositiveExp", parser);
-                assertFieldWithInvalidLongValue("tooPositiveExp", parser);
-
-                // too small goes to zero
-                assertFieldWithValue("expTooSmall", 0L, parser);
-                assertFieldWithValue("minusExpTooSmall", 0L, parser);
-                assertFieldWithValue("maxNegativeExp", 0L, parser);
-
-                assertFieldWithInvalidLongValue("tooNegativeExp", parser);
-            }
-        }
-    }
-
-    public void testNumericCoercionBoundsStringLength() throws IOException {
-        String atLimit = "0".repeat(AbstractXContentParser.MAX_NUMERIC_STRING_LENGTH - 1) + "1";
-        String overLimit = "0".repeat(AbstractXContentParser.MAX_NUMERIC_STRING_LENGTH) + "1";
-        assertThat(atLimit.length(), equalTo(AbstractXContentParser.MAX_NUMERIC_STRING_LENGTH));
-        assertThat(overLimit.length(), equalTo(AbstractXContentParser.MAX_NUMERIC_STRING_LENGTH + 1));
-
-        for (CheckedConsumer<XContentParser, IOException> accessor : List.<CheckedConsumer<XContentParser, IOException>>of(
-            XContentParser::shortValue,
-            XContentParser::intValue,
-            XContentParser::longValue,
-            XContentParser::floatValue,
-            XContentParser::doubleValue
-        )) {
-            assertNumericAccessor(atLimit, accessor);
-            assertNumericAccessor(overLimit, parser -> {
-                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> accessor.accept(parser));
-                assertThat(e.getMessage(), containsString("exceeds the maximum"));
-            });
-        }
-    }
-
-    private void assertNumericAccessor(String value, CheckedConsumer<XContentParser, IOException> assertion) throws IOException {
-        XContentType xContentType = randomFrom(XContentType.values());
-        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
-            builder.startObject().field("n", value).endObject();
-            try (XContentParser parser = decorateParser(createParser(xContentType.xContent(), BytesReference.bytes(builder)))) {
-                assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
-                assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
-                assertThat(parser.nextToken(), is(XContentParser.Token.VALUE_STRING));
-                assertion.accept(parser);
-            }
-        }
-    }
-
-    private static void assertFieldWithValue(String fieldName, long fieldValue, XContentParser parser) throws IOException {
-        assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
-        assertThat(parser.currentName(), is(fieldName));
-        assertThat(parser.nextToken(), is(XContentParser.Token.VALUE_STRING));
-        assertThat(parser.longValue(), equalTo(fieldValue));
-    }
-
-    private static void assertFieldWithInvalidLongValue(String fieldName, XContentParser parser) throws IOException {
-        assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
-        assertThat(parser.currentName(), is(fieldName));
-        assertThat(parser.nextToken(), is(XContentParser.Token.VALUE_STRING));
-        expectThrows(IllegalArgumentException.class, parser::longValue);
     }
 
     public void testReadList() throws IOException {

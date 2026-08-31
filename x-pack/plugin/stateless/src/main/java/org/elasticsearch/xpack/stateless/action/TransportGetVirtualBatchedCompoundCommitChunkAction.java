@@ -104,7 +104,7 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
                     final Index index = shardId.getIndex();
                     final IndexShard shard = indicesService.indexServiceSafe(index).getShard(request.getShardId().id());
                     assert shard.routingEntry().primary() : shard + " not primary on node " + transportService.getLocalNode();
-                    final var commitService = statelessCommitServiceProvider.commitService();
+                    final var commitService = statelessCommitServiceProvider.get();
                     primaryShardOperation(
                         request,
                         shard,

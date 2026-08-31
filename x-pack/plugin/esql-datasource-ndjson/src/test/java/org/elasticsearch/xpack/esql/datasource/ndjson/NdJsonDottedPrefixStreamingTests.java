@@ -123,6 +123,6 @@ public class NdJsonDottedPrefixStreamingTests extends ESTestCase {
     }
 
     private static Settings segmentSize64Kb() {
-        return Settings.builder().put("esql.datasource.ndjson.segment_size", "64kb").build();
+        return Settings.builder().put("esql.external.ndjson.segment_size", "64kb").build();
     }
 }

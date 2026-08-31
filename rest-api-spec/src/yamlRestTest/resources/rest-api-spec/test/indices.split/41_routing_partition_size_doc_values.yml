@@ -1,6 +1,7 @@
 more than 1:
   - requires:
       cluster_features: ["mapper.routing_as_doc_values"]
+      test_runner_features: [ "allowed_warnings" ]
       reason: "routing stored as doc values requires mapper.routing_as_doc_values"
 
   - do:
@@ -17,6 +18,8 @@ more than 1:
             _routing:
               required: true
               doc_values: true
+      allowed_warnings:
+        - "[index.number_of_routing_shards] setting was deprecated in Elasticsearch and will be removed in a future release. See the deprecation documentation for the next major version."
 
   - do:
       index:
@@ -107,6 +110,7 @@ more than 1:
 exactly 1:
   - requires:
       cluster_features: ["mapper.routing_as_doc_values"]
+      test_runner_features: [ "allowed_warnings" ]
       reason: "routing stored as doc values requires mapper.routing_as_doc_values"
 
   - do:
@@ -123,6 +127,8 @@ exactly 1:
             _routing:
               required: true
               doc_values: true
+      allowed_warnings:
+        - "[index.number_of_routing_shards] setting was deprecated in Elasticsearch and will be removed in a future release. See the deprecation documentation for the next major version."
 
   - do:
       index:
@@ -213,6 +219,7 @@ exactly 1:
 nested:
   - requires:
       cluster_features: ["mapper.routing_as_doc_values"]
+      test_runner_features: [ "allowed_warnings" ]
       reason: "routing stored as doc values requires mapper.routing_as_doc_values"
 
   - do:
@@ -232,6 +239,8 @@ nested:
             properties:
               n:
                 type: nested
+      allowed_warnings:
+        - "[index.number_of_routing_shards] setting was deprecated in Elasticsearch and will be removed in a future release. See the deprecation documentation for the next major version."
 
   - do:
       index:

@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -97,6 +98,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -459,6 +461,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source source = source(ctx);
         // InSubquery is a special expression, it has a LogicalPlan as an attribute.
         Expression e = new InSubquery(source, value, subqueryPlan);
+        return ctx.NOT() == null ? e : new Not(source, e);
+    }
+
+    @Override
+    public Expression visitLogicalInMultiColumnSubquery(EsqlBaseParser.LogicalInMultiColumnSubqueryContext ctx) {
+        List<Expression> values = ctx.valueExpression().stream().map(this::expression).toList();
+        LogicalPlan subqueryPlan = visitSubquery(ctx.subquery());
+        Source source = source(ctx);
+        Expression e = new MultiColumnInSubquery(source, values, subqueryPlan);
         return ctx.NOT() == null ? e : new Not(source, e);
     }
 
@@ -1526,7 +1537,74 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 Highlight.validOptionNames()
             );
         }
+        // Every HIGHLIGHT option takes a constant; the grammar also admits a nested map. Rejecting here keeps the source
+        // position: a non-literal value is not foldable, so analysis skips it and it would otherwise fail while folding
+        // on every data node, with no position to report.
+        for (Map.Entry<String, Expression> option : optionsMap.entrySet()) {
+            Expression value = option.getValue();
+            if (value instanceof Literal == false) {
+                throw new ParsingException(
+                    value.source(),
+                    "Invalid value for option [{}] in HIGHLIGHT, expected a constant, found [{}]",
+                    option.getKey(),
+                    value.sourceText()
+                );
+            }
+        }
         return h.withOptions(options);
+    }
+
+    @Override
+    public PlanFactory visitDenseVectorCommand(EsqlBaseParser.DenseVectorCommandContext ctx) {
+        Source source = source(ctx);
+
+        if (context.inferenceSettings().denseVectorEnabled() == false) {
+            throw new ParsingException(source, "DENSE_VECTOR command is disabled in settings.");
+        }
+
+        // Explicit field list; no expressions or renames.
+        List<NamedExpression> fields = ctx.qualifiedNames()
+            .qualifiedName()
+            .stream()
+            .map(qn -> (NamedExpression) visitQualifiedName(qn))
+            .toList();
+        Literal rowLimit = Literal.integer(source, context.inferenceSettings().denseVectorRowLimit());
+        return p -> applyDenseVectorOptions(new DenseVector(source, p, rowLimit, fields), ctx.commandNamedParameters());
+    }
+
+    private DenseVector applyDenseVectorOptions(DenseVector denseVector, EsqlBaseParser.CommandNamedParametersContext ctx) {
+        MapExpression optionsExpression = (ctx == null) ? null : visitCommandNamedParameters(ctx);
+
+        Map<String, Expression> optionsMap = optionsExpression == null ? new HashMap<>() : optionsExpression.keyFoldedMap();
+
+        // inference_id resolution precedence: WITH { "inference_id" } > cluster default setting > built-in default.
+        // The built-in default is already baked into the DenseVector node (DenseVector.DEFAULT_INFERENCE_ID), so we only
+        // override it here when the query supplies a WITH id or a cluster-level default is configured.
+        Expression inferenceId = optionsMap.remove(DenseVector.INFERENCE_ID_OPTION_NAME);
+        if (inferenceId != null) {
+            denseVector = applyInferenceId(denseVector, inferenceId);
+        } else {
+            String clusterDefault = context.inferenceSettings().denseVectorDefaultInferenceId();
+            if (clusterDefault.isEmpty() == false) {
+                denseVector = denseVector.withInferenceId(Literal.keyword(denseVector.source(), clusterDefault));
+            }
+        }
+
+        Expression timeoutExpr = optionsMap.remove(DenseVector.TIMEOUT_OPTION_NAME);
+        if (timeoutExpr != null) {
+            denseVector = denseVector.withTimeout(parseTimeoutOption(timeoutExpr, DenseVector.TIMEOUT_OPTION_NAME, "DENSE_VECTOR"));
+        }
+
+        if (optionsMap.isEmpty() == false) {
+            throw new ParsingException(
+                source(ctx),
+                "Invalid option [{}] in DENSE_VECTOR, expected one of [{}]",
+                optionsMap.keySet().stream().findAny().get(),
+                denseVector.validOptionNames()
+            );
+        }
+
+        return denseVector;
     }
 
     public PlanFactory visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) {

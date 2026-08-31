@@ -35,6 +35,10 @@ x-pack/plugin/kibana/src/main/java/org/elasticsearch/xpack/kibana/KibanaCasesImp
 x-pack/plugin/kibana/src/test/java/org/elasticsearch/xpack/kibana/KibanaCasesImplicitPrivilegesProviderTests.java @elastic/kibana-security @elastic/kibana-cases
 x-pack/plugin/kibana/src/main/java/org/elasticsearch/xpack/kibana/KibanaWorkflowsImplicitPrivilegesProvider.java @elastic/kibana-security @elastic/workflows-eng
 x-pack/plugin/kibana/src/test/java/org/elasticsearch/xpack/kibana/KibanaWorkflowsImplicitPrivilegesProviderTests.java @elastic/kibana-security @elastic/workflows-eng
+x-pack/plugin/kibana/src/javaRestTest/java/org/elasticsearch/xpack/kibana/KibanaWorkflowsImplicitPrivilegesIT.java @elastic/kibana-security @elastic/workflows-eng
+x-pack/plugin/kibana/src/main/java/org/elasticsearch/xpack/kibana/ElasticAiIndexImplicitPrivilegesProvider.java @elastic/kibana-security @elastic/context-eng
+x-pack/plugin/kibana/src/test/java/org/elasticsearch/xpack/kibana/ElasticAiIndexImplicitPrivilegesProviderTests.java @elastic/kibana-security @elastic/context-eng
+x-pack/plugin/kibana/src/javaRestTest/java/org/elasticsearch/xpack/kibana/ElasticAiIndexImplicitPrivilegesIT.java @elastic/kibana-security @elastic/context-eng
 
 # APM Data index templates, etc.
 x-pack/plugin/apm-data/src/main/resources @elastic/obs-ds-intake-services

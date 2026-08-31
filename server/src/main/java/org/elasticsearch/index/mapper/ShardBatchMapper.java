@@ -9,8 +9,10 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfColumn;
@@ -43,10 +45,10 @@ import java.util.List;
  *     outside the v1 support matrix — runtime fields, index-time scripts, dynamic mapping,
  *     unsupported mapper types, etc. — causes the method to return {@code null}, at which point
  *     {@link ShardBatchIndexer} falls back to the sequential path.</li>
- *     <li>{@link #mapColumnBatch(BulkItemRequest[], SourceBatch, IndexShard, int, int, BatchMapperResolution, Engine.Operation.Origin)}
- *     runs per chunk. It invokes each mapper once for the whole chunk — attaching one Lucene column per batch-wide value
- *     (id, source, engine-assigned seq-no/version, ...) via {@link BatchMappingContext}, and assembles {@link Engine.Index} operations
- *     plus the resulting {@link EngineBatch}. After the per-leaf loop, each group mapper is dispatched via
+ *     <li>{@link #mapColumnBatch(BulkItemRequest[], SourceBatch, IndexShard, int, int, BatchMapperResolution,
+ *     Engine.Operation.Origin, Recycler)} runs per chunk. It invokes each mapper once for the whole chunk — attaching one Lucene
+ *     column per batch-wide value (id, source, engine-assigned seq-no/version, ...) via {@link BatchMappingContext}, and assembles
+ *     {@link Engine.Index} operations plus the resulting {@link EngineBatch}. After the per-leaf loop, each group mapper is dispatched via
  *     {@link FieldMapper#mapColumnGroupBatch}.</li>
  * </ol>
  */
@@ -344,7 +346,8 @@ public final class ShardBatchMapper {
         int chunkStart,
         int chunkEnd,
         BatchMapperResolution resolution,
-        Engine.Operation.Origin origin
+        Engine.Operation.Origin origin,
+        Recycler<BytesRef> recycler
     ) {
         final MappingLookup mappingLookup = shard.mapperService().mappingLookup();
         final MetadataFieldMapper[] metadataMappers = mappingLookup.getMapping().getSortedMetadataMappers();
@@ -358,7 +361,7 @@ public final class ShardBatchMapper {
             shard.getOperationPrimaryTerm(),
             shard.getRelativeTimeInNanos()
         );
-        final BatchMappingContext context = new BatchMappingContext(indexBatch, mappingLookup, shard.indexSettings());
+        final BatchMappingContext context = new BatchMappingContext(indexBatch, mappingLookup, shard.indexSettings(), recycler);
 
         try {
             for (MetadataFieldMapper metadataMapper : metadataMappers) {

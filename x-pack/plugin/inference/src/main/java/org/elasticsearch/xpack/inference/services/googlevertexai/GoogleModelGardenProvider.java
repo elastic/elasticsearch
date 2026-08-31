@@ -39,7 +39,7 @@ import java.util.Locale;
 public enum GoogleModelGardenProvider {
     GOOGLE(
         CompletionResponseHandlerHolder.GOOGLE_VERTEX_AI_COMPLETION_HANDLER,
-        ChatCompletionResponseHandlerHolder.GOOGLE_VERTEX_AI_CHAT_COMPLETION_HANDLER,
+        excludeReasoning -> ChatCompletionResponseHandlerHolder.GOOGLE_VERTEX_AI_CHAT_COMPLETION_HANDLER,
         // Pass the full task settings so the entity can fall back to the configured maxTokens when
         // the per-request value is null.
         (unifiedChatInput, modelId, taskSettings) -> new GoogleVertexAiUnifiedChatCompletionRequestEntity(
@@ -50,7 +50,7 @@ public enum GoogleModelGardenProvider {
     ),
     ANTHROPIC(
         CompletionResponseHandlerHolder.ANTHROPIC_COMPLETION_HANDLER,
-        ChatCompletionResponseHandlerHolder.ANTHROPIC_CHAT_COMPLETION_HANDLER,
+        excludeReasoning -> new AnthropicChatCompletionResponseHandler("Google Model Garden Anthropic chat completion", excludeReasoning),
         (unifiedChatInput, modelId, taskSettings) -> new GoogleModelGardenAnthropicChatCompletionRequestEntity(
             unifiedChatInput,
             taskSettings
@@ -58,36 +58,41 @@ public enum GoogleModelGardenProvider {
     ),
     META(
         CompletionResponseHandlerHolder.META_COMPLETION_HANDLER,
-        ChatCompletionResponseHandlerHolder.META_CHAT_COMPLETION_HANDLER,
+        excludeReasoning -> ChatCompletionResponseHandlerHolder.META_CHAT_COMPLETION_HANDLER,
         (unifiedChatInput, modelId, taskSettings) -> new LlamaChatCompletionRequestEntity(unifiedChatInput, modelId)
     ),
     HUGGING_FACE(
         CompletionResponseHandlerHolder.HUGGING_FACE_COMPLETION_HANDLER,
-        ChatCompletionResponseHandlerHolder.HUGGING_FACE_CHAT_COMPLETION_HANDLER,
+        excludeReasoning -> ChatCompletionResponseHandlerHolder.HUGGING_FACE_CHAT_COMPLETION_HANDLER,
         (unifiedChatInput, modelId, taskSettings) -> new HuggingFaceUnifiedChatCompletionRequestEntity(unifiedChatInput, modelId)
     ),
     MISTRAL(
         CompletionResponseHandlerHolder.MISTRAL_COMPLETION_HANDLER,
-        ChatCompletionResponseHandlerHolder.MISTRAL_CHAT_COMPLETION_HANDLER,
+        excludeReasoning -> ChatCompletionResponseHandlerHolder.MISTRAL_CHAT_COMPLETION_HANDLER,
         (unifiedChatInput, modelId, taskSettings) -> new MistralChatCompletionRequestEntity(unifiedChatInput, modelId)
     ),
     AI21(
         CompletionResponseHandlerHolder.AI21_COMPLETION_HANDLER,
-        ChatCompletionResponseHandlerHolder.AI21_CHAT_COMPLETION_HANDLER,
+        excludeReasoning -> ChatCompletionResponseHandlerHolder.AI21_CHAT_COMPLETION_HANDLER,
         (unifiedChatInput, modelId, taskSettings) -> new Ai21ChatCompletionRequestEntity(unifiedChatInput, modelId)
     );
 
+    @FunctionalInterface
+    interface ChatCompletionResponseHandlerCreator {
+        ResponseHandler create(boolean excludeReasoning);
+    }
+
     private final ResponseHandler completionResponseHandler;
-    private final ResponseHandler chatCompletionResponseHandler;
+    private final ChatCompletionResponseHandlerCreator chatCompletionHandlerCreator;
     private final RequestEntityCreator entityCreator;
 
     GoogleModelGardenProvider(
         ResponseHandler completionResponseHandler,
-        ResponseHandler chatCompletionResponseHandler,
+        ChatCompletionResponseHandlerCreator chatCompletionHandlerCreator,
         RequestEntityCreator entityCreator
     ) {
         this.completionResponseHandler = completionResponseHandler;
-        this.chatCompletionResponseHandler = chatCompletionResponseHandler;
+        this.chatCompletionHandlerCreator = chatCompletionHandlerCreator;
         this.entityCreator = entityCreator;
     }
 
@@ -95,8 +100,8 @@ public enum GoogleModelGardenProvider {
         return completionResponseHandler;
     }
 
-    public ResponseHandler getChatCompletionResponseHandler() {
-        return chatCompletionResponseHandler;
+    public ResponseHandler getChatCompletionResponseHandler(boolean excludeReasoning) {
+        return chatCompletionHandlerCreator.create(excludeReasoning);
     }
 
     public ToXContentObject createRequestEntity(
@@ -147,10 +152,6 @@ public enum GoogleModelGardenProvider {
     private static class ChatCompletionResponseHandlerHolder {
         static final ResponseHandler GOOGLE_VERTEX_AI_CHAT_COMPLETION_HANDLER = new GoogleVertexAiUnifiedChatCompletionResponseHandler(
             "Google Vertex AI chat completion"
-        );
-
-        static final ResponseHandler ANTHROPIC_CHAT_COMPLETION_HANDLER = new AnthropicChatCompletionResponseHandler(
-            "Google Model Garden Anthropic chat completion"
         );
 
         static final ResponseHandler META_CHAT_COMPLETION_HANDLER = new LlamaChatCompletionResponseHandler(

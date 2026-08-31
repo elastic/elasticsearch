@@ -63,6 +63,7 @@ public class KibanaWorkflowsImplicitPrivilegesIT extends ESRestTestCase {
     private static final String READ_MANAGED_EXECUTION_ACTION = "api:workflowsManagement:managed:readExecution";
 
     private static final String EXECUTIONS_INDEX = ".workflows-executions-test-001";
+    private static final String STEP_EXECUTIONS_INDEX = ".workflows-step-executions-test-001";
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -92,6 +93,7 @@ public class KibanaWorkflowsImplicitPrivilegesIT extends ESRestTestCase {
 
         assertImplicitGrantSurfaced("wf_base_role", "marketing", /* hasMustNot= */true);
         assertUserSeesDocuments(BASE_USER, BASE_USER_PASSWORD, 2 /* non-managed marketing docs */);
+        assertUserSeesStepDocuments(BASE_USER, BASE_USER_PASSWORD, 1 /* explicit non-managed step */);
     }
 
     public void testManagedRoleSeesAllDocsInGrantedSpace() throws Exception {
@@ -102,6 +104,7 @@ public class KibanaWorkflowsImplicitPrivilegesIT extends ESRestTestCase {
         createExecutionsIndexWithDocs();
 
         assertUserSeesDocuments(MANAGED_USER, MANAGED_USER_PASSWORD, 3 /* all marketing docs */);
+        assertUserSeesStepDocuments(MANAGED_USER, MANAGED_USER_PASSWORD, 3 /* all marketing steps */);
     }
 
     // ---- Setup helpers ----
@@ -191,6 +194,21 @@ public class KibanaWorkflowsImplicitPrivilegesIT extends ESRestTestCase {
         create.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         assertOK(client().performRequest(create));
 
+        final Request createSteps = new Request("PUT", "/" + STEP_EXECUTIONS_INDEX);
+        createSteps.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "spaceId": { "type": "keyword" },
+                  "managed": { "type": "boolean" },
+                  "status":  { "type": "keyword" }
+                }
+              }
+            }
+            """);
+        createSteps.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+        assertOK(client().performRequest(createSteps));
+
         // marketing, non-managed — visible to base role
         indexDoc("marketing-non-managed", "marketing", false, 10L, "secret-yaml");
         // marketing, non-managed, NO managed field — visible to base role (fieldless == non-managed)
@@ -199,6 +217,11 @@ public class KibanaWorkflowsImplicitPrivilegesIT extends ESRestTestCase {
         indexDoc("marketing-managed", "marketing", true, 30L, "secret-yaml3");
         // finance, non-managed — outside granted space for both roles (space:marketing only)
         indexDoc("finance-non-managed", "finance", false, 40L, "secret-yaml4");
+
+        indexStepDoc("marketing-non-managed", "marketing", false);
+        indexStepDocWithoutManaged("marketing-managed-fieldless", "marketing");
+        indexStepDoc("marketing-managed", "marketing", true);
+        indexStepDoc("finance-non-managed", "finance", false);
     }
 
     private void indexDoc(String id, String spaceId, boolean managed, long totalTokens, String yamlContent) throws Exception {
@@ -227,6 +250,31 @@ public class KibanaWorkflowsImplicitPrivilegesIT extends ESRestTestCase {
               "usage": { "totalTokens": %d }
             }
             """, spaceId, yamlContent, totalTokens));
+        assertOK(client().performRequest(request));
+    }
+
+    private void indexStepDoc(String id, String spaceId, boolean managed) throws Exception {
+        final Request request = new Request("PUT", "/" + STEP_EXECUTIONS_INDEX + "/_doc/" + id);
+        request.addParameter("refresh", "true");
+        request.setJsonEntity(Strings.format("""
+            {
+              "spaceId": "%s",
+              "managed": %s,
+              "status": "completed"
+            }
+            """, spaceId, managed));
+        assertOK(client().performRequest(request));
+    }
+
+    private void indexStepDocWithoutManaged(String id, String spaceId) throws Exception {
+        final Request request = new Request("PUT", "/" + STEP_EXECUTIONS_INDEX + "/_doc/" + id);
+        request.addParameter("refresh", "true");
+        request.setJsonEntity(Strings.format("""
+            {
+              "spaceId": "%s",
+              "status": "completed"
+            }
+            """, spaceId));
         assertOK(client().performRequest(request));
     }
 
@@ -281,6 +329,17 @@ public class KibanaWorkflowsImplicitPrivilegesIT extends ESRestTestCase {
         final Map<String, Object> usage = (Map<String, Object>) source.get("usage");
         assertNotNull("usage.totalTokens must be present", usage.get("totalTokens"));
         assertNull("workflowDefinition must be absent (FLS excluded)", source.get("workflowDefinition"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertUserSeesStepDocuments(String username, String password, int expectedCount) throws Exception {
+        final Request search = new Request("GET", "/" + STEP_EXECUTIONS_INDEX + "/_search");
+        search.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuth(username, password)));
+        final Response response = client().performRequest(search);
+        assertOK(response);
+        final Map<String, Object> body = entityAsMap(response);
+        final Map<String, Object> hits = (Map<String, Object>) body.get("hits");
+        assertThat((List<Map<String, Object>>) hits.get("hits"), hasSize(expectedCount));
     }
 
     private static String basicAuth(String username, String password) {

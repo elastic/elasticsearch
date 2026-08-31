@@ -26,11 +26,9 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.lucene.search.XDocValuesRangeIterator;
 
 import java.io.IOException;
 import java.util.function.LongPredicate;
@@ -48,14 +46,18 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
     public static final FeatureFlag NUMERIC_RANGE_COLLECT_PUSHDOWN = new FeatureFlag("numeric_range_collect_pushdown");
 
     /**
-     * Returns a range query over sorted numeric doc values for the given field, using the fixed
-     * {@link XDocValuesRangeIterator} to avoid the {@code docIDRunEnd()} over-reporting bug in
-     * Lucene 10.5.0 (apache/lucene#16450). Delete this method and revert callers to
-     * {@link SortedNumericDocValuesField#newSlowRangeQuery} when Elasticsearch upgrades to a
-     * Lucene release containing that fix.
+     * Returns a range query over sorted numeric doc values for the given field.
+     * When {@link #NUMERIC_RANGE_COLLECT_PUSHDOWN} is enabled, returns this Elasticsearch
+     * subclass which supports SIMD-based collect pushdown into TSDB codec blocks.
+     * When disabled, returns Lucene's own (package-private) implementation via
+     * {@link SortedNumericDocValuesField#newSlowRangeQuery} to avoid shipping the
+     * diverged copy of that code on the hot path.
      */
     public static Query newRangeQuery(String field, long lowerValue, long upperValue) {
-        return new SortedNumericDocValuesRangeQuery(field, lowerValue, upperValue);
+        if (NUMERIC_RANGE_COLLECT_PUSHDOWN.isEnabled()) {
+            return new SortedNumericDocValuesRangeQuery(field, lowerValue, upperValue);
+        }
+        return SortedNumericDocValuesField.newSlowRangeQuery(field, lowerValue, upperValue);
     }
 
     public SortedNumericDocValuesRangeQuery(String field, long lowerValue, long upperValue) {
@@ -140,30 +142,15 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                 // wraps a TwoPhaseIterator (recovered by fromIterator via TwoPhaseIterator.unwrap) whose
                 // intoBitSet is bounded by upTo, so ESQL DataPartitioning.DOC slices scan only their own
                 // [min, max) window instead of over-scanning past it as a plain DocIdSetIterator did.
-                if (NUMERIC_RANGE_COLLECT_PUSHDOWN.isEnabled() && singleton instanceof BlockLoader.OptionalNumericRangeReader rangeReader) {
+                if (singleton instanceof BlockLoader.OptionalNumericRangeReader rangeReader) {
                     var rangeIterator = rangeReader.tryRangeIterator(lowerValue, upperValue);
                     if (rangeIterator != null) {
                         return ConstantScoreScorerSupplier.fromIterator(rangeIterator, score(), scoreMode, maxDoc);
                     }
                 }
 
-                // 3) Fixed iterator: use XDocValuesRangeIterator to avoid docIDRunEnd()
-                // over-reporting in Lucene 10.5.0 (apache/lucene#16450). Delete when upgrading
-                // past that fix; revert to delegateWeight.scorerSupplier(context).
-                if (singleton != null) {
-                    return ConstantScoreScorerSupplier.fromIterator(
-                        TwoPhaseIterator.asDocIdSetIterator(XDocValuesRangeIterator.forRange(singleton, skipper, lowerValue, upperValue)),
-                        score(),
-                        scoreMode,
-                        maxDoc
-                    );
-                }
-                return ConstantScoreScorerSupplier.fromIterator(
-                    TwoPhaseIterator.asDocIdSetIterator(XDocValuesRangeIterator.forRange(values, skipper, lowerValue, upperValue)),
-                    score(),
-                    scoreMode,
-                    maxDoc
-                );
+                // 3) Delegate: fall back to Lucene's standard implementation.
+                return delegateWeight.scorerSupplier(context);
             }
 
             @Override

@@ -34,12 +34,6 @@ public class RangeWithinTests extends AbstractScalarFunctionTestCase {
         this.testCase = testCaseSupplier.get();
     }
 
-    @Override
-    protected boolean canSerialize() {
-        return DataType.DOUBLE_RANGE.supportedVersion().supportedLocally()
-            || testCase.getData().stream().noneMatch(data -> data.type() == DataType.DOUBLE_RANGE);
-    }
-
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();

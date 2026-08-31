@@ -112,6 +112,9 @@ tests:
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Put an outlier_detection job on the mixed cluster}
   issue: https://github.com/elastic/elasticsearch/issues/158132
+- class: org.elasticsearch.upgrades.CcrRollingUpgradeIT
+  method: testUniDirectionalIndexFollowing
+  issue: https://github.com/elastic/elasticsearch/issues/153050
 
 # Examples:
 #

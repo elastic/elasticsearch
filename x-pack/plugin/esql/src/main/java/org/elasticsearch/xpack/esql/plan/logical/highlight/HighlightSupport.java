@@ -22,17 +22,16 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
-import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Pure logical-plan/expression utilities for resolving HIGHLIGHT's implicit query and derived fields during
@@ -51,22 +50,18 @@ public final class HighlightSupport {
             case MatchPhrase matchPhrase -> true;
             case QueryString queryString -> true;
             case Kql kql -> true;
-            case And and -> isSupportedImplicitPredicate(and.left()) && isSupportedImplicitPredicate(and.right());
-            case Or or -> isSupportedImplicitPredicate(or.left()) && isSupportedImplicitPredicate(or.right());
+            case BinaryLogic binary -> isSupportedImplicitPredicate(binary.left()) && isSupportedImplicitPredicate(binary.right());
             default -> false;
         };
     }
 
     /** Returns all non-metadata string fields, using the last field when names collide. */
     public static List<NamedExpression> allHighlightableFields(List<Attribute> childrenOutput) {
-        Map<String, NamedExpression> byName = new LinkedHashMap<>();
+        LinkedHashMap<String, NamedExpression> byName = new LinkedHashMap<>();
         for (Attribute attr : childrenOutput) {
             if (DataType.isString(attr.dataType()) && attr instanceof MetadataAttribute == false) {
-                // remove+put is deliberate, not just last-wins dedup: it also moves the collision to the end of the
-                // LinkedHashMap's iteration order, which is generated-column order. A plain put would overwrite in
-                // place and keep the first-seen position instead.
-                byName.remove(attr.name());
-                byName.put(attr.name(), attr);
+                // putLast (not put): generated-column order follows last-seen position, so a colliding name moves to the end.
+                byName.putLast(attr.name(), attr);
             }
         }
         return List.copyOf(byName.values());
@@ -81,17 +76,18 @@ public final class HighlightSupport {
      */
     public static List<NamedExpression> deriveFields(Expression query, List<Attribute> childrenOutput) {
         Set<String> names = new LinkedHashSet<>();
-        boolean fieldsKnown = collectQueryFieldNames(query, names);
-        if (fieldsKnown == false) {
+        if (collectQueryFieldNames(query, names) == false) {
             return allHighlightableFields(childrenOutput);
         }
-        Map<String, NamedExpression> highlightable = allHighlightableFields(childrenOutput).stream()
-            .collect(Collectors.toMap(NamedExpression::name, ne -> ne, (first, last) -> last, LinkedHashMap::new));
+        Map<String, NamedExpression> byName = new HashMap<>();
+        for (NamedExpression field : allHighlightableFields(childrenOutput)) {
+            byName.put(field.name(), field);
+        }
         List<NamedExpression> result = new ArrayList<>(names.size());
         for (String name : names) {
-            NamedExpression attr = highlightable.get(name);
-            if (attr != null) {
-                result.add(attr);
+            NamedExpression field = byName.get(name);
+            if (field != null) {
+                result.add(field);
             }
         }
         return result;
@@ -117,16 +113,7 @@ public final class HighlightSupport {
             }
             case Kql kql -> false;
             case Literal literal -> false;
-            case And and -> {
-                boolean left = collectQueryFieldNames(and.left(), names);
-                boolean right = collectQueryFieldNames(and.right(), names);
-                yield left && right;
-            }
-            case Or or -> {
-                boolean left = collectQueryFieldNames(or.left(), names);
-                boolean right = collectQueryFieldNames(or.right(), names);
-                yield left && right;
-            }
+            case BinaryLogic binary -> collectQueryFieldNames(binary.left(), names) && collectQueryFieldNames(binary.right(), names);
             case Not not -> true;
             default -> false;
         };

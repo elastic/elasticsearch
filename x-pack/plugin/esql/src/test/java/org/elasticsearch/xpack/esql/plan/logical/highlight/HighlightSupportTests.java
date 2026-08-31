@@ -89,7 +89,7 @@ public class HighlightSupportTests extends ESTestCase {
 
     public void testAllHighlightableFieldsMovesDuplicatesToEnd() {
         // Unlike the fixture above, `body` sits BETWEEN the two colliding `duplicate` attributes, so this input can
-        // actually distinguish "relocate to end" (remove+put) from "overwrite in place" (plain put).
+        // actually distinguish "relocate to end" (putLast) from "overwrite in place" (plain put).
         Attribute firstDuplicate = getFieldAttribute("duplicate", KEYWORD);
         Attribute body = getFieldAttribute("body", TEXT);
         Attribute lastDuplicate = getFieldAttribute("duplicate", TEXT);

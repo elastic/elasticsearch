@@ -214,16 +214,18 @@ public class Verifier {
                             + "rolling upgrade in progress, or a remote cluster is on an older version"
                     )
                 );
-            } else if ((highlight.implicitQuery() || highlight.derivedFields())
+                return;
+            }
+            if ((highlight.implicitQuery() || highlight.derivedFields())
                 && minimumVersion.supports(Highlight.ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS) == false) {
-                    failures.add(
-                        fail(
-                            highlight,
-                            "HIGHLIGHT with a derived query or field list is not supported on every participating node; "
-                                + "rolling upgrade in progress, or a remote cluster is on an older version"
-                        )
-                    );
-                }
+                failures.add(
+                    fail(
+                        highlight,
+                        "HIGHLIGHT with a derived query or field list is not supported on every participating node; "
+                            + "rolling upgrade in progress, or a remote cluster is on an older version"
+                    )
+                );
+            }
         });
     }
 

@@ -47,7 +47,6 @@ public class ResolveHighlight extends AnalyzerRule<Highlight> {
         if (highlight.childrenResolved() == false) {
             return highlight;
         }
-        List<Attribute> childOutput = highlight.child().output();
 
         Expression query = highlight.query();
         boolean implicit = highlight.implicitQuery();
@@ -60,23 +59,20 @@ public class ResolveHighlight extends AnalyzerRule<Highlight> {
         List<Attribute> generated = highlight.generatedAttributes();
         boolean star = fields.size() == 1 && fields.getFirst() instanceof UnresolvedStar;
         if (star || (fields.isEmpty() && query != null && query.resolved())) {
+            List<Attribute> childOutput = highlight.child().output();
             List<NamedExpression> derived = star
                 ? HighlightSupport.allHighlightableFields(childOutput)
                 : HighlightSupport.deriveFields(query, childOutput);
             if (derived.isEmpty() == false) {
                 fields = derived;
-                // Mints fresh NameIds, so it has to stay inside this branch; calling it on every pass would never reach a fixpoint.
+                // generatedAttributesFor mints fresh NameIds; only call after fields actually change or analysis never converges.
                 generated = Highlight.generatedAttributesFor(highlight.source(), highlight.prefix(), fields);
             } else if (star) {
-                // Replace the star: left in place it reports "Cannot determine columns for [*]", which the Verifier hits first and
-                // which masks the "found no text or keyword fields" message that actually tells the user what to do.
+                // Drop the star so Verifier reports "found no text or keyword fields" instead of "Cannot determine columns for [*]".
                 fields = List.of();
             }
         }
 
-        // These identity checks look like the termination guard, but `fields` is re-read from `highlight` at line 59,
-        // so they trivially hold unless the branch above reassigned it. The real guard is `star || fields.isEmpty()`
-        // clearing itself once fields are derived (or replaced with `List.of()`), so the next pass takes this path.
         if (query == highlight.query() && fields == highlight.fields()) {
             return highlight;
         }
@@ -102,8 +98,7 @@ public class ResolveHighlight extends AnalyzerRule<Highlight> {
      */
     private static Expression collectImplicitQuery(LogicalPlan child) {
         List<Expression> predicates = new ArrayList<>();
-        LogicalPlan current = child;
-        while (current instanceof DocPreserving && current instanceof UnaryPlan unary) {
+        for (LogicalPlan current = child; current instanceof UnaryPlan unary && current instanceof DocPreserving; current = unary.child()) {
             if (current instanceof Filter filter) {
                 for (Expression conjunct : Predicates.splitAnd(filter.condition())) {
                     if (HighlightSupport.isSupportedImplicitPredicate(conjunct)) {
@@ -111,7 +106,6 @@ public class ResolveHighlight extends AnalyzerRule<Highlight> {
                     }
                 }
             }
-            current = unary.child();
         }
         return predicates.isEmpty() ? null : Predicates.combineOr(predicates);
     }

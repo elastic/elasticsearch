@@ -212,15 +212,10 @@ public class Highlight extends UnaryPlan
             .toList();
     }
 
-    /**
-     * Canonical copy helper: every field but {@code prefix} and {@code derivedFields} can vary across a copy site, so
-     * those two are captured here rather than threaded through every caller. No copy site ever varies them - both are
-     * set once at parse time and passed through verbatim for the lifetime of the node.
-     */
+    /** Copies this node, preserving {@code prefix}, {@code implicitQuery}, and {@code derivedFields}. */
     private Highlight copy(
         LogicalPlan child,
         Expression query,
-        boolean implicitQuery,
         List<NamedExpression> fields,
         MapExpression options,
         List<Attribute> generatedFields
@@ -232,7 +227,7 @@ public class Highlight extends UnaryPlan
         if (Objects.equals(options, newOptions)) {
             return this;
         }
-        return copy(child(), query, implicitQuery, fields, newOptions, generatedFields);
+        return copy(child(), query, fields, newOptions, generatedFields);
     }
 
     /** Returns a copy with the analyzer-derived query and fields. */
@@ -242,12 +237,12 @@ public class Highlight extends UnaryPlan
         List<NamedExpression> newFields,
         List<Attribute> newGeneratedFields
     ) {
-        return copy(child(), newQuery, newImplicitQuery, newFields, options, newGeneratedFields);
+        return new Highlight(source(), child(), prefix, newQuery, newImplicitQuery, derivedFields, newFields, options, newGeneratedFields);
     }
 
     @Override
     public Highlight replaceChild(LogicalPlan newChild) {
-        return copy(newChild, query, implicitQuery, fields, options, generatedFields);
+        return copy(newChild, query, fields, options, generatedFields);
     }
 
     @Override
@@ -285,7 +280,7 @@ public class Highlight extends UnaryPlan
             String newName = newNames.get(i);
             renamed.add(newName.equals(attr.name()) ? attr : attr.withName(newName).withId(new NameId()));
         }
-        return copy(child(), query, implicitQuery, fields, options, renamed);
+        return copy(child(), query, fields, options, renamed);
     }
 
     @Override
@@ -296,13 +291,8 @@ public class Highlight extends UnaryPlan
 
     @Override
     public boolean expressionsResolved() {
-        if (fields.isEmpty()) {
-            // The bare and ON * forms have their fields derived during analysis, and the generated <prefix><field> columns follow from
-            // them. Until that happens output() is incomplete, so reporting resolved here would let a downstream KEEP of a generated
-            // column resolve against a schema that does not have it yet and record a permanent "Unknown column".
-            return false;
-        }
-        if (query != null && query.resolved() == false) {
+        // Empty fields (bare / ON *) are derived during analysis; until then output() lacks the generated columns.
+        if (fields.isEmpty() || (query != null && query.resolved() == false)) {
             return false;
         }
         for (NamedExpression field : fields) {
@@ -370,11 +360,7 @@ public class Highlight extends UnaryPlan
         }
         List<String> fieldNames = fields.stream().map(NamedExpression::name).toList();
         try {
-            if (enforcesOnFields()) {
-                HighlightQueryBuilders.verifyExplicit(query, fieldNames, analyzer);
-            } else {
-                HighlightQueryBuilders.verifyDerived(query, fieldNames, analyzer);
-            }
+            HighlightQueryBuilders.verify(query, fieldNames, analyzer, enforcesOnFields());
         } catch (IllegalArgumentException e) {
             // Attach to the query node, not this Highlight node: failures dedupe by node, so pinning it here would let a
             // co-located option/analyzer failure on this node swallow the query error (see VerifierTests#testHighlightAnalyzerOption).

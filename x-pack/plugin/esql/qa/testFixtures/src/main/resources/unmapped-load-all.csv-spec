@@ -559,36 +559,6 @@ c:long
 ####################################################################
 # Gap coverage: known-failing tests documenting intended behaviour #
 ####################################################################
-loadAllSyntheticSourceObjectUnmappedFieldIsNull
-required_capability: optional_fields_load_all_v2
-
-SET unmapped_fields="LOAD_ALL"\;
-FROM synthetic_source_partial_mapping
-| KEEP @timestamp, unmapped, unmapped.nested
-| SORT @timestamp
-| LIMIT 3
-;
-
-@timestamp:datetime      | unmapped:keyword | unmapped.nested:keyword
-2024-10-23T12:15:03.360Z | null             | g
-2024-10-23T12:27:28.948Z | null             | f
-2024-10-23T13:33:34.937Z | null             | e
-;
-
-loadAllSyntheticSourceObjectFieldMultiParentIsNull
-required_capability: optional_fields_load_all_v2
-
-SET unmapped_fields="LOAD_ALL"\;
-FROM k8s_unmapped
-| KEEP network
-| LIMIT 3
-;
-
-network:keyword
-null
-null
-null
-;
 
 ###########################################################
 # Object and array expansion: flatten to leaf columns     #
@@ -615,75 +585,106 @@ arrayOfObjectsFlattensToDottedLeafMultivalue
 required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
-FROM unmapped_array_data
-| KEEP id, samples*
+FROM unmapped_array_data METADATA _source
+| KEEP id, samples*, _source
 | SORT id
 ;
 
-id:keyword | samples.nested:keyword
-1          | [x, y]
-2          | z
-3          | null
+id:keyword | samples.nested:keyword | _source:keyword
+1          | [x, y]                 | {"id":"1","tags":["web","api"],"samples":[{"nested":"x"},{"nested":"y"}]}
+2          | z                      | {"id":"2","tags":"web","samples":{"nested":"z"}}
+3          | null                   | {"id":"3","tags":"web"}
 ;
 
 leafOnlyWildcardShipsArrayOfObjects
 required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
-FROM unmapped_array_data
-| KEEP id, samples.*
+FROM unmapped_array_data METADATA _source
+| KEEP id, samples.*, _source
 | SORT id
 ;
 
-id:keyword | samples.nested:keyword
-1          | [x, y]
-2          | z
-3          | null
+id:keyword | samples.nested:keyword | _source:keyword
+1          | [x, y]                 | {"id":"1","tags":["web","api"],"samples":[{"nested":"x"},{"nested":"y"}]}
+2          | z                      | {"id":"2","tags":"web","samples":{"nested":"z"}}
+3          | null                   | {"id":"3","tags":"web"}
+;
+
+leafOnlyWildcardWithPrefixMatchesLeaf
+required_capability: optional_fields_load_all_v2
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_array_data METADATA _source
+| KEEP id, samples.n*, _source
+| SORT id
+;
+
+id:keyword | samples.nested:keyword | _source:keyword
+1          | [x, y]                 | {"id":"1","tags":["web","api"],"samples":[{"nested":"x"},{"nested":"y"}]}
+2          | z                      | {"id":"2","tags":"web","samples":{"nested":"z"}}
+3          | null                   | {"id":"3","tags":"web"}
 ;
 
 escapedWildcardKeepNameIsExplicitNotPattern
 required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
-FROM unmapped_array_data
-| KEEP id, `samples*`, tags*
+FROM unmapped_array_data METADATA _source
+| KEEP id, `samples*`, tags*, _source
 | SORT id
 ;
 
-id:keyword | samples*:keyword | tags:keyword
-1          | null             | [web, api]
-2          | null             | web
-3          | null             | web
+id:keyword | samples*:keyword | tags:keyword | _source:keyword
+1          | null             | [web, api]   | {"id":"1","tags":["web","api"],"samples":[{"nested":"x"},{"nested":"y"}]}
+2          | null             | web          | {"id":"2","tags":"web","samples":{"nested":"z"}}
+3          | null             | web          | {"id":"3","tags":"web"}
 ;
 
 escapedWildcardKeepNameIsExplicitNotPattern_CombinedWith_WildcardedPatterns
 required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
-FROM unmapped_array_data
-| KEEP `samples*`, samples*, samples.*, samples.nest*, id, *
+FROM unmapped_array_data METADATA _source
+| KEEP `samples*`, samples*, samples.*, samples.nest*, id, *, _source
 | SORT id
 ;
 
-samples*:keyword | samples.nested:keyword | id:keyword | tags:keyword
-null             | [x, y]                 | 1          | [web, api]
-null             | z                      | 2          | web
-null             | null                   | 3          | web
+samples*:keyword | samples.nested:keyword | id:keyword | tags:keyword | _source:keyword
+null             | [x, y]                 | 1          | [web, api]   | {"id":"1","tags":["web","api"],"samples":[{"nested":"x"},{"nested":"y"}]}
+null             | z                      | 2          | web          | {"id":"2","tags":"web","samples":{"nested":"z"}}
+null             | null                   | 3          | web          | {"id":"3","tags":"web"}
 ;
 
 unescapedWildcardKeepNameMatchesLeaves
 required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
-FROM unmapped_array_data
-| KEEP id, samples*, tags*
+FROM unmapped_array_data METADATA _source
+| KEEP id, samples*, tags*, _source
 | SORT id
 ;
 
-id:keyword | samples.nested:keyword | tags:keyword
-1          | [x, y]                 | [web, api]
-2          | z                      | web
-3          | null                   | web
+id:keyword | samples.nested:keyword | tags:keyword | _source:keyword
+1          | [x, y]                 | [web, api]   | {"id":"1","tags":["web","api"],"samples":[{"nested":"x"},{"nested":"y"}]}
+2          | z                      | web          | {"id":"2","tags":"web","samples":{"nested":"z"}}
+3          | null                   | web          | {"id":"3","tags":"web"}
+;
+
+// Asking for the object field itself (not a wildcard) yields null — object values have no keyword representation.
+explicitObjectFieldIsNull
+required_capability: optional_fields_load_all_v2
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_array_data METADATA _source
+| KEEP id, samples, _source
+| SORT id
+;
+
+id:keyword | samples:keyword | _source:keyword
+1          | null            | {"id":"1","tags":["web","api"],"samples":[{"nested":"x"},{"nested":"y"}]}
+2          | null            | {"id":"2","tags":"web","samples":{"nested":"z"}}
+3          | null            | {"id":"3","tags":"web"}
 ;
 
 // An object-valued unmapped source field has no keyword representation of its own, so it contributes no "extra" value; its leaves

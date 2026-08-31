@@ -3212,7 +3212,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testSubqueryInFrom() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         assertFieldNames(
             """
                 FROM employees, (FROM books | WHERE author:"Faulkner" | KEEP title, author | SORT title | LIMIT 5)
@@ -3237,7 +3236,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testSubqueryInFromWithFork() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         // nested fork may trigger assertion in FieldNameUtils, defer the check of nested subqueries or subquery with fork
         // to logical plan optimizer.
         assertFieldNames(
@@ -3331,7 +3329,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     // IN subquery tests
 
     public void testInSubquery() {
-        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         assertFieldNames(
             "FROM employees | WHERE emp_no IN (FROM employees | SORT emp_no | LIMIT 3 | KEEP emp_no) | KEEP emp_no, first_name",
             Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*")
@@ -3339,7 +3336,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testInSubqueryDifferentIndex() {
-        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         // The subquery references a different index; field names from both should be collected
         assertFieldNames(
             "FROM employees | WHERE emp_no IN (FROM languages | KEEP language_id) | KEEP emp_no, first_name",
@@ -3348,7 +3344,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testInSubqueryWithMoreFields() {
-        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         // The subquery references fields (salary) not used in the main query
         assertFieldNames(
             "FROM employees | WHERE emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no) | KEEP emp_no",
@@ -3357,7 +3352,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testFromSubqueryInsideInSubquery() {
-        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         assertFieldNames(
             """
                 FROM employees
@@ -3371,7 +3365,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testInSubqueryInsideFromSubquery() {
-        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         assertFieldNames("""
             FROM
                 (FROM employees
@@ -3385,7 +3378,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testNestedInSubqueries() {
-        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         // Nested IN subquery: the inner subquery references salary, the outer references emp_no and first_name.
         // max_sal is a STATS-computed output column, not an index field — it should not appear in field_caps.
         assertFieldNames(
@@ -3436,7 +3428,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testNotInSubquery() {
-        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         assertFieldNames(
             "FROM employees | WHERE emp_no NOT IN (FROM employees | WHERE salary > 70000 | KEEP emp_no) | KEEP emp_no",
             Set.of("_index", "emp_no", "emp_no.*", "salary", "salary.*")
@@ -3444,13 +3435,11 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testInSubqueryNoFieldReduction() {
-        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         // Main query has no KEEP/PROJECT, so it returns ALL_FIELDS regardless of the subquery's KEEP
         assertFieldNames("FROM employees | WHERE emp_no IN (FROM employees | SORT emp_no | LIMIT 3 | KEEP emp_no)", ALL_FIELDS);
     }
 
     public void testInSubqueryNoFieldReductionWithInlineStats() {
-        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         assertFieldNames("""
             FROM employees
             | WHERE emp_no IN (FROM employees | INLINE STATS max_sal = MAX(salary))
@@ -3459,7 +3448,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testInSubqueryFieldReductionWithInlineStatsKeep() {
-        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         assertFieldNames("""
             FROM employees
             | WHERE emp_no IN (FROM employees | INLINE STATS max_sal = MAX(salary) | KEEP emp_no)
@@ -3468,7 +3456,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testInSubqueryFieldReductionWithInlineStatsKeepBeforeAfter() {
-        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         assertFieldNames("""
             FROM employees
             | WHERE emp_no IN (FROM employees | KEEP emp_no, salary | INLINE STATS max_sal = MAX(salary) | KEEP emp_no)
@@ -3477,7 +3464,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testInSubqueryWithDateComparison() {
-        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         assertFieldNames("""
             FROM employees
             | WHERE emp_no IN (
@@ -3904,7 +3890,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testRowInSubqueryInEval() {
-        assertFieldNames("FROM main | EVAL z = x IN (ROW a = 1 | KEEP a) | KEEP x", Set.of("_index", "x", "x.*", "a", "a.*"));
+        assertFieldNames("FROM main | EVAL z = x IN (ROW a = 1 | KEEP a) | KEEP x", Set.of("_index", "x", "x.*"));
     }
 
     public void testMultiColumnTsInSubqueryInEval() {
@@ -3947,6 +3933,350 @@ public class FieldNameUtilsTests extends ESTestCase {
         );
     }
 
+    // IN subqueries in STATS WHERE filters
+
+    public void testInSubqueryInStatsWhere() {
+        assertFieldNames("""
+            FROM employees
+            | STATS count = COUNT(*) WHERE emp_no IN (
+                FROM languages
+                | WHERE language_name == "English"
+                | KEEP language_id
+              )
+            """, Set.of("_index", "emp_no", "emp_no.*", "language_id", "language_id.*", "language_name", "language_name.*"));
+    }
+
+    public void testNotInSubqueryInStatsWhere() {
+        assertFieldNames("""
+            FROM employees
+            | STATS count = COUNT(*) WHERE emp_no NOT IN (
+                FROM employees
+                | WHERE still_hired
+                | KEEP salary
+              )
+            """, Set.of("_index", "emp_no", "emp_no.*", "salary", "salary.*", "still_hired", "still_hired.*"));
+    }
+
+    public void testInSubqueryInStatsWhereCase() {
+        assertFieldNames(
+            """
+                FROM employees
+                | STATS count = COUNT(*) WHERE CASE(
+                    emp_no IN (FROM languages | WHERE language_name == "English" | KEEP language_id),
+                    salary > 50000,
+                    still_hired
+                  )
+                """,
+            Set.of(
+                "_index",
+                "emp_no",
+                "emp_no.*",
+                "language_id",
+                "language_id.*",
+                "language_name",
+                "language_name.*",
+                "salary",
+                "salary.*",
+                "still_hired",
+                "still_hired.*"
+            )
+        );
+    }
+
+    public void testNotInSubqueryInStatsWhereCoalesce() {
+        assertFieldNames("""
+            FROM employees
+            | STATS count = COUNT(*) WHERE COALESCE(
+                emp_no NOT IN (
+                  FROM employees
+                  | WHERE hire_date >= "1989-01-01T00:00:00.000Z"
+                  | KEEP salary
+                ),
+                still_hired,
+                false
+              )
+            """, Set.of("_index", "emp_no", "emp_no.*", "hire_date", "hire_date.*", "salary", "salary.*", "still_hired", "still_hired.*"));
+    }
+
+    public void testInSubqueryInStatsWhereIsNull() {
+        assertFieldNames("""
+            FROM employees
+            | STATS count = COUNT(*) WHERE (
+                emp_no IN (FROM languages | WHERE language_name == "English" | KEEP language_id)
+              ) IS NULL
+            """, Set.of("_index", "emp_no", "emp_no.*", "language_id", "language_id.*", "language_name", "language_name.*"));
+    }
+
+    public void testNotInSubqueryInStatsWhereIsNotNull() {
+        assertFieldNames("""
+            FROM employees
+            | STATS count = COUNT(*) WHERE (
+                emp_no NOT IN (FROM employees | WHERE still_hired | KEEP salary)
+              ) IS NOT NULL
+            """, Set.of("_index", "emp_no", "emp_no.*", "salary", "salary.*", "still_hired", "still_hired.*"));
+    }
+
+    public void testInAndNotInSubqueriesInStatsWhere() {
+        assertFieldNames(
+            """
+                FROM employees
+                | STATS count = COUNT(*) WHERE
+                    emp_no IN (FROM languages | WHERE language_name == "English" | KEEP language_id)
+                    AND languages NOT IN (FROM employees | WHERE still_hired | KEEP salary)
+                """,
+            Set.of(
+                "_index",
+                "emp_no",
+                "emp_no.*",
+                "languages",
+                "languages.*",
+                "language_id",
+                "language_id.*",
+                "language_name",
+                "language_name.*",
+                "salary",
+                "salary.*",
+                "still_hired",
+                "still_hired.*"
+            )
+        );
+    }
+
+    public void testInOrNotInSubqueriesInStatsWhere() {
+        assertFieldNames(
+            """
+                FROM employees
+                | STATS count = COUNT(*) WHERE
+                    emp_no IN (FROM languages | WHERE language_name == "English" | KEEP language_id)
+                    OR salary NOT IN (
+                      FROM employees
+                      | WHERE hire_date >= "1989-01-01T00:00:00.000Z"
+                      | KEEP salary
+                    )
+                """,
+            Set.of(
+                "_index",
+                "emp_no",
+                "emp_no.*",
+                "hire_date",
+                "hire_date.*",
+                "language_id",
+                "language_id.*",
+                "language_name",
+                "language_name.*",
+                "salary",
+                "salary.*"
+            )
+        );
+    }
+
+    public void testWrappedInSubqueryAndRegularPredicateInStatsWhere() {
+        assertFieldNames(
+            """
+                FROM employees
+                | STATS count = COUNT(*) WHERE
+                    CASE(emp_no IN (FROM languages | WHERE language_name == "English" | KEEP language_id), true, false)
+                    AND salary > 50000
+                """,
+            Set.of("_index", "emp_no", "emp_no.*", "language_id", "language_id.*", "language_name", "language_name.*", "salary", "salary.*")
+        );
+    }
+
+    public void testWrappedNotInSubqueryOrRegularPredicateInStatsWhere() {
+        assertFieldNames("""
+            FROM employees
+            | STATS count = COUNT(*) WHERE
+                COALESCE(emp_no NOT IN (FROM employees | WHERE still_hired | KEEP emp_no), false)
+                OR hire_date < "1990-01-01T00:00:00.000Z"
+            """, Set.of("_index", "emp_no", "emp_no.*", "hire_date", "hire_date.*", "still_hired", "still_hired.*"));
+    }
+
+    public void testFromSubqueryBeforeStatsWhereInSubquery() {
+        assertFieldNames(
+            """
+                FROM
+                  (FROM employees
+                   | WHERE hire_date >= "1989-01-01T00:00:00.000Z"
+                   | KEEP emp_no, salary),
+                  (FROM employees
+                   | WHERE still_hired
+                   | KEEP emp_no, salary)
+                | STATS count = COUNT(*) WHERE
+                    emp_no IN (FROM languages | WHERE language_name == "English" | KEEP language_id)
+                    AND salary > 50000
+                """,
+            Set.of(
+                "_index",
+                "emp_no",
+                "emp_no.*",
+                "hire_date",
+                "hire_date.*",
+                "language_id",
+                "language_id.*",
+                "language_name",
+                "language_name.*",
+                "salary",
+                "salary.*",
+                "still_hired",
+                "still_hired.*"
+            )
+        );
+    }
+
+    public void testFromSubqueryInsideStatsWhereInSubquery() {
+        assertFieldNames("""
+            FROM employees
+            | STATS count = COUNT(*) WHERE emp_no IN (
+                FROM
+                  (FROM languages | WHERE language_name == "English" | KEEP language_id),
+                  (FROM languages | WHERE language_name == "Spanish" | KEEP language_id)
+                | KEEP language_id
+              )
+            """, Set.of("_index", "emp_no", "emp_no.*", "language_id", "language_id.*", "language_name", "language_name.*"));
+    }
+
+    public void testForkBeforeStatsWhereInSubquery() {
+        assertFieldNames(
+            """
+                FROM employees
+                | FORK
+                    (WHERE hire_date >= "1989-01-01T00:00:00.000Z" | KEEP emp_no, salary)
+                    (WHERE still_hired | KEEP emp_no, salary)
+                | STATS count = COUNT(*) WHERE
+                    emp_no IN (FROM languages | WHERE language_name == "English" | KEEP language_id)
+                    AND salary > 50000
+                """,
+            Set.of(
+                "_index",
+                "emp_no",
+                "emp_no.*",
+                "hire_date",
+                "hire_date.*",
+                "language_id",
+                "language_id.*",
+                "language_name",
+                "language_name.*",
+                "salary",
+                "salary.*",
+                "still_hired",
+                "still_hired.*"
+            )
+        );
+    }
+
+    public void testForkAfterStatsWhereInSubquery() {
+        assertFieldNames(
+            """
+                FROM employees
+                | STATS count = COUNT(*) WHERE emp_no IN (
+                    FROM languages
+                    | WHERE language_name == "English"
+                    | KEEP language_id
+                  ) BY languages
+                | FORK (WHERE languages > 1 | KEEP languages) (WHERE languages <= 1 | KEEP languages)
+                | KEEP languages
+                """,
+            Set.of(
+                "_index",
+                "emp_no",
+                "emp_no.*",
+                "languages",
+                "languages.*",
+                "language_id",
+                "language_id.*",
+                "language_name",
+                "language_name.*"
+            )
+        );
+    }
+
+    public void testStatsWhereRowInSubquery() {
+        assertFieldNames("""
+            FROM employees
+            | STATS count = COUNT(*) WHERE emp_no IN (ROW a = 1 | KEEP a)
+            """, Set.of("_index", "emp_no", "emp_no.*"));
+    }
+
+    public void testStatsWhereTsInSubquery() {
+        assertFieldNames("""
+            FROM employees
+            | STATS count = COUNT(*) WHERE emp_no IN (TS k8s | STATS max(rate(val)) BY ts | KEEP a)
+            """, Set.of("_index", "emp_no", "emp_no.*", "val", "val.*", "ts", "ts.*", "a", "a.*", "@timestamp", "@timestamp.*"));
+    }
+
+    public void testStatsWhereMultiColumnRowInSubquery() {
+        checkMultiColumnInSubquery();
+        assertFieldNames("""
+            FROM employees
+            | STATS count = COUNT(*) WHERE (emp_no, salary) IN (ROW a = 1, b = 2 | KEEP a, b)
+            """, Set.of("_index", "emp_no", "emp_no.*", "salary", "salary.*"));
+    }
+
+    public void testStatsWhereMultiColumnTsInSubquery() {
+        checkMultiColumnInSubquery();
+        assertFieldNames(
+            """
+                FROM employees
+                | STATS count = COUNT(*) WHERE (emp_no, salary) IN (TS k8s | STATS max(rate(val)) BY ts | KEEP a, b)
+                """,
+            Set.of(
+                "_index",
+                "emp_no",
+                "emp_no.*",
+                "salary",
+                "salary.*",
+                "val",
+                "val.*",
+                "ts",
+                "ts.*",
+                "a",
+                "a.*",
+                "b",
+                "b.*",
+                "@timestamp",
+                "@timestamp.*"
+            )
+        );
+    }
+
+    public void testStatsWhereInSubqueryInComplexNesting() {
+        checkMultiColumnInSubquery();
+        assertFieldNames(
+            """
+                FROM employees
+                | STATS count = COUNT(*) WHERE COALESCE(
+                    CASE(
+                      emp_no IN (ROW a = 1 | KEEP a),
+                      true,
+                      (salary, languages) IN (TS k8s | STATS avg_over_time(val) BY ts | KEEP b, a)
+                    ),
+                    (emp_no IN (FROM employees | KEEP emp_no)) IS NULL,
+                    (salary IN (FROM employees | KEEP salary)) IS NOT NULL,
+                    false
+                  )
+                """,
+            Set.of(
+                "_index",
+                "emp_no",
+                "emp_no.*",
+                "salary",
+                "salary.*",
+                "languages",
+                "languages.*",
+                "val",
+                "val.*",
+                "ts",
+                "ts.*",
+                "b",
+                "b.*",
+                "a",
+                "a.*",
+                "@timestamp",
+                "@timestamp.*"
+            )
+        );
+    }
+
     /**
      * Both {@code FROM}-style source leaves are alias-safe: a source relation is a tree leaf and cannot shadow an
      * alias defined above it, so {@link FieldNameUtils} must collect the same fields whether the leaf is an
@@ -3984,6 +4314,37 @@ public class FieldNameUtilsTests extends ESTestCase {
         List<NamedExpression> aggregates = List.of(new Alias(Source.EMPTY, "m", max), gender);
         Aggregate agg = new Aggregate(Source.EMPTY, eval, groupings, aggregates);
         return FieldNameUtils.resolveFieldNames(agg, false, includePrefixFields).fieldNames();
+    }
+
+    public void testDenseVectorFieldNames() {
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+        // Assert EVAL aliases are collected properly
+        assertFieldNames("""
+            FROM employees
+            | EVAL xx = ""
+            | DENSE_VECTOR xx WITH { "inference_id" : "inference_id" }
+            """, ALL_FIELDS);
+
+        // Assert index fields are collected properly
+        assertFieldNames("""
+            FROM employees
+            | DENSE_VECTOR first_name WITH { "inference_id" : "inference_id" }
+            """, ALL_FIELDS);
+
+        // Assert that a trailing KEEP yields a concrete set including the index field.
+        assertFieldNames("""
+            FROM employees
+            | DENSE_VECTOR first_name WITH { "inference_id" : "inference_id" }
+            | KEEP first_name, first_name_dense_vector
+            """, Set.of("_index", "first_name", "first_name.*", "first_name_dense_vector", "first_name_dense_vector.*"));
+
+        // Assert that an EVAL alias input is not collected, unlike the index field emp_no.
+        assertFieldNames("""
+            FROM employees
+            | EVAL xx = ""
+            | DENSE_VECTOR xx WITH { "inference_id" : "inference_id" }
+            | KEEP emp_no, xx, xx_dense_vector
+            """, Set.of("_index", "emp_no", "emp_no.*", "xx_dense_vector", "xx_dense_vector.*"));
     }
 
     private void assertFieldNames(String query, Set<String> expected) {

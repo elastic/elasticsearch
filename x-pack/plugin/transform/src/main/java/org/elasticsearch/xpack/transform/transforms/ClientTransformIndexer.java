@@ -105,6 +105,15 @@ class ClientTransformIndexer extends TransformIndexer {
     private volatile long pitCheckpoint;
     private volatile boolean disablePit = false;
 
+    /**
+     * Cached result of {@link #wrappedClient()}. Keyed by reference identity of the context's
+     * {@link PersistedCloudCredential}: credential rotation installs a new instance, so a reference
+     * change invalidates the cache. Avoids re-resolving (and, when encrypted at rest, re-decrypting)
+     * the credential on every outbound search/bulk/PIT call. Published as one volatile so a reader
+     * cannot observe a new credential paired with a stale client during a concurrent swap.
+     */
+    private volatile Tuple<Client, PersistedCloudCredential> currentClientAndCredential;
+
     ClientTransformIndexer(
         ThreadPool threadPool,
         ClusterService clusterService,
@@ -153,8 +162,14 @@ class ClientTransformIndexer extends TransformIndexer {
             && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled();
     }
 
-    private Client wrappedClient() {
-        return credentialManager.wrapClient(client, context.getPersistedCloudCredential());
+    Client wrappedClient() {
+        PersistedCloudCredential nextCredential = context.getPersistedCloudCredential();
+        if (currentClientAndCredential != null && nextCredential == currentClientAndCredential.v2()) {
+            return currentClientAndCredential.v1();
+        }
+        Client nextClient = credentialManager.wrapClient(client, nextCredential);
+        currentClientAndCredential = new Tuple<>(nextClient, nextCredential);
+        return nextClient;
     }
 
     @Override
@@ -346,12 +361,26 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     void validate(ActionListener<ValidateTransformAction.Response> listener) {
+        // Runtime validation runs the same source "test query" as the indexer search, so it must run under the same stored
+        // cloud credential; otherwise a cross-project source fails the test query with FORBIDDEN ("no cloud credential in
+        // thread context"). TransportValidateTransformAction derives both the wrapped client and cross-project resolution
+        // from request.cloudCredential(), so the credential has to travel on the request. Use toCloudCredential (not
+        // TransformCloudCredentialManager#cloudCredentialFromPersisted) because it reads the persisted credential eagerly
+        // into an owned copy and does NOT close the shared context credential that wrappedClient() reuses for every search.
+        var persistedCredential = context.getPersistedCloudCredential();
+        var request = new ValidateTransformAction.Request(
+            transformConfig,
+            false,
+            AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+            persistedCredential == null ? null : credentialManager.toCloudCredential(persistedCredential)
+        );
         ClientHelper.executeAsyncWithOrigin(
             client,
             ClientHelper.TRANSFORM_ORIGIN,
             ValidateTransformAction.INSTANCE,
-            new ValidateTransformAction.Request(transformConfig, false, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT),
-            listener
+            request,
+            // Closes the request's owned CloudCredential copy once validation completes; the shared context credential is untouched.
+            ActionListener.releaseAfter(listener, request)
         );
     }
 

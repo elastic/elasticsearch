@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -52,6 +53,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedSourceRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
@@ -491,6 +493,7 @@ public class FieldNameUtils {
     private static boolean couldOverrideAliases(LogicalPlan p) {
         return (p instanceof Aggregate
             || p instanceof Completion
+            || p instanceof DenseVector
             || p instanceof Drop
             || p instanceof Eval
             || p instanceof Filter
@@ -505,6 +508,7 @@ public class FieldNameUtils {
             || p instanceof CompoundOutputEval<?>
             || p instanceof UnresolvedIpLocation
             || p instanceof Rename
+            || p instanceof Row
             || p instanceof TopN
             || p instanceof UnresolvedSourceRelation) == false;
     }

@@ -139,7 +139,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         );
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
-        this.shardBatchIndexer = new ShardBatchIndexer(settings, bigArrays.bytesRefRecycler());
+        this.shardBatchIndexer = new ShardBatchIndexer(
+            new BatchIndexingEnabled(clusterService.getClusterSettings()),
+            bigArrays.bytesRefRecycler()
+        );
         this.preResolveBulkUpdates = PreResolvedUpdates.PRE_RESOLVE_BULK_UPDATES.get(settings);
         this.documentParsingProvider = documentParsingProvider;
     }

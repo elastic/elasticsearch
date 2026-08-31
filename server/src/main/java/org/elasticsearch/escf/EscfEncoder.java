@@ -50,11 +50,17 @@ public final class EscfEncoder implements SourceBatchEncoder {
         this.backend = new EscfBatchBuilder(recycler);
     }
 
+    public void parseToScratch(BytesReference source, XContentType xContentType) throws IOException {
+        parseToScratch(source, xContentType, LeafSink.NO_OP);
+    }
+
     @Override
     public void parseToScratch(BytesReference source, XContentType xContentType, LeafSink sink) throws IOException {
         EscfRowBuffer row = backend.beginRow();
         try (XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, source, xContentType)) {
-            parser.allowDuplicateKeys(true);
+            if (xContentType == XContentType.JSON) {
+                parser.allowDuplicateKeys(true);
+            }
             parser.nextToken(); // START_OBJECT
             flattenObject(row, parser, parser.nextToken(), sink);
         }

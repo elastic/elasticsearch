@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
-import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.junit.AfterClass;
 
@@ -37,7 +36,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.expression.function.DocsV3Support.renderNegatedOperator;
-import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesPattern;
 
@@ -56,9 +54,7 @@ public class InTests extends AbstractFunctionTestCase {
             if (DataType.DATE_RANGE.supportedVersion().supportedLocally()) {
                 dateRanges(suppliers, i);
             }
-            if (DataType.DOUBLE_RANGE.supportedVersion().supportedLocally()) {
-                doubleRanges(suppliers, i);
-            }
+            doubleRanges(suppliers, i);
         }
         return parameterSuppliersFromTypedData(suppliers);
     }
@@ -282,7 +278,6 @@ public class InTests extends AbstractFunctionTestCase {
 
     private static void doubleRanges(List<TestCaseSupplier> suppliers, int items) {
         suppliers.add(new TestCaseSupplier("double_range", typesList(DataType.DOUBLE_RANGE, DataType.DOUBLE_RANGE, items), () -> {
-            var doubleRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
             var drSupplier = TestCaseSupplier.doubleRangeCases().get(0).supplier();
             List<DoubleRangeBlockBuilder.DoubleRange> inlist = randomList(
                 items,
@@ -292,9 +287,9 @@ public class InTests extends AbstractFunctionTestCase {
             DoubleRangeBlockBuilder.DoubleRange field = inlist.get(0);
             List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
             for (DoubleRangeBlockBuilder.DoubleRange i : inlist) {
-                args.add(new TestCaseSupplier.TypedData(i, DataType.DOUBLE_RANGE, "inlist").withAppliesTo(doubleRangeAppliesTo));
+                args.add(new TestCaseSupplier.TypedData(i, DataType.DOUBLE_RANGE, "inlist"));
             }
-            args.add(new TestCaseSupplier.TypedData(field, DataType.DOUBLE_RANGE, "field").withAppliesTo(doubleRangeAppliesTo));
+            args.add(new TestCaseSupplier.TypedData(field, DataType.DOUBLE_RANGE, "field"));
             return new TestCaseSupplier.TestCase(
                 args,
                 matchesPattern("InDoubleRangeEvaluator.*"),

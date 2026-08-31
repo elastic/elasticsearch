@@ -25,6 +25,7 @@ import static org.elasticsearch.inference.metadata.EndpointMetadata.Display.MODE
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Display.NAME_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.EndpointRegion.CSP_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.EndpointRegion.GEO_FIELD;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.EndpointRegion.REGION_DISPLAY_NAME_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.EndpointRegion.REGION_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.HEURISTICS_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Heuristics.END_OF_LIFE_DATE_FIELD_NAME;
@@ -165,7 +166,13 @@ public final class EndpointMetadataParser {
             var csp = ObjectParserUtils.removeAsType(regionMap, CSP_FIELD.getPreferredName(), regionRoot, String.class);
             var region = ObjectParserUtils.removeAsType(regionMap, REGION_FIELD.getPreferredName(), regionRoot, String.class);
             var geo = ObjectParserUtils.removeAsType(regionMap, GEO_FIELD.getPreferredName(), regionRoot, String.class);
-            regions.add(new EndpointMetadata.EndpointRegion(csp, region, geo));
+            var regionDisplayName = ObjectParserUtils.removeAsType(
+                regionMap,
+                REGION_DISPLAY_NAME_FIELD.getPreferredName(),
+                regionRoot,
+                String.class
+            );
+            regions.add(new EndpointMetadata.EndpointRegion(csp, region, geo, regionDisplayName));
         }
         return List.copyOf(regions);
     }

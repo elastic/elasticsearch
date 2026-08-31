@@ -1746,8 +1746,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         var name = "model1";
         var url = "base_url";
         var regions = List.of(
-            new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us"),
-            new EndpointMetadata.EndpointRegion("gcp", "europe-west1", "eu")
+            new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us", null),
+            new EndpointMetadata.EndpointRegion("gcp", "europe-west1", "eu", null)
         );
 
         var response = new ElasticInferenceServiceAuthorizationResponseEntity(

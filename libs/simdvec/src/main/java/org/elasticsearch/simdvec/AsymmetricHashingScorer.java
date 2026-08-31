@@ -125,29 +125,17 @@ public final class AsymmetricHashingScorer {
 
         int planeBytes = (nDims + 7) >>> 3;
         int numLevels = 1 << bitsPerDim;
-        double centerOffset = (numLevels - 1) / 2.0;
 
-        double sumAll = 0;
-        double[] planeSums = new double[bitsPerDim];
+        float centerOffset = (numLevels - 1) / 2.0f;
+        float sum = ESVectorUtil.sum(queryTransformed, nDims);
 
-        for (int j = 0; j < nDims; j++) {
-            float qt = queryTransformed[j];
-            sumAll += qt;
-            // TODO: this is a more general form of ESVectorUtil.ipFloatBit
-            int byteIdx = j >>> 3;
-            int bitIdx = 7 - (j & 7);
-            for (int p = 0; p < bitsPerDim; p++) {
-                if ((packedCodes[codeOffset + p * planeBytes + byteIdx] & (1 << bitIdx)) != 0) {
-                    planeSums[p] += qt;
-                }
-            }
-        }
-
-        double dot = -centerOffset * sumAll;
+        float dot = -centerOffset * sum;
         for (int p = 0; p < bitsPerDim; p++) {
-            dot = Math.fma(1 << p, planeSums[p], dot);
+            float planeSum = ESVectorUtil.ipFloatBit(queryTransformed, 0, packedCodes, codeOffset + p * planeBytes, nDims);
+            dot = Math.fma(1 << p, planeSum, dot);
         }
-        return (float) dot * scale + queryConstants[QC_QUERY_DOT_CENTROID] + offset;
+
+        return Math.fma(dot, scale, queryConstants[QC_QUERY_DOT_CENTROID] + offset);
     }
 
     // --- queryConstants indices for scoreInteger ---
@@ -227,11 +215,8 @@ public final class AsymmetricHashingScorer {
         int rawDot = 0;
         for (int qp = 0; qp < queryBitsPerDim; qp++) {
             for (int dp = 0; dp < bitsPerDim; dp++) {
+                int pc = ESVectorUtil.andBitCount(queryQuantized, qp * planeBytes, packedCodes, codeOffset + dp * planeBytes, planeBytes);
                 int weight = (1 << qp) * (1 << dp);
-                int pc = 0;
-                for (int b = 0; b < planeBytes; b++) {
-                    pc += Integer.bitCount((queryQuantized[qp * planeBytes + b] & packedCodes[codeOffset + dp * planeBytes + b]) & 0xFF);
-                }
                 rawDot += weight * pc;
             }
         }

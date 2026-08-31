@@ -56,7 +56,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
@@ -98,7 +97,6 @@ import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.hamcrest.CoreMatchers;
-import org.hamcrest.Matchers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
@@ -2104,44 +2102,6 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         }
     }
 
-    public void testUpdateModelsWithDynamicFields_MlDisabled() throws Exception {
-        // ML disabled - models returned as-is, no client interaction
-        {
-            var model = mock(ElasticsearchInternalModel.class);
-            var models = List.<Model>of(model);
-
-            ActionListener<List<Model>> resultsListener = ActionListener.<List<Model>>wrap(
-                updatedModels -> assertThat(updatedModels, Matchers.sameInstance(models)),
-                e -> fail("Unexpected exception: " + e)
-            );
-
-            var client = mock(Client.class);
-            try (
-                var service = createService(client, Settings.builder().put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false).build())
-            ) {
-                service.updateModelsWithDynamicFields(models, resultsListener);
-                verify(client, Mockito.never()).execute(same(GetDeploymentStatsAction.INSTANCE), any(), any());
-            }
-        }
-
-        // NLP disabled - models returned as-is, no client interaction
-        {
-            var model = mock(ElasticsearchInternalModel.class);
-            var models = List.<Model>of(model);
-
-            ActionListener<List<Model>> resultsListener = ActionListener.<List<Model>>wrap(
-                updatedModels -> assertThat(updatedModels, Matchers.sameInstance(models)),
-                e -> fail("Unexpected exception: " + e)
-            );
-
-            var client = mock(Client.class);
-            try (var service = createService(client, Settings.builder().put(XPackSettings.NLP_ENABLED.getKey(), false).build())) {
-                service.updateModelsWithDynamicFields(models, resultsListener);
-                verify(client, Mockito.never()).execute(same(GetDeploymentStatsAction.INSTANCE), any(), any());
-            }
-        }
-    }
-
     public void testUpdateModelsWithDynamicFields_InvalidModelProvided() throws IOException {
         ActionListener<List<Model>> resultsListener = ActionListener.wrap(
             updatedModels -> fail("Expected invalid model assertion error to be thrown"),
@@ -2272,32 +2232,6 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
 
         try (var service = createService(client)) {
             service.updateModelsWithDynamicFields(modelsToUpdate, resultsListener);
-        }
-    }
-
-    public void testUpdateWithoutMlEnabled() throws IOException, InterruptedException {
-        var cs = mock(ClusterService.class);
-        var cSettings = new ClusterSettings(
-            Settings.EMPTY,
-            Set.of(MachineLearningField.MAX_LAZY_ML_NODES, MachineLearningField.MODEL_PLATFORM_ARCHITECTURES)
-        );
-        when(cs.getClusterSettings()).thenReturn(cSettings);
-        var context = new InferenceServiceExtension.InferenceServiceFactoryContext(
-            mock(),
-            threadPool,
-            cs,
-            Settings.builder().put("xpack.ml.enabled", false).build(),
-            inferenceStats,
-            mock(FeatureService.class)
-        );
-        try (var service = new ElasticsearchInternalService(context)) {
-            var models = List.of(mock(Model.class));
-            var latch = new CountDownLatch(1);
-            service.updateModelsWithDynamicFields(models, ActionTestUtils.assertNoFailureListener(r -> {
-                latch.countDown();
-                assertThat(r, Matchers.sameInstance(models));
-            }));
-            assertTrue(latch.await(30, TimeUnit.SECONDS));
         }
     }
 

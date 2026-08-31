@@ -32,6 +32,9 @@ The following list describes the available client settings. Those that must be s
 `azure.client.CLIENT_NAME.key` ([Secure](docs-content://deploy-manage/security/secure-settings.md), [reloadable](docs-content://deploy-manage/security/secure-settings.md#reloadable-secure-settings))
 :   The Azure secret key, which is used by the repository's internal Azure client. Alternatively, use `sas_token`.
 
+`azure.client.CLIENT_NAME.max_connections` {applies_to}`stack: ga 9.6+`
+:   The maximum number of concurrent connections to Azure. The default value is 50.
+
 `azure.client.CLIENT_NAME.max_retries`
 :   The number of retries to use when an Azure request fails. This setting helps control the exponential backoff policy. It specifies the number of retries that must occur before the snapshot fails. The default value is `3`. The initial backoff period is defined by Azure SDK as `30s`. Thus there is `30s` of wait time before retrying after a first timeout or failure. The maximum backoff period is defined by Azure SDK as `90s`.
 

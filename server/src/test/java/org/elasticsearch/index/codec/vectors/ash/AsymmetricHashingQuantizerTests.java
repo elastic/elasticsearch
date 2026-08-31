@@ -28,7 +28,6 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.oneOf;
 
 /**
  * Tests for the core ASH algorithm components: SVD, quantizers, and the full pipeline.
@@ -127,20 +126,6 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
                 assertEquals(expected, (float) dot, 1e-4f);
             }
         }
-    }
-
-    public void testSphericalScalarQuantizer2Bit() {
-        AshSphericalScalarQuantizer ssq = new AshSphericalScalarQuantizer(2);
-        float[] x = { 0.8f, -0.5f, 0.3f, -0.9f };
-        AshSphericalScalarQuantizer.QuantizeResult result = ssq.encode(x, 1, x.length);
-
-        // Codes should be centered: sign * (0.5 + level)
-        // With 2 bits, levels are 0 or 1, so magnitudes are 0.5 or 1.5
-        for (float val : result.centeredCodes()) {
-            float absMag = Math.abs(val);
-            assertThat(absMag, oneOf(0.5f, 1.5f));
-        }
-        assertThat(result.codeNorms()[0], greaterThan(0f));
     }
 
     public void testFullPipelineRandomMethod() throws IOException {
@@ -244,15 +229,8 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         // Score a query against the encoded vectors using the production scoring path
         float[] query = SvdUtil.randomGaussians(random(), dim);
 
-        // Project query: qt = query @ W (raw, not centered)
-        float[] qt = new float[nDims];
-        for (int j = 0; j < nDims; j++) {
-            double s = 0;
-            for (int d = 0; d < dim; d++) {
-                s = Math.fma(query[d], w[d * nDims + j], s);
-            }
-            qt[j] = (float) s;
-        }
+        // Project query: qt = wT @ query (raw, not centered)
+        float[] qt = SvdUtil.matrixVectorMultiply(wT, nDims, dim, query);
         float queryDotCentroid = ESVectorUtil.dotProduct(query, centroids[0]);
 
         float[] scores = new float[nVectors];
@@ -312,15 +290,8 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             float[] centroid = SvdUtil.randomGaussians(random(), dim);
             float[] query = SvdUtil.randomGaussians(random(), dim);
 
-            // Raw query projection: qt = query @ W
-            float[] qt = new float[nDims];
-            for (int j = 0; j < nDims; j++) {
-                double sum = 0;
-                for (int d = 0; d < dim; d++) {
-                    sum = Math.fma(query[d], w[d * nDims + j], sum);
-                }
-                qt[j] = (float) sum;
-            }
+            // Raw query projection: qt = wT @ query
+            float[] qt = SvdUtil.matrixVectorMultiply(wT, nDims, dim, query);
             float queryDotCentroid = ESVectorUtil.dotProduct(query, centroid, dim);
             AsymmetricHashingQuantizer.VectorAndNorm precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, wT);
 
@@ -532,24 +503,18 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         float[] w = ash.train(vectors, centroidGetter);
         int nDims = ash.nDims(dim);
 
-        // Pre-transform each query: qt = q @ W
-        float[][] qt = new float[nQueries][nDims];
+        // Precompute per-cluster values
+        float[] wT = ESVectorUtil.transposeMatrix(w, dim, nDims);
+
+        // Pre-transform each query: qt = wT @ q
+        float[][] qt = new float[nQueries][];
         for (int q = 0; q < nQueries; q++) {
-            for (int j = 0; j < nDims; j++) {
-                double s = 0;
-                for (int d = 0; d < dim; d++) {
-                    s = Math.fma(queries[q][d], w[d * nDims + j], s);
-                }
-                qt[q][j] = (float) s;
-            }
+            qt[q] = SvdUtil.matrixVectorMultiply(wT, nDims, dim, queries[q]);
         }
 
         // Score matrices: approx[q][i] = ASH-approximated dot(q, v_i), exact[q][i] = true dot
         double[][] exact = new double[nQueries][nVectors];
         double[][] approx = new double[nQueries][nVectors];
-
-        // Precompute per-cluster values
-        float[] wT = ESVectorUtil.transposeMatrix(w, dim, nDims);
         AsymmetricHashingQuantizer.VectorAndNorm[] precomputedPerCluster = new AsymmetricHashingQuantizer.VectorAndNorm[nClusters];
         for (int c = 0; c < nClusters; c++) {
             precomputedPerCluster[c] = AsymmetricHashingQuantizer.precomputeCentroid(centroids[c], wT);

@@ -983,16 +983,14 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         Function<DoubleRangeBlockBuilder.DoubleRange, Object> expectedValue,
         List<String> warnings
     ) {
-        if (DataType.DOUBLE_RANGE.supportedVersion().supportedLocally()) {
-            unary(
-                suppliers,
-                expectedEvaluatorToString,
-                doubleRangeCases(),
-                expectedType,
-                v -> expectedValue.apply((DoubleRangeBlockBuilder.DoubleRange) v),
-                warnings
-            );
-        }
+        unary(
+            suppliers,
+            expectedEvaluatorToString,
+            doubleRangeCases(),
+            expectedType,
+            v -> expectedValue.apply((DoubleRangeBlockBuilder.DoubleRange) v),
+            warnings
+        );
     }
 
     public static void forUnaryExponentialHistogram(

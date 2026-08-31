@@ -153,6 +153,13 @@ public final class Messages {
     public static final String JOB_AUDIT_DATAFEED_CONTINUED_REALTIME = "Datafeed continued in real-time";
     public static final String JOB_AUDIT_DATAFEED_DATA_ANALYSIS_ERROR = "Datafeed is encountering errors submitting data for analysis: {0}";
     public static final String JOB_AUDIT_DATAFEED_DATA_EXTRACTION_ERROR = "Datafeed is encountering errors extracting data: {0}";
+    public static final String JOB_AUDIT_DATAFEED_PARENT_CIRCUIT_BREAKER =
+        "A node ran low on memory and rejected this search. This is usually transient (for example during catch-up) and needs no action. "
+            + "The failed interval was not advanced: a continuously running datafeed retries it automatically; "
+            + "a one-off lookback must be restarted. "
+            + "If this keeps recurring, narrow the datafeed''s indices or query, reduce chunking_config.time_span, "
+            + "use aggregations, or scale up the node. "
+            + "Details: {0}";
     public static final String JOB_AUDIT_DATAFEED_LOOKBACK_COMPLETED = "Datafeed lookback completed";
     public static final String JOB_AUDIT_DATAFEED_LOOKBACK_NO_DATA = "Datafeed lookback retrieved no data";
     public static final String JOB_AUDIT_DATAFEED_NO_DATA = "Datafeed has been retrieving no data for a while";

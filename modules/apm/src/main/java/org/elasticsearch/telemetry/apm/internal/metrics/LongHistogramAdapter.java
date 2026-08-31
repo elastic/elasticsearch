@@ -12,8 +12,6 @@ package org.elasticsearch.telemetry.apm.internal.metrics;
 import io.opentelemetry.api.metrics.LongHistogram;
 import io.opentelemetry.api.metrics.Meter;
 
-import org.elasticsearch.telemetry.apm.AbstractInstrument;
-
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -21,12 +19,12 @@ import java.util.Objects;
 /**
  * LongHistogramAdapter wraps an otel LongHistogram
  */
-public class LongHistogramAdapter extends AbstractInstrument<LongHistogram> implements org.elasticsearch.telemetry.metric.LongHistogram {
-    public LongHistogramAdapter(Meter meter, String name, String description, String unit) {
+class LongHistogramAdapter extends AbstractInstrument<LongHistogram> implements org.elasticsearch.telemetry.metric.LongHistogram {
+    LongHistogramAdapter(Meter meter, String name, String description, String unit) {
         super(meter, new Builder(name, description, unit, HistogramBuckets.APM_DEFAULT_LONGS));
     }
 
-    public LongHistogramAdapter(Meter meter, String name, String description, String unit, List<Long> bucketBoundaries) {
+    LongHistogramAdapter(Meter meter, String name, String description, String unit, List<Long> bucketBoundaries) {
         super(meter, new Builder(name, description, unit, bucketBoundaries));
     }
 

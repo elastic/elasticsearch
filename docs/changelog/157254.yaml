@@ -1,0 +1,6 @@
+area: Aggregations
+issues:
+ - 157206
+pr: 157254
+summary: Fix percentiles reduce using a closed preallocated breaker
+type: bug

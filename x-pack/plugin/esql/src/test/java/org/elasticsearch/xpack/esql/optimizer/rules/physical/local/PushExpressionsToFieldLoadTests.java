@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.vector.DotProduct;
@@ -844,6 +845,62 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             as(input.field(), FunctionEsField.class).functionConfig().function(),
             is(BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD)
         );
+    }
+
+    // ---- field_extract into a full-text function (must fuse the loader but stay a runtime match) ----
+
+    public void testFieldExtractIntoMatchPhraseFusesButStaysRuntime() {
+        assumeTrue("field_extract must be part of this build", FieldExtract.isFnFieldExtractCapabilityMet());
+        assumeTrue("match_phrase must be enabled", EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled());
+        // MATCH_PHRASE over a flattened field_extract: the field_extract must fuse into a keyed sub-field load
+        // (EXTRACT_FLATTENED_SUBFIELD), but MATCH_PHRASE itself has no indexed Lucene field behind the fused value,
+        // so it must run at runtime (isRuntimeSearch) rather than being pushed to Lucene.
+        PhysicalPlan plan = flattenedPlannerOptimizer.plan("""
+            FROM test
+            | WHERE MATCH_PHRASE(field_extract(data, "host.name"), "some host")
+            | SORT id
+            | LIMIT 10
+            | KEEP id
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "data", BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD);
+        assertThat("field_extract feeding MATCH_PHRASE should fuse", pushed, hasSize(1));
+
+        List<MatchPhrase> matchPhrases = new ArrayList<>();
+        plan.forEachExpressionDown(MatchPhrase.class, matchPhrases::add);
+        assertThat("MATCH_PHRASE must survive as a runtime expression, not be pushed to Lucene", matchPhrases, hasSize(1));
+        MatchPhrase matchPhrase = matchPhrases.get(0);
+
+        // Its field argument is the fused field_extract, backed by a FunctionEsField carrying EXTRACT_FLATTENED_SUBFIELD.
+        FieldAttribute field = as(matchPhrase.field(), FieldAttribute.class);
+        assertThat(
+            as(field.field(), FunctionEsField.class).functionConfig().function(),
+            is(BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD)
+        );
+        assertTrue("MATCH_PHRASE over a fused field_extract must run at runtime, not be pushed", matchPhrase.isRuntimeSearch());
+    }
+
+    // ---- field_extract into a function that requires an exact string argument ----
+
+    public void testFieldExtractIntoExactStringArgumentIsFused() {
+        assumeTrue("field_extract must be part of this build", FieldExtract.isFnFieldExtractCapabilityMet());
+        // DATE_UNIT_COUNT type-checks its unit arguments with isStringAndExact. A fused field_extract produces an
+        // attribute backed by a FunctionEsField, which reports itself as exact (its value is a keyword extracted by
+        // the block loader), so DATE_UNIT_COUNT stays resolved after fusion and both field_extract invocations fuse.
+        // Pushdown exactness is decoupled from type-check exactness, so this no longer leaves the plan unresolved.
+        PhysicalPlan plan = flattenedPlannerOptimizer.plan("""
+            FROM test
+            | EVAL n = DATE_UNIT_COUNT(field_extract(data, "to"), field_extract(data, "from"), "2024-01-01T00:00:00Z"::datetime)
+            | SORT id
+            | KEEP n
+            """);
+
+        // Both field_extract(data, "to") and field_extract(data, "from") fuse into the data field load.
+        List<FieldAttribute> pushed = findPushedFields(plan, "data", BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD);
+        assertThat("both field_extract invocations feeding DATE_UNIT_COUNT should fuse", pushed, hasSize(2));
+
+        // The whole point of decoupling: fusion must not invalidate an expression that resolved during analysis.
+        plan.forEachExpressionDown(Expression.class, e -> assertThat("plan must stay resolved after fusion", e.resolved(), is(true)));
     }
 
     // ---- Lookup join test (Primaries check) ----

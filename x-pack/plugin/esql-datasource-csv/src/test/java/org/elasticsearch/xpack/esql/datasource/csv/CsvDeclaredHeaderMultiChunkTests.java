@@ -72,7 +72,7 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
         );
 
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
-            .withDeclaredPathBinding(true)
+            .withDeclaredProvenanceBinding(true)
             .withSchema(declared);
 
         InputStream stream = new ByteArrayInputStream(csv.toString().getBytes(StandardCharsets.UTF_8));

@@ -14,6 +14,9 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.ingest.IngestSettings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
@@ -33,10 +36,31 @@ public class RestPutPipelineActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestPutPipelineAction();
+        action = new RestPutPipelineAction(new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         controller().registerHandler(action);
         verifyingClient.setExecuteVerifier((actionType, request) -> Mockito.mock(AcknowledgedResponse.class));
         verifyingClient.setExecuteLocallyVerifier((actionType, request) -> Mockito.mock(AcknowledgedResponse.class));
+    }
+
+    public void testRejectsOversizedRequestBody() {
+        // An action whose max pipeline size is tiny, so any real body exceeds it.
+        RestPutPipelineAction smallLimitAction = new RestPutPipelineAction(
+            new ClusterSettings(
+                Settings.builder().put(IngestSettings.MAX_PIPELINE_SIZE.getKey(), "10b").build(),
+                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+            )
+        );
+
+        Map<String, String> params = new HashMap<>();
+        params.put("id", "my_pipeline");
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
+            .withPath("/_ingest/pipeline/my_pipeline")
+            .withContent(new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"f\", \"value\": \"v\"}}]}"), XContentType.JSON)
+            .withParams(params)
+            .build();
+
+        Exception ex = expectThrows(IllegalArgumentException.class, () -> smallLimitAction.prepareRequest(request, verifyingClient));
+        assertTrue(ex.getMessage(), ex.getMessage().contains("ingest.pipeline.max_pipeline_size"));
     }
 
     public void testInvalidIfVersionValue() {

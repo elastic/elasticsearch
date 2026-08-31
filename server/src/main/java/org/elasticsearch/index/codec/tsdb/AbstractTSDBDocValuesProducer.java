@@ -703,12 +703,30 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             return index;
         }
 
+        /**
+         * A negative index means the caller asked for a doc behind the loaded block. {@link #findAndUpdateBlock} only searches forwards,
+         * so it hands back the stale block rather than detecting this, and the caller would otherwise read another doc's bytes.
+         */
+        private String outOfBlock(int docNumber, int idxInBlock, int numDocsInBlock) {
+            return "doc ["
+                + docNumber
+                + "] maps to index ["
+                + idxInBlock
+                + "] of block ["
+                + startDocNumForBlock
+                + ", "
+                + limitDocNumForBlock
+                + ") holding ["
+                + numDocsInBlock
+                + "] docs; docs must be read in ascending order";
+        }
+
         BytesRef decode(int docNumber, int numBlocks) throws IOException {
             long blockId = findAndUpdateBlock(docNumber, numBlocks);
 
             int numDocsInBlock = (int) (limitDocNumForBlock - startDocNumForBlock);
             int idxInBlock = (int) (docNumber - startDocNumForBlock);
-            assert idxInBlock < numDocsInBlock;
+            assert idxInBlock >= 0 && idxInBlock < numDocsInBlock : outOfBlock(docNumber, idxInBlock, numDocsInBlock);
 
             if (blockId != lastBlockId) {
                 decompressBlock(blockId, numDocsInBlock);
@@ -727,7 +745,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
             int numDocsInBlock = (int) (limitDocNumForBlock - startDocNumForBlock);
             int idxInBlock = (int) (docNumber - startDocNumForBlock);
-            assert idxInBlock < numDocsInBlock;
+            assert idxInBlock >= 0 && idxInBlock < numDocsInBlock : outOfBlock(docNumber, idxInBlock, numDocsInBlock);
 
             if (blockId != lastBlockId) {
                 decompressOffsets(blockId, numDocsInBlock);

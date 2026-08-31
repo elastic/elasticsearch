@@ -497,7 +497,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         ) {
             if (asUnsupportedSource == false && name.equals(fullFieldName)) {
                 Mapper mapper = mappingLookup().getMapper(name);
-                if (mapper == null || mapper instanceof ObjectMapper) {
+                if (mapper instanceof ObjectMapper) {
+                    // ObjectMapper has no scalar block loader; return a source-based null column.
+                    return unmappedKeywordBlockLoader(name, this);
+                }
+                if (mapper == null && super.fieldType(name) == null) {
+                    // Truly unmapped field: no Mapper entry, no recognized FieldType (e.g. not a flattened subfield).
                     return unmappedKeywordBlockLoader(name, this);
                 }
             }

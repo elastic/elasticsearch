@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.action.datafeed;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
@@ -100,12 +99,6 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         assertThat(previewDatafeed.getCloudInternalCredential(), nullValue());
     }
 
-    public void testProjectRoutingRequiresCpsException_ShouldMatchPutDatafeedMessage() {
-        ElasticsearchStatusException exception = DatafeedConfig.projectRoutingRequiresCpsException();
-        assertThat(exception.getMessage(), equalTo(DatafeedConfig.PROJECT_ROUTING_REQUIRES_CPS_MESSAGE));
-        assertThat(exception.status(), equalTo(org.elasticsearch.rest.RestStatus.BAD_REQUEST));
-    }
-
     public void testWithCrossProjectModeIfEnabled_GivenCpsEnabled_ShouldEnableCrossProjectIndicesOptions() {
         assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("preview_cps_feed", "job_foo");
@@ -118,6 +111,23 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(builder.build(), decider, true);
 
         assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), is(true));
+    }
+
+    public void testWithCrossProjectModeIfEnabled_FlagOffPreviewClearsProjectRouting() {
+        assumeFalse("Run with -Des.ml_cross_project_feature_flag_enabled=false", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("preview_flag_off_feed", "job_foo");
+        builder.setIndices(Collections.singletonList("logs-*"));
+        builder.setProjectRouting("_alias:prod-*");
+        CrossProjectModeDecider decider = new CrossProjectModeDecider(
+            Settings.builder().put("serverless.cross_project.enabled", true).build()
+        );
+
+        DatafeedConfig previewConfig = TransportPreviewDatafeedAction.buildPreviewDatafeed(builder.build()).build();
+        DatafeedConfig effective = DatafeedConfig.withCrossProjectModeIfEnabled(previewConfig, decider, true);
+
+        assertThat(effective.getProjectRouting(), nullValue());
+        assertThat(effective.getIndicesOptions().resolveCrossProjectIndexExpression(), is(false));
+        assertThat(previewConfig.getProjectRouting(), equalTo("_alias:prod-*"));
     }
 
     public void testWithCrossProjectModeIfEnabled_GivenNoCallerCredential_DoesNotPromote() {

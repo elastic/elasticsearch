@@ -1488,7 +1488,8 @@ public class BulkOperationTests extends ESTestCase {
             failureStoreDocumentConverter,
             FailureStoreMetrics.NOOP,
             dataStreamFailureStoreSettings,
-            failureStoreNodeFeatureEnabled
+            failureStoreNodeFeatureEnabled,
+            new BatchIndexingEnabled(ClusterSettings.createBuiltInClusterSettings())
         );
     }
 

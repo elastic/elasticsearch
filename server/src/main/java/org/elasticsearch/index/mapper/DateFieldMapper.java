@@ -30,6 +30,7 @@ import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -124,6 +125,8 @@ public final class DateFieldMapper extends FieldMapper {
     private static final IndexableFieldType SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE = SortedNumericDocValuesField.indexedField("_sentinel", 0L)
         .fieldType();
     private static final IndexableFieldType LONG_FIELD_TYPE = new LongField("_sentinel", 0L, Field.Store.NO).fieldType();
+    // Stored-only variant: matches the separate StoredField(name, timestamp) emitted by the row path.
+    private static final IndexableFieldType LONG_STORED_ONLY_FIELD_TYPE = new StoredField("_sentinel", 0L).fieldType();
 
     public enum Resolution {
         MILLISECONDS(CONTENT_TYPE, NumericType.DATE, DateMillisDocValuesField::new) {
@@ -279,7 +282,7 @@ public final class DateFieldMapper extends FieldMapper {
 
         private final Parameter<Boolean> index;
         private final DocValuesParameter docValuesParameters;
-        private final Parameter<Boolean> store = Parameter.storeParam(m -> toType(m).store, false);
+        private final Parameter<Boolean> store = Parameter.storeParam(m -> toType(m).stored, false);
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -1171,7 +1174,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
     }
 
-    private final boolean store;
+    private final boolean stored;
     private final boolean indexed;
     private final DocValuesParameter.Values docValuesParameters;
     private final DocValuesFieldFactory dvFactory;
@@ -1202,7 +1205,7 @@ public final class DateFieldMapper extends FieldMapper {
         String offsetsFieldName
     ) {
         super(leafName, mappedFieldType, builderParams);
-        this.store = builder.store.getValue();
+        this.stored = builder.store.getValue();
         this.indexed = builder.index.getValue();
         this.docValuesParameters = builder.docValuesParameters.getValue();
         this.dvFactory = new DocValuesFieldFactory(
@@ -1235,8 +1238,8 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean isSingleValueEnforced() {
-        return docValuesParameters.multiValue() == false;
+    protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
+        return docValuesParameters.multiValue() == false && (token != XContentParser.Token.VALUE_NULL || nullValue != null);
     }
 
     @Override
@@ -1267,7 +1270,6 @@ public final class DateFieldMapper extends FieldMapper {
         // time instead.
         return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
             && docValuesParameters.enabled()
-            && store == false
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
             && multiFields().iterator().hasNext() == false
@@ -1280,11 +1282,11 @@ public final class DateFieldMapper extends FieldMapper {
             case EscfColumnKind.STRING -> datesFromStrings(source);
             case EscfColumnKind.LONG -> datesFromLongs(source);
             default -> throw new UnsupportedOperationException(
-                "mapColumnBatch: ESCF column kind ["
-                    + EscfColumnKind.name(source.kind())
-                    + "] is not yet supported for date field ["
-                    + fullPath()
-                    + "]"
+                Strings.format(
+                    "mapColumnBatch: ESCF column kind [%s] is not yet supported for date field [%s]",
+                    EscfColumnKind.name(source.kind()),
+                    fullPath()
+                )
             );
         };
         final IndexableFieldType columnFieldType;
@@ -1296,6 +1298,9 @@ public final class DateFieldMapper extends FieldMapper {
             columnFieldType = SORTED_NUMERIC_DV_FIELD_TYPE;
         }
         ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), columnFieldType, LongColumn.NumericKind.LONG));
+        if (stored) {
+            ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), LONG_STORED_ONLY_FIELD_TYPE, LongColumn.NumericKind.LONG));
+        }
         // Publish the timestamp ESCF column on the context so that postColumnarParse hooks
         // (DataStreamTimestampFieldMapper, TsidExtractingIdFieldMapper) can read per-document
         // values without re-scanning the Lucene column list. Mirrors DateFieldMapper.indexValue's
@@ -1432,10 +1437,10 @@ public final class DateFieldMapper extends FieldMapper {
         } else if (indexed) {
             context.doc().add(new LongPoint(fieldType().name(), timestamp));
         }
-        if (store) {
+        if (stored) {
             context.doc().add(new StoredField(fieldType().name(), timestamp));
         }
-        if (docValuesParameters.enabled() == false && (indexed || store)) {
+        if (docValuesParameters.enabled() == false && (indexed || stored)) {
             // When the field doesn't have doc values so that we can run exists queries, we also need to index the field name separately.
             context.addToFieldNames(fieldType().name());
         }
@@ -1483,6 +1488,9 @@ public final class DateFieldMapper extends FieldMapper {
                 }
                 if (ignoreMalformed) {
                     layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
+                }
+                if (onFailureColumnEnabled()) {
+                    layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
                 }
                 return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
             });

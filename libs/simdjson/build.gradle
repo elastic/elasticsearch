@@ -20,7 +20,9 @@ dependencies {
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'simdjson'
   }
-  testImplementation(testFixtures(project(':libs:simdvec')))
+  testImplementation(testFixtures(project(':libs:simdvec'))) {
+    exclude group: 'org.elasticsearch', module: 'simdjson'
+  }
 }
 
 tasks.withType(JavaCompile).configureEach {

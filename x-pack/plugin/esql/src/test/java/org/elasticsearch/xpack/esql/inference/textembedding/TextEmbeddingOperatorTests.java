@@ -100,7 +100,10 @@ public class TextEmbeddingOperatorTests extends AbstractDenseEmbeddingOperatorTe
             var runner = new TestDriverRunner().builder(driverContext());
             runner.input(simpleInput(runner.context().blockFactory(), between(1, 100)));
 
-            Exception actual = expectThrows(Exception.class, () -> runner.run(createTolerantOperatorFactory(failingService)));
+            Exception actual = expectThrows(
+                Exception.class,
+                () -> runner.run(createOperatorFactory(failingService, InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE, true))
+            );
             assertThat(actual.getMessage(), containsString(fatal.getMessage()));
         }
     }
@@ -120,7 +123,10 @@ public class TextEmbeddingOperatorTests extends AbstractDenseEmbeddingOperatorTe
         var runner = new TestDriverRunner().builder(driverContext);
         runner.input(simpleInput(runner.context().blockFactory(), between(1, 100)));
 
-        Exception actual = expectThrows(Exception.class, () -> runner.run(createTolerantOperatorFactory(failingService)));
+        Exception actual = expectThrows(
+            Exception.class,
+            () -> runner.run(createOperatorFactory(failingService, InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE, true))
+        );
         assertThat(actual.getMessage(), containsString("rejected execution"));
         assertThat(collectWarnings(driverContext), empty());
     }

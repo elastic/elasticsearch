@@ -153,7 +153,7 @@ public class SourceExtractorsTests extends ESTestCase {
         assertEquals("trailing closeable must run exactly once", 1, calls.get());
     }
 
-    public void testMaterializeEmptyCount() {
+    public void testMaterializeEmptyCount() throws IOException {
         try (SourceExtractors registry = new SourceExtractors()) {
             registry.register(new IntListExtractor(new int[] { 1, 2 }));
             Block[] result = registry.materialize(new long[0], 0, List.of("col"), null, blockFactory);
@@ -166,7 +166,7 @@ public class SourceExtractorsTests extends ESTestCase {
         }
     }
 
-    public void testMaterializeSingleSource() {
+    public void testMaterializeSingleSource() throws IOException {
         try (SourceExtractors registry = new SourceExtractors()) {
             int id = registry.register(new IntListExtractor(new int[] { 10, 20, 30, 40 }));
             // Request positions 3, 0, 2 — out of order and disjoint.
@@ -185,7 +185,7 @@ public class SourceExtractorsTests extends ESTestCase {
         }
     }
 
-    public void testMaterializeMultiSourceInterleaved() {
+    public void testMaterializeMultiSourceInterleaved() throws IOException {
         try (SourceExtractors registry = new SourceExtractors()) {
             int idA = registry.register(new IntListExtractor(new int[] { 100, 101, 102 }));
             int idB = registry.register(new IntListExtractor(new int[] { 200, 201 }));
@@ -214,7 +214,7 @@ public class SourceExtractorsTests extends ESTestCase {
         }
     }
 
-    public void testMaterializeBatchesPerExtractor() {
+    public void testMaterializeBatchesPerExtractor() throws IOException {
         // The dispatch must call extract once per id per materialize() call — proving the per-id
         // batching is real, not row-by-row, and that all requested columns flow through a single
         // extract invocation so the implementation can coalesce I/O across columns (F-2).
@@ -254,7 +254,7 @@ public class SourceExtractorsTests extends ESTestCase {
         assertEquals("single-column materialize must pass exactly one column to extract", 1, maxColumnsPerCall.get());
     }
 
-    public void testMaterializeMultipleColumnsBatchesAllColumnsPerExtractor() {
+    public void testMaterializeMultipleColumnsBatchesAllColumnsPerExtractor() throws IOException {
         // F-2 invariant: with N requested columns and K extractor ids, materialize() must invoke
         // each extractor's multi-column extract exactly once (passing all N columns), so the
         // implementation can issue a single coalesced I/O batch covering all N columns. A
@@ -292,7 +292,7 @@ public class SourceExtractorsTests extends ESTestCase {
         assertEquals("multi-column materialize must pass both columns in a single extract() call", 2, maxColsA.get());
     }
 
-    public void testMaterializeMultipleColumns() {
+    public void testMaterializeMultipleColumns() throws IOException {
         try (SourceExtractors registry = new SourceExtractors()) {
             int idA = registry.register(new TwoColumnExtractor(new int[] { 1, 2 }, new long[] { 10L, 20L }));
             int idB = registry.register(new TwoColumnExtractor(new int[] { 3, 4 }, new long[] { 30L, 40L }));

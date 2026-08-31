@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.core.inference;
 
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.test.ESTestCase;
@@ -37,5 +39,13 @@ public class InferenceEndpointRegistryTests extends ESTestCase {
 
     public void testSetInstanceRejectsNull() {
         expectThrows(NullPointerException.class, () -> InferenceEndpointRegistry.setInstance(null));
+    }
+
+    public void testEndpointMetadataChangedDefaultReturnsFalse() {
+        ProjectMetadata project = ProjectMetadata.builder(ProjectId.fromId("project-a")).build();
+        ClusterState previous = ClusterState.EMPTY_STATE;
+        ClusterState current = ClusterState.builder(previous).metadata(previous.metadata()).build();
+        ClusterChangedEvent event = new ClusterChangedEvent("test", current, previous);
+        assertThat(InferenceEndpointRegistry.getInstance().endpointMetadataChanged(event, project.id()), equalTo(false));
     }
 }

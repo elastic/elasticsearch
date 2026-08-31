@@ -429,7 +429,9 @@ public class InferencePlugin extends Plugin
 
         modelRegistry.set(new ModelRegistry(services.clusterService(), services.client(), inferenceIndexManager.get()));
         services.clusterService().addListener(modelRegistry.get());
-        org.elasticsearch.xpack.core.inference.InferenceEndpointRegistry.setInstance(new ClusterStateInferenceEndpointRegistry());
+        org.elasticsearch.xpack.core.inference.InferenceEndpointRegistry.setInstance(
+            new ClusterStateInferenceEndpointRegistry(modelRegistry.get())
+        );
 
         if (inferenceServiceExtensions == null) {
             inferenceServiceExtensions = new ArrayList<>();

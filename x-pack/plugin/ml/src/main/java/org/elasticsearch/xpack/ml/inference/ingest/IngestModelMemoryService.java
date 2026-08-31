@@ -124,7 +124,8 @@ public class IngestModelMemoryService implements ClusterStateListener, IngestMod
                 continue;
             }
             if (event.customMetadataChanged(projectId, IngestMetadata.TYPE)
-                || event.customMetadataChanged(projectId, ModelAliasMetadata.NAME)) {
+                || event.customMetadataChanged(projectId, ModelAliasMetadata.NAME)
+                || InferenceEndpointRegistry.getInstance().endpointMetadataChanged(event, projectId)) {
                 refreshProjectFromFullScan(projectId, event.state());
             }
         }
@@ -230,6 +231,7 @@ public class IngestModelMemoryService implements ClusterStateListener, IngestMod
     private boolean ingestOrAliasRelevant(ClusterChangedEvent event, ProjectId projectId) {
         return event.customMetadataChanged(projectId, IngestMetadata.TYPE)
             || event.customMetadataChanged(projectId, ModelAliasMetadata.NAME)
+            || InferenceEndpointRegistry.getInstance().endpointMetadataChanged(event, projectId)
             || event.previousState().metadata().projects().get(projectId) == null;
     }
 
@@ -238,6 +240,7 @@ public class IngestModelMemoryService implements ClusterStateListener, IngestMod
         Set<String> nowReferenced = IngestPipelineModelReferences.resolveReferencedModelsForProject(state, projectId);
         Set<String> endpointIds = InferenceEndpointRegistry.getInstance().inferenceEndpointIds(project);
         if (endpointIds.isEmpty() == false) {
+            // Inference endpoint ids and trained-model ids are disjoint at endpoint creation time.
             nowReferenced = new HashSet<>(nowReferenced);
             nowReferenced.removeAll(endpointIds);
         }
@@ -301,7 +304,7 @@ public class IngestModelMemoryService implements ClusterStateListener, IngestMod
                         if (isDfaModel(config)) {
                             propagateModelSize(modelId, toStoredSize(config.getModelSize()));
                         } else {
-                            untrackModel(modelId);
+                            propagateModelSize(modelId, OptionalLong.of(0L));
                         }
                     }, e -> {
                         fetchScheduledModelIds.remove(modelId);
@@ -341,14 +344,6 @@ public class IngestModelMemoryService implements ClusterStateListener, IngestMod
 
     private static boolean isDfaModel(TrainedModelConfig config) {
         return Optional.ofNullable(config.getModelType()).orElse(TrainedModelType.TREE_ENSEMBLE) == TrainedModelType.TREE_ENSEMBLE;
-    }
-
-    private void untrackModel(String modelId) {
-        globalModelSizes.remove(modelId);
-        unresolvedSinceNanos.remove(modelId);
-        fetchScheduledModelIds.remove(modelId);
-        staleWarnEmitted.remove(modelId);
-        recomputeHeapRequirement();
     }
 
     private void propagateModelSize(String modelId, OptionalLong size) {

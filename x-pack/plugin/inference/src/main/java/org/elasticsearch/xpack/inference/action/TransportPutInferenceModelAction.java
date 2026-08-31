@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -42,6 +43,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -61,6 +63,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.resolveTimeoutForTaskType;
 import static org.elasticsearch.xpack.inference.InferenceFeatures.EMBEDDING_TASK_TYPE;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
@@ -77,6 +81,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     private final XPackLicenseState licenseState;
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
+    private final Client client;
     private volatile boolean skipValidationAndStart;
     private final ProjectResolver projectResolver;
     private final FeatureService featureService;
@@ -90,6 +95,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         XPackLicenseState licenseState,
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
+        Client client,
         Settings settings,
         ProjectResolver projectResolver,
         FeatureService featureService
@@ -107,6 +113,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         this.licenseState = licenseState;
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
+        this.client = client;
         this.skipValidationAndStart = InferencePlugin.SKIP_VALIDATE_AND_START.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(InferencePlugin.SKIP_VALIDATE_AND_START, this::setSkipValidationAndStart);
@@ -208,14 +215,31 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             return;
         }
 
-        parseAndStoreModel(
-            service.get(),
-            request.getInferenceEntityId(),
-            resolvedTaskType,
-            requestAsMap,
-            resolveTimeoutForTaskType(resolvedTaskType, request.getTimeout()),
-            state,
-            listener
+        executeAsyncWithOrigin(
+            client,
+            INFERENCE_ORIGIN,
+            GetTrainedModelsAction.INSTANCE,
+            new GetTrainedModelsAction.Request(request.getInferenceEntityId()),
+            listener.delegateFailureAndWrap((delegate, trainedModelsResponse) -> {
+                if (trainedModelsResponse.getResources().count() > 0) {
+                    delegate.onFailure(
+                        ExceptionsHelper.badRequestException(
+                            Messages.INFERENCE_ID_MATCHES_EXISTING_MODEL_IDS_BUT_MUST_NOT,
+                            request.getInferenceEntityId()
+                        )
+                    );
+                    return;
+                }
+                parseAndStoreModel(
+                    service.get(),
+                    request.getInferenceEntityId(),
+                    resolvedTaskType,
+                    requestAsMap,
+                    resolveTimeoutForTaskType(resolvedTaskType, request.getTimeout()),
+                    state,
+                    delegate
+                );
+            })
         );
     }
 

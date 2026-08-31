@@ -56,6 +56,7 @@ import java.util.Set;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -72,6 +73,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class IngestModelMemoryServiceTests extends ESTestCase {
+
+    private static final String DEFAULT_ELSER_ENDPOINT_ID = ".elser-2-elasticsearch";
 
     private static final ProjectId PROJECT_A = ProjectId.fromId("project-a");
     private static final ProjectId PROJECT_B = ProjectId.fromId("project-b");
@@ -116,16 +119,108 @@ public class IngestModelMemoryServiceTests extends ESTestCase {
         verify(trainedModelProvider, never()).getTrainedModel(eq("my-endpoint"), eq(GetTrainedModelsAction.Includes.empty()), any(), any());
     }
 
+    public void testDefaultInferenceEndpointReferenceShouldNotBeTracked() throws Exception {
+        InferenceEndpointRegistry.setInstance(project -> Set.of(DEFAULT_ELSER_ENDPOINT_ID));
+        ClusterState current = masterClusterState(withIngestModels(Map.of(PROJECT_A, DEFAULT_ELSER_ENDPOINT_ID)));
+        service.clusterChanged(new ClusterChangedEvent("test", current, masterClusterState(ClusterState.EMPTY_STATE.metadata())));
+
+        assertThat(service.getGlobalModelSizeForTests(DEFAULT_ELSER_ENDPOINT_ID), nullValue());
+        assertThat(service.getRequiredHeapBytes().heapBytes(), equalTo(0L));
+        assertThat(service.getRequiredHeapBytes().isExact(), is(true));
+        assertThat(service.isTrackingModelForProjectForTests(PROJECT_A, DEFAULT_ELSER_ENDPOINT_ID), is(false));
+        verify(trainedModelProvider, never()).getTrainedModel(
+            eq(DEFAULT_ELSER_ENDPOINT_ID),
+            eq(GetTrainedModelsAction.Includes.empty()),
+            any(),
+            any()
+        );
+    }
+
+    public void testEndpointMetadataChangeShouldUntrackAndRetrackWithoutIngestChange() throws Exception {
+        AtomicReference<Set<String>> endpointIds = new AtomicReference<>(Set.of());
+        AtomicBoolean metadataChanged = new AtomicBoolean(false);
+        InferenceEndpointRegistry.setInstance(new InferenceEndpointRegistry() {
+            @Override
+            public Set<String> inferenceEndpointIds(ProjectMetadata project) {
+                return endpointIds.get();
+            }
+
+            @Override
+            public boolean endpointMetadataChanged(ClusterChangedEvent event, ProjectId projectId) {
+                return metadataChanged.getAndSet(false);
+            }
+        });
+
+        ClusterState withPipeline = masterClusterState(withIngestModels(Map.of(PROJECT_A, "my-endpoint")));
+        service.clusterChanged(new ClusterChangedEvent("test", withPipeline, masterClusterState(ClusterState.EMPTY_STATE.metadata())));
+        assertBusy(() -> assertThat(service.isTrackingModelForProjectForTests(PROJECT_A, "my-endpoint"), is(true)));
+
+        endpointIds.set(Set.of("my-endpoint"));
+        metadataChanged.set(true);
+        service.clusterChanged(new ClusterChangedEvent("test", withPipeline, withPipeline));
+
+        assertThat(service.getGlobalModelSizeForTests("my-endpoint"), nullValue());
+        assertThat(service.isTrackingModelForProjectForTests(PROJECT_A, "my-endpoint"), is(false));
+
+        endpointIds.set(Set.of());
+        metadataChanged.set(true);
+        service.clusterChanged(new ClusterChangedEvent("test", withPipeline, withPipeline));
+
+        assertBusy(() -> assertThat(service.isTrackingModelForProjectForTests(PROJECT_A, "my-endpoint"), is(true)));
+    }
+
     public void testResolvedNlpModelShouldNotContributeHeap() throws Exception {
         stubModelConfig("nlp-model", 100L, TrainedModelType.PYTORCH);
         ClusterState current = masterClusterState(withIngestModels(Map.of(PROJECT_A, "nlp-model")));
         service.clusterChanged(new ClusterChangedEvent("test", current, masterClusterState(ClusterState.EMPTY_STATE.metadata())));
 
         assertBusy(() -> {
-            assertThat(service.getGlobalModelSizeForTests("nlp-model"), nullValue());
+            OptionalLong modelSize = service.getGlobalModelSizeForTests("nlp-model");
+            assertThat(modelSize, notNullValue());
+            assertThat(modelSize.isPresent(), is(true));
+            assertThat(modelSize.getAsLong(), equalTo(0L));
             assertThat(service.getRequiredHeapBytes().heapBytes(), equalTo(0L));
             assertThat(service.getRequiredHeapBytes().isExact(), is(true));
         });
+    }
+
+    public void testPytorchModelReplacedByDfaModelShouldEventuallyContributeHeap() throws Exception {
+        TrainedModelConfig pytorchConfig = mock(TrainedModelConfig.class);
+        when(pytorchConfig.getModelSize()).thenReturn(100L);
+        when(pytorchConfig.getModelType()).thenReturn(TrainedModelType.PYTORCH);
+        TrainedModelConfig dfaConfig = mock(TrainedModelConfig.class);
+        when(dfaConfig.getModelSize()).thenReturn(200L);
+        when(dfaConfig.getModelType()).thenReturn(TrainedModelType.TREE_ENSEMBLE);
+
+        AtomicInteger fetchAttempts = new AtomicInteger();
+        doAnswer(invocation -> {
+            ActionListener<TrainedModelConfig> listener = invocation.getArgument(3);
+            if (fetchAttempts.incrementAndGet() == 1) {
+                listener.onResponse(pytorchConfig);
+            } else {
+                listener.onResponse(dfaConfig);
+            }
+            return null;
+        }).when(trainedModelProvider).getTrainedModel(eq("shared-model"), eq(GetTrainedModelsAction.Includes.empty()), any(), any());
+
+        ClusterState current = masterClusterState(withIngestModels(Map.of(PROJECT_A, "shared-model")));
+        service.clusterChanged(new ClusterChangedEvent("test", current, masterClusterState(ClusterState.EMPTY_STATE.metadata())));
+
+        assertBusy(() -> {
+            OptionalLong modelSize = service.getGlobalModelSizeForTests("shared-model");
+            assertThat(modelSize, notNullValue());
+            assertThat(modelSize.isPresent(), is(true));
+            assertThat(modelSize.getAsLong(), equalTo(0L));
+        });
+
+        reconcileWhenIdle();
+
+        assertBusy(() -> {
+            IngestModelMemoryProvider.HeapRequirement requirement = service.getRequiredHeapBytes();
+            assertThat(requirement.heapBytes(), equalTo(200L));
+            assertThat(requirement.isExact(), is(true));
+        });
+        assertThat(fetchAttempts.get(), equalTo(2));
     }
 
     public void testNotYetIndexedModelShouldRetryAfterNotFound() throws Exception {

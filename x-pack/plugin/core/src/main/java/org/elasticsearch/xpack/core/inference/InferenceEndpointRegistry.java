@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.core.inference;
 
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 
 import java.util.Objects;
@@ -34,6 +36,13 @@ public interface InferenceEndpointRegistry {
      * Registered inference-endpoint ids for the project (empty when inference plugin absent).
      */
     Set<String> inferenceEndpointIds(ProjectMetadata project);
+
+    /**
+     * Whether inference endpoint registry metadata changed for the project.
+     */
+    default boolean endpointMetadataChanged(ClusterChangedEvent event, ProjectId projectId) {
+        return false;
+    }
 
     final class Noop implements InferenceEndpointRegistry {
 

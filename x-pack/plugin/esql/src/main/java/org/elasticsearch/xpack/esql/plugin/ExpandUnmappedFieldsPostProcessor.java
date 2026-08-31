@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -58,6 +59,8 @@ import java.util.function.BiConsumer;
  * otherwise the leaves keep their natural real-then-alphabetical position. {@code RENAME} above a {@code KEEP} is transparent: the ordering
  * walk in {@code DetermineUnmappedFieldsToKeep} descends through it, and {@code ResolvingProject.computeProjections} preserves the
  * {@code _unmapped_fields} position so that {@code EVAL}-added columns that appear after it in the schema always trail the expanded leaves.
+ * Query columns following {@code $$unmapped_fields} ({@code INLINE STATS} aggregates, {@code EVAL} aliases) stay before approximation
+ * confidence-interval columns, which always trail the expanded leaves.
  * <p>
  * TODO every row's {@code _source} ends up parsed three times: the data node parses it to filter the column, then the
  *  coordinator parses the column once to collect field names and once more to expand them. A columnar shape — one block of
@@ -105,7 +108,8 @@ class ExpandUnmappedFieldsPostProcessor {
                 result.attributeMetadata(),
                 result.configuration(),
                 result.completionInfo(),
-                result.executionInfo()
+                result.executionInfo(),
+                result.approximationApplied()
             );
             success = true;
             return expanded;
@@ -189,6 +193,11 @@ class ExpandUnmappedFieldsPostProcessor {
 
     /**
      * Builds the expanded output layout: the final column order plus, per column, which block feeds it.
+     * <p>
+     * Column ordering: non-approximation columns before {@code _unmapped_fields} (in schema order), then non-approximation columns
+     * after {@code _unmapped_fields}, then the expanded leaves, then approximation columns. When a governing {@code KEEP} is present
+     * (carried as {@code keepOrder}), {@link UnmappedFieldsPattern#keepOrdered} re-derives the order of the non-approximation kept
+     * columns and the leaves; non-approximation appended columns and approximation columns always trail.
      */
     private static ExpandedLayout computeLayout(
         List<Attribute> schema,
@@ -199,15 +208,24 @@ class ExpandUnmappedFieldsPostProcessor {
     ) {
         int originalColumnCount = schema.size();
         List<String> keptRealNames = new ArrayList<>();
-        List<String> appendedRealNames = new ArrayList<>();
+        List<String> appendedNonApproxNames = new ArrayList<>();
+        List<String> appendedApproxNames = new ArrayList<>();
         Map<String, Integer> nameToSchemaIdx = new HashMap<>();
         // ResolvingProject.computeProjections pins the synthetic attribute right after the governing KEEP's projections, so a real
         // column before unmappedIdx was KEEP-selected (order is replayable) and one after it was appended by a later EVAL (must trail).
+        // Approximation columns always trail the expanded leaves regardless of where they appear in the input schema.
         for (int i = 0; i < originalColumnCount; i++) {
-            if (i != unmappedIdx) {
-                String name = schema.get(i).name();
-                nameToSchemaIdx.put(name, i);
-                (i < unmappedIdx ? keptRealNames : appendedRealNames).add(name);
+            if (i == unmappedIdx) {
+                continue;
+            }
+            String name = schema.get(i).name();
+            nameToSchemaIdx.put(name, i);
+            if (ApproximationPlan.isApproximationColumn(name)) {
+                appendedApproxNames.add(name);
+            } else if (i < unmappedIdx) {
+                keptRealNames.add(name);
+            } else {
+                appendedNonApproxNames.add(name);
             }
         }
         Map<String, Integer> leafNameToIdx = new HashMap<>();
@@ -217,11 +235,12 @@ class ExpandUnmappedFieldsPostProcessor {
 
         List<String> orderedNames;
         if (keepOrder.isEmpty()) {
-            // No governing KEEP: natural order - every real column in schema order, then the expanded leaves.
+            // No governing KEEP: natural order - every real column in schema order, then the expanded leaves, then approximation.
             orderedNames = new ArrayList<>(originalColumnCount - 1 + leafNames.size());
             orderedNames.addAll(keptRealNames);
-            orderedNames.addAll(appendedRealNames);
+            orderedNames.addAll(appendedNonApproxNames);
             orderedNames.addAll(leafNames);
+            orderedNames.addAll(appendedApproxNames);
         } else {
             List<String> originalKeptNames = new ArrayList<>(keptRealNames.size());
             for (String actual : keptRealNames) {
@@ -238,11 +257,12 @@ class ExpandUnmappedFieldsPostProcessor {
                     originalToActual.put(e.getValue(), e.getKey()); // original → actual
                 }
             }
-            orderedNames = new ArrayList<>(orderedOriginals.size() + appendedRealNames.size());
+            orderedNames = new ArrayList<>(orderedOriginals.size() + appendedNonApproxNames.size() + appendedApproxNames.size());
             for (String orig : orderedOriginals) {
                 orderedNames.add(originalToActual.getOrDefault(orig, orig));
             }
-            orderedNames.addAll(appendedRealNames);
+            orderedNames.addAll(appendedNonApproxNames);
+            orderedNames.addAll(appendedApproxNames);
         }
 
         List<Attribute> newSchema = new ArrayList<>(orderedNames.size());

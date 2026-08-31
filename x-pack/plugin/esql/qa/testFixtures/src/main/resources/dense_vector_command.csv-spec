@@ -212,3 +212,48 @@ FROM books
 book_no:keyword | publisher_dense_vector:dense_vector
 2924            | [45.0, 56.0, 48.0]
 ;
+
+
+// An explicit text type is equivalent to the default: the input is embedded as text.
+dense_vector command with explicit text type
+required_capability: dense_vector_command_v2
+required_capability: dense_vector_field_type_released
+
+ROW input = "Who is Victor Hugo?"
+| DENSE_VECTOR input WITH { "inference_id" : "test_dense_inference", "type" : "text" }
+;
+
+input:keyword       | input_dense_vector:dense_vector
+Who is Victor Hugo? | [56.0, 50.0, 48.0]
+;
+
+
+// A text input runs against an embedding (multimodal) endpoint. The "test_embedding_inference" mock embeds
+// text the same way as the text_embedding mock, so the vector matches the text-type result.
+dense_vector command text runs against an embedding endpoint
+required_capability: dense_vector_command_v2
+required_capability: dense_vector_field_type_released
+
+ROW input = "Who is Victor Hugo?"
+| DENSE_VECTOR input WITH { "inference_id" : "test_embedding_inference", "type" : "text" }
+;
+
+input:keyword       | input_dense_vector:dense_vector
+Who is Victor Hugo? | [56.0, 50.0, 48.0]
+;
+
+
+// An image input is a base64 data URI embedded through a multimodal endpoint. The "test_embedding_inference"
+// mock decodes the base64 payload back to its text, embeds it, and negates the vector for image inputs.
+// The payload decodes to "Who is Victor Hugo?", whose text vector is [56.0, 50.0, 48.0].
+dense_vector command with image type
+required_capability: dense_vector_command_v2
+required_capability: dense_vector_field_type_released
+
+ROW input = "data:image/jpeg;base64,V2hvIGlzIFZpY3RvciBIdWdvPw=="
+| DENSE_VECTOR input WITH { "inference_id" : "test_embedding_inference", "type" : "image" }
+;
+
+input:keyword                                          | input_dense_vector:dense_vector
+data:image/jpeg;base64,V2hvIGlzIFZpY3RvciBIdWdvPw==    | [-56.0, -50.0, -48.0]
+;

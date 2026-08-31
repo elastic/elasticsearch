@@ -62,6 +62,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 
 /**
  * Unit tests for {@link ParquetColumnExtractor}: random-access reads of single columns by
@@ -453,6 +454,43 @@ public class ParquetColumnExtractorTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    /**
+     * The deferred sparse-lookup path drops null list elements for the same reason the eager scan does — an ES|QL
+     * multivalue cannot hold null — so it must announce the loss for the same reason too. Without this the answer a
+     * query gets would depend on whether extraction was deferred, which is the one thing the extractor exists to
+     * rule out. The notice must also name the attribute the query used, not the physical leaf path
+     * {@code vals.list.element}.
+     */
+    public void testExtractListColumnAnnouncesDroppedNullElements() throws IOException {
+        org.apache.parquet.schema.Type intList = Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT32).named("vals");
+        byte[] data = writeFile(new MessageType("ints_list", intList), factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 10; i++) {
+                Group g = factory.newGroup();
+                Group vals = g.addGroup("vals");
+                vals.addGroup("list").append("element", i);
+                vals.addGroup("list"); // null element
+                groups.add(g);
+            }
+            return groups;
+        }, 64 * 1024 * 1024L);
+        StorageObject so = createStorageObject(data);
+        try (ColumnExtractor extractor = newFullFileExtractor(so)) {
+            // Non-adjacent positions so decodeList makes several readListColumn calls: the notice is still one line.
+            try (Block block = extractor.extract("vals", new long[] { 1, 4, 9 }, blockFactory)) {
+                IntBlock ints = (IntBlock) block;
+                assertEquals(3, ints.getPositionCount());
+                for (int slot = 0; slot < 3; slot++) {
+                    assertEquals("the null element is dropped", 1, ints.getValueCount(slot));
+                }
+            }
+        }
+        List<String> warnings = drainWarnings();
+        assertThat(warnings, hasItem(ParquetColumnDecoding.nullListElementsMessage("vals")));
+        assertThat(warnings, hasItem(ParquetColumnDecoding.NULL_LIST_ELEMENTS_SUMMARY));
+        assertEquals("one summary + one detail, not one per decoded run: " + warnings, 2, warnings.size());
     }
 
     public void testExtractListAcrossRowGroupsWithDuplicates() throws IOException {

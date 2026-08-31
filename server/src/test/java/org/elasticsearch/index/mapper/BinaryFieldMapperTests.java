@@ -215,7 +215,7 @@ public class BinaryFieldMapperTests extends MapperTestCase {
 
                 var outList = values.stream()
                     .map(Tuple::v2)
-                    .map(BytesCompareUnsigned::new)
+                    .map(BytesRef::new)
                     .collect(Collectors.toSet())
                     .stream()
                     .sorted()
@@ -247,13 +247,6 @@ public class BinaryFieldMapperTests extends MapperTestCase {
 
                 if (rarely()) {
                     b.field("store", false);
-                }
-            }
-
-            private record BytesCompareUnsigned(byte[] bytes) implements Comparable<BytesCompareUnsigned> {
-                @Override
-                public int compareTo(BytesCompareUnsigned o) {
-                    return Arrays.compareUnsigned(bytes, o.bytes);
                 }
             }
         };

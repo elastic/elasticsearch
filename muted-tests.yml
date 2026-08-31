@@ -106,9 +106,6 @@ tests:
 - class: org.elasticsearch.upgrades.XpackSystemIndicesUpgradeIT
   method: testUpgradeSystemIndexAndDataStream {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/158123
-- class: org.elasticsearch.index.mapper.BinaryFieldMapperTests
-  method: testSyntheticSourceMany
-  issue: https://github.com/elastic/elasticsearch/issues/158124
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Put an outlier_detection job on the mixed cluster}
   issue: https://github.com/elastic/elasticsearch/issues/158132
